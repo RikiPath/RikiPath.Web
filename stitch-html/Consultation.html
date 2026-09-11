@@ -1,0 +1,172 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Tư vấn chuyên gia - RikiPath</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#d94b68",
+                        "primary-dark": "#b8324e",
+                        "bg-page": "#fff8f8",
+                        "surface": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#fdf1f3",
+                        "surface-container-low": "#fff4f6",
+                        "surface-container-high": "#fae6ea",
+                        "surface-container-highest": "#f4dae0",
+                        "border-base": "#f2dfe3",
+                        "outline": "#d6bac0",
+                        "outline-variant": "#f2dfe3",
+                        "on-surface": "#2d2627",
+                        "text-secondary": "#7a6e71",
+                        "on-surface-variant": "#7a6e71",
+                        "on-primary": "#ffffff",
+                        "bg-soft-red": "#fdf1f3",
+                        "secondary": "#805062",
+                        "secondary-fixed": "#ffd9e4",
+                        "tertiary": "#366800"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "margin-mobile": "16px",
+                        "base": "8px",
+                        "md": "16px",
+                        "xl": "32px",
+                        "gutter": "16px",
+                        "sm": "12px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Plus Jakarta Sans"],
+                        "title-sm": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "label-xs": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-xs": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "support-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "title-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "display-lg-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-bg-page text-on-surface antialiased flex min-h-screen overflow-x-hidden">
+<!-- TopNavBar (Mobile Only) -->
+<nav class="md:hidden flex justify-between items-center px-margin-mobile w-full h-16 bg-surface border-b border-border-base sticky top-0 z-50 shadow-sm transition-all duration-200 active:scale-95">
+<div class="font-display-lg-mobile text-display-lg-mobile font-bold text-primary">
+            RikiPath Consultation
+        </div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-text-secondary cursor-pointer hover:text-primary transition-colors" data-icon="notifications">notifications</span>
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full object-cover border border-border-base" data-alt="A small, circular user profile avatar showing a modern, professional, softly lit headshot against a clean, light background. Minimalist styling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0E7nU0PmesZkWgs8CtczjdYWxAPGB3FaNVrOfuY6enzbSn0caEswADM-yv_XKDNwMlKkxIaLV5miDwPLGxxcw0oq34cKn1zsTzDrKjfZOQZuVR-_QzGn-Te7NcP-urO4j79lnwDQsNT5PPUvDwtJoleH7whVhFRSj_O-5YG0g4N2nEzoxAtQY52cFXdpDWPKR4SJqlWHRrNtnJDLjPb6wdORn-4fVHd2pU-t6R2pESvQ-6hgqKeZUDA">
+</div>
+</nav>
+<!-- SideNavBar (Desktop Only) -->
+<aside class="hidden md:flex flex-col h-screen py-lg px-md w-64 fixed left-0 top-0 bg-surface border-r border-border-base z-40">
+<div class="flex items-center gap-sm mb-xl px-sm">
+<img alt="Student Portrait" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20" data-alt="A small, circular student portrait avatar showing a bright, friendly face in a modern e-learning context, soft lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1rEBdofcr03ICOlXMbZQ4R1Alv6h6k77VqNg6kujnfyZ-g_Pz6-9dozYx4IlkBPcj7TZ-zEN921FtO4lzoYhOg0BYZMelBGE9VnH15zF0uax1pAasZx8SQpt0f8sf8s6GTEWBaWHUFhmtsaOghGa-XxKfLxvfAP5DYzIQhq4fJFZwJTAUoNSvmVe9qoutTzB3WCttq42EMyKQubCyCfQ1cf5SyO3pdHq6ITeXcThHJC9ePbaL2ROl2Q">
+<div>
+<h2 class="font-title-sm text-title-sm font-bold text-primary">Learner Center</h2>
+<p class="font-label-xs text-label-xs text-text-secondary">Manage your path</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-xs">
+<a class="flex items-center gap-sm px-sm py-sm rounded-lg text-text-secondary hover:bg-surface-container hover:text-primary transition-colors duration-150 ease-in-out font-label-xs text-label-xs" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-sm px-sm py-sm rounded-lg text-text-secondary hover:bg-surface-container hover:text-primary transition-colors duration-150 ease-in-out font-label-xs text-label-xs" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+                Schedule
+            </a>
+<a class="flex items-center gap-sm px-sm py-sm rounded-lg bg-surface-container text-primary font-bold transition-all duration-150 ease-in-out font-label-xs text-label-xs border border-border-base" href="#">
+<span class="material-symbols-outlined" data-icon="payments" data-weight="fill" style="font-variation-settings: 'FILL' 1;">payments</span>
+                Packages
+            </a>
+<a class="flex items-center gap-sm px-sm py-sm rounded-lg text-text-secondary hover:bg-surface-container hover:text-primary transition-colors duration-150 ease-in-out font-label-xs text-label-xs" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+                History
+            </a>
+<a class="flex items-center gap-sm px-sm py-sm rounded-lg text-text-secondary hover:bg-surface-container hover:text-primary transition-colors duration-150 ease-in-out font-label-xs text-label-xs" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+</nav>
+<div class="mt-auto flex flex-col gap-sm">
+<button class="w-full bg-primary text-on-primary rounded-full py-sm font-title-sm text-title-sm hover:bg-primary-dark transition-colors shadow-sm shadow-primary/20">Book Now</button>
+<a class="flex items-center gap-sm px-sm py-xs text-text-secondary hover:bg-surface-container hover:text-primary rounded-lg transition-colors font-label-xs text-label-xs" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+                Help Center
+            </a>
+<a class="flex items-center gap-sm px-sm py-xs text-text-secondary hover:bg-surface-container hover:text-primary rounded-lg transition-colors font-label-xs text-label-xs" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 w-full max-w-7xl mx-auto flex flex-col">
+<!-- TopNavBar Desktop Cluster (Inside Main to avoid fixed overlap) -->
+<header class="hidden md:flex justify-between items-center px-margin-desktop w-full h-16 bg-surface/90 backdrop-blur border-b border-border-base shadow-sm sticky top-0 z-30 transition-all duration-200">
+<div class="font-display-lg text-display-lg font-bold text-primary flex items-center gap-2">
+<span>RikiPath Consultation</span>
+<span class="text-xs px-2 py-0.5 rounded-full bg-surface-container text-primary font-medium border border-border-base">Sakura</span>
+</div>
+<nav class="flex gap-lg">
+<a class="font-body-md text-body-md text-text-secondary hover:text-primary transition-colors py-4" href="#">Services</a>
+<a class="font-body-md text-body-md text-primary font-bold border-b-2 border-primary py-4" href="#">Packages</a>
+<a class="font-body-md text-body-md text-text-secondary hover:text-primary transition-colors py-4" href="#">Consultants</a>
+<a class="font-body-md text-body-md text-text-secondary hover:text-primary transition-colors py-4" href="#">My Bookings</a>
+</nav>
+<div class="flex items-center gap-md">
+<button class="text-text-secondary hover:text-primary transition-colors font-body-md text-body-md">Support</button>
+<button class="bg-primary text-on-primary rounded-full px-lg py-sm font-body-md text-body-md hover:bg-primary-dark transition-colors shadow-sm shadow-primary/25">Sign In</button>
+<span class="material-symbols-outlined text-text-secondary cursor-pointer hover:text-primary transition-colors" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined text-text-secondary cursor-pointer hover:text-primary transition-colors" data-icon="help_outline">help_outline</span>
+</div>
+</header>
+<div class="p-margin-mobile md:p-margin-desktop flex flex-col gap-xl">
+<!-- Hero Section -->
+<section class="bg-surface rounded-xl p-lg md:p-xl border border-border-base shadow-[0_4px_16px_rgba(217,75,104,0.06)] relative overflow-hidden">
+<div class="absolute -top-16 -right-16 w-80 h-80 bg-surface-container opacity-80 rounded-full -z-10 blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-10 right-20 w-48 h-48 bg-primary/10 rounded-full -z-10 blur-2xl pointer-events-none"></div>
+<div class="max-w-2xl z-10 relative">
+<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container border border-border-base text-primary text-xs font-semibold mb-3">
+<span>🌸</span>
+<span>Chương trình đồng hành tiếng Nhật</span>
+</div>
+<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg font-bold text-on-surface mb-sm">Tư vấn chuyên gia 1-1</h1>
+<p class="font-body-md text-body-md text-text-secondary mb-lg">Giải quyết khó khăn, bứt phá lộ trình JLPT cùng đội ngũ giáo viên giàu kinh nghiệm.</p>
+<button class="bg-primary text-on-primary rounded-full px-xl py-sm font-title-sm text-title-sm hover:bg-primary-dark transition-all duration-200 shadow-md shadow-primary/25 hover:shadow-lg hover:shadow-primary/35 flex items-center gap-2">
+<span>Bắt đầu ngay</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</div>
+</section>
+</div>
+</main>
+</body></html>

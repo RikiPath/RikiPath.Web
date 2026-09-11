@@ -1,0 +1,762 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>RikiPath - Studio Luyện viết Sakurabito</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Noto+Serif+JP:wght@400;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#E05A7A', // Deep Cherry Blossom Pink
+              hover: '#C84867',
+              light: '#FCE7ED',
+              accent: '#F8BBD0', // Soft Sakura
+              surface: '#FFF7F9',
+            },
+            warm: {
+              bg: '#FAF7F5', // Warm Cream Neutral
+              card: '#FFFFFF',
+              border: '#EADFD9',
+              hover: '#F4EEEA',
+            },
+            charcoal: {
+              DEFAULT: '#2D282A', // Charcoal Slate text
+              secondary: '#6F6669', // Secondary text
+              muted: '#9E9498',
+            },
+            leaf: {
+              DEFAULT: '#2E7D47',
+              bg: '#EAF7EE',
+              border: '#C3E7CB',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            jp: ['"Noto Serif JP"', 'serif'],
+          },
+          boxShadow: {
+            subtle: '0 2px 12px -2px rgba(45, 40, 42, 0.04), 0 1px 3px 0 rgba(45, 40, 42, 0.03)',
+            elevated: '0 10px 25px -5px rgba(224, 90, 122, 0.08), 0 4px 10px -2px rgba(45, 40, 42, 0.03)',
+            card: '0 4px 20px -3px rgba(45, 40, 42, 0.05)',
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #FAF7F5;
+      color: #2D282A;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #EADFD9;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #D5C5BE;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex bg-warm-bg">
+<!-- ================================================================= -->
+<!-- 1. LEFT SIDEBAR (w-64 fixed desktop navigation)                   -->
+<!-- ================================================================= -->
+<aside class="w-64 fixed inset-y-0 left-0 bg-white border-r border-warm-border z-40 flex flex-col justify-between select-none">
+<div class="flex flex-col">
+<!-- Brand Logo Header -->
+<div class="h-20 flex items-center px-6 border-b border-warm-border/60">
+<a class="flex items-center gap-3 group" href="#">
+<div class="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand group-hover:scale-105 transition-transform duration-200 shadow-sm">
+<span class="material-symbols-outlined text-24">spa</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xl font-extrabold tracking-tight text-charcoal font-sans flex items-center gap-1">
+              RikiPath <span class="w-1.5 h-1.5 rounded-full bg-brand"></span>
+</span>
+<span class="text-[10px] tracking-widest font-semibold uppercase text-charcoal-muted">Nihongo AI Studio</span>
+</div>
+</a>
+</div>
+<!-- Navigation Menu -->
+<div class="p-4 space-y-1">
+<div class="px-3 pb-2 pt-2 text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">
+          Không gian học tập
+        </div>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-charcoal-secondary hover:text-charcoal hover:bg-warm-hover transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span>Tổng quan</span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-charcoal-secondary hover:text-charcoal hover:bg-warm-hover transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">map</span>
+<span>Khám phá &amp; Lộ trình</span>
+</a>
+<!-- Active Menu Item: Luyện tập AI -->
+<a class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold bg-brand-light text-brand border border-brand/20 shadow-sm" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[20px] text-brand">edit_note</span>
+<span>Luyện tập AI</span>
+</div>
+<span class="w-2 h-2 rounded-full bg-brand animate-pulse"></span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-charcoal-secondary hover:text-charcoal hover:bg-warm-hover transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">menu_book</span>
+<span>Kho học liệu</span>
+<span class="ml-auto text-[10px] bg-warm-hover text-charcoal-secondary px-1.5 py-0.5 rounded font-bold">N3</span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-charcoal-secondary hover:text-charcoal hover:bg-warm-hover transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">support_agent</span>
+<span>Tư vấn Chuyên gia</span>
+</a>
+</div>
+<!-- Quick Section: Luyện viết tiện ích -->
+<div class="px-4 pt-2">
+<div class="p-3.5 rounded-xl bg-warm-bg border border-warm-border text-xs space-y-2">
+<div class="flex items-center justify-between font-bold text-charcoal">
+<span class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-brand">auto_stories</span>
+              Chỉ tiêu tuần này
+            </span>
+<span class="text-brand">4/5 bài</span>
+</div>
+<div class="w-full bg-warm-border h-1.5 rounded-full overflow-hidden">
+<div class="bg-brand h-full rounded-full" style="width: 80%"></div>
+</div>
+<p class="text-[11px] text-charcoal-secondary leading-tight">
+            Hoàn thành bài viết hôm nay để giữ chuỗi liên tục!
+          </p>
+</div>
+</div>
+</div>
+<!-- Sidebar Bottom: Settings & Profile Mini -->
+<div class="p-4 border-t border-warm-border space-y-2">
+<a class="flex items-center gap-3 px-3.5 py-2 rounded-xl text-sm font-semibold text-charcoal-secondary hover:text-charcoal hover:bg-warm-hover transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span>Cài đặt hệ thống</span>
+</a>
+<div class="pt-2 flex items-center gap-3 px-2">
+<div class="relative">
+<div class="w-9 h-9 rounded-full bg-brand/15 text-brand font-bold flex items-center justify-center ring-2 ring-brand-accent/40 text-xs">
+            SK
+          </div>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+</div>
+<div class="flex flex-col leading-tight min-w-0 flex-1">
+<span class="text-xs font-bold text-charcoal truncate">Sakura Learner</span>
+<span class="text-[11px] text-brand font-medium truncate">JLPT N3 Path • Pro</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- ================================================================= -->
+<!-- 2. MAIN LAYOUT WRAPPER (Offset by sidebar w-64)                   -->
+<!-- ================================================================= -->
+<div class="pl-64 flex-1 flex flex-col min-w-0">
+<!-- Top Sticky Header -->
+<header class="sticky top-0 z-30 h-20 bg-warm-bg/90 backdrop-blur-md border-b border-warm-border flex items-center justify-between px-8">
+<!-- Breadcrumb Navigation -->
+<div class="flex items-center gap-2 text-sm text-charcoal-secondary">
+<span class="flex items-center gap-1.5 hover:text-charcoal transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-[18px]">psychology</span>
+<span>Luyện tập AI</span>
+</span>
+<span class="text-warm-border font-bold">/</span>
+<span class="font-semibold text-brand flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+          Studio Luyện viết câu Sakurabito
+        </span>
+</div>
+<!-- Header Tools: Search + Notif + User -->
+<div class="flex items-center gap-4">
+<!-- Global Search Bar with Ctrl+K -->
+<div class="relative hidden sm:flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-charcoal-muted text-[18px]">search</span>
+<input class="w-72 h-10 pl-9 pr-14 rounded-full bg-white border border-warm-border text-xs text-charcoal placeholder:text-charcoal-muted focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all shadow-subtle" placeholder="Tìm kiếm ngữ pháp, từ vựng, bài nộp..." type="text">
+<span class="absolute right-2.5 px-1.5 py-0.5 rounded bg-warm-bg border border-warm-border text-[10px] font-bold text-charcoal-muted tracking-wider">
+            ⌘K
+          </span>
+</div>
+<!-- Notification Bell -->
+<button class="relative w-10 h-10 rounded-full bg-white border border-warm-border flex items-center justify-center text-charcoal-secondary hover:text-brand hover:border-brand-accent transition-colors shadow-subtle" title="Thông báo mới">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand ring-2 ring-white"></span>
+</button>
+<!-- JLPT Goal Pill -->
+<div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-warm-border shadow-subtle">
+<span class="w-2 h-2 rounded-full bg-leaf"></span>
+<span class="text-xs font-bold text-charcoal">Kỳ thi JLPT N3: <strong>72 ngày</strong></span>
+</div>
+</div>
+</header>
+<!-- Content Container (Targeted 1440px desktop grid canvas) -->
+<main class="w-full max-w-[1440px] mx-auto px-8 py-8 space-y-8">
+<!-- ============================================================= -->
+<!-- A. HERO TITLE & TARGET LEVEL BANNER                           -->
+<!-- ============================================================= -->
+<section class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white border border-warm-border rounded-2xl p-6 lg:p-8 shadow-subtle relative overflow-hidden">
+<!-- Ambient Cherry Blossom accent circle -->
+<div class="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-brand-light/60 blur-3xl pointer-events-none"></div>
+<div class="space-y-2 max-w-3xl relative z-10">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-light text-brand text-xs font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">draw</span>
+            Studio Luyện viết Sakurabito • 日本語作文
+          </div>
+<h1 class="text-3xl font-extrabold text-charcoal tracking-tight">
+            Studio Luyện viết Câu &amp; Chấm điểm Tức thì
+          </h1>
+<p class="text-sm text-charcoal-secondary leading-relaxed">
+            Rèn giũa tư duy diễn đạt tiếng Nhật bản xứ theo triết lý <span class="font-bold text-charcoal italic">Ma (間)</span> kết hợp mô hình AI Haru phân tích kính ngữ và văn phong chuẩn Tokyo Native.
+          </p>
+</div>
+<!-- Target Level Card & Evaluator Status -->
+<div class="flex items-center gap-4 relative z-10">
+<div class="px-4 py-3 rounded-xl bg-warm-bg border border-warm-border flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center shadow-md shadow-brand/20">
+<span class="material-symbols-outlined text-[22px]">school</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[11px] font-bold text-charcoal-muted uppercase tracking-wider">Mục tiêu cấp độ</span>
+<span class="text-base font-extrabold text-charcoal">JLPT N3 / Business</span>
+</div>
+</div>
+<div class="hidden sm:flex flex-col gap-1.5">
+<div class="px-3 py-1 rounded-full bg-leaf-bg border border-leaf-border text-leaf text-xs font-bold flex items-center gap-1.5 shadow-sm">
+<span class="w-2 h-2 rounded-full bg-leaf animate-ping"></span>
+<span>AI Evaluator Pro v2.4</span>
+</div>
+<div class="text-[11px] text-charcoal-muted text-right font-medium flex items-center justify-end gap-1">
+<span class="material-symbols-outlined text-[14px] text-brand">bolt</span>
+              Phản hồi &lt; 0.8s
+            </div>
+</div>
+</div>
+</section>
+<!-- ============================================================= -->
+<!-- B. PROMPT CARD: ĐỀ BÀI THỰC HÀNH HÔM NAY                     -->
+<!-- ============================================================= -->
+<section class="bg-white border border-warm-border rounded-2xl p-6 shadow-subtle flex flex-col md:flex-row items-start gap-5">
+<div class="w-12 h-12 rounded-xl bg-brand-light text-brand flex-shrink-0 flex items-center justify-center border border-brand-accent/50">
+<span class="material-symbols-outlined text-[26px]">assignment</span>
+</div>
+<div class="space-y-3 flex-1">
+<div class="flex flex-wrap items-center gap-2.5">
+<span class="px-2.5 py-0.5 rounded-full bg-brand text-white text-[11px] font-bold uppercase tracking-wider">
+              Thực hành trọng tâm
+            </span>
+<span class="text-xs font-semibold text-charcoal-secondary">
+              Cấu trúc: <strong class="text-brand font-bold">〜わけにはいかない</strong> (Không thể nào / Về mặt đạo lý &amp; trách nhiệm không cho phép)
+            </span>
+</div>
+<p class="text-base font-bold text-charcoal leading-relaxed">
+            “Hãy viết một đoạn văn ngắn (3-4 câu) bằng tiếng Nhật sử dụng cấu trúc ngữ pháp <span class="text-brand underline decoration-brand-accent decoration-2 underline-offset-4">〜わけにはいかない</span> để giải thích lý do bạn không thể tham gia tiệc ngắm hoa anh đào (Hanami) cùng đồng nghiệp công ty vào cuối tuần này.”
+          </p>
+<!-- Keyword suggestions chips -->
+<div class="flex flex-wrap items-center gap-2 pt-1">
+<span class="text-xs font-semibold text-charcoal-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">sell</span>
+              Gợi ý từ khóa:
+            </span>
+<button class="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onclick="insertKeyword('花見')">
+              花見 <span class="text-[11px] text-charcoal-muted font-normal">(Hanami)</span>
+</button>
+<button class="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onclick="insertKeyword('休日出勤')">
+              休日出勤 <span class="text-[11px] text-charcoal-muted font-normal">(Đi làm ngày nghỉ)</span>
+</button>
+<button class="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onclick="insertKeyword('参加する')">
+              参加する <span class="text-[11px] text-charcoal-muted font-normal">(Tham gia)</span>
+</button>
+<button class="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onclick="insertKeyword('申し訳ございません')">
+              申し訳ございません <span class="text-[11px] text-charcoal-muted font-normal">(Rất xin lỗi)</span>
+</button>
+</div>
+</div>
+</section>
+<!-- ============================================================= -->
+<!-- C. 12-COLUMN WORKSPACE: LEFT EDITOR (7) & RIGHT AI HARU (5)   -->
+<!-- ============================================================= -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- =========================================================== -->
+<!-- LEFT COLUMN: RICH WRITING WORKSPACE (7 Cols)                -->
+<!-- =========================================================== -->
+<div class="lg:col-span-7 space-y-6">
+<div class="bg-white border border-warm-border rounded-2xl p-6 shadow-subtle flex flex-col justify-between">
+<!-- Toolbar: Mode Switch + Audio + Character counter -->
+<div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-warm-border/60">
+<div class="flex items-center gap-1.5 p-1 rounded-xl bg-warm-bg border border-warm-border">
+<button class="px-3 py-1 rounded-lg bg-white text-brand font-bold text-xs shadow-sm" id="btn-kana-tab">
+                  Romaji → Kana
+                </button>
+<button class="px-3 py-1 rounded-lg text-charcoal-secondary hover:text-charcoal font-semibold text-xs transition-colors" id="btn-kanji-tab">
+                  Kanji gợi ý
+                </button>
+<button class="px-3 py-1 rounded-lg text-charcoal-secondary hover:text-charcoal font-semibold text-xs transition-colors" id="btn-sample-tab">
+                  Nạp câu mẫu
+                </button>
+</div>
+<div class="flex items-center gap-3">
+<button class="w-9 h-9 rounded-xl bg-warm-bg hover:bg-brand-light text-charcoal-secondary hover:text-brand border border-warm-border hover:border-brand-accent flex items-center justify-center transition-all" id="btn-speak" title="Phát âm đoạn văn Nhật">
+<span class="material-symbols-outlined text-[20px]">volume_up</span>
+</button>
+<div class="px-3 py-1 rounded-full bg-warm-bg border border-warm-border text-xs font-semibold text-charcoal-secondary">
+<span class="text-brand font-bold" id="char-counter">111</span> / 200 ký tự
+                </div>
+</div>
+</div>
+<!-- Writing Textarea Area -->
+<div class="relative my-4">
+<textarea class="w-full bg-warm-bg/40 border border-warm-border rounded-xl p-4 text-base font-medium text-charcoal leading-relaxed placeholder:text-charcoal-muted focus:outline-none focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all resize-none font-jp" id="writing-input" placeholder="Hãy gõ câu trả lời của bạn bằng tiếng Nhật tại đây..." rows="7">今週末のお花見にお誘いいただき、本当にありがとうございます。ただ、月曜日の納品に向けて休日出勤をしなければならないため、残念ながら参加するわけにはいきません。せっかくの機会ですが、皆さんとご一緒できず申し訳ございません。</textarea>
+<!-- IME Indicator Pill -->
+<div class="absolute right-3 bottom-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-warm-border shadow-sm text-[11px] font-semibold text-charcoal-secondary pointer-events-none">
+<span class="material-symbols-outlined text-[14px] text-brand">keyboard</span>
+<span>IME Hiragana Active</span>
+</div>
+</div>
+<!-- Quick Japanese Conversion bar -->
+<div class="pt-1 pb-3 flex items-center gap-2 overflow-x-auto text-xs">
+<span class="text-charcoal-muted font-bold whitespace-nowrap text-[11px] uppercase tracking-wider">Gợi ý chuyển:</span>
+<button class="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onclick="insertKeyword('花見')">花見 [はなみ]</button>
+<button class="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onclick="insertKeyword('納品')">納品 [のうひん]</button>
+<button class="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onclick="insertKeyword('休日出勤')">休日出勤 [しゅっきん]</button>
+<button class="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onclick="insertKeyword('恐れ入ります')">恐れ入ります</button>
+</div>
+<!-- Action Bar -->
+<div class="pt-4 border-t border-warm-border/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-2 text-xs text-charcoal-secondary">
+<span class="material-symbols-outlined text-[16px] text-leaf">cloud_done</span>
+<span id="save-status">Đã tự động lưu nháp (15 giây trước)</span>
+</div>
+<div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+<button class="px-4 py-2.5 rounded-xl border border-warm-border hover:bg-warm-bg text-charcoal-secondary hover:text-charcoal text-xs font-bold transition-colors flex items-center gap-1.5" id="btn-clear-text">
+<span class="material-symbols-outlined text-[17px]">backspace</span>
+<span>Xóa bài</span>
+</button>
+<button class="px-4 py-2.5 rounded-xl border border-warm-border hover:bg-warm-bg text-charcoal-secondary hover:text-charcoal text-xs font-bold transition-colors flex items-center gap-1.5" id="btn-save-draft">
+<span class="material-symbols-outlined text-[17px]">bookmark</span>
+<span>Lưu bản nháp</span>
+</button>
+<button class="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-hover text-white text-xs font-bold shadow-md shadow-brand/30 hover:shadow-lg transition-all flex items-center gap-2 transform active:scale-95" id="btn-evaluate">
+<span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+<span>Chấm &amp; Phân tích tức thì</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Grammar Reference Cheat Sheet Card -->
+<div class="bg-white border border-warm-border rounded-2xl p-6 shadow-subtle space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-charcoal font-bold text-sm">
+<div class="w-7 h-7 rounded-lg bg-brand-light text-brand flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">menu_book</span>
+</div>
+<span>Cẩm nang ngữ pháp: 〜わけにはいかない</span>
+</div>
+<span class="text-xs font-bold text-brand bg-brand-light px-2.5 py-0.5 rounded-full">
+                JLPT N3 Trọng tâm
+              </span>
+</div>
+<p class="text-xs text-charcoal-secondary leading-relaxed">
+              Diễn đạt trạng thái người nói <em>rất muốn</em> hoặc <em>có thể</em> làm một hành động, nhưng do các chuẩn mực xã hội, lương tâm, lý do nghề nghiệp hoặc nghĩa vụ bắt buộc mà <strong>không thể nào thực hiện được</strong>. Khác biệt với <em>〜できない</em> (chỉ năng lực thuần túy).
+            </p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+<div class="p-3 rounded-xl bg-warm-bg border border-warm-border space-y-1">
+<span class="text-xs font-bold text-brand block">1. Khẳng định: V-ru + わけにはいかない</span>
+<p class="text-[11px] text-charcoal-secondary leading-normal">
+                  Vì lý do đạo đức, danh dự hay công việc nên <strong>KHÔNG THỂ LÀM</strong> dù rất muốn.
+                </p>
+<span class="text-[11px] font-jp text-charcoal font-semibold block pt-0.5">例: 大事な会議だから休むわけにはいかない。</span>
+</div>
+<div class="p-3 rounded-xl bg-warm-bg border border-warm-border space-y-1">
+<span class="text-xs font-bold text-leaf block">2. Phủ định: V-nai + わけにはいかない</span>
+<p class="text-[11px] text-charcoal-secondary leading-normal">
+                  Vì bổn phận và trách nhiệm ràng buộc nên <strong>PHẢI LÀM</strong> (không thể không làm).
+                </p>
+<span class="text-[11px] font-jp text-charcoal font-semibold block pt-0.5">例: 頼まれた仕事だから、やらないわけにはいかない。</span>
+</div>
+</div>
+</div>
+</div>
+<!-- =========================================================== -->
+<!-- RIGHT COLUMN: REAL-TIME AI ANALYSIS CARD (5 Cols)           -->
+<!-- =========================================================== -->
+<div class="lg:col-span-5 space-y-6">
+<div class="bg-white border border-warm-border rounded-2xl p-6 shadow-card space-y-6 relative overflow-hidden">
+<!-- Subtle decorative background gradient -->
+<div class="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-brand-accent/20 blur-2xl pointer-events-none"></div>
+<!-- Sensei Header + Score Badge -->
+<div class="flex items-center justify-between pb-4 border-b border-warm-border/60">
+<div class="flex items-center gap-3">
+<div class="relative">
+<div class="w-12 h-12 rounded-2xl bg-brand-light text-brand border border-brand-accent flex items-center justify-center shadow-sm font-bold">
+<span class="material-symbols-outlined text-[26px]">psychology</span>
+</div>
+<span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-leaf ring-2 ring-white"></span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<h3 class="font-extrabold text-charcoal text-base">Haru Sensei AI</h3>
+<span class="material-symbols-outlined text-brand text-[17px]" title="Chuyên gia thẩm định đạt chuẩn">verified</span>
+</div>
+<span class="text-xs text-charcoal-secondary font-medium">Chuyên gia ngôn ngữ • Tokyo Native</span>
+</div>
+</div>
+<!-- Score Pill Badge -->
+<div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-brand-light border border-brand-accent">
+<div class="flex flex-col text-right">
+<span class="text-[10px] font-extrabold uppercase tracking-wider text-brand">Điểm Haru</span>
+<div class="text-2xl font-black text-brand leading-none">
+                    9.2<span class="text-xs font-semibold text-charcoal-secondary">/10</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-brand text-[24px]">workspace_premium</span>
+</div>
+</div>
+<!-- Interactive Highlight Annotation -->
+<div class="space-y-2">
+<div class="flex items-center justify-between text-xs">
+<span class="font-bold text-charcoal uppercase tracking-wider text-[11px]">Phân tích văn phong trực quan</span>
+<span class="text-leaf font-bold flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-leaf"></span>
+                  Độ tự nhiên: Rất cao
+                </span>
+</div>
+<!-- Visual Highlighting Container -->
+<div class="p-4 rounded-xl bg-warm-bg border border-warm-border font-jp text-sm text-charcoal leading-relaxed space-y-2">
+<p>
+                  今週末のお花見に<span class="bg-leaf-bg text-leaf px-1.5 py-0.5 rounded border border-leaf-border font-medium">お誘いいただき</span>、本当にありがとうございます。ただ、月曜日の納品に向けて<span class="bg-leaf-bg text-leaf px-1.5 py-0.5 rounded border border-leaf-border font-medium">休日出勤をしなければならないため</span>、残念ながら<span class="bg-brand-light text-brand px-1.5 py-0.5 rounded border border-brand-accent font-bold underline decoration-brand decoration-2">参加するわけにはいきません</span>。せっかくの機会ですが、皆さんとご一緒できず申し訳ございません。
+                </p>
+</div>
+<!-- Annotation Legend Tags -->
+<div class="flex flex-wrap items-center gap-2 pt-1">
+<span class="px-2.5 py-1 rounded-full bg-leaf-bg border border-leaf-border text-leaf text-[11px] font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+                  Kính ngữ trang nhã chuẩn mực
+                </span>
+<span class="px-2.5 py-1 rounded-full bg-brand-light border border-brand-accent text-brand text-[11px] font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">task_alt</span>
+                  Áp dụng đúng ngữ cảnh 〜わけにはいかない
+                </span>
+</div>
+</div>
+<!-- Detailed Sensei Feedback -->
+<div class="p-4 rounded-xl bg-warm-bg border border-warm-border space-y-2">
+<div class="flex items-center gap-2 text-brand font-bold text-xs">
+<span class="material-symbols-outlined text-[18px]">troubleshoot</span>
+<span>Lời bình chi tiết của Haru</span>
+</div>
+<p class="text-xs text-charcoal-secondary leading-relaxed">
+                Bạn sử dụng cấu trúc <strong class="text-charcoal font-semibold">参加するわけにはいきません</strong> hoàn toàn chuẩn xác theo tiêu chuẩn ngữ pháp JLPT N3, thể hiện được sự bứt rứt vì công việc ưu tiên. Tuy nhiên, trong văn hóa công ty Nhật Bản (Business Etiquette), bạn có thể nâng cấp sắc thái đuôi câu:
+              </p>
+<div class="pt-1 pl-2 border-l-2 border-brand space-y-1">
+<p class="text-xs text-charcoal leading-snug">
+                  Thay vì <em>いきません</em>, hãy cân nhắc <strong class="text-brand font-semibold">お受けするわけにはまいりません</strong> hoặc <strong class="text-brand font-semibold">参加いたしかねます</strong> để đạt phong thái khiêm nhường chuẩn Business Keigo cấp độ cao.
+                </p>
+</div>
+</div>
+<!-- Bản nâng cấp Sakura Native with Copy Button -->
+<div class="p-4 rounded-xl bg-brand-light/50 border border-brand-accent/70 space-y-2.5">
+<div class="flex items-center justify-between">
+<span class="text-xs font-extrabold text-brand uppercase tracking-wider flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[17px]">local_florist</span>
+                  Bản nâng cấp Sakura Native
+                </span>
+<button class="text-xs font-bold text-charcoal hover:text-brand transition-colors flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-warm-border shadow-xs" id="btn-copy-native">
+<span class="material-symbols-outlined text-[15px]">content_copy</span>
+<span id="copy-btn-text">Sao chép</span>
+</button>
+</div>
+<p class="text-sm font-semibold text-charcoal italic font-jp leading-relaxed bg-white/80 p-3 rounded-lg border border-brand-accent/40" id="native-text">
+                “納期の都合上、出勤せざるを得ず、心苦しい限りですが今回は参加するわけにはまいりません。”
+              </p>
+<div class="text-[11px] text-charcoal-secondary leading-relaxed pt-0.5">
+<strong class="text-charcoal">Dịch nghĩa tự nhiên:</strong> Vì tiến độ bàn giao sản phẩm buộc tôi phải đi làm ngày nghỉ, bản thân vô cùng áy náy nhưng lần này thực sự không thể tham gia cùng mọi người được.
+              </div>
+</div>
+<!-- Gamification / LP Achievement Badge -->
+<div class="p-3.5 rounded-xl bg-leaf-bg border border-leaf-border flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-leaf text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">military_tech</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-leaf">Đạt chuẩn JLPT N3 Writing Studio</span>
+<span class="text-[11px] text-charcoal-secondary">Đã cộng vào thành tích cá nhân</span>
+</div>
+</div>
+<span class="text-sm font-extrabold text-leaf">+25 LP</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ============================================================= -->
+<!-- D. BOTTOM SECTION: RECENT SUBMISSIONS HISTORY                 -->
+<!-- ============================================================= -->
+<section class="space-y-4 pt-4">
+<!-- Section Title & Filter Tools -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+<div>
+<div class="flex items-center gap-2 text-brand font-bold text-xs uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">history_edu</span>
+              Hồ sơ học tập cá nhân
+            </div>
+<h2 class="text-xl font-extrabold text-charcoal">
+              Nhật ký tiến bộ - Lịch sử nộp bài &amp; Đánh giá gần đây
+            </h2>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3.5 py-1.5 rounded-xl bg-white border border-warm-border hover:border-brand-accent text-charcoal-secondary hover:text-charcoal text-xs font-bold transition-all shadow-subtle flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[17px]">filter_list</span>
+<span>Lọc theo cấp độ</span>
+</button>
+<button class="px-3.5 py-1.5 rounded-xl bg-white border border-warm-border hover:border-brand text-brand text-xs font-bold transition-all shadow-subtle flex items-center gap-1">
+<span>Xem tất cả (18 bài)</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- 3 Recent Cards Grid (Scores: 9.2, 9.8, 8.4) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Card 1: Vừa chấm (9.2) -->
+<div class="bg-white border border-warm-border rounded-2xl p-5 shadow-subtle hover:border-brand-accent hover:shadow-card transition-all flex flex-col justify-between group space-y-4">
+<div class="space-y-2.5">
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-0.5 rounded-full bg-brand-light text-brand text-[11px] font-bold">
+                  N3 Business
+                </span>
+<span class="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                  Hôm nay 09:15
+                </span>
+</div>
+<h3 class="text-base font-bold text-charcoal group-hover:text-brand transition-colors">
+                Từ chối tiệc ngắm hoa Hanami
+              </h3>
+<p class="text-xs text-charcoal-secondary line-clamp-2 font-jp">
+                今週末のお花見にお誘いいただき、本当にありがとうございます。ただ、月曜日の納品に向けて休日出勤...
+              </p>
+<div class="pt-1">
+<span class="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">
+                  Ngữ pháp: 〜わけにはいかない
+                </span>
+</div>
+</div>
+<div class="pt-3 border-t border-warm-border/60 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="text-xl font-extrabold text-brand">9.2</span>
+<span class="text-[11px] font-bold text-leaf flex items-center">
+<span class="material-symbols-outlined text-[15px]">verified</span>
+                  Đã chấm AI
+                </span>
+</div>
+<a class="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">
+                Xem lại góp ý
+                <span class="material-symbols-outlined text-[15px]">chevron_right</span>
+</a>
+</div>
+</div>
+<!-- Card 2: Thư cảm ơn thầy giáo (9.8) -->
+<div class="bg-white border border-warm-border rounded-2xl p-5 shadow-subtle hover:border-brand-accent hover:shadow-card transition-all flex flex-col justify-between group space-y-4">
+<div class="space-y-2.5">
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-0.5 rounded-full bg-leaf-bg text-leaf text-[11px] font-bold">
+                  N3 Học thuật
+                </span>
+<span class="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                  2 ngày trước
+                </span>
+</div>
+<h3 class="text-base font-bold text-charcoal group-hover:text-brand transition-colors">
+                Viết thư cảm ơn thầy giáo hướng dẫn
+              </h3>
+<p class="text-xs text-charcoal-secondary line-clamp-2 font-jp">
+                先生の熱心なご指導のおかげで、無事に日本語能力試験N3に合格することができました...
+              </p>
+<div class="pt-1">
+<span class="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">
+                  Ngữ pháp: 〜おかげで
+                </span>
+</div>
+</div>
+<div class="pt-3 border-t border-warm-border/60 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="text-xl font-extrabold text-leaf">9.8</span>
+<span class="text-[11px] font-bold text-leaf flex items-center">
+<span class="material-symbols-outlined text-[15px]">stars</span>
+                  Xuất sắc
+                </span>
+</div>
+<a class="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">
+                Xem lại góp ý
+                <span class="material-symbols-outlined text-[15px]">chevron_right</span>
+</a>
+</div>
+</div>
+<!-- Card 3: Trình bày nguyện vọng phỏng vấn (8.4) -->
+<div class="bg-white border border-warm-border rounded-2xl p-5 shadow-subtle hover:border-brand-accent hover:shadow-card transition-all flex flex-col justify-between group space-y-4">
+<div class="space-y-2.5">
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-0.5 rounded-full bg-warm-bg text-charcoal-secondary text-[11px] font-bold">
+                  N3 Phỏng vấn
+                </span>
+<span class="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                  5 ngày trước
+                </span>
+</div>
+<h3 class="text-base font-bold text-charcoal group-hover:text-brand transition-colors">
+                Trình bày nguyện vọng phỏng vấn việc làm
+              </h3>
+<p class="text-xs text-charcoal-secondary line-clamp-2 font-jp">
+                将来は貴社のようなグローバルな環境で、ITエンジニアとして日本の先端技術力を活かすつもりです...
+              </p>
+<div class="pt-1">
+<span class="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">
+                  Ngữ pháp: 〜つもりです
+                </span>
+</div>
+</div>
+<div class="pt-3 border-t border-warm-border/60 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="text-xl font-extrabold text-charcoal">8.4</span>
+<span class="text-[11px] font-bold text-charcoal-secondary flex items-center">
+<span class="material-symbols-outlined text-[15px]">check_circle</span>
+                  Đạt chuẩn
+                </span>
+</div>
+<a class="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">
+                Xem lại góp ý
+                <span class="material-symbols-outlined text-[15px]">chevron_right</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer Info -->
+<footer class="pt-8 pb-12 border-t border-warm-border flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-charcoal-muted">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-brand">spa</span>
+<span>© 2024 RikiPath Nihongo AI Studio. Triết lý Ma (間) trong học thuật tiếng Nhật.</span>
+</div>
+<div class="flex items-center gap-4">
+<a class="hover:text-brand transition-colors" href="#">Điều khoản học tập</a>
+<a class="hover:text-brand transition-colors" href="#">Tiêu chuẩn chấm Haru</a>
+<a class="hover:text-brand transition-colors" href="#">Hỗ trợ 24/7</a>
+</div>
+</footer>
+</main>
+</div>
+<!-- Micro-interactions Script -->
+<script>
+    const writingInput = document.getElementById('writing-input');
+    const charCounter = document.getElementById('char-counter');
+    const btnSpeak = document.getElementById('btn-speak');
+    const btnEvaluate = document.getElementById('btn-evaluate');
+    const btnClearText = document.getElementById('btn-clear-text');
+    const btnSaveDraft = document.getElementById('btn-save-draft');
+    const saveStatus = document.getElementById('save-status');
+    const btnCopyNative = document.getElementById('btn-copy-native');
+    const copyBtnText = document.getElementById('copy-btn-text');
+    const nativeText = document.getElementById('native-text');
+    const btnSampleTab = document.getElementById('btn-sample-tab');
+
+    // 1. Character Count
+    if (writingInput && charCounter) {
+      writingInput.addEventListener('input', () => {
+        const count = writingInput.value.length;
+        charCounter.textContent = count;
+        if (count > 200) {
+          charCounter.classList.add('text-red-600');
+        } else {
+          charCounter.classList.remove('text-red-600');
+        }
+      });
+    }
+
+    // 2. Keyword inserter helper
+    window.insertKeyword = function(keyword) {
+      if (writingInput) {
+        writingInput.value += (writingInput.value.length > 0 ? ' ' : '') + keyword;
+        writingInput.dispatchEvent(new Event('input'));
+        writingInput.focus();
+      }
+    };
+
+    // 3. Clear button
+    if (btnClearText && writingInput) {
+      btnClearText.addEventListener('click', () => {
+        if (confirm('Bạn có chắc chắn muốn xóa toàn bộ nội dung văn bản đang soạn?')) {
+          writingInput.value = '';
+          writingInput.dispatchEvent(new Event('input'));
+          writingInput.focus();
+        }
+      });
+    }
+
+    // 4. Save Draft
+    if (btnSaveDraft && saveStatus) {
+      btnSaveDraft.addEventListener('click', () => {
+        saveStatus.textContent = 'Đã lưu thủ công vào bản nháp vừa xong';
+        setTimeout(() => {
+          saveStatus.textContent = 'Đã tự động lưu nháp (15 giây trước)';
+        }, 3000);
+      });
+    }
+
+    // 5. Speech synthesis for Japanese text
+    if (btnSpeak && writingInput) {
+      btnSpeak.addEventListener('click', () => {
+        if ('speechSynthesis' in window) {
+          const text = writingInput.value || 'こんにちは';
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = 'ja-JP';
+          utter.rate = 0.95;
+          window.speechSynthesis.speak(utter);
+        }
+      });
+    }
+
+    // 6. Copy native sentence
+    if (btnCopyNative && nativeText && copyBtnText) {
+      btnCopyNative.addEventListener('click', () => {
+        const clean = nativeText.textContent.replace(/["“”]/g, '').trim();
+        navigator.clipboard.writeText(clean).then(() => {
+          copyBtnText.textContent = 'Đã chép!';
+          setTimeout(() => {
+            copyBtnText.textContent = 'Sao chép';
+          }, 2000);
+        });
+      });
+    }
+
+    // 7. Chấm & Phân tích tức thì simulation
+    if (btnEvaluate) {
+      btnEvaluate.addEventListener('click', () => {
+        const prevContent = btnEvaluate.innerHTML;
+        btnEvaluate.disabled = true;
+        btnEvaluate.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span><span>Đang phân tích Haru AI...</span>';
+        setTimeout(() => {
+          btnEvaluate.innerHTML = prevContent;
+          btnEvaluate.disabled = false;
+        }, 800);
+      });
+    }
+
+    // 8. Load Sample Tab
+    if (btnSampleTab && writingInput) {
+      btnSampleTab.addEventListener('click', () => {
+        writingInput.value = "今週末のお花見にお誘いいただき、本当にありがとうございます。ただ、月曜日の納品に向けて休日出勤をしなければならないため、残念ながら参加するわけにはいきません。せっかくの機会ですが、皆さんとご一緒できず申し訳ございません。";
+        writingInput.dispatchEvent(new Event('input'));
+      });
+    }
+  </script>
+</body></html>

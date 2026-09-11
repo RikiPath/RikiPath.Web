@@ -1,0 +1,313 @@
+<!DOCTYPE html><html class="h-full" lang="vi" data-stitch-anim-opacity="true" style="background-color: #FAF7F2;"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Đăng nhập &amp; Đăng ký - RikiPath Sakura Hub</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Noto+Serif+JP:wght@500;700&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS v3 with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            serif: ['"Noto Serif JP"', 'serif'],
+          },
+          colors: {
+            sakura: {
+              50: '#fff5f7',
+              100: '#fde8ec',
+              200: '#fbd0da',
+              300: '#f8a8bb',
+              400: '#f17094',
+              500: '#d94b68', // Primary brand cherry blossom
+              600: '#c53453',
+              700: '#a52642',
+              800: '#89233a',
+              900: '#732134',
+            },
+            warm: {
+              50: '#fffaf8',
+              100: '#fff2ec',
+              200: '#fdf2f4',
+            }
+          },
+          boxShadow: {
+            'sakura-soft': '0 10px 30px -10px rgba(217, 75, 104, 0.25)',
+            'sakura-glow': '0 0 25px rgba(217, 75, 104, 0.15)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom Styles for Delicate Petal Aesthetics -->
+<style data-purpose="sakura-decor">
+    .petal-floating {
+      animation: floatPetal 8s ease-in-out infinite;
+    }
+    @keyframes floatPetal {
+      0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+      }
+      50% {
+        transform: translateY(-12px) rotate(8deg);
+      }
+    }
+    .japanese-watermark {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+    }
+  </style>
+</head>
+<body class="h-full font-sans text-slate-800 antialiased selection:bg-sakura-100 selection:text-sakura-700" style="background-color: rgb(250, 247, 242); position: relative;"><div class="fixed inset-0 pointer-events-none z-0 opacity-20" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida/AEtjO1XsYWpcypAaiicJ5aWDsaW-GEmVWOKogAEQ7kZW4nxNFB_JZTuC9dhy22iD5Mnutw1-dtQ-HzB6D_VzjEx9subcYz6PRrv0yijHn4N-jAJ5MXOS4-C7ZVxGV4l2XoEkHfC4wG6mbXFoj3jaBxyOPj_Z_xylJmm-FRcPsVf-1klRUQuv1hr9HgKslqHQcIxclS9hAnXtwq8jA0ngfRmWAVTjaBx5hh644yXJMi3Bdy5g8E0mhB9PvzPKpXg&quot;); background-repeat: repeat; background-size: 120px 120px;"></div>
+<!-- BEGIN: MainContainer -->
+<main class="min-h-screen w-full flex items-stretch justify-center p-0 md:p-6 lg:p-10 relative z-10">
+<div class="w-full max-w-[1440px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-sakura-100 grid grid-cols-1 lg:grid-cols-12 min-h-[780px]" data-purpose="auth-split-wrapper">
+<!-- BEGIN: LeftBrandingShowcase -->
+<section class="hidden lg:flex lg:col-span-6 xl:col-span-7 bg-[#fdf2f4] relative flex-col justify-between p-10 xl:p-14 overflow-hidden" data-purpose="brand-visual-showcase">
+<!-- Soft decorative background gradients and sakura accents -->
+<div class="absolute -top-24 -left-24 w-80 h-80 bg-sakura-200/50 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-24 -right-24 w-96 h-96 bg-sakura-300/40 rounded-full blur-3xl pointer-events-none"></div>
+<!-- Floating Petal SVG Decors -->
+<div class="absolute top-12 right-16 opacity-70 petal-floating pointer-events-none" style="animation-delay: 0s;">
+<svg class="w-7 h-7 text-sakura-400 fill-current" viewBox="0 0 24 24">
+<path d="M12 2C13.5 6 18 8 20 12C18 16 13.5 18 12 22C10.5 18 6 16 4 12C6 8 10.5 6 12 2Z"></path>
+</svg>
+</div>
+<div class="absolute bottom-28 left-14 opacity-50 petal-floating pointer-events-none" style="animation-delay: 2.5s;">
+<svg class="w-5 h-5 text-sakura-300 fill-current" viewBox="0 0 24 24">
+<path d="M12 2C13.5 6 18 8 20 12C18 16 13.5 18 12 22C10.5 18 6 16 4 12C6 8 10.5 6 12 2Z"></path>
+</svg>
+</div>
+<!-- Showcase Header / Mini Badge -->
+<div class="relative z-10 flex items-center justify-between">
+<div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-sakura-200 shadow-sm">
+<span class="text-base leading-none">🌸</span>
+<span class="text-xs font-semibold tracking-wide text-sakura-700 uppercase">Học tiếng Nhật thông minh với AI Haru</span>
+</div>
+<!-- Kanji artistic tag -->
+<span class="font-serif text-sm font-semibold text-sakura-600/70 tracking-widest hidden xl:block">桜・日本への道</span>
+</div>
+<!-- Artwork Centerpiece Card -->
+<div class="relative z-10 my-auto py-6 flex flex-col items-center">
+<div class="relative group w-full max-w-[430px] aspect-square rounded-2xl p-2 bg-gradient-to-tr from-white/90 via-sakura-100/60 to-white/90 shadow-sakura-glow border border-sakura-200/80">
+<!-- Provided Sakura Illustration Image -->
+<img alt="Japanese style sakura cherry blossom, beautiful delicate pink sakura petals with warm soft pastel background, aesthetic Japanese art, high quality illustration for educational learning app" class="w-full h-full object-cover rounded-xl shadow-inner transition-transform duration-700 group-hover:scale-[1.01]" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWYbEhEoo5ezk9RfsOL90bHH9ptoneNYSVhIXsry9dpOuv9DwfIfTnece2u9Sw2TeSdVMuyq7EXP9wvFr1DRX-rdTzy_VNAMomsnw2PNmv8zVAwiupwNpSF9TSDj-haM0v7eswhkQoGfNt34_f_K4-cSLPa_AZ6W94Xai46Z6LdGPsDX2rnaxC9iMC87EPsgs2UKn2h5ixOTRE6s6mgFtlvLN6dFkUbwCk2rNeNjHfRQegbSWVqcF7">
+<!-- Subtle Floating Japanese Calligraphy Overlay -->
+<div class="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
+<span class="text-xl">⛩️</span>
+<div class="text-left">
+<p class="text-[11px] font-medium text-slate-500">Mỗi ngày một bước tiến</p>
+<p class="text-xs font-bold text-sakura-700 font-serif tracking-wider">一期一会 (Ichigo Ichie)</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Showcase Footer: Inspiring Slogan & Quote -->
+<div class="relative z-10 text-center max-w-lg mx-auto" data-purpose="slogan-container">
+<h2 class="text-2xl xl:text-3xl font-bold text-slate-800 tracking-tight leading-snug">
+            Cùng <span class="text-sakura-500 font-extrabold">RikiPath</span> chinh phục tiếng Nhật trong sắc hoa anh đào
+          </h2>
+<p class="mt-2.5 text-sm text-slate-600 font-normal leading-relaxed">
+            Hành trình chạm đỉnh JLPT N5 — N1 với lộ trình chuẩn mực, hỗ trợ gia sư AI 24/7 và cộng đồng du học sinh năng động.
+          </p>
+</div>
+</section>
+<!-- END: LeftBrandingShowcase -->
+<!-- BEGIN: RightAuthFormSection -->
+<section class="col-span-1 lg:col-span-6 xl:col-span-5 bg-white flex flex-col justify-between p-8 sm:p-12 lg:p-10 xl:p-14 overflow-y-auto" data-purpose="auth-form-container">
+<div>
+<!-- Brand Logo Header -->
+<div class="flex items-center justify-between pb-6 border-b border-sakura-100" data-purpose="brand-header">
+<a aria-label="RikiPath Home" class="flex items-center gap-2.5 group focus:outline-none" href="#">
+<div class="w-10 h-10 rounded-xl bg-sakura-50 border border-sakura-200 flex items-center justify-center text-xl shadow-xs group-hover:bg-sakura-100 transition-colors">
+                🌸
+              </div>
+<div>
+<span class="text-xl font-bold tracking-tight text-slate-900 block leading-tight">RikiPath</span>
+<span class="text-[11px] font-medium tracking-wide text-sakura-500 uppercase">Sakura Learning Hub</span>
+</div>
+</a>
+<!-- Language selector button -->
+<button class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-sakura-50 rounded-lg border border-slate-200/80 transition-colors" type="button">
+<span class="">🇻🇳 VN</span>
+<svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+<!-- Tab Switcher (Login / Register) -->
+<div class="mt-7 p-1 bg-sakura-50/70 border border-sakura-100 rounded-xl flex items-center" data-purpose="auth-tabs">
+<button aria-current="page" class="flex-1 py-2.5 text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm border border-sakura-100/60 transition-all text-center flex items-center justify-center gap-1.5" id="tab-login-btn" type="button">
+<span class="">Đăng nhập</span>
+<span class="w-1.5 h-1.5 rounded-full bg-sakura-500 inline-block"></span>
+</button>
+<button class="flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center" id="tab-register-btn" type="button">
+              Đăng ký
+            </button>
+</div>
+<!-- Welcome Titles -->
+<div class="mt-6 mb-6">
+<h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              Chào mừng bạn trở lại! <span class="text-2xl animate-pulse">🌸</span>
+</h1>
+<p class="mt-1 text-sm text-slate-500">
+              Vui lòng nhập thông tin tài khoản để tiếp tục học tập.
+            </p>
+</div>
+<!-- Authentication Form -->
+<form action="#" class="space-y-4" data-purpose="login-form" method="POST" onsubmit="event.preventDefault();">
+<!-- Email Input Field -->
+<div>
+<label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" for="email">
+                Địa chỉ Email
+              </label>
+<div class="relative rounded-xl shadow-xs">
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+<!-- Mail Icon -->
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<input class="block w-full pl-11 pr-4 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="email" name="email" placeholder="nhap.email@example.com" required="" type="email">
+</div>
+</div>
+<!-- Password Input Field -->
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<label class="block text-xs font-semibold uppercase tracking-wider text-slate-600" for="password">
+                  Mật khẩu
+                </label>
+</div>
+<div class="relative rounded-xl shadow-xs">
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+<!-- Lock Icon -->
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<input class="block w-full pl-11 pr-11 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="password" name="password" placeholder="Nhập mật khẩu bí mật" required="" type="password">
+<!-- Toggle Password Visibility -->
+<button aria-label="Hiện hoặc ẩn mật khẩu" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-sakura-600 focus:outline-none transition-colors" id="toggle-password" type="button">
+<svg class="h-5 w-5" fill="none" id="eye-icon" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</button>
+</div>
+</div>
+<!-- Remember me & Forgot Password -->
+<div class="flex items-center justify-between pt-1">
+<label class="flex items-center gap-2 cursor-pointer select-none">
+<input class="w-4 h-4 text-sakura-500 border-sakura-300 rounded focus:ring-sakura-500 focus:ring-offset-0 transition-colors" id="remember-me" name="remember" type="checkbox">
+<span class="text-xs font-medium text-slate-600">Ghi nhớ đăng nhập</span>
+</label>
+<a class="text-xs font-semibold text-[#d94b68] hover:text-sakura-700 hover:underline transition-colors" href="#">
+                Quên mật khẩu?
+              </a>
+</div>
+<!-- CTA Submit Button -->
+<div class="pt-2">
+<button class="w-full h-12 flex items-center justify-center gap-2 bg-[#d94b68] hover:bg-sakura-600 text-white font-bold text-sm tracking-wide rounded-[10px] shadow-sakura-soft hover:shadow-lg transition-all duration-200 transform active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-sakura-300/40" type="submit">
+<span class="">Đăng nhập ngay</span>
+<span class="text-base leading-none">🌸</span>
+</button>
+</div>
+</form>
+<!-- Divider -->
+<div class="relative my-6 text-center" data-purpose="divider">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-slate-200/80"></div>
+</div>
+<div class="relative flex justify-center text-xs">
+<span class="px-3 bg-white text-slate-400 uppercase font-medium tracking-wider">hoặc tiếp tục với</span>
+</div>
+</div>
+<!-- Social Login Buttons -->
+<div class="grid grid-cols-2 gap-3" data-purpose="social-auth-buttons">
+<!-- Google Login Button -->
+<button class="h-11 flex items-center justify-center gap-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:border-slate-300 shadow-xs transition-colors focus:outline-none" type="button">
+<svg class="w-4 h-4" viewBox="0 0 24 24">
+<path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
+<path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z" fill="#34A853"></path>
+<path d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27 0-.78.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12c0 2.01.45 3.82 1.25 5.42l4.03-3.15Z" fill="#FBBC05"></path>
+<path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z" fill="#EA4335"></path>
+</svg>
+<span class="">Google</span>
+</button>
+<!-- Facebook / Apple Login Button -->
+<button class="h-11 flex items-center justify-center gap-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:border-slate-300 shadow-xs transition-colors focus:outline-none" type="button">
+<!-- Facebook Icon -->
+<svg class="w-4 h-4 text-[#1877F2] fill-current" viewBox="0 0 24 24">
+<path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path>
+</svg>
+<span class="">Facebook</span>
+</button>
+</div>
+</div>
+<!-- Footer Notice & Registration Prompt -->
+<footer class="mt-8 pt-6 border-t border-slate-100 text-center" data-purpose="auth-footer">
+<p class="text-xs text-slate-600">
+            Chưa có tài khoản? 
+            <a class="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" href="#">
+              Đăng ký miễn phí
+            </a>
+</p>
+<p class="mt-2 text-[11px] text-slate-400">
+            Bằng việc tiếp tục, bạn đồng ý với 
+            <a class="underline hover:text-slate-600" href="#">Điều khoản sử dụng</a> &amp; 
+            <a class="underline hover:text-slate-600" href="#">Chính sách bảo mật</a> của RikiPath.
+          </p>
+</footer>
+</section>
+<!-- END: RightAuthFormSection -->
+</div>
+</main>
+<!-- END: MainContainer -->
+<!-- BEGIN: InteractiveScripts -->
+<script data-purpose="toggle-password-visibility">
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggleBtn = document.getElementById('toggle-password');
+      const passwordInput = document.getElementById('password');
+
+      if (toggleBtn && passwordInput) {
+        toggleBtn.addEventListener('click', () => {
+          const isPassword = passwordInput.getAttribute('type') === 'password';
+          passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+          toggleBtn.classList.toggle('text-sakura-600', isPassword);
+        });
+      }
+    });
+  </script>
+<script data-purpose="tab-switcher-interaction">
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginBtn = document.getElementById('tab-login-btn');
+      const registerBtn = document.getElementById('tab-register-btn');
+
+      if (loginBtn && registerBtn) {
+        registerBtn.addEventListener('click', () => {
+          // Switch active visual to register tab
+          registerBtn.className = "flex-1 py-2.5 text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm border border-sakura-100/60 transition-all text-center flex items-center justify-center gap-1.5";
+          registerBtn.innerHTML = `<span>Đăng ký</span><span class="w-1.5 h-1.5 rounded-full bg-sakura-500 inline-block"></span>`;
+          
+          loginBtn.className = "flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center";
+          loginBtn.innerHTML = `<span>Đăng nhập</span>`;
+        });
+
+        loginBtn.addEventListener('click', () => {
+          // Switch back to login active state
+          loginBtn.className = "flex-1 py-2.5 text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm border border-sakura-100/60 transition-all text-center flex items-center justify-center gap-1.5";
+          loginBtn.innerHTML = `<span>Đăng nhập</span><span class="w-1.5 h-1.5 rounded-full bg-sakura-500 inline-block"></span>`;
+          
+          registerBtn.className = "flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center";
+          registerBtn.innerHTML = `<span>Đăng ký</span>`;
+        });
+      }
+    });
+  </script>
+<!-- END: InteractiveScripts -->
+
+
+</body></html>

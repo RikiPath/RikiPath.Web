@@ -1,0 +1,552 @@
+[
+  {
+    "name": "projects/1305752429523066747/screens/b4aa5d88d0334393878e1726a5f57566",
+    "title": "Kết quả Chấm điểm AI Chi tiết (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/fb391a800acf4af8baab51ef0a67ca4a",
+    "title": "Vai trò & Phân quyền - RikiPath Admin (Sakura Edition)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/4250170066118594522",
+    "title": "3. Flashcard Mặt sau & Đánh giá (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/12239297696315522860",
+    "title": "2. JLPT Roadmap (Mobile Native)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/f77ddae68191444cb338d078ff8670ca",
+    "title": "Chuẩn bị Phiên tư vấn (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/3bf2fd0695564a7b872ea9d43b9dff02",
+    "title": "Quản lý Bài học & Nội dung (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/9959144307006087364",
+    "title": "1. Chi tiết Chương học - Unit Detail (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/13359473678357137302",
+    "title": "1. Danh sách Kanji - Kanji List (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/12667472799249954653",
+    "title": "Chi tiết danh sách - N3 khó nhớ (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5179444684846713937",
+    "title": "Sổ từ của tôi (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/14595489950539202072",
+    "title": "1. Tổng quan Ôn tập hôm nay (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/b3ff423bf787451484323ac12f24a636",
+    "title": "Đăng nhập & Đăng ký (Sakura Blossom) - Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/75872b870f3743e28414f6ffca083238",
+    "title": "Biên tập Video Bài giảng (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1062983238566524425",
+    "title": "3. Login Loading State (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/14223618942693417945",
+    "title": "2. Chi tiết Kanji - Kanji Detail (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/16704011934451835654",
+    "title": "3. Đang tải bài học - Lesson Loading Skeleton (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/16737215013808320235",
+    "title": "2. Chi tiết Từ vựng - Vocabulary Detail (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/92332a6eaaf645a4b584e11b3b8f6483",
+    "title": "RikiPath UI Foundation",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/0ff1a9dc0f45419492fe159d0d4e5245",
+    "title": "Tổng quan Quản trị (Sakura Pastel) - RikiPath Admin",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1a20bf4874e144a5947640410be57b20",
+    "title": "Xây dựng Đề thi (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/d16df93050ab415c871522d0d3a31e31",
+    "title": "Chia sẻ dữ liệu học tập (Sakura Pastel) - RikiPath Consultation",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/13887286037516815883",
+    "title": "Danh sách của tôi (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5582143141013243361",
+    "title": "2. Thêm từ - Báo lỗi Validation (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/2949921947652446154",
+    "title": "3. Chi tiết Thứ tự nét viết - Stroke Order Detail (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/13104330219634128406",
+    "title": "1. Danh sách Ngữ pháp - Grammar List (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/13814410779868520462",
+    "title": "1. Chi tiết Bài học - Lesson Detail (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/bb2faac404574d868ba45295356d9242",
+    "title": "Kho học liệu & Quản lý Bài học (Desktop 1440px)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/900046892843684048",
+    "title": "Sổ từ (Mobile Shell Demo)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/18377034940828350314",
+    "title": "1. Thêm từ mới (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/12654128905570599012",
+    "title": "Chi tiết Kế hoạch học từ AI (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/6b764292fc5449d7abaf9241b44135ef",
+    "title": "Quản lý Người dùng (Sakura Pastel) - RikiPath Admin",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/7d6af714761f4c6886da6809813f480b",
+    "title": "Trả lời Tư vấn Văn bản (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5f2ddfd2ade1435abcf03160a6f5063d",
+    "title": "Chi tiết Khóa học (Sakura Pastel) - Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1198635324511594128",
+    "title": "2. Tìm kiếm Thư viện - Search State (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/77147b7ab1e2470c97822f9a6d59986c",
+    "title": "Chỉnh sửa Hán tự (Desktop 1440px - Neo-Sakura) - Chuẩn Bố Cục",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/ad754bbf59bf4ffba02acc08be233c64",
+    "title": "Import Dữ liệu hàng loạt (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/16122164319682692010",
+    "title": "3. JLPT Level Progress (Mobile Native)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/fc8e166fa35a4b87803b8cdf7a703c0e",
+    "title": "Lộ trình Học tập JLPT (Desktop 1440px)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5b7f5cdd6ba544a88431fb1e477f8e88",
+    "title": "Đặt lịch Chuyên gia (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/3777080490195281058",
+    "title": "1. Thư viện kiến thức - Library Home (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/14123944130816460718",
+    "title": "Trang chủ - Người học mới (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/0cbda6e1549d471cace11aab27df1c0e",
+    "title": "Cố vấn Học tập AI & Chẩn đoán JLPT (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/febdf5ec892640dc8436acae837437a4",
+    "title": "Trình phát Bài học (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/11004956459699299247",
+    "title": "3. Ngữ pháp liên quan - Related Grammar State (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/11876212867004724584",
+    "title": "Học tập (Mobile Shell Demo)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/d2f52206246b42f68b71a9660e1e6002",
+    "title": "Danh mục Khóa học (Sakura Pastel) - RikiPath Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/7219056274264573472",
+    "title": "3. Từ vựng đã lưu - Vocabulary Saved State (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/17488448519629359549",
+    "title": "3. Bộ lọc Thư viện - Filter Bottom Sheet (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/0906aa7deeef4c558543899e6c6f9c3d",
+    "title": "Khôi phục mật khẩu (Sakura Blossom) - Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/30f4f278a1ef41b4b4ba49ab0d8e5960",
+    "title": "Danh sách Bài học (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/173318012869712436",
+    "title": "1. Danh sách Từ vựng - Vocabulary List (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/9404477936642470194",
+    "title": "4. Lỗi kết nối video - Video Error State (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/7442469663813930135",
+    "title": "4. Nội dung bài học & Ghi chú - Lesson Notes (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/18026358073432449141",
+    "title": "4. Tạo tài khoản thành công (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/af6d9b41eaf14ecdb669fddb87cace28",
+    "title": "Sổ tay Từ vựng (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/74766e70095b4a70b5e4c9b6cf53fd3b",
+    "title": "Tổng quan CMS Studio (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1d8371730b44454f9a6c90ac4df4a422",
+    "title": "AI Advisor & Practice Specifications",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/3a1859d8950a45389e4681b1bfb413ae",
+    "title": "Tổng quan Chuyên gia (Desktop 1440px - Neo-Sakura Đồng bộ)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/4347671758114645928",
+    "title": "Trang chủ - Trạng thái tải (Mobile Skeleton)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5ab62bde05af4c1eb562f2f66cedb5b6",
+    "title": "Bảng điều khiển Học tập Đa cột (Desktop 1440px)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/18329109734733311293",
+    "title": "2. Chi tiết Ngữ pháp - Grammar Detail (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/ce343d2ca3894ef6a0f5cacad165a4dc",
+    "title": "Duyệt nội dung (Sakura Pastel) - RikiPath Admin",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5c814b34fbb04f559be9b91d7c285e9b",
+    "title": "Trung tâm Tư vấn (Sakura Pastel) - RikiPath Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/28f2fc9d3201423986d8e74481e71f43",
+    "title": "Chi tiết Yêu cầu Tư vấn (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/8283169022534174157",
+    "title": "4. Forgot Password (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/9196b53890af42a887271193fe19295b",
+    "title": "Phòng Thi thử JLPT N3 Trực tuyến (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/718701458103945656",
+    "title": "2. Chọn thời gian học hàng ngày (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/8344855153164311015",
+    "title": "1. Đăng ký tài khoản (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1983298180452661843",
+    "title": "3. Đăng ký - Trạng thái Loading (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/17204650646197011302",
+    "title": "Luyện tập (Mobile Shell Demo)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/8bc6dd6da59343a4ac4aba5f9729ede1",
+    "title": "Tư vấn Chuyên gia (Sakura Pastel) - RikiPath Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/15280657857153634548",
+    "title": "5. Forgot Password Success State (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/2635275775139302096",
+    "title": "3. Hoàn tất Onboarding - Sẵn sàng học (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/7123588395073990761",
+    "title": "3. Danh sách Bài học - Lọc Ngữ pháp (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1225020250883402959",
+    "title": "1. Learning Home (Mobile Native)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/3ebad278385247858f2f34fce25e8a06",
+    "title": "Hướng dẫn Người học mới - Khảo sát Trình độ (Desktop 1440px - Sakura Blossom)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/7897262177636561312",
+    "title": "1. Chọn mục tiêu JLPT (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/11790657376863849394",
+    "title": "2. Trình phát Video Bài học - Video Lesson (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/5083e807855b49c38e096066bf49fcfb",
+    "title": "Luyện tập & Ôn tập (Mobile) - Sakura Blossom",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/12001992336119739218",
+    "title": "2. Login Validation State (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/a1433be5c3534ea298e6f6fe1e721ada",
+    "title": "Ôn tập hàng ngày SRS (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/15609097353422478661",
+    "title": "Trang chủ (Mobile Shell Demo)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/b0f7257358724f589135c3c700c9f577",
+    "title": "Hoàn thành Bài học (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/59999b8080174d5497f8f92bf5ed67a9",
+    "title": "Hàng đợi Tư vấn (Desktop 1440px - Neo-Sakura Đồng bộ)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1462389776631760317",
+    "title": "2. Flashcard Mặt trước (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/2824596442113324146",
+    "title": "4. Chọn danh sách - Bottom Sheet (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/6653405705444670543",
+    "title": "2. Bài học chưa mở - Locked Lesson (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/17893232063635493692",
+    "title": "2. Danh sách Bài học - Lesson List (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/14967346987218465511",
+    "title": "Tất cả từ vựng (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/943bbf62671448048f6e24fea8456253",
+    "title": "Luyện tập Kanji AI Studio (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/de689f6040db4793892d4e09eb99307b",
+    "title": "Trang chủ RikiPath (Desktop 1440px - Sakura Neo-Blossom Redesign)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/e62bb93c1e3547ea8909ac11d2031380",
+    "title": "Quản lý Lịch làm việc (Desktop 1440px - Neo-Sakura Đồng bộ)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/af1803ca8c534bfc8e666b84ca0c521e",
+    "title": "Sổ tay Luyện tập Kanji & Bút thuận (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/6173626888642863677",
+    "title": "1. Hoàn thành bài học - Lesson Completed (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/8607a4bbb81440bca3bb9156c0dedfb0",
+    "title": "Studio Luyện viết Câu AI (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/14746937530420778296",
+    "title": "4. Đang trong phiên Ôn tập (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/18350905931630113610",
+    "title": "1. Login (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/11366157976476816929",
+    "title": "2. Đăng ký - Báo lỗi Validation (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/9959144307006090296",
+    "title": "3. Video Bài học - Trạng thái Tiếp tục học (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/7f8baf104d8044729bdda7ada2e24237",
+    "title": "Thanh toán Gói tư vấn (Sakura Pastel) - RikiPath Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/b80db45bb86f4b80be0e2750f08b47d8",
+    "title": "Ngân hàng câu hỏi (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/c541200b519d436d923bb67532b95df0",
+    "title": "Bảng điều khiển Tác giả (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/0f3de8ebc98d4fdaa2199b85a813e95b",
+    "title": "Chỉnh sửa Từ vựng (Desktop 1440px - Neo-Sakura)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1780327793806023479",
+    "title": "3. Chỉnh sửa từ cá nhân (Mobile Portrait)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/321718993061936127",
+    "title": "Trang chủ - Trạng thái Ngoại tuyến (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/b8e677f79dae41079644baa2f0c2a5e7",
+    "title": "Tổng quan Người học - Dashboard (Desktop 1440px)",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/ec2c503717fd450690fefec029587919",
+    "title": "Đăng ký tài khoản (Sakura Blossom) - Desktop",
+    "deviceType": "DESKTOP"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/1664390216147563390",
+    "title": "Cá nhân (Mobile Shell Demo)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/13085258225397587909",
+    "title": "Thông báo (Mobile)",
+    "deviceType": "MOBILE"
+  },
+  {
+    "name": "projects/1305752429523066747/screens/fcf969df153b4f79b1d334ca59b587ee",
+    "title": "Trang chủ Người học (Desktop 1440px - Sakura Blossom)",
+    "deviceType": "DESKTOP"
+  }
+]

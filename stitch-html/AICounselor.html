@@ -1,0 +1,729 @@
+<!DOCTYPE html><html class="h-full bg-[#FAF7F5]" lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Cố vấn AI Haru &amp; Chẩn đoán JLPT N3 | RikiPath Nihongo</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#E05A7A',
+              hover: '#C84464',
+              soft: '#F8BBD0',
+              subtle: '#FFF0F5',
+              dark: '#932842'
+            },
+            slate: {
+              charcoal: '#2D282A',
+              sub: '#6F6669',
+              muted: '#A59B9E'
+            },
+            cream: {
+              bg: '#FAF7F5',
+              surface: '#FFFFFF',
+              border: '#EADFD9',
+              soft: '#F4ECE7'
+            },
+            accent: {
+              green: '#2E7D32',
+              greenSoft: '#E8F5E9',
+              amber: '#E65100',
+              amberSoft: '#FFF3E0'
+            }
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'Noto Sans JP', 'sans-serif'],
+            jp: ['Noto Sans JP', 'sans-serif']
+          },
+          boxShadow: {
+            card: '0 6px 16px -4px rgba(45, 40, 42, 0.04), 0 2px 6px -2px rgba(45, 40, 42, 0.02)',
+            elevated: '0 12px 28px -6px rgba(224, 90, 122, 0.12), 0 4px 10px -2px rgba(45, 40, 42, 0.03)',
+            glow: '0 0 20px -2px rgba(224, 90, 122, 0.25)'
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    @layer base {
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #FAF7F5;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #EADFD9;
+        border-radius: 9999px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #D9C8C0;
+      }
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 450, 'GRAD' 0, 'opsz' 22;
+    }
+    .material-symbols-outlined.fill-1 {
+      font-variation-settings: 'FILL' 1;
+    }
+  </style>
+</head>
+<body class="h-full font-sans text-slate-charcoal antialiased bg-[#FAF7F5] selection:bg-brand-soft selection:text-slate-charcoal">
+<div class="min-h-full flex">
+<!-- 1. PERSISTENT LEFT SIDEBAR (w-64 fixed) -->
+<aside class="w-64 shrink-0 bg-white border-r border-cream-border flex flex-col justify-between fixed top-0 bottom-0 left-0 z-30 shadow-[2px_0_12px_rgba(45,40,42,0.02)]">
+<div class="flex flex-col h-full">
+<!-- App Brand / Logo -->
+<div class="h-20 px-6 flex items-center gap-3 border-b border-cream-border/60">
+<div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#E05A7A] to-[#F8BBD0] flex items-center justify-center text-white shadow-[0_4px_12px_rgba(224,90,122,0.3)]">
+<span class="material-symbols-outlined fill-1 text-[22px]">filter_vintage</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-bold text-lg tracking-tight text-slate-charcoal font-sans">RikiPath</span>
+<span class="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-brand-subtle text-brand">AI</span>
+</div>
+<span class="text-[11px] font-medium text-slate-sub font-jp tracking-wider">日本語 • JLPT Mastery</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="p-4 space-y-1.5 flex-1 overflow-y-auto">
+<div class="px-3 pt-2 pb-1.5 text-[11px] font-bold text-slate-muted uppercase tracking-wider">Điều hướng chính</div>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-all group font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined text-[20px] text-slate-muted group-hover:text-slate-charcoal transition-colors">dashboard</span>
+<span>Tổng quan</span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-all group font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined text-[20px] text-slate-muted group-hover:text-slate-charcoal transition-colors">explore</span>
+<span>Khám phá &amp; Lộ trình</span>
+</a>
+<!-- Active Item: Luyện tập AI -->
+<a class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-brand text-white font-semibold text-[14px] shadow-elevated transition-all" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined fill-1 text-[20px]">psychology</span>
+<span>Luyện tập AI Haru</span>
+</div>
+<span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-all group font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined text-[20px] text-slate-muted group-hover:text-slate-charcoal transition-colors">menu_book</span>
+<span>Kho học liệu &amp; Kanji</span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-all group font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined text-[20px] text-slate-muted group-hover:text-slate-charcoal transition-colors">support_agent</span>
+<span>Tư vấn chuyên gia</span>
+<span class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-accent-greenSoft text-accent-green font-bold">1:1</span>
+</a>
+<div class="px-3 pt-6 pb-1.5 text-[11px] font-bold text-slate-muted uppercase tracking-wider">Hệ thống &amp; Hồ sơ</div>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-all group font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined text-[20px] text-slate-muted group-hover:text-slate-charcoal transition-colors">analytics</span>
+<span>Lịch sử &amp; Kết quả thi</span>
+</a>
+<a class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-all group font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined text-[20px] text-slate-muted group-hover:text-slate-charcoal transition-colors">tune</span>
+<span>Cài đặt hệ thống</span>
+</a>
+</nav>
+<!-- Sidebar Bottom: Sync Status & JLPT Progress Quick Widget -->
+<div class="p-4 border-t border-cream-border/70 space-y-3 bg-[#FCFAF9]">
+<div class="p-3 rounded-xl bg-white border border-cream-border shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-2.5 h-2.5 rounded-full bg-accent-green"></div>
+<div class="flex flex-col">
+<span class="text-[12px] font-semibold text-slate-charcoal leading-tight">Đồng bộ JEES 2024</span>
+<span class="text-[10px] text-slate-sub">Cloud sync: Đã lưu</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[18px] text-slate-muted">cloud_done</span>
+</div>
+<div class="flex items-center gap-3 px-2 py-1">
+<div class="w-9 h-9 rounded-full bg-brand-subtle text-brand border border-brand/20 flex items-center justify-center font-bold text-sm">
+            N3
+          </div>
+<div class="flex flex-col flex-1 min-w-0">
+<span class="text-xs font-bold text-slate-charcoal truncate">Sakura Learner</span>
+<span class="text-[11px] text-slate-sub truncate">Dự thi JLPT 12/2024</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- 2. MAIN WORKSPACE WITH TOP HEADER (ml-64) -->
+<div class="pl-64 flex-1 flex flex-col min-w-0">
+<!-- Top Header -->
+<header class="h-20 bg-white/90 backdrop-blur-md border-b border-cream-border px-8 sticky top-0 z-20 flex items-center justify-between shadow-[0_2px_10px_rgba(45,40,42,0.02)]">
+<!-- Breadcrumbs -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 text-[13px] font-medium text-slate-sub">
+<span>Luyện tập AI</span>
+<span class="material-symbols-outlined text-[16px] text-slate-muted">chevron_right</span>
+<span class="text-slate-charcoal font-semibold">Cố vấn Haru &amp; Chẩn đoán JLPT N3</span>
+</div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-subtle text-brand text-[11px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-brand animate-ping"></span>
+<span>AI Engine v2.4 Active</span>
+</div>
+</div>
+<!-- Search & User Actions -->
+<div class="flex items-center gap-4">
+<!-- Global Search Bar -->
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-slate-muted">search</span>
+<input class="w-full bg-cream-bg border border-cream-border rounded-full pl-9 pr-14 py-2 text-[13px] text-slate-charcoal placeholder-slate-muted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all" placeholder="Tìm kiến thức, hán tự, ngữ pháp..." type="text">
+<kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded border border-cream-border text-slate-sub shadow-2xs">Ctrl K</kbd>
+</div>
+<div class="h-6 w-px bg-cream-border"></div>
+<!-- Notifications button -->
+<button aria-label="Thông báo" class="w-10 h-10 rounded-full border border-cream-border flex items-center justify-center text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg transition-colors relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand ring-2 ring-white"></span>
+</button>
+<!-- User Profile Pill -->
+<div class="flex items-center gap-3 pl-1">
+<div class="relative">
+<img alt="Lan-san Avatar" class="w-10 h-10 rounded-full object-cover border-2 border-brand-soft ring-2 ring-white shadow-xs" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCi44MHhBZz1dKNlPqVdG2CA8_SRstNQPCgqkyqr6tmMTt5EetYnCkxDJYblAe7cp7H8kK32zfyaFj9Xt_xFZ3fcFgoj6X2dS2_eJAOCRn801fthr4gXSmI82TroPrinI3IvOaUaXhA8oAcgq-gPb7WKmCdkcTtIZVop2QaTAVMSWf9m-Uhwkmb85E-ru9IOyWFmbOprjUjs8FW4MmaZ7rmsEIoirzMznSyRs4K4n30En3-6-x9qhNY">
+<span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-accent-green border-2 border-white"></span>
+</div>
+<div class="hidden xl:flex flex-col text-left">
+<div class="flex items-center gap-1.5">
+<span class="text-[13px] font-bold text-slate-charcoal leading-none">Lan-san</span>
+<span class="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-cream-soft text-slate-sub font-jp">蘭</span>
+</div>
+<span class="text-[11px] text-brand font-semibold mt-0.5">JLPT N3 Mục tiêu 150+</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Container (Max width 1440px desktop frame friendly) -->
+<main class="flex-1 px-8 py-8 max-w-[1440px] w-full mx-auto space-y-8">
+<!-- HERO BANNER: Sensei Haru AI Advisor -->
+<section class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#FFF5F7] via-[#FFFFFF] to-[#FFF0F4] border border-brand-soft/70 p-7 shadow-card">
+<!-- Sakura subtle decorative background blooms -->
+<div class="absolute -right-16 -top-20 w-80 h-80 rounded-full bg-brand-soft/25 blur-3xl pointer-events-none"></div>
+<div class="absolute right-1/3 -bottom-24 w-60 h-60 rounded-full bg-brand-subtle/60 blur-2xl pointer-events-none"></div>
+<div class="absolute right-8 top-1/2 -translate-y-1/2 opacity-[0.03] select-none pointer-events-none font-jp font-bold text-[160px] leading-none text-brand">
+          春
+        </div>
+<div class="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+<div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 max-w-4xl">
+<!-- Haru AI Sensei Avatar -->
+<div class="relative shrink-0">
+<div class="w-20 h-20 md:w-22 md:h-22 rounded-2xl bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center text-white shadow-elevated ring-4 ring-white">
+<span class="material-symbols-outlined fill-1 text-[42px]">psychology</span>
+</div>
+<div class="absolute -bottom-2 -right-2 bg-white px-2.5 py-0.5 rounded-full shadow-sm border border-cream-border flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-accent-green"></span>
+<span class="text-[11px] font-bold text-accent-green font-sans">Sẵn sàng</span>
+</div>
+</div>
+<!-- Sensei Greeting & Strategic Overview -->
+<div class="space-y-2">
+<div class="flex flex-wrap items-center gap-2">
+<h1 class="text-xl font-bold text-slate-charcoal">Cố vấn AI Haru <span class="text-brand font-jp font-normal text-base">(春先生)</span></h1>
+<span class="px-2 py-0.5 rounded-full bg-brand text-white font-bold text-[11px] shadow-xs">v2.4 Pro</span>
+<span class="text-slate-muted text-xs">• Chuyên gia Phân tích Năng lực JLPT N3</span>
+</div>
+<p class="text-[14px] text-slate-sub leading-relaxed">
+                “Chào Lan-san! Dựa trên kết quả Đề thi thử #04, tổng điểm của bạn đạt <strong class="text-brand font-bold">138/180</strong> (vượt chuẩn đỗ 95 điểm). Điểm Kanji &amp; Đọc hiểu rất xuất sắc, tuy nhiên phần Ngữ pháp mới chạm <strong class="text-brand font-bold">78%</strong> với 3 câu bẫy Kính ngữ (敬語) và cặp trợ từ <code class="px-1.5 py-0.5 bg-brand-subtle text-brand rounded font-semibold text-xs">に / で</code>. Hãy cùng Haru khắc phục nhanh trong 15 phút hôm nay nhé!”
+              </p>
+<div class="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-sub font-medium">
+<span class="flex items-center gap-1.5 text-accent-green font-semibold">
+<span class="material-symbols-outlined text-[16px] text-accent-green">verified</span>
+                  Vượt ngưỡng an toàn JEES (+43 điểm)
+                </span>
+<span class="text-slate-muted">|</span>
+<span class="flex items-center gap-1 text-slate-charcoal">
+<span class="material-symbols-outlined text-[16px] text-brand">flag</span>
+                  Mục tiêu hôm nay: <strong class="text-brand ml-0.5">1/3 bài tập</strong>
+</span>
+<span class="text-slate-muted">|</span>
+<span class="flex items-center gap-1 text-slate-charcoal">
+<span class="material-symbols-outlined text-[16px] text-slate-sub">timer</span>
+                  Thời lượng tối ưu: 15 phút
+                </span>
+</div>
+</div>
+</div>
+<!-- Quick Action CTAs -->
+<div class="flex flex-row lg:flex-col gap-2.5 w-full sm:w-auto shrink-0 justify-end">
+<button class="px-5 py-3 rounded-xl bg-brand text-white font-bold text-[13px] hover:bg-brand-hover shadow-elevated transition-all flex items-center justify-center gap-2 group whitespace-nowrap">
+<span class="material-symbols-outlined text-[18px] group-hover:rotate-45 transition-transform">bolt</span>
+<span>Bắt đầu khắc phục 15 phút</span>
+</button>
+<button class="px-4 py-2.5 rounded-xl bg-white border border-cream-border text-slate-sub hover:text-slate-charcoal hover:bg-cream-bg font-semibold text-[12px] text-center transition-colors">
+              Xem báo cáo phân tích chi tiết →
+            </button>
+</div>
+</div>
+</section>
+<!-- 12-COLUMN SECTION: DIAGNOSTIC DASHBOARD (7 Cols Radar + 5 Cols Detailed Breakdown) -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<div>
+<div class="flex items-center gap-2 text-brand font-bold text-xs uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">query_stats</span>
+<span>Sakura Diagnostic Engine • Báo cáo N3</span>
+</div>
+<h2 class="text-xl font-extrabold text-slate-charcoal tracking-tight mt-0.5">Biểu đồ Radar Năng lực &amp; Đánh giá Chi tiết</h2>
+</div>
+<div class="flex items-center gap-2 text-xs font-semibold text-slate-sub bg-white border border-cream-border px-3 py-1.5 rounded-full shadow-2xs">
+<span class="w-2 h-2 rounded-full bg-accent-green"></span>
+<span>Đã cập nhật: Đề thi thử số #04 (2 giờ trước)</span>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- LEFT: Radar / Spider Chart Card (7 cols) -->
+<div class="lg:col-span-7 bg-white rounded-2xl border border-cream-border p-6 shadow-card flex flex-col justify-between h-full space-y-6">
+<div class="flex items-center justify-between border-b border-cream-border/60 pb-4">
+<div>
+<span class="text-xs font-semibold uppercase tracking-wider text-slate-sub">Tổng điểm dự đoán</span>
+<div class="flex items-baseline gap-2 mt-0.5">
+<span class="text-4xl font-extrabold text-brand tracking-tight">138</span>
+<span class="text-sm font-semibold text-slate-sub">/ 180 điểm</span>
+<span class="ml-2 text-xs font-bold px-2 py-0.5 rounded-full bg-accent-greenSoft text-accent-green inline-flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span> +14 so với đề #03
+                  </span>
+</div>
+</div>
+<div class="text-right">
+<span class="inline-block px-3 py-1 rounded-full bg-cream-soft border border-cream-border text-xs font-bold text-slate-charcoal">
+                  Chuẩn đỗ JEES: 95 / 180
+                </span>
+<p class="text-[11px] text-accent-green font-semibold mt-1">Vùng đỗ an toàn cao (&gt;75%)</p>
+</div>
+</div>
+<!-- Radar SVG Illustration -->
+<div class="relative w-full max-w-[380px] aspect-square mx-auto flex items-center justify-center my-2">
+<svg class="w-full h-full overflow-visible" viewBox="0 0 340 340">
+<!-- Outer Guides (100%, 75%, 50%, 25%) -->
+<polygon fill="none" points="170,30 295,115 250,265 90,265 45,115" stroke="#EADFD9" stroke-width="1.5"></polygon>
+<polygon fill="none" points="170,65 264,130 230,242 110,242 76,130" stroke="#EADFD9" stroke-dasharray="2 2" stroke-width="1.2"></polygon>
+<polygon fill="none" points="170,100 232,142 210,220 130,220 108,142" stroke="#EADFD9" stroke-width="1"></polygon>
+<polygon fill="none" points="170,135 201,156 190,195 150,195 139,156" stroke="#EADFD9" stroke-dasharray="2 2" stroke-width="1"></polygon>
+<!-- Axis Lines -->
+<line stroke="#EADFD9" stroke-width="1.5" x1="170" x2="170" y1="170" y2="30"></line>
+<line stroke="#EADFD9" stroke-width="1.5" x1="170" x2="295" y1="170" y2="115"></line>
+<line stroke="#EADFD9" stroke-width="1.5" x1="170" x2="250" y1="170" y2="265"></line>
+<line stroke="#EADFD9" stroke-width="1.5" x1="170" x2="90" y1="170" y2="265"></line>
+<line stroke="#EADFD9" stroke-width="1.5" x1="170" x2="45" y1="170" y2="115"></line>
+<!-- 60% Passing Baseline Reference Shape (Dotted Charcoal) -->
+<polygon fill="none" points="170,86 245,137 218,227 122,227 95,137" stroke="#6F6669" stroke-dasharray="3 3" stroke-width="1.2"></polygon>
+<!-- Learner Polygon Area (Kanji: 92%, Goi: 86%, Bunpou: 78%, Dokkai: 84%, Choukai: 88%) -->
+<!-- Center is (170, 170). Rad = 140 -->
+<polygon fill="rgba(224, 90, 122, 0.18)" points="170,41 278,122 232,244 103,250 59,121" stroke="#E05A7A" stroke-width="2.5"></polygon>
+<!-- Radar Vertex Nodes -->
+<circle cx="170" cy="41" fill="#E05A7A" r="5" stroke="#FFFFFF" stroke-width="2"></circle>
+<circle cx="278" cy="122" fill="#E05A7A" r="5" stroke="#FFFFFF" stroke-width="2"></circle>
+<circle cx="232" cy="244" fill="#C84464" r="5.5" stroke="#FFFFFF" stroke-width="2.5"></circle>
+<circle cx="103" cy="250" fill="#E05A7A" r="5" stroke="#FFFFFF" stroke-width="2"></circle>
+<circle cx="59" cy="121" fill="#E05A7A" r="5" stroke="#FFFFFF" stroke-width="2"></circle>
+</svg>
+<!-- Absolute Floating Badges for the 5 Vertices -->
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2.5 py-1 rounded-full shadow-md border border-brand/30 text-center">
+<span class="text-[11px] font-bold text-brand">Hán tự (Kanji) • 92%</span>
+</div>
+<div class="absolute top-1/4 -right-4 bg-white px-2.5 py-1 rounded-full shadow-sm border border-cream-border text-center">
+<span class="text-[11px] font-bold text-slate-charcoal">Từ vựng (Goi) • 86%</span>
+</div>
+<div class="absolute -bottom-3 right-10 bg-white px-2.5 py-1 rounded-full shadow-md border border-brand text-center ring-2 ring-brand-subtle">
+<span class="text-[11px] font-bold text-brand">Ngữ pháp (Bunpou) • 78% ⚠</span>
+</div>
+<div class="absolute -bottom-3 left-10 bg-white px-2.5 py-1 rounded-full shadow-sm border border-cream-border text-center">
+<span class="text-[11px] font-bold text-slate-charcoal">Đọc hiểu (Dokkai) • 84%</span>
+</div>
+<div class="absolute top-1/4 -left-4 bg-white px-2.5 py-1 rounded-full shadow-sm border border-cream-border text-center">
+<span class="text-[11px] font-bold text-slate-charcoal">Nghe hiểu (Choukai) • 88%</span>
+</div>
+</div>
+<!-- Radar Footer Legend -->
+<div class="pt-4 border-t border-cream-border/60 flex items-center justify-between text-xs text-slate-sub">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-brand"></span>
+<span>Vùng năng lực hiện tại của Lan-san</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-0.5 bg-slate-sub border-b border-dashed border-slate-sub"></span>
+<span>Chuẩn tối thiểu an toàn JEES (60%)</span>
+</div>
+</div>
+</div>
+<!-- RIGHT: Breakdown 5 Skills Cards (5 cols) -->
+<div class="lg:col-span-5 space-y-3.5">
+<!-- Skill 1: Kanji -->
+<div class="p-4 rounded-xl bg-white border border-cream-border shadow-card hover:border-brand-soft transition-colors">
+<div class="flex items-center justify-between mb-1.5">
+<div class="flex items-center gap-2.5">
+<span class="w-7 h-7 rounded-lg bg-accent-greenSoft text-accent-green font-bold text-xs flex items-center justify-center font-jp">漢</span>
+<span class="font-bold text-[14px] text-slate-charcoal">Hán tự (Kanji)</span>
+<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-greenSoft text-accent-green">Thế mạnh</span>
+</div>
+<span class="font-extrabold text-sm text-accent-green">92%</span>
+</div>
+<div class="w-full bg-cream-bg rounded-full h-2 overflow-hidden mb-1.5 border border-cream-border/60">
+<div class="bg-accent-green h-full rounded-full" style="width: 92%"></div>
+</div>
+<p class="text-[12px] text-slate-sub leading-snug">Chính xác 615/650 chữ N3. Phản xạ âm On/Kun và các âm ngắt hiếm rất tốt.</p>
+</div>
+<!-- Skill 2: Goi -->
+<div class="p-4 rounded-xl bg-white border border-cream-border shadow-card hover:border-brand-soft transition-colors">
+<div class="flex items-center justify-between mb-1.5">
+<div class="flex items-center gap-2.5">
+<span class="w-7 h-7 rounded-lg bg-cream-soft text-slate-charcoal font-bold text-xs flex items-center justify-center font-jp">語</span>
+<span class="font-bold text-[14px] text-slate-charcoal">Từ vựng (Goi)</span>
+<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cream-soft text-slate-sub">Ổn định</span>
+</div>
+<span class="font-extrabold text-sm text-slate-charcoal">86%</span>
+</div>
+<div class="w-full bg-cream-bg rounded-full h-2 overflow-hidden mb-1.5 border border-cream-border/60">
+<div class="bg-brand h-full rounded-full" style="width: 86%"></div>
+</div>
+<p class="text-[12px] text-slate-sub leading-snug">Từ vựng sinh hoạt đạt 90%. Cần củng cố thêm 35 phó từ chỉ mức độ (なかなか, むしろ).</p>
+</div>
+<!-- Skill 3: Bunpou (Highlighted focus) -->
+<div class="p-4 rounded-xl bg-white border-2 border-brand shadow-card relative overflow-hidden bg-gradient-to-r from-brand-subtle/20 to-white">
+<div class="absolute right-0 top-0 w-2 h-full bg-brand"></div>
+<div class="flex items-center justify-between mb-1.5">
+<div class="flex items-center gap-2.5">
+<span class="w-7 h-7 rounded-lg bg-brand text-white font-bold text-xs flex items-center justify-center font-jp">文</span>
+<span class="font-bold text-[14px] text-brand">Ngữ pháp (Bunpou)</span>
+<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand text-white">Cần tập trung</span>
+</div>
+<span class="font-extrabold text-sm text-brand">78%</span>
+</div>
+<div class="w-full bg-cream-bg rounded-full h-2 overflow-hidden mb-1.5 border border-cream-border/60">
+<div class="bg-brand h-full rounded-full" style="width: 78%"></div>
+</div>
+<p class="text-[12px] text-slate-charcoal font-medium leading-snug">Sai 3 câu về kính ngữ công sở (Keigo) và nhầm lẫn cách chọn trợ từ trong câu xin phép.</p>
+</div>
+<!-- Skill 4: Dokkai & Choukai Split Row -->
+<div class="grid grid-cols-2 gap-3.5">
+<div class="p-3.5 rounded-xl bg-white border border-cream-border shadow-card">
+<div class="flex items-center justify-between mb-1">
+<span class="font-bold text-xs text-slate-charcoal">Đọc hiểu (読解)</span>
+<span class="font-bold text-xs text-slate-charcoal">84%</span>
+</div>
+<div class="w-full bg-cream-bg rounded-full h-1.5 overflow-hidden mb-1.5 border border-cream-border/60">
+<div class="bg-brand h-full rounded-full" style="width: 84%"></div>
+</div>
+<p class="text-[11px] text-slate-sub">Tốc độ 280 ký tự/phút. Xong trước 6 phút.</p>
+</div>
+<div class="p-3.5 rounded-xl bg-white border border-cream-border shadow-card">
+<div class="flex items-center justify-between mb-1">
+<span class="font-bold text-xs text-slate-charcoal">Nghe hiểu (聴解)</span>
+<span class="font-bold text-xs text-accent-green">88%</span>
+</div>
+<div class="w-full bg-cream-bg rounded-full h-1.5 overflow-hidden mb-1.5 border border-cream-border/60">
+<div class="bg-accent-green h-full rounded-full" style="width: 88%"></div>
+</div>
+<p class="text-[11px] text-slate-sub">Bắt từ khóa tốt ở phần phản xạ nhanh (即時応答).</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- PHÁC ĐỒ CẢI THIỆN TRỌNG ĐIỂM (PRESCRIPTIVE 15-MINUTE ACTION PLAN) -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<div>
+<div class="flex items-center gap-2 text-brand font-bold text-xs uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">healing</span>
+<span>Lộ trình khắc phục lỗ hổng</span>
+</div>
+<h2 class="text-xl font-extrabold text-slate-charcoal tracking-tight mt-0.5">Phác đồ Đột phá 15 phút từ Cố vấn Haru</h2>
+</div>
+<span class="text-xs text-slate-sub">Được thiết kế riêng theo sai sót của Đề #04</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Recommendation Card 1 -->
+<div class="rounded-2xl bg-white border border-cream-border p-6 shadow-card flex flex-col justify-between space-y-5 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-24 h-24 bg-brand-subtle/30 rounded-bl-full pointer-events-none"></div>
+<div class="space-y-3">
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-1 rounded-full bg-brand-subtle text-brand font-bold text-xs">
+                  Trọng điểm 1 • Ngữ pháp cốt lõi
+                </span>
+<span class="text-xs font-bold text-brand flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">error</span>
+                  Sai sót #1 đề 04
+                </span>
+</div>
+<h3 class="text-base font-bold text-slate-charcoal flex items-center gap-2">
+<span>Phân biệt</span>
+<code class="text-brand font-jp text-sm bg-cream-bg px-2 py-0.5 rounded border border-cream-border">~わけにはいかない</code>
+<span class="text-slate-muted">vs</span>
+<code class="text-slate-charcoal font-jp text-sm bg-cream-bg px-2 py-0.5 rounded border border-cream-border">できない</code>
+</h3>
+<p class="text-xs text-slate-sub leading-relaxed">
+<strong class="text-slate-charcoal">~わけにはいかない:</strong> Biểu đạt việc "không thể làm" xuất phát từ rào cản lương tâm, đạo đức, trách nhiệm công việc hoặc lý do xã hội. Khác hoàn toàn với <strong class="text-slate-charcoal">できない</strong> chỉ đơn thuần là thiếu năng lực thể chất hoặc kỹ năng.
+              </p>
+<div class="p-3.5 rounded-xl bg-cream-bg border border-cream-border space-y-1">
+<div class="flex items-center justify-between text-[11px] font-bold text-brand uppercase">
+<span>Mẫu câu thực tế</span>
+<span class="font-jp text-slate-sub">例文</span>
+</div>
+<p class="text-xs text-slate-charcoal font-jp font-medium leading-relaxed">
+                  明日は大事な会議があるから、休む<strong class="text-brand underline decoration-brand-soft underline-offset-2">わけにはいかない</strong>。
+                </p>
+<p class="text-[11px] text-slate-sub italic">(Ngày mai có cuộc họp quan trọng, tôi không thể tùy tiện nghỉ được).</p>
+</div>
+</div>
+<div class="pt-3 border-t border-cream-border/70 flex items-center justify-between">
+<div class="flex items-center gap-2 text-xs text-slate-sub">
+<span class="material-symbols-outlined text-[16px] text-slate-muted">timer</span>
+<span>3 câu phản xạ nhanh (7 phút)</span>
+</div>
+<button class="px-3.5 py-2 rounded-lg bg-brand text-white font-bold text-xs hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-sm">
+<span>Luyện ngay</span>
+<span class="material-symbols-outlined text-[16px]">play_arrow</span>
+</button>
+</div>
+</div>
+<!-- Recommendation Card 2 -->
+<div class="rounded-2xl bg-white border border-cream-border p-6 shadow-card flex flex-col justify-between space-y-5 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-24 h-24 bg-brand-subtle/30 rounded-bl-full pointer-events-none"></div>
+<div class="space-y-3">
+<div class="flex items-center justify-between">
+<span class="px-2.5 py-1 rounded-full bg-brand-subtle text-brand font-bold text-xs">
+                  Trọng điểm 2 • Trợ từ &amp; Kính ngữ
+                </span>
+<span class="text-xs font-bold text-brand flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">error</span>
+                  Sai sót #2 đề 04
+                </span>
+</div>
+<h3 class="text-base font-bold text-slate-charcoal flex items-center gap-2">
+<span>Trợ từ trong câu xin phép nhận ơn huệ:</span>
+<code class="text-brand font-jp text-sm bg-cream-bg px-2 py-0.5 rounded border border-cream-border">に</code>
+<span class="text-slate-muted">vs</span>
+<code class="text-slate-charcoal font-jp text-sm bg-cream-bg px-2 py-0.5 rounded border border-cream-border">で</code>
+</h3>
+<p class="text-xs text-slate-sub leading-relaxed">
+                Khi sử dụng động từ nhận ân huệ hoặc xin phép cấp trên (<span class="font-jp text-slate-charcoal font-medium">〜てもらう / 〜ていただく</span>), đối tượng nhận yêu cầu hoặc người làm ơn bắt buộc đi với trợ từ <strong class="text-brand">に</strong>, còn <strong class="text-slate-charcoal">で</strong> chỉ biểu thị phương tiện, ngôn ngữ hoặc địa điểm.
+              </p>
+<div class="p-3.5 rounded-xl bg-cream-bg border border-cream-border space-y-1">
+<div class="flex items-center justify-between text-[11px] font-bold text-brand uppercase">
+<span>Quy tắc vàng công sở</span>
+<span class="font-jp text-slate-sub">ビジネス敬語</span>
+</div>
+<p class="text-xs text-slate-charcoal font-jp font-medium leading-relaxed">
+                  部長<strong class="text-brand underline decoration-brand-soft underline-offset-2">に</strong>企画書の確認をして<strong class="text-brand">いただきました</strong>。
+                </p>
+<p class="text-[11px] text-slate-sub italic">(Tôi đã nhận được sự phê duyệt kế hoạch từ Trưởng phòng).</p>
+</div>
+</div>
+<div class="pt-3 border-t border-cream-border/70 flex items-center justify-between">
+<div class="flex items-center gap-2 text-xs text-slate-sub">
+<span class="material-symbols-outlined text-[16px] text-slate-muted">quiz</span>
+<span>4 bài tập điền trợ từ (8 phút)</span>
+</div>
+<button class="px-3.5 py-2 rounded-lg bg-brand text-white font-bold text-xs hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-sm">
+<span>Luyện ngay</span>
+<span class="material-symbols-outlined text-[16px]">play_arrow</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- WEEKLY GROWTH & MOCK TEST TRENDS (Table + Sparkline Graph) -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<div>
+<div class="flex items-center gap-2 text-brand font-bold text-xs uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span>Theo dõi tiến độ theo tuần</span>
+</div>
+<h2 class="text-xl font-extrabold text-slate-charcoal tracking-tight mt-0.5">Lịch sử Thi thử &amp; Xu hướng Điểm số</h2>
+</div>
+<div class="text-xs text-slate-sub">
+            Mục tiêu bứt phá chặng tiếp theo: <strong class="text-brand font-extrabold text-sm">150 / 180</strong> điểm
+          </div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+<!-- Table: 8 Columns -->
+<div class="lg:col-span-8 bg-white rounded-2xl border border-cream-border p-6 shadow-card overflow-x-auto flex flex-col justify-between">
+<table class="w-full text-left text-xs">
+<thead>
+<tr class="text-slate-sub font-bold uppercase tracking-wider border-b border-cream-border">
+<th class="pb-3 px-3">Đề thi thử</th>
+<th class="pb-3 px-3">Thời gian</th>
+<th class="pb-3 px-3">Tổng điểm</th>
+<th class="pb-3 px-3">Phần yếu nhất</th>
+<th class="pb-3 px-3">Trạng thái JEES</th>
+<th class="pb-3 px-3 text-right">Chi tiết</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-cream-border/60">
+<!-- Test 04 -->
+<tr class="hover:bg-cream-bg/60 transition-colors">
+<td class="py-3.5 px-3 font-bold text-slate-charcoal flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-brand"></span>
+<span>Đề thi thử #04 (Mới nhất)</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">Hôm nay</td>
+<td class="py-3.5 px-3">
+<span class="font-extrabold text-sm text-brand">138</span>
+<span class="text-slate-muted">/180</span>
+</td>
+<td class="py-3.5 px-3 text-brand font-medium">Ngữ pháp (78%)</td>
+<td class="py-3.5 px-3">
+<span class="px-2.5 py-0.5 rounded-full bg-accent-greenSoft text-accent-green font-bold text-[11px]">Đỗ vững vàng</span>
+</td>
+<td class="py-3.5 px-3 text-right">
+<button class="font-bold text-brand hover:underline">Xem lại bài</button>
+</td>
+</tr>
+<!-- Test 03 -->
+<tr class="hover:bg-cream-bg/60 transition-colors">
+<td class="py-3.5 px-3 font-semibold text-slate-charcoal flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-cream-border"></span>
+<span>Đề thi thử #03</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">1 tuần trước</td>
+<td class="py-3.5 px-3">
+<span class="font-extrabold text-sm text-slate-charcoal">124</span>
+<span class="text-slate-muted">/180</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">Từ vựng (72%)</td>
+<td class="py-3.5 px-3">
+<span class="px-2.5 py-0.5 rounded-full bg-brand-subtle text-brand font-bold text-[11px]">Đạt chuẩn đỗ</span>
+</td>
+<td class="py-3.5 px-3 text-right">
+<button class="font-semibold text-slate-sub hover:text-slate-charcoal hover:underline">Chi tiết</button>
+</td>
+</tr>
+<!-- Test 02 -->
+<tr class="hover:bg-cream-bg/60 transition-colors">
+<td class="py-3.5 px-3 font-semibold text-slate-charcoal flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-cream-border"></span>
+<span>Đề thi thử #02</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">3 tuần trước</td>
+<td class="py-3.5 px-3">
+<span class="font-extrabold text-sm text-slate-charcoal">112</span>
+<span class="text-slate-muted">/180</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">Nghe hiểu (68%)</td>
+<td class="py-3.5 px-3">
+<span class="px-2.5 py-0.5 rounded-full bg-cream-soft text-slate-sub font-semibold text-[11px]">Ngưỡng an toàn</span>
+</td>
+<td class="py-3.5 px-3 text-right">
+<button class="font-semibold text-slate-sub hover:text-slate-charcoal hover:underline">Chi tiết</button>
+</td>
+</tr>
+<!-- Test 01 -->
+<tr class="hover:bg-cream-bg/60 transition-colors">
+<td class="py-3.5 px-3 font-semibold text-slate-charcoal flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-cream-border"></span>
+<span>Đề thi đầu vào #01</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">1 tháng trước</td>
+<td class="py-3.5 px-3">
+<span class="font-extrabold text-sm text-slate-charcoal">98</span>
+<span class="text-slate-muted">/180</span>
+</td>
+<td class="py-3.5 px-3 text-slate-sub">Ngữ pháp (62%)</td>
+<td class="py-3.5 px-3">
+<span class="px-2.5 py-0.5 rounded-full bg-cream-soft text-slate-sub font-semibold text-[11px]">Vừa đủ đỗ</span>
+</td>
+<td class="py-3.5 px-3 text-right">
+<button class="font-semibold text-slate-sub hover:text-slate-charcoal hover:underline">Chi tiết</button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="pt-4 border-t border-cream-border/60 flex items-center justify-between text-xs text-slate-sub">
+<span>Hiển thị 4 đề thi thử đã chấm chuẩn hóa JEES</span>
+<a class="text-brand font-bold hover:underline" href="#">Mở toàn bộ ngân hàng đề thi thử →</a>
+</div>
+</div>
+<!-- Sparkline / Progress Graph: 4 Columns -->
+<div class="lg:col-span-4 bg-white rounded-2xl border border-cream-border p-6 shadow-card flex flex-col justify-between space-y-4">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-bold uppercase tracking-wider text-slate-sub">Tăng trưởng điểm số</span>
+<span class="text-xs font-extrabold text-accent-green bg-accent-greenSoft px-2 py-0.5 rounded-full">+23.2% / tháng</span>
+</div>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-2xl font-extrabold text-slate-charcoal">+40 điểm</span>
+<span class="text-xs text-slate-sub">từ lúc bắt đầu lộ trình</span>
+</div>
+<!-- SVG Sparkline with Gradient fill -->
+<div class="w-full pt-4">
+<svg class="w-full h-28 overflow-visible" viewBox="0 0 280 90">
+<defs>
+<linearGradient id="scoreGrowth" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#E05A7A" stop-opacity="0.25"></stop>
+<stop offset="100%" stop-color="#E05A7A" stop-opacity="0.0"></stop>
+</linearGradient>
+</defs>
+<!-- Baseline 95 pass mark -->
+<line stroke="#EADFD9" stroke-dasharray="3 3" stroke-width="1.5" x1="10" x2="270" y1="72" y2="72"></line>
+<text fill="#A59B9E" font-size="9" font-weight="600" text-anchor="end" x="270" y="68">Điểm đỗ (95)</text>
+<!-- Sparkline Curve Area -->
+<path d="M 15,70 L 95,54 L 175,38 L 255,16 L 255,85 L 15,85 Z" fill="url(#scoreGrowth)"></path>
+<!-- Sparkline Curve Stroke -->
+<path d="M 15,70 L 95,54 L 175,38 L 255,16" fill="none" stroke="#E05A7A" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"></path>
+<!-- Points -->
+<circle cx="15" cy="70" fill="#FFFFFF" r="4" stroke="#E05A7A" stroke-width="2.5"></circle>
+<circle cx="95" cy="54" fill="#FFFFFF" r="4" stroke="#E05A7A" stroke-width="2.5"></circle>
+<circle cx="175" cy="38" fill="#FFFFFF" r="4" stroke="#E05A7A" stroke-width="2.5"></circle>
+<circle cx="255" cy="16" fill="#E05A7A" r="6" stroke="#FFFFFF" stroke-width="2.5"></circle>
+<!-- Point Labels -->
+<text fill="#6F6669" font-size="9" text-anchor="middle" x="15" y="85">98đ</text>
+<text fill="#6F6669" font-size="9" text-anchor="middle" x="95" y="85">112đ</text>
+<text fill="#6F6669" font-size="9" text-anchor="middle" x="175" y="85">124đ</text>
+<text fill="#E05A7A" font-size="11" font-weight="bold" text-anchor="middle" x="255" y="10">138đ</text>
+</svg>
+</div>
+</div>
+<!-- Recommendation snippet -->
+<div class="p-3.5 rounded-xl bg-[#FAF7F5] border border-cream-border space-y-1">
+<span class="text-[11px] font-bold text-brand uppercase tracking-wider">Đề xuất cho mốc 150/180:</span>
+<p class="text-xs text-slate-sub leading-snug">
+                Hoàn thành chuyên đề <span class="font-semibold text-slate-charcoal">"20 mẫu ngữ pháp tương phản và giả định nâng cao N3"</span> để lấy trọn 60/60 điểm phần Kiến thức ngôn ngữ.
+              </p>
+</div>
+</div>
+</div>
+</section>
+<!-- NEO-SAKURA MOTIVATIONAL STRIP (Triết lý Kaizen & Ma 間) -->
+<section class="rounded-2xl bg-gradient-to-r from-brand to-brand-dark text-white p-7 shadow-elevated relative overflow-hidden">
+<div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 flex items-center justify-end pr-10 pointer-events-none">
+<span class="font-jp text-[180px] font-bold leading-none select-none text-white">間</span>
+</div>
+<div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+<div class="space-y-1.5 max-w-2xl">
+<div class="flex items-center gap-2 text-brand-soft text-xs font-bold uppercase tracking-widest">
+<span class="material-symbols-outlined text-[16px]">spa</span>
+<span>Triết lý Kaizen &amp; Không gian Ma (間)</span>
+</div>
+<h3 class="text-xl font-bold tracking-tight">
+              Luyện tập có chủ đích 15 phút mỗi ngày cùng Cố vấn Haru
+            </h3>
+<p class="text-xs text-white/90 leading-relaxed">
+              Không cần học dồn quá tải. Khoảng lặng tập trung sâu sắc giúp chuyển hóa từng lỗ hổng nhỏ thành phản xạ vô thức tự nhiên, mở đường tới điểm tuyệt đối N3.
+            </p>
+</div>
+<!-- Streak Badge -->
+<div class="flex items-center gap-4 bg-white/15 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-white/20 shrink-0">
+<div class="w-10 h-10 rounded-xl bg-white text-brand flex items-center justify-center font-bold shadow-sm">
+<span class="material-symbols-outlined fill-1 text-[24px]">local_fire_department</span>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-extrabold leading-none tracking-tight">12 Ngày</span>
+<span class="text-[11px] text-white/80 font-medium mt-0.5">Chuỗi học tập liên tục</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+</div>
+</body></html>

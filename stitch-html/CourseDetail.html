@@ -1,0 +1,480 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Khóa học N4 - RikiPath</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "primary": "#d94b68",
+          "primary-container": "#cd425f",
+          "bg-page": "#fff7f9",
+          "bg-soft-red": "#fde8ec",
+          "border-base": "#f3d7dd",
+          "surface": "#ffffff",
+          "surface-bright": "#fff7f9",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-low": "#fbf1f5",
+          "surface-container": "#f5ebef",
+          "surface-container-high": "#f0e6e9",
+          "surface-container-highest": "#eae0e4",
+          "surface-dim": "#e1d7db",
+          "on-surface": "#1f1a1d",
+          "on-surface-variant": "#584143",
+          "outline": "#8b7073",
+          "outline-variant": "#dfbfc1",
+          "on-primary": "#ffffff",
+          "on-primary-container": "#fffbff",
+          "secondary": "#805062",
+          "level-n4": "#d94b68",
+          "warning": "#f59e0b",
+          "inverse-surface": "#342f32",
+          "inverse-on-surface": "#f8eef2",
+          "inverse-primary": "#ffb2bb"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "9999px"
+        },
+        "spacing": {
+          "gutter": "16px",
+          "margin-desktop": "32px",
+          "xs": "4px",
+          "lg": "24px",
+          "base": "8px",
+          "md": "16px",
+          "xl": "32px",
+          "sm": "12px",
+          "margin-mobile": "16px"
+        },
+        "fontFamily": {
+          "display-lg-mobile": ["Plus Jakarta Sans", "sans-serif"],
+          "label-xs": ["Plus Jakarta Sans", "sans-serif"],
+          "support-sm": ["Plus Jakarta Sans", "sans-serif"],
+          "display-lg": ["Plus Jakarta Sans", "sans-serif"],
+          "title-sm": ["Plus Jakarta Sans", "sans-serif"],
+          "headline-md": ["Plus Jakarta Sans", "sans-serif"],
+          "body-md": ["Plus Jakarta Sans", "sans-serif"]
+        },
+        "fontSize": {
+          "display-lg-mobile": [
+            "28px",
+            {
+              "lineHeight": "36px",
+              "letterSpacing": "-0.02em",
+              "fontWeight": "700"
+            }
+          ],
+          "label-xs": [
+            "12px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "600"
+            }
+          ],
+          "support-sm": [
+            "14px",
+            {
+              "lineHeight": "20px",
+              "fontWeight": "400"
+            }
+          ],
+          "display-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "-0.02em",
+              "fontWeight": "700"
+            }
+          ],
+          "title-sm": [
+            "18px",
+            {
+              "lineHeight": "24px",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "fontWeight": "600"
+            }
+          ],
+          "body-md": [
+            "16px",
+            {
+              "lineHeight": "24px",
+              "fontWeight": "400"
+            }
+          ]
+        }
+      },
+    },
+  }
+</script>
+</head>
+<body class="bg-bg-page text-on-surface font-body-md antialiased selection:bg-bg-soft-red selection:text-primary" style="background-color: rgb(250, 247, 242); position: relative;"><div class="fixed inset-0 pointer-events-none z-0 opacity-20" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida/AEtjO1XsYWpcypAaiicJ5aWDsaW-GEmVWOKogAEQ7kZW4nxNFB_JZTuC9dhy22iD5Mnutw1-dtQ-HzB6D_VzjEx9subcYz6PRrv0yijHn4N-jAJ5MXOS4-C7ZVxGV4l2XoEkHfC4wG6mbXFoj3jaBxyOPj_Z_xylJmm-FRcPsVf-1klRUQuv1hr9HgKslqHQcIxclS9hAnXtwq8jA0ngfRmWAVTjaBx5hh644yXJMi3Bdy5g8E0mhB9PvzPKpXg&quot;); background-repeat: repeat; background-size: 120px 120px;"></div>
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md dark:bg-inverse-surface border-b border-border-base shadow-xs">
+<div class="flex justify-between items-center px-margin-desktop py-4 max-w-7xl mx-auto">
+<div class="text-headline-md font-headline-md text-primary dark:text-inverse-primary flex items-center gap-1.5 font-bold tracking-tight">
+<span class="material-symbols-outlined text-primary text-[26px]">local_florist</span>
+<span class="">RikiPath</span>
+</div>
+<nav class="hidden md:flex gap-lg">
+<a class="text-primary font-bold border-b-2 border-primary pb-1" href="#">Khóa học</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Lộ trình JLPT</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Kho kiến thức</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Thi thử</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Tư vấn</a>
+</nav>
+<div class="flex items-center gap-md">
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-title-sm text-title-sm">Đăng nhập</button>
+<button class="bg-primary text-on-primary rounded-full px-lg py-sm font-title-sm text-title-sm hover:opacity-90 shadow-md shadow-primary/20 transition-all duration-200">Học thử miễn phí</button>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Mobile) -->
+<div class="hidden lg:hidden flex flex-col p-4 fixed inset-y-0 left-0 h-full w-64 bg-surface dark:bg-inverse-surface border-r border-border-base z-40 mt-[72px]">
+<div class="mb-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">local_florist</span>
+<div>
+<div class="text-title-sm font-title-sm text-primary">RikiPath</div>
+<div class="text-support-sm font-support-sm text-on-surface-variant">Học tiếng Nhật thông minh</div>
+</div>
+</div>
+<nav class="flex flex-col gap-sm">
+<a class="bg-primary-container text-on-primary-container rounded-lg px-4 py-2 flex items-center gap-md transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="">Khóa học</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-4 py-2 flex items-center gap-md transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="alt_route">alt_route</span>
+<span class="">Lộ trình JLPT</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-4 py-2 flex items-center gap-md transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="library_books">library_books</span>
+<span class="">Kho kiến thức</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-4 py-2 flex items-center gap-md transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="quiz">quiz</span>
+<span class="">Thi thử</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-4 py-2 flex items-center gap-md transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+<span class="">Tư vấn</span>
+</a>
+</nav>
+<div class="mt-auto pt-lg">
+<button class="w-full bg-primary text-on-primary rounded-full py-sm font-title-sm text-title-sm hover:opacity-90 shadow-md shadow-primary/20 transition-all duration-200">Học thử miễn phí</button>
+</div>
+</div>
+<!-- Main Content -->
+<main class="pt-[96px] pb-xl px-margin-mobile md:px-margin-desktop max-w-7xl mx-auto min-h-screen relative">
+<!-- Breadcrumbs -->
+<nav aria-label="Breadcrumb" class="flex items-center gap-2 text-support-sm font-support-sm text-on-surface-variant mb-lg">
+<a class="hover:text-primary transition-colors" href="#">Trang chủ</a>
+<span class="material-symbols-outlined text-[16px]" data-icon="chevron_right">chevron_right</span>
+<a class="hover:text-primary transition-colors" href="#">Khóa học</a>
+<span class="material-symbols-outlined text-[16px]" data-icon="chevron_right">chevron_right</span>
+<span class="text-on-surface font-medium">Chinh phục JLPT N4 Toàn diện</span>
+</nav>
+<!-- Course Header & Main Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-xl">
+<!-- Left Column (Content) -->
+<div class="lg:col-span-8 flex flex-col gap-xl">
+<!-- Hero Section -->
+<div class="bg-surface rounded-xl border border-border-base overflow-hidden shadow-xs hover:shadow-sm transition-shadow">
+<div class="w-full h-64 bg-surface-container-high relative">
+<img class="w-full h-full object-cover" data-alt="A modern, bright classroom setting for Japanese language learning. Soft morning light streams through large windows. On a clean, minimalist wooden desk, a textbook is open next to a steaming cup of tea and a notebook with beautiful kanji calligraphy. The overall mood is motivating, serene, and academically focused. Colors are soft whites, warm woods, with vibrant accents of primary red to match the brand identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmjrkGTuhbr6DcadwSwvdkot1XWlCI1L4IPWTUlIMyyk_Nsd6VRi-hczg92To7ZsFHzY57N8ul0s_CQvUC8a7HLJVl8i0W4m4O7RZr-rgpQSksPcupA25LR_II8lzSD7xB2Py1PDnBMwPGjbHVn5I9YY2GNaahEgLIXmmxO-LusvirYk56WZeE7xzb6f1D2iRF6h-xJjMZezhb8IxKvPMiUxOwz_eGxCyyNESsKnJFUDom1NfbNuCRWg">
+<div class="absolute inset-0 bg-gradient-to-t from-on-background/85 via-on-background/30 to-transparent flex items-end p-lg">
+<span class="bg-primary text-on-primary px-3.5 py-1 rounded-full text-label-xs font-label-xs mb-sm inline-flex items-center gap-1 shadow-sm font-semibold tracking-wide">
+<span class="material-symbols-outlined text-[14px]">local_florist</span> N4 Level
+</span>
+</div>
+</div>
+<div class="p-lg bg-surface">
+<h1 class="text-display-lg-mobile md:text-display-lg font-display-lg-mobile md:font-display-lg text-on-surface mb-md">Chinh phục JLPT N4 Toàn diện</h1>
+<p class="text-body-md font-body-md text-on-surface-variant mb-lg leading-relaxed">
+                            Khóa học thiết kế đặc biệt giúp bạn nắm vững ngữ pháp, từ vựng và kỹ năng đọc hiểu N4 trong 3 tháng. Lộ trình cá nhân hóa, bài tập thực hành sát đề thi thực tế.
+                        </p>
+<div class="flex flex-wrap gap-md items-center">
+<div class="flex items-center gap-xs text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-full border border-border-base">
+<span class="material-symbols-outlined text-warning" data-icon="star" data-weight="fill">star</span>
+<span class="font-medium text-on-surface">4.8</span>
+<span class="">(1,245 đánh giá)</span>
+</div>
+<div class="flex items-center gap-xs text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-full border border-border-base">
+<span class="material-symbols-outlined text-primary" data-icon="group">group</span>
+<span class="">15,000+ Học viên</span>
+</div>
+<div class="flex items-center gap-xs text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-full border border-border-base">
+<span class="material-symbols-outlined text-primary" data-icon="schedule">schedule</span>
+<span class="">60 Giờ học</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Course Outcomes (Bento Grid Style) -->
+<section>
+<h2 class="text-headline-md font-headline-md text-on-surface mb-lg flex items-center gap-2">
+<span class="w-2.5 h-6 bg-primary rounded-full inline-block"></span>
+<span class="">Bạn sẽ học được gì?</span>
+</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<div class="bg-surface p-lg rounded-xl border border-border-base flex items-start gap-md hover:border-primary/40 hover:bg-surface-container-low/40 transition-all duration-200">
+<div class="bg-bg-soft-red p-sm rounded-lg text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]" data-icon="check_circle">check_circle</span>
+</div>
+<div>
+<h3 class="text-title-sm font-title-sm text-on-surface mb-xs">Nắm vững 300+ Kanji N4</h3>
+<p class="text-support-sm font-support-sm text-on-surface-variant">Nhận diện và viết thành thạo các chữ Hán thường gặp trong kỳ thi.</p>
+</div>
+</div>
+<div class="bg-surface p-lg rounded-xl border border-border-base flex items-start gap-md hover:border-primary/40 hover:bg-surface-container-low/40 transition-all duration-200">
+<div class="bg-bg-soft-red p-sm rounded-lg text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]" data-icon="check_circle">check_circle</span>
+</div>
+<div>
+<h3 class="text-title-sm font-title-sm text-on-surface mb-xs">Thành thạo Ngữ pháp trung cấp</h3>
+<p class="text-support-sm font-support-sm text-on-surface-variant">Hiểu sâu và vận dụng linh hoạt 100+ cấu trúc ngữ pháp N4.</p>
+</div>
+</div>
+<div class="bg-surface p-lg rounded-xl border border-border-base flex items-start gap-md hover:border-primary/40 hover:bg-surface-container-low/40 transition-all duration-200">
+<div class="bg-bg-soft-red p-sm rounded-lg text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]" data-icon="check_circle">check_circle</span>
+</div>
+<div>
+<h3 class="text-title-sm font-title-sm text-on-surface mb-xs">Kỹ năng Đọc hiểu tốc độ cao</h3>
+<p class="text-support-sm font-support-sm text-on-surface-variant">Chiến thuật giải quyết nhanh các dạng bài đọc hiểu trong đề thi.</p>
+</div>
+</div>
+<div class="bg-surface p-lg rounded-xl border border-border-base flex items-start gap-md hover:border-primary/40 hover:bg-surface-container-low/40 transition-all duration-200">
+<div class="bg-bg-soft-red p-sm rounded-lg text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]" data-icon="check_circle">check_circle</span>
+</div>
+<div>
+<h3 class="text-title-sm font-title-sm text-on-surface mb-xs">Nghe hiểu phản xạ</h3>
+<p class="text-support-sm font-support-sm text-on-surface-variant">Luyện nghe hội thoại hàng ngày và bắt keyword chính xác.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Curriculum Accordion -->
+<section>
+<div class="flex justify-between items-center mb-lg">
+<h2 class="text-headline-md font-headline-md text-on-surface flex items-center gap-2">
+<span class="w-2.5 h-6 bg-primary rounded-full inline-block"></span>
+<span class="">Nội dung khóa học</span>
+</h2>
+<span class="text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1 rounded-full border border-border-base font-medium">4 Chương • 48 Bài giảng</span>
+</div>
+<div class="flex flex-col gap-sm">
+<!-- Accordion Item 1 -->
+<div class="bg-surface rounded-xl border border-border-base overflow-hidden shadow-xs">
+<button class="w-full px-lg py-md flex justify-between items-center bg-surface-container-low/70 hover:bg-surface-container-low transition-colors duration-200 text-left">
+<div class="flex items-center gap-md">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-title-sm font-title-sm text-on-surface">Chương 1: Khởi động Ngữ pháp N4</span>
+</div>
+<div class="flex items-center gap-md">
+<span class="text-support-sm font-support-sm text-on-surface-variant hidden md:block">12 bài giảng</span>
+<span class="material-symbols-outlined text-primary transition-transform duration-200" data-icon="expand_more">expand_more</span>
+</div>
+</button>
+<div class="px-lg py-md border-t border-border-base bg-surface-bright">
+<ul class="flex flex-col gap-md">
+<li class="flex items-start gap-md">
+<span class="material-symbols-outlined text-primary text-[20px] mt-1" data-icon="play_circle">play_circle</span>
+<div>
+<p class="text-body-md font-body-md text-on-surface">Bài 1: Thể bị động (受身形)</p>
+<p class="text-support-sm font-support-sm text-on-surface-variant">15:30</p>
+</div>
+</li>
+<li class="flex items-start gap-md">
+<span class="material-symbols-outlined text-primary text-[20px] mt-1" data-icon="play_circle">play_circle</span>
+<div>
+<p class="text-body-md font-body-md text-on-surface">Bài 2: Thể sai khiến (使役形)</p>
+<p class="text-support-sm font-support-sm text-on-surface-variant">18:45</p>
+</div>
+</li>
+<li class="flex items-start gap-md opacity-60">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] mt-1" data-icon="lock">lock</span>
+<div>
+<p class="text-body-md font-body-md text-on-surface">Bài 3: Tôn kính ngữ &amp; Khiêm nhường ngữ cơ bản</p>
+<p class="text-support-sm font-support-sm text-on-surface-variant">22:10</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<!-- Accordion Item 2 (Closed state preview) -->
+<div class="bg-surface rounded-xl border border-border-base overflow-hidden shadow-xs">
+<button class="w-full px-lg py-md flex justify-between items-center bg-surface-container-low/70 hover:bg-surface-container-low transition-colors duration-200 text-left">
+<div class="flex items-center gap-md">
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="text-title-sm font-title-sm text-on-surface">Chương 2: Chinh phục 300 Kanji N4</span>
+</div>
+<div class="flex items-center gap-md">
+<span class="text-support-sm font-support-sm text-on-surface-variant hidden md:block">15 bài giảng</span>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="expand_more">expand_more</span>
+</div>
+</button>
+</div>
+</div>
+</section>
+<!-- Instructor Bio -->
+<section class="bg-surface rounded-xl border border-border-base p-lg shadow-xs">
+<h2 class="text-headline-md font-headline-md text-on-surface mb-lg flex items-center gap-2">
+<span class="w-2.5 h-6 bg-primary rounded-full inline-block"></span>
+<span class="">Giảng viên của bạn</span>
+</h2>
+<div class="flex flex-col md:flex-row gap-lg items-start">
+<img class="w-24 h-24 rounded-full object-cover border-2 border-border-base shadow-xs" data-alt="A professional headshot of a friendly, approachable female Japanese language teacher in her 30s. She is smiling warmly at the camera. She wears a modern, smart-casual blazer over a neat blouse. The background is a brightly lit, out-of-focus modern office setting with subtle hints of red brand accents. High quality, crisp portrait photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHMqJFwTxP1IeWh-SVAtONZ9MI1b-9hrCie8GUBmzb2I3a3vy4-4X6C3yPEavGICTIxppj8wWPq-dWa6WIoeMUT-mf5HjkXJnNeNYKIDxZTa2NL02mCjNZORzt_ASH9pfcF7BleTk2CLEWFASCLIrje-w-GdBygTuFfk03gV2y0uxVok5E1j98kxhTzu7d2x3ngwn-W_d08RyLe2S2Amwop8A09XoBWzKLvSEEfLJW78sn-Xs6lxE9yg">
+<div>
+<h3 class="text-title-sm font-title-sm text-on-surface">Cô Nguyễn Thu Hà</h3>
+<p class="text-support-sm font-support-sm text-primary font-medium mb-md flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">verified</span> Chuyên gia luyện thi JLPT N3, N4
+</p>
+<p class="text-body-md font-body-md text-on-surface-variant leading-relaxed">
+                                Với hơn 8 năm kinh nghiệm giảng dạy tiếng Nhật và từng sống, làm việc tại Tokyo trong 5 năm. Cô Hà nổi tiếng với phương pháp giảng dạy trực quan, dễ hiểu, giúp hàng ngàn học viên vượt qua kỳ thi JLPT với điểm số ấn tượng.
+                            </p>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column (Sticky Sidebar) -->
+<div class="lg:col-span-4 relative">
+<div class="sticky top-[100px] flex flex-col gap-lg">
+<!-- Enrollment Card -->
+<div class="bg-surface rounded-xl border border-border-base shadow-sm p-lg relative overflow-hidden">
+<!-- Decorative sakura pastel bg accent -->
+<div class="absolute top-0 right-0 w-36 h-36 bg-primary/10 rounded-bl-full -z-10 pointer-events-none"></div>
+<div class="mb-lg">
+<span class="text-display-lg-mobile md:text-display-lg font-display-lg-mobile md:font-display-lg text-on-surface font-bold">1,299,000₫</span>
+<span class="text-support-sm font-support-sm text-on-surface-variant line-through ml-2">2,500,000₫</span>
+<div class="mt-xs inline-block bg-bg-soft-red text-primary border border-border-base px-2.5 py-1 rounded-full text-label-xs font-label-xs font-bold">Giảm 48%</div>
+</div>
+<button class="w-full bg-primary text-on-primary rounded-full py-md font-title-sm text-title-sm mb-sm hover:opacity-95 active:scale-[0.99] transition-all duration-200 shadow-[0_6px_16px_rgba(217,75,104,0.3)] flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[20px]">local_florist</span>
+<span class="">Đăng ký học ngay</span>
+</button>
+<button class="w-full border border-border-base bg-surface-container-low/40 text-on-surface rounded-full py-md font-title-sm text-title-sm hover:bg-surface-container-low hover:border-primary/40 transition-all duration-200">
+                            Học thử miễn phí
+                        </button>
+<div class="mt-lg pt-lg border-t border-border-base flex flex-col gap-sm">
+<h4 class="text-title-sm font-title-sm text-on-surface mb-xs">Khóa học bao gồm:</h4>
+<div class="flex items-center gap-md text-support-sm font-support-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="ondemand_video">ondemand_video</span>
+<span class="">60 giờ video bài giảng chất lượng cao</span>
+</div>
+<div class="flex items-center gap-md text-support-sm font-support-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="description">description</span>
+<span class="">120+ bài tập thực hành có chấm chữa</span>
+</div>
+<div class="flex items-center gap-md text-support-sm font-support-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="all_inclusive">all_inclusive</span>
+<span class="">Quyền truy cập trọn đời</span>
+</div>
+<div class="flex items-center gap-md text-support-sm font-support-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="devices">devices</span>
+<span class="">Học trên mọi thiết bị</span>
+</div>
+</div>
+</div>
+<!-- Reviews Summary Card -->
+<div class="bg-surface rounded-xl border border-border-base p-lg shadow-xs">
+<h3 class="text-title-sm font-title-sm text-on-surface mb-md">Đánh giá học viên</h3>
+<div class="flex items-center gap-lg mb-md">
+<div class="text-center">
+<div class="text-display-lg-mobile md:text-display-lg font-display-lg-mobile md:font-display-lg text-on-surface font-bold leading-none">4.8</div>
+<div class="flex text-warning mt-1 justify-center">
+<span class="material-symbols-outlined text-[16px]" data-icon="star" data-weight="fill">star</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="star" data-weight="fill">star</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="star" data-weight="fill">star</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="star" data-weight="fill">star</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="star_half" data-weight="fill">star_half</span>
+</div>
+<div class="text-label-xs font-label-xs text-on-surface-variant mt-1">(1,245 đánh giá)</div>
+</div>
+<div class="flex-1 flex flex-col gap-1.5">
+<!-- Progress bars for ratings -->
+<div class="flex items-center gap-2">
+<span class="text-label-xs font-label-xs text-on-surface-variant w-3">5</span>
+<div class="h-2 flex-1 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[85%] rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-label-xs font-label-xs text-on-surface-variant w-3">4</span>
+<div class="h-2 flex-1 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary/70 w-[10%] rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-50">
+<span class="text-label-xs font-label-xs text-on-surface-variant w-3">3</span>
+<div class="h-2 flex-1 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary/40 w-[3%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<button class="w-full text-primary font-title-sm text-title-sm hover:underline mt-sm">Xem tất cả đánh giá</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-low dark:bg-surface-dim border-t border-border-base w-full py-12 mt-xl">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8 px-margin-desktop max-w-7xl mx-auto">
+<div class="md:col-span-1">
+<div class="text-headline-md font-headline-md text-primary mb-md flex items-center gap-1.5 font-bold">
+<span class="material-symbols-outlined text-primary text-[24px]">local_florist</span>
+<span class="">RikiPath</span>
+</div>
+<p class="font-support-sm text-support-sm text-on-surface dark:text-inverse-on-surface mb-md opacity-80">
+                    Hệ thống học tiếng Nhật trực tuyến hàng đầu, đồng hành cùng bạn trên con đường chinh phục JLPT.
+                </p>
+<div class="font-support-sm text-support-sm text-on-surface-variant dark:text-inverse-on-surface opacity-90 text-xs">
+                    © 2024 RikiPath Education. All rights reserved.
+                </div>
+</div>
+<div class="flex flex-col gap-sm">
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Về chúng tôi</a>
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Điều khoản sử dụng</a>
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Chính sách bảo mật</a>
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Liên hệ</a>
+</div>
+<div class="flex flex-col gap-sm">
+<span class="font-title-sm text-title-sm text-on-surface dark:text-inverse-on-surface mb-2">Hỗ trợ học viên</span>
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Hướng dẫn thanh toán</a>
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Kích hoạt khóa học</a>
+<a class="font-support-sm text-support-sm text-on-surface-variant hover:text-primary transition-colors opacity-90" href="#">Câu hỏi thường gặp</a>
+</div>
+<div class="flex flex-col gap-sm">
+<span class="font-title-sm text-title-sm text-on-surface dark:text-inverse-on-surface mb-2">Kết nối với chúng tôi</span>
+<div class="flex gap-md">
+<!-- Social Icons placeholders -->
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-bg-soft-red cursor-pointer transition-colors border border-border-base">
+<span class="material-symbols-outlined text-[18px]" data-icon="language">language</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-bg-soft-red cursor-pointer transition-colors border border-border-base">
+<span class="material-symbols-outlined text-[18px]" data-icon="mail">mail</span>
+</div>
+</div>
+</div>
+</div>
+</footer>
+
+
+</body></html>
