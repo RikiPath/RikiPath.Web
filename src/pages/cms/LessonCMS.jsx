@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { CmsShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function LessonCMS() {
   const { pathname } = useLocation();
   return (
@@ -169,7 +169,7 @@ export default function LessonCMS() {
 </div>
 <div className="mt-3 flex items-center justify-between pt-2.5 border-t border-surface-border/50 text-[11px]">
 <span className="text-txt-muted">SLA duyệt: &lt; 24h</span>
-<a className="text-brand font-bold hover:underline" href="#">Xem ngay →</a>
+<Link className="text-brand font-bold hover:underline" to="/admin/content-review">Xem ngay →</Link>
 </div>
 </div>
 </div>
@@ -301,7 +301,7 @@ export default function LessonCMS() {
 </div>
 <div className="flex flex-col min-w-0">
 <div className="flex items-center gap-1.5">
-<span className="font-bold text-txt-main truncate hover:text-brand cursor-pointer">Bài 07: Cấu trúc わけにはいかない</span>
+<Link to="/lesson-cms-detail" className="font-bold text-txt-main truncate hover:text-brand">Bài 07: Cấu trúc わけにはいかない</Link>
 <span className="material-symbols-outlined text-[15px] text-emerald-600" title="Đã đồng bộ AI Audio">volume_up</span>
 </div>
 <span className="text-[12px] text-txt-muted truncate">Ý nghĩa: “Không thể vì lý do đạo đức/xã hội” kèm 15 ví dụ thực tế</span>
@@ -345,9 +345,9 @@ export default function LessonCMS() {
 <button className="p-1.5 rounded-lg hover:bg-brand-light text-txt-muted hover:text-brand transition-colors" title="Chỉnh sửa bài học">
 <span className="material-symbols-outlined text-[17px]">edit</span>
 </button>
-<button className="p-1.5 rounded-lg hover:bg-brand-light text-txt-muted hover:text-brand transition-colors" title="Xem trước người học">
+<Link to="/lesson-cms-detail" className="p-1.5 rounded-lg hover:bg-brand-light text-txt-muted hover:text-brand transition-colors inline-flex" title="Xem trước người học">
 <span className="material-symbols-outlined text-[17px]">visibility</span>
-</button>
+</Link>
 <button className="p-1.5 rounded-lg hover:bg-canvas text-txt-light hover:text-txt-main transition-colors" title="Thao tác khác">
 <span className="material-symbols-outlined text-[17px]">more_vert</span>
 </button>

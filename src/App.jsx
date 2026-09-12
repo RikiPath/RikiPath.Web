@@ -10,8 +10,6 @@ import { Auth, Register, ForgotPassword, OnboardingSurvey } from './pages/auth';
 // —— Learner ——
 import {
   Dashboard,
-  HomeLearner,
-  MultiColumnDashboard,
   LessonList,
   LessonPlayer,
   LessonComplete,
@@ -24,12 +22,14 @@ import {
   AICounselor,
   AIScoringResult,
   ExamN3,
+  VocabWordDetail,
+  ExamResult,
+  LearnerSettings,
 } from './pages/learner';
 
 // —— Tư vấn (Consultation) ——
 import {
   Consultation,
-  ConsultationHub,
   ConsultationCenter,
   ConsultationQueue,
   BookingSchedule,
@@ -39,6 +39,10 @@ import {
   ConsultationRequestDetail,
   WorkSchedule,
   TextConsultationReply,
+  SenseiProfile,
+  ConsultationSessionDetail,
+  ConsultationReceipt,
+  ConsultationRoom,
 } from './pages/consultation';
 
 // —— CMS ——
@@ -53,6 +57,7 @@ import {
   VocabularyEditor,
   KanjiEditor,
   VideoLessonEditor,
+  CmsLessonDetail,
 } from './pages/cms';
 
 // —— Admin ——
@@ -61,6 +66,7 @@ import {
   AdminUsers,
   AdminRoles,
   AdminContentReview,
+  AdminUserDetail,
 } from './pages/admin';
 
 export default function App() {
@@ -84,8 +90,8 @@ export default function App() {
           {/* ========== LEARNER ========== */}
           <Route path="/app" element={<Dashboard />} />
           <Route path="/dashboard" element={<Navigate to="/app" replace />} />
-          <Route path="/home-learner" element={<HomeLearner />} />
-          <Route path="/multi-dashboard" element={<MultiColumnDashboard />} />
+          <Route path="/home-learner" element={<Navigate to="/app" replace />} />
+          <Route path="/multi-dashboard" element={<Navigate to="/app" replace />} />
           <Route path="/lessons" element={<LessonList />} />
           <Route path="/lesson-player" element={<LessonPlayer />} />
           <Route path="/lesson-complete" element={<LessonComplete />} />
@@ -98,10 +104,13 @@ export default function App() {
           <Route path="/ai-counselor" element={<AICounselor />} />
           <Route path="/ai-scoring" element={<AIScoringResult />} />
           <Route path="/exam-n3" element={<ExamN3 />} />
+          <Route path="/exam-result" element={<ExamResult />} />
+          <Route path="/vocabulary-detail" element={<VocabWordDetail />} />
+          <Route path="/settings" element={<LearnerSettings />} />
 
           {/* ========== TƯ VẤN ========== */}
           <Route path="/consultation" element={<Consultation />} />
-          <Route path="/consultation-hub" element={<ConsultationHub />} />
+          <Route path="/consultation-hub" element={<Navigate to="/consultation" replace />} />
           <Route path="/consultation-center" element={<ConsultationCenter />} />
           <Route path="/consultation-queue" element={<ConsultationQueue />} />
           <Route path="/booking-schedule" element={<BookingSchedule />} />
@@ -111,6 +120,10 @@ export default function App() {
           <Route path="/consultation-request" element={<ConsultationRequestDetail />} />
           <Route path="/work-schedule" element={<WorkSchedule />} />
           <Route path="/consultation-reply" element={<TextConsultationReply />} />
+          <Route path="/sensei-profile" element={<SenseiProfile />} />
+          <Route path="/consultation-session" element={<ConsultationSessionDetail />} />
+          <Route path="/consultation-receipt" element={<ConsultationReceipt />} />
+          <Route path="/consultation-room" element={<ConsultationRoom />} />
 
           {/* ========== CMS ========== */}
           <Route path="/cms-studio" element={<CMSStudio />} />
@@ -123,10 +136,12 @@ export default function App() {
           <Route path="/vocabulary-editor" element={<VocabularyEditor />} />
           <Route path="/kanji-editor" element={<KanjiEditor />} />
           <Route path="/video-editor" element={<VideoLessonEditor />} />
+          <Route path="/lesson-cms-detail" element={<CmsLessonDetail />} />
 
           {/* ========== ADMIN ========== */}
           <Route path="/admin" element={<AdminOverview />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/users/detail" element={<AdminUserDetail />} />
           <Route path="/admin/roles" element={<AdminRoles />} />
           <Route path="/admin/content-review" element={<AdminContentReview />} />
 

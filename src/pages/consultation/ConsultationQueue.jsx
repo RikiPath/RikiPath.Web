@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function ConsultationQueue() {
   const { pathname } = useLocation();
   return (
@@ -237,10 +237,10 @@ export default function ConsultationQueue() {
 </td>
 <td className="py-3 px-4 text-right">
 <div className="flex items-center justify-end gap-1.5">
-<button className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all flex items-center gap-1">
+<Link to="/consultation-request" className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1">
 <span>Tiếp nhận & Vào chi tiết</span>
 <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-</button>
+</Link>
 <button className="p-1 text-text-muted hover:text-text-charcoal hover:bg-canvas rounded transition-colors" title="Chuyển giao chuyên gia khác">
 <span className="material-symbols-outlined text-[17px]">swap_horiz</span>
 </button>
@@ -299,10 +299,10 @@ export default function ConsultationQueue() {
 </td>
 <td className="py-3 px-4 text-right">
 <div className="flex items-center justify-end gap-1.5">
-<button className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all flex items-center gap-1">
+<Link to="/consultation-request" className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1">
 <span>Tiếp nhận & Vào chi tiết</span>
 <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-</button>
+</Link>
 <button className="p-1 text-text-muted hover:text-text-charcoal hover:bg-canvas rounded transition-colors" title="Chuyển giao">
 <span className="material-symbols-outlined text-[17px]">swap_horiz</span>
 </button>
@@ -358,10 +358,10 @@ export default function ConsultationQueue() {
 </td>
 <td className="py-3 px-4 text-right">
 <div className="flex items-center justify-end gap-1.5">
-<button className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all flex items-center gap-1">
+<Link to="/consultation-request" className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1">
 <span>Tiếp nhận & Vào chi tiết</span>
 <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-</button>
+</Link>
 <button className="p-1 text-text-muted hover:text-text-charcoal hover:bg-canvas rounded transition-colors" title="Chuyển giao">
 <span className="material-symbols-outlined text-[17px]">swap_horiz</span>
 </button>
@@ -417,10 +417,10 @@ export default function ConsultationQueue() {
 </td>
 <td className="py-3 px-4 text-right">
 <div className="flex items-center justify-end gap-1.5">
-<button className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all flex items-center gap-1">
+<Link to="/consultation-request" className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1">
 <span>Tiếp nhận & Vào chi tiết</span>
 <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-</button>
+</Link>
 <button className="p-1 text-text-muted hover:text-text-charcoal hover:bg-canvas rounded transition-colors" title="Chuyển giao">
 <span className="material-symbols-outlined text-[17px]">swap_horiz</span>
 </button>
@@ -476,10 +476,10 @@ export default function ConsultationQueue() {
 </td>
 <td className="py-3 px-4 text-right">
 <div className="flex items-center justify-end gap-1.5">
-<button className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all flex items-center gap-1">
+<Link to="/consultation-request" className="px-2.5 py-1.5 bg-[#9e2a4b] hover:bg-[#85203d] text-white rounded-lg font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1">
 <span>Tiếp nhận & Vào chi tiết</span>
 <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-</button>
+</Link>
 <button className="p-1 text-text-muted hover:text-text-charcoal hover:bg-canvas rounded transition-colors" title="Chuyển giao">
 <span className="material-symbols-outlined text-[17px]">swap_horiz</span>
 </button>

@@ -285,10 +285,10 @@ export default function HomeLanding() {
 <span className="ml-0.5 text-on-surface">4.9 (1.2k)</span>
 </div>
 </div>
-<a className="w-full py-2.5 rounded-full bg-surface-container-low hover:bg-[#D94B68] hover:text-white text-on-surface text-xs font-bold flex items-center justify-center gap-1.5 transition-all" href="#">
+<Link to="/course-detail" className="w-full py-2.5 rounded-full bg-surface-container-low hover:bg-[#D94B68] hover:text-white text-on-surface text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
 <span>Xem chi tiết</span>
 <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-</a>
+</Link>
 </div>
 </div>
 </div>
@@ -323,10 +323,10 @@ export default function HomeLanding() {
 <span className="ml-0.5 text-on-surface">5.0 (2.8k)</span>
 </div>
 </div>
-<a className="w-full py-2.5 rounded-full bg-[#D94B68] hover:bg-[#9E2A4B] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition-all" href="#">
+<Link to="/course-detail" className="w-full py-2.5 rounded-full bg-[#D94B68] hover:bg-[#9E2A4B] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition-all">
 <span>Xem chi tiết</span>
 <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-</a>
+</Link>
 </div>
 </div>
 </div>
@@ -360,10 +360,10 @@ export default function HomeLanding() {
 <span className="ml-0.5 text-on-surface">4.8 (890)</span>
 </div>
 </div>
-<a className="w-full py-2.5 rounded-full bg-surface-container-low hover:bg-[#D94B68] hover:text-white text-on-surface text-xs font-bold flex items-center justify-center gap-1.5 transition-all" href="#">
+<Link to="/course-detail" className="w-full py-2.5 rounded-full bg-surface-container-low hover:bg-[#D94B68] hover:text-white text-on-surface text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
 <span>Xem chi tiết</span>
 <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-</a>
+</Link>
 </div>
 </div>
 </div>
@@ -397,10 +397,10 @@ export default function HomeLanding() {
 <span className="ml-0.5 text-on-surface">4.9 (3.4k)</span>
 </div>
 </div>
-<a className="w-full py-2.5 rounded-full bg-surface-container-low hover:bg-[#D94B68] hover:text-white text-on-surface text-xs font-bold flex items-center justify-center gap-1.5 transition-all" href="#">
+<Link to="/course-detail" className="w-full py-2.5 rounded-full bg-surface-container-low hover:bg-[#D94B68] hover:text-white text-on-surface text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
 <span>Xem chi tiết</span>
 <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-</a>
+</Link>
 </div>
 </div>
 </div>

@@ -1,6 +1,6 @@
 import { Calendar, Clock, MessageCircle, Star, Video } from 'lucide-react';
-import { ConsultShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { LearnerShell } from '../../components/shells';
 
 const PACKAGES = [
   {
@@ -59,7 +59,7 @@ const CONSULTANTS = [
 export default function Consultation() {
   const { pathname } = useLocation();
   return (
-    <ConsultShell pathname={pathname} breadcrumb="Tư vấn">
+    <LearnerShell pathname={pathname} breadcrumb="Tư vấn 1-1">
 <div
       className="bg-bg-page text-on-surface antialiased flex min-h-screen overflow-x-hidden"
       data-page="Consultation" data-shell-unified="1"
@@ -96,10 +96,10 @@ export default function Consultation() {
               <p className="text-base text-text-secondary mb-6">
                 Giải quyết khó khăn, bứt phá lộ trình JLPT cùng đội ngũ giáo viên giàu kinh nghiệm.
               </p>
-              <button className="bg-primary text-on-primary rounded-full px-8 py-2.5 text-sm font-semibold hover:bg-primary-dark transition-all shadow-md shadow-primary/25 hover:shadow-lg flex items-center gap-2">
+              <Link to="/booking-schedule" className="bg-primary text-on-primary rounded-full px-8 py-2.5 text-sm font-semibold hover:bg-primary-dark transition-all shadow-md shadow-primary/25 hover:shadow-lg inline-flex items-center gap-2">
                 <span>Bắt đầu ngay</span>
                 <span className="material-symbols-outlined text-lg">arrow_forward</span>
-              </button>
+              </Link>
             </div>
           </section>
 
@@ -144,15 +144,16 @@ export default function Consultation() {
                       </li>
                     ))}
                   </ul>
-                  <button
-                    className={`mt-6 w-full rounded-full py-2.5 text-sm font-semibold transition-colors ${
+                  <Link
+                    to="/booking-schedule"
+                    className={`mt-6 w-full rounded-full py-2.5 text-sm font-semibold transition-colors text-center inline-flex items-center justify-center ${
                       pkg.highlight
                         ? 'bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] text-white shadow-md shadow-[#D94B68]/25'
                         : 'bg-[#FFF0F5] text-[#9E2A4B] border border-[#f2d7de] hover:bg-[#FDE8EC]'
                     }`}
                   >
                     Đặt lịch ngay
-                  </button>
+                  </Link>
                 </article>
               ))}
             </div>
@@ -165,9 +166,10 @@ export default function Consultation() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {CONSULTANTS.map((c) => (
-                <article
+                <Link
+                  to="/sensei-profile"
                   key={c.name}
-                  className="rounded-2xl border border-border-base bg-white p-5 shadow-[0_4px_16px_rgba(45,40,42,0.04)] flex gap-4"
+                  className="rounded-2xl border border-border-base bg-white p-5 shadow-[0_4px_16px_rgba(45,40,42,0.04)] flex gap-4 hover:border-[#D94B68]/40"
                 >
                   <img
                     src={c.avatar}
@@ -183,7 +185,7 @@ export default function Consultation() {
                       {c.rating}
                     </div>
                   </div>
-                </article>
+                </Link>
               ))}
             </div>
           </section>
@@ -207,14 +209,14 @@ export default function Consultation() {
                 </span>
               </div>
             </div>
-            <button className="shrink-0 rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] text-white px-8 py-3 text-sm font-bold shadow-lg shadow-[#D94B68]/30 hover:-translate-y-0.5 transition-all">
+            <Link to="/booking-schedule" className="shrink-0 rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] text-white px-8 py-3 text-sm font-bold shadow-lg shadow-[#D94B68]/30 hover:-translate-y-0.5 transition-all text-center">
               Đặt lịch tư vấn
-            </button>
+            </Link>
           </section>
         </div>
       </main>
     </div>
   
-</ConsultShell>
+</LearnerShell>
 );
 }

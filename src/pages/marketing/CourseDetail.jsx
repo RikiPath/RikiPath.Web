@@ -236,11 +236,11 @@ export default function CourseDetail() {
 <span className="text-support-sm font-support-sm text-on-surface-variant line-through ml-2">2,500,000₫</span>
 <div className="mt-space-xxs inline-block bg-bg-soft-red text-primary border border-border-base px-2.5 py-1 rounded-full text-label-xs font-label-xs font-bold">Giảm 48%</div>
 </div>
-<button className="w-full bg-primary text-on-primary rounded-full py-space-md font-title-sm text-title-sm mb-space-sm hover:opacity-95 active:scale-[0.99] transition-all duration-200 shadow-[0_6px_16px_rgba(217,75,104,0.3)] flex items-center justify-center gap-2">
+<Link to="/register" className="w-full bg-primary text-on-primary rounded-full py-space-md font-title-sm text-title-sm mb-space-sm hover:opacity-95 active:scale-[0.99] transition-all duration-200 shadow-[0_6px_16px_rgba(217,75,104,0.3)] flex items-center justify-center gap-2">
 <span className="material-symbols-outlined text-[20px]">local_florist</span>
 <span className="">Đăng ký học ngay</span>
-</button>
-<button className="w-full border border-border-base bg-surface-container-low/40 text-on-surface rounded-full py-space-md font-title-sm text-title-sm hover:bg-surface-container-low hover:border-primary/40 transition-all duration-200">{"Học thử miễn phí\n                        "}</button>
+</Link>
+<Link to="/register" className="w-full border border-border-base bg-surface-container-low/40 text-on-surface rounded-full py-space-md font-title-sm text-title-sm hover:bg-surface-container-low hover:border-primary/40 transition-all duration-200 text-center">{"Học thử miễn phí\n                        "}</Link>
 <div className="mt-space-lg pt-space-lg border-t border-border-base flex flex-col gap-space-sm">
 <h4 className="text-title-sm font-title-sm text-on-surface mb-space-xxs">Khóa học bao gồm:</h4>
 <div className="flex items-center gap-space-md text-support-sm font-support-sm text-on-surface-variant">

@@ -1,9 +1,9 @@
-import { ConsultShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { LearnerShell } from '../../components/shells';
 export default function BookingSchedule() {
   const { pathname } = useLocation();
   return (
-    <ConsultShell pathname={pathname} breadcrumb="Đặt lịch">
+    <LearnerShell pathname={pathname} breadcrumb="Đặt lịch">
 <div className="bg-background font-body-md text-on-surface min-h-screen" data-page="BookingSchedule" data-shell-unified="1">
 
 <div className="pl-0"><main className="relative pt-0 bg-background min-h-screen px-space-lg py-space-lg"><div className="grid grid-cols-12 gap-gutter-desktop"><div className="flex flex-col w-full col-span-12 gap-space-xl">
@@ -319,10 +319,10 @@ export default function BookingSchedule() {
 </div>
 </div>
 {/*  Confirmation Action Button  */}
-<button className="w-full py-3.5 px-space-md bg-primary hover:bg-on-primary-fixed-variant text-on-primary font-label-lg text-label-lg rounded-xl shadow-md transition-all flex items-center justify-center gap-space-xs font-semibold cursor-pointer">
+<Link to="/consultation-payment" className="w-full py-3.5 px-space-md bg-primary hover:bg-on-primary-fixed-variant text-on-primary font-label-lg text-label-lg rounded-xl shadow-md transition-all flex items-center justify-center gap-space-xs font-semibold cursor-pointer">
 <span>Xác nhận đặt lịch hẹn</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</button>
+</Link>
 {/*  Cancellation Notice  */}
 <div className="flex items-center gap-space-xs justify-center text-center text-tertiary font-label-sm text-label-sm">
 <span className="material-symbols-outlined text-[16px] text-tertiary">verified_user</span>
@@ -346,6 +346,6 @@ export default function BookingSchedule() {
 </div></div></main></div>
     </div>
   
-</ConsultShell>
+</LearnerShell>
 );
 }

@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function LessonList() {
   const { pathname } = useLocation();
   return (
@@ -90,8 +90,8 @@ export default function LessonList() {
 <div className="h-full bg-primary rounded-full w-[60%]"></div>
 </div>
 </div>
-<button className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-primary/25">
-<span className="material-symbols-outlined text-[16px]">play_arrow</span>{"Tiếp tục học\n                "}</button>
+<Link to="/lesson-player" className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-primary/25">
+<span className="material-symbols-outlined text-[16px]">play_arrow</span>{"Tiếp tục học\n                "}</Link>
 </div>
 </div>
 {/*  Card 2: Bài 14 (Đã hoàn thành 100%)  */}
@@ -120,8 +120,8 @@ export default function LessonList() {
 <div className="h-full bg-emerald-500 rounded-full w-full"></div>
 </div>
 </div>
-<button className="w-full py-2.5 px-4 rounded-xl bg-page-bg hover:bg-primary-light text-text-main hover:text-primary border border-card-border text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-<span className="material-symbols-outlined text-[16px]">replay</span>{"Ôn tập lại\n                "}</button>
+<Link to="/lesson-player" className="w-full py-2.5 px-4 rounded-xl bg-page-bg hover:bg-primary-light text-text-main hover:text-primary border border-card-border text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+<span className="material-symbols-outlined text-[16px]">replay</span>{"Ôn tập lại\n                "}</Link>
 </div>
 </div>
 {/*  Card 3: Bài 16 (Sắp học)  */}
@@ -149,8 +149,8 @@ export default function LessonList() {
 <div className="h-full bg-primary rounded-full w-0"></div>
 </div>
 </div>
-<button className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20">
-<span className="material-symbols-outlined text-[16px]">play_circle</span>{"Bắt đầu học\n                "}</button>
+<Link to="/lesson-player" className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20">
+<span className="material-symbols-outlined text-[16px]">play_circle</span>{"Bắt đầu học\n                "}</Link>
 </div>
 </div>
 {/*  Card 4: Bài 17 (Từ vựng, Đã hoàn thành)  */}
@@ -179,8 +179,8 @@ export default function LessonList() {
 <div className="h-full bg-emerald-500 rounded-full w-full"></div>
 </div>
 </div>
-<button className="w-full py-2.5 px-4 rounded-xl bg-page-bg hover:bg-primary-light text-text-main hover:text-primary border border-card-border text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-<span className="material-symbols-outlined text-[16px]">replay</span>{"Ôn tập lại\n                "}</button>
+<Link to="/vocabulary" className="w-full py-2.5 px-4 rounded-xl bg-page-bg hover:bg-primary-light text-text-main hover:text-primary border border-card-border text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+<span className="material-symbols-outlined text-[16px]">replay</span>{"Ôn tập lại\n                "}</Link>
 </div>
 </div>
 {/*  Card 5: Bài 18 (Kanji, Khóa)  */}
@@ -254,16 +254,16 @@ export default function LessonList() {
 <div className="bg-page-bg/80 border border-card-border rounded-xl p-3.5 mb-4 text-xs text-text-main leading-relaxed">
 <span className="font-bold text-primary">Gợi ý ôn tập gấp:</span>{" Lan-san ơi, bạn đã làm sai 2 câu chia thể "}<strong>Te (nhóm 1)</strong>{" trong bài kiểm tra hôm qua. Hãy dành 5 phút ôn lại Bài 14 trước khi học tiếp nhé!\n            "}</div>
 <div className="space-y-2">
-<a className="w-full py-2 px-3 rounded-xl bg-white hover:bg-primary-light border border-card-border hover:border-primary-soft transition-colors flex items-center justify-between text-xs font-semibold text-text-main" href="#">
+<Link to="/lesson-player" className="w-full py-2 px-3 rounded-xl bg-white hover:bg-primary-light border border-card-border hover:border-primary-soft transition-colors flex items-center justify-between text-xs font-semibold text-text-main">
 <span className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[16px] text-primary">priority_high</span>{"Ôn nhanh chia động từ thể Te\n                "}</span>
 <span className="material-symbols-outlined text-[16px] text-text-muted">chevron_right</span>
-</a>
-<a className="w-full py-2 px-3 rounded-xl bg-white hover:bg-primary-light border border-card-border hover:border-primary-soft transition-colors flex items-center justify-between text-xs font-semibold text-text-main" href="#">
+</Link>
+<Link to="/exam-n3" className="w-full py-2 px-3 rounded-xl bg-white hover:bg-primary-light border border-card-border hover:border-primary-soft transition-colors flex items-center justify-between text-xs font-semibold text-text-main">
 <span className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[16px] text-primary">quiz</span>{"Xem lại 3 câu hỏi hay sai\n                "}</span>
 <span className="material-symbols-outlined text-[16px] text-text-muted">chevron_right</span>
-</a>
+</Link>
 </div>
 </div>
 {/*  Quick 5-Question Challenge Card  */}
@@ -282,8 +282,8 @@ export default function LessonList() {
 <span className="text-text-muted">{"Thời lượng: "}<strong className="text-text-main">1 phút</strong></span>
 <span className="text-text-muted">{"Độ khó: "}<strong className="text-text-main">N3 Tiêu chuẩn</strong></span>
 </div>
-<button className="w-full py-2.5 bg-[#E05A7A] hover:bg-primary-hover text-white rounded-xl font-bold text-xs shadow-sm shadow-primary/25 transition-colors flex items-center justify-center gap-1.5">
-<span className="material-symbols-outlined text-[16px]">play_circle</span>{"Bắt đầu thử thách ngay\n            "}</button>
+<Link to="/exam-n3" className="w-full py-2.5 bg-[#E05A7A] hover:bg-primary-hover text-white rounded-xl font-bold text-xs shadow-sm shadow-primary/25 transition-colors flex items-center justify-center gap-1.5">
+<span className="material-symbols-outlined text-[16px]">play_circle</span>{"Bắt đầu thử thách ngay\n            "}</Link>
 </div>
 {/*  Learning Goals Mini-Tracker  */}
 <div className="bg-white border border-card-border rounded-2xl p-5 shadow-subtle flex flex-col gap-3.5">

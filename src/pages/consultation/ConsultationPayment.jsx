@@ -1,6 +1,12 @@
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { LearnerShell } from '../../components/shells';
+
 export default function ConsultationPayment() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   return (
-    <div className="bg-bg-page font-body-md text-on-surface antialiased min-h-screen flex flex-col overflow-x-hidden min-h-screen" data-page="ConsultationPayment">
+    <LearnerShell pathname={pathname} breadcrumb="Thanh toán">
+    <div className="bg-bg-page font-body-md text-on-surface antialiased min-h-screen flex flex-col overflow-x-hidden min-h-screen" data-page="ConsultationPayment" data-shell-unified="1">
 
 
 {/*  TopNavBar for Mobile  */}
@@ -26,13 +32,13 @@ export default function ConsultationPayment() {
 {/*  Left Column: Forms  */}
 <div className="lg:col-span-7 z-10 flex flex-col gap-space-lg">
 <div className="mb-space-md">
-<a className="inline-flex items-center gap-space-xxs text-text-secondary hover:text-primary transition-colors font-support-sm text-support-sm mb-space-lg" href="#">
-<span className="material-symbols-outlined text-sm">arrow_back</span>{"Quay lại\n                "}</a>
+<Link className="inline-flex items-center gap-space-xxs text-text-secondary hover:text-primary transition-colors font-support-sm text-support-sm mb-space-lg" to="/booking-schedule">
+<span className="material-symbols-outlined text-sm">arrow_back</span>{"Quay lại đặt lịch\n                "}</Link>
 <h1 className="font-display-lg text-display-lg md:font-display-lg text-on-surface mb-space-xxs">{"Thanh toán\n                "}</h1>
 <p className="font-body-md text-body-md text-text-secondary">{"Hoàn tất thông tin để bắt đầu lộ trình học của bạn.\n                "}</p>
 </div>
 <div className="bg-surface-container-lowest rounded-xl p-space-md md:p-space-xl border border-border-base shadow-sm">
-<form action="#" className="space-y-space-xl" id="checkout-form" method="POST">
+<form action="#" className="space-y-space-xl" id="checkout-form" method="POST" onSubmit={(e) => { e.preventDefault(); navigate('/consultation-receipt'); }}>
 {/*  Section: Personal Info  */}
 <div>
 <h3 className="font-title-sm text-title-sm text-on-surface mb-space-md flex items-center gap-space-sm">
@@ -166,5 +172,6 @@ export default function ConsultationPayment() {
 
 
     </div>
+    </LearnerShell>
   );
 }

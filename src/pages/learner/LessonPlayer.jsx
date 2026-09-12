@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function LessonPlayer() {
   const { pathname } = useLocation();
   return (
@@ -125,10 +125,10 @@ export default function LessonPlayer() {
 </button>
 </div>
 {/*  Main CTA: Mark as Complete  */}
-<button className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[14px] font-bold shadow-md shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-95">
+<Link to="/lesson-complete" className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[14px] font-bold shadow-md shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-95">
 <span className="material-symbols-outlined text-[19px]">check_circle</span>
 <span>Mark as Complete / Hoàn thành bài học</span>
-</button>
+</Link>
 </div>
 {/*  Study Workspace Multi-tabs  */}
 <div className="bg-surface rounded-2xl border border-border-soft shadow-card overflow-hidden">

@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function LessonComplete() {
   const { pathname } = useLocation();
   return (
@@ -91,14 +91,14 @@ export default function LessonComplete() {
 </div>
 {/*  Primary Actions Group  */}
 <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full sm:w-auto">
-<button className="w-full sm:w-auto px-6 py-3 rounded-xl border border-[#EADFD9] bg-white text-[#2D282A] text-sm font-bold hover:bg-[#FAF7F5] hover:border-[#F8BBD0] transition-all flex items-center justify-center gap-2 shadow-xs">
+<Link to="/lesson-player" className="w-full sm:w-auto px-6 py-3 rounded-xl border border-[#EADFD9] bg-white text-[#2D282A] text-sm font-bold hover:bg-[#FAF7F5] hover:border-[#F8BBD0] transition-all flex items-center justify-center gap-2 shadow-xs">
 <span className="material-symbols-outlined text-[18px] text-[#6E6266]">replay</span>
 <span>Ôn tập lại bài này</span>
-</button>
-<button className="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#E05A7A] text-white text-sm font-bold shadow-glow hover:bg-[#C94A68] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5">
+</Link>
+<Link to="/lesson-player" className="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#E05A7A] text-white text-sm font-bold shadow-glow hover:bg-[#C94A68] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5">
 <span>Tiếp tục: Bài 16 (Mẫu câu ～てはいけません)</span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</button>
+</Link>
 </div>
 </div>
 </section>
@@ -185,7 +185,7 @@ export default function LessonComplete() {
 <span className="material-symbols-outlined text-[16px] text-[#E05A7A]">sync_saved_locally</span>
                 Đã đồng bộ vào Bộ thẻ ghi nhớ cá nhân
               </span>
-<a className="font-bold text-[#E05A7A] hover:underline" href="#">Xem Sổ từ ➔</a>
+<Link to="/vocabulary" className="font-bold text-[#E05A7A] hover:underline">Xem Sổ từ ➔</Link>
 </div>
 </div>
 {/*  Right Column (6 Cols): Đánh giá & Đề xuất từ Cố vấn Haru AI  */}
@@ -237,10 +237,10 @@ export default function LessonComplete() {
                 </p>
 <div className="flex items-center gap-2">
 <input className="flex-1 text-xs bg-white border border-[#EADFD9] rounded-xl px-3 py-2 text-[#2D282A] focus:outline-none focus:border-[#E05A7A] placeholder-[#9A8F93]" placeholder="Ví dụ: 今、電話をかけてもいいですか..." readOnly="" type="text" />
-<button className="px-3.5 py-2 bg-white hover:bg-[#FDEFF4] text-[#E05A7A] border border-[#F8BBD0] rounded-xl text-xs font-bold transition-colors flex items-center gap-1 flex-shrink-0">
+<Link to="/sentence-studio" className="px-3.5 py-2 bg-white hover:bg-[#FDEFF4] text-[#E05A7A] border border-[#F8BBD0] rounded-xl text-xs font-bold transition-colors flex items-center gap-1 flex-shrink-0">
 <span>Mở Studio</span>
 <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-</button>
+</Link>
 </div>
 </div>
 {/*  Next Lesson Teaser Box (Bài 16)  */}
@@ -255,10 +255,10 @@ export default function LessonComplete() {
 <p className="text-xs text-[#6E6266] mb-3.5">
                   Mẫu câu tương phản trực tiếp với Bài 15, giúp bạn hoàn thiện cặp cấu trúc giao tiếp xin phép - cấm đoán thiết yếu.
                 </p>
-<button className="w-full py-2.5 rounded-xl bg-[#E05A7A] hover:bg-[#C94A68] text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs">
+<Link to="/lesson-player" className="w-full py-2.5 rounded-xl bg-[#E05A7A] hover:bg-[#C94A68] text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs">
 <span>Bắt đầu ngay</span>
 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-</button>
+</Link>
 </div>
 </div>
 {/*  AI Status Footer Note  */}

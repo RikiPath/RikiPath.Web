@@ -160,7 +160,7 @@ export default function VocabularyNotebook() {
 <div className="flex items-start gap-space-xs">
 <div className="flex flex-col">
 <span className="font-label-sm text-[11px] text-primary font-medium tracking-wide">けいけん</span>
-<span className="font-japanese-display text-[22px] font-bold text-on-surface leading-tight">経験</span>
+<Link to="/vocabulary-detail" className="font-japanese-display text-[22px] font-bold text-on-surface leading-tight hover:text-primary">経験</Link>
 </div>
 <button className="p-1 rounded-full text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors" title="Nghe phát âm chuẩn">
 <span className="material-symbols-outlined text-[18px]">volume_up</span>
@@ -194,6 +194,9 @@ export default function VocabularyNotebook() {
 <td className="py-space-md px-space-sm align-middle text-on-surface-variant font-body-sm">{"Hôm qua\n                  "}</td>
 <td className="py-space-md pl-space-sm pr-space-md align-middle text-right">
 <div className="flex items-center justify-end gap-1">
+<Link to="/vocabulary-detail" className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" title="Chi tiết từ vựng">
+<span className="material-symbols-outlined text-[18px]">visibility</span>
+</Link>
 <button className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" title="Chỉnh sửa từ vựng">
 <span className="material-symbols-outlined text-[18px]">edit</span>
 </button>

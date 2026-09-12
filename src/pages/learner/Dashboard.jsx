@@ -112,14 +112,14 @@ export default function Dashboard() {
 </div>
 <p className="font-body-md text-body-md text-on-surface-variant">{"\"Lan-san đã nhầm trợ từ "}<strong>「に」</strong>{" và "}<strong>「で」</strong>{" trong 3 câu bài tập tối qua. Sensei đã chuẩn bị riêng 5 bài mini-drill để bạn thông suốt ngữ pháp này ngay!\"\n          "}</p>
 <div className="flex flex-wrap items-center gap-space-sm pt-space-xs">
-<button className="px-space-md py-2 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm hover:opacity-95 active:scale-98 transition-all flex items-center gap-1.5">
+<Link to="/exam-n3" className="px-space-md py-2 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm hover:opacity-95 active:scale-98 transition-all flex items-center gap-1.5">
 <span className="material-symbols-outlined text-[18px]">spellcheck</span>
 <span className="">Luyện 5 câu sai ngay</span>
-</button>
-<button className="px-space-md py-2 rounded-xl bg-primary-fixed text-on-primary-fixed-variant font-label-md text-label-md font-bold hover:bg-primary-fixed/80 transition-all flex items-center gap-1.5">
+</Link>
+<Link to="/ai-counselor" className="px-space-md py-2 rounded-xl bg-primary-fixed text-on-primary-fixed-variant font-label-md text-label-md font-bold hover:bg-primary-fixed/80 transition-all flex items-center gap-1.5">
 <span className="material-symbols-outlined text-[18px]">help_center</span>
 <span className="">Giải thích lỗi sai</span>
-</button>
+</Link>
 </div>
 </div>
 </div>
@@ -142,10 +142,10 @@ export default function Dashboard() {
 <p className="font-body-sm text-body-sm text-on-surface-variant">{"Khái quát cách dùng mô tả các hoạt động tiêu biểu không theo trình tự thời gian cùng cấu trúc mở rộng.\n            "}</p>
 </div>
 <div className="flex-shrink-0">
-<button className="w-full md:w-auto px-space-lg py-3 rounded-xl bg-primary text-on-primary font-title-sm text-title-sm font-bold shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2">
+<Link to="/lesson-player" className="w-full md:w-auto px-space-lg py-3 rounded-xl bg-primary text-on-primary font-title-sm text-title-sm font-bold shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2">
 <span className="">Tiếp tục học</span>
 <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
-</button>
+</Link>
 </div>
 </div>
 {/*  Visual Progress Tracker with Stage checkpoints  */}
@@ -192,10 +192,10 @@ export default function Dashboard() {
 <span className="material-symbols-outlined text-[15px]">av_timer</span>
 <span className="">~6 phút</span>
 </div>
-<button className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
+<Link to="/daily-srs" className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
 <span className="">Ôn tập</span>
 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</button>
+</Link>
 </div>
 </div>
 {/*  Card 2: AI Sentence Writing  */}
@@ -217,10 +217,10 @@ export default function Dashboard() {
 <span className="material-symbols-outlined text-[15px]">psychology</span>
 <span className="">Chấm ngữ cảnh</span>
 </div>
-<button className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
+<Link to="/sentence-studio" className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
 <span className="">Viết ngay</span>
 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</button>
+</Link>
 </div>
 </div>
 {/*  Card 3: Kanji N3 Handbook  */}
@@ -242,10 +242,10 @@ export default function Dashboard() {
 <span className="material-symbols-outlined text-[15px]">checklist</span>
 <span className="">Đạt 380/650</span>
 </div>
-<button className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
+<Link to="/kanji-notebook" className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
 <span className="">Mở sổ</span>
 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</button>
+</Link>
 </div>
 </div>
 </div>
@@ -294,10 +294,10 @@ export default function Dashboard() {
 </div>
 </div>
 </div>
-<button className="w-full py-3.5 rounded-xl bg-primary text-on-primary font-title-sm text-title-sm font-bold shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2">
+<Link to="/daily-srs" className="w-full py-3.5 rounded-xl bg-primary text-on-primary font-title-sm text-title-sm font-bold shadow-md hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2">
 <span className="material-symbols-outlined text-[20px]">play_circle</span>
 <span className="">Bắt đầu phiên ôn tập (28 thẻ)</span>
-</button>
+</Link>
 </div>
 {/*  Learning Streak & Weekly Flower Blossoming  */}
 <div className="rounded-2xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md relative overflow-hidden border border-outline-variant/40">
@@ -402,13 +402,13 @@ export default function Dashboard() {
 </div>
 </div>
 <div className="flex items-center gap-space-xs pt-space-xxs">
-<button className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-1.5">
+<Link to="/consultation-room" className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-1.5">
 <span className="material-symbols-outlined text-[18px]">meeting_room</span>
 <span className="">Vào phòng học</span>
-</button>
-<button className="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant transition-colors" title="Đổi lịch">
+</Link>
+<Link to="/consultation-center" className="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant transition-colors" title="Đổi lịch">
 <span className="material-symbols-outlined text-[20px]">edit_calendar</span>
-</button>
+</Link>
 </div>
 </div>
 </div>

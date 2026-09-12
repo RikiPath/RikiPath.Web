@@ -9,3 +9,7 @@ export { default as ConsultationPrep } from './ConsultationPrep.jsx';
 export { default as ConsultationRequestDetail } from './ConsultationRequestDetail.jsx';
 export { default as WorkSchedule } from './WorkSchedule.jsx';
 export { default as TextConsultationReply } from './TextConsultationReply.jsx';
+export { default as SenseiProfile } from './SenseiProfile.jsx';
+export { default as ConsultationSessionDetail } from './ConsultationSessionDetail.jsx';
+export { default as ConsultationReceipt } from './ConsultationReceipt.jsx';
+export { default as ConsultationRoom } from './ConsultationRoom.jsx';

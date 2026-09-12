@@ -13,3 +13,6 @@ export { default as DailySRS } from './DailySRS.jsx';
 export { default as AICounselor } from './AICounselor.jsx';
 export { default as AIScoringResult } from './AIScoringResult.jsx';
 export { default as ExamN3 } from './ExamN3.jsx';
+export { default as VocabWordDetail } from './VocabWordDetail.jsx';
+export { default as ExamResult } from './ExamResult.jsx';
+export { default as LearnerSettings } from './LearnerSettings.jsx';

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 
 export default function ExamN3() {
   const { pathname } = useLocation();
@@ -114,6 +114,9 @@ export default function ExamN3() {
 <span className="material-symbols-outlined text-[20px] text-primary">timer</span>
 </div>
 </div>
+<Link to="/exam-result" className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-on-primary">
+Nộp bài & xem kết quả
+</Link>
 <button aria-label="Tạm dừng hoặc trợ giúp" className="p-space-xs rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors" title="Trợ giúp làm bài">
 <span className="material-symbols-outlined text-[22px]">help_outline</span>
 </button>

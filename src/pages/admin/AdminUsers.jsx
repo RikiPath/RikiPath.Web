@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { AdminShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function AdminUsers() {
   const { pathname } = useLocation();
   return (
@@ -96,9 +96,9 @@ export default function AdminUsers() {
 <td className="py-cell-v px-cell-h font-table-data text-table-data text-on-surface-variant">10 phút trước</td>
 <td className="py-cell-v px-cell-h text-right">
 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-<button className="p-1 text-on-surface-variant hover:text-primary rounded hover:bg-surface-container transition-colors" title="Chi tiết">
+<Link to="/admin/users/detail" className="p-1 text-on-surface-variant hover:text-primary rounded hover:bg-surface-container transition-colors" title="Chi tiết">
 <span className="material-symbols-outlined text-[18px]">visibility</span>
-</button>
+</Link>
 <button className="p-1 text-on-surface-variant hover:text-primary rounded hover:bg-surface-container transition-colors" title="Thao tác khác">
 <span className="material-symbols-outlined text-[18px]">more_vert</span>
 </button>

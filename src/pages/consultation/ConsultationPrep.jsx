@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ConsultShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 export default function ConsultationPrep() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -168,10 +168,10 @@ export default function ConsultationPrep() {
 <span className="material-symbols-outlined text-[20px]">tune</span>
 <span>Kiểm tra Micro & Camera</span>
 </button>
-<button className="h-10 px-space-20 rounded-lg bg-primary hover:bg-primary-hover active:bg-primary-active text-on-primary font-label-md text-label-md flex items-center gap-space-8 shadow-md hover:shadow-lg transition-all duration-200">
+<Link to="/consultation-room" className="h-10 px-space-20 rounded-lg bg-primary hover:bg-primary-hover active:bg-primary-active text-on-primary font-label-md text-label-md flex items-center gap-space-8 shadow-md hover:shadow-lg transition-all duration-200">
 <span className="material-symbols-outlined text-[20px]">video_call</span>
 <span>Vào phòng tư vấn ngay (Launch Room)</span>
-</button>
+</Link>
 </div>
 </div>
 </div>

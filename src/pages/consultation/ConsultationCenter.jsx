@@ -1,9 +1,9 @@
-import { ConsultShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { LearnerShell } from '../../components/shells';
 export default function ConsultationCenter() {
   const { pathname } = useLocation();
   return (
-    <ConsultShell pathname={pathname} breadcrumb="Trung tâm">
+    <LearnerShell pathname={pathname} breadcrumb="Lịch tư vấn">
 <div className="bg-bg-page text-on-surface min-h-screen flex flex-col md:flex-row antialiased selection:bg-secondary-container selection:text-primary-dark min-h-screen" data-page="ConsultationCenter" data-shell-unified="1">
 
 
@@ -28,10 +28,9 @@ export default function ConsultationCenter() {
 <header className="mb-space-lg flex flex-col md:flex-row md:items-end justify-between gap-space-md">
 <div>
 <nav className="mb-3 flex flex-wrap gap-4 font-body-sm text-body-sm text-text-secondary">
-<a className="hover:text-primary transition-colors" href="#">Services</a>
-<a className="hover:text-primary transition-colors" href="#">Packages</a>
-<a className="hover:text-primary transition-colors" href="#">Consultants</a>
-<a className="font-semibold text-primary border-b-2 border-primary pb-0.5" href="#">My Bookings</a>
+<Link className="hover:text-primary transition-colors" to="/consultation">Gói tư vấn</Link>
+<Link className="hover:text-primary transition-colors" to="/booking-schedule">Đặt lịch</Link>
+<Link className="font-semibold text-primary border-b-2 border-primary pb-0.5" to="/consultation-center">Lịch của tôi</Link>
 </nav>
 <h2 className="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
     Consultation Center
@@ -39,10 +38,10 @@ export default function ConsultationCenter() {
 </h2>
 <p className="font-support-sm text-support-sm text-text-secondary mt-1">Manage your sessions and reviews</p>
 </div>
-<button className="bg-primary text-on-primary rounded-full px-space-lg py-space-sm font-label-xs text-label-xs hover:bg-primary-dark transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-primary/25 self-start md:self-auto flex items-center gap-2 active:scale-95">
+<Link to="/booking-schedule" className="bg-primary text-on-primary rounded-full px-space-lg py-space-sm font-label-xs text-label-xs hover:bg-primary-dark transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-primary/25 self-start md:self-auto inline-flex items-center gap-2 active:scale-95">
 <span className="material-symbols-outlined text-[18px]">add</span>
-                    New Request
-                </button>
+                    Đặt lịch mới
+                </Link>
 </header>
 {/*  Tabs  */}
 <div className="flex gap-space-md border-b border-border-base mb-space-lg overflow-x-auto pb-2 scrollbar-hide">
@@ -70,7 +69,7 @@ export default function ConsultationCenter() {
 </div>
 <div>
 <span className="inline-block bg-bg-soft-red text-primary font-label-xs text-label-xs px-2.5 py-0.5 rounded-full mb-1 border border-border-base">Video Call</span>
-<h3 className="font-title-sm text-title-sm text-on-surface">Tư vấn Video với Sensei Sato</h3>
+<Link to="/consultation-session" className="font-title-sm text-title-sm text-on-surface hover:text-primary">Tư vấn Video với Sensei Sato</Link>
 </div>
 </div>
 </div>
@@ -120,10 +119,10 @@ export default function ConsultationCenter() {
 <p className="font-support-sm text-support-sm text-text-secondary text-right">Expected: 24h nữa</p>
 </div>
 <div className="flex justify-end border-t border-border-base pt-space-md">
-<button className="px-4 py-2 rounded-full border border-border-base font-label-xs text-label-xs text-text-secondary hover:text-primary hover:border-primary/50 hover:bg-surface-container transition-colors flex items-center gap-2">
+<Link to="/consultation-session" className="px-4 py-2 rounded-full border border-border-base font-label-xs text-label-xs text-text-secondary hover:text-primary hover:border-primary/50 hover:bg-surface-container transition-colors inline-flex items-center gap-2">
 <span className="material-symbols-outlined text-[16px]">visibility</span>
-                                View Details
-                            </button>
+                                Xem chi tiết
+                            </Link>
 </div>
 </div>
 {/*  Card 3: Upcoming  */}
@@ -190,9 +189,9 @@ export default function ConsultationCenter() {
 <p className="font-label-xs text-label-xs text-white/85">JLPT N2 Expert</p>
 </div>
 </div>
-<button className="w-full bg-white text-primary font-bold rounded-full py-2 font-label-xs text-label-xs hover:bg-bg-page hover:shadow transition-all relative z-10">
+<Link to="/booking-schedule" className="w-full bg-white text-primary font-bold rounded-full py-2 font-label-xs text-label-xs hover:bg-bg-page hover:shadow transition-all relative z-10 text-center inline-block">
     Book a Session
-</button>
+</Link>
 </div>
 </div>
 </div>
@@ -218,6 +217,6 @@ export default function ConsultationCenter() {
 
     </div>
   
-</ConsultShell>
+</LearnerShell>
 );
 }

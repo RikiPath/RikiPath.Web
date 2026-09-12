@@ -1,5 +1,5 @@
+import { Link, useLocation } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
 export default function ConsultantOverview() {
   const { pathname } = useLocation();
   return (
@@ -123,8 +123,8 @@ export default function ConsultantOverview() {
 <p className="text-xs text-slate-muted mt-1.5 line-clamp-2">{"Ghi chú trước phiên: Học viên hay bị thiếu 15 phút phần Trường văn Dokkai; điểm thi thử đợt 2 đạt 26/60 phần Đọc. Cần định hướng lại thứ tự làm bài và kỹ thuật quét từ khoá theo format JLPT mới nhất.\n                "}</p>
 {/*  Actions  */}
 <div className="mt-5 flex flex-wrap items-center gap-3">
-<button className="inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow-sm shadow-brand/20 transition-all">
-<span className="material-symbols-outlined text-[18px]">meeting_room</span>{"Vào phòng tư vấn ngay\n                  "}</button>
+<Link to="/consultation-room" className="inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow-sm shadow-brand/20 transition-all">
+<span className="material-symbols-outlined text-[18px]">meeting_room</span>{"Vào phòng tư vấn ngay\n                  "}</Link>
 <button className="inline-flex items-center gap-2 bg-white hover:bg-canvas text-slate-main text-xs font-bold px-4 py-2.5 rounded-lg border border-subtle transition-all">
 <span className="material-symbols-outlined text-[18px] text-slate-muted">folder_shared</span>{"Xem hồ sơ dữ liệu chia sẻ\n                  "}</button>
 <button className="p-2 text-slate-muted hover:text-slate-main rounded-lg hover:bg-canvas border border-transparent hover:border-subtle transition-colors ml-auto" title="Tùy chọn khác">
@@ -146,8 +146,8 @@ export default function ConsultantOverview() {
 <p className="text-[11px] text-slate-muted">3 phiên làm việc đã được xếp lịch cố định</p>
 </div>
 </div>
-<a className="text-xs font-bold text-brand hover:text-brand-hover flex items-center gap-1" href="#">{"Xem toàn bộ lịch "}<span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</a>
+<Link className="text-xs font-bold text-brand hover:text-brand-hover flex items-center gap-1" to="/work-schedule">{"Xem toàn bộ lịch "}<span className="material-symbols-outlined text-[16px]">chevron_right</span>
+</Link>
 </div>
 {/*  Timeline items  */}
 <div className="mt-5 space-y-4">
@@ -289,8 +289,8 @@ export default function ConsultantOverview() {
 </div>
 <div className="mt-3 pt-3 border-t border-subtle flex justify-between items-center">
 <span className="text-[11px] text-slate-light">Hiển thị 3 trong tổng số 5 yêu cầu mới</span>
-<a className="text-xs font-bold text-brand hover:underline flex items-center gap-1" href="#">{"Xem toàn bộ hàng đợi (5) "}<span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-</a>
+<Link className="text-xs font-bold text-brand hover:underline flex items-center gap-1" to="/consultation-queue">{"Xem toàn bộ hàng đợi (5) "}<span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+</Link>
 </div>
 </div>
 </div>
