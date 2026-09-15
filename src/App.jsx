@@ -2,10 +2,10 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import PreviewNav from './components/PreviewNav.jsx';
 
 // —— Marketing ——
-import { HomeLanding, CourseCatalog, CourseDetail } from './pages/marketing';
+import { HomeLanding, CourseCatalog, CourseDetail, FeatureDetail } from './pages/marketing';
 
 // —— Auth ——
-import { Auth, Register, ForgotPassword, OnboardingSurvey } from './pages/auth';
+import { Auth, Register, ForgotPassword, OnboardingSurvey, VerifyEmail, UpdateEmail, ChangePassword } from './pages/auth';
 
 // —— Learner ——
 import {
@@ -80,11 +80,15 @@ export default function App() {
           <Route path="/landing" element={<Navigate to="/" replace />} />
           <Route path="/courses" element={<CourseCatalog />} />
           <Route path="/course-detail" element={<CourseDetail />} />
+          <Route path="/feature/:slug" element={<FeatureDetail />} />
 
           {/* ========== AUTH ========== */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/update-email" element={<UpdateEmail />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/onboarding" element={<OnboardingSurvey />} />
 
           {/* ========== LEARNER ========== */}

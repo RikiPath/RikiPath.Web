@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { getSession } from '../../auth/session.js';
+import { displayName, learnerRoleLabel, useLearnerProfile } from '../../hooks/useLearnerHome.js';
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
 
 const SIDEBAR_W = 260;
@@ -9,6 +11,12 @@ export default function LearnerShell({
   breadcrumb = 'Cổng học tập',
   searchPlaceholder = 'Tìm kiếm giáo trình, kanji, bài giảng...',
 }) {
+  const session = getSession();
+  const profileQuery = useLearnerProfile();
+  const userName = displayName(profileQuery.data, session);
+  const userRole = learnerRoleLabel(profileQuery.data, session);
+  const avatarUrl = profileQuery.data?.avatarUrl;
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md" data-shell="learner">
       <aside
@@ -64,15 +72,19 @@ export default function LearnerShell({
         </div>
         <div className="rounded-xl bg-surface-container-low p-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary">
-              <span className="material-symbols-outlined text-[18px]">person</span>
-            </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary">
+                <span className="material-symbols-outlined text-[18px]">person</span>
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="truncate font-label-md text-label-md text-on-surface">
-                {LEARNER_NAV.user.name}
+                {userName}
               </div>
               <div className="truncate font-label-xs text-label-xs text-on-surface-variant">
-                {LEARNER_NAV.user.role}
+                {userRole}
               </div>
             </div>
           </div>

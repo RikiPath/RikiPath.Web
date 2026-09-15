@@ -174,8 +174,7 @@ export default function HomeLanding() {
 </div>
 {/*  4 Pillars Grid  */}
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-{/*  Pillar 1  */}
-<div className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+<Link to="/feature/shadowing" className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
 <div>
 <div className="w-14 h-14 rounded-2xl bg-[#ffd9e4]/70 flex items-center justify-center text-[#9E2A4B] group-hover:scale-110 transition-transform">
 <span className="material-symbols-outlined text-[30px]">record_voice_over</span>
@@ -187,9 +186,8 @@ export default function HomeLanding() {
 <span>Trải nghiệm kỹ thuật</span>
 <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
 </div>
-</div>
-{/*  Pillar 2  */}
-<div className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+</Link>
+<Link to="/feature/ai-scoring" className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
 <div>
 <div className="w-14 h-14 rounded-2xl bg-[#ffd9dd]/70 flex items-center justify-center text-[#9E2A4B] group-hover:scale-110 transition-transform">
 <span className="material-symbols-outlined text-[30px]">neurology</span>
@@ -201,9 +199,8 @@ export default function HomeLanding() {
 <span>Xem mô phỏng AI</span>
 <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
 </div>
-</div>
-{/*  Pillar 3  */}
-<div className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+</Link>
+<Link to="/feature/srs" className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
 <div>
 <div className="w-14 h-14 rounded-2xl bg-secondary-container/60 flex items-center justify-center text-[#9E2A4B] group-hover:scale-110 transition-transform">
 <span className="material-symbols-outlined text-[30px]">auto_stories</span>
@@ -215,9 +212,8 @@ export default function HomeLanding() {
 <span>Thư viện từ vựng</span>
 <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
 </div>
-</div>
-{/*  Pillar 4  */}
-<div className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between" id="sensei">
+</Link>
+<Link to="/feature/sensei" className="group relative rounded-3xl bg-background p-7 border border-[#dfbfc1]/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between" id="sensei">
 <div>
 <div className="w-14 h-14 rounded-2xl bg-[#b7f481]/40 flex items-center justify-center text-[#366800] group-hover:scale-110 transition-transform">
 <span className="material-symbols-outlined text-[30px]">supervisor_account</span>
@@ -229,7 +225,7 @@ export default function HomeLanding() {
 <span>Đội ngũ Sensei</span>
 <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
 </div>
-</div>
+</Link>
 </div>
 </div>
 </section>

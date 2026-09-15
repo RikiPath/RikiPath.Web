@@ -1,59 +1,68 @@
-import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { homePathForRole } from '../../api/auth.js';
+import { saveSession } from '../../auth/session.js';
+import { useLoginMutation } from '../../hooks/useAuth.js';
+import { learnerKeys, prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
+import { queryClient } from '../../api/queryClient.js';
 
 export default function Auth() {
   const navigate = useNavigate();
-  useEffect(() => {
-    const orig = document.addEventListener.bind(document);
-    document.addEventListener = (type, fn, opts) => {
-      if (type === 'DOMContentLoaded') {
-        try { fn(); } catch (err) { console.warn(err); }
-        return;
-      }
-      return orig(type, fn, opts);
-    };
-    try {
-      document.addEventListener('DOMContentLoaded', () => {
-            const toggleBtn = document.getElementById('toggle-password');
-            const passwordInput = document.getElementById('password');
-      
-            if (toggleBtn && passwordInput) {
-              toggleBtn.addEventListener('click', () => {
-                const isPassword = passwordInput.getAttribute('type') === 'password';
-                passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
-                toggleBtn.classList.toggle('text-sakura-600', isPassword);
+  const location = useLocation();
+  const loginMutation = useLoginMutation();
+  const [email, setEmail] = useState(() => location.state?.email || '');
+  const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState(location.state?.notice || '');
+  const loading = loginMutation.isPending;
+
+  function handleLogin(e) {
+    e.preventDefault();
+    setError('');
+    setNotice('');
+    loginMutation.mutate(
+      { email: email.trim(), password },
+      {
+        onSuccess: (data) => {
+          const result = data.result || {};
+          if (!result.accessToken) {
+            setError('Đăng nhập thành công nhưng thiếu accessToken.');
+            return;
+          }
+          saveSession(
+            {
+              accessToken: result.accessToken,
+              userId: result.userId,
+              email: result.email,
+              fullName: result.fullName,
+              role: result.role,
+            },
+            remember,
+          );
+          const goHome = () => navigate(homePathForRole(result.role), { replace: true });
+          if ((result.role || '').toLowerCase() === 'learner') {
+            prefetchLearnerHome()
+              .catch(() => {})
+              .finally(() => {
+                const profile = queryClient.getQueryData(learnerKeys.profile);
+                if (!profile?.targetJlptLevelId) {
+                  navigate('/onboarding', { replace: true });
+                  return;
+                }
+                navigate('/app', { replace: true });
               });
-            }
-          });
-      document.addEventListener('DOMContentLoaded', () => {
-            const loginBtn = document.getElementById('tab-login-btn');
-            const registerBtn = document.getElementById('tab-register-btn');
-      
-            if (loginBtn && registerBtn) {
-              registerBtn.addEventListener('click', () => {
-                // Switch active visual to register tab
-                registerBtn.className = "flex-1 py-2.5 text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm border border-sakura-100/60 transition-all text-center flex items-center justify-center gap-1.5";
-                registerBtn.innerHTML = `<span>Đăng ký</span><span className="w-1.5 h-1.5 rounded-full bg-sakura-500 inline-block"></span>`;
-                
-                loginBtn.className = "flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center";
-                loginBtn.innerHTML = `<span>Đăng nhập</span>`;
-              });
-      
-              loginBtn.addEventListener('click', () => {
-                // Switch back to login active state
-                loginBtn.className = "flex-1 py-2.5 text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm border border-sakura-100/60 transition-all text-center flex items-center justify-center gap-1.5";
-                loginBtn.innerHTML = `<span>Đăng nhập</span><span className="w-1.5 h-1.5 rounded-full bg-sakura-500 inline-block"></span>`;
-                
-                registerBtn.className = "flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center";
-                registerBtn.innerHTML = `<span>Đăng ký</span>`;
-              });
-            }
-          });
-    } catch (err) {
-      console.warn('Stitch script:', err);
-    }
-    document.addEventListener = orig;
-  }, []);
+          } else {
+            goHome();
+          }
+        },
+        onError: (err) => {
+          setError(err.message || 'Đăng nhập thất bại.');
+        },
+      },
+    );
+  }
 
   return (
     <div className="h-full font-sans text-slate-800 antialiased selection:bg-sakura-100 selection:text-sakura-700" style={{ backgroundColor: "rgb(250, 247, 242)", position: "relative" }} data-page="Auth">
@@ -94,7 +103,7 @@ export default function Auth() {
 <div className="relative z-10 my-auto py-6 flex flex-col items-center">
 <div className="relative group w-full max-w-[430px] aspect-square rounded-2xl p-2 bg-gradient-to-tr from-white/90 via-sakura-100/60 to-white/90 shadow-sakura-glow border border-sakura-200/80">
 {/*  Provided Sakura Illustration Image  */}
-<img alt="Japanese style sakura cherry blossom, beautiful delicate pink sakura petals with warm soft pastel background, aesthetic Japanese art, high quality illustration for educational learning app" className="w-full h-full object-cover rounded-xl shadow-inner transition-transform duration-700 group-hover:scale-[1.01]" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWYbEhEoo5ezk9RfsOL90bHH9ptoneNYSVhIXsry9dpOuv9DwfIfTnece2u9Sw2TeSdVMuyq7EXP9wvFr1DRX-rdTzy_VNAMomsnw2PNmv8zVAwiupwNpSF9TSDj-haM0v7eswhkQoGfNt34_f_K4-cSLPa_AZ6W94Xai46Z6LdGPsDX2rnaxC9iMC87EPsgs2UKn2h5ixOTRE6s6mgFtlvLN6dFkUbwCk2rNeNjHfRQegbSWVqcF7" />
+<img alt="Hoa anh đào sakura nền pastel ấm, phong cách minh họa Nhật Bản" className="w-full h-full object-cover object-center rounded-xl shadow-inner transition-transform duration-700 group-hover:scale-[1.01]" loading="lazy" src="/images/sakura-hero.jpg" />
 {/*  Subtle Floating Japanese Calligraphy Overlay  */}
 <div className="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
 <span className="text-xl">⛩️</span>
@@ -145,35 +154,39 @@ export default function Auth() {
 <p className="mt-1 text-sm text-slate-500">{"Vui lòng nhập thông tin tài khoản để tiếp tục học tập.\n            "}</p>
 </div>
 {/*  Authentication Form  */}
-<form action="#" className="space-y-4" data-purpose="login-form" method="POST" onSubmit={(e) => { e.preventDefault(); navigate('/app'); }}>
-{/*  Email Input Field  */}
+<form className="space-y-4" data-purpose="login-form" onSubmit={handleLogin}>
+{notice ? <p className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700">{notice}</p> : null}
+{error ? (
+  <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">
+    <p>{error}</p>
+    {String(error).toLowerCase().includes('xác thực email') ? (
+      <Link className="mt-1 inline-block font-bold text-[#d94b68] underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>Nhập mã xác thực</Link>
+    ) : null}
+  </div>
+) : null}
 <div>
 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" htmlFor="email">{"Địa chỉ Email\n              "}</label>
 <div className="relative rounded-xl shadow-xs">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-{/*  Mail Icon  */}
 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
 </svg>
 </div>
-<input className="block w-full pl-11 pr-4 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="email" name="email" placeholder="nhap.email@example.com" required type="email" />
+<input className="block w-full pl-11 pr-4 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 </div>
 </div>
-{/*  Password Input Field  */}
 <div>
 <div className="flex items-center justify-between mb-1.5">
 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600" htmlFor="password">{"Mật khẩu\n                "}</label>
 </div>
 <div className="relative rounded-xl shadow-xs">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-{/*  Lock Icon  */}
 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
 </svg>
 </div>
-<input className="block w-full pl-11 pr-11 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="password" name="password" placeholder="Nhập mật khẩu bí mật" required type="password" />
-{/*  Toggle Password Visibility  */}
-<button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-sakura-600 focus:outline-none transition-colors" id="toggle-password" type="button">
+<input className="block w-full pl-11 pr-11 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="password" name="password" placeholder="Nhập mật khẩu" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+<button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-sakura-600 focus:outline-none transition-colors" id="toggle-password" type="button" onClick={() => setShowPassword((v) => !v)}>
 <svg className="h-5 w-5" fill="none" id="eye-icon" stroke="currentColor" viewBox="0 0 24 24">
 <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
 <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
@@ -181,18 +194,16 @@ export default function Auth() {
 </button>
 </div>
 </div>
-{/*  Remember me & Forgot Password  */}
 <div className="flex items-center justify-between pt-1">
 <label className="flex items-center gap-2 cursor-pointer select-none">
-<input className="w-4 h-4 text-sakura-500 border-sakura-300 rounded focus:ring-sakura-500 focus:ring-offset-0 transition-colors" id="remember-me" name="remember" type="checkbox" />
+<input checked={remember} className="w-4 h-4 text-sakura-500 border-sakura-300 rounded focus:ring-sakura-500 focus:ring-offset-0 transition-colors" id="remember-me" name="remember" type="checkbox" onChange={(e) => setRemember(e.target.checked)} />
 <span className="text-xs font-medium text-slate-600">Ghi nhớ đăng nhập</span>
 </label>
-<Link className="text-xs font-semibold text-[#d94b68] hover:text-sakura-700 hover:underline transition-colors" to="/forgot-password">Quên mật khẩu?</Link>
+<Link className="text-xs font-semibold text-[#d94b68] hover:text-sakura-700 hover:underline transition-colors" to="/change-password">Đổi mật khẩu</Link>
 </div>
-{/*  CTA Submit Button  */}
 <div className="pt-2">
-<button className="w-full h-12 flex items-center justify-center gap-2 bg-[#d94b68] hover:bg-sakura-600 text-white font-bold text-sm tracking-wide rounded-[10px] shadow-sakura-soft hover:shadow-lg transition-all duration-200 transform active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-sakura-300/40" type="submit">
-<span className="">Đăng nhập ngay</span>
+<button className="w-full h-12 flex items-center justify-center gap-2 bg-[#d94b68] hover:bg-sakura-600 text-white font-bold text-sm tracking-wide rounded-[10px] shadow-sakura-soft hover:shadow-lg transition-all duration-200 transform active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-sakura-300/40 disabled:opacity-60" type="submit" disabled={loading}>
+<span className="">{loading ? 'Đang đăng nhập...' : 'Đăng nhập ngay'}</span>
 <span className="text-base leading-none">🌸</span>
 </button>
 </div>
@@ -209,7 +220,7 @@ export default function Auth() {
 {/*  Social Login Buttons  */}
 <div className="grid grid-cols-2 gap-3" data-purpose="social-auth-buttons">
 {/*  Google Login Button  */}
-<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:border-slate-300 shadow-xs transition-colors focus:outline-none" type="button">
+<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng nhập Google">
 <svg className="w-4 h-4" viewBox="0 0 24 24">
 <path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
 <path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z" fill="#34A853"></path>
@@ -219,7 +230,7 @@ export default function Auth() {
 <span className="">Google</span>
 </button>
 {/*  Facebook / Apple Login Button  */}
-<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:border-slate-300 shadow-xs transition-colors focus:outline-none" type="button">
+<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng nhập Facebook">
 {/*  Facebook Icon  */}
 <svg className="w-4 h-4 text-[#1877F2] fill-current" viewBox="0 0 24 24">
 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path>
@@ -231,6 +242,8 @@ export default function Auth() {
 {/*  Footer Notice & Registration Prompt  */}
 <footer className="mt-8 pt-6 border-t border-slate-100 text-center" data-purpose="auth-footer">
 <p className="text-xs text-slate-600">{"Chưa có tài khoản?"}<Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to="/register">Đăng ký miễn phí</Link>
+{" · "}
+<Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'}>Xác thực email</Link>
 </p>
 <p className="mt-2 text-[11px] text-slate-400">{"Bằng việc tiếp tục, bạn đồng ý với"}<a className="underline hover:text-slate-600" href="#">Điều khoản sử dụng</a>{" &"}<a className="underline hover:text-slate-600" href="#">Chính sách bảo mật</a>{" của RikiPath.\n          "}</p>
 </footer>

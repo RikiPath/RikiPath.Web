@@ -112,7 +112,7 @@ export default function ForgotPassword() {
 <aside className="relative hidden lg:flex lg:col-span-5 flex-col justify-between p-8 bg-gradient-to-br from-[#FFF7F9] via-[#FAF1F3] to-[#FCE4EC] border-r border-[#dfbfc1]/40 overflow-hidden">
 {/*  Sakura Blossom Image Motif  */}
 <div className="absolute inset-0 z-0">
-<img alt="Sakura Blossom Art" className="w-full h-full object-cover object-center mix-blend-multiply opacity-80 filter contrast-105" src="https://lh3.googleusercontent.com/aida/AEtjO1WNQbKlEcHaEbnIugJracoZGASfEVtxILyV6z0Y_wrXO6Ms5cvx1Ht8rQsFNIOJgvFvQFuXpJSVfRfLxStxHkxpTpnGVjrXxe3toC5u3BS0VLjj4mOVuWjQVhC_S_8LE54VhsnhJLWphh_mL78n2fBmj6wgnL3MOr560Xk-a1XRrXtkZnkSE4WXqUJHq3TJVuOQRtEcYTYxkrqmJTq2y2NW8A2OLSmp8yjI-NkOow26HlYdGO2i24zR6-k" />
+<img alt="Sakura Blossom Art" className="w-full h-full object-cover object-center mix-blend-multiply opacity-80 filter contrast-105" src="/images/sakura-hero.jpg" />
 <div className="absolute inset-0 bg-gradient-to-t from-[#2D1B22]/90 via-[#2D1B22]/40 to-transparent"></div>
 </div>
 {/*  Top Left Watermark & Badge  */}

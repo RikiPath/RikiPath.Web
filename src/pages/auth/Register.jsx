@@ -1,42 +1,66 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { savePendingVerify } from '../../auth/session.js';
+import { useRegisterMutation } from '../../hooks/useAuth.js';
 
 export default function Register() {
   const navigate = useNavigate();
-  useEffect(() => {
-    const orig = document.addEventListener.bind(document);
-    document.addEventListener = (type, fn, opts) => {
-      if (type === 'DOMContentLoaded') {
-        try { fn(); } catch (err) { console.warn(err); }
-        return;
-      }
-      return orig(type, fn, opts);
-    };
-    try {
-      document.addEventListener('DOMContentLoaded', () => {
-            // Toggle password eye button functionality
-            const eyeButtons = document.querySelectorAll('button[aria-label*="mật khẩu"]');
-            eyeButtons.forEach(btn => {
-              btn.addEventListener('click', () => {
-                const input = btn.parentElement.querySelector('input');
-                const icon = btn.querySelector('i');
-                if (input.type === 'password') {
-                  input.type = 'text';
-                  icon.classList.remove('ph-eye');
-                  icon.classList.add('ph-eye-slash');
-                } else {
-                  input.type = 'password';
-                  icon.classList.remove('ph-eye-slash');
-                  icon.classList.add('ph-eye');
-                }
-              });
-            });
-          });
-    } catch (err) {
-      console.warn('Stitch script:', err);
+  const registerMutation = useRegisterMutation();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const loading = registerMutation.isPending;
+
+  function handleRegister(e) {
+    e.preventDefault();
+    setError('');
+    if (password !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp.');
+      return;
     }
-    document.addEventListener = orig;
-  }, []);
+    if (password.length < 6) {
+      setError('Mật khẩu tối thiểu 6 ký tự.');
+      return;
+    }
+    const payload = {
+      email: email.trim(),
+      password,
+      confirmPassword,
+    };
+    if (firstName.trim()) payload.firstName = firstName.trim();
+    if (lastName.trim()) payload.lastName = lastName.trim();
+    const registeredEmail = email.trim();
+    registerMutation.mutate(payload, {
+      onSuccess: (data) => {
+        const result = data.result || {};
+        goToVerify(result.email || registeredEmail);
+      },
+      onError: (err) => {
+        const msg = err.message || 'Đăng ký thất bại.';
+        if (msg.includes('Tạo tài khoản thành công')) {
+          goToVerify(registeredEmail, msg);
+          return;
+        }
+        if (msg.toLowerCase().includes('đã được đăng ký')) {
+          setError(msg);
+          return;
+        }
+        setError(msg);
+      },
+    });
+  }
+
+  function goToVerify(registeredEmail, notice) {
+    savePendingVerify({ email: registeredEmail });
+    navigate(`/verify-email?email=${encodeURIComponent(registeredEmail)}`, {
+      state: notice ? { notice } : undefined,
+    });
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 lg:p-12 text-charcoal-900 antialiased selection:bg-sakura-200 selection:text-sakura-800" style={{ backgroundColor: "rgb(250, 247, 242)", position: "relative" }} data-page="Register">
@@ -69,24 +93,14 @@ export default function Register() {
 </div>
 </header>
 {/*  Center Feature: Japanese Sakura Artwork Card  */}
-<div className="relative my-8 flex flex-col items-center justify-center" data-purpose="illustration-wrapper">
-{/*  Artwork frame with gentle shadow & inner warm glow  */}
-<div className="relative max-w-[370px] xl:max-w-[410px] w-full rounded-2xl bg-white p-3.5 shadow-xl shadow-sakura-900/5 border border-white">
-<div className="relative overflow-hidden rounded-xl aspect-square bg-[#faeee8]">
-<img alt="Cành hoa anh đào Nhật Bản và núi Phú Sĩ ngày xuân" className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700 ease-out" src="https://lh3.googleusercontent.com/aida/AEtjO1WNQbKlEcHaEbnIugJracoZGASfEVtxILyV6z0Y_wrXO6Ms5cvx1Ht8rQsFNIOJgvFvQFuXpJSVfRfLxStxHkxpTpnGVjrXxe3toC5u3BS0VLjj4mOVuWjQVhC_S_8LE54VhsnhJLWphh_mL78n2fBmj6wgnL3MOr560Xk-a1XRrXtkZnkSE4WXqUJHq3TJVuOQRtEcYTYxkrqmJTq2y2NW8A2OLSmp8yjI-NkOow26HlYdGO2i24zR6-k" />
-</div>
-{/*  Floating Inspirational Card with Torii Icon  */}
-<div className="absolute -bottom-6 -right-2 sm:-right-4 bg-white/95 backdrop-blur-md px-4 py-3 rounded-xl border border-sakura-100 shadow-float-badge flex items-center gap-3 max-w-[270px]" data-purpose="quote-badge">
-{/*  Red Torii Shrine Icon  */}
-<div className="w-9 h-9 rounded-lg bg-sakura-50 flex items-center justify-center shrink-0 border border-sakura-200/60 text-sakura-600">
-<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-<path d="M224,88H200V56h24a8,8,0,0,0,0-16H32a8,8,0,0,0,0,16H56V88H32a8,8,0,0,0,0,16H56v88H48a8,8,0,0,0,0,16H208a8,8,0,0,0,0-16h-8V104h24a8,8,0,0,0,0-16ZM72,56H184V88H72ZM184,192H72V104H184Z"></path>
-</svg>
-</div>
-<div>
-<p className="text-[11px] font-medium text-charcoal-500 leading-tight">Mỗi ngày một bước tiến</p>
-<p className="text-xs font-bold text-sakura-700 font-jp mt-0.5">{"一期一会 "}<span className="text-[10px] font-sans font-semibold text-charcoal-700">(Ichigo Ichie)</span>
-</p>
+<div className="relative z-10 my-auto py-6 flex flex-col items-center" data-purpose="illustration-wrapper">
+<div className="relative group w-full max-w-[430px] aspect-square rounded-2xl p-2 bg-gradient-to-tr from-white/90 via-sakura-100/60 to-white/90 shadow-sakura-glow border border-sakura-200/80">
+<img alt="Hoa anh đào sakura nền pastel ấm, phong cách minh họa Nhật Bản" className="w-full h-full object-cover object-center rounded-xl shadow-inner transition-transform duration-700 group-hover:scale-[1.01]" src="/images/sakura-hero.jpg" />
+<div className="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
+<span className="text-xl">⛩️</span>
+<div className="text-left">
+<p className="text-[11px] font-medium text-slate-500">Mỗi ngày một bước tiến</p>
+<p className="text-xs font-bold text-sakura-700 font-serif tracking-wider">一期一会 (Ichigo Ichie)</p>
 </div>
 </div>
 </div>
@@ -143,81 +157,58 @@ export default function Register() {
 <p className="mt-1.5 text-sm text-charcoal-500">Gia nhập cộng đồng học tiếng Nhật thông minh cùng RikiPath.</p>
 </div>
 {/*  Registration Form Elements  */}
-<form action="#" className="space-y-4" data-purpose="signup-form" method="POST" onSubmit={(e) => { e.preventDefault(); navigate('/onboarding'); }}>
-{/*  Field 1: Full Name  */}
+<form className="space-y-4" data-purpose="signup-form" onSubmit={handleRegister}>
+{error ? (
+  <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">
+    <p>{error}</p>
+    {error.toLowerCase().includes('đã được đăng ký') ? (
+      <Link className="mt-1 inline-block font-bold text-sakura-600 underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>Đi tới xác thực email</Link>
+    ) : null}
+  </div>
+) : null}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="fullname">{"Họ và tên\n            "}</label>
-<div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-user"></i>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">Họ</label>
+<input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
 </div>
-<input className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="fullname" name="fullname" placeholder="Nguyễn Văn A" required type="text" />
+<div>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">Tên</label>
+<input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
 </div>
 </div>
-{/*  Field 2: Email  */}
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{"Địa chỉ email\n            "}</label>
 <div className="relative">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
 <i className="ph ph-envelope-simple"></i>
 </div>
-<input className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="email" name="email" placeholder="nhap.email@example.com" required type="email" />
+<input className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 </div>
 </div>
-{/*  Two-column row for Passwords on tablets/desktops  */}
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-{/*  Field 3: Password  */}
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{"Mật khẩu\n              "}</label>
 <div className="relative">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
 <i className="ph ph-lock"></i>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="password" name="password" placeholder="Tối thiểu 8 ký tự" required type="password" />
-<button aria-label="Hiện mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button">
+<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="password" name="password" placeholder="Tối thiểu 6 ký tự" required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+<button aria-label="Hiện mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowPassword((v) => !v)}>
 <i className="ph ph-eye text-base"></i>
 </button>
 </div>
 </div>
-{/*  Field 4: Confirm Password  */}
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{"Xác nhận mật khẩu\n              "}</label>
 <div className="relative">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
 <i className="ph ph-shield-check"></i>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="confirm-password" name="confirm-password" placeholder="Nhập lại mật khẩu" required type="password" />
-<button aria-label="Hiện xác nhận mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button">
+<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="confirm-password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+<button aria-label="Hiện xác nhận mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowConfirm((v) => !v)}>
 <i className="ph ph-eye text-base"></i>
 </button>
 </div>
-</div>
-</div>
-{/*  Field 5: JLPT Target Level Selector  */}
-<div className="pt-1">
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-2">{"Mục tiêu JLPT của bạn (Tùy chọn)\n            "}</label>
-<div className="grid grid-cols-5 gap-2" data-purpose="jlpt-selector">
-<label className="cursor-pointer">
-<input className="sr-only peer" name="jlpt_goal" type="radio" value="N5" />
-<div className="py-2 text-center text-xs font-bold rounded-lg border border-charcoal-200 text-charcoal-700 peer-checked:bg-sakura-500 peer-checked:text-white peer-checked:border-sakura-500 peer-checked:shadow-sm hover:border-sakura-300 transition-all">{"N5\n                "}</div>
-</label>
-<label className="cursor-pointer">
-<input className="sr-only peer" name="jlpt_goal" type="radio" value="N4" />
-<div className="py-2 text-center text-xs font-bold rounded-lg border border-charcoal-200 text-charcoal-700 peer-checked:bg-sakura-500 peer-checked:text-white peer-checked:border-sakura-500 peer-checked:shadow-sm hover:border-sakura-300 transition-all">{"N4\n                "}</div>
-</label>
-{/*  Pre-selected Level N3  */}
-<label className="cursor-pointer">
-<input checked className="sr-only peer" name="jlpt_goal" type="radio" value="N3" />
-<div className="py-2 text-center text-xs font-bold rounded-lg border border-sakura-500 bg-sakura-600 text-white shadow-sm peer-checked:bg-sakura-600 peer-checked:text-white peer-checked:border-sakura-600 transition-all">{"N3\n                "}</div>
-</label>
-<label className="cursor-pointer">
-<input className="sr-only peer" name="jlpt_goal" type="radio" value="N2" />
-<div className="py-2 text-center text-xs font-bold rounded-lg border border-charcoal-200 text-charcoal-700 peer-checked:bg-sakura-500 peer-checked:text-white peer-checked:border-sakura-500 peer-checked:shadow-sm hover:border-sakura-300 transition-all">{"N2\n                "}</div>
-</label>
-<label className="cursor-pointer">
-<input className="sr-only peer" name="jlpt_goal" type="radio" value="N1" />
-<div className="py-2 text-center text-xs font-bold rounded-lg border border-charcoal-200 text-charcoal-700 peer-checked:bg-sakura-500 peer-checked:text-white peer-checked:border-sakura-500 peer-checked:shadow-sm hover:border-sakura-300 transition-all">{"N1\n                "}</div>
-</label>
 </div>
 </div>
 {/*  Terms Agreement Checkbox  */}
@@ -226,8 +217,8 @@ export default function Register() {
 <label className="text-xs text-charcoal-600 leading-snug cursor-pointer select-none" htmlFor="terms">{"Tôi đồng ý với "}<a className="text-sakura-600 hover:underline font-semibold" href="#">Điều khoản dịch vụ</a>{" và "}<a className="text-sakura-600 hover:underline font-semibold" href="#">Chính sách bảo mật</a>{" của RikiPath.\n            "}</label>
 </div>
 {/*  Primary Submit CTA Button  */}
-<button className="w-full py-3 px-6 mt-3 bg-sakura-600 hover:bg-sakura-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-xl shadow-sakura-btn hover:shadow-lg transition-all flex items-center justify-center gap-2 group" data-purpose="submit-button" type="submit">
-<span className="">Đăng ký tài khoản ngay</span>
+<button className="w-full py-3 px-6 mt-3 bg-sakura-600 hover:bg-sakura-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-xl shadow-sakura-btn hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60" data-purpose="submit-button" type="submit" disabled={loading}>
+<span className="">{loading ? 'Đang tạo tài khoản...' : 'Đăng ký tài khoản ngay'}</span>
 <span className="text-base group-hover:rotate-12 transition-transform">🌸</span>
 </button>
 </form>
@@ -241,7 +232,7 @@ export default function Register() {
 {/*  Social Login Buttons  */}
 <div className="grid grid-cols-2 gap-3" data-purpose="social-login-group">
 {/*  Google Button  */}
-<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 hover:bg-charcoal-100/60 transition-colors text-xs sm:text-sm font-semibold text-charcoal-800" type="button">
+<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng ký Google">
 {/*  Google SVG Icon  */}
 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
 <path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
@@ -252,7 +243,7 @@ export default function Register() {
 <span className="">Google</span>
 </button>
 {/*  Facebook Button  */}
-<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 hover:bg-charcoal-100/60 transition-colors text-xs sm:text-sm font-semibold text-charcoal-800" type="button">
+<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng ký Facebook">
 {/*  Facebook SVG Icon  */}
 <svg className="w-4 h-4 shrink-0 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073Z"></path>
@@ -264,6 +255,8 @@ export default function Register() {
 {/*  Bottom Footer Navigation Link  */}
 <footer className="mt-8 pt-4 border-t border-charcoal-100 text-center text-xs text-charcoal-500">
 <p className="">{"Đã có tài khoản?"}<Link to="/auth" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">Đăng nhập ngay</Link>
+</p>
+<p className="mt-2">{"Đã nhận mã?"}<Link to="/verify-email" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">Xác thực email</Link>
 </p>
 <p className="text-[11px] text-charcoal-400 mt-2">{"Bằng việc tiếp tục, bạn đồng ý nhận thông tin cập nhật học tập từ RikiPath.\n        "}</p>
 </footer>
