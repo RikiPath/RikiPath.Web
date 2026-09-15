@@ -315,16 +315,23 @@ body {
   font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
-/* PreviewNav sticky — chiều cao động qua --preview-nav-h */
-.rikipath-shell aside.fixed,
-.rikipath-shell aside.sticky,
-.rikipath-shell [data-shell] > aside.fixed {
-  top: var(--preview-nav-h, 5.75rem) !important;
-  height: calc(100vh - var(--preview-nav-h, 5.75rem)) !important;
+html {
+  --preview-nav-h: 0px !important;
 }
-.rikipath-shell header.fixed,
-.rikipath-shell [data-shell] header.fixed {
-  top: var(--preview-nav-h, 5.75rem) !important;
+[data-shell="learner"] > aside {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  width: 260px !important;
+  margin: 0 !important;
+}
+[data-shell="learner"] > div > header {
+  position: fixed !important;
+  top: 0 !important;
+  left: 260px !important;
+  right: 0 !important;
 }
 
 /* Nội dung trang trong shell: tránh card dính mép */

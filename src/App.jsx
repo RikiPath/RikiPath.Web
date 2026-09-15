@@ -1,5 +1,4 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import PreviewNav from './components/PreviewNav.jsx';
 
 // —— Marketing ——
 import { HomeLanding, CourseCatalog, CourseDetail, FeatureDetail } from './pages/marketing';
@@ -73,7 +72,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="rikipath-shell min-h-screen bg-[#FAF7F5]">
-        <PreviewNav />
         <Routes>
           {/* ========== MARKETING ========== */}
           <Route path="/" element={<HomeLanding />} />
