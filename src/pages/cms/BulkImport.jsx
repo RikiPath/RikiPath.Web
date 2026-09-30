@@ -1,7 +1,12 @@
+import { useState } from 'react';
 import { CmsShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
+import Pagination from '../../components/Pagination.jsx';
+
 export default function BulkImport() {
   const { pathname } = useLocation();
+  const [importPage, setImportPage] = useState(1);
+  const [importPageSize, setImportPageSize] = useState(10);
   return (
     <CmsShell pathname={pathname} breadcrumb="Import hàng loạt">
 <div className="bg-background font-body-md text-body-md text-on-surface antialiased min-h-screen" data-page="BulkImport" data-shell-unified="1">
@@ -377,7 +382,20 @@ export default function BulkImport() {
 </tbody>
 </table>
 </div>
+{/*  Table Pagination  */}
+<Pagination
+  currentPage={importPage}
+  totalPages={6}
+  pageSize={importPageSize}
+  totalItems={58}
+  onPageChange={setImportPage}
+  onPageSizeChange={setImportPageSize}
+  pageSizeOptions={[5, 10, 20]}
+  itemLabel="bản ghi import"
+  variant="sakura"
+/>
 {/*  Table Bottom Helper Bar  */}
+
 <div className="p-4 bg-[#FAF7F5] border-t border-[#EADFD9] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
 <div className="flex items-center gap-2 text-[#6E686A] text-xs">
 <span className="material-symbols-outlined text-[18px] text-[#E05A7A]">tips_and_updates</span>

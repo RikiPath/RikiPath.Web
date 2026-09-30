@@ -16,3 +16,4 @@ export { default as ExamN3 } from './ExamN3.jsx';
 export { default as VocabWordDetail } from './VocabWordDetail.jsx';
 export { default as ExamResult } from './ExamResult.jsx';
 export { default as LearnerSettings } from './LearnerSettings.jsx';
+export { default as KanjiWritingPracticePage } from './KanjiWritingPracticePage.jsx';

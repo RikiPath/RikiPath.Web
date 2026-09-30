@@ -1,7 +1,12 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
+import Pagination from '../../components/Pagination.jsx';
+
 export default function ConsultationQueue() {
   const { pathname } = useLocation();
+  const [queuePage, setQueuePage] = useState(1);
+  const [queuePageSize, setQueuePageSize] = useState(10);
   return (
     <ConsultShell pathname={pathname} breadcrumb="Hàng đợi">
 <div className="bg-canvas text-text-charcoal min-h-screen flex overflow-x-hidden antialiased text-[13px] min-h-screen" data-page="ConsultationQueue" data-shell-unified="1">
@@ -505,33 +510,22 @@ export default function ConsultationQueue() {
 </button>
 <button className="px-2.5 py-1.5 rounded-lg border border-border-soft bg-white hover:bg-canvas text-text-muted font-semibold text-[11px] transition-colors">{"Chuyển sang ca tối\n            "}</button>
 </div>
+</div>
 {/*  Pagination Controls  */}
-<div className="flex items-center gap-3">
-<div className="flex items-center gap-1 text-[11px] text-text-muted">
-<span>Hiển thị</span>
-<select className="bg-white border border-border-soft rounded px-1.5 py-0.5 text-[11px] font-semibold text-text-charcoal cursor-pointer">
-<option>5 / trang</option>
-<option selected>10 / trang</option>
-<option>25 / trang</option>
-</select>
-<span>trong tổng 12 yêu cầu</span>
-</div>
-<div className="flex items-center gap-1">
-<button className="w-7 h-7 rounded border border-border-soft bg-white flex items-center justify-center text-text-muted hover:text-text-charcoal disabled:opacity-40" disabled>
-<span className="material-symbols-outlined text-[16px]">chevron_left</span>
-</button>
-<button className="w-7 h-7 rounded font-bold text-[12px] bg-[#9e2a4b] text-white flex items-center justify-center shadow-sm">1</button>
-<button className="w-7 h-7 rounded font-medium text-[12px] bg-white border border-border-soft text-text-charcoal hover:bg-canvas flex items-center justify-center">2</button>
-<button className="w-7 h-7 rounded font-medium text-[12px] bg-white border border-border-soft text-text-charcoal hover:bg-canvas flex items-center justify-center">3</button>
-<button className="w-7 h-7 rounded border border-border-soft bg-white flex items-center justify-center text-text-charcoal hover:bg-canvas">
-<span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</button>
-</div>
-<span className="text-[11px] font-semibold text-text-muted">Trang 1 / 3</span>
-</div>
-</div>
+<Pagination
+  currentPage={queuePage}
+  totalPages={Math.ceil(12 / queuePageSize)}
+  pageSize={queuePageSize}
+  totalItems={12}
+  onPageChange={setQueuePage}
+  onPageSizeChange={setQueuePageSize}
+  pageSizeOptions={[5, 10, 25]}
+  itemLabel="yêu cầu tư vấn"
+  variant="sakura"
+/>
 </div>
 </main>
+
 {/*  FOOTER  */}
 <footer className="h-9 bg-surface-pure border-t border-border-soft flex items-center justify-between px-6 text-[11px] text-text-muted z-10 flex-shrink-0">
 <div className="flex items-center gap-3">

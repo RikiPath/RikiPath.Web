@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { CMS_NAV, pathMatches } from './navConfig.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 
 const SIDEBAR_W = 260;
 
@@ -47,6 +48,10 @@ function NavItem({ item, pathname }) {
  * CMS shell — sidebar + topbar đồng bộ (chuẩn LessonCMS / screenshot).
  */
 export default function CmsShell({ children, pathname, breadcrumb, hideHeader = false }) {
+  const { user, primaryRole, logout } = useAuth();
+  const displayName = user?.fullName || user?.name || user?.email || CMS_NAV.user.name;
+  const roleName = primaryRole || user?.role || CMS_NAV.user.role;
+
   return (
     <div className="bg-canvas font-sans antialiased text-txt-main min-h-screen" data-shell="cms">
       <aside
@@ -131,15 +136,15 @@ export default function CmsShell({ children, pathname, breadcrumb, hideHeader = 
                 <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand ring-2 ring-white" />
               </button>
               <div className="h-6 w-px bg-surface-border" />
-              <div className="flex cursor-pointer items-center gap-3 pl-1">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white shadow-sm">
-                  <span className="material-symbols-outlined text-[20px]">person</span>
+              <div className="flex items-center gap-3 pl-1 group relative">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white shadow-sm font-bold text-sm">
+                  {displayName.charAt(0).toUpperCase()}
                 </div>
                 <div className="hidden flex-col text-left md:flex">
-                  <span className="text-[13px] font-semibold leading-tight text-txt-main">
-                    {CMS_NAV.user.name}
+                  <span className="text-[13px] font-semibold leading-tight text-txt-main max-w-[140px] truncate">
+                    {displayName}
                   </span>
-                  <span className="text-[11px] text-txt-muted">{CMS_NAV.user.role}</span>
+                  <span className="text-[11px] text-txt-muted font-medium">{roleName}</span>
                 </div>
               </div>
             </div>
@@ -150,3 +155,4 @@ export default function CmsShell({ children, pathname, breadcrumb, hideHeader = 
     </div>
   );
 }
+
