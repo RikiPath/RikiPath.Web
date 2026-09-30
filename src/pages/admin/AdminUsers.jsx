@@ -1,35 +1,47 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AdminShell } from '../../components/shells';
 import { usePagination } from '../../hooks/usePagination.js';
 import Pagination from '../../components/Pagination.jsx';
-
-const INITIAL_USERS = [
-  { id: '1', name: 'Nguyễn Văn A', email: 'nguyenvana@gmail.com', role: 'Learner', status: 'Active', lastActive: '10 phút trước', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDpJX8GsprRFGtQXHHxFANpZX3i7YpGXYwbX0hQPnbfb3Zusq0OUf2k4Wqacta0E8JBTY_eDmVavTXNH5DPQ9g_aVaiJ4Rwwpt-MDfJmLtiLp10jEf_QhNuDihhYE6LJ7yEP9aeYTn62JxHXELNw1_-RWuX4PIf-uF7suwoluLzhIZ5Xx0XXdWlaf9c4FrN8YQ4MCYtnFr-l9qmJk6e8GtfKWbLe02_vhqp0BvZX0r7Ne2giuYUyVmyTA' },
-  { id: '2', name: 'Trần Thị B', email: 'tranthib@rikipath.vn', role: 'ContentAuthor', status: 'Suspended', lastActive: '2 ngày trước', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC60Rox3wvcaR3Udzunimawe6Ix1oKarwNNDHMnVFpJ3m8BTqgS6GRSeKjbE1o-fNHcQRY0nRw_sFKB276NADkj-oigZATuPZ02Q-4oDId-rAdeiW1ReoGEEbkA9HjXE2OHDExViQBnvqxslDFFuI9T4cPKdmKKfig1CnYI7XcZ_T7BzfdhUEy0-KyyPocnaSrAariBvUjobCIXJEDB37VF4VjtoydAWwXjJ5UAh7xFNXZI9UQfMAiNZA' },
-  { id: '3', name: 'Lê Minh C', email: 'leminhc@sensei.edu.vn', role: 'Consultant', status: 'Pending', lastActive: 'Chưa đăng nhập' },
-  { id: '4', name: 'Phạm Thị D', email: 'phamthid@rikipath.admin', role: 'Admin', status: 'Active', lastActive: 'Vừa xong' },
-  { id: '5', name: 'Hoàng Văn E', email: 'hoangve@gmail.com', role: 'Learner', status: 'Active', lastActive: '1 giờ trước' },
-  { id: '6', name: 'Đỗ Thị F', email: 'dothif@rikipath.vn', role: 'ContentAuthor', status: 'Active', lastActive: '4 giờ trước' },
-  { id: '7', name: 'Vũ Đức G', email: 'vuducg@sensei.edu.vn', role: 'Consultant', status: 'Active', lastActive: 'Hôm qua' },
-  { id: '8', name: 'Bùi Thị H', email: 'buithih@gmail.com', role: 'Learner', status: 'Suspended', lastActive: '1 tuần trước' },
-  { id: '9', name: 'Ngô Quang I', email: 'ngoquangi@rikipath.admin', role: 'Admin', status: 'Active', lastActive: '30 phút trước' },
-  { id: '10', name: 'Dương Thị K', email: 'duongthik@gmail.com', role: 'Learner', status: 'Active', lastActive: '3 ngày trước' },
-  { id: '11', name: 'Lý Quốc L', email: 'lyquocl@rikipath.vn', role: 'ContentAuthor', status: 'Active', lastActive: '5 giờ trước' },
-  { id: '12', name: 'Mai Thu M', email: 'maithum@sensei.edu.vn', role: 'Consultant', status: 'Pending', lastActive: 'Chưa đăng nhập' },
-  { id: '13', name: 'Hồ Anh N', email: 'hoanhn@gmail.com', role: 'Learner', status: 'Active', lastActive: '6 giờ trước' },
-  { id: '14', name: 'Tạ Văn P', email: 'tavanp@gmail.com', role: 'Learner', status: 'Active', lastActive: 'Hôm nay' },
-  { id: '15', name: 'Trịnh Thị Q', email: 'trinhq@rikipath.vn', role: 'ContentAuthor', status: 'Active', lastActive: '2 ngày trước' },
-];
+import { getAdminUsers, createAdminUser, disableAdminUser, unwrapApiList } from '../../api/admin.js';
 
 export default function AdminUsers() {
   const { pathname } = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'Learner' });
+  const [creating, setCreating] = useState(false);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = { includeDisabled: true };
+      if (selectedRole !== 'ALL') params.role = selectedRole;
+      const list = unwrapApiList(await getAdminUsers(params));
+      setUsers(list.map((user) => ({
+        ...user,
+        id: user.id ?? user.userId,
+        name: user.fullName || user.name || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Người dùng',
+        email: user.email || '',
+        role: user.role?.name ?? user.role ?? 'Learner',
+        status: user.isActive === false || user.isDisabled ? 'Suspended' : 'Active',
+        lastActive: user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleString('vi-VN') : '—',
+      })));
+    } catch (err) {
+      setError(err.message || 'Không thể tải danh sách người dùng.');
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadUsers(); }, [selectedRole]);
 
   const filteredUsers = useMemo(() => {
-    return INITIAL_USERS.filter((user) => {
+    return users.filter((user) => {
       const matchSearch =
         !searchTerm.trim() ||
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -43,7 +55,26 @@ export default function AdminUsers() {
 
       return matchSearch && matchRole && matchStatus;
     });
-  }, [searchTerm, selectedRole, selectedStatus]);
+  }, [users, searchTerm, selectedRole, selectedStatus]);
+
+  const handleDisableUser = async (user) => {
+    if (user.status === 'Suspended') return;
+    try {
+      await disableAdminUser(user.id);
+      await loadUsers();
+    } catch (err) { setError(err.message || 'Không thể vô hiệu hóa tài khoản.'); }
+  };
+
+  const handleCreateUser = async (event) => {
+    event.preventDefault(); setCreating(true); setError('');
+    try {
+      await createAdminUser(newUser);
+      setShowCreate(false);
+      setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'Learner' });
+      await loadUsers();
+    } catch (err) { setError(err.message || 'Không thể tạo tài khoản.'); }
+    finally { setCreating(false); }
+  };
 
   const {
     currentPage,
@@ -61,8 +92,8 @@ export default function AdminUsers() {
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-label-caps font-label-caps bg-primary text-white font-bold">Admin</span>;
       case 'ContentAuthor':
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-label-caps font-label-caps bg-rose-50 text-[#D94B68] border border-rose-200 font-bold">Content Author</span>;
-      case 'Consultant':
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-label-caps font-label-caps bg-[#fff2e5] text-[#b45309] border border-[#fed7aa] font-bold">Consultant</span>;
+      case 'Mentor':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-label-caps font-label-caps bg-[#fff2e5] text-[#b45309] border border-[#fed7aa] font-bold">Mentor</span>;
       default:
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-label-caps font-label-caps bg-surface-container text-on-primary-container border border-border-subtle">Learner</span>;
     }
@@ -123,12 +154,16 @@ export default function AdminUsers() {
                     type="text"
                   />
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl font-title-sm text-title-sm hover:bg-primary-hover transition-colors shadow-sm">
+                <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl font-title-sm text-title-sm hover:bg-primary-hover transition-colors shadow-sm">
                   <span className="material-symbols-outlined text-[18px]">person_add</span>
                   Thêm mới
                 </button>
               </div>
             </div>
+
+            {showCreate && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><form onSubmit={handleCreateUser} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-xl"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Tạo tài khoản</h2><button type="button" onClick={() => setShowCreate(false)} className="rounded-lg px-2 py-1 text-xl" aria-label="Đóng">×</button></div><div className="grid grid-cols-2 gap-3"><input required value={newUser.firstName} onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })} placeholder="Tên" className="rounded-lg border border-border-subtle p-2"/><input required value={newUser.lastName} onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })} placeholder="Họ" className="rounded-lg border border-border-subtle p-2"/></div><input required type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="Email" className="w-full rounded-lg border border-border-subtle p-2"/><input required type="password" minLength={8} value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="Mật khẩu" className="w-full rounded-lg border border-border-subtle p-2"/><select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full rounded-lg border border-border-subtle bg-white p-2">{['Learner', 'ContentAuthor', 'Mentor', 'Admin'].map((role) => <option key={role}>{role}</option>)}</select><div className="flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-border-subtle px-4 py-2">Hủy</button><button disabled={creating} className="rounded-lg bg-primary px-4 py-2 font-semibold text-white disabled:opacity-50">{creating ? 'Đang tạo…' : 'Tạo tài khoản'}</button></div></form></div>}
+
+            {error && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
 
             {/* Filter Chips */}
             <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -141,7 +176,7 @@ export default function AdminUsers() {
               >
                 Tất cả vai trò
               </button>
-              {['Learner', 'ContentAuthor', 'Consultant', 'Admin'].map((r) => (
+              {['Learner', 'ContentAuthor', 'Mentor', 'Admin'].map((r) => (
                 <button
                   key={r}
                   onClick={() => setSelectedRole(r)}
@@ -191,7 +226,9 @@ export default function AdminUsers() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
-                    {usersOnPage.length === 0 ? (
+                    {loading ? (
+                      <tr><td colSpan={6} className="py-12 text-center text-on-surface-variant">Đang tải danh sách người dùng…</td></tr>
+                    ) : usersOnPage.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-on-surface-variant">
                           <span className="material-symbols-outlined text-4xl mb-2 text-outline">search_off</span>
@@ -219,11 +256,11 @@ export default function AdminUsers() {
                           <td className="py-cell-v px-cell-h font-table-data text-table-data text-on-surface-variant">{u.lastActive}</td>
                           <td className="py-cell-v px-cell-h text-right">
                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Link to="/admin/users/detail" className="p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-container transition-colors" title="Chi tiết">
+                              <Link to={`/admin/users/detail?id=${u.id}`} className="p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-container transition-colors" title="Chi tiết">
                                 <span className="material-symbols-outlined text-[18px]">visibility</span>
                               </Link>
-                              <button className="p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-container transition-colors" title="Thao tác khác">
-                                <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                              <button onClick={() => handleDisableUser(u)} disabled={u.status === 'Suspended'} className="p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40" title="Vô hiệu hóa tài khoản">
+                                <span className="material-symbols-outlined text-[18px]">person_off</span>
                               </button>
                             </div>
                           </td>
