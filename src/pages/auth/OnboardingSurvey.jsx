@@ -81,83 +81,95 @@ export default function OnboardingSurvey() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface antialiased" data-page="OnboardingSurvey">
-      <header className="fixed top-0 z-50 h-16 w-full border-b border-outline-variant/30 bg-surface/85 px-6 backdrop-blur-xl">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between">
+    <div className="min-h-screen bg-[#FAF7F5] text-[#1f1a1c]" data-page="OnboardingSurvey">
+      <header className="sticky top-0 z-50 border-b border-[#eadfd9] bg-[#FAF7F5]/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-6">
           <Link to="/" className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[26px] text-primary">spa</span>
-            <span className="font-headline-sm font-bold tracking-tight">
-              Riki<span className="text-primary">Path</span>
+            <span className="material-symbols-outlined text-[24px] text-[#D94B68]">spa</span>
+            <span className="text-lg font-bold tracking-tight">
+              Riki<span className="text-[#D94B68]">Path</span>
             </span>
           </Link>
-          <button type="button" onClick={skipForNow} className="font-label-md text-on-surface-variant hover:text-primary">
+          <button
+            type="button"
+            onClick={skipForNow}
+            className="text-sm font-semibold text-[#6F6669] hover:text-[#D94B68]"
+          >
             Để sau
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-6 pb-16 pt-24">
-        <p className="mb-2 font-label-sm font-bold uppercase tracking-widest text-primary">Khảo sát trình độ</p>
-        <h1 className="font-headline-lg text-3xl font-bold tracking-tight">Mục tiêu JLPT của bạn là gì?</h1>
-        <p className="mt-2 max-w-2xl text-on-surface-variant">
+      <main className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-6 sm:py-10">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#D94B68]">Khảo sát trình độ</p>
+        <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight sm:text-[32px]">
+          Mục tiêu JLPT của bạn là gì?
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#6F6669] sm:text-base">
           Đăng ký chưa hỏi cấp độ thi. Chọn mục tiêu tại đây để trang chủ hiện đúng kỳ thi và nhịp học mỗi ngày.
         </p>
 
         <form className="mt-8 flex flex-col gap-8" onSubmit={handleSubmit}>
-          <fieldset className="flex flex-col gap-3">
-            <legend className="mb-1 font-title-md font-bold">Cấp độ mục tiêu</legend>
-            {LEVELS.map((level) => {
-              const selected = levelId === level.id;
-              return (
-                <label
-                  key={level.id}
-                  className={[
-                    'flex cursor-pointer items-start gap-4 rounded-xl p-5 transition-all',
-                    selected ? 'bg-surface-container-low shadow-md' : 'bg-surface-container-lowest shadow-sm hover:shadow-md',
-                  ].join(' ')}
-                >
-                  <input
-                    type="radio"
-                    name="jlpt-goal"
-                    className="sr-only"
-                    checked={selected}
-                    onChange={() => setLevelId(level.id)}
-                  />
-                  <div
+          <div>
+            <p className="mb-3 text-base font-bold">Cấp độ mục tiêu</p>
+            <div className="flex flex-col gap-3">
+              {LEVELS.map((level) => {
+                const selected = levelId === level.id;
+                return (
+                  <label
+                    key={level.id}
                     className={[
-                      'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold',
-                      selected ? 'bg-secondary-container text-primary' : 'bg-surface-container-low text-on-surface-variant',
+                      'flex cursor-pointer items-start gap-4 rounded-2xl border p-4 sm:p-5 transition-all',
+                      selected
+                        ? 'border-[#D94B68]/40 bg-[#FEE8EE] shadow-sm'
+                        : 'border-[#eadfd9] bg-white hover:border-[#D94B68]/30 hover:shadow-sm',
                     ].join(' ')}
                   >
-                    {level.name}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-title-md font-bold">{level.title}</span>
-                      <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant">
-                        {level.badge}
-                      </span>
-                      {level.popular ? (
-                        <span className="rounded-full bg-secondary-fixed px-2 py-0.5 text-xs font-semibold">Phổ biến</span>
-                      ) : null}
+                    <input
+                      type="radio"
+                      name="jlpt-goal"
+                      className="sr-only"
+                      checked={selected}
+                      onChange={() => setLevelId(level.id)}
+                    />
+                    <div
+                      className={[
+                        'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold',
+                        selected ? 'bg-[#D94B68] text-white' : 'bg-[#f4ece9] text-[#6F6669]',
+                      ].join(' ')}
+                    >
+                      {level.name}
                     </div>
-                    <p className="mt-1 text-sm text-on-surface-variant">{level.desc}</p>
-                  </div>
-                  <div
-                    className={[
-                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
-                      selected ? 'bg-primary text-on-primary' : 'bg-surface-container text-transparent',
-                    ].join(' ')}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">check</span>
-                  </div>
-                </label>
-              );
-            })}
-          </fieldset>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold">{level.title}</span>
+                        <span className="rounded-full bg-[#f4ece9] px-2 py-0.5 text-[11px] font-semibold text-[#6F6669]">
+                          {level.badge}
+                        </span>
+                        {level.popular ? (
+                          <span className="rounded-full bg-[#D94B68]/10 px-2 py-0.5 text-[11px] font-semibold text-[#D94B68]">
+                            Phổ biến
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-[#6F6669]">{level.desc}</p>
+                    </div>
+                    <div
+                      className={[
+                        'mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                        selected ? 'bg-[#D94B68] text-white' : 'border border-[#eadfd9] bg-white text-transparent',
+                      ].join(' ')}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">check</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
 
-          <fieldset>
-            <legend className="mb-3 font-title-md font-bold">Bạn muốn học bao nhiêu phút mỗi ngày?</legend>
+          <div>
+            <p className="mb-3 text-base font-bold">Bạn muốn học bao nhiêu phút mỗi ngày?</p>
             <div className="flex flex-wrap gap-2">
               {MINUTES.map((value) => (
                 <button
@@ -167,26 +179,30 @@ export default function OnboardingSurvey() {
                   className={[
                     'rounded-full px-4 py-2 text-sm font-bold transition-colors',
                     minutes === value
-                      ? 'bg-primary text-on-primary'
-                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container',
+                      ? 'bg-[#D94B68] text-white'
+                      : 'bg-white text-[#6F6669] ring-1 ring-[#eadfd9] hover:bg-[#FEE8EE]',
                   ].join(' ')}
                 >
                   {value} phút
                 </button>
               ))}
             </div>
-          </fieldset>
+          </div>
 
-          {error ? <p className="text-sm font-medium text-error">{error}</p> : null}
+          {error ? <p className="text-sm font-medium text-[#B3261E]">{error}</p> : null}
 
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <button type="button" onClick={skipForNow} className="text-center text-sm text-on-surface-variant hover:text-primary">
+          <div className="flex flex-col-reverse gap-3 border-t border-[#eadfd9] pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={skipForNow}
+              className="text-center text-sm font-semibold text-[#6F6669] hover:text-[#D94B68]"
+            >
               Bỏ qua, vào trang chủ
             </button>
             <button
               type="submit"
               disabled={goalMutation.isPending}
-              className="rounded-xl bg-primary px-8 py-3 font-bold text-on-primary shadow-md disabled:opacity-60"
+              className="rounded-xl bg-[#D94B68] px-6 py-3 text-sm font-bold text-white shadow-md hover:bg-[#9E2A4B] disabled:opacity-60 sm:px-8"
             >
               {goalMutation.isPending ? 'Đang lưu…' : 'Lưu mục tiêu và vào trang chủ'}
             </button>

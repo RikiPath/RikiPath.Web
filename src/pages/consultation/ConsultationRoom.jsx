@@ -20,7 +20,7 @@ export default function ConsultationRoom() {
   const [hand, setHand] = useState(false);
 
   return (
-    <div className="flex h-[calc(100vh-var(--preview-nav-h,7.5rem))] min-h-[640px] flex-col bg-[#1A1416] text-white" data-page="ConsultationRoom">
+    <div className="flex h-[calc(100vh-var(--preview-nav-h,0px))] min-h-[640px] flex-col bg-[#1A1416] text-white" data-page="ConsultationRoom">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#D94B68] text-sm font-bold">R</span>

@@ -4,23 +4,8 @@ export default function LessonList() {
   const { pathname } = useLocation();
   return (
     <LearnerShell pathname={pathname} breadcrumb="Bài học">
-<div className="min-h-screen flex bg-page-bg text-text-main antialiased selection:bg-primary/20 selection:text-primary" data-page="LessonList" data-shell-unified="1">
-
-
-{/*  Fixed Left Sidebar (260px)  */}
-
-
-
-
-
-{/*  Main Container  */}
-
-
-<div className="flex-1 flex flex-col min-w-0">
-{/*  Top Navbar  */}
-
-{/*  Main Content: 12-Column Grid Workspace (1440px desktop optimized)  */}
-<main className="flex-1 p-8 max-w-[1440px] w-full mx-auto">
+<div className="pl-0 bg-[#FAF7F5] text-[#1f1a1c] antialiased" data-page="LessonList" data-shell-unified="1">
+<div className="mx-auto w-full max-w-[1440px] p-6 sm:p-8">
 <div className="grid grid-cols-12 gap-7">
 {/*  Left 8-Column Section: Lessons Header, Filters, Cards  */}
 <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
@@ -316,10 +301,7 @@ export default function LessonList() {
 </div>
 </div>
 </div>
-</main>
-</div>
-
-
+    </div>
     </div>
   
 </LearnerShell>
