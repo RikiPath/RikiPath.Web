@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { ADMIN_NAV, pathMatches } from './navConfig.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 
 const SIDEBAR_W = 260;
 
@@ -35,6 +36,10 @@ function Item({ item, pathname, end }) {
 }
 
 export default function AdminShell({ children, pathname, breadcrumb = 'Tổng quan' }) {
+  const { user, primaryRole, logout } = useAuth();
+  const displayName = user?.fullName || user?.name || user?.email || 'Admin User';
+  const roleName = primaryRole || 'Admin';
+
   return (
     <div
       className="flex min-h-screen overflow-hidden bg-background text-on-background"
@@ -57,10 +62,24 @@ export default function AdminShell({ children, pathname, breadcrumb = 'Tổng qu
             <Item key={item.label} item={item} pathname={pathname} />
           ))}
         </div>
-        <div className="mt-auto border-t border-border-subtle pt-4">
-          {ADMIN_NAV.footerItems.map((item) => (
-            <Item key={item.label} item={item} pathname={pathname} />
-          ))}
+        <div className="mt-auto border-t border-border-subtle pt-3 px-4">
+          <div className="flex items-center gap-3 py-2">
+            <div className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-xs">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-on-surface truncate">{displayName}</p>
+              <p className="text-[10px] text-primary font-semibold truncate">{roleName}</p>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              title="Đăng xuất"
+              className="p-1.5 text-on-surface-variant hover:text-rose-600 rounded-lg hover:bg-surface-container transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -91,3 +110,4 @@ export default function AdminShell({ children, pathname, breadcrumb = 'Tổng qu
     </div>
   );
 }
+

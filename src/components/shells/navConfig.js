@@ -38,6 +38,8 @@ export const ADMIN_NAV = {
   items: [
     { to: '/admin', label: 'Tổng quan', icon: 'dashboard', end: true },
     { to: '/admin/users', label: 'Người dùng', icon: 'group', alsoActive: ['/admin/users/detail'] },
+    { to: '/admin/consultants', label: 'Quản lý Consultant', icon: 'support_agent' },
+    { to: '/admin/packages', label: 'Quản lý Gói tư vấn', icon: 'inventory_2' },
     { to: '/admin/roles', label: 'Vai trò & quyền', icon: 'lock_person' },
     { to: '/admin/content-review', label: 'Duyệt nội dung', icon: 'fact_check' },
     { to: '/lesson-cms', label: 'Cấu hình học tập', icon: 'school' },

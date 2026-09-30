@@ -1,7 +1,12 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CmsShell } from '../../components/shells';
+import Pagination from '../../components/Pagination.jsx';
+
 export default function LessonCMS() {
   const { pathname } = useLocation();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   return (
     <CmsShell pathname={pathname} breadcrumb="Quản lý Bài học">
 <div className="bg-canvas font-sans antialiased text-txt-main min-h-screen" data-page="LessonCMS" data-shell-unified="1">
@@ -625,39 +630,19 @@ export default function LessonCMS() {
 </table>
 </div>
 {/*  Table Pagination Bar  */}
-<div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-surface-border bg-white text-[13px]">
-<div className="flex items-center gap-3 mb-3 sm:mb-0">
-<span className="text-txt-muted">Hiển thị mỗi trang:</span>
-<select className="px-2.5 py-1 rounded-lg bg-canvas border border-surface-border text-txt-main font-medium focus:outline-none cursor-pointer">
-<option>20</option>
-<option selected>50</option>
-<option>100</option>
-</select>
-<span className="text-txt-light">Bản ghi 1 – 50 của 1,240 bài học</span>
+<Pagination
+  currentPage={currentPage}
+  totalPages={Math.ceil(1240 / pageSize)}
+  pageSize={pageSize}
+  totalItems={1240}
+  onPageChange={setCurrentPage}
+  onPageSizeChange={setPageSize}
+  pageSizeOptions={[10, 20, 50, 100]}
+  itemLabel="bài học"
+  variant="sakura"
+/>
 </div>
-<div className="flex items-center gap-1">
-<button className="p-1.5 rounded-lg border border-surface-border text-txt-light disabled:opacity-40 hover:bg-canvas transition-colors" disabled>
-<span className="material-symbols-outlined text-[18px]">chevron_left</span>
-</button>
-<button className="w-8 h-8 rounded-lg bg-brand text-white font-bold text-[12px] shadow-sm shadow-brand/20">
-                  1
-                </button>
-<button className="w-8 h-8 rounded-lg border border-surface-border hover:bg-canvas text-txt-main font-medium text-[12px] transition-colors">
-                  2
-                </button>
-<button className="w-8 h-8 rounded-lg border border-surface-border hover:bg-canvas text-txt-main font-medium text-[12px] transition-colors">
-                  3
-                </button>
-<span className="px-1.5 text-txt-light">...</span>
-<button className="w-8 h-8 rounded-lg border border-surface-border hover:bg-canvas text-txt-main font-medium text-[12px] transition-colors">
-                  25
-                </button>
-<button className="p-1.5 rounded-lg border border-surface-border text-txt-muted hover:bg-canvas transition-colors">
-<span className="material-symbols-outlined text-[18px]">chevron_right</span>
-</button>
-</div>
-</div>
-</div>
+
 {/*  BOTTOM 12-COL GRID: 3 ACTION & INSIGHT CARDS (Col-span-4 each)  */}
 <div className="grid grid-cols-12 gap-5 pb-6">
 {/*  Analytics Card: Col-span-4  */}

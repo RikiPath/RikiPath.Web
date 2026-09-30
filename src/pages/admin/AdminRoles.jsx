@@ -1,8 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
+import Pagination from '../../components/Pagination.jsx';
+
 export default function AdminRoles() {
   const { pathname } = useLocation();
+  const [rolePage, setRolePage] = useState(1);
+  const [rolePageSize, setRolePageSize] = useState(10);
   useEffect(() => {
     const orig = document.addEventListener.bind(document);
     document.addEventListener = (type, fn, opts) => {
@@ -411,19 +415,19 @@ export default function AdminRoles() {
 </table>
 </div>
 {/*  Footer Pagination with Subtle Blossom Aesthetics  */}
-<div className="p-space-md bg-surface-container-lowest flex items-center justify-between">
-<span className="font-label-sm text-label-sm text-on-surface-variant">Trang 1 / 314</span>
-<div className="flex items-center gap-space-xxs">
-<button className="px-3 py-1 rounded-lg bg-surface-container text-outline hover:text-on-surface font-label-sm text-label-sm">Trước</button>
-<button className="w-8 h-8 rounded-lg bg-primary text-on-primary font-label-sm text-label-sm font-bold shadow-sm">1</button>
-<button className="w-8 h-8 rounded-lg hover:bg-surface-container text-on-surface font-label-sm text-label-sm">2</button>
-<button className="w-8 h-8 rounded-lg hover:bg-surface-container text-on-surface font-label-sm text-label-sm">3</button>
-<span className="px-1 text-outline">...</span>
-<button className="w-8 h-8 rounded-lg hover:bg-surface-container text-on-surface font-label-sm text-label-sm">314</button>
-<button className="px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-sm text-label-sm">Sau</button>
+<Pagination
+  currentPage={rolePage}
+  totalPages={32}
+  pageSize={rolePageSize}
+  totalItems={314}
+  onPageChange={setRolePage}
+  onPageSizeChange={setRolePageSize}
+  pageSizeOptions={[10, 20, 50]}
+  itemLabel="người dùng gán quyền"
+  variant="admin"
+/>
 </div>
-</div>
-</div>
+
 {/*  Right Column: Interactive Role Permission Matrix Tabs & Visual Grant Inspector  */}
 <div className="xl:col-span-4 flex flex-col gap-space-lg">
 {/*  Inspector Card  */}

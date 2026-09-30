@@ -1,9 +1,14 @@
 import { NavLink } from 'react-router-dom';
 import { CONSULT_NAV, pathMatches } from './navConfig.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 
 const SIDEBAR_W = 260;
 
 export default function ConsultShell({ children, pathname, breadcrumb = 'Cố Vấn SENSEI' }) {
+  const { user, primaryRole } = useAuth();
+  const displayName = user?.fullName || user?.name || user?.email || CONSULT_NAV.user.name;
+  const roleName = primaryRole || CONSULT_NAV.user.role;
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md" data-shell="consult">
       <aside
@@ -50,20 +55,21 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Cố V�
         </div>
         <div className="m-4 rounded-xl bg-surface-card p-3 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-on-primary">
-              <span className="material-symbols-outlined text-[20px]">person</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-on-primary font-bold">
+              {displayName.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <div className="truncate font-label-md text-label-md text-text-charcoal">
-                {CONSULT_NAV.user.name}
+              <div className="truncate font-label-md text-label-md text-text-charcoal font-semibold">
+                {displayName}
               </div>
               <div className="truncate font-label-xs text-label-xs text-on-surface-variant">
-                {CONSULT_NAV.user.role}
+                {roleName}
               </div>
             </div>
           </div>
         </div>
       </aside>
+
 
       <div style={{ paddingLeft: SIDEBAR_W }}>
         <header

@@ -1,7 +1,12 @@
+import { useState } from 'react';
 import { CmsShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
+import Pagination from '../../components/Pagination.jsx';
+
 export default function ExamBuilder() {
   const { pathname } = useLocation();
+  const [examPage, setExamPage] = useState(1);
+  const [examPageSize, setExamPageSize] = useState(10);
   return (
     <CmsShell pathname={pathname} breadcrumb="Xây đề thi">
 <div className="min-h-screen bg-canvas text-charcoal antialiased flex min-h-screen" data-page="ExamBuilder" data-shell-unified="1">
@@ -722,16 +727,19 @@ export default function ExamBuilder() {
 </table>
 </div>
 {/*  Pagination & Summary  */}
-<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-[12px] text-charcoal-muted border-t border-borderline">
-<span>Hiển thị 3 trong tổng số 18 bộ đề thi thử N3 đã lưu trữ trong kho học liệu</span>
-<div className="flex items-center gap-1">
-<button className="px-3 py-1 rounded-lg bg-canvas hover:bg-surface border border-borderline text-charcoal font-medium transition-colors">Trước</button>
-<button className="px-3 py-1 rounded-lg bg-brand text-white font-bold shadow-sm">1</button>
-<button className="px-3 py-1 rounded-lg bg-canvas hover:bg-surface border border-borderline text-charcoal font-medium transition-colors">2</button>
-<button className="px-3 py-1 rounded-lg bg-canvas hover:bg-surface border border-borderline text-charcoal font-medium transition-colors">Sau</button>
+<Pagination
+  currentPage={examPage}
+  totalPages={Math.ceil(18 / examPageSize)}
+  pageSize={examPageSize}
+  totalItems={18}
+  onPageChange={setExamPage}
+  onPageSizeChange={setExamPageSize}
+  pageSizeOptions={[5, 10, 20]}
+  itemLabel="bộ đề thi thử"
+  variant="sakura"
+/>
 </div>
-</div>
-</div>
+
 </main>
 </div>
 

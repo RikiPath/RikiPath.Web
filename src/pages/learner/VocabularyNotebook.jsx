@@ -1,9 +1,12 @@
-import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { LearnerShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+import Pagination from '../../components/Pagination.jsx';
+
 export default function VocabularyNotebook() {
   const { pathname } = useLocation();
+  const [vocabPage, setVocabPage] = useState(1);
+  const [vocabPageSize, setVocabPageSize] = useState(10);
   useEffect(() => {
     const orig = document.addEventListener.bind(document);
     document.addEventListener = (type, fn, opts) => {
@@ -408,23 +411,19 @@ export default function VocabularyNotebook() {
 </table>
 </div>
 {/*  Table Pagination & Count Footer  */}
-<div className="px-space-md py-space-sm bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-sm font-label-sm text-label-sm text-on-surface-variant">
-<span className="">Hiển thị <strong>1 - 5</strong> trên tổng số <strong>420</strong> từ vựng</span>
-<div className="flex items-center gap-1">
-<button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-container transition-colors disabled:opacity-40" disabled>
-<span className="material-symbols-outlined text-[18px]">chevron_left</span>
-</button>
-<button className="w-8 h-8 rounded-lg bg-primary text-on-primary font-bold shadow-sm">1</button>
-<button className="w-8 h-8 rounded-lg hover:bg-surface-container transition-colors">2</button>
-<button className="w-8 h-8 rounded-lg hover:bg-surface-container transition-colors">3</button>
-<span className="px-1 text-on-surface-variant">...</span>
-<button className="w-8 h-8 rounded-lg hover:bg-surface-container transition-colors">84</button>
-<button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-container transition-colors">
-<span className="material-symbols-outlined text-[18px]">chevron_right</span>
-</button>
+<Pagination
+  currentPage={vocabPage}
+  totalPages={Math.ceil(420 / vocabPageSize)}
+  pageSize={vocabPageSize}
+  totalItems={420}
+  onPageChange={setVocabPage}
+  onPageSizeChange={setVocabPageSize}
+  pageSizeOptions={[5, 10, 20, 50]}
+  itemLabel="từ vựng"
+  variant="sakura"
+/>
 </div>
-</div>
-</div>
+
 {/*  Rich Visual: Kanji Retention Mastery Overview Card  */}
 <div className="bg-surface-container-lowest rounded-2xl p-space-lg shadow-sm grid grid-cols-1 md:grid-cols-3 gap-space-lg items-center">
 <div className="space-y-space-xxs md:col-span-2">
