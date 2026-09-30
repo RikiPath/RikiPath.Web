@@ -1,656 +1,1454 @@
-import { useState } from 'react';
-import { CmsShell } from '../../components/shells';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { CmsShell } from '../../components/shells';
 import Pagination from '../../components/Pagination.jsx';
+import { usePagination } from '../../hooks/usePagination.js';
+import { uploadBulkImportFile } from '../../api/cmsBulkImportApi.js';
+import {
+  UploadCloud,
+  FileSpreadsheet,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Download,
+  Trash2,
+  Edit3,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Send,
+  Check,
+  X,
+  Layers,
+  Search,
+  Filter,
+  BookOpen,
+  Languages,
+  PenTool,
+} from 'lucide-react';
+
+/**
+ * Dynamically loads SheetJS (xlsx) for Excel .xlsx / .xls parsing in browser.
+ */
+async function loadXlsxLib() {
+  if (window.XLSX) return window.XLSX;
+  try {
+    const mod = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+    window.XLSX = mod;
+    return mod;
+  } catch {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.onload = () => resolve(window.XLSX);
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+}
+
+/**
+ * Intelligent mapping from row object/array to standardized JLPT Item.
+ */
+function normalizeImportedRow(rowObj, index) {
+  const findVal = (...keys) => {
+    for (const k of keys) {
+      for (const objKey of Object.keys(rowObj)) {
+        const cleanObjKey = objKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanObjKey === cleanK || cleanObjKey.includes(cleanK)) {
+          const val = rowObj[objKey];
+          if (val !== undefined && val !== null && String(val).trim() !== '') {
+            return String(val).trim();
+          }
+        }
+      }
+    }
+    return '';
+  };
+
+  // 1. Determine Type (Kanji, Vocabulary, Grammar)
+  const rawType = findVal(
+    'type', 'loai', 'category', 'phanloai', 'loaihoclieu', 'group', 'contenttype'
+  );
+  const lowerType = rawType.toLowerCase();
+
+  let type = 'Vocabulary';
+  if (
+    lowerType.includes('kanji') ||
+    lowerType.includes('hán') ||
+    lowerType.includes('han') ||
+    lowerType === 'k'
+  ) {
+    type = 'Kanji';
+  } else if (
+    lowerType.includes('grammar') ||
+    lowerType.includes('ngữ') ||
+    lowerType.includes('ngu') ||
+    lowerType.includes('pháp') ||
+    lowerType.includes('phap') ||
+    lowerType.includes('pattern') ||
+    lowerType.includes('mẫu') ||
+    lowerType.includes('mau') ||
+    lowerType === 'g'
+  ) {
+    type = 'Grammar';
+  } else if (
+    lowerType.includes('vocab') ||
+    lowerType.includes('từ') ||
+    lowerType.includes('tu') ||
+    lowerType.includes('vựng') ||
+    lowerType.includes('vung') ||
+    lowerType.includes('word') ||
+    lowerType === 'v'
+  ) {
+    type = 'Vocabulary';
+  }
+
+  // 2. Extract Term / Kanji / Word / Pattern
+  let term = findVal(
+    'term', 'word', 'kanji', 'pattern', 'vocabulary', 'tuvung', 'hantu', 'chuhan',
+    'nguphap', 'maucau', 'maucan', 'tieude', 'title', 'keyword', 'tu', 'name'
+  );
+
+  // If not found by name, try fallback to first field
+  if (!term) {
+    const values = Object.values(rowObj).filter(v => v !== undefined && v !== null && String(v).trim() !== '');
+    term = values[0] ? String(values[0]).trim() : '';
+  }
+
+  // 3. Extract Furigana / Reading
+  const furigana = findVal(
+    'furigana', 'reading', 'hiragana', 'amdoc', 'onyomi', 'kunyomi', 'cachdoc',
+    'pronunciation', 'pinyin', 'romaji', 'kana', 'amhanviet', 'hanviet'
+  );
+
+  // 4. Extract Vietnamese Meaning
+  let meaning = findVal(
+    'meaning', 'meaningvi', 'vietnamese', 'nghia', 'ynghia', 'dichnghia', 'dich',
+    'definition', 'description', 'translate', 'tiengviet', 'noidung', 'content'
+  );
+  if (!meaning) {
+    const values = Object.values(rowObj).filter(v => v !== undefined && v !== null && String(v).trim() !== '');
+    meaning = values[2] || values[1] || '';
+  }
+
+  // 5. Extract JLPT Level
+  let level = findVal('level', 'jlpt', 'jlptlevel', 'trinhdo', 'capdo', 'cap') || 'N3';
+  if (!/^N[1-5]$/i.test(level)) {
+    if (level.includes('1')) level = 'N1';
+    else if (level.includes('2')) level = 'N2';
+    else if (level.includes('4')) level = 'N4';
+    else if (level.includes('5')) level = 'N5';
+    else level = 'N3';
+  }
+
+  // 6. Extract Example / Structure / Notes
+  const example = findVal(
+    'example', 'sentence', 'vidu', 'cauvidu', 'maucau', 'examplesentence',
+    'usage', 'structure', 'cautruc', 'congthuc', 'formula', 'notes', 'ghichu'
+  );
+
+  const isBlank = !term && !meaning;
+  const isError = !term || !meaning;
+  const isWarning = !isError && !furigana && type !== 'Grammar';
+
+  return {
+    id: index + 1,
+    lineNumber: index + 1,
+    type, // 'Kanji' | 'Vocabulary' | 'Grammar'
+    term: term || `Dòng #${index + 1}`,
+    furigana: furigana || '',
+    meaning: meaning || '',
+    level: level.toUpperCase(),
+    example: example || '',
+    status: isError ? 'error' : isWarning ? 'warning' : 'valid',
+    warning: !term
+      ? 'Thiếu Từ vựng / Hán tự / Mẫu câu'
+      : !meaning
+      ? 'Thiếu nghĩa tiếng Việt'
+      : isWarning
+      ? 'Chưa có phiên âm Furigana'
+      : null,
+    isBlank,
+  };
+}
+
+const INITIAL_DEMO_RECORDS = [
+  {
+    id: 1,
+    lineNumber: 1,
+    type: 'Vocabulary',
+    term: '咲き誇る',
+    furigana: 'さきほこる',
+    meaning: 'Nở rộ khoe sắc rực rỡ',
+    level: 'N3',
+    status: 'valid',
+    warning: null,
+    example: '桜の花が満開に咲き誇っている。',
+  },
+  {
+    id: 2,
+    lineNumber: 2,
+    type: 'Vocabulary',
+    term: '一期一会',
+    furigana: 'いちごいちえ',
+    meaning: 'Đời người chỉ gặp một lần (quý trọng từng khoảnh khắc)',
+    level: 'N3',
+    status: 'warning',
+    warning: 'Thiếu phiên âm Furigana ở ký tự thứ 3. Đã tự động điền.',
+    example: '人との出会いは一期一会だと大切にする。',
+  },
+  {
+    id: 3,
+    lineNumber: 3,
+    type: 'Kanji',
+    term: '咲',
+    furigana: 'ショウ / さ.く',
+    meaning: 'TIẾU (Nở hoa, mỉm cười)',
+    level: 'N3',
+    status: 'valid',
+    warning: null,
+    example: '春になると花が咲く。',
+  },
+  {
+    id: 4,
+    lineNumber: 4,
+    type: 'Grammar',
+    term: '〜に違いない',
+    furigana: '〜にちがいない',
+    meaning: 'Chắc chắn là, nhất định là...',
+    level: 'N3',
+    status: 'valid',
+    warning: null,
+    example: '明日は雨に違いない。',
+  },
+  {
+    id: 5,
+    lineNumber: 5,
+    type: 'Kanji',
+    term: '桜',
+    furigana: 'オウ / さくら',
+    meaning: 'ANH (Hoa anh đào)',
+    level: 'N3',
+    status: 'valid',
+    warning: null,
+    example: '桜が満開です。',
+  },
+];
 
 export default function BulkImport() {
   const { pathname } = useLocation();
-  const [importPage, setImportPage] = useState(1);
-  const [importPageSize, setImportPageSize] = useState(10);
+  const fileInputRef = useRef(null);
+
+  // File state
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileMetadata, setFileMetadata] = useState({
+    name: 'RikiPath_Sample_JLPT.xlsx',
+    size: '1.8 MB',
+    uploadedAt: 'Hôm nay lúc 09:15',
+  });
+
+  // Records state
+  const [records, setRecords] = useState(INITIAL_DEMO_RECORDS);
+  const [isParsing, setIsParsing] = useState(false);
+
+  // Filters
+  const [typeFilter, setTypeFilter] = useState('ALL'); // 'ALL' | 'Kanji' | 'Vocabulary' | 'Grammar'
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'VALID' | 'WARNING' | 'ERROR'
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Editing Row Modal State
+  const [editingRow, setEditingRow] = useState(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newRowForm, setNewRowForm] = useState({
+    type: 'Vocabulary',
+    term: '',
+    furigana: '',
+    meaning: '',
+    level: 'N3',
+    example: '',
+  });
+
+  // API Call State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiResult, setApiResult] = useState(null);
+  const [apiError, setApiError] = useState('');
+  const [conflictRule, setConflictRule] = useState('overwrite');
+
+  // Pre-load XLSX library in background
+  useEffect(() => {
+    loadXlsxLib().catch(() => {});
+  }, []);
+
+  // Handle File Input (Excel .xlsx / .xls / .csv / .json / .txt)
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setFileMetadata({
+      name: file.name,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+      uploadedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    });
+    setApiResult(null);
+    setApiError('');
+    setIsParsing(true);
+
+    try {
+      const fileNameLower = file.name.toLowerCase();
+
+      // 1. JSON format
+      if (fileNameLower.endsWith('.json')) {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const arrayData = Array.isArray(parsed) ? parsed : [parsed];
+        const rows = arrayData
+          .map((item, idx) => normalizeImportedRow(item, idx))
+          .filter((r) => !r.isBlank);
+        setRecords(rows);
+      }
+      // 2. Excel (.xlsx, .xls) or CSV
+      else {
+        const XLSX = await loadXlsxLib();
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+        // Read first sheet
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        // Parse to JSON array of objects
+        const rawJsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        if (rawJsonRows.length > 0) {
+          const rows = rawJsonRows
+            .map((item, idx) => normalizeImportedRow(item, idx))
+            .filter((r) => !r.isBlank);
+          setRecords(rows);
+        } else {
+          // If header wasn't detected, try header: 1
+          const rawArrayRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          if (rawArrayRows.length > 1) {
+            const headers = rawArrayRows[0];
+            const rows = rawArrayRows.slice(1).map((rowArr, idx) => {
+              const rowObj = {};
+              headers.forEach((h, hIdx) => {
+                rowObj[h || `col_${hIdx}`] = rowArr[hIdx] || '';
+              });
+              return normalizeImportedRow(rowObj, idx);
+            }).filter((r) => !r.isBlank);
+            setRecords(rows);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing uploaded file:', err);
+      setApiError(`Không thể đọc file: ${err.message}. Hãy kiểm tra định dạng file Excel hoặc CSV.`);
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  // Filtered Records (Combining Content Type, Status, and Search Query)
+  const filteredRecords = useMemo(() => {
+    return records.filter((r) => {
+      // 1. Filter by Content Type (Kanji, Vocabulary, Grammar)
+      if (typeFilter !== 'ALL' && r.type !== typeFilter) {
+        return false;
+      }
+
+      // 2. Filter by Status (VALID, WARNING, ERROR)
+      if (statusFilter === 'VALID' && r.status !== 'valid') return false;
+      if (statusFilter === 'WARNING' && r.status !== 'warning') return false;
+      if (statusFilter === 'ERROR' && r.status !== 'error') return false;
+
+      // 3. Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTerm = r.term && r.term.toLowerCase().includes(q);
+        const matchMeaning = r.meaning && r.meaning.toLowerCase().includes(q);
+        const matchFurigana = r.furigana && r.furigana.toLowerCase().includes(q);
+        const matchExample = r.example && r.example.toLowerCase().includes(q);
+        if (!matchTerm && !matchMeaning && !matchFurigana && !matchExample) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [records, typeFilter, statusFilter, searchQuery]);
+
+  // Counts by Content Type
+  const countAll = records.length;
+  const countKanji = records.filter((r) => r.type === 'Kanji').length;
+  const countVocab = records.filter((r) => r.type === 'Vocabulary').length;
+  const countGrammar = records.filter((r) => r.type === 'Grammar').length;
+
+  // Counts by Status
+  const countValid = records.filter((r) => r.status === 'valid').length;
+  const countWarning = records.filter((r) => r.status === 'warning').length;
+  const countError = records.filter((r) => r.status === 'error').length;
+
+  // Pagination Hook
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedData: recordsOnPage,
+  } = usePagination(filteredRecords, { initialPage: 1, initialPageSize: 10 });
+
+  // In-place Row Editing
+  const handleSaveEditedRow = (e) => {
+    e.preventDefault();
+    if (!editingRow) return;
+
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === editingRow.id
+          ? {
+              ...editingRow,
+              status: !editingRow.term || !editingRow.meaning ? 'error' : 'valid',
+              warning: null,
+            }
+          : r
+      )
+    );
+    setEditingRow(null);
+  };
+
+  // Delete a Row
+  const handleDeleteRow = (id) => {
+    setRecords((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Add New Row
+  const handleAddNewRow = (e) => {
+    e.preventDefault();
+    const newRecord = {
+      id: Date.now(),
+      lineNumber: records.length + 1,
+      ...newRowForm,
+      status: !newRowForm.term || !newRowForm.meaning ? 'error' : 'valid',
+      warning: null,
+    };
+    setRecords((prev) => [newRecord, ...prev]);
+    setIsAddModalOpen(false);
+    setNewRowForm({
+      type: 'Vocabulary',
+      term: '',
+      furigana: '',
+      meaning: '',
+      level: 'N3',
+      example: '',
+    });
+  };
+
+  // Auto-Fix All Warnings
+  const handleAutoFixAllWarnings = () => {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.status === 'warning' ? { ...r, status: 'valid', warning: null } : r
+      )
+    );
+  };
+
+  // Remove All Error Rows
+  const handleRemoveErrorRows = () => {
+    setRecords((prev) => prev.filter((r) => r.status !== 'error'));
+  };
+
+  // Export Sample Template Excel (.xlsx / .csv)
+  const handleDownloadSampleTemplate = async () => {
+    try {
+      const XLSX = await loadXlsxLib();
+      const sampleData = [
+        {
+          Type: 'Vocabulary',
+          Term: '咲き誇る',
+          Reading: 'さきほこる',
+          Meaning: 'Nở rộ khoe sắc rực rỡ',
+          Level: 'N3',
+          Example: '桜の花が満開に咲き誇っている。',
+        },
+        {
+          Type: 'Kanji',
+          Term: '咲',
+          Reading: 'ショウ / さ.く',
+          Meaning: 'TIẾU (Nở hoa, mỉm cười)',
+          Level: 'N3',
+          Example: '春になると花が咲く。',
+        },
+        {
+          Type: 'Grammar',
+          Term: '〜に違いない',
+          Reading: '〜にちがいない',
+          Meaning: 'Chắc chắn là, nhất định là...',
+          Level: 'N3',
+          Example: 'V-thường + に違いない | 明日は雨に違いない。',
+        },
+        {
+          Type: 'Vocabulary',
+          Term: '桜吹雪',
+          Reading: 'さくらふぶき',
+          Meaning: 'Trận mưa hoa anh đào bay trong gió',
+          Level: 'N3',
+          Example: '風が吹いて桜吹雪が舞った。',
+        },
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(sampleData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'HocLieu_RikiPath');
+      XLSX.writeFile(wb, 'RikiPath_Mau_Nhap_Hoc_Lieu_JLPT.xlsx');
+    } catch {
+      // Fallback to CSV
+      const csv =
+        '\uFEFF' +
+        'Type,Term,Reading,Meaning,Level,Example\n' +
+        'Vocabulary,咲き誇る,さきほこる,Nở rộ khoe sắc rực rỡ,N3,桜の花が満開に咲き誇っている。\n' +
+        'Kanji,咲,ショウ / さ.く,TIẾU (Nở hoa),N3,春になると花が咲く。\n' +
+        'Grammar,〜に違いない,〜にちがいない,Chắc chắn là,N3,明日は雨に違いない。\n';
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'RikiPath_Mau_Nhap_Hoc_Lieu_JLPT.csv';
+      a.click();
+    }
+  };
+
+  // Submit Reviewed File to API: https://localhost:7237/api/content-management/bulk-import
+  const handleSubmitToApi = async () => {
+    setIsSubmitting(true);
+    setApiError('');
+    setApiResult(null);
+
+    try {
+      let fileToUpload = selectedFile;
+
+      // Convert current edited records to a clean Excel (.xlsx) or CSV file with standard backend columns
+      try {
+        const XLSX = await loadXlsxLib();
+        const exportRows = records.map((r) => ({
+          Type: r.type || 'Vocabulary',
+          Term: r.term || '',
+          Reading: r.furigana || '',
+          Meaning: r.meaning || '',
+          Level: r.level || 'N3',
+          Example: r.example || '',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'HocLieu_Import');
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+        const fileName = selectedFile?.name?.replace(/\.[^/.]+$/, '.xlsx') || 'bulk_import_reviewed.xlsx';
+        fileToUpload = new File([excelBuffer], fileName, {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+      } catch (genErr) {
+        console.warn('Could not generate XLSX binary, falling back to UTF-8 CSV:', genErr);
+        const csvHeader = 'Type,Term,Reading,Meaning,Level,Example\n';
+        const csvRows = records.map(r => `"${r.type || 'Vocabulary'}","${(r.term || '').replace(/"/g, '""')}","${(r.furigana || '').replace(/"/g, '""')}","${(r.meaning || '').replace(/"/g, '""')}","${r.level || 'N3'}","${(r.example || '').replace(/"/g, '""')}"`).join('\n');
+        const csvContent = '\uFEFF' + csvHeader + csvRows;
+        fileToUpload = new File([csvContent], 'bulk_import_reviewed.csv', { type: 'text/csv' });
+      }
+
+      const response = await uploadBulkImportFile(fileToUpload, {
+        conflictRule,
+        targetLevel: 'N3',
+      });
+
+      setApiResult({
+        success: true,
+        message:
+          response?.message ||
+          response?.result?.message ||
+          `Đã nạp thành công ${records.length} bản ghi học liệu lên API backend!`,
+        data: response?.result || response,
+      });
+    } catch (err) {
+      console.error('Bulk import API submit error:', err);
+      setApiError(
+        err.message ||
+          'Không thể gửi file lên API https://localhost:7237/api/content-management/bulk-import. Hãy kiểm tra backend server đang chạy.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getTypeBadge = (type) => {
+    switch (type) {
+      case 'Kanji':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold whitespace-nowrap">
+            <PenTool className="w-3 h-3 text-amber-600" />
+            Hán tự (Kanji)
+          </span>
+        );
+      case 'Grammar':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-bold whitespace-nowrap">
+            <BookOpen className="w-3 h-3 text-indigo-600" />
+            Ngữ pháp (Grammar)
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-[#D94B68] border border-rose-200 text-xs font-bold whitespace-nowrap">
+            <Languages className="w-3 h-3 text-[#D94B68]" />
+            Từ vựng (Vocabulary)
+          </span>
+        );
+    }
+  };
+
   return (
     <CmsShell pathname={pathname} breadcrumb="Import hàng loạt">
-<div className="bg-background font-body-md text-body-md text-on-surface antialiased min-h-screen" data-page="BulkImport" data-shell-unified="1">
-
-<div className="pl-0"><main className="w-full pt-0 bg-[#FAF7F5] min-h-screen"><div className="max-w-[1440px] mx-auto px-8 py-6"><div className="flex flex-col w-full">{/*  Breadcrumb & Page Top Action Bar  */}
-<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-[#EADFD9]">
-<div className="flex flex-col gap-1.5">
-<nav className="flex items-center gap-1.5 text-[#6E686A] text-xs">
-<a className="hover:text-[#E05A7A] transition-colors flex items-center gap-1" href="#">
-<span className="material-symbols-outlined text-[14px]">school</span>
-        Kho học liệu
-      </a>
-<span className="material-symbols-outlined text-[12px] text-[#9E8E93]">chevron_right</span>
-<a className="hover:text-[#E05A7A] transition-colors" href="#">Công cụ CMS</a>
-<span className="material-symbols-outlined text-[12px] text-[#9E8E93]">chevron_right</span>
-<span className="text-[#E05A7A] font-semibold bg-[#FDF0F4] border border-[#F8BBD0] px-2 py-0.5 rounded text-[11px]">Import Dữ liệu hàng loạt</span>
-</nav>
-<h1 className="text-2xl lg:text-[28px] text-[#2D282A] font-bold tracking-tight flex items-center gap-2">
-      Import Dữ liệu Học liệu & Ngân hàng Khảo thí
-      <span className="px-2.5 py-0.5 rounded-full bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] text-[11px] font-bold uppercase tracking-wider">Haru Engine 3.2</span>
-</h1>
-<p className="text-xs text-[#6E686A] max-w-4xl leading-relaxed">
-      Công cụ nạp dữ liệu chuẩn hóa Excel/CSV với thuật toán tự động nhận diện Furigana, tách thẻ ngữ nghĩa và kiểm duyệt xung đột học thuật thông minh Riki AI.
-    </p>
-</div>
-<div className="flex items-center gap-3 shrink-0 self-start md:self-center">
-<button className="px-4 py-2 rounded-xl bg-white border border-[#EADFD9] hover:border-[#E05A7A]/50 text-[#2D282A] font-semibold text-xs transition-all flex items-center gap-2 shadow-sm hover:shadow" type="button">
-<span className="material-symbols-outlined text-[18px] text-[#E05A7A]">download</span>
-<span>Tải file mẫu (.xlsx)</span>
-</button>
-<button className="px-4 py-2 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] hover:bg-[#F8BBD0]/20 text-[#E05A7A] font-semibold text-xs transition-all flex items-center gap-2" type="button">
-<span className="material-symbols-outlined text-[18px] text-[#E05A7A]">history</span>
-<span>Lịch sử Import</span>
-<span className="px-1.5 py-0.2 rounded-full bg-white border border-[#F8BBD0] text-[#E05A7A] text-[10px] font-bold">34</span>
-</button>
-</div>
-</div>
-{/*  Stepper Bar (4 Steps Pipeline)  */}
-<div className="w-full bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-[0_2px_8px_rgba(45,40,42,0.03)] mb-6">
-<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-{/*  Step 1: Completed  */}
-<div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#E8F5E9]/60 border border-[#2E7D32]/20">
-<div className="w-9 h-9 rounded-full bg-[#2E7D32] flex items-center justify-center text-white font-semibold shrink-0 shadow-sm">
-<span className="material-symbols-outlined text-[18px]">check</span>
-</div>
-<div className="flex flex-col min-w-0">
-<span className="text-[10px] text-[#2E7D32] font-bold uppercase tracking-wider">Bước 1 • Hoàn thành</span>
-<span className="text-xs text-[#2D282A] font-semibold truncate">Tải lên tập tin nguồn</span>
-</div>
-</div>
-{/*  Step 2: Completed  */}
-<div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#E8F5E9]/60 border border-[#2E7D32]/20">
-<div className="w-9 h-9 rounded-full bg-[#2E7D32] flex items-center justify-center text-white font-semibold shrink-0 shadow-sm">
-<span className="material-symbols-outlined text-[18px]">check</span>
-</div>
-<div className="flex flex-col min-w-0">
-<span className="text-[10px] text-[#2E7D32] font-bold uppercase tracking-wider">Bước 2 • Hoàn thành</span>
-<span className="text-xs text-[#2D282A] font-semibold truncate">Khớp nối trường (Mapping)</span>
-</div>
-</div>
-{/*  Step 3: Active Highlight  */}
-<div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FDF0F4] border-2 border-[#E05A7A]/50 shadow-[0_4px_16px_rgba(224,90,122,0.15)]">
-<div className="w-9 h-9 rounded-full bg-[#E05A7A] flex items-center justify-center text-white font-bold shrink-0 shadow-md">
-<span className="text-sm font-mono">3</span>
-</div>
-<div className="flex flex-col min-w-0">
-<span className="text-[10px] text-[#E05A7A] font-bold uppercase tracking-wider flex items-center gap-1">
-<span className="w-1.5 h-1.5 rounded-full bg-[#E05A7A] animate-ping"></span>
-          Bước 3 • Đang xử lý
-        </span>
-<span className="text-xs text-[#2D282A] font-bold truncate">Kiểm tra hợp lệ & Xử lý lỗi</span>
-</div>
-</div>
-{/*  Step 4: Upcoming  */}
-<div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] opacity-65">
-<div className="w-9 h-9 rounded-full bg-[#EADFD9] flex items-center justify-center text-[#6E686A] font-bold shrink-0">
-<span className="text-sm font-mono">4</span>
-</div>
-<div className="flex flex-col min-w-0">
-<span className="text-[10px] text-[#9E8E93] uppercase tracking-wider font-semibold">Bước 4 • Chờ xuất bản</span>
-<span className="text-xs text-[#6E686A] font-medium truncate">Đồng bộ Kho JLPT</span>
-</div>
-</div>
-</div>
-</div>
-{/*  Main Content Two-Column Layout (8 cols / 4 cols)  */}
-<div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
-{/*  LEFT COLUMN (8 cols)  */}
-<div className="xl:col-span-8 flex flex-col gap-6 min-w-0">
-{/*  File Metadata Header Card  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-<div className="flex items-center gap-3.5 min-w-0">
-<div className="w-12 h-12 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A] shadow-sm shrink-0">
-<span className="material-symbols-outlined text-[28px]">table_view</span>
-</div>
-<div className="flex flex-col min-w-0">
-<div className="flex items-center gap-2">
-<span className="text-sm font-bold text-[#2D282A] truncate">JLPT_N3_Vocabulary_Grammar_Batch_04.xlsx</span>
-<span className="px-2 py-0.5 rounded bg-[#FAF7F5] border border-[#EADFD9] text-[#6E686A] text-[10px] font-semibold">Excel 2016+</span>
-</div>
-<span className="text-xs text-[#6E686A] truncate">
-            Kích thước: 2.4 MB • 450 bản ghi dữ liệu • Tải lên bởi <strong className="text-[#2D282A] font-semibold">Kenji Yamada (Academic Lead)</strong> lúc 09:15 sáng
-          </span>
-</div>
-</div>
-<div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-<button className="px-3 py-1.5 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] hover:border-[#E05A7A]/40 text-[#2D282A] text-xs font-semibold transition-colors flex items-center gap-1" type="button">
-<span className="material-symbols-outlined text-[16px] text-[#E05A7A]">swap_horiz</span>
-<span>Đổi file khác</span>
-</button>
-<button className="w-8 h-8 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] hover:bg-[#FDF0F4] text-[#6E686A] hover:text-[#2D282A] flex items-center justify-center transition-colors" type="button">
-<span className="material-symbols-outlined text-[18px]">more_vert</span>
-</button>
-</div>
-</div>
-{/*  Validation KPI Cards  */}
-<div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-{/*  Metric 1: Total  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col justify-between">
-<div className="flex items-center justify-between">
-<span className="text-[11px] text-[#6E686A] uppercase font-bold tracking-wider">Tổng bản ghi</span>
-<span className="material-symbols-outlined text-[#9E8E93] text-[20px]">layers</span>
-</div>
-<div className="mt-3">
-<span className="text-2xl font-bold text-[#2D282A] tracking-tight leading-none">450</span>
-<div className="flex items-center gap-1 mt-1 text-[#9E8E93] text-[11px]">
-<span>Đã phân tích 100% dòng</span>
-</div>
-</div>
-</div>
-{/*  Metric 2: Valid Ready  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col justify-between relative overflow-hidden">
-<div className="absolute top-0 right-0 w-16 h-16 bg-[#2E7D32]/10 rounded-full blur-xl pointer-events-none"></div>
-<div className="flex items-center justify-between">
-<span className="text-[11px] text-[#2E7D32] uppercase font-bold tracking-wider">Hợp lệ sẵn sàng</span>
-<span className="material-symbols-outlined text-[#2E7D32] text-[20px]">verified</span>
-</div>
-<div className="mt-3">
-<div className="flex items-baseline gap-2">
-<span className="text-2xl font-bold text-[#2E7D32] tracking-tight leading-none">432</span>
-<span className="text-xs font-bold text-[#2E7D32]">96.0%</span>
-</div>
-<div className="w-full bg-[#FAF7F5] border border-[#EADFD9] h-1.5 rounded-full mt-2 overflow-hidden">
-<div className="bg-[#2E7D32] h-full rounded-full" style={{ width: "96%" }}></div>
-</div>
-</div>
-</div>
-{/*  Metric 3: AI Warning  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col justify-between relative overflow-hidden">
-<div className="absolute top-0 right-0 w-16 h-16 bg-[#F8BBD0]/30 rounded-full blur-xl pointer-events-none"></div>
-<div className="flex items-center justify-between">
-<span className="text-[11px] text-[#6b253b] uppercase font-bold tracking-wider">Cảnh báo AI</span>
-<span className="material-symbols-outlined text-[#E05A7A] text-[20px]">psychology</span>
-</div>
-<div className="mt-3">
-<div className="flex items-baseline gap-2">
-<span className="text-2xl font-bold text-[#E05A7A] tracking-tight leading-none">14</span>
-<span className="text-xs font-semibold text-[#6E686A]">3.1%</span>
-</div>
-<div className="w-full bg-[#FAF7F5] border border-[#EADFD9] h-1.5 rounded-full mt-2 overflow-hidden">
-<div className="bg-[#F8BBD0] h-full rounded-full" style={{ width: "25%" }}></div>
-</div>
-</div>
-</div>
-{/*  Metric 4: Severe Errors  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col justify-between relative overflow-hidden">
-<div className="absolute top-0 right-0 w-16 h-16 bg-red-100 rounded-full blur-xl pointer-events-none"></div>
-<div className="flex items-center justify-between">
-<span className="text-[11px] text-red-600 uppercase font-bold tracking-wider">Lỗi chặn Import</span>
-<span className="material-symbols-outlined text-red-600 text-[20px]">dangerous</span>
-</div>
-<div className="mt-3">
-<div className="flex items-baseline gap-2">
-<span className="text-2xl font-bold text-red-600 tracking-tight leading-none">04</span>
-<span className="text-xs font-semibold text-red-500">0.9%</span>
-</div>
-<div className="w-full bg-[#FAF7F5] border border-[#EADFD9] h-1.5 rounded-full mt-2 overflow-hidden">
-<div className="bg-red-500 h-full rounded-full" style={{ width: "15%" }}></div>
-</div>
-</div>
-</div>
-</div>
-{/*  Educational Data Table & Filters  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] shadow-[0_2px_8px_rgba(45,40,42,0.03)] overflow-hidden flex flex-col">
-{/*  Filter Header  */}
-<div className="p-4 pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-<div className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0">
-<button className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#6E686A] hover:bg-[#FAF7F5] transition-colors flex items-center gap-1.5 whitespace-nowrap" type="button">
-<span>Tất cả bản ghi</span>
-<span className="px-1.5 py-0.2 rounded-full bg-[#FAF7F5] border border-[#EADFD9] text-[10px]">450</span>
-</button>
-<button className="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-50 text-red-700 border border-red-200 shadow-sm flex items-center gap-1.5 whitespace-nowrap" type="button">
-<span className="material-symbols-outlined text-[15px] text-red-600">error</span>
-<span>Lỗi cần sửa</span>
-<span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold">4</span>
-</button>
-<button className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#6E686A] hover:bg-[#FAF7F5] transition-colors flex items-center gap-1.5 whitespace-nowrap" type="button">
-<span className="material-symbols-outlined text-[15px] text-[#E05A7A]">auto_fix_high</span>
-<span>Cảnh báo AI</span>
-<span className="px-1.5 py-0.2 rounded-full bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] text-[10px] font-bold">14</span>
-</button>
-<button className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#6E686A] hover:bg-[#FAF7F5] transition-colors flex items-center gap-1.5 whitespace-nowrap" type="button">
-<span>Hợp lệ</span>
-<span className="px-1.5 py-0.2 rounded-full bg-[#E8F5E9] text-[#2E7D32] border border-[#2E7D32]/30 text-[10px] font-bold">432</span>
-</button>
-</div>
-<div className="flex items-center gap-2 shrink-0">
-<div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] text-xs text-[#2D282A]">
-<span className="material-symbols-outlined text-[16px] text-[#9E8E93]">search</span>
-<input className="bg-transparent border-none outline-none text-xs text-[#2D282A] w-36 placeholder:text-[#9E8E93]" placeholder="Lọc từ vựng, Hán tự..." type="text" />
-</div>
-<button className="p-1.5 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] hover:bg-[#FDF0F4] text-[#6E686A] hover:text-[#E05A7A] transition-colors" title="Tải lại kiểm tra" type="button">
-<span className="material-symbols-outlined text-[18px]">refresh</span>
-</button>
-</div>
-</div>
-{/*  Table  */}
-<div className="overflow-x-auto mt-3">
-<table className="w-full text-left text-xs">
-<thead>
-<tr className="bg-[#FAF7F5] border-y border-[#EADFD9] text-[11px] font-bold uppercase tracking-wider text-[#9E8E93]">
-<th className="py-3 px-4 w-12 text-center">Dòng</th>
-<th className="py-3 px-3">Học liệu</th>
-<th className="py-3 px-3">Nội dung Kanji / Mẫu câu</th>
-<th className="py-3 px-3">Furigana & Nghĩa tiếng Việt</th>
-<th className="py-3 px-3">Chi tiết lỗi phát hiện</th>
-<th className="py-3 px-4 text-right">Hành động khắc phục</th>
-</tr>
-</thead>
-<tbody className="divide-y divide-[#EADFD9] text-[#2D282A]">
-{/*  Row 1: #42  */}
-<tr className="hover:bg-[#FAF7F5] transition-colors">
-<td className="py-3 px-4 text-center font-bold text-[#6E686A]">#42</td>
-<td className="py-3 px-3">
-<span className="px-2 py-0.5 rounded-full bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] text-[11px] font-semibold whitespace-nowrap">
-                  Từ vựng N3
+      <div className="bg-[#FAF7F5] font-sans antialiased text-[#2D282A] min-h-screen pb-16">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+          {/* Header & Page Top Actions */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-[#EADFD9]">
+            <div className="flex flex-col gap-1.5">
+              <nav className="flex items-center gap-1.5 text-[#6E686A] text-xs">
+                <span>Kho học liệu</span>
+                <span className="text-[#9E8E93]">/</span>
+                <span>Công cụ CMS</span>
+                <span className="text-[#9E8E93]">/</span>
+                <span className="text-[#E05A7A] font-semibold bg-[#FDF0F4] border border-[#F8BBD0] px-2 py-0.5 rounded text-[11px]">
+                  Import Excel / CSV
                 </span>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col">
-<span className="text-sm font-bold text-[#2D282A]">咲き誇る</span>
-<span className="text-[10px] text-[#6E686A]">Động từ nhóm 1 (V1)</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col">
-<span className="text-[#E05A7A] font-semibold">さきほこる</span>
-<span className="text-[#6E686A] truncate max-w-xs">Nở rộ rực rỡ, khoe sắc (hoa anh đào)</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex items-start gap-1 text-red-600">
-<span className="material-symbols-outlined text-[15px] shrink-0 mt-0.5">error</span>
-<span className="text-[11px]">Thiếu trường dữ liệu <strong>Pitch Accent [Heiban 0]</strong> âm chuẩn Tokyo.</span>
-</div>
-</td>
-<td className="py-3 px-4 text-right whitespace-nowrap">
-<button className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FDF0F4] hover:bg-[#E05A7A] text-[#E05A7A] hover:text-white border border-[#F8BBD0] text-[11px] font-semibold transition-all shadow-xs" type="button">
-<span className="material-symbols-outlined text-[14px]">volume_up</span>
-<span>Gán Accent [0]</span>
-</button>
-</td>
-</tr>
-{/*  Row 2: #89  */}
-<tr className="hover:bg-[#FAF7F5] transition-colors bg-[#FAF7F5]/40">
-<td className="py-3 px-4 text-center font-bold text-[#6E686A]">#89</td>
-<td className="py-3 px-3">
-<span className="px-2 py-0.5 rounded-full bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] text-[11px] font-semibold whitespace-nowrap">
-                  Ngữ pháp N3
+              </nav>
+              <h1 className="text-2xl lg:text-[28px] text-[#2D282A] font-bold tracking-tight flex items-center gap-2">
+                Import Học liệu (Kanji, Từ vựng, Ngữ pháp)
+                <span className="px-2.5 py-0.5 rounded-full bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] text-[11px] font-bold uppercase tracking-wider">
+                  Excel & CSV Parser
                 </span>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col">
-<span className="text-sm font-bold text-[#2D282A]">〜にほかならない</span>
-<span className="text-[10px] text-[#6E686A]">Cấu trúc nhấn mạnh khẳng định</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col">
-<span className="text-[#2D282A]">N / 普通形 + にほかならない</span>
-<span className="text-[#6E686A] truncate max-w-xs">Chính là vì..., không gì khác ngoài...</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex items-start gap-1 text-red-600">
-<span className="material-symbols-outlined text-[15px] shrink-0 mt-0.5">difference</span>
-<span className="text-[11px]">Xung đột mã định danh ID: Trùng khớp bài học có sẵn <strong>#N3-GM-402</strong></span>
-</div>
-</td>
-<td className="py-3 px-4 text-right whitespace-nowrap">
-<div className="inline-flex items-center gap-1">
-<button className="px-2.5 py-1 rounded-lg bg-white border border-[#EADFD9] hover:bg-[#FAF7F5] text-[#2D282A] text-[11px] font-medium transition-all" type="button">
-                    Ghi đè
-                  </button>
-<button className="px-2.5 py-1 rounded-lg bg-[#E05A7A] hover:bg-[#C84364] text-white text-[11px] font-semibold transition-all shadow-xs" type="button">
-                    Tạo ID mới
-                  </button>
-</div>
-</td>
-</tr>
-{/*  Row 3: #115  */}
-<tr className="hover:bg-[#FAF7F5] transition-colors">
-<td className="py-3 px-4 text-center font-bold text-[#6E686A]">#115</td>
-<td className="py-3 px-3">
-<span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32] text-[11px] font-semibold whitespace-nowrap">
-                  Hán tự N3
-                </span>
-</td>
-<td className="py-3 px-3">
-<div className="flex items-center gap-2">
-<span className="w-8 h-8 rounded-lg bg-[#FAF7F5] border border-[#EADFD9] flex items-center justify-center text-xl text-[#E05A7A] font-bold">咲</span>
-<div className="flex flex-col">
-<span className="text-xs font-bold text-[#2D282A]">TIẾU (Nở hoa)</span>
-<span className="text-[10px] text-[#6E686A]">9 nét • Bộ Khẩu (口)</span>
-</div>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col">
-<span className="text-[#2D282A]">Onyomi: ショウ | Kunyomi: さ.く</span>
-<span className="text-[#6E686A]">Nở (hoa), mỉm cười thanh tao</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex items-start gap-1 text-[#E05A7A]">
-<span className="material-symbols-outlined text-[15px] shrink-0 mt-0.5">draw</span>
-<span className="text-[11px]">Thiếu tọa độ SVG nét bút số 7. AI đã nội suy từ thư viện StrokeData.</span>
-</div>
-</td>
-<td className="py-3 px-4 text-right whitespace-nowrap">
-<button className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] hover:bg-[#E05A7A] hover:text-white text-[11px] font-semibold transition-all shadow-xs" type="button">
-<span className="material-symbols-outlined text-[14px]">gesture</span>
-<span>Khôi phục nét</span>
-</button>
-</td>
-</tr>
-{/*  Row 4: #204  */}
-<tr className="hover:bg-[#FAF7F5] transition-colors bg-[#FAF7F5]/40">
-<td className="py-3 px-4 text-center font-bold text-[#6E686A]">#204</td>
-<td className="py-3 px-3">
-<span className="px-2 py-0.5 rounded-full bg-[#FAF7F5] border border-[#EADFD9] text-[#2D282A] text-[11px] font-semibold whitespace-nowrap">
-                  Đề thi Dokkai N3
-                </span>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col max-w-xs">
-<span className="text-xs font-bold text-[#2D282A]">Mondai 1 (Tango) #084</span>
-<span className="text-[10px] text-[#6E686A] truncate">「桜の花が______季節になりました。」</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex flex-col">
-<span className="text-[#2D282A]">4 phương án: A, B, C, D</span>
-<span className="text-[10px] text-[#6E686A]">A: 咲く / B: 降る / C: 散る / D: 吹く</span>
-</div>
-</td>
-<td className="py-3 px-3">
-<div className="flex items-start gap-1 text-red-600">
-<span className="material-symbols-outlined text-[15px] shrink-0 mt-0.5">rule</span>
-<span className="text-[11px]">Chưa chỉ định đáp án đúng (Correct Answer Index bị rỗng).</span>
-</div>
-</td>
-<td className="py-3 px-4 text-right whitespace-nowrap">
-<div className="inline-flex items-center gap-1">
-<span className="text-[11px] text-[#6E686A]">Chọn:</span>
-<button className="w-6 h-6 rounded bg-[#E05A7A] text-white text-xs font-bold shadow-xs" type="button">A</button>
-<button className="w-6 h-6 rounded bg-white border border-[#EADFD9] hover:bg-[#FAF7F5] text-[#2D282A] text-xs font-medium" type="button">B</button>
-<button className="w-6 h-6 rounded bg-white border border-[#EADFD9] hover:bg-[#FAF7F5] text-[#2D282A] text-xs font-medium" type="button">C</button>
-<button className="w-6 h-6 rounded bg-white border border-[#EADFD9] hover:bg-[#FAF7F5] text-[#2D282A] text-xs font-medium" type="button">D</button>
-</div>
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-{/*  Table Pagination  */}
-<Pagination
-  currentPage={importPage}
-  totalPages={6}
-  pageSize={importPageSize}
-  totalItems={58}
-  onPageChange={setImportPage}
-  onPageSizeChange={setImportPageSize}
-  pageSizeOptions={[5, 10, 20]}
-  itemLabel="bản ghi import"
-  variant="sakura"
-/>
-{/*  Table Bottom Helper Bar  */}
-
-<div className="p-4 bg-[#FAF7F5] border-t border-[#EADFD9] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-<div className="flex items-center gap-2 text-[#6E686A] text-xs">
-<span className="material-symbols-outlined text-[18px] text-[#E05A7A]">tips_and_updates</span>
-<span>Riki AI có thể xử lý đồng loạt 14 cảnh báo Furigana và Stroke mà không ảnh hưởng cấu trúc.</span>
-</div>
-<div className="flex flex-wrap items-center gap-2">
-<button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FDF0F4] text-[#E05A7A] border border-[#F8BBD0] hover:bg-[#F8BBD0]/30 text-xs font-semibold transition-colors" type="button">
-<span className="material-symbols-outlined text-[15px]">auto_fix</span>
-<span>Tự động sửa 14 cảnh báo</span>
-</button>
-<button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#EADFD9] hover:bg-[#FAF7F5] text-[#6E686A] text-xs font-semibold transition-colors" type="button">
-<span className="material-symbols-outlined text-[15px]">skip_next</span>
-<span>Bỏ qua 4 dòng lỗi</span>
-</button>
-<button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#EADFD9] hover:bg-[#FAF7F5] text-[#2D282A] text-xs font-semibold transition-colors" type="button">
-<span className="material-symbols-outlined text-[15px]">file_download</span>
-<span>Xuất file lỗi (.xlsx)</span>
-</button>
-</div>
-</div>
-</div>
-{/*  Live Render Simulator Card  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-5 shadow-[0_2px_8px_rgba(45,40,42,0.03)]">
-<div className="flex items-center justify-between mb-4 pb-2 border-b border-[#EADFD9]">
-<div className="flex items-center gap-2">
-<span className="material-symbols-outlined text-[#E05A7A] text-[20px]">preview</span>
-<h2 className="text-sm font-bold text-[#2D282A]">Mô phỏng hiển thị trên Ứng dụng Học viên (Riki App Live Render)</h2>
-</div>
-<span className="text-xs text-[#9E8E93]">Render xem trước bản ghi #42</span>
-</div>
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-{/*  Mobile Flashcard Preview  */}
-<div className="p-4 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] flex flex-col justify-between relative overflow-hidden">
-<div className="flex items-center justify-between">
-<span className="px-2.5 py-0.5 rounded-full bg-[#E05A7A] text-white text-[10px] font-bold">JLPT N3 • Từ vựng</span>
-<button className="w-7 h-7 rounded-full bg-white border border-[#EADFD9] flex items-center justify-center text-[#E05A7A] hover:bg-[#FDF0F4]" type="button">
-<span className="material-symbols-outlined text-[16px]">volume_up</span>
-</button>
-</div>
-<div className="py-4 flex flex-col items-center text-center">
-<ruby className="text-2xl font-bold text-[#E05A7A]">
-              咲<rt className="text-xs font-normal text-[#6E686A]">さ</rt>き誇<rt className="text-xs font-normal text-[#6E686A]">ほこ</rt>る
-            </ruby>
-<div className="flex items-center gap-1.5 mt-2 text-xs text-[#6E686A]">
-<span className="w-2 h-2 rounded-full bg-[#2E7D32]"></span>
-<span>Pitch Accent: Heiban [0] (さきほこる￣)</span>
-</div>
-<p className="text-xs text-[#2D282A] mt-2 max-w-xs italic">
-              "桜の花が満開に咲き誇っている。" (Hoa anh đào đang nở rộ khoe sắc rực rỡ.)
-            </p>
-</div>
-<div className="flex items-center justify-between pt-2 border-t border-[#EADFD9] text-[11px] text-[#6E686A]">
-<span>Thẻ Spaced Repetition</span>
-<span className="text-[#2E7D32] font-bold">Sẵn sàng đồng bộ</span>
-</div>
-</div>
-{/*  Editorial Notes  */}
-<div className="flex flex-col justify-between p-4 rounded-xl bg-[#FAF7F5] border border-[#EADFD9]">
-<div className="flex flex-col gap-2">
-<span className="text-[11px] uppercase tracking-wider text-[#9E8E93] font-bold">Thuật toán phân tích ngữ nghĩa Haru</span>
-<p className="text-xs text-[#2D282A] leading-relaxed">
-              Hệ thống đã tách từ phức thành 2 thành phần gốc: <code className="px-1.5 py-0.5 rounded bg-white border border-[#EADFD9] text-[#E05A7A] font-semibold">咲く (Nở)</code> + <code className="px-1.5 py-0.5 rounded bg-white border border-[#EADFD9] text-[#E05A7A] font-semibold">誇る (Tự hào/khoe)</code>.
-            </p>
-<div className="p-2.5 rounded-lg bg-white border border-[#EADFD9] mt-1 flex items-center gap-2">
-<span className="material-symbols-outlined text-[#2E7D32] text-[18px]">check_circle</span>
-<span className="text-xs text-[#2D282A]">Khớp hoàn toàn danh mục 1,800 từ N3 trọng tâm năm 2025.</span>
-</div>
-</div>
-<div className="mt-4 pt-2 border-t border-[#EADFD9] flex items-center justify-between text-xs text-[#6E686A]">
-<span>Độ tương thích định dạng JSON:</span>
-<span className="font-bold text-[#2D282A]">100% Valid Schema</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-{/*  RIGHT COLUMN (4 cols)  */}
-<div className="xl:col-span-4 flex flex-col gap-6 min-w-0">
-{/*  Card 1: Import Rules Configuration  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-5 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col gap-4">
-<div className="flex items-center gap-2.5 pb-2 border-b border-[#EADFD9]">
-<div className="w-8 h-8 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A]">
-<span className="material-symbols-outlined text-[18px]">tune</span>
-</div>
-<div className="flex flex-col">
-<h3 className="text-sm font-bold text-[#2D282A]">Cấu hình quy tắc nhập học liệu</h3>
-<span className="text-[10px] text-[#9E8E93]">Thiết lập tự động hóa dữ liệu</span>
-</div>
-</div>
-{/*  Duplication Handling  */}
-<div className="flex flex-col gap-2">
-<span className="text-[11px] font-bold uppercase tracking-wider text-[#9E8E93]">Xử lý bản ghi trùng lặp:</span>
-<label className="flex items-start gap-2 p-2 rounded-xl hover:bg-[#FAF7F5] cursor-pointer transition-colors border border-transparent hover:border-[#EADFD9]">
-<input className="mt-1 text-[#E05A7A] focus:ring-[#E05A7A]" name="conflict-rule" type="radio" />
-<div className="flex flex-col">
-<span className="text-xs font-semibold text-[#2D282A]">Bỏ qua bản ghi trùng</span>
-<span className="text-[10px] text-[#6E686A]">Giữ nguyên dữ liệu hiện có trên kho, không cập nhật.</span>
-</div>
-</label>
-<label className="flex items-start gap-2 p-2 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] cursor-pointer transition-colors">
-<input checked className="mt-1 text-[#E05A7A] focus:ring-[#E05A7A]" name="conflict-rule" type="radio" />
-<div className="flex flex-col">
-<span className="text-xs font-bold text-[#E05A7A]">Ghi đè bản ghi cũ</span>
-<span className="text-[10px] text-[#6E686A]">Cập nhật toàn bộ trường mới và lưu trữ lịch sử snapshot.</span>
-</div>
-</label>
-<label className="flex items-start gap-2 p-2 rounded-xl hover:bg-[#FAF7F5] cursor-pointer transition-colors border border-transparent hover:border-[#EADFD9]">
-<input className="mt-1 text-[#E05A7A] focus:ring-[#E05A7A]" name="conflict-rule" type="radio" />
-<div className="flex flex-col">
-<span className="text-xs font-semibold text-[#2D282A]">Tạo bản nháp chờ đối soát</span>
-<span className="text-[10px] text-[#6E686A]">Chuyển sang hàng đợi Duyệt nội dung (12 chờ).</span>
-</div>
-</label>
-</div>
-{/*  Interactive Toggles  */}
-<div className="flex flex-col gap-3 pt-2 border-t border-[#EADFD9]">
-<div className="flex items-center justify-between">
-<div className="flex flex-col pr-2">
-<span className="text-xs font-semibold text-[#2D282A]">Tự tạo thẻ Spaced Repetition (SRS)</span>
-<span className="text-[10px] text-[#9E8E93]">Sinh thẻ ôn tập thông minh cho học viên</span>
-</div>
-<label className="relative inline-flex items-center cursor-pointer shrink-0">
-<input checked className="sr-only peer" type="checkbox" />
-<div className="w-10 h-5 bg-[#EADFD9] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#E05A7A]"></div>
-</label>
-</div>
-<div className="flex items-center justify-between">
-<div className="flex flex-col pr-2">
-<span className="text-xs font-semibold text-[#2D282A]">Thanh âm Tokyo Studio (Pitch Accent)</span>
-<span className="text-[10px] text-[#9E8E93]">Tự động gắn đồ thị âm thanh chuẩn NHK</span>
-</div>
-<label className="relative inline-flex items-center cursor-pointer shrink-0">
-<input checked className="sr-only peer" type="checkbox" />
-<div className="w-10 h-5 bg-[#EADFD9] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#E05A7A]"></div>
-</label>
-</div>
-</div>
-{/*  Destination Campaign Badge  */}
-<div className="p-3 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] flex items-center justify-between">
-<div className="flex items-center gap-2">
-<span className="material-symbols-outlined text-[#E05A7A] text-[18px]">flag</span>
-<div className="flex flex-col leading-tight">
-<span className="text-[10px] text-[#9E8E93]">Cấp độ & Chiến dịch đích:</span>
-<span className="text-xs font-bold text-[#2D282A]">JLPT N3 - Chiến dịch Hoa Anh Đào 2025</span>
-</div>
-</div>
-<span className="material-symbols-outlined text-[#9E8E93] text-[16px]">lock</span>
-</div>
-</div>
-{/*  Card 2: Riki Haru AI Validator  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-5 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col gap-3.5">
-<div className="flex items-center justify-between pb-2 border-b border-[#EADFD9]">
-<div className="flex items-center gap-2">
-<div className="w-8 h-8 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A]">
-<span className="material-symbols-outlined text-[18px]">psychology</span>
-</div>
-<div className="flex flex-col">
-<h3 className="text-sm font-bold text-[#2D282A]">Riki Haru AI Validator</h3>
-<span className="text-[10px] text-[#9E8E93]">Mô hình kiểm định ngôn ngữ Nhật</span>
-</div>
-</div>
-<span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32] text-[10px] font-bold">99.1% Acc</span>
-</div>
-<div className="flex items-center gap-3.5 p-3 rounded-xl bg-[#FAF7F5] border border-[#EADFD9]">
-<div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
-<svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-<path className="text-[#EADFD9]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.5"></path>
-<path className="text-[#E05A7A]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="99.1, 100" strokeLinecap="round" strokeWidth="3.5"></path>
-</svg>
-<span className="absolute text-xs font-bold text-[#E05A7A] font-mono">99.1%</span>
-</div>
-<div className="flex flex-col">
-<span className="text-xs font-bold text-[#2D282A]">Độ chuẩn hóa cấu trúc dữ liệu</span>
-<span className="text-[11px] text-[#6E686A]">Đã vượt qua 12 bài test định dạng học thuật JLPT N3.</span>
-</div>
-</div>
-<div className="flex flex-col gap-2 pt-1">
-<div className="flex items-start gap-2 p-2 rounded-lg bg-[#FAF7F5] border border-[#EADFD9]">
-<span className="material-symbols-outlined text-[#E05A7A] text-[16px] shrink-0 mt-0.5">auto_awesome</span>
-<p className="text-[11px] text-[#2D282A]">
-            Đã tự động chuẩn hóa <strong className="text-[#E05A7A]">128 điểm nối Furigana</strong> và nhận diện chính xác <strong className="text-[#E05A7A]">42 động từ phức nhóm 1</strong>.
-          </p>
-</div>
-<div className="flex items-start gap-2 p-2 rounded-lg bg-[#FAF7F5] border border-[#EADFD9]">
-<span className="material-symbols-outlined text-[#2E7D32] text-[16px] shrink-0 mt-0.5">spellcheck</span>
-<p className="text-[11px] text-[#2D282A]">
-            Không phát hiện ký tự Hán tự ngoài bảng thường dùng (Jōyō Kanji 2,136 chữ).
-          </p>
-</div>
-</div>
-</div>
-{/*  Card 3: Recent Import History  */}
-<div className="bg-white rounded-2xl border border-[#EADFD9] p-5 shadow-[0_2px_8px_rgba(45,40,42,0.03)] flex flex-col gap-3">
-<div className="flex items-center justify-between pb-2 border-b border-[#EADFD9]">
-<div className="flex items-center gap-2">
-<span className="material-symbols-outlined text-[#6E686A] text-[18px]">update</span>
-<h3 className="text-xs font-bold text-[#2D282A]">Lịch sử Import gần đây</h3>
-</div>
-<a className="text-xs text-[#E05A7A] hover:underline font-semibold" href="#">Tất cả</a>
-</div>
-<div className="flex flex-col gap-2">
-<div className="p-2.5 rounded-xl hover:bg-[#FAF7F5] transition-colors border border-[#EADFD9] flex items-center justify-between">
-<div className="flex items-center gap-2.5">
-<div className="w-8 h-8 rounded-lg bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A] font-bold text-xs">
-              14
+              </h1>
+              <p className="text-xs text-[#6E686A] max-w-4xl leading-relaxed">
+                Tải lên tập tin <strong>.xlsx, .xls, .csv</strong>. Hệ thống tự động phân tích và hiển thị nội dung trực quan để Content Author review, lọc theo <strong>Kanji, Vocabulary, Grammar Pattern</strong> và chỉnh sửa trước khi gửi API.
+              </p>
             </div>
-<div className="flex flex-col leading-tight">
-<span className="text-xs font-bold text-[#2D282A]">1,200 câu hỏi Choukai N2</span>
-<span className="text-[10px] text-[#6E686A]">BTV Hoàng Minh • 14/03/2025</span>
-</div>
-</div>
-<span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32] text-[10px] font-bold">Hoàn tất</span>
-</div>
-<div className="p-2.5 rounded-xl hover:bg-[#FAF7F5] transition-colors border border-[#EADFD9] flex items-center justify-between">
-<div className="flex items-center gap-2.5">
-<div className="w-8 h-8 rounded-lg bg-[#FAF7F5] border border-[#EADFD9] flex items-center justify-center text-[#2D282A] font-bold text-xs">
-              12
+            <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+              <button
+                onClick={handleDownloadSampleTemplate}
+                className="px-4 py-2 rounded-xl bg-white border border-[#EADFD9] hover:border-[#E05A7A]/50 text-[#2D282A] font-semibold text-xs transition-all flex items-center gap-2 shadow-xs hover:shadow cursor-pointer"
+                type="button"
+              >
+                <Download className="w-4 h-4 text-[#E05A7A]" />
+                <span>Tải file mẫu Excel (.xlsx)</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv,.json,.txt"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#E05A7A] to-[#C94766] text-white font-semibold text-xs transition-all flex items-center gap-2 shadow-sm shadow-[#E05A7A]/25 cursor-pointer"
+                type="button"
+              >
+                <UploadCloud className="w-4 h-4 text-white" />
+                <span>Tải lên file Excel / CSV</span>
+              </button>
             </div>
-<div className="flex flex-col leading-tight">
-<span className="text-xs font-bold text-[#2D282A]">350 Hán tự Jouyou N3</span>
-<span className="text-[10px] text-[#6E686A]">Sensei Mayumi • 12/03/2025</span>
-</div>
-</div>
-<span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] border border-[#2E7D32]/30 text-[#2E7D32] text-[10px] font-bold">Hoàn tất</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-{/*  Bottom Sticky Action Bar  */}
-<div className="sticky bottom-4 mt-4 z-30 bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-[#EADFD9] shadow-[0_8px_30px_rgba(45,40,42,0.08)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-<div className="flex items-center gap-3">
-<div className="w-10 h-10 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A] shrink-0">
-<span className="material-symbols-outlined text-[22px]">publish</span>
-</div>
-<div className="flex flex-col">
-<span className="text-sm font-bold text-[#2D282A]">Sẵn sàng xuất bản 446 / 450 bản ghi</span>
-<span className="text-xs text-[#6E686A]">Đã xử lý xong cảnh báo AI • 4 dòng lỗi bị loại trừ an toàn</span>
-</div>
-</div>
-<div className="flex items-center gap-3 self-end sm:self-auto">
-<button className="px-4 py-2 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] hover:bg-white text-[#2D282A] text-xs font-semibold transition-colors" type="button">
-      Quay lại bước 2
-    </button>
-<button className="px-4 py-2 rounded-xl text-[#6E686A] hover:text-[#2D282A] hover:bg-[#FAF7F5] text-xs font-semibold transition-colors" type="button">
-      Hủy bỏ
-    </button>
-<button className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#E05A7A] hover:bg-[#C84364] text-white text-xs font-bold shadow-[0_4px_16px_rgba(224,90,122,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0" type="button">
-<span>Tiến hành Import 446 bản ghi</span>
-<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-</button>
-</div>
-</div></div></div></main></div>
-    </div>
-  
-</CmsShell>
-);
+          </div>
+
+          {/* Stepper Pipeline */}
+          <div className="w-full bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-xs mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#E8F5E9]/60 border border-[#2E7D32]/20">
+                <div className="w-8 h-8 rounded-full bg-[#2E7D32] flex items-center justify-center text-white font-semibold shrink-0">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-[#2E7D32] font-bold uppercase tracking-wider">
+                    Bước 1 • Đã tải file
+                  </span>
+                  <span className="text-xs text-[#2D282A] font-semibold truncate">
+                    {fileMetadata.name}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#E8F5E9]/60 border border-[#2E7D32]/20">
+                <div className="w-8 h-8 rounded-full bg-[#2E7D32] flex items-center justify-center text-white font-semibold shrink-0">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-[#2E7D32] font-bold uppercase tracking-wider">
+                    Bước 2 • Tự động Parse
+                  </span>
+                  <span className="text-xs text-[#2D282A] font-semibold truncate">
+                    Đã đọc {records.length} dòng
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FDF0F4] border-2 border-[#E05A7A]/60 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-[#E05A7A] flex items-center justify-center text-white font-bold shrink-0">
+                  <span className="text-xs">3</span>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-[#E05A7A] font-bold uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#E05A7A] animate-ping" />
+                    Bước 3 • Đang Review
+                  </span>
+                  <span className="text-xs text-[#2D282A] font-bold truncate">
+                    Lọc & Sửa trước khi gửi
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] opacity-70">
+                <div className="w-8 h-8 rounded-full bg-[#EADFD9] flex items-center justify-center text-[#6E686A] font-bold shrink-0">
+                  <span className="text-xs">4</span>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-[#9E8E93] uppercase tracking-wider font-semibold">
+                    Bước 4 • Chờ gọi API
+                  </span>
+                  <span className="text-xs text-[#6E686A] font-medium truncate">
+                    https://localhost:7237
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* API Response Alert */}
+          {apiResult && (
+            <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3 animate-in fade-in">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-bold">Import Thành Công Lên API Backend!</h4>
+                <p className="text-xs text-emerald-800 mt-1">{apiResult.message}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded bg-emerald-100 font-mono text-[11px] font-bold text-emerald-800">
+                    Endpoint: https://localhost:7237/api/content-management/bulk-import
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setApiResult(null)}
+                className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {apiError && (
+            <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3 animate-in fade-in">
+              <XCircle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-bold">Lỗi Khi Gọi API Bulk Import</h4>
+                <p className="text-xs text-rose-800 mt-1">{apiError}</p>
+                <span className="inline-block mt-2 px-2.5 py-1 rounded bg-rose-100 font-mono text-[11px] text-rose-800">
+                  Target: https://localhost:7237/api/content-management/bulk-import
+                </span>
+              </div>
+              <button
+                onClick={() => setApiError('')}
+                className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Two-Column Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            {/* LEFT COLUMN (8 cols): Data Review Table & Filter */}
+            <div className="xl:col-span-8 flex flex-col gap-6 min-w-0">
+              {/* File Info Bar */}
+              <div className="bg-white rounded-2xl border border-[#EADFD9] p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A] shadow-xs shrink-0">
+                    <FileSpreadsheet className="w-6 h-6" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-[#2D282A] truncate">
+                        {fileMetadata.name}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+                        Đã Parse Sẵn Sàng
+                      </span>
+                    </div>
+                    <span className="text-xs text-[#6E686A] truncate">
+                      Dung lượng: {fileMetadata.size} • Tổng cộng {records.length} bản ghi học liệu • Nạp lúc {fileMetadata.uploadedAt}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-[#FAF7F5] border border-[#EADFD9] hover:border-[#E05A7A]/40 text-[#2D282A] text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                    type="button"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-[#E05A7A] ${isParsing ? 'animate-spin' : ''}`} />
+                    <span>Đổi file khác</span>
+                  </button>
+                  <button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] text-[#E05A7A] hover:bg-[#E05A7A] hover:text-white text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                    type="button"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm dòng</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* FILTER BAR 1: LỌC THEO LOẠI HỌC LIỆU (KANJI / VOCABULARY / GRAMMAR) */}
+              <div className="bg-white rounded-2xl border border-[#EADFD9] p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#2D282A] flex items-center gap-1.5">
+                    <Filter className="w-4 h-4 text-[#E05A7A]" />
+                    Phân loại:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('ALL')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        typeFilter === 'ALL'
+                          ? 'bg-[#2D282A] text-white shadow-xs'
+                          : 'bg-[#FAF7F5] text-[#6E686A] hover:bg-gray-100'
+                      }`}
+                    >
+                      Tất cả ({countAll})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('Kanji')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        typeFilter === 'Kanji'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                      }`}
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      Hán tự / Kanji ({countKanji})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('Vocabulary')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        typeFilter === 'Vocabulary'
+                          ? 'bg-[#D94B68] text-white shadow-xs'
+                          : 'bg-rose-50 text-[#D94B68] border border-rose-200 hover:bg-rose-100'
+                      }`}
+                    >
+                      <Languages className="w-3.5 h-3.5" />
+                      Từ vựng / Vocab ({countVocab})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('Grammar')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        typeFilter === 'Grammar'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Ngữ pháp / Pattern ({countGrammar})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex items-center">
+                    <Search className="w-4 h-4 absolute left-2.5 text-[#9E8E93]" />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Tìm từ, kanji, nghĩa..."
+                      className="pl-8 pr-3 py-1.5 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs text-[#2D282A] w-44 focus:outline-none focus:border-[#E05A7A] focus:ring-1 focus:ring-[#E05A7A]/30"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI Summary Status Chips */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div
+                  onClick={() => setStatusFilter('ALL')}
+                  className={`bg-white rounded-2xl border p-3.5 shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                    statusFilter === 'ALL' ? 'border-[#E05A7A] ring-2 ring-[#E05A7A]/20' : 'border-[#EADFD9] hover:border-[#E05A7A]/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#6E686A] uppercase font-bold tracking-wider">
+                      Tổng bản ghi
+                    </span>
+                    <Layers className="w-4 h-4 text-[#9E8E93]" />
+                  </div>
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xl font-bold text-[#2D282A]">{countAll}</span>
+                    <span className="text-[10px] text-[#9E8E93]">Đã parse</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setStatusFilter('VALID')}
+                  className={`bg-white rounded-2xl border p-3.5 shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                    statusFilter === 'VALID' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-[#EADFD9] hover:border-emerald-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#2E7D32] uppercase font-bold tracking-wider">
+                      Hợp lệ sẵn sàng
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-[#2E7D32]" />
+                  </div>
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xl font-bold text-[#2E7D32]">{countValid}</span>
+                    <span className="text-[10px] text-[#2E7D32] font-bold">
+                      {countAll > 0 ? `${((countValid / countAll) * 100).toFixed(0)}%` : '0%'}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setStatusFilter('WARNING')}
+                  className={`bg-white rounded-2xl border p-3.5 shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                    statusFilter === 'WARNING' ? 'border-[#E05A7A] ring-2 ring-[#E05A7A]/20' : 'border-[#EADFD9] hover:border-[#E05A7A]/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#E05A7A] uppercase font-bold tracking-wider">
+                      Cảnh báo Furigana
+                    </span>
+                    <AlertTriangle className="w-4 h-4 text-[#E05A7A]" />
+                  </div>
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xl font-bold text-[#E05A7A]">{countWarning}</span>
+                    <span className="text-[10px] text-[#E05A7A]">Tự động fix</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setStatusFilter('ERROR')}
+                  className={`bg-white rounded-2xl border p-3.5 shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                    statusFilter === 'ERROR' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-[#EADFD9] hover:border-rose-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-red-600 uppercase font-bold tracking-wider">
+                      Lỗi cần sửa
+                    </span>
+                    <XCircle className="w-4 h-4 text-red-600" />
+                  </div>
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xl font-bold text-red-600">{countError}</span>
+                    <span className="text-[10px] text-red-500">Cần bổ sung</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Table Review Section */}
+              <div className="bg-white rounded-2xl border border-[#EADFD9] shadow-xs overflow-hidden flex flex-col">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-[#FAF7F5] border-b border-[#EADFD9] text-[11px] font-bold uppercase tracking-wider text-[#9E8E93]">
+                        <th className="py-3 px-3 w-12 text-center">#</th>
+                        <th className="py-3 px-3">Phân loại</th>
+                        <th className="py-3 px-3">Từ vựng / Hán tự / Mẫu câu</th>
+                        <th className="py-3 px-3">Furigana / Âm đọc</th>
+                        <th className="py-3 px-3">Nghĩa tiếng Việt</th>
+                        <th className="py-3 px-3">Trình độ</th>
+                        <th className="py-3 px-3">Trạng thái</th>
+                        <th className="py-3 px-4 text-right">Thao tác sửa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#EADFD9] text-[#2D282A]">
+                      {isParsing ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-[#6E686A]">
+                            <RefreshCw className="w-6 h-6 mx-auto animate-spin text-[#E05A7A] mb-2" />
+                            <p className="font-semibold text-sm">Đang phân tích dữ liệu tập tin...</p>
+                          </td>
+                        </tr>
+                      ) : recordsOnPage.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-[#6E686A]">
+                            <FileText className="w-8 h-8 mx-auto text-[#9E8E93] mb-2" />
+                            <p className="font-semibold text-sm">Không tìm thấy bản ghi nào khớp với bộ lọc.</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        recordsOnPage.map((r) => (
+                          <tr key={r.id} className="hover:bg-[#FAF7F5]/80 transition-colors group">
+                            <td className="py-3 px-3 text-center font-bold text-[#6E686A]">
+                              #{r.lineNumber || r.id}
+                            </td>
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              {getTypeBadge(r.type)}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-sm text-[#2D282A]">{r.term}</span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="text-[#6E686A] font-medium">{r.furigana || '—'}</span>
+                            </td>
+                            <td className="py-3 px-3 max-w-xs">
+                              <p className="truncate text-[#2D282A] font-medium" title={r.meaning}>
+                                {r.meaning || '—'}
+                              </p>
+                            </td>
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded bg-gray-100 font-bold text-[11px] text-[#2D282A]">
+                                {r.level}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              {r.status === 'valid' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                                  <Check className="w-3 h-3" /> Hợp lệ
+                                </span>
+                              ) : r.status === 'warning' ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold"
+                                  title={r.warning || 'Cảnh báo format'}
+                                >
+                                  <AlertTriangle className="w-3 h-3" /> Cảnh báo
+                                </span>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold"
+                                  title={r.warning || 'Lỗi dữ liệu'}
+                                >
+                                  <XCircle className="w-3 h-3" /> Lỗi
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingRow(r)}
+                                  className="p-1.5 rounded-lg bg-[#FAF7F5] hover:bg-[#FDF0F4] text-[#6E686A] hover:text-[#E05A7A] border border-[#EADFD9] transition-colors cursor-pointer"
+                                  title="Chỉnh sửa dòng này"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRow(r.id)}
+                                  className="p-1.5 rounded-lg bg-[#FAF7F5] hover:bg-rose-50 text-[#6E686A] hover:text-rose-600 border border-[#EADFD9] transition-colors cursor-pointer"
+                                  title="Xóa dòng"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Reusable Pagination */}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  totalItems={totalItems}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[5, 10, 20, 50]}
+                  itemLabel="bản ghi"
+                  variant="sakura"
+                />
+
+                {/* Quick Action Footer inside Table Card */}
+                <div className="p-3 bg-[#FAF7F5] border-t border-[#EADFD9] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-[#6E686A]">
+                    <Sparkles className="w-4 h-4 text-[#E05A7A]" />
+                    <span>Review kỹ thông tin trước khi gửi lên API backend.</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {countWarning > 0 && (
+                      <button
+                        onClick={handleAutoFixAllWarnings}
+                        className="px-3 py-1 rounded-xl bg-[#FDF0F4] text-[#E05A7A] border border-[#F8BBD0] hover:bg-[#E05A7A] hover:text-white font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                        type="button"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Tự động sửa {countWarning} cảnh báo
+                      </button>
+                    )}
+                    {countError > 0 && (
+                      <button
+                        onClick={handleRemoveErrorRows}
+                        className="px-3 py-1 rounded-xl bg-white border border-[#EADFD9] hover:bg-rose-50 text-rose-600 font-semibold transition-colors cursor-pointer"
+                        type="button"
+                      >
+                        Loại bỏ {countError} dòng lỗi
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN (4 cols) - Settings & API Dispatch */}
+            <div className="xl:col-span-4 flex flex-col gap-6 min-w-0">
+              {/* Card 1: API Configuration */}
+              <div className="bg-white rounded-2xl border border-[#EADFD9] p-5 shadow-xs flex flex-col gap-4">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-[#EADFD9]">
+                  <div className="w-8 h-8 rounded-xl bg-[#FDF0F4] border border-[#F8BBD0] flex items-center justify-center text-[#E05A7A]">
+                    <span className="material-symbols-outlined text-[18px]">tune</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <h3 className="text-sm font-bold text-[#2D282A]">Cấu hình Nạp API Backend</h3>
+                    <span className="text-[10px] text-[#9E8E93]">Endpoint Bulk Import</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl">
+                  <p className="text-[10px] text-[#9E8E93] font-bold uppercase tracking-wider">
+                    API Endpoint Mục Tiêu:
+                  </p>
+                  <p className="text-xs font-mono font-bold text-[#E05A7A] break-all mt-0.5">
+                    https://localhost:7237/api/content-management/bulk-import
+                  </p>
+                  <p className="text-[11px] text-[#6E686A] mt-1">
+                    Request Body: <code className="font-semibold text-[#2D282A]">FormData (file)</code>
+                  </p>
+                </div>
+
+                {/* Duplication Conflict Rules */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#9E8E93]">
+                    Quy tắc xử lý bản ghi trùng:
+                  </span>
+                  <label
+                    onClick={() => setConflictRule('skip')}
+                    className={`flex items-start gap-2 p-2.5 rounded-xl cursor-pointer border transition-all ${
+                      conflictRule === 'skip'
+                        ? 'bg-[#FDF0F4] border-[#F8BBD0] text-[#E05A7A]'
+                        : 'hover:bg-[#FAF7F5] border-transparent hover:border-[#EADFD9] text-[#2D282A]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="conflict-rule"
+                      checked={conflictRule === 'skip'}
+                      onChange={() => setConflictRule('skip')}
+                      className="mt-0.5"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold">Bỏ qua bản ghi trùng</span>
+                      <span className="text-[10px] text-[#6E686A]">
+                        Giữ nguyên dữ liệu cũ trên database.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label
+                    onClick={() => setConflictRule('overwrite')}
+                    className={`flex items-start gap-2 p-2.5 rounded-xl cursor-pointer border transition-all ${
+                      conflictRule === 'overwrite'
+                        ? 'bg-[#FDF0F4] border-[#F8BBD0] text-[#E05A7A]'
+                        : 'hover:bg-[#FAF7F5] border-transparent hover:border-[#EADFD9] text-[#2D282A]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="conflict-rule"
+                      checked={conflictRule === 'overwrite'}
+                      onChange={() => setConflictRule('overwrite')}
+                      className="mt-0.5"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold">Ghi đè bản ghi cũ</span>
+                      <span className="text-[10px] text-[#6E686A]">
+                        Cập nhật nội dung mới từ file nạp.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Card 2: Summary & Submit to API */}
+              <div className="bg-white rounded-2xl border border-[#EADFD9] p-5 shadow-xs flex flex-col gap-4">
+                <h3 className="text-sm font-bold text-[#2D282A]">Tổng kết dữ liệu sẵn sàng</h3>
+                <div className="space-y-2 text-xs text-[#6E686A]">
+                  <div className="flex justify-between py-1 border-b border-[#EADFD9]">
+                    <span>Tổng số bản ghi:</span>
+                    <strong className="text-[#2D282A]">{records.length}</strong>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#EADFD9]">
+                    <span>Hán tự (Kanji):</span>
+                    <strong className="text-amber-800">{countKanji}</strong>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#EADFD9]">
+                    <span>Từ vựng (Vocabulary):</span>
+                    <strong className="text-[#D94B68]">{countVocab}</strong>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#EADFD9]">
+                    <span>Ngữ pháp (Grammar):</span>
+                    <strong className="text-indigo-800">{countGrammar}</strong>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#EADFD9]">
+                    <span>Bản ghi hợp lệ:</span>
+                    <strong className="text-emerald-700">{countValid}</strong>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitToApi}
+                  disabled={isSubmitting || records.length === 0}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#E05A7A] to-[#C94766] hover:opacity-95 text-white font-bold text-sm shadow-md shadow-[#E05A7A]/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Đang nạp dữ liệu lên API 7237...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Gửi & Nạp vào API Backend</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MODAL: CHỈNH SỬA DÒNG BẢN GHI */}
+        {editingRow && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#F8BBD0]">
+              <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#EADFD9]">
+                <div className="flex items-center gap-2 text-[#E05A7A] font-bold">
+                  <Edit3 className="w-5 h-5" />
+                  <h3 className="text-base text-[#2D282A]">
+                    Chỉnh sửa dòng #{editingRow.lineNumber || editingRow.id}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setEditingRow(null)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditedRow} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">Loại học liệu</label>
+                  <select
+                    value={editingRow.type}
+                    onChange={(e) => setEditingRow({ ...editingRow, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                  >
+                    <option value="Vocabulary">Từ vựng (Vocabulary)</option>
+                    <option value="Kanji">Hán tự (Kanji)</option>
+                    <option value="Grammar">Ngữ pháp (Grammar Pattern)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">
+                    Từ vựng / Hán tự / Mẫu câu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingRow.term}
+                    onChange={(e) => setEditingRow({ ...editingRow, term: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs font-semibold focus:outline-none focus:border-[#E05A7A]"
+                    placeholder="VD: 咲き誇る"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">
+                    Furigana / Âm đọc Hiragana
+                  </label>
+                  <input
+                    type="text"
+                    value={editingRow.furigana}
+                    onChange={(e) => setEditingRow({ ...editingRow, furigana: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                    placeholder="VD: さきほこる"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">
+                    Nghĩa tiếng Việt <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={editingRow.meaning}
+                    onChange={(e) => setEditingRow({ ...editingRow, meaning: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                    placeholder="VD: Nở rộ khoe sắc rực rỡ"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#2D282A] mb-1">Trình độ JLPT</label>
+                    <select
+                      value={editingRow.level}
+                      onChange={(e) => setEditingRow({ ...editingRow, level: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                    >
+                      <option value="N5">N5</option>
+                      <option value="N4">N4</option>
+                      <option value="N3">N3</option>
+                      <option value="N2">N2</option>
+                      <option value="N1">N1</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#2D282A] mb-1">Ví dụ / Cấu trúc</label>
+                    <input
+                      type="text"
+                      value={editingRow.example || ''}
+                      onChange={(e) => setEditingRow({ ...editingRow, example: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                      placeholder="VD: 桜の花が..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EADFD9]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingRow(null)}
+                    className="px-4 py-2 rounded-xl bg-[#FAF7F5] hover:bg-gray-100 text-[#6E686A] font-semibold cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#E05A7A] hover:bg-[#C94766] text-white font-bold shadow-sm cursor-pointer"
+                  >
+                    Lưu thay đổi
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: THÊM DÒNG MỚI */}
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#F8BBD0]">
+              <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#EADFD9]">
+                <div className="flex items-center gap-2 text-[#E05A7A] font-bold">
+                  <Plus className="w-5 h-5" />
+                  <h3 className="text-base text-[#2D282A]">Thêm dòng học liệu mới</h3>
+                </div>
+                <button
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddNewRow} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">Loại học liệu</label>
+                  <select
+                    value={newRowForm.type}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                  >
+                    <option value="Vocabulary">Từ vựng (Vocabulary)</option>
+                    <option value="Kanji">Hán tự (Kanji)</option>
+                    <option value="Grammar">Ngữ pháp (Grammar Pattern)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">
+                    Từ vựng / Hán tự / Mẫu câu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newRowForm.term}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, term: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs font-semibold focus:outline-none focus:border-[#E05A7A]"
+                    placeholder="VD: 桜 (Anh đào)"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">Furigana / Âm đọc</label>
+                  <input
+                    type="text"
+                    value={newRowForm.furigana}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, furigana: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                    placeholder="VD: さくら"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D282A] mb-1">
+                    Nghĩa tiếng Việt <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={newRowForm.meaning}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, meaning: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#FAF7F5] border border-[#EADFD9] rounded-xl text-xs focus:outline-none focus:border-[#E05A7A]"
+                    placeholder="VD: Hoa anh đào"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EADFD9]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-[#FAF7F5] hover:bg-gray-100 text-[#6E686A] font-semibold cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#E05A7A] hover:bg-[#C94766] text-white font-bold shadow-sm cursor-pointer"
+                  >
+                    Thêm vào danh sách
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </CmsShell>
+  );
 }
