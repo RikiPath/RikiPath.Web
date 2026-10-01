@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AdminShell } from '../../components/shells';
 import {
-  getConsultants,
-  createConsultant,
-  toggleConsultantActive,
-} from '../../api/adminConsultantsApi.js';
+  getAdminMentors,
+  createAdminMentor,
+  setAdminMentorActive,
+  unwrapApiList,
+} from '../../api/admin.js';
 import {
   UserCheck,
   UserPlus,
@@ -146,8 +147,8 @@ export default function AdminConsultants() {
     setLoading(true);
     setError(null);
     try {
-      const res = await getConsultants();
-      const list = res?.result || (Array.isArray(res) ? res : []);
+      const res = await getAdminMentors();
+      const list = unwrapApiList(res);
       setConsultants(list);
     } catch (err) {
       console.error('Error fetching consultants:', err);
@@ -179,7 +180,7 @@ export default function AdminConsultants() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await createConsultant(consultantForm);
+      await createAdminMentor(consultantForm);
       showToast('Thêm Consultant mới thành công!', 'success');
       setIsAddConsultantOpen(false);
       setConsultantForm({
@@ -209,7 +210,7 @@ export default function AdminConsultants() {
     );
 
     try {
-      await toggleConsultantActive(consultant.id, nextActive);
+      await setAdminMentorActive(consultant.id, nextActive);
       showToast(`Đã ${nextActive ? 'kích hoạt' : 'vô hiệu hóa'} Consultant #${consultant.id}`, 'success');
     } catch (err) {
       // Revert optimistic update

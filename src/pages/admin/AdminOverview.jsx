@@ -1,7 +1,21 @@
 import { AdminShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { getAdminDashboard, getAdminPendingContent, unwrapApiList, unwrapApiResult } from '../../api/admin.js';
 export default function AdminOverview() {
   const { pathname } = useLocation();
+  const [dashboard, setDashboard] = useState(null);
+  const [dashboardError, setDashboardError] = useState('');
+  const [pendingItems, setPendingItems] = useState([]);
+  useEffect(() => {
+    getAdminDashboard().then((data) => setDashboard(unwrapApiResult(data))).catch((error) => setDashboardError(error.message || 'Không tải được số liệu quản trị.'));
+    Promise.allSettled(['Lesson', 'Vocabulary', 'Kanji', 'Grammar', 'MockTest', 'PracticeExercise'].map(async (type) => ({ type, rows: unwrapApiList(await getAdminPendingContent(type)) }))).then((results) => setPendingItems(results.flatMap((result) => result.status === 'fulfilled' ? result.value.rows.map((item) => ({ ...item, entityType: result.value.type })) : []).slice(0, 5)));
+  }, []);
+  const dashboardMetrics = dashboard && Object.entries(dashboard).flatMap(([key, value]) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.entries(value).filter(([, nested]) => ['string', 'number', 'boolean'].includes(typeof nested)).map(([nestedKey, nested]) => [`${key} · ${nestedKey}`, nested])
+      : ['string', 'number', 'boolean'].includes(typeof value) ? [[key, value]] : [],
+  ).slice(0, 8);
   return (
     <AdminShell pathname={pathname} breadcrumb="Tổng quan">
 <div className="bg-background text-on-background flex min-h-screen overflow-x-hidden min-h-screen" data-page="AdminOverview" data-shell-unified="1">
@@ -22,41 +36,9 @@ export default function AdminOverview() {
 {/*  Scrollable Canvas  */}
 <main className="flex-1 overflow-y-auto bg-surface-canvas p-margin-desktop">
 {/*  Hero Stats  */}
+{dashboardError && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{dashboardError}</div>}
 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-gutter mb-margin-desktop">
-<div className="bg-surface-container-lowest p-gutter rounded-lg border border-border-subtle shadow-sm">
-<div className="font-body-sm text-body-sm text-on-surface-variant mb-1">Active Learners</div>
-<div className="flex items-baseline justify-between">
-<div className="font-headline-lg text-headline-lg text-on-surface">8.4k</div>
-<div className="font-label-caps text-label-caps text-status-approved flex items-center">
-<span className="material-symbols-outlined text-[14px]">arrow_upward</span> 12%
-                        </div>
-</div>
-</div>
-<div className="bg-surface-container-lowest p-gutter rounded-lg border border-border-subtle shadow-sm">
-<div className="font-body-sm text-body-sm text-on-surface-variant mb-1">New Registrations</div>
-<div className="flex items-baseline justify-between">
-<div className="font-headline-lg text-headline-lg text-on-surface">450</div>
-<div className="font-body-sm text-body-sm text-on-surface-variant">this week</div>
-</div>
-</div>
-<div className="bg-surface-container-lowest p-gutter rounded-lg border border-border-subtle shadow-sm">
-<div className="font-body-sm text-body-sm text-on-surface-variant mb-1">Lesson Completion Rate</div>
-<div className="flex items-baseline justify-between">
-<div className="font-headline-lg text-headline-lg text-on-surface">78%</div>
-<div className="w-16 h-2 bg-surface-container-high rounded-full overflow-hidden self-center ml-2">
-<div className="w-[78%] h-full bg-primary rounded-full"></div>
-</div>
-</div>
-</div>
-<div className="bg-surface-container-lowest p-gutter rounded-lg border border-border-subtle shadow-sm">
-<div className="font-body-sm text-body-sm text-on-surface-variant mb-1">Demo Revenue</div>
-<div className="flex items-baseline justify-between">
-<div className="font-headline-lg text-headline-lg text-on-surface">450M <span className="text-title-sm font-title-sm">VND</span></div>
-<div className="font-label-caps text-label-caps text-error flex items-center">
-<span className="material-symbols-outlined text-[14px]">arrow_downward</span> 2%
-                        </div>
-</div>
-</div>
+{dashboardMetrics?.length ? dashboardMetrics.map(([label, value]) => <div key={label} className="bg-surface-container-lowest p-gutter rounded-lg border border-border-subtle shadow-sm"><div className="font-body-sm text-body-sm text-on-surface-variant mb-1">{label}</div><div className="font-headline-lg text-headline-lg text-on-surface">{String(value)}</div></div>) : <div className="bg-surface-container-lowest p-gutter rounded-lg border border-border-subtle shadow-sm md:col-span-2 xl:col-span-4"><div className="font-body-sm text-body-sm text-on-surface-variant">{dashboardError ? 'Số liệu chưa khả dụng' : dashboard ? 'API chưa trả về chỉ số để hiển thị.' : 'Đang tải số liệu quản trị…'}</div></div>}
 </div>
 {/*  Chart Section  */}
 <div className="bg-surface-container-lowest border border-border-subtle rounded-lg p-margin-desktop mb-margin-desktop shadow-sm">
@@ -71,7 +53,7 @@ export default function AdminOverview() {
 <div className="xl:col-span-2 bg-surface-container-lowest border border-border-subtle rounded-lg flex flex-col shadow-sm overflow-hidden">
 <div className="p-gutter border-b border-border-subtle bg-surface flex justify-between items-center">
 <h2 className="font-title-sm text-title-sm text-on-surface">Pending Review</h2>
-<button className="font-body-sm text-body-sm text-primary hover:underline font-medium">View All</button>
+<Link to="/admin/content-review" className="font-body-sm text-body-sm text-primary hover:underline font-medium">Xem tất cả</Link>
 </div>
 <div className="flex-1 overflow-x-auto">
 <table className="w-full text-left">
@@ -85,27 +67,7 @@ export default function AdminOverview() {
 </tr>
 </thead>
 <tbody className="font-table-data text-table-data text-on-surface">
-<tr className="border-b border-border-subtle hover:bg-surface-container-low/60 transition-colors">
-<td className="px-gutter py-cell-h font-medium">JLPT N3 Grammar - Lesson 12</td>
-<td className="px-gutter py-cell-h">Lesson</td>
-<td className="px-gutter py-cell-h">Nguyen Van A</td>
-<td className="px-gutter py-cell-h text-on-surface-variant">2 hours ago</td>
-<td className="px-gutter py-cell-h"><button className="text-primary hover:underline font-medium">Review</button></td>
-</tr>
-<tr className="border-b border-border-subtle hover:bg-surface-container-low/60 transition-colors">
-<td className="px-gutter py-cell-h font-medium">Business Email Templates</td>
-<td className="px-gutter py-cell-h">Kanji</td>
-<td className="px-gutter py-cell-h">Tran Thi B</td>
-<td className="px-gutter py-cell-h text-on-surface-variant">5 hours ago</td>
-<td className="px-gutter py-cell-h"><button className="text-primary hover:underline font-medium">Review</button></td>
-</tr>
-<tr className="hover:bg-surface-container-low/60 transition-colors">
-<td className="px-gutter py-cell-h font-medium">N2 Listening Practice Test 4</td>
-<td className="px-gutter py-cell-h">Exam</td>
-<td className="px-gutter py-cell-h">Le Van C</td>
-<td className="px-gutter py-cell-h text-on-surface-variant">1 day ago</td>
-<td className="px-gutter py-cell-h"><button className="text-primary hover:underline font-medium">Review</button></td>
-</tr>
+{pendingItems.length ? pendingItems.map((item, index) => <tr key={item.id ?? `${item.entityType}-${index}`} className="border-b border-border-subtle hover:bg-surface-container-low/60 transition-colors"><td className="px-gutter py-cell-h font-medium">{item.title || item.name || `${item.entityType} #${item.id ?? item.entityId ?? ''}`}</td><td className="px-gutter py-cell-h">{item.entityType}</td><td className="px-gutter py-cell-h">{item.authorName || item.createdByName || '—'}</td><td className="px-gutter py-cell-h text-on-surface-variant">{item.submittedAt ? new Date(item.submittedAt).toLocaleString('vi-VN') : '—'}</td><td className="px-gutter py-cell-h"><Link to="/admin/content-review" className="text-primary hover:underline font-medium">Duyệt</Link></td></tr>) : <tr><td colSpan={5} className="px-gutter py-8 text-center text-on-surface-variant">Chưa có dữ liệu chờ duyệt hoặc API không trả danh sách.</td></tr>}
 </tbody>
 </table>
 </div>

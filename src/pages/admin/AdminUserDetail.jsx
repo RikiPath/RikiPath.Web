@@ -1,14 +1,30 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { AdminShell } from '../../components/shells';
-
-const ACTIVITY = [
-  { when: '10 phút trước', what: 'Hoàn thành SRS 28 thẻ' },
-  { when: 'Hôm qua', what: 'Nộp đề thử N3-2024-04 · 111/180' },
-  { when: '2 ngày trước', what: 'Đặt lịch Sato-sensei · 14:00' },
-];
+import { getAdminUser, updateAdminUser } from '../../api/admin.js';
 
 export default function AdminUserDetail() {
   const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const id = params.get('id');
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!id) return;
+    getAdminUser(id).then((data) => setUser(data?.result ?? data)).catch((err) => setError(err.message || 'Không tải được tài khoản.'));
+  }, [id]);
+  const save = async (changes) => {
+    if (!user) return;
+    setSaving(true); setError('');
+    try {
+      const response = await updateAdminUser(id, { ...user, ...changes });
+      setUser(response?.result ?? { ...user, ...changes });
+    } catch (err) { setError(err.message || 'Không cập nhật được tài khoản.'); }
+    finally { setSaving(false); }
+  };
+  const name = user?.fullName || user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Người dùng';
+  const role = user?.role?.name || user?.role || 'Learner';
   return (
     <AdminShell pathname={pathname} breadcrumb="Chi tiết người dùng">
       <div className="p-8 text-on-surface" data-page="AdminUserDetail">
@@ -20,32 +36,30 @@ export default function AdminUserDetail() {
         <header className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-[#eadfd9] bg-white p-6">
           <div className="flex gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#fde8ec] font-bold text-[#9E2A4B]">
-              NA
+              {name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Nguyễn Văn A</h1>
-              <p className="text-sm text-[#6F6669]">nguyenvana@rikipath.vn · Learner · Active</p>
-              <p className="mt-1 text-xs font-semibold text-[#9E2A4B]">Mục tiêu N3 · Streak 14 ngày</p>
+              <h1 className="text-2xl font-bold">{user ? name : id ? 'Đang tải hồ sơ…' : 'Chưa chọn người dùng'}</h1>
+              <p className="text-sm text-[#6F6669]">{user ? `${user.email || 'Không có email'} · ${role} · ${user.isActive === false ? 'Đã khóa' : 'Đang hoạt động'}` : ''}</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="button" className="rounded-lg border border-[#eadfd9] px-3 py-2 text-sm font-semibold">
-              Tạm khóa
-            </button>
-            <button type="button" className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white">
-              Gửi email
+            <button type="button" disabled={!user || saving} onClick={() => save({ isActive: user.isActive === false })} className="rounded-lg border border-[#eadfd9] px-3 py-2 text-sm font-semibold disabled:opacity-50">
+              {user?.isActive === false ? 'Mở khóa' : 'Tạm khóa'}
             </button>
           </div>
         </header>
+
+        {error && <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
           <section className="rounded-2xl border border-[#eadfd9] bg-white p-6 lg:col-span-7">
             <h2 className="text-lg font-bold">Tiến độ học</h2>
             <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
               {[
-                ['Bài xong', '19/42'],
-                ['SRS hôm nay', '28'],
-                ['Thi thử', '111'],
+                ['ID', id || '—'],
+                ['Email xác thực', user?.isEmailVerified ? 'Có' : '—'],
+                ['Ngày tạo', user?.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : '—'],
               ].map(([k, v]) => (
                 <div key={k} className="rounded-xl bg-[#FFF8F8] py-4">
                   <dt className="text-[11px] font-bold uppercase text-[#A59B9E]">{k}</dt>
@@ -53,25 +67,13 @@ export default function AdminUserDetail() {
                 </div>
               ))}
             </dl>
-            <h3 className="mt-6 text-sm font-bold">Hoạt động gần đây</h3>
-            <ul className="mt-3 space-y-2 text-sm">
-              {ACTIVITY.map((a) => (
-                <li key={a.what} className="flex justify-between gap-4 border-b border-[#eadfd9] py-2 last:border-0">
-                  <span>{a.what}</span>
-                  <span className="shrink-0 text-[#A59B9E]">{a.when}</span>
-                </li>
-              ))}
-            </ul>
+            <h3 className="mt-6 text-sm font-bold">Thông tin tài khoản</h3>
+            <label className="mt-3 block text-sm">Vai trò<select disabled={!user || saving} value={role} onChange={(e) => save({ role: e.target.value })} className="mt-2 w-full rounded-lg border border-[#eadfd9] bg-white p-2">{['Learner', 'ContentAuthor', 'Mentor', 'Admin'].map((item) => <option key={item}>{item}</option>)}</select></label>
           </section>
           <aside className="rounded-2xl border border-[#eadfd9] bg-white p-6 lg:col-span-5">
-            <h2 className="text-lg font-bold">Gói &amp; tư vấn</h2>
-            <p className="mt-2 text-sm text-[#6F6669]">Gói Đồng hành JLPT · còn 2 buổi</p>
-            <p className="mt-3 text-xs text-[#A59B9E]">Lịch tư vấn xem ở cổng học viên / Sensei, không nhảy từ Admin.</p>
-            <h3 className="mt-6 text-sm font-bold">Vai trò</h3>
-            <p className="mt-1 text-sm text-[#6F6669]">Learner — có thể chuyển sang Author tại Phân quyền.</p>
-            <Link to="/admin/roles" className="mt-3 inline-flex text-sm font-bold text-[#D94B68] hover:underline">
-              Mở vai trò &amp; quyền
-            </Link>
+            <h2 className="text-lg font-bold">Hồ sơ</h2>
+            <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-[#A59B9E]">Số điện thoại</dt><dd>{user?.phoneNumber || '—'}</dd></div><div><dt className="text-[#A59B9E]">Ngôn ngữ</dt><dd>{user?.locale || '—'}</dd></div><div><dt className="text-[#A59B9E]">Giới thiệu</dt><dd>{user?.bio || '—'}</dd></div></dl>
+            <Link to="/admin/users" className="mt-6 inline-flex text-sm font-bold text-[#D94B68] hover:underline">Quay lại danh sách</Link>
           </aside>
         </div>
       </div>

@@ -154,7 +154,7 @@ export const FLOWS = [
       { n: 4, to: '/consultation-receipt', label: 'Biên lai', page: 'ConsultationReceipt', hint: 'Receipt' },
       { n: 5, to: '/consultation-center', label: 'Lịch của tôi', page: 'ConsultationCenter', hint: 'My bookings' },
       { n: 6, to: '/consultation-session', label: 'Chi tiết buổi', page: 'ConsultationSessionDetail', hint: 'Session' },
-      { n: 7, to: '/consultation-room', label: 'Vào phòng', page: 'ConsultationRoom', hint: 'Room' },
+      { n: 7, to: '/consultation-room', label: 'Phòng WebRTC', page: 'ConsultationRoom', hint: 'WebRTC' },
       { n: 8, to: '/sensei-profile', label: 'Hồ sơ Sensei', page: 'SenseiProfile', hint: 'Sensei' },
     ],
   },

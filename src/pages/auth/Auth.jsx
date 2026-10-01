@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { homePathForRole } from '../../api/auth.js';
-import { saveSession } from '../../auth/session.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 import { useLoginMutation } from '../../hooks/useAuth.js';
 import { learnerKeys, prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
 import { queryClient } from '../../api/queryClient.js';
@@ -9,6 +9,7 @@ import { queryClient } from '../../api/queryClient.js';
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth();
   const loginMutation = useLoginMutation();
   const [email, setEmail] = useState(() => location.state?.email || '');
   const [password, setPassword] = useState('');
@@ -31,7 +32,10 @@ export default function Auth() {
             setError('Đăng nhập thành công nhưng thiếu accessToken.');
             return;
           }
-          saveSession(
+
+          // Gọi login() từ AuthContext thay vì saveSession() trực tiếp
+          // để cập nhật session state TRƯỚC khi navigate → ProtectedRoute sẽ thấy isAuthenticated=true
+          login(
             {
               accessToken: result.accessToken,
               userId: result.userId,
@@ -41,6 +45,7 @@ export default function Auth() {
             },
             remember,
           );
+
           const goHome = () => navigate(homePathForRole(result.role), { replace: true });
           if ((result.role || '').toLowerCase() === 'learner') {
             prefetchLearnerHome()

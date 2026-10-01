@@ -71,7 +71,7 @@ import {
   AdminContentReview,
   AdminUserDetail,
   AdminConsultants,
-  AdminPackages,
+  AdminOperations,
 } from './pages/admin';
 
 export default function App() {
@@ -129,6 +129,9 @@ export default function App() {
             <Route path="/consultation-session" element={<ConsultationSessionDetail />} />
             <Route path="/consultation-receipt" element={<ConsultationReceipt />} />
             <Route path="/consultation-room" element={<ConsultationRoom />} />
+            <Route path="/consultation-room/:roomId" element={<ConsultationRoom />} />
+            <Route path="/meeting-room" element={<ConsultationRoom />} />
+            <Route path="/meeting-room/:roomId" element={<ConsultationRoom />} />
 
             {/* SENSEI / CONSULTANT PORTAL (Cố vấn & Giảng viên) */}
             <Route path="/consultant-overview" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><ConsultantOverview /></ProtectedRoute>} />
@@ -158,7 +161,8 @@ export default function App() {
             <Route path="/admin/roles" element={<ProtectedRoute requireAdmin><AdminRoles /></ProtectedRoute>} />
             <Route path="/admin/content-review" element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />
             <Route path="/admin/consultants" element={<ProtectedRoute requireAdmin><AdminConsultants /></ProtectedRoute>} />
-            <Route path="/admin/packages" element={<ProtectedRoute requireAdmin><AdminPackages /></ProtectedRoute>} />
+            <Route path="/admin/packages" element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
+            <Route path="/admin/operations" element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

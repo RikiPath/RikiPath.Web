@@ -5,5 +5,6 @@ export { default as AdminContentReview } from './AdminContentReview.jsx';
 export { default as AdminUserDetail } from './AdminUserDetail.jsx';
 export { default as AdminConsultants } from './AdminConsultants.jsx';
 export { default as AdminPackages } from './AdminPackages.jsx';
+export { default as AdminOperations } from './AdminOperations.jsx';
 
 
