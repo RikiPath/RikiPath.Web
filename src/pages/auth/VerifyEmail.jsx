@@ -9,7 +9,7 @@ export default function VerifyEmail() {
   const [params] = useSearchParams();
   const pending = getPendingVerify();
   const email = params.get('email') || pending?.email || '';
-  const [userId, setUserId] = useState(params.get('userId') || pending?.userId || '');
+  const userId = Number(params.get('userId') || pending?.userId || 0);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [notice] = useState(location.state?.notice || '');
@@ -19,13 +19,12 @@ export default function VerifyEmail() {
   function handleVerify(e) {
     e.preventDefault();
     setError('');
-    const id = Number(userId);
-    if (!id) {
-      setError('Cần mã người dùng (userId) theo API xác thực.');
+    if (!userId) {
+      setError('Phiên đăng ký đã hết. Hãy đăng ký lại để nhận mã mới.');
       return;
     }
     verifyMutation.mutate(
-      { userId: id, verificationCode: code.trim() },
+      { userId, verificationCode: code.trim() },
       {
         onSuccess: () => {
           clearPendingVerify();
@@ -44,23 +43,11 @@ export default function VerifyEmail() {
         <p className="text-[11px] font-bold uppercase tracking-wider text-sakura-600">Xác thực email</p>
         <h1 className="mt-2 text-2xl font-extrabold">Nhập mã 6 số</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Mã 6 số gửi tới{email ? ` ${email}` : ' email của bạn'}, hiệu lực 30 phút. Nhập userId và mã, rồi đăng nhập.
+          Mã 6 số gửi tới{email ? ` ${email}` : ' email của bạn'}, hiệu lực 30 phút.
         </p>
         <form className="mt-6 space-y-4" onSubmit={handleVerify}>
           {notice ? <p className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-800">{notice}</p> : null}
           {error ? <p className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">{error}</p> : null}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" htmlFor="userId">Mã người dùng (userId)</label>
-            <input
-              id="userId"
-              required
-              type="number"
-              min="1"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              className="block w-full px-4 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20"
-            />
-          </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" htmlFor="code">Mã xác thực</label>
             <input

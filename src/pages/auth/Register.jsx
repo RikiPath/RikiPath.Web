@@ -38,12 +38,12 @@ export default function Register() {
     registerMutation.mutate(payload, {
       onSuccess: (data) => {
         const result = data.result || {};
-        goToVerify(result.email || registeredEmail);
+        goToVerify(result.email || registeredEmail, result.userId);
       },
       onError: (err) => {
         const msg = err.message || 'Đăng ký thất bại.';
         if (msg.includes('Tạo tài khoản thành công')) {
-          goToVerify(registeredEmail, msg);
+          goToVerify(registeredEmail, resultUserIdFromError(err), msg);
           return;
         }
         if (msg.toLowerCase().includes('đã được đăng ký')) {
@@ -55,8 +55,14 @@ export default function Register() {
     });
   }
 
-  function goToVerify(registeredEmail, notice) {
-    savePendingVerify({ email: registeredEmail });
+  function resultUserIdFromError(err) {
+    const blob = `${err?.message || ''} ${JSON.stringify(err?.errors || err?.data || '')}`;
+    const match = blob.match(/userId["']?\s*[:=]\s*(\d+)/i) || blob.match(/Id\s*=\s*(\d+)/);
+    return match ? Number(match[1]) : undefined;
+  }
+
+  function goToVerify(registeredEmail, userId, notice) {
+    savePendingVerify({ email: registeredEmail, userId: userId || undefined });
     navigate(`/verify-email?email=${encodeURIComponent(registeredEmail)}`, {
       state: notice ? { notice } : undefined,
     });

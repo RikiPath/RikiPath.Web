@@ -20,8 +20,7 @@ export default function LearnerShell({
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md" data-shell="learner">
       <aside
-        className="fixed left-0 top-0 z-50 flex h-screen flex-col justify-between overflow-y-auto bg-surface-container-lowest p-4 shadow-[0_1px_8px_rgba(0,0,0,0.04)]"
-        style={{ width: SIDEBAR_W }}
+        className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col justify-between overflow-y-auto bg-surface-container-lowest p-4"
       >
         <div className="flex flex-col gap-6">
           <div className="flex items-center gap-3 px-3 py-2">
@@ -93,7 +92,7 @@ export default function LearnerShell({
 
       <div className="min-w-0" style={{ paddingLeft: SIDEBAR_W }}>
         <header
-          className="fixed right-0 z-40 flex h-16 items-center justify-between gap-4 border-b border-outline-variant/30 bg-surface/90 px-6 backdrop-blur-xl sm:px-8"
+          className="fixed top-0 right-0 z-40 flex h-16 items-center justify-between gap-4 border-b border-outline-variant/30 bg-surface/90 px-6 backdrop-blur-xl sm:px-8"
           style={{ left: SIDEBAR_W }}
         >
           <div className="hidden items-center gap-2 whitespace-nowrap font-body-sm text-body-sm text-on-surface-variant sm:flex">
