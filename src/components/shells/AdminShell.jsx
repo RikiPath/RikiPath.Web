@@ -2,112 +2,129 @@ import { NavLink } from 'react-router-dom';
 import { ADMIN_NAV, pathMatches } from './navConfig.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
-const SIDEBAR_W = 260;
+const SIDEBAR_W = 280;
 
-function Item({ item, pathname, end }) {
-  if (item.neverActive) {
-    return (
-      <div className="flex items-center border-l-4 border-transparent px-4 py-3 text-on-surface-variant/70">
-        <span className="material-symbols-outlined mr-3">{item.icon}</span>
-        <span className="font-body-md text-body-md">{item.label}</span>
-      </div>
-    );
-  }
-  const active = pathMatches(pathname, { ...item, end: end ?? item.end });
+function navClass(active) {
+  return [
+    'rp-nav-item group/nav flex w-full items-center gap-3 rounded-[16px] px-2.5 py-2 text-left transition-all',
+    active ? 'rp-nav-item-active' : 'text-[#6F6669] hover:bg-white hover:text-[#2D282A]',
+  ].join(' ');
+}
+
+function NavIcon({ name, active }) {
   return (
-    <NavLink
-      to={item.to}
-      end={item.end}
+    <span
       className={[
-        'flex items-center border-l-4 px-4 py-3 transition-colors duration-150',
-        active
-          ? 'border-primary bg-surface-container/70 font-bold text-primary opacity-95'
-          : 'border-transparent text-on-surface-variant hover:bg-surface-container-low hover:text-primary',
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[18px] transition-colors',
+        active ? 'bg-[#ffd9e4] text-[#D94B68]' : 'bg-[#FFF8F8] text-[#A59B9E] group-hover/nav:bg-[#fff0f5] group-hover/nav:text-[#D94B68]',
       ].join(' ')}
     >
-      <span className={`material-symbols-outlined mr-3 ${active ? 'text-primary' : ''}`}>
-        {item.icon}
+      <span className="material-symbols-outlined text-[20px]">{name}</span>
+    </span>
+  );
+}
+
+function NavCopy({ label, hint, active }) {
+  return (
+    <span className="min-w-0 flex-1">
+      <span className={['block truncate text-[14px] leading-5', active ? 'font-bold text-[#9E2A4B]' : 'font-semibold'].join(' ')}>
+        {label}
       </span>
-      <span className={`font-body-md text-body-md ${active ? 'font-semibold text-primary' : ''}`}>
-        {item.label}
-      </span>
-    </NavLink>
+      {hint ? (
+        <span className={['mt-0.5 block truncate text-[11px] font-medium leading-4', active ? 'text-[#D94B68]/80' : 'text-[#A59B9E]'].join(' ')}>
+          {hint}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
 export default function AdminShell({ children, pathname, breadcrumb = 'Tổng quan' }) {
   const { user, primaryRole, logout } = useAuth();
-  const displayName = user?.fullName || user?.name || user?.email || 'Admin User';
+  const displayName = user?.fullName || user?.name || user?.email || 'Admin';
   const roleName = primaryRole || 'Admin';
 
   return (
-    <div
-      className="flex min-h-screen overflow-hidden bg-background text-on-background"
-      data-shell="admin"
-    >
-      <nav
-        className="fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border-subtle bg-surface-container-lowest py-4"
-        style={{ width: SIDEBAR_W }}
-      >
-        <div className="mb-6 px-4">
-          <h1 className="font-headline-md text-headline-md font-bold text-primary">
-            {ADMIN_NAV.brand.title}
-          </h1>
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            {ADMIN_NAV.brand.subtitle}
-          </p>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {ADMIN_NAV.items.map((item) => (
-            <Item key={item.label} item={item} pathname={pathname} />
-          ))}
-        </div>
-        <div className="mt-auto border-t border-border-subtle pt-3 px-4">
-          <div className="flex items-center gap-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-xs">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-on-surface truncate">{displayName}</p>
-              <p className="text-[10px] text-primary font-semibold truncate">{roleName}</p>
-            </div>
-            <button
-              type="button"
-              onClick={logout}
-              title="Đăng xuất"
-              className="p-1.5 text-on-surface-variant hover:text-rose-600 rounded-lg hover:bg-surface-container transition-colors"
-            >
-              <span className="material-symbols-outlined text-[18px]">logout</span>
-            </button>
+    <div className="min-h-screen bg-transparent text-[#2D282A]" data-shell="admin">
+      <aside className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col overflow-y-auto px-4 py-5">
+        <div className="mb-6 flex items-center gap-3 px-2">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white">
+            <span className="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+          </div>
+          <div className="min-w-0 leading-tight">
+            <div className="truncate text-[18px] font-extrabold tracking-tight text-[#2D282A]">{ADMIN_NAV.brand.title}</div>
+            <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A59B9E]">{ADMIN_NAV.brand.subtitle}</div>
           </div>
         </div>
-      </nav>
 
-      <div className="flex h-screen flex-1 flex-col overflow-hidden" style={{ marginLeft: SIDEBAR_W }}>
-        <header className="z-40 flex h-16 w-full shrink-0 items-center justify-between border-b border-border-subtle bg-surface px-8">
-          <div className="flex items-center font-body-sm text-body-sm text-on-surface-variant">
-            <span>RikiPath Admin</span>
-            <span className="material-symbols-outlined mx-1 text-[16px] text-outline">
-              chevron_right
-            </span>
-            <span className="font-semibold text-primary">{breadcrumb}</span>
+        <nav className="flex flex-1 flex-col gap-5">
+          {ADMIN_NAV.groups.map((group) => (
+            <div key={group.label}>
+              <div className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[#C4B8BA]">{group.label}</div>
+              <div className="flex flex-col gap-1">
+                {group.items.map((item) => {
+                  const active = pathMatches(pathname, item);
+                  return (
+                    <NavLink key={`${group.label}-${item.to}`} to={item.to} end={item.end} className={navClass(active)}>
+                      <NavIcon name={item.icon} active={active} />
+                      <NavCopy label={item.label} hint={item.hint} active={active} />
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="rp-catalog-card mt-6 flex items-center gap-3 rounded-[22px] p-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fff0f5] text-sm font-bold text-[#D94B68]">
+            {displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="flex items-center gap-4 text-on-surface-variant">
-            <span className="material-symbols-outlined cursor-pointer hover:text-primary">
-              notifications
-            </span>
-            <span className="material-symbols-outlined cursor-pointer hover:text-primary">help</span>
-            <span className="material-symbols-outlined cursor-pointer hover:text-primary">
-              settings
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-bold text-[#2D282A]">{displayName}</div>
+            <div className="truncate text-[11px] font-medium text-[#A59B9E]">{roleName}</div>
           </div>
+          <button
+            type="button"
+            onClick={logout}
+            title="Đăng xuất"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[#A59B9E] hover:bg-[#fff0f5] hover:text-[#D94B68]"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="min-w-0" style={{ paddingLeft: SIDEBAR_W }}>
+        <header
+          className="fixed top-0 right-0 z-40 flex h-[72px] items-center justify-between gap-4 px-6 sm:px-8"
+          style={{ left: SIDEBAR_W }}
+        >
+          <div className="hidden min-w-0 items-center gap-2 text-[13px] text-[#8A8084] sm:flex">
+            <span>Admin</span>
+            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+            <span className="truncate font-bold text-[#2D282A]">{breadcrumb}</span>
+          </div>
+          <div className="mx-0 max-w-md flex-1 sm:mx-6">
+            <div className="relative flex items-center">
+              <span className="material-symbols-outlined absolute left-4 text-[18px] text-[#A59B9E]">search</span>
+              <input
+                className="h-11 w-full rounded-full border border-[#dfbfc1]/50 bg-white pl-11 pr-4 text-[13px] text-[#2D282A] shadow-sm placeholder:text-[#C4B8BA] focus:outline-none focus:ring-2 focus:ring-[#D94B68]/20"
+                placeholder="Tìm người dùng, mentor, nội dung..."
+                type="search"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#dfbfc1]/45 bg-white text-[#6F6669] shadow-sm hover:text-[#D94B68]"
+            aria-label="Thông báo"
+          >
+            <span className="material-symbols-outlined text-[20px]">notifications</span>
+          </button>
         </header>
-        <main className="flex-1 overflow-y-auto bg-surface-container-low/40">{children}</main>
-        <footer className="shrink-0 border-t border-border-subtle bg-surface px-8 py-3 text-center font-body-sm text-body-sm text-on-surface-variant">
-          © 2026 RikiPath Admin
-        </footer>
+        <main className="min-h-screen pt-[72px]">{children}</main>
       </div>
     </div>
   );
 }
-

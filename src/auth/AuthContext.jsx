@@ -3,7 +3,7 @@ import { getSession, saveSession, clearSession, patchSession } from './session.j
 import { extractUserFromToken, normalizeRole } from './jwt.js';
 import { homePathForRole } from '../api/auth.js';
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSessionState] = useState(() => getSession());
@@ -79,6 +79,10 @@ export function AuthProvider({ children }) {
 
   const homePath = homePathForRole(primaryRole);
 
+  const refreshSession = useCallback(() => {
+    setSessionState(getSession());
+  }, []);
+
   const login = useCallback((sessionData, remember = true) => {
     saveSession(sessionData, remember);
     setSessionState(sessionData);
@@ -111,6 +115,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     updateSession,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

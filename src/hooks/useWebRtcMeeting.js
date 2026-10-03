@@ -18,6 +18,55 @@ const ICE_SERVERS = {
 const DEFAULT_REMOTE_MEDIA = { isMicOn: true, isCamOn: true, isScreenSharing: false };
 const parse = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
 
+const mediaHold = { roomId: '', stream: null, releaseTimer: null };
+
+function liveTracks(stream) {
+  return stream?.getTracks().filter((t) => t.readyState === 'live') ?? [];
+}
+
+function takeHeldMedia(roomId) {
+  if (mediaHold.releaseTimer) {
+    clearTimeout(mediaHold.releaseTimer);
+    mediaHold.releaseTimer = null;
+  }
+  if (mediaHold.roomId === roomId && liveTracks(mediaHold.stream).length) {
+    return mediaHold.stream;
+  }
+  return null;
+}
+
+function holdMedia(roomId, stream) {
+  if (mediaHold.releaseTimer) {
+    clearTimeout(mediaHold.releaseTimer);
+    mediaHold.releaseTimer = null;
+  }
+  mediaHold.roomId = roomId;
+  mediaHold.stream = stream;
+}
+
+function scheduleReleaseMedia(roomId) {
+  if (mediaHold.releaseTimer) clearTimeout(mediaHold.releaseTimer);
+  mediaHold.releaseTimer = setTimeout(() => {
+    if (mediaHold.roomId !== roomId) return;
+    mediaHold.stream?.getTracks().forEach((t) => t.stop());
+    mediaHold.stream = null;
+    mediaHold.roomId = '';
+    mediaHold.releaseTimer = null;
+  }, 500);
+}
+
+function cameraBusyMessage(err) {
+  const name = err?.name || '';
+  const msg = err?.message || '';
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return 'Trình duyệt đang chặn camera. Bấm biểu tượng khóa trên thanh địa chỉ, cho phép Camera, rồi bấm lại.';
+  }
+  if (name === 'NotReadableError' || /in use|busy|Could not start/i.test(msg)) {
+    return 'Camera đang bị tab hoặc app khác giữ (Chrome khác, cửa sổ Cursor, Zoom…). Đóng hết phòng gọi khác rồi bấm Bật camera lại.';
+  }
+  return `Không bật được camera: ${msg || 'lỗi không xác định'}.`;
+}
+
 /**
  * WebRTC 1-1 (Mentor <-> Learner) + SignalR signaling.
  * - Mentor là bên "impolite", Learner là "polite" để xử lý offer đụng nhau (glare).
@@ -82,6 +131,9 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     const polite = (userRef.current.role || '').toLowerCase() !== 'mentor';
 
     const initMedia = async () => {
+      const reused = takeHeldMedia(roomId);
+      if (reused) return reused;
+
       const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       try {
         return await navigator.mediaDevices.getUserMedia({
@@ -89,12 +141,11 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
           audio,
         });
       } catch (err) {
-        // Không có/không cho camera -> vẫn vào phòng với mic (hoặc chỉ nghe/xem + share màn hình)
         try {
           return await navigator.mediaDevices.getUserMedia({ audio });
         } catch (err2) {
           console.warn('Could not acquire media:', err2);
-          setError(`Không thể truy cập Camera/Microphone: ${err2.message}. Bạn vẫn có thể xem, chat và chia sẻ màn hình.`);
+          setError(cameraBusyMessage(err2));
           return null;
         }
       }
@@ -239,9 +290,10 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         return;
       }
       localStreamRef.current = stream;
+      holdMedia(roomId, stream);
       setLocalStream(stream);
-      const hasMic = !!stream?.getAudioTracks().length;
-      const hasCam = !!stream?.getVideoTracks().length;
+      const hasMic = !!stream?.getAudioTracks().some((t) => t.readyState === 'live');
+      const hasCam = !!stream?.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled);
       mediaRef.current = { isMicOn: hasMic, isCamOn: hasCam, isScreenSharing: false };
       setIsMicOn(hasMic);
       setIsCamOn(hasCam);
@@ -305,7 +357,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     return () => {
       cancelled = true;
       peerPresentRef.current = false;
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      scheduleReleaseMedia(roomId);
       localStreamRef.current = null;
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
@@ -314,28 +366,97 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         pcRef.current.close();
         pcRef.current = null;
       }
-      // Server tự xử lý rời phòng ở OnDisconnectedAsync
       hubRef.current = null;
       if (hub) hub.stop().catch(() => { });
     };
   }, [roomId, invokeHub]);
 
   // ================= CONTROLS =================
-  const toggleMic = useCallback(() => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setIsMicOn(track.enabled);
-    broadcastMedia({ isMicOn: track.enabled });
-  }, [broadcastMedia]);
+  const ensureLocalStream = useCallback(() => {
+    if (localStreamRef.current) return localStreamRef.current;
+    const stream = new MediaStream();
+    localStreamRef.current = stream;
+    return stream;
+  }, []);
 
-  const toggleCam = useCallback(() => {
-    const track = localStreamRef.current?.getVideoTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setIsCamOn(track.enabled);
-    broadcastMedia({ isCamOn: track.enabled });
-  }, [broadcastMedia]);
+  const bindLocalPreview = useCallback((stream) => {
+    localStreamRef.current = stream;
+    setLocalStream(new MediaStream(stream.getTracks()));
+  }, []);
+
+  const toggleMic = useCallback(async () => {
+    const existing = localStreamRef.current?.getAudioTracks()[0];
+    if (existing) {
+      existing.enabled = !existing.enabled;
+      setIsMicOn(existing.enabled);
+      broadcastMedia({ isMicOn: existing.enabled });
+      return;
+    }
+    try {
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const track = mic.getAudioTracks()[0];
+      if (!track) throw new Error('Không nhận được microphone');
+      const stream = ensureLocalStream();
+      stream.addTrack(track);
+      pcRef.current?.addTrack(track, stream);
+      bindLocalPreview(stream);
+      setIsMicOn(true);
+      broadcastMedia({ isMicOn: true });
+      setError(null);
+    } catch (err) {
+      setError('Không bật được micro. Hãy cho phép quyền microphone trên thanh địa chỉ trình duyệt, rồi bấm lại.');
+    }
+  }, [bindLocalPreview, broadcastMedia, ensureLocalStream]);
+
+  const toggleCam = useCallback(async () => {
+    const fromHold = mediaHold.stream === localStreamRef.current ? mediaHold.stream : localStreamRef.current;
+    const existing = fromHold?.getVideoTracks().find((t) => t.readyState === 'live');
+    if (existing) {
+      existing.enabled = !existing.enabled;
+      setIsCamOn(existing.enabled);
+      broadcastMedia({ isCamOn: existing.enabled });
+      setError(null);
+      return;
+    }
+
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      });
+      const track = cam.getVideoTracks()[0];
+      if (!track) throw new Error('Không nhận được camera');
+      const stream = ensureLocalStream();
+      stream.getVideoTracks().forEach((old) => {
+        if (old !== track) {
+          stream.removeTrack(old);
+          old.stop();
+        }
+      });
+      stream.addTrack(track);
+      holdMedia(roomIdRef.current, stream);
+      if (videoSenderRef.current) {
+        await videoSenderRef.current.replaceTrack(track);
+      } else {
+        pcRef.current?.addTrack(track, stream);
+      }
+      bindLocalPreview(stream);
+      setIsCamOn(true);
+      broadcastMedia({ isCamOn: true });
+      setError(null);
+    } catch (err) {
+      const leftover = localStreamRef.current?.getVideoTracks().find((t) => t.readyState === 'live');
+      if (leftover) {
+        leftover.enabled = true;
+        setIsCamOn(true);
+        broadcastMedia({ isCamOn: true });
+        setError(null);
+        return;
+      }
+      setError(cameraBusyMessage(err));
+    }
+  }, [bindLocalPreview, broadcastMedia, ensureLocalStream]);
 
   const stopScreenSharing = useCallback(() => {
     if (!screenStreamRef.current) return;

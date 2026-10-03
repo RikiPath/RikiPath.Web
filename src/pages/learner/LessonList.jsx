@@ -10,7 +10,7 @@ export default function LessonList() {
 {/*  Left 8-Column Section: Lessons Header, Filters, Cards  */}
 <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
 {/*  Page Header & Course Progress Banner  */}
-<div className="bg-white border border-card-border rounded-2xl p-6 shadow-subtle flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+<div className="rp-catalog-card flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden rounded-[28px] p-6">
 <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-primary-light/60 pointer-events-none blur-2xl"></div>
 <div className="space-y-1.5 z-10">
 <div className="flex items-center gap-2">

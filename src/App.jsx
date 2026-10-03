@@ -1,8 +1,8 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './auth/AuthContext.jsx';
+import { useContext, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import PreviewNav from './components/PreviewNav.jsx';
-
+import { isPreviewEnabled } from './mocks/preview.js';
 // —— Marketing ——
 import { HomeLanding, CourseCatalog, CourseDetail, FeatureDetail } from './pages/marketing';
 
@@ -76,12 +76,26 @@ import {
   AdminOperations,
 } from './pages/admin';
 
+function PreviewSessionSync() {
+  const location = useLocation();
+  const auth = useContext(AuthContext);
+  useEffect(() => {
+    auth?.refreshSession?.();
+  }, [location.search, auth]);
+  if (!isPreviewEnabled()) return null;
+  return (
+    <div className="pointer-events-none fixed bottom-4 left-1/2 z-[80] -translate-x-1/2 rounded-full bg-[#2D282A] px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg">
+      Đang xem bằng mock data · thêm ?preview=0 để tắt
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <div className="rikipath-shell min-h-screen bg-[#FAF7F5]">
-          <PreviewNav />
+          <PreviewSessionSync />
           <Routes>
             {/* ========== MARKETING ========== */}
             <Route path="/" element={<HomeLanding />} />
