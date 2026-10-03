@@ -72,7 +72,7 @@ export default function MarketingShell({ children }) {
             <div className="flex flex-col gap-2.5 text-sm text-[#6F6669]">
               <Link to="/courses" className="hover:text-[#D94B68]">Luyện thi JLPT</Link>
               <Link to="/mentor" className="hover:text-[#D94B68]">Tư vấn 1-1</Link>
-              <Link to="/app" className="hover:text-[#D94B68]">Vào dashboard</Link>
+              <Link to="/auth" className="hover:text-[#D94B68]">Vào dashboard</Link>
             </div>
           </div>
           <div>

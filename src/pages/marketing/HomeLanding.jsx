@@ -126,7 +126,7 @@ export default function HomeLanding() {
               <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#D94B68]">Nội dung đang có trên hệ thống</div>
               <h2 className="mt-2 max-w-xl text-[34px] font-extrabold leading-tight">Một hệ sinh thái tự học JLPT hoàn chỉnh.</h2>
             </div>
-            <Link to="/app" className="text-[14px] font-semibold text-[#D94B68]">
+            <Link to="/auth" className="text-[14px] font-semibold text-[#D94B68]">
               Vào dashboard →
             </Link>
           </div>

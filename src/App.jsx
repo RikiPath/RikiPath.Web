@@ -76,6 +76,14 @@ import {
   AdminOperations,
 } from './pages/admin';
 
+function NormalizePath() {
+  const { pathname, search, hash } = useLocation();
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return <Navigate to={`${pathname.replace(/\/+$/, '')}${search}${hash}`} replace />;
+  }
+  return null;
+}
+
 function PreviewSessionSync() {
   const location = useLocation();
   const auth = useContext(AuthContext);
@@ -95,6 +103,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <div className="rikipath-shell min-h-screen bg-[#FAF7F5]">
+          <NormalizePath />
           <PreviewSessionSync />
           <Routes>
             {/* ========== MARKETING ========== */}
