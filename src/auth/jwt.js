@@ -44,8 +44,8 @@ export function normalizeRole(role) {
   ) {
     return 'ContentAuthor';
   }
-  if (lower === 'consultant' || lower === 'sensei' || lower === 'advisor' || lower === 'counselor') {
-    return 'Consultant';
+  if (lower === 'consultant' || lower === 'sensei' || lower === 'advisor' || lower === 'counselor' || lower === 'mentor') {
+    return 'Mentor';
   }
   if (lower === 'learner' || lower === 'student' || lower === 'user' || lower === 'member') {
     return 'Learner';

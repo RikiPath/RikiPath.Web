@@ -13,3 +13,4 @@ export { default as SenseiProfile } from './SenseiProfile.jsx';
 export { default as ConsultationSessionDetail } from './ConsultationSessionDetail.jsx';
 export { default as ConsultationReceipt } from './ConsultationReceipt.jsx';
 export { default as ConsultationRoom } from './ConsultationRoom.jsx';
+export { default as MentorAvailability } from './MentorAvailability.jsx';

@@ -38,7 +38,7 @@ export const ADMIN_NAV = {
   items: [
     { to: '/admin', label: 'Tổng quan', icon: 'dashboard', end: true },
     { to: '/admin/users', label: 'Người dùng', icon: 'group', alsoActive: ['/admin/users/detail'] },
-    { to: '/admin/consultants', label: 'Quản lý Consultant', icon: 'support_agent' },
+    { to: '/admin/mentors', label: 'Quản lý Mentor', icon: 'support_agent' },
     { to: '/admin/operations', label: 'Gói, Feature & lịch Mentor', icon: 'tune' },
     { to: '/admin/roles', label: 'Vai trò & quyền', icon: 'lock_person' },
     { to: '/admin/content-review', label: 'Duyệt nội dung', icon: 'fact_check' },
@@ -63,7 +63,7 @@ export const LEARNER_NAV = {
     { to: '/daily-srs', label: 'Ôn SRS', icon: 'style' },
     { to: '/ai-counselor', label: 'Cố vấn AI', icon: 'psychology' },
     {
-      to: '/consultation',
+      to: '/mentor',
       label: 'Tư vấn 1-1',
       icon: 'support_agent',
       alsoActive: [
@@ -74,6 +74,7 @@ export const LEARNER_NAV = {
         '/consultation-receipt',
         '/consultation-room',
         '/sensei-profile',
+        '/mentor-availability',
       ],
     },
     { to: '/settings', label: 'Cài đặt', icon: 'settings' },
@@ -82,23 +83,24 @@ export const LEARNER_NAV = {
 };
 
 export const CONSULT_NAV = {
-  brand: { title: 'RikiPath', subtitle: 'Cổng Cố Vấn', badge: 'SENSEI' },
+  brand: { title: 'RikiPath', subtitle: 'Cổng Mentor', badge: 'MENTOR' },
   items: [
-    { to: '/consultant-overview', label: 'Tổng quan', icon: 'dashboard' },
+    { to: '/mentor-overview', label: 'Tổng quan', icon: 'dashboard' },
     { to: '/consultation-queue', label: 'Hàng đợi', icon: 'pending_actions' },
     { to: '/consultation-prep', label: 'Chuẩn bị buổi', icon: 'fact_check' },
     { to: '/consultation-request', label: 'Chi tiết yêu cầu', icon: 'description' },
     { to: '/consultation-reply', label: 'Trả lời văn bản', icon: 'forum' },
     { to: '/work-schedule', label: 'Lịch làm việc', icon: 'calendar_month' },
+    { to: '/mentor-availability', label: 'Lịch khả dụng', icon: 'event_available' },
   ],
-  user: { name: 'Sensei Aoi', role: 'Cố vấn N3–N2' },
+  user: { name: 'Sensei Aoi', role: 'Mentor N3–N2' },
 };
 
 export const MARKETING_NAV = {
   links: [
     { to: '/', label: 'Trang chủ', end: true },
     { to: '/courses', label: 'Khóa học' },
-    { to: '/consultation', label: 'Tư vấn' },
+    { to: '/mentor', label: 'Tư vấn' },
     { to: '/auth', label: 'Đăng nhập' },
   ],
   cta: { to: '/register', label: 'Bắt đầu học' },
