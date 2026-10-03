@@ -9,6 +9,7 @@ export default function ProtectedRoute({
   requireAdmin = false,
   requireAuthor = false,
   requireConsultant = false,
+  requireMentor = false,
 }) {
   const { isAuthenticated, user, roles, primaryRole, hasRole, hasAnyRole, logout } = useAuth();
   const location = useLocation();
@@ -25,8 +26,8 @@ export default function ProtectedRoute({
     requiredRoles = ['Admin'];
   } else if (requireAuthor) {
     requiredRoles = ['ContentAuthor', 'Admin'];
-  } else if (requireConsultant) {
-    requiredRoles = ['Consultant', 'Admin'];
+  } else if (requireConsultant || requireMentor) {
+    requiredRoles = ['Mentor', 'Consultant', 'Admin'];
   }
 
   if (requiredRoles.length > 0) {

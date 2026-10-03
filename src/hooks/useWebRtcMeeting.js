@@ -2,426 +2,410 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createMeetingHubConnection } from '../services/mentorMeetingHub.js';
 import { getSession } from '../auth/session.js';
 
+const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
+
+// STUN đủ cho mạng thường; mạng công ty/4G (symmetric NAT) cần TURN -> cấu hình qua .env
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
+    ...(env.VITE_TURN_URL
+      ? [{ urls: env.VITE_TURN_URL, username: env.VITE_TURN_USERNAME, credential: env.VITE_TURN_CREDENTIAL }]
+      : []),
   ],
 };
 
+const DEFAULT_REMOTE_MEDIA = { isMicOn: true, isCamOn: true, isScreenSharing: false };
+const parse = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
+
 /**
- * Custom React Hook for WebRTC 1-on-1 Mentor Meeting Room with SignalR Signaling
- * @param {string} roomId - Room identifier (e.g. "room-n3-dokkai-101")
- * @param {Object} currentUser - User information { id, name, role }
+ * WebRTC 1-1 (Mentor <-> Learner) + SignalR signaling.
+ * - Mentor là bên "impolite", Learner là "polite" để xử lý offer đụng nhau (glare).
+ * - Cả hai đều share màn hình được (replaceTrack trên video sender).
  */
 export function useWebRtcMeeting(roomId, currentUser = {}) {
-  const [connectionStatus, setConnectionStatus] = useState('initializing'); // initializing, connected, connecting, error, disconnected
-  const [webrtcState, setWebrtcState] = useState('new'); // new, checking, connected, completed, disconnected, failed
+  const [connectionStatus, setConnectionStatus] = useState('initializing');
+  const [webrtcState, setWebrtcState] = useState('new');
   const [localStream, setLocalStream] = useState(null);
+  const [screenStream, setScreenStream] = useState(null); // để preview màn hình mình đang share
   const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteUser, setRemoteUser] = useState(null);
+  const [remoteMedia, setRemoteMedia] = useState(DEFAULT_REMOTE_MEDIA);
+  const [remoteHandRaised, setRemoteHandRaised] = useState(false);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
-  const [remoteUser, setRemoteUser] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [error, setError] = useState(null);
 
-  const hubConnectionRef = useRef(null);
-  const peerConnectionRef = useRef(null);
+  const roomIdRef = useRef(roomId);
+  roomIdRef.current = roomId;
+  const userRef = useRef(currentUser);
+  userRef.current = currentUser;
+
+  const hubRef = useRef(null);
+  const pcRef = useRef(null);
   const localStreamRef = useRef(null);
-  const screenTrackRef = useRef(null);
-  const pendingIceCandidatesRef = useRef([]);
+  const screenStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const videoSenderRef = useRef(null);
+  const pendingIceRef = useRef([]);
+  const peerPresentRef = useRef(false);
+  const makingOfferRef = useRef(false);
+  const ignoreOfferRef = useRef(false);
+  const mediaRef = useRef({ isMicOn: true, isCamOn: true, isScreenSharing: false });
 
-  // ================= 1. INITIALIZE LOCAL MEDIA STREAM =================
-  const initLocalMedia = useCallback(async () => {
+  const invokeHub = useCallback(async (method, ...args) => {
+    const hub = hubRef.current;
+    if (!hub || hub.state !== 'Connected') return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user',
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-      return stream;
-    } catch (err) {
-      console.warn('Could not acquire local camera/mic stream:', err);
-      setError(`Không thể truy cập Camera/Microphone: ${err.message}. Vui lòng cấp quyền trong trình duyệt.`);
-      return null;
+      await hub.invoke(method, roomIdRef.current, ...args);
+    } catch (e) {
+      console.warn(`SignalR ${method} failed:`, e);
     }
   }, []);
 
-  // ================= 2. CREATE WEBRTC PEER CONNECTION =================
-  const createPeerConnection = useCallback((stream) => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-    }
+  const broadcastMedia = useCallback(
+    (patch) => {
+      mediaRef.current = { ...mediaRef.current, ...patch };
+      invokeHub('ToggleMediaState', mediaRef.current);
+    },
+    [invokeHub]
+  );
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-    peerConnectionRef.current = pc;
+  // ================= SESSION: media + peer + signaling =================
+  useEffect(() => {
+    if (!roomId) return undefined;
+    let cancelled = false;
+    let hub = null;
+    const polite = (userRef.current.role || '').toLowerCase() !== 'mentor';
 
-    // Attach local tracks to peer connection
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
-    }
-
-    // When remote stream tracks arrive
-    pc.ontrack = (event) => {
-      console.log('WebRTC ontrack received:', event.streams);
-      if (event.streams && event.streams[0]) {
-        setRemoteStream(event.streams[0]);
-      }
-    };
-
-    // When ICE candidate is generated locally
-    pc.onicecandidate = (event) => {
-      if (event.candidate && hubConnectionRef.current) {
+    const initMedia = async () => {
+      const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+          audio,
+        });
+      } catch (err) {
+        // Không có/không cho camera -> vẫn vào phòng với mic (hoặc chỉ nghe/xem + share màn hình)
         try {
-          hubConnectionRef.current.invoke('SendIceCandidate', roomId, JSON.stringify(event.candidate));
-        } catch (e) {
-          console.warn('Failed to send ICE candidate over SignalR:', e);
+          return await navigator.mediaDevices.getUserMedia({ audio });
+        } catch (err2) {
+          console.warn('Could not acquire media:', err2);
+          setError(`Không thể truy cập Camera/Microphone: ${err2.message}. Bạn vẫn có thể xem, chat và chia sẻ màn hình.`);
+          return null;
         }
       }
     };
 
-    // Connection state changes
-    pc.onconnectionstatechange = () => {
-      console.log('WebRTC Connection State changed to:', pc.connectionState);
-      setWebrtcState(pc.connectionState);
+    const flushIce = async (pc) => {
+      while (pendingIceRef.current.length > 0) {
+        try {
+          await pc.addIceCandidate(pendingIceRef.current.shift());
+        } catch (e) {
+          if (!ignoreOfferRef.current) console.warn('addIceCandidate failed:', e);
+        }
+      }
     };
 
-    pc.oniceconnectionstatechange = () => {
-      console.log('WebRTC ICE Connection State changed to:', pc.iceConnectionState);
+    const negotiate = async () => {
+      const pc = pcRef.current;
+      if (!pc || !peerPresentRef.current) return;
+      try {
+        makingOfferRef.current = true;
+        await pc.setLocalDescription(); // tự tạo offer
+        await invokeHub('SendOffer', JSON.stringify(pc.localDescription));
+      } catch (e) {
+        console.error('Negotiate failed:', e);
+      } finally {
+        makingOfferRef.current = false;
+      }
     };
 
-    return pc;
-  }, [roomId]);
-
-  // ================= 3. SIGNALING NEGOTIATION =================
-  const createAndSendOffer = useCallback(async () => {
-    const pc = peerConnectionRef.current;
-    const hub = hubConnectionRef.current;
-    if (!pc || !hub) return;
-
-    try {
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
-      });
-      await pc.setLocalDescription(offer);
-      console.log('Sending WebRTC Offer to room:', roomId);
-      await hub.invoke('SendOffer', roomId, JSON.stringify(offer));
-    } catch (err) {
-      console.error('Error creating/sending WebRTC offer:', err);
-    }
-  }, [roomId]);
-
-  const handleReceiveOffer = useCallback(async (senderId, offerSdpJson, senderInfo) => {
-    console.log('Received WebRTC Offer from:', senderId);
-    let pc = peerConnectionRef.current;
-    if (!pc) {
-      pc = createPeerConnection(localStreamRef.current);
-    }
-
-    if (senderInfo) {
-      setRemoteUser(senderInfo);
-    }
-
-    try {
-      const offerSdp = typeof offerSdpJson === 'string' ? JSON.parse(offerSdpJson) : offerSdpJson;
-      await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
-
-      // Process any queued ICE candidates
-      while (pendingIceCandidatesRef.current.length > 0) {
-        const cand = pendingIceCandidatesRef.current.shift();
-        await pc.addIceCandidate(cand);
+    const createPeer = () => {
+      if (pcRef.current) {
+        pcRef.current.onnegotiationneeded = null;
+        pcRef.current.close();
       }
+      remoteStreamRef.current = null;
+      setRemoteStream(null);
+      pendingIceRef.current = [];
 
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      pcRef.current = pc;
 
-      if (hubConnectionRef.current) {
-        console.log('Sending WebRTC Answer back to room:', roomId);
-        await hubConnectionRef.current.invoke('SendAnswer', roomId, JSON.stringify(answer));
+      pc.onnegotiationneeded = negotiate;
+      pc.onicecandidate = (e) => {
+        if (e.candidate) invokeHub('SendIceCandidate', JSON.stringify(e.candidate));
+      };
+      pc.onconnectionstatechange = () => setWebrtcState(pc.connectionState);
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed') pc.restartIce();
+      };
+      pc.ontrack = (e) => {
+        let ms = remoteStreamRef.current;
+        if (!ms) {
+          ms = new MediaStream();
+          remoteStreamRef.current = ms;
+        }
+        if (!ms.getTracks().includes(e.track)) ms.addTrack(e.track);
+        setRemoteStream(ms);
+      };
+
+      const stream = localStreamRef.current;
+      if (stream) stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+
+      // Luôn có sẵn transceiver video/audio để share màn hình được kể cả khi không có camera
+      const hasKind = (k) => pc.getTransceivers().some((t) => t.receiver.track.kind === k);
+      if (!hasKind('video')) pc.addTransceiver('video', { direction: 'sendrecv' });
+      if (!hasKind('audio')) pc.addTransceiver('audio', { direction: 'sendrecv' });
+      videoSenderRef.current = pc.getTransceivers().find((t) => t.receiver.track.kind === 'video').sender;
+
+      // Nếu đang share màn hình mà peer bị tạo lại (đối phương vào lại) -> gửi lại màn hình
+      const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
+      if (screenTrack) videoSenderRef.current.replaceTrack(screenTrack).catch(() => { });
+    };
+
+    const onOffer = async (_senderId, sdpJson, info) => {
+      const pc = pcRef.current;
+      if (!pc) return;
+      peerPresentRef.current = true;
+      if (info) setRemoteUser(info);
+
+      const collision = makingOfferRef.current || pc.signalingState !== 'stable';
+      ignoreOfferRef.current = !polite && collision;
+      if (ignoreOfferRef.current) return;
+
+      try {
+        await pc.setRemoteDescription(parse(sdpJson)); // polite: tự rollback offer của mình
+        await flushIce(pc);
+        await pc.setLocalDescription();
+        await invokeHub('SendAnswer', JSON.stringify(pc.localDescription));
+      } catch (e) {
+        console.error('Handle offer failed:', e);
       }
-    } catch (err) {
-      console.error('Error handling WebRTC offer:', err);
-    }
-  }, [roomId, createPeerConnection]);
+    };
 
-  const handleReceiveAnswer = useCallback(async (senderId, answerSdpJson) => {
-    console.log('Received WebRTC Answer from:', senderId);
-    const pc = peerConnectionRef.current;
-    if (!pc) return;
-
-    try {
-      const answerSdp = typeof answerSdpJson === 'string' ? JSON.parse(answerSdpJson) : answerSdpJson;
-      await pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
-
-      // Process any queued ICE candidates
-      while (pendingIceCandidatesRef.current.length > 0) {
-        const cand = pendingIceCandidatesRef.current.shift();
-        await pc.addIceCandidate(cand);
+    const onAnswer = async (_senderId, sdpJson) => {
+      const pc = pcRef.current;
+      if (!pc || pc.signalingState !== 'have-local-offer') return;
+      try {
+        await pc.setRemoteDescription(parse(sdpJson));
+        await flushIce(pc);
+      } catch (e) {
+        console.error('Handle answer failed:', e);
       }
-    } catch (err) {
-      console.error('Error handling WebRTC answer:', err);
-    }
-  }, []);
+    };
 
-  const handleReceiveIceCandidate = useCallback(async (senderId, candidateJson) => {
-    const pc = peerConnectionRef.current;
-    try {
-      const candidateObj = typeof candidateJson === 'string' ? JSON.parse(candidateJson) : candidateJson;
-      const rtcCandidate = new RTCIceCandidate(candidateObj);
-
-      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-        await pc.addIceCandidate(rtcCandidate);
+    const onIce = async (_senderId, candidateJson) => {
+      const pc = pcRef.current;
+      const candidate = parse(candidateJson);
+      if (pc && pc.remoteDescription) {
+        try {
+          await pc.addIceCandidate(candidate);
+        } catch (e) {
+          if (!ignoreOfferRef.current) console.warn('addIceCandidate failed:', e);
+        }
       } else {
-        pendingIceCandidatesRef.current.push(rtcCandidate);
+        pendingIceRef.current.push(candidate);
       }
-    } catch (err) {
-      console.warn('Error handling received ICE candidate:', err);
-    }
-  }, []);
+    };
 
-  // ================= 4. CONNECT TO SIGNALR HUB (/hubs/mentor-meeting) =================
-  useEffect(() => {
-    let isMounted = true;
-    let hub = null;
+    const onUserJoined = (user) => {
+      setRemoteUser(user);
+      peerPresentRef.current = true;
+      negotiate(); // bên đã ở trong phòng gửi offer
+      // báo cho người mới biết trạng thái mic/cam/screen hiện tại của mình
+      invokeHub('ToggleMediaState', mediaRef.current);
+    };
 
-    async function startMeetingSession() {
-      if (!roomId) return;
+    const onUserLeft = () => {
+      peerPresentRef.current = false;
+      setRemoteUser(null);
+      setRemoteMedia(DEFAULT_REMOTE_MEDIA);
+      setRemoteHandRaised(false);
+      createPeer(); // peer mới sẵn sàng cho lần đối phương vào lại
+    };
 
+    (async () => {
       setConnectionStatus('connecting');
       setError(null);
 
-      // 1. Start Camera/Mic
-      const stream = await initLocalMedia();
-      if (!isMounted) return;
+      const stream = await initMedia();
+      if (cancelled) {
+        stream?.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      const hasMic = !!stream?.getAudioTracks().length;
+      const hasCam = !!stream?.getVideoTracks().length;
+      mediaRef.current = { isMicOn: hasMic, isCamOn: hasCam, isScreenSharing: false };
+      setIsMicOn(hasMic);
+      setIsCamOn(hasCam);
 
-      // 2. Initialize Peer Connection
-      createPeerConnection(stream);
+      createPeer();
 
-      // 3. Connect to SignalR Hub
+      let joined = false;
       try {
-        const token = getSession()?.accessToken;
-        hub = await createMeetingHubConnection(token);
-        hubConnectionRef.current = hub;
+        const h = await createMeetingHubConnection(getSession()?.accessToken);
+        if (cancelled) {
+          h.stop();
+          return;
+        }
+        hub = h;
+        hubRef.current = h;
 
-        // Register SignalR listeners
-        hub.on('UserJoined', (joinedUser) => {
-          console.log('User joined meeting room:', joinedUser);
-          setRemoteUser(joinedUser);
-          // When another user joins, initiator sends WebRTC offer
-          createAndSendOffer();
+        h.on('UserJoined', onUserJoined);
+        h.on('UserLeft', onUserLeft);
+        h.on('ReceiveOffer', onOffer);
+        h.on('ReceiveAnswer', onAnswer);
+        h.on('ReceiveIceCandidate', onIce);
+        h.on('ReceiveMediaState', (_id, state) => setRemoteMedia({ ...DEFAULT_REMOTE_MEDIA, ...state }));
+        h.on('ReceiveHandRaised', ({ isRaised }) => setRemoteHandRaised(!!isRaised));
+        h.on('ReceiveChatMessage', (msg) =>
+          setChatMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { ...msg, isSelf: false }]))
+        );
+
+        // Mất mạng rồi tự nối lại: connectionId đổi -> phải tạo peer mới và join lại phòng
+        h.onreconnected?.(async () => {
+          onUserLeft();
+          const u = userRef.current;
+          await h.invoke('JoinRoom', roomIdRef.current, u.name || 'Người tham gia', u.role || 'Learner');
+          setConnectionStatus('connected');
         });
+        h.onreconnecting?.(() => setConnectionStatus('connecting'));
+        h.onclose?.(() => !cancelled && setConnectionStatus('disconnected'));
 
-        hub.on('ReceiveOffer', (senderId, offerSdp, senderInfo) => {
-          handleReceiveOffer(senderId, offerSdp, senderInfo);
-        });
-
-        hub.on('ReceiveAnswer', (senderId, answerSdp) => {
-          handleReceiveAnswer(senderId, answerSdp);
-        });
-
-        hub.on('ReceiveIceCandidate', (senderId, candidate) => {
-          handleReceiveIceCandidate(senderId, candidate);
-        });
-
-        hub.on('ReceiveChatMessage', (msg) => {
-          setChatMessages((prev) => [...prev, msg]);
-        });
-
-        hub.on('UserLeft', (leftUserId) => {
-          console.log('User left meeting room:', leftUserId);
-          setRemoteUser(null);
-          setRemoteStream(null);
-        });
-
-        hub.on('ReceiveHandRaised', ({ userName, isRaised }) => {
-          console.log(`${userName} hand raised:`, isRaised);
-        });
-
-        // Start connection
-        await hub.start();
-        if (!isMounted) return;
-
-        console.log(`Connected to SignalR Hub at /hubs/mentor-meeting. Joining room: ${roomId}`);
+        await h.start();
+        if (cancelled) {
+          h.stop();
+          return;
+        }
+        joined = false;
+        const u = userRef.current;
+        await h.invoke('JoinRoom', roomId, u.name || 'Người tham gia', u.role || 'Learner');
+        joined = true;
         setConnectionStatus('connected');
-
-        // Join the specific room with user info
-        await hub.invoke('JoinRoom', roomId, currentUser.name || 'Người tham gia', currentUser.role || 'Learner');
-      } catch (hubErr) {
-        console.warn('SignalR Hub connection notice:', hubErr.message);
-        if (isMounted) {
-          // If backend hub is not running, set status to fallback demo mode so UI still works smoothly
-          setConnectionStatus('standalone');
+      } catch (e) {
+        console.warn('SignalR error:', e);
+        if (cancelled) return;
+        if (hub && hub.state === 'Connected' && !joined) {
+          // hub chạy nhưng JoinRoom bị từ chối (không có quyền / phòng đầy)
+          setError(e.message?.replace(/^.*HubException:\s*/, '') || 'Không thể vào phòng.');
+          setConnectionStatus('error');
+        } else {
+          setConnectionStatus('standalone'); // hub không chạy -> chế độ demo
         }
       }
-    }
-
-    startMeetingSession();
+    })();
 
     return () => {
-      isMounted = false;
-      // Cleanup local media tracks
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      cancelled = true;
+      peerPresentRef.current = false;
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+      if (pcRef.current) {
+        pcRef.current.onnegotiationneeded = null;
+        pcRef.current.close();
+        pcRef.current = null;
       }
-      // Cleanup peer connection
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-      // Leave room and stop hub
-      if (hub) {
-        try {
-          hub.invoke('LeaveRoom', roomId);
-          hub.stop();
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
+      // Server tự xử lý rời phòng ở OnDisconnectedAsync
+      hubRef.current = null;
+      if (hub) hub.stop().catch(() => { });
     };
-  }, [roomId]);
+  }, [roomId, invokeHub]);
 
-  // ================= 5. MEDIA TOGGLE CONTROLS =================
+  // ================= CONTROLS =================
   const toggleMic = useCallback(() => {
-    if (localStreamRef.current) {
-      const audioTracks = localStreamRef.current.getAudioTracks();
-      if (audioTracks.length > 0) {
-        const nextState = !audioTracks[0].enabled;
-        audioTracks[0].enabled = nextState;
-        setIsMicOn(nextState);
-
-        if (hubConnectionRef.current && hubConnectionRef.current.state === 'Connected') {
-          hubConnectionRef.current.invoke('ToggleMediaState', roomId, { isMicOn: nextState, isCamOn });
-        }
-      }
-    }
-  }, [roomId, isCamOn]);
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setIsMicOn(track.enabled);
+    broadcastMedia({ isMicOn: track.enabled });
+  }, [broadcastMedia]);
 
   const toggleCam = useCallback(() => {
-    if (localStreamRef.current) {
-      const videoTracks = localStreamRef.current.getVideoTracks();
-      if (videoTracks.length > 0) {
-        const nextState = !videoTracks[0].enabled;
-        videoTracks[0].enabled = nextState;
-        setIsCamOn(nextState);
-
-        if (hubConnectionRef.current && hubConnectionRef.current.state === 'Connected') {
-          hubConnectionRef.current.invoke('ToggleMediaState', roomId, { isMicOn, isCamOn: nextState });
-        }
-      }
-    }
-  }, [roomId, isMicOn]);
-
-  const toggleScreenShare = useCallback(async () => {
-    const pc = peerConnectionRef.current;
-    if (!pc) return;
-
-    if (!isScreenSharing) {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: 'always' },
-          audio: false,
-        });
-
-        const screenTrack = screenStream.getVideoTracks()[0];
-        screenTrackRef.current = screenTrack;
-
-        // Replace video track in peer connection
-        const senders = pc.getSenders();
-        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-        if (videoSender) {
-          videoSender.replaceTrack(screenTrack);
-        }
-
-        screenTrack.onended = () => {
-          stopScreenSharing();
-        };
-
-        setIsScreenSharing(true);
-      } catch (err) {
-        console.warn('Screen share cancelled or failed:', err);
-      }
-    } else {
-      stopScreenSharing();
-    }
-  }, [isScreenSharing]);
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setIsCamOn(track.enabled);
+    broadcastMedia({ isCamOn: track.enabled });
+  }, [broadcastMedia]);
 
   const stopScreenSharing = useCallback(() => {
-    const pc = peerConnectionRef.current;
-    if (screenTrackRef.current) {
-      screenTrackRef.current.stop();
-      screenTrackRef.current = null;
-    }
+    if (!screenStreamRef.current) return;
+    screenStreamRef.current.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
+    setScreenStream(null);
 
-    if (pc && localStreamRef.current) {
-      const cameraTrack = localStreamRef.current.getVideoTracks()[0];
-      const senders = pc.getSenders();
-      const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-      if (videoSender && cameraTrack) {
-        videoSender.replaceTrack(cameraTrack);
-      }
-    }
+    const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
+    videoSenderRef.current?.replaceTrack(cameraTrack).catch(() => { });
 
     setIsScreenSharing(false);
-  }, []);
+    broadcastMedia({ isScreenSharing: false });
+  }, [broadcastMedia]);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (screenStreamRef.current) {
+      stopScreenSharing();
+      return;
+    }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setError('Trình duyệt này không hỗ trợ chia sẻ màn hình (thường gặp trên điện thoại).');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const track = stream.getVideoTracks()[0];
+      track.onended = stopScreenSharing; // người dùng bấm "Stop sharing" của trình duyệt
+      screenStreamRef.current = stream;
+      setScreenStream(stream);
+      await videoSenderRef.current?.replaceTrack(track);
+      setIsScreenSharing(true);
+      broadcastMedia({ isScreenSharing: true });
+    } catch (err) {
+      if (err.name !== 'NotAllowedError') console.warn('Screen share failed:', err);
+    }
+  }, [broadcastMedia, stopScreenSharing]);
 
   const toggleHandRaise = useCallback(() => {
-    const nextState = !isHandRaised;
-    setIsHandRaised(nextState);
-    if (hubConnectionRef.current && hubConnectionRef.current.state === 'Connected') {
-      hubConnectionRef.current.invoke('RaiseHand', roomId, nextState);
-    }
-  }, [isHandRaised, roomId]);
+    const next = !isHandRaised;
+    setIsHandRaised(next);
+    invokeHub('RaiseHand', next);
+  }, [isHandRaised, invokeHub]);
 
   const sendChatMessage = useCallback(
     async (text) => {
-      if (!text.trim()) return;
-
-      const newMsg = {
-        id: Date.now().toString(),
-        sender: currentUser.name || 'Tôi',
-        role: currentUser.role || 'Learner',
-        text: text.trim(),
+      const trimmed = text?.trim();
+      if (!trimmed) return;
+      const u = userRef.current;
+      const msg = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        sender: u.name || 'Tôi',
+        role: u.role || 'Learner',
+        text: trimmed,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isSelf: true,
       };
-
-      setChatMessages((prev) => [...prev, newMsg]);
-
-      if (hubConnectionRef.current && hubConnectionRef.current.state === 'Connected') {
-        try {
-          await hubConnectionRef.current.invoke('SendChatMessage', roomId, {
-            ...newMsg,
-            isSelf: false,
-          });
-        } catch (err) {
-          console.warn('Failed to send chat message over SignalR:', err);
-        }
-      }
+      setChatMessages((prev) => [...prev, { ...msg, isSelf: true }]);
+      await invokeHub('SendChatMessage', { ...msg, isSelf: false });
     },
-    [roomId, currentUser]
+    [invokeHub]
   );
 
   return {
     connectionStatus,
     webrtcState,
     localStream,
+    screenStream,
     remoteStream,
     remoteUser,
+    remoteMedia, // { isMicOn, isCamOn, isScreenSharing } của đối phương
+    remoteHandRaised,
     isMicOn,
     isCamOn,
     isScreenSharing,

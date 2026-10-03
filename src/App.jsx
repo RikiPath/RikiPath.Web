@@ -30,7 +30,7 @@ import {
   KanjiWritingPracticePage
 } from './pages/learner';
 
-// —— Tư vấn (Consultation) ——
+// —— Tư vấn (Mentor) ——
 import {
   Consultation,
   ConsultationCenter,
@@ -46,6 +46,7 @@ import {
   ConsultationSessionDetail,
   ConsultationReceipt,
   ConsultationRoom,
+  MentorAvailability,
 } from './pages/consultation';
 
 // —— CMS ——
@@ -119,9 +120,10 @@ export default function App() {
             <Route path="/vocabulary-detail" element={<VocabWordDetail />} />
             <Route path="/settings" element={<LearnerSettings />} />
 
-            {/* ========== TƯ VẤN ========== */}
-            <Route path="/consultation" element={<Consultation />} />
-            <Route path="/consultation-hub" element={<Navigate to="/consultation" replace />} />
+            {/* ========== MENTOR ========== */}
+            <Route path="/mentor" element={<Consultation />} />
+            <Route path="/consultation" element={<Navigate to="/mentor" replace />} />
+            <Route path="/consultation-hub" element={<Navigate to="/mentor" replace />} />
             <Route path="/consultation-center" element={<ConsultationCenter />} />
             <Route path="/booking-schedule" element={<BookingSchedule />} />
             <Route path="/consultation-payment" element={<ConsultationPayment />} />
@@ -133,13 +135,15 @@ export default function App() {
             <Route path="/meeting-room" element={<ConsultationRoom />} />
             <Route path="/meeting-room/:roomId" element={<ConsultationRoom />} />
 
-            {/* SENSEI / CONSULTANT PORTAL (Cố vấn & Giảng viên) */}
-            <Route path="/consultant-overview" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><ConsultantOverview /></ProtectedRoute>} />
-            <Route path="/consultation-queue" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><ConsultationQueue /></ProtectedRoute>} />
-            <Route path="/consultation-prep" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><ConsultationPrep /></ProtectedRoute>} />
-            <Route path="/consultation-request" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><ConsultationRequestDetail /></ProtectedRoute>} />
-            <Route path="/work-schedule" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><WorkSchedule /></ProtectedRoute>} />
-            <Route path="/consultation-reply" element={<ProtectedRoute allowedRoles={['Consultant', 'Admin']}><TextConsultationReply /></ProtectedRoute>} />
+            {/* MENTOR PORTAL (Mentor & Giảng viên) */}
+            <Route path="/mentor-overview" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultantOverview /></ProtectedRoute>} />
+            <Route path="/consultant-overview" element={<Navigate to="/mentor-overview" replace />} />
+            <Route path="/consultation-queue" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultationQueue /></ProtectedRoute>} />
+            <Route path="/consultation-prep" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultationPrep /></ProtectedRoute>} />
+            <Route path="/consultation-request" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultationRequestDetail /></ProtectedRoute>} />
+            <Route path="/work-schedule" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><WorkSchedule /></ProtectedRoute>} />
+            <Route path="/consultation-reply" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><TextConsultationReply /></ProtectedRoute>} />
+            <Route path="/mentor-availability" element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAvailability /></ProtectedRoute>} />
 
             {/* ========== CMS STUDIO (Tác giả nội dung & Admin) ========== */}
             <Route path="/cms-studio" element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CMSStudio /></ProtectedRoute>} />
@@ -161,6 +165,7 @@ export default function App() {
             <Route path="/admin/roles" element={<ProtectedRoute requireAdmin><AdminRoles /></ProtectedRoute>} />
             <Route path="/admin/content-review" element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />
             <Route path="/admin/consultants" element={<ProtectedRoute requireAdmin><AdminConsultants /></ProtectedRoute>} />
+            <Route path="/admin/mentors" element={<ProtectedRoute requireAdmin><AdminConsultants /></ProtectedRoute>} />
             <Route path="/admin/packages" element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
             <Route path="/admin/operations" element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
 

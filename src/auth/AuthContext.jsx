@@ -74,8 +74,8 @@ export function AuthProvider({ children }) {
 
   const isAdmin = hasRole('Admin');
   const isContentAuthor = hasRole('ContentAuthor');
-  const isConsultant = hasRole('Consultant');
-  const isLearner = hasRole('Learner') || (!isAdmin && !isContentAuthor && !isConsultant);
+  const isMentor = hasRole('Mentor') || hasRole('Consultant');
+  const isLearner = hasRole('Learner') || (!isAdmin && !isContentAuthor && !isMentor);
 
   const homePath = homePathForRole(primaryRole);
 
@@ -102,7 +102,7 @@ export function AuthProvider({ children }) {
     primaryRole,
     isAdmin,
     isContentAuthor,
-    isConsultant,
+    isMentor,
     isLearner,
     isAuthenticated,
     homePath,

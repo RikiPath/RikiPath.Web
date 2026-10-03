@@ -27,7 +27,8 @@ export function homePathForRole(role) {
     case 'contentauthor':
       return '/cms-studio';
     case 'consultant':
-      return '/consultant-overview';
+    case 'mentor':
+      return '/mentor-overview';
     default:
       return '/app';
   }

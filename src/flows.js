@@ -37,7 +37,7 @@ export const ALL_PAGES = [
   { to: '/exam-result', label: 'Kết quả thi', page: 'ExamResult', group: 'learner' },
   { to: '/settings', label: 'Cài đặt HV', page: 'LearnerSettings', group: 'learner' },
   // Tư vấn học viên
-  { to: '/consultation', label: 'Gói tư vấn', page: 'Consultation', group: 'consult-learner' },
+  { to: '/mentor', label: 'Gói tư vấn', page: 'Mentor', group: 'consult-learner' },
   { to: '/booking-schedule', label: 'Đặt lịch', page: 'BookingSchedule', group: 'consult-learner' },
   { to: '/consultation-payment', label: 'Thanh toán', page: 'ConsultationPayment', group: 'consult-learner' },
   { to: '/consultation-center', label: 'Lịch của tôi', page: 'ConsultationCenter', group: 'consult-learner' },
@@ -46,12 +46,13 @@ export const ALL_PAGES = [
   { to: '/consultation-room', label: 'Phòng video', page: 'ConsultationRoom', group: 'consult-learner' },
   { to: '/consultation-receipt', label: 'Biên lai', page: 'ConsultationReceipt', group: 'consult-learner' },
   // Sensei
-  { to: '/consultant-overview', label: 'Tổng quan CG', page: 'ConsultantOverview', group: 'consult-sensei' },
+  { to: '/mentor-overview', label: 'Tổng quan Mentor', page: 'MentorOverview', group: 'consult-sensei' },
   { to: '/consultation-queue', label: 'Hàng đợi', page: 'ConsultationQueue', group: 'consult-sensei' },
   { to: '/consultation-prep', label: 'Prep', page: 'ConsultationPrep', group: 'consult-sensei' },
   { to: '/consultation-request', label: 'Yêu cầu', page: 'ConsultationRequestDetail', group: 'consult-sensei' },
   { to: '/consultation-reply', label: 'Reply', page: 'TextConsultationReply', group: 'consult-sensei' },
   { to: '/work-schedule', label: 'Lịch làm việc', page: 'WorkSchedule', group: 'consult-sensei' },
+  { to: '/mentor-availability', label: 'Lịch khả dụng', page: 'MentorAvailability', group: 'consult-sensei' },
   // CMS
   { to: '/cms-studio', label: 'CMS Studio', page: 'CMSStudio', group: 'cms' },
   { to: '/author-dashboard', label: 'Author', page: 'AuthorDashboard', group: 'cms' },
@@ -148,7 +149,7 @@ export const FLOWS = [
     title: 'Tư vấn học viên',
     description: 'Chọn gói → đặt lịch → thanh toán → xem lịch của tôi',
     steps: [
-      { n: 1, to: '/consultation', label: 'Gói tư vấn', page: 'Consultation', hint: 'Packages' },
+      { n: 1, to: '/mentor', label: 'Gói tư vấn', page: 'Mentor', hint: 'Packages' },
       { n: 2, to: '/booking-schedule', label: 'Đặt lịch', page: 'BookingSchedule', hint: 'Booking' },
       { n: 3, to: '/consultation-payment', label: 'Thanh toán', page: 'ConsultationPayment', hint: 'Pay' },
       { n: 4, to: '/consultation-receipt', label: 'Biên lai', page: 'ConsultationReceipt', hint: 'Receipt' },
@@ -164,12 +165,13 @@ export const FLOWS = [
     title: 'Sensei làm việc',
     description: 'Tổng quan → hàng đợi → chuẩn bị / trả lời → lịch làm việc',
     steps: [
-      { n: 1, to: '/consultant-overview', label: 'Tổng quan CG', page: 'ConsultantOverview', hint: 'Overview' },
+      { n: 1, to: '/mentor-overview', label: 'Tổng quan Mentor', page: 'MentorOverview', hint: 'Overview' },
       { n: 2, to: '/consultation-queue', label: 'Hàng đợi', page: 'ConsultationQueue', hint: 'Queue' },
       { n: 3, to: '/consultation-prep', label: 'Chuẩn bị', page: 'ConsultationPrep', hint: 'Prep' },
       { n: 4, to: '/consultation-request', label: 'Chi tiết YC', page: 'ConsultationRequestDetail', hint: 'Request' },
       { n: 5, to: '/consultation-reply', label: 'Trả lời', page: 'TextConsultationReply', hint: 'Reply' },
       { n: 6, to: '/work-schedule', label: 'Lịch làm việc', page: 'WorkSchedule', hint: 'Schedule' },
+      { n: 7, to: '/mentor-availability', label: 'Lịch khả dụng', page: 'MentorAvailability', hint: 'Availability' },
     ],
   },
   {
@@ -211,7 +213,8 @@ export const ROUTE_ALIASES = {
   '/dashboard': '/app',
   '/home-learner': '/app',
   '/multi-dashboard': '/app',
-  '/consultation-hub': '/consultation',
+  '/consultation-hub': '/mentor',
+  '/consultation': '/mentor',
 };
 
 export function matchFlowStep(pathname) {
