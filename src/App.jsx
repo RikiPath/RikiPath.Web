@@ -27,7 +27,8 @@ import {
   VocabWordDetail,
   ExamResult,
   LearnerSettings,
-  KanjiWritingPracticePage
+  KanjiWritingPracticePage,
+  RikiSkillPlaceholder
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -104,6 +105,10 @@ export default function App() {
             <Route path="/home-learner" element={<Navigate to="/app" replace />} />
             <Route path="/multi-dashboard" element={<Navigate to="/app" replace />} />
             <Route path="/kanji-writing" element={<KanjiWritingPracticePage />} />
+            <Route path="/riki/listening" element={<RikiSkillPlaceholder skill="listening" />} />
+            <Route path="/riki/speaking" element={<RikiSkillPlaceholder skill="speaking" />} />
+            <Route path="/riki/reading" element={<RikiSkillPlaceholder skill="reading" />} />
+            <Route path="/riki/essay" element={<RikiSkillPlaceholder skill="essay" />} />
             <Route path="/lessons" element={<LessonList />} />
             <Route path="/lesson-player" element={<LessonPlayer />} />
             <Route path="/lesson-complete" element={<LessonComplete />} />
@@ -176,4 +181,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

@@ -1,7 +1,23 @@
 import { LearnerShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { getKanjiWritingScores } from '../../api/kanjiWritingApi.js';
 export default function KanjiStudio() {
   const { pathname } = useLocation();
+  const [latestWritingScore, setLatestWritingScore] = useState(null);
+
+  useEffect(() => {
+    getKanjiWritingScores()
+      .then((scores) => {
+        if (Array.isArray(scores) && scores.length > 0) {
+          setLatestWritingScore(scores[scores.length - 1]);
+        }
+      })
+      .catch(() => {
+        // The Kanji Studio remains usable when score history is unavailable.
+      });
+  }, []);
   return (
     <LearnerShell pathname={pathname} breadcrumb="Kanji AI">
 <div className="bg-canvas text-charcoal min-h-screen flex overflow-x-hidden antialiased selection:bg-brand-soft selection:text-brand-dark" data-page="KanjiStudio" data-shell-unified="1">
@@ -298,11 +314,13 @@ export default function KanjiStudio() {
 <div className="flex items-center justify-between mb-3">
 <span className="text-xs font-bold text-charcoal flex items-center gap-1.5">
 <span className="material-symbols-outlined text-brand text-[17px]">psychology</span>{"Dự đoán điểm AI\n                "}</span>
-<span className="text-xs font-bold text-brand bg-brand-light px-2 py-0.5 rounded-full border border-brand-soft">92 / 100</span>
+<span className="text-xs font-bold text-brand bg-brand-light px-2 py-0.5 rounded-full border border-brand-soft">
+{latestWritingScore ? `${latestWritingScore.score} / 100` : 'Chưa luyện'}
+</span>
 </div>
 {/*  Progress bar  */}
 <div className="w-full bg-canvas rounded-full h-2 overflow-hidden border border-borderSoft mb-3">
-<div className="bg-gradient-to-r from-brand-soft to-brand h-2 rounded-full" style={{ width: "92%" }}></div>
+<div className="bg-gradient-to-r from-brand-soft to-brand h-2 rounded-full" style={{ width: `${latestWritingScore?.score || 0}%` }}></div>
 </div>
 <div className="grid grid-cols-2 gap-2 text-[11px] text-charcoal-muted">
 <div className="flex items-center gap-1">
@@ -313,6 +331,10 @@ export default function KanjiStudio() {
 <span className="material-symbols-outlined text-[14px] text-emerald-600">check</span>
 <span>Tỉ lệ khung: 94%</span>
 </div>
+<Link to="/kanji-writing" className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white hover:bg-brand-hover">
+<span className="material-symbols-outlined text-[16px]">edit</span>
+Luyện viết chữ này
+</Link>
 </div>
 </div>
 {/*  Next Kanji Quick Navigation Button  */}
