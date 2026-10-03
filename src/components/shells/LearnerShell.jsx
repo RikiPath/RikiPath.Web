@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { getSession } from '../../auth/session.js';
 import { displayName, learnerRoleLabel, useLearnerProfile } from '../../hooks/useLearnerHome.js';
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
 
 const SIDEBAR_W = 260;
+const RIKI_MENU_KEY = 'rikipath.rikiMenuOpen';
 
 export default function LearnerShell({
   children,
@@ -16,6 +18,28 @@ export default function LearnerShell({
   const userName = displayName(profileQuery.data, session);
   const userRole = learnerRoleLabel(profileQuery.data, session);
   const avatarUrl = profileQuery.data?.avatarUrl;
+  const sessionRole = session?.role || session?.user?.role;
+  const isLearner = !sessionRole || ['learner', 'student'].includes(String(sessionRole).toLowerCase());
+  const rikiItem = LEARNER_NAV.items.find((item) => item.id === 'riki');
+  const rikiActive = rikiItem?.children?.some((child) => (
+    child.children?.some((nested) => pathMatches(pathname, nested)) || pathMatches(pathname, child)
+  )) ?? false;
+  const [isRikiOpen, setIsRikiOpen] = useState(() => {
+    try {
+      return localStorage.getItem(RIKI_MENU_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const rikiMenuOpen = isRikiOpen || rikiActive;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RIKI_MENU_KEY, String(isRikiOpen));
+    } catch {
+      // Ignore storage restrictions; the menu remains usable for this session.
+    }
+  }, [isRikiOpen]);
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md" data-shell="learner">
@@ -38,6 +62,85 @@ export default function LearnerShell({
           </div>
           <nav className="flex flex-col gap-1">
             {LEARNER_NAV.items.map((item) => {
+              if (item.id === 'riki' && !isLearner) return null;
+              if (item.children) {
+                const active = item.children.some((child) => pathMatches(pathname, child));
+                return (
+                  <div key={item.id || item.label}>
+                    <button
+                      type="button"
+                      onClick={() => setIsRikiOpen((open) => !open)}
+                      aria-expanded={rikiMenuOpen}
+                      className={[
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 font-body-md text-body-md transition-all',
+                        active
+                          ? 'bg-secondary-container font-semibold text-on-secondary-container'
+                          : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                      ].join(' ')}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      <span className="material-symbols-outlined text-[18px]">
+                        {rikiMenuOpen ? 'expand_less' : 'expand_more'}
+                      </span>
+                    </button>
+                    {rikiMenuOpen && (
+                      <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-outline-variant/50 pl-3">
+                        {item.children.map((child) => {
+                          const childActive = child.children
+                            ? child.children.some((nested) => pathMatches(pathname, nested))
+                            : pathMatches(pathname, child);
+                          if (child.children) {
+                            return (
+                              <div key={child.id || child.label}>
+                                <div className={[
+                                  'flex items-center gap-3 rounded-lg px-3 py-2 font-label-md text-label-md',
+                                  childActive ? 'font-semibold text-on-secondary-container' : 'text-on-surface-variant',
+                                ].join(' ')}>
+                                  <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                                  <span>{child.label}</span>
+                                </div>
+                                <div className="ml-3 flex flex-col gap-1 border-l border-outline-variant/40 pl-3">
+                                  {child.children.map((nested) => (
+                                    <NavLink
+                                      key={nested.to}
+                                      to={nested.to}
+                                      className={[
+                                        'flex items-center gap-3 rounded-lg px-3 py-2 font-label-md text-label-md transition-all',
+                                        pathMatches(pathname, nested)
+                                          ? 'bg-secondary-container/70 font-semibold text-on-secondary-container'
+                                          : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                                      ].join(' ')}
+                                    >
+                                      <span className="text-[16px] font-semibold">{nested.icon}</span>
+                                      <span>{nested.label}</span>
+                                    </NavLink>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <NavLink
+                              key={child.to}
+                              to={child.to}
+                              className={[
+                                'flex items-center gap-3 rounded-lg px-3 py-2 font-label-md text-label-md transition-all',
+                                childActive
+                                  ? 'bg-secondary-container/70 font-semibold text-on-secondary-container'
+                                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                              ].join(' ')}
+                            >
+                              <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                              <span>{child.label}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
               if (item.neverActive) {
                 return (
                   <div

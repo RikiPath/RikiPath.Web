@@ -61,6 +61,24 @@ export const LEARNER_NAV = {
     { to: '/lessons', label: 'Bài học', icon: 'menu_book' },
     { to: '/vocabulary', label: 'Sổ từ & Kanji', icon: 'edit_note', alsoActive: ['/kanji-studio', '/kanji-notebook', '/vocabulary-detail'] },
     { to: '/daily-srs', label: 'Ôn SRS', icon: 'style' },
+    {
+      id: 'riki',
+      label: 'Riki',
+      icon: 'auto_awesome',
+      children: [
+        {
+          id: 'vocabulary',
+          label: 'Từ Vựng',
+          icon: 'translate',
+          children: [
+            { to: '/kanji-writing?type=hiragana', label: 'Hiragana', icon: 'あ' },
+            { to: '/kanji-writing?type=katakana', label: 'Katakana', icon: 'カ' },
+          ],
+        },
+        { to: '/kanji-writing?type=kanji', label: 'Hán Tự', icon: '漢' },
+        { to: '/riki/essay', label: 'Luyện Làm Văn', icon: 'edit_note' },
+      ],
+    },
     { to: '/ai-counselor', label: 'Cố vấn AI', icon: 'psychology' },
     {
       to: '/mentor',
@@ -107,9 +125,9 @@ export const MARKETING_NAV = {
 };
 
 export function pathMatches(pathname, item) {
-  if (item.neverActive) return false;
-  const clean = pathname.replace(/\/$/, '') || '/';
-  const target = item.to.replace(/\/$/, '') || '/';
+  if (!item || item.neverActive || !item.to) return false;
+  const clean = (pathname.split('?')[0].split('#')[0].replace(/\/$/, '') || '/');
+  const target = (item.to.split('?')[0].split('#')[0].replace(/\/$/, '') || '/');
   if (clean === target) return true;
   if (item.alsoActive?.some((p) => {
     const a = p.replace(/\/$/, '') || '/';

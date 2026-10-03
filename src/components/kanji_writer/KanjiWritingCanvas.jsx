@@ -7,17 +7,18 @@ import HanziWriter from 'hanzi-writer';
  * sau đó luôn chuyển sang chế độ quiz cho learner tự vẽ - HanziWriter tự so khớp từng nét
  * (đúng hình + đúng thứ tự + đúng hướng) với dữ liệu chuẩn, không cần gọi API nào lúc vẽ.
  */
-export default function KanjiWritingCanvas({ character, isNew, onComplete }) {
+export default function KanjiWritingCanvas({ character, isNew, mode = 'guided', onComplete }) {
     const targetRef = useRef(null);
 
     useEffect(() => {
         if (!targetRef.current || !character) return undefined;
+        const target = targetRef.current;
 
-        const writer = HanziWriter.create(targetRef.current, character, {
+        const writer = HanziWriter.create(target, character, {
             width: 300,
             height: 300,
             padding: 20,
-            showOutline: true,
+            showOutline: mode === 'guided',
             strokeAnimationSpeed: 1,
             delayBetweenStrokes: 300,
         });
@@ -34,7 +35,7 @@ export default function KanjiWritingCanvas({ character, isNew, onComplete }) {
             });
         };
 
-        if (isNew) {
+        if (mode === 'guided' && isNew) {
             writer.animateCharacter({ onComplete: startQuiz });
         } else {
             startQuiz();
@@ -42,10 +43,10 @@ export default function KanjiWritingCanvas({ character, isNew, onComplete }) {
 
         return () => {
             cancelled = true;
-            if (targetRef.current) targetRef.current.innerHTML = '';
+            target.innerHTML = '';
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [character, isNew]);
+    }, [character, isNew, mode]);
 
     // touch-none: chặn trình duyệt cuộn trang khi learner đang vẽ bằng ngón tay trên mobile.
     return (
