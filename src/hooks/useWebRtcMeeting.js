@@ -4,7 +4,6 @@ import { getSession } from '../auth/session.js';
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
 
-// STUN đủ cho mạng thường; mạng công ty/4G (symmetric NAT) cần TURN -> cấu hình qua .env
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -15,23 +14,36 @@ const ICE_SERVERS = {
   ],
 };
 
-const DEFAULT_REMOTE_MEDIA = { isMicOn: true, isCamOn: true, isScreenSharing: false };
+const DEFAULT_REMOTE_MEDIA = { isMicOn: true, isCamOn: true, isScreenSharing: false, screenStreamId: null };
 const parse = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
 
+const attachScreen = (pc, stream) => {
+  if (!pc || !stream) return [];
+  return stream.getTracks().map((track) => pc.addTransceiver(track, { direction: 'sendonly', streams: [stream] }));
+};
+
+const requestScreen = async () => {
+  const md = navigator.mediaDevices;
+  try {
+    return await md.getDisplayMedia({
+      video: { frameRate: { ideal: 15, max: 30 } },
+      audio: true,
+    });
+  } catch (e) {
+    if (e.name === 'NotAllowedError' || e.name === 'AbortError') throw e;
+    return md.getDisplayMedia({ video: true });
+  }
+};
+
 /**
- * WebRTC 1-1 (Mentor <-> Learner) + SignalR signaling.
- * - Mentor là bên "impolite", Learner là "polite" để xử lý offer đụng nhau (glare).
- * - Cả hai đều share màn hình được (replaceTrack trên video sender).
+ * WebRTC Multi-Learner Mesh (1 Mentor + N Learners)
  */
 export function useWebRtcMeeting(roomId, currentUser = {}) {
   const [connectionStatus, setConnectionStatus] = useState('initializing');
-  const [webrtcState, setWebrtcState] = useState('new');
+  const [localUser, setLocalUser] = useState(null);
   const [localStream, setLocalStream] = useState(null);
-  const [screenStream, setScreenStream] = useState(null); // để preview màn hình mình đang share
-  const [remoteStream, setRemoteStream] = useState(null);
-  const [remoteUser, setRemoteUser] = useState(null);
-  const [remoteMedia, setRemoteMedia] = useState(DEFAULT_REMOTE_MEDIA);
-  const [remoteHandRaised, setRemoteHandRaised] = useState(false);
+  const [screenStream, setScreenStream] = useState(null);
+  const [peers, setPeers] = useState([]); // Danh sách tất cả peer tham gia
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -45,16 +57,13 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
   userRef.current = currentUser;
 
   const hubRef = useRef(null);
-  const pcRef = useRef(null);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
-  const remoteStreamRef = useRef(null);
-  const videoSenderRef = useRef(null);
-  const pendingIceRef = useRef([]);
-  const peerPresentRef = useRef(false);
-  const makingOfferRef = useRef(false);
-  const ignoreOfferRef = useRef(false);
-  const mediaRef = useRef({ isMicOn: true, isCamOn: true, isScreenSharing: false });
+  const mediaRef = useRef({ isMicOn: true, isCamOn: true, isScreenSharing: false, screenStreamId: null });
+
+  // Map lưu trữ PeerConnection của từng learner/mentor trong phòng
+  // connectionId -> PeerEntry
+  const peersMapRef = useRef(new Map());
 
   const invokeHub = useCallback(async (method, ...args) => {
     const hub = hubRef.current;
@@ -74,12 +83,161 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     [invokeHub]
   );
 
-  // ================= SESSION: media + peer + signaling =================
+  // Sync state từ Map ra React state array
+  const syncPeersState = useCallback(() => {
+    const list = Array.from(peersMapRef.current.values()).map((p) => ({
+      connectionId: p.connectionId,
+      id: p.peerInfo?.id || p.peerInfo?.Id,
+      name: p.peerInfo?.name || p.peerInfo?.Name || 'Học viên',
+      role: p.peerInfo?.role || p.peerInfo?.Role || 'Learner',
+      stream: p.camStream,
+      screenStream: p.screenStream,
+      media: p.media,
+      isHandRaised: p.isHandRaised,
+      webrtcState: p.webrtcState,
+    }));
+    setPeers(list);
+  }, []);
+
+  // Khởi tạo PeerConnection cho một remote peer
+  const createPeerConnection = useCallback(
+    (targetConnId, peerInfo, isOfferer) => {
+      if (!targetConnId) return null;
+
+      if (peersMapRef.current.has(targetConnId)) {
+        const existing = peersMapRef.current.get(targetConnId);
+        try { existing.pc?.close(); } catch (e) { }
+      }
+
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const camStream = new MediaStream();
+
+      const peerEntry = {
+        connectionId: targetConnId,
+        peerInfo: peerInfo || { connectionId: targetConnId, name: 'Learner', role: 'Learner' },
+        pc,
+        remoteStreams: new Map(),
+        camStream,
+        screenStream: null,
+        media: { ...DEFAULT_REMOTE_MEDIA },
+        isHandRaised: false,
+        pendingIce: [],
+        makingOffer: false,
+        ignoreOffer: false,
+        webrtcState: 'new',
+        screenTransceivers: [],
+      };
+
+      peersMapRef.current.set(targetConnId, peerEntry);
+
+      const rebuildRemote = () => {
+        const screenId = peerEntry.media.screenStreamId;
+        const streams = peerEntry.remoteStreams;
+        const cam = peerEntry.camStream;
+        const wanted = new Set();
+        let screen = null;
+
+        streams.forEach((s, id) => {
+          if (s.getTracks().length === 0) {
+            streams.delete(id);
+          } else if (id === screenId) {
+            screen = s;
+          } else {
+            s.getTracks().forEach((t) => wanted.add(t));
+          }
+        });
+
+        cam.getTracks().forEach((t) => {
+          if (!wanted.has(t)) cam.removeTrack(t);
+        });
+        wanted.forEach((t) => {
+          if (!cam.getTracks().includes(t)) cam.addTrack(t);
+        });
+
+        peerEntry.screenStream = screen;
+        syncPeersState();
+      };
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          invokeHub('SendIceCandidate', targetConnId, JSON.stringify(e.candidate));
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        peerEntry.webrtcState = pc.connectionState;
+        syncPeersState();
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed') {
+          try { pc.restartIce(); } catch (e) { }
+        }
+      };
+
+      pc.ontrack = (e) => {
+        let stream = e.streams[0];
+        if (stream) {
+          peerEntry.remoteStreams.set(stream.id, stream);
+          stream.onremovetrack = rebuildRemote;
+        } else {
+          stream = peerEntry.remoteStreams.get('__loose') || new MediaStream();
+          if (!stream.getTracks().includes(e.track)) stream.addTrack(e.track);
+          peerEntry.remoteStreams.set('__loose', stream);
+        }
+        e.track.onended = rebuildRemote;
+        rebuildRemote();
+      };
+
+      const stream = localStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      }
+
+      const hasKind = (k) => pc.getTransceivers().some((t) => t.receiver.track?.kind === k);
+      if (!hasKind('video')) pc.addTransceiver('video', { direction: 'sendrecv' });
+      if (!hasKind('audio')) pc.addTransceiver('audio', { direction: 'sendrecv' });
+
+      if (screenStreamRef.current) {
+        peerEntry.screenTransceivers = attachScreen(pc, screenStreamRef.current);
+      }
+
+      if (isOfferer) {
+        (async () => {
+          try {
+            peerEntry.makingOffer = true;
+            await pc.setLocalDescription();
+            await invokeHub('SendOffer', targetConnId, JSON.stringify(pc.localDescription));
+          } catch (err) {
+            console.error(`Gửi Offer tới ${targetConnId} thất bại:`, err);
+          } finally {
+            peerEntry.makingOffer = false;
+          }
+        })();
+      }
+
+      syncPeersState();
+      return peerEntry;
+    },
+    [invokeHub, syncPeersState]
+  );
+
+  const flushIce = async (peerEntry) => {
+    while (peerEntry.pendingIce.length > 0) {
+      const candidate = peerEntry.pendingIce.shift();
+      try {
+        await peerEntry.pc.addIceCandidate(candidate);
+      } catch (e) {
+        if (!peerEntry.ignoreOffer) console.warn('addIceCandidate failed:', e);
+      }
+    }
+  };
+
+  // Main Effect: media + Hub SignalR Connection
   useEffect(() => {
     if (!roomId) return undefined;
     let cancelled = false;
     let hub = null;
-    const polite = (userRef.current.role || '').toLowerCase() !== 'mentor';
 
     const initMedia = async () => {
       const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -89,144 +247,14 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
           audio,
         });
       } catch (err) {
-        // Không có/không cho camera -> vẫn vào phòng với mic (hoặc chỉ nghe/xem + share màn hình)
         try {
           return await navigator.mediaDevices.getUserMedia({ audio });
         } catch (err2) {
-          console.warn('Could not acquire media:', err2);
-          setError(`Không thể truy cập Camera/Microphone: ${err2.message}. Bạn vẫn có thể xem, chat và chia sẻ màn hình.`);
+          console.warn('Không thể truy cập camera/mic:', err2);
+          setError(`Không thể mở Camera/Microphone. Bạn vẫn có thể xem, chat và chia sẻ màn hình.`);
           return null;
         }
       }
-    };
-
-    const flushIce = async (pc) => {
-      while (pendingIceRef.current.length > 0) {
-        try {
-          await pc.addIceCandidate(pendingIceRef.current.shift());
-        } catch (e) {
-          if (!ignoreOfferRef.current) console.warn('addIceCandidate failed:', e);
-        }
-      }
-    };
-
-    const negotiate = async () => {
-      const pc = pcRef.current;
-      if (!pc || !peerPresentRef.current) return;
-      try {
-        makingOfferRef.current = true;
-        await pc.setLocalDescription(); // tự tạo offer
-        await invokeHub('SendOffer', JSON.stringify(pc.localDescription));
-      } catch (e) {
-        console.error('Negotiate failed:', e);
-      } finally {
-        makingOfferRef.current = false;
-      }
-    };
-
-    const createPeer = () => {
-      if (pcRef.current) {
-        pcRef.current.onnegotiationneeded = null;
-        pcRef.current.close();
-      }
-      remoteStreamRef.current = null;
-      setRemoteStream(null);
-      pendingIceRef.current = [];
-
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-      pcRef.current = pc;
-
-      pc.onnegotiationneeded = negotiate;
-      pc.onicecandidate = (e) => {
-        if (e.candidate) invokeHub('SendIceCandidate', JSON.stringify(e.candidate));
-      };
-      pc.onconnectionstatechange = () => setWebrtcState(pc.connectionState);
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'failed') pc.restartIce();
-      };
-      pc.ontrack = (e) => {
-        let ms = remoteStreamRef.current;
-        if (!ms) {
-          ms = new MediaStream();
-          remoteStreamRef.current = ms;
-        }
-        if (!ms.getTracks().includes(e.track)) ms.addTrack(e.track);
-        setRemoteStream(ms);
-      };
-
-      const stream = localStreamRef.current;
-      if (stream) stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-
-      // Luôn có sẵn transceiver video/audio để share màn hình được kể cả khi không có camera
-      const hasKind = (k) => pc.getTransceivers().some((t) => t.receiver.track.kind === k);
-      if (!hasKind('video')) pc.addTransceiver('video', { direction: 'sendrecv' });
-      if (!hasKind('audio')) pc.addTransceiver('audio', { direction: 'sendrecv' });
-      videoSenderRef.current = pc.getTransceivers().find((t) => t.receiver.track.kind === 'video').sender;
-
-      // Nếu đang share màn hình mà peer bị tạo lại (đối phương vào lại) -> gửi lại màn hình
-      const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
-      if (screenTrack) videoSenderRef.current.replaceTrack(screenTrack).catch(() => { });
-    };
-
-    const onOffer = async (_senderId, sdpJson, info) => {
-      const pc = pcRef.current;
-      if (!pc) return;
-      peerPresentRef.current = true;
-      if (info) setRemoteUser(info);
-
-      const collision = makingOfferRef.current || pc.signalingState !== 'stable';
-      ignoreOfferRef.current = !polite && collision;
-      if (ignoreOfferRef.current) return;
-
-      try {
-        await pc.setRemoteDescription(parse(sdpJson)); // polite: tự rollback offer của mình
-        await flushIce(pc);
-        await pc.setLocalDescription();
-        await invokeHub('SendAnswer', JSON.stringify(pc.localDescription));
-      } catch (e) {
-        console.error('Handle offer failed:', e);
-      }
-    };
-
-    const onAnswer = async (_senderId, sdpJson) => {
-      const pc = pcRef.current;
-      if (!pc || pc.signalingState !== 'have-local-offer') return;
-      try {
-        await pc.setRemoteDescription(parse(sdpJson));
-        await flushIce(pc);
-      } catch (e) {
-        console.error('Handle answer failed:', e);
-      }
-    };
-
-    const onIce = async (_senderId, candidateJson) => {
-      const pc = pcRef.current;
-      const candidate = parse(candidateJson);
-      if (pc && pc.remoteDescription) {
-        try {
-          await pc.addIceCandidate(candidate);
-        } catch (e) {
-          if (!ignoreOfferRef.current) console.warn('addIceCandidate failed:', e);
-        }
-      } else {
-        pendingIceRef.current.push(candidate);
-      }
-    };
-
-    const onUserJoined = (user) => {
-      setRemoteUser(user);
-      peerPresentRef.current = true;
-      negotiate(); // bên đã ở trong phòng gửi offer
-      // báo cho người mới biết trạng thái mic/cam/screen hiện tại của mình
-      invokeHub('ToggleMediaState', mediaRef.current);
-    };
-
-    const onUserLeft = () => {
-      peerPresentRef.current = false;
-      setRemoteUser(null);
-      setRemoteMedia(DEFAULT_REMOTE_MEDIA);
-      setRemoteHandRaised(false);
-      createPeer(); // peer mới sẵn sàng cho lần đối phương vào lại
     };
 
     (async () => {
@@ -240,115 +268,232 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
       }
       localStreamRef.current = stream;
       setLocalStream(stream);
-      const hasMic = !!stream?.getAudioTracks().length;
-      const hasCam = !!stream?.getVideoTracks().length;
-      mediaRef.current = { isMicOn: hasMic, isCamOn: hasCam, isScreenSharing: false };
-      setIsMicOn(hasMic);
-      setIsCamOn(hasCam);
 
-      createPeer();
+      const session = getSession();
+      const token = session?.accessToken || session?.token;
+      hub = createMeetingHubConnection(token);
+      hubRef.current = hub;
 
-      let joined = false;
+      // ================= SIGNALR HANDLERS =================
+
+      hub.on('UserJoined', (peer) => {
+        if (!peer || !peer.connectionId) return;
+        createPeerConnection(peer.connectionId, peer, true);
+        invokeHub('ToggleMediaState', mediaRef.current);
+      });
+
+      hub.on('ReceiveOffer', async (senderConnId, sdpJson, senderPeerInfo) => {
+        if (!senderConnId) return;
+        let peerEntry = peersMapRef.current.get(senderConnId);
+        if (!peerEntry) {
+          peerEntry = createPeerConnection(senderConnId, senderPeerInfo, false);
+        } else if (senderPeerInfo) {
+          peerEntry.peerInfo = { ...peerEntry.peerInfo, ...senderPeerInfo };
+        }
+
+        const pc = peerEntry.pc;
+        const polite = (userRef.current.role || '').toLowerCase() !== 'mentor';
+        const collision = peerEntry.makingOffer || pc.signalingState !== 'stable';
+        peerEntry.ignoreOffer = !polite && collision;
+        if (peerEntry.ignoreOffer) return;
+
+        try {
+          await pc.setRemoteDescription(parse(sdpJson));
+          await flushIce(peerEntry);
+          await pc.setLocalDescription();
+          await invokeHub('SendAnswer', senderConnId, JSON.stringify(pc.localDescription));
+        } catch (err) {
+          console.error(`Xử lý Offer từ ${senderConnId} lỗi:`, err);
+        }
+      });
+
+      hub.on('ReceiveAnswer', async (senderConnId, sdpJson) => {
+        const peerEntry = peersMapRef.current.get(senderConnId);
+        if (!peerEntry || peerEntry.pc.signalingState !== 'have-local-offer') return;
+        try {
+          await peerEntry.pc.setRemoteDescription(parse(sdpJson));
+          await flushIce(peerEntry);
+        } catch (err) {
+          console.error(`Xử lý Answer từ ${senderConnId} lỗi:`, err);
+        }
+      });
+
+      hub.on('ReceiveIceCandidate', async (senderConnId, candidateJson) => {
+        const peerEntry = peersMapRef.current.get(senderConnId);
+        const candidate = parse(candidateJson);
+        if (!candidate) return;
+        if (peerEntry && peerEntry.pc.remoteDescription) {
+          try {
+            await peerEntry.pc.addIceCandidate(candidate);
+          } catch (err) {
+            if (!peerEntry.ignoreOffer) console.warn('addIceCandidate failed:', err);
+          }
+        } else if (peerEntry) {
+          peerEntry.pendingIce.push(candidate);
+        }
+      });
+
+      hub.on('UserLeft', (connId) => {
+        const peerEntry = peersMapRef.current.get(connId);
+        if (peerEntry) {
+          try { peerEntry.pc?.close(); } catch (e) { }
+          peersMapRef.current.delete(connId);
+          syncPeersState();
+        }
+      });
+
+      hub.on('ReceiveMediaState', (connId, state) => {
+        const peerEntry = peersMapRef.current.get(connId);
+        if (peerEntry) {
+          peerEntry.media = { ...DEFAULT_REMOTE_MEDIA, ...state };
+          const screenId = peerEntry.media.screenStreamId;
+          const streams = peerEntry.remoteStreams;
+          const cam = peerEntry.camStream;
+          let screen = null;
+
+          const wanted = new Set();
+          streams.forEach((s, id) => {
+            if (s.getTracks().length === 0) {
+              streams.delete(id);
+            } else if (id === screenId) {
+              screen = s;
+            } else {
+              s.getTracks().forEach((t) => wanted.add(t));
+            }
+          });
+
+          cam.getTracks().forEach((t) => {
+            if (!wanted.has(t)) cam.removeTrack(t);
+          });
+          wanted.forEach((t) => {
+            if (!cam.getTracks().includes(t)) cam.addTrack(t);
+          });
+
+          peerEntry.screenStream = screen;
+          syncPeersState();
+        }
+      });
+
+      hub.on('ReceiveHandRaised', (connId, isRaised) => {
+        const peerEntry = peersMapRef.current.get(connId);
+        if (peerEntry) {
+          peerEntry.isHandRaised = !!isRaised;
+          syncPeersState();
+        }
+      });
+
+      hub.on('ReceiveChatMessage', (msg) => {
+        setChatMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { ...msg, isSelf: false }]));
+      });
+
+      hub.on('ForceMuted', () => {
+        if (localStreamRef.current) {
+          localStreamRef.current.getAudioTracks().forEach((t) => { t.enabled = false; });
+          setIsMicOn(false);
+          broadcastMedia({ isMicOn: false });
+        }
+      });
+
+      hub.on('PresentationForceStopped', () => {
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach((t) => t.stop());
+          screenStreamRef.current = null;
+          setScreenStream(null);
+          setIsScreenSharing(false);
+          broadcastMedia({ isScreenSharing: false, screenStreamId: null });
+        }
+      });
+
       try {
-        const h = await createMeetingHubConnection(getSession()?.accessToken);
-        if (cancelled) {
-          h.stop();
-          return;
-        }
-        hub = h;
-        hubRef.current = h;
-
-        h.on('UserJoined', onUserJoined);
-        h.on('UserLeft', onUserLeft);
-        h.on('ReceiveOffer', onOffer);
-        h.on('ReceiveAnswer', onAnswer);
-        h.on('ReceiveIceCandidate', onIce);
-        h.on('ReceiveMediaState', (_id, state) => setRemoteMedia({ ...DEFAULT_REMOTE_MEDIA, ...state }));
-        h.on('ReceiveHandRaised', ({ isRaised }) => setRemoteHandRaised(!!isRaised));
-        h.on('ReceiveChatMessage', (msg) =>
-          setChatMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { ...msg, isSelf: false }]))
-        );
-
-        // Mất mạng rồi tự nối lại: connectionId đổi -> phải tạo peer mới và join lại phòng
-        h.onreconnected?.(async () => {
-          onUserLeft();
-          const u = userRef.current;
-          await h.invoke('JoinRoom', roomIdRef.current, u.name || 'Người tham gia', u.role || 'Learner');
-          setConnectionStatus('connected');
-        });
-        h.onreconnecting?.(() => setConnectionStatus('connecting'));
-        h.onclose?.(() => !cancelled && setConnectionStatus('disconnected'));
-
-        await h.start();
-        if (cancelled) {
-          h.stop();
-          return;
-        }
-        joined = false;
+        await hub.start();
         const u = userRef.current;
-        await h.invoke('JoinRoom', roomId, u.name || 'Người tham gia', u.role || 'Learner');
-        joined = true;
-        setConnectionStatus('connected');
-      } catch (e) {
-        console.warn('SignalR error:', e);
-        if (cancelled) return;
-        if (hub && hub.state === 'Connected' && !joined) {
-          // hub chạy nhưng JoinRoom bị từ chối (không có quyền / phòng đầy)
-          setError(e.message?.replace(/^.*HubException:\s*/, '') || 'Không thể vào phòng.');
-          setConnectionStatus('error');
-        } else {
-          setConnectionStatus('standalone'); // hub không chạy -> chế độ demo
+        const resp = await hub.invoke('JoinRoom', roomId, u.name || 'Học viên', u.role || 'Learner');
+
+        if (resp) {
+          const selfInfo = resp.self || resp.Self;
+          if (selfInfo) setLocalUser(selfInfo);
+
+          const participants = resp.participants || resp.Participants || [];
+          participants.forEach((p) => {
+            const connId = p.connectionId || p.ConnectionId;
+            if (connId && connId !== selfInfo?.connectionId) {
+              createPeerConnection(connId, p, false);
+            }
+          });
         }
+        setConnectionStatus('connected');
+      } catch (err) {
+        console.error('Không thể kết nối phòng SignalR:', err);
+        setConnectionStatus('error');
+        setError(err.message || 'Không thể kết nối tới máy chủ phòng họp.');
       }
     })();
 
     return () => {
       cancelled = true;
-      peerPresentRef.current = false;
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-      if (pcRef.current) {
-        pcRef.current.onnegotiationneeded = null;
-        pcRef.current.close();
-        pcRef.current = null;
-      }
-      // Server tự xử lý rời phòng ở OnDisconnectedAsync
-      hubRef.current = null;
-      if (hub) hub.stop().catch(() => { });
-    };
-  }, [roomId, invokeHub]);
+      peersMapRef.current.forEach((peerEntry) => {
+        try { peerEntry.pc?.close(); } catch (e) { }
+      });
+      peersMapRef.current.clear();
 
-  // ================= CONTROLS =================
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+
+      if (hub) {
+        hub.invoke('LeaveRoom', roomIdRef.current).catch(() => { });
+        hub.stop().catch(() => { });
+      }
+    };
+  }, [roomId, createPeerConnection, syncPeersState, invokeHub, broadcastMedia]);
+
+  // Actions
   const toggleMic = useCallback(() => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setIsMicOn(track.enabled);
-    broadcastMedia({ isMicOn: track.enabled });
-  }, [broadcastMedia]);
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const next = !isMicOn;
+    stream.getAudioTracks().forEach((t) => { t.enabled = next; });
+    setIsMicOn(next);
+    broadcastMedia({ isMicOn: next });
+  }, [isMicOn, broadcastMedia]);
 
   const toggleCam = useCallback(() => {
-    const track = localStreamRef.current?.getVideoTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setIsCamOn(track.enabled);
-    broadcastMedia({ isCamOn: track.enabled });
-  }, [broadcastMedia]);
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const next = !isCamOn;
+    stream.getVideoTracks().forEach((t) => { t.enabled = next; });
+    setIsCamOn(next);
+    broadcastMedia({ isCamOn: next });
+  }, [isCamOn, broadcastMedia]);
 
   const stopScreenSharing = useCallback(() => {
     if (!screenStreamRef.current) return;
-    screenStreamRef.current.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current.getTracks().forEach((t) => {
+      t.onended = null;
+      t.stop();
+    });
     screenStreamRef.current = null;
     setScreenStream(null);
 
-    const cameraTrack = localStreamRef.current?.getVideoTracks()[0] ?? null;
-    videoSenderRef.current?.replaceTrack(cameraTrack).catch(() => { });
+    peersMapRef.current.forEach((peerEntry) => {
+      peerEntry.screenTransceivers?.forEach((tr) => {
+        try {
+          if (typeof tr.stop === 'function') tr.stop();
+          else peerEntry.pc?.removeTrack(tr.sender);
+        } catch (e) { }
+      });
+      peerEntry.screenTransceivers = [];
+    });
 
     setIsScreenSharing(false);
-    broadcastMedia({ isScreenSharing: false });
-  }, [broadcastMedia]);
+    broadcastMedia({ isScreenSharing: false, screenStreamId: null });
+    invokeHub('StopPresenting');
+  }, [broadcastMedia, invokeHub]);
 
   const toggleScreenShare = useCallback(async () => {
     if (screenStreamRef.current) {
@@ -356,22 +501,31 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
       return;
     }
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setError('Trình duyệt này không hỗ trợ chia sẻ màn hình (thường gặp trên điện thoại).');
+      setError('Trình duyệt không hỗ trợ chia sẻ màn hình.');
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      const track = stream.getVideoTracks()[0];
-      track.onended = stopScreenSharing; // người dùng bấm "Stop sharing" của trình duyệt
+      const stream = await requestScreen();
+      const videoTrack = stream.getVideoTracks()[0];
+      videoTrack.contentHint = 'detail';
+      videoTrack.onended = stopScreenSharing;
+
       screenStreamRef.current = stream;
       setScreenStream(stream);
-      await videoSenderRef.current?.replaceTrack(track);
+
+      peersMapRef.current.forEach((peerEntry) => {
+        peerEntry.screenTransceivers = attachScreen(peerEntry.pc, stream);
+      });
+
       setIsScreenSharing(true);
-      broadcastMedia({ isScreenSharing: true });
+      broadcastMedia({ isScreenSharing: true, screenStreamId: stream.id });
+      invokeHub('StartPresenting');
     } catch (err) {
-      if (err.name !== 'NotAllowedError') console.warn('Screen share failed:', err);
+      if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+        setError(`Không thể chia sẻ màn hình: ${err.message}`);
+      }
     }
-  }, [broadcastMedia, stopScreenSharing]);
+  }, [broadcastMedia, stopScreenSharing, invokeHub]);
 
   const toggleHandRaise = useCallback(() => {
     const next = !isHandRaised;
@@ -397,15 +551,19 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     [invokeHub]
   );
 
+  const muteParticipant = useCallback(
+    (targetConnectionId) => {
+      invokeHub('MuteParticipant', targetConnectionId);
+    },
+    [invokeHub]
+  );
+
   return {
     connectionStatus,
-    webrtcState,
+    localUser,
     localStream,
     screenStream,
-    remoteStream,
-    remoteUser,
-    remoteMedia, // { isMicOn, isCamOn, isScreenSharing } của đối phương
-    remoteHandRaised,
+    peers,
     isMicOn,
     isCamOn,
     isScreenSharing,
@@ -417,5 +575,13 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     toggleScreenShare,
     toggleHandRaise,
     sendChatMessage,
+    muteParticipant,
+    // Phục hồi cho component cũ truy cập 1-1
+    remoteStream: peers[0]?.stream || null,
+    remoteScreenStream: peers.find((p) => p.screenStream)?.screenStream || null,
+    remoteUser: peers[0] ? { name: peers[0].name, role: peers[0].role } : null,
+    remoteMedia: peers[0]?.media || DEFAULT_REMOTE_MEDIA,
+    remoteHandRaised: peers[0]?.isHandRaised || false,
+    webrtcState: peers[0]?.webrtcState || 'new',
   };
 }

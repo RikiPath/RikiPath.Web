@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useWebRtcMeeting } from '../../hooks/useWebRtcMeeting.js';
 import {
@@ -11,11 +11,9 @@ import {
   Hand,
   MessageSquare,
   Users,
-  Settings,
   PhoneOff,
   Copy,
   Check,
-  Sparkles,
   Layers,
   BookOpen,
   FileText,
@@ -25,8 +23,119 @@ import {
   WifiOff,
   Maximize2,
   Minimize2,
-  Volume2,
+  ScreenShareOff,
+  Shield,
+  User,
 } from 'lucide-react';
+
+// Tile hiển thị Stream Video
+function VideoTile({ stream, muted = false, mirrored = false, contain = false, className = '' }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream || null;
+    if (stream) el.play?.().catch(() => { });
+  }, [stream]);
+
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted={muted}
+      className={`${contain ? 'object-contain' : 'object-cover'} ${mirrored ? 'scale-x-[-1]' : ''} ${className}`}
+    />
+  );
+}
+
+// Tile hiển thị thông tin từng học viên/mentor
+function ParticipantTile({
+  name,
+  role,
+  stream,
+  isCamOn,
+  isMicOn,
+  isHandRaised,
+  isSelf = false,
+  compact = false,
+  onMuteParticipant,
+  connectionId,
+  canMute = false,
+}) {
+  const showVideo = !!stream && isCamOn;
+  const isMentor = role?.toLowerCase() === 'mentor';
+
+  return (
+    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#1E171A] border border-white/10 flex items-center justify-center group shadow-md">
+      {stream && (
+        <VideoTile
+          stream={stream}
+          muted={isSelf}
+          mirrored={isSelf}
+          className={showVideo ? 'w-full h-full' : 'absolute inset-0 w-full h-full opacity-0 pointer-events-none'}
+        />
+      )}
+
+      {!showVideo && (
+        <div className="flex flex-col items-center justify-center gap-2 p-3 text-center">
+          <div
+            className={`${compact ? 'w-10 h-10 text-sm' : 'w-20 h-20 text-2xl'} rounded-full bg-gradient-to-tr ${isMentor ? 'from-[#D94B68] to-[#E05A7A]' : 'from-indigo-600 to-purple-600'
+              } border-2 border-white/20 flex items-center justify-center font-black text-white shadow-xl`}
+          >
+            {name ? name.charAt(0).toUpperCase() : 'U'}
+          </div>
+          {!compact && (
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center justify-center gap-1.5">
+                {name}
+                {isMentor && <Shield className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />}
+              </h3>
+              <p className="text-[11px] text-white/50">Camera đã tắt</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Overlay Tên & Mic */}
+      <div className="absolute left-2.5 bottom-2.5 right-2.5 flex items-center justify-between gap-2 px-2.5 py-1 rounded-xl bg-black/60 backdrop-blur-md text-xs font-medium text-white">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {!isMicOn ? <MicOff className="w-3.5 h-3.5 text-rose-400 shrink-0" /> : <Mic className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+          <span className="truncate max-w-[120px] sm:max-w-[160px]">
+            {name} {isSelf && '(Bạn)'}
+          </span>
+          <span
+            className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${isMentor ? 'bg-[#D94B68]/30 text-[#F472B6] border border-[#D94B68]/40' : 'bg-white/10 text-white/70'
+              }`}
+          >
+            {isMentor ? 'Mentor' : 'Learner'}
+          </span>
+        </div>
+
+        {/* Nút Mentor tắt Mic */}
+        {canMute && !isSelf && isMicOn && onMuteParticipant && (
+          <button
+            type="button"
+            onClick={() => onMuteParticipant(connectionId)}
+            className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600/80 hover:bg-rose-600 text-[10px] font-bold text-white transition-all cursor-pointer"
+            title="Tắt mic học viên này"
+          >
+            <MicOff className="w-3 h-3" />
+            <span>Tắt Mic</span>
+          </button>
+        )}
+      </div>
+
+      {/* Biểu tượng giơ tay */}
+      {isHandRaised && (
+        <div className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg animate-bounce">
+          <Hand className="w-3.5 h-3.5 fill-white" />
+          {!compact && <span>Giơ tay</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ConsultationRoom() {
   const { roomId: pathRoomId } = useParams();
@@ -34,7 +143,6 @@ export default function ConsultationRoom() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Extract or generate roomId
   const roomId = pathRoomId || searchParams.get('roomId') || 'mentor-room-n3-dokkai';
 
   const currentUser = {
@@ -45,10 +153,10 @@ export default function ConsultationRoom() {
 
   const {
     connectionStatus,
-    webrtcState,
+    localUser,
     localStream,
-    remoteStream,
-    remoteUser,
+    screenStream,
+    peers,
     isMicOn,
     isCamOn,
     isScreenSharing,
@@ -60,19 +168,18 @@ export default function ConsultationRoom() {
     toggleScreenShare,
     toggleHandRaise,
     sendChatMessage,
+    muteParticipant,
   } = useWebRtcMeeting(roomId, currentUser);
 
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
+  const stageRef = useRef(null);
   const chatBottomRef = useRef(null);
 
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'agenda' | 'notes' | 'info'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'participants' | 'agenda' | 'notes'
   const [inputMessage, setInputMessage] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
-  const [layoutMode, setLayoutMode] = useState('speaker'); // 'speaker' | 'grid'
+  const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'speaker'
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Agenda items
   const [agendaList, setAgendaList] = useState([
     { id: 1, text: 'Phân tích 3 câu Dokkai N3 khó - Đề tháng 12/2024', done: true },
     { id: 2, text: 'Chiến thuật đọc lướt tìm từ khóa: 余白 / 間', done: false },
@@ -80,26 +187,10 @@ export default function ConsultationRoom() {
     { id: 4, text: 'Hỏi đáp & Định hướng lộ trình 1-on-1', done: false },
   ]);
 
-  // Shared lesson notes
   const [sharedNotes, setSharedNotes] = useState(
-    '【Ghi chú từ Sensei】\n- Lưu ý các liên từ chuyển ý: しかし, ところが, それに対して.\n- Khi gặp bài đọc dài, scan nhanh câu đầu và câu cuối của từng đoạn để nắm ý chính.'
+    '【Ghi chú bài học nhóm】\n- Lưu ý các liên từ chuyển ý: しかし, ところが, それに対して.\n- Khi gặp bài đọc dài, scan nhanh câu đầu và câu cuối của từng đoạn để nắm ý chính.'
   );
 
-  // Bind local stream to video element
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  // Bind remote stream to video element
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
-
-  // Auto-scroll chat to bottom
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
@@ -126,13 +217,34 @@ export default function ConsultationRoom() {
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
       setIsFullscreen(false);
     }
   };
+
+  // Tìm stream màn hình đang chia sẻ (nếu có)
+  const presentingPeer = peers.find((p) => p.screenStream);
+  const remoteScreenStream = presentingPeer?.screenStream;
+  const presenterName = presentingPeer?.name || 'Ai đó';
+
+  const isPresentingRemote = !!remoteScreenStream;
+  const isPresentingSelf = isScreenSharing && !!screenStream;
+  const presenting = isPresentingRemote || isPresentingSelf;
+
+  const isUserMentor = currentUser.role?.toLowerCase() === 'mentor';
+  const totalParticipantsCount = peers.length + 1; // +1 cho local user
+
+  const statusMap = {
+    connected: { icon: Wifi, color: 'text-emerald-400', label: 'SignalR Live Hub' },
+    connecting: { icon: Radio, color: 'text-amber-400 animate-pulse', label: 'Đang kết nối...' },
+    error: { icon: WifiOff, color: 'text-rose-400', label: 'Không vào được phòng' },
+    disconnected: { icon: WifiOff, color: 'text-rose-400', label: 'Mất kết nối' },
+  };
+  const status = statusMap[connectionStatus] || statusMap.connecting;
+  const StatusIcon = status.icon;
 
   return (
     <div
@@ -148,34 +260,25 @@ export default function ConsultationRoom() {
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-bold text-white">
-                Phòng Cố vấn 1-on-1 · {remoteUser?.name || 'Sato-sensei'}
+                Phòng Học Nhóm Mentor · JLPT N3
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D94B68]/20 border border-[#D94B68]/40 text-[#F472B6]">
-                JLPT N3
+                {totalParticipantsCount} Người
               </span>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-white/50">
               <span className="font-mono">Room: {roomId}</span>
               <span>•</span>
               <span className="flex items-center gap-1">
-                {connectionStatus === 'connected' ? (
-                  <>
-                    <Wifi className="w-3 h-3 text-emerald-400" />
-                    <span className="text-emerald-400">SignalR Live Hub</span>
-                  </>
-                ) : (
-                  <>
-                    <Radio className="w-3 h-3 text-amber-400 animate-pulse" />
-                    <span className="text-amber-400">Realtime P2P Ready</span>
-                  </>
-                )}
+                <StatusIcon className={`w-3 h-3 ${status.color}`} />
+                <span className={status.color}>{status.label}</span>
               </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Copy Invite Link */}
+          {/* Mời tham gia */}
           <button
             onClick={handleCopyInviteLink}
             type="button"
@@ -190,12 +293,12 @@ export default function ConsultationRoom() {
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5 text-white/70" />
-                <span>Mời tham gia</span>
+                <span>Mời Learner</span>
               </>
             )}
           </button>
 
-          {/* Fullscreen Toggle */}
+          {/* Nút Toàn màn hình */}
           <button
             onClick={toggleFullScreen}
             type="button"
@@ -205,7 +308,7 @@ export default function ConsultationRoom() {
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
 
-          {/* Leave Call */}
+          {/* Rời phòng */}
           <button
             onClick={() => navigate('/consultation')}
             type="button"
@@ -217,126 +320,184 @@ export default function ConsultationRoom() {
         </div>
       </header>
 
-      {/* 2. MAIN STAGE (VIDEO TILES & COLLABORATION SIDEBAR) */}
+      {/* 2. MAIN STAGE */}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_360px] overflow-hidden">
-        {/* VIDEO DISPLAY AREA */}
-        <section className="relative flex flex-col justify-between p-3 sm:p-5 overflow-hidden bg-[#161013]">
+        {/* KHU VỰC VIDEO */}
+        <section className="relative flex flex-col justify-between p-3 sm:p-4 overflow-hidden bg-[#161013]">
           {error && (
-            <div className="absolute top-6 left-6 right-6 z-30 p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-medium flex items-center gap-2 backdrop-blur-md">
+            <div className="absolute top-4 left-4 right-4 z-30 p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-medium flex items-center gap-2 backdrop-blur-md">
               <span className="shrink-0 font-bold">⚠️ Thông báo:</span>
               <span>{error}</span>
             </div>
           )}
 
-          {/* VIDEO GRID / CONTAINER */}
+          {/* STAGE MAIN */}
           <div
-            className={`relative flex-1 w-full h-full rounded-2xl overflow-hidden bg-[#241C20] border border-white/10 flex items-center justify-center ${
-              layoutMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 p-3' : ''
-            }`}
+            ref={stageRef}
+            className="relative flex-1 min-h-0 w-full rounded-2xl overflow-hidden bg-[#241C20] border border-white/10 p-2"
           >
-            {/* MAIN / REMOTE VIDEO TILE */}
-            <div className="relative w-full h-full rounded-xl overflow-hidden bg-[#1E171A] flex items-center justify-center">
-              {remoteStream ? (
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-                  <div className="relative">
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-[#D94B68]/30 to-[#E05A7A]/10 border-2 border-[#D94B68]/40 flex items-center justify-center text-3xl font-black text-white shadow-xl">
-                      {remoteUser?.name ? remoteUser.name.charAt(0) : 'S'}
-                    </div>
-                    <span className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-[#1E171A] flex items-center justify-center">
-                      <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-base font-bold text-white">
-                      {remoteUser?.name || 'Sato-sensei (Cố vấn)'}
-                    </h3>
-                    <p className="text-xs text-white/50 max-w-sm">
-                      Đang kết nối luồng WebRTC Realtime qua <code>/hubs/mentor-meeting</code>. Khi cố vấn bật camera, video sẽ hiển thị trực tiếp tại đây.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-white/60">
-                    <Radio className="w-3 h-3 text-[#E05A7A] animate-pulse" />
-                    <span>Trạng thái WebRTC: {webrtcState}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Remote Peer Name Label */}
-              <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md border border-white/10">
-                <Video className="w-3.5 h-3.5 text-[#F472B6]" />
-                <span>{remoteUser?.name || 'Sato-sensei'}</span>
-              </div>
-            </div>
-
-            {/* LOCAL USER SELF-VIEW (PIP or In-Grid) */}
-            <div
-              className={`${
-                layoutMode === 'speaker'
-                  ? 'absolute bottom-4 right-4 w-48 sm:w-60 h-32 sm:h-40 rounded-xl overflow-hidden border-2 border-white/20 bg-[#2C2226] shadow-2xl z-10'
-                  : 'relative w-full h-full rounded-xl overflow-hidden border border-white/10 bg-[#2C2226]'
-              }`}
-            >
-              {isCamOn && localStream ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover scale-x-[-1]"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-[#3D2930] to-[#221A1D] text-white/60">
-                  <VideoOff className="w-6 h-6 text-white/40" />
-                  <span className="text-[11px] font-medium">Camera đã tắt</span>
-                </div>
-              )}
-
-              {/* Local User Badge */}
-              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-[10px] font-bold text-white/90">
-                <span className="truncate">Bạn ({currentUser.name})</span>
-                <span className="flex items-center gap-1">
-                  {isMicOn ? (
-                    <Mic className="w-3 h-3 text-emerald-400" />
+            {presenting ? (
+              <div className="flex h-full w-full flex-col gap-3 bg-black/40 p-2 md:flex-row">
+                {/* Màn hình Chia sẻ */}
+                <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-black border border-white/10">
+                  {isPresentingRemote ? (
+                    <>
+                      <VideoTile stream={remoteScreenStream} contain className="h-full w-full" />
+                      <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md border border-white/10">
+                        <ScreenShare className="w-3.5 h-3.5 text-[#F472B6]" />
+                        <span>{presenterName} đang trình bày</span>
+                      </div>
+                    </>
                   ) : (
-                    <MicOff className="w-3 h-3 text-rose-400" />
+                    <div className="flex flex-col items-center gap-3 p-6 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E05A7A]/20 border border-[#E05A7A]/40">
+                        <ScreenShare className="h-7 w-7 text-[#F472B6]" />
+                      </div>
+                      <h3 className="text-base font-bold">Bạn đang chia sẻ màn hình</h3>
+                      <p className="max-w-sm text-xs text-white/50">
+                        Mọi learner trong phòng đều đang nhìn thấy màn hình của bạn.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={toggleScreenShare}
+                        className="flex items-center gap-1.5 rounded-xl bg-[#E11D48] px-4 py-2 text-xs font-bold text-white hover:bg-[#BE123C] cursor-pointer"
+                      >
+                        <ScreenShareOff className="h-4 w-4" />
+                        Dừng chia sẻ
+                      </button>
+                    </div>
                   )}
-                </span>
+                </div>
+
+                {/* Dải Camera dọc bên phải */}
+                <div className="flex h-32 shrink-0 gap-2 overflow-x-auto md:h-full md:w-64 md:flex-col md:overflow-y-auto pr-1">
+                  <ParticipantTile
+                    name={currentUser.name}
+                    role={currentUser.role}
+                    stream={localStream}
+                    isCamOn={isCamOn}
+                    isMicOn={isMicOn}
+                    isHandRaised={isHandRaised}
+                    isSelf
+                    compact
+                  />
+                  {peers.map((peer) => (
+                    <ParticipantTile
+                      key={peer.connectionId}
+                      connectionId={peer.connectionId}
+                      name={peer.name}
+                      role={peer.role}
+                      stream={peer.stream}
+                      isCamOn={peer.media?.isCamOn}
+                      isMicOn={peer.media?.isMicOn}
+                      isHandRaised={peer.isHandRaised}
+                      onMuteParticipant={muteParticipant}
+                      canMute={isUserMentor}
+                      compact
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : layoutMode === 'grid' ? (
+              /* GRID VIEW - Cho nhiều Learner */
+              <div
+                className={`grid h-full w-full gap-2.5 p-1 ${totalParticipantsCount <= 2
+                  ? 'grid-cols-1 sm:grid-cols-2'
+                  : totalParticipantsCount <= 4
+                    ? 'grid-cols-2'
+                    : 'grid-cols-2 lg:grid-cols-3'
+                  }`}
+              >
+                <ParticipantTile
+                  name={currentUser.name}
+                  role={currentUser.role}
+                  stream={localStream}
+                  isCamOn={isCamOn}
+                  isMicOn={isMicOn}
+                  isHandRaised={isHandRaised}
+                  isSelf
+                />
+                {peers.map((peer) => (
+                  <ParticipantTile
+                    key={peer.connectionId}
+                    connectionId={peer.connectionId}
+                    name={peer.name}
+                    role={peer.role}
+                    stream={peer.stream}
+                    isCamOn={peer.media?.isCamOn}
+                    isMicOn={peer.media?.isMicOn}
+                    isHandRaised={peer.isHandRaised}
+                    onMuteParticipant={muteParticipant}
+                    canMute={isUserMentor}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* SPEAKER VIEW */
+              <div className="relative h-full w-full">
+                {peers.length > 0 ? (
+                  <ParticipantTile
+                    connectionId={peers[0].connectionId}
+                    name={peers[0].name}
+                    role={peers[0].role}
+                    stream={peers[0].stream}
+                    isCamOn={peers[0].media?.isCamOn}
+                    isMicOn={peers[0].media?.isMicOn}
+                    isHandRaised={peers[0].isHandRaised}
+                    onMuteParticipant={muteParticipant}
+                    canMute={isUserMentor}
+                  />
+                ) : (
+                  <ParticipantTile
+                    name={currentUser.name}
+                    role={currentUser.role}
+                    stream={localStream}
+                    isCamOn={isCamOn}
+                    isMicOn={isMicOn}
+                    isHandRaised={isHandRaised}
+                    isSelf
+                  />
+                )}
+                {/* Floating camera bản thân */}
+                <div className="absolute bottom-4 right-4 z-10 h-32 w-48 overflow-hidden rounded-xl shadow-2xl border border-white/20">
+                  <ParticipantTile
+                    name={currentUser.name}
+                    role={currentUser.role}
+                    stream={localStream}
+                    isCamOn={isCamOn}
+                    isMicOn={isMicOn}
+                    isHandRaised={isHandRaised}
+                    isSelf
+                    compact
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 3. FLOATING MEETING CONTROL BAR */}
-          <div className="mt-4 flex items-center justify-center gap-2 sm:gap-3 py-2 px-4 rounded-2xl bg-[#1A1416]/90 border border-white/10 backdrop-blur-xl shadow-xl self-center">
-            {/* Mic Toggle */}
+          {/* 3. CONTROL BAR */}
+          <div className="mt-3 flex items-center justify-center gap-2 sm:gap-3 py-2 px-4 rounded-2xl bg-[#1A1416]/90 border border-white/10 backdrop-blur-xl shadow-xl self-center">
+            {/* Mic */}
             <button
               onClick={toggleMic}
               type="button"
-              className={`p-3 rounded-xl transition-all cursor-pointer ${
-                isMicOn
-                  ? 'bg-white/10 hover:bg-white/20 text-white'
-                  : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30'
-              }`}
+              className={`p-3 rounded-xl transition-all cursor-pointer ${isMicOn
+                ? 'bg-white/10 hover:bg-white/20 text-white'
+                : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30'
+                }`}
               title={isMicOn ? 'Tắt Micro' : 'Bật Micro'}
             >
               {isMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
             </button>
 
-            {/* Cam Toggle */}
+            {/* Cam */}
             <button
               onClick={toggleCam}
               type="button"
-              className={`p-3 rounded-xl transition-all cursor-pointer ${
-                isCamOn
-                  ? 'bg-white/10 hover:bg-white/20 text-white'
-                  : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30'
-              }`}
+              className={`p-3 rounded-xl transition-all cursor-pointer ${isCamOn
+                ? 'bg-white/10 hover:bg-white/20 text-white'
+                : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30'
+                }`}
               title={isCamOn ? 'Tắt Camera' : 'Bật Camera'}
             >
               {isCamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
@@ -346,25 +507,23 @@ export default function ConsultationRoom() {
             <button
               onClick={toggleScreenShare}
               type="button"
-              className={`p-3 rounded-xl transition-all cursor-pointer ${
-                isScreenSharing
-                  ? 'bg-[#E05A7A] text-white shadow-md shadow-[#E05A7A]/30'
-                  : 'bg-white/10 hover:bg-white/20 text-white'
-              }`}
+              className={`p-3 rounded-xl transition-all cursor-pointer ${isScreenSharing
+                ? 'bg-[#E05A7A] text-white shadow-md shadow-[#E05A7A]/30'
+                : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
               title={isScreenSharing ? 'Dừng chia sẻ màn hình' : 'Chia sẻ màn hình'}
             >
-              <ScreenShare className="w-5 h-5" />
+              {isScreenSharing ? <ScreenShareOff className="w-5 h-5" /> : <ScreenShare className="w-5 h-5" />}
             </button>
 
-            {/* Raise Hand */}
+            {/* Giơ tay */}
             <button
               onClick={toggleHandRaise}
               type="button"
-              className={`p-3 rounded-xl transition-all cursor-pointer ${
-                isHandRaised
-                  ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
-                  : 'bg-white/10 hover:bg-white/20 text-white'
-              }`}
+              className={`p-3 rounded-xl transition-all cursor-pointer ${isHandRaised
+                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
+                : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
               title={isHandRaised ? 'Hạ tay' : 'Giơ tay phát biểu'}
             >
               <Hand className="w-5 h-5" />
@@ -372,24 +531,25 @@ export default function ConsultationRoom() {
 
             <div className="w-px h-6 bg-white/15 mx-1" />
 
-            {/* Layout Toggle */}
+            {/* Layout Mode */}
             <button
               onClick={() => setLayoutMode(layoutMode === 'speaker' ? 'grid' : 'speaker')}
               type="button"
               className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
-              title="Đổi chế độ xem (Speaker / Grid)"
+              title="Chuyển chế độ xem (Lưới / Diễn giả)"
             >
               <Layers className="w-5 h-5" />
             </button>
           </div>
         </section>
 
-        {/* 4. RIGHT COLLABORATION SIDEBAR */}
+        {/* 4. RIGHT SIDEBAR COLLABORATION */}
         <aside className="flex min-h-0 flex-col border-t border-white/10 bg-[#1A1416] lg:border-l lg:border-t-0 z-10">
           {/* TAB HEADERS */}
           <div className="flex shrink-0 border-b border-white/10">
             {[
               { id: 'chat', label: 'Chat', icon: MessageSquare },
+              { id: 'participants', label: `Thành viên (${totalParticipantsCount})`, icon: Users },
               { id: 'agenda', label: 'Nội dung', icon: BookOpen },
               { id: 'notes', label: 'Ghi chú', icon: FileText },
             ].map(({ id, label, icon: Icon }) => (
@@ -397,26 +557,25 @@ export default function ConsultationRoom() {
                 key={id}
                 type="button"
                 onClick={() => setActiveTab(id)}
-                className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                  activeTab === id
-                    ? 'border-b-2 border-[#E05A7A] text-white bg-white/5'
-                    : 'text-white/50 hover:text-white/80'
-                }`}
+                className={`flex-1 py-3 text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer ${activeTab === id
+                  ? 'border-b-2 border-[#E05A7A] text-white bg-white/5'
+                  : 'text-white/50 hover:text-white/80'
+                  }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                <span>{label}</span>
+                <span className="truncate">{label}</span>
               </button>
             ))}
           </div>
 
-          {/* TAB 1: REAL-TIME CHAT */}
+          {/* TAB 1: CHAT */}
           {activeTab === 'chat' && (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-2">
                     <MessageSquare className="w-8 h-8 stroke-1" />
-                    <p className="text-xs">Chưa có tin nhắn trong phòng.<br />Hãy gửi lời chào tới Sensei!</p>
+                    <p className="text-xs">Chưa có tin nhắn trong phòng.<br />Hãy đặt câu hỏi cho Mentor!</p>
                   </div>
                 ) : (
                   chatMessages.map((msg) => (
@@ -426,15 +585,20 @@ export default function ConsultationRoom() {
                     >
                       <div className="flex items-center gap-1.5 text-[10px] text-white/40">
                         <span className="font-semibold text-white/70">{msg.sender}</span>
+                        <span
+                          className={`px-1 py-0.2 rounded text-[8px] font-bold ${msg.role === 'Mentor' ? 'bg-[#D94B68]/30 text-[#F472B6]' : 'bg-white/10 text-white/60'
+                            }`}
+                        >
+                          {msg.role}
+                        </span>
                         <span>•</span>
                         <span>{msg.timestamp}</span>
                       </div>
                       <div
-                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
-                          msg.isSelf
-                            ? 'bg-gradient-to-r from-[#D94B68] to-[#E05A7A] text-white rounded-tr-none shadow-sm'
-                            : 'bg-[#2A2225] text-white/90 border border-white/10 rounded-tl-none'
-                        }`}
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${msg.isSelf
+                          ? 'bg-gradient-to-r from-[#D94B68] to-[#E05A7A] text-white rounded-tr-none shadow-sm'
+                          : 'bg-[#2A2225] text-white/90 border border-white/10 rounded-tl-none'
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -444,14 +608,14 @@ export default function ConsultationRoom() {
                 <div ref={chatBottomRef} />
               </div>
 
-              {/* Chat Input Form */}
+              {/* Chat Input */}
               <form onSubmit={handleSendMessage} className="p-3 border-t border-white/10 bg-[#161013]">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
-                    placeholder="Nhập tin nhắn..."
+                    placeholder="Nhập tin nhắn tới mọi người..."
                     className="flex-1 rounded-xl bg-white/5 border border-white/10 px-3.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#E05A7A]"
                   />
                   <button
@@ -466,12 +630,78 @@ export default function ConsultationRoom() {
             </div>
           )}
 
-          {/* TAB 2: MEETING AGENDA */}
+          {/* TAB 2: DANH SÁCH THÀNH VIÊN */}
+          {activeTab === 'participants' && (
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider mb-2">
+                Thành viên trong phòng ({totalParticipantsCount})
+              </h4>
+
+              {/* Bản thân */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xs">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white flex items-center gap-1">
+                      {currentUser.name} <span className="text-[10px] text-emerald-400">(Bạn)</span>
+                    </p>
+                    <p className="text-[10px] text-white/50">{currentUser.role}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isMicOn ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
+                  {isCamOn ? <Video className="w-3.5 h-3.5 text-emerald-400" /> : <VideoOff className="w-3.5 h-3.5 text-rose-400" />}
+                </div>
+              </div>
+
+              {/* Danh sách người khác */}
+              {peers.map((peer) => (
+                <div key={peer.connectionId} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${peer.role?.toLowerCase() === 'mentor' ? 'bg-[#D94B68]' : 'bg-purple-600'
+                        }`}
+                    >
+                      {peer.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white flex items-center gap-1">
+                        {peer.name}
+                        {peer.role?.toLowerCase() === 'mentor' && <Shield className="w-3 h-3 text-amber-400" />}
+                      </p>
+                      <p className="text-[10px] text-white/50">{peer.role}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {peer.isHandRaised && <Hand className="w-3.5 h-3.5 text-amber-400 animate-pulse" />}
+                    {peer.media?.isMicOn ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
+                    {peer.media?.isCamOn ? <Video className="w-3.5 h-3.5 text-emerald-400" /> : <VideoOff className="w-3.5 h-3.5 text-rose-400" />}
+
+                    {isUserMentor && peer.media?.isMicOn && (
+                      <button
+                        type="button"
+                        onClick={() => muteParticipant(peer.connectionId)}
+                        className="ml-1 p-1 rounded bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white transition-all cursor-pointer"
+                        title="Tắt mic"
+                      >
+                        <MicOff className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TAB 3: AGENDA */}
           {activeTab === 'agenda' && (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider">
-                  Mục tiêu buổi cố vấn (45 phút)
+                  Mục tiêu buổi học
                 </h4>
                 <span className="text-[11px] text-[#E05A7A] font-bold">
                   {agendaList.filter((a) => a.done).length}/{agendaList.length} Hoàn thành
@@ -483,16 +713,14 @@ export default function ConsultationRoom() {
                     key={item.id}
                     onClick={() => toggleAgendaItem(item.id)}
                     type="button"
-                    className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${
-                      item.done
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-                        : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
-                    }`}
+                    className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${item.done
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                      : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
+                      }`}
                   >
                     <div
-                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${
-                        item.done ? 'bg-emerald-500 text-white' : 'border border-white/30'
-                      }`}
+                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${item.done ? 'bg-emerald-500 text-white' : 'border border-white/30'
+                        }`}
                     >
                       {item.done && <Check className="w-3 h-3 stroke-3" />}
                     </div>
@@ -505,7 +733,7 @@ export default function ConsultationRoom() {
             </div>
           )}
 
-          {/* TAB 3: SHARED NOTES */}
+          {/* TAB 4: SHARED NOTES */}
           {activeTab === 'notes' && (
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
               <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider">
@@ -515,7 +743,7 @@ export default function ConsultationRoom() {
                 value={sharedNotes}
                 onChange={(e) => setSharedNotes(e.target.value)}
                 className="flex-1 w-full min-h-[300px] p-3 rounded-xl bg-white/5 border border-white/10 text-xs text-white/90 font-mono leading-relaxed focus:outline-none focus:border-[#E05A7A] resize-none"
-                placeholder="Ghi chú kiến thức trọng tâm, từ vựng hoặc bài tập về nhà tại đây..."
+                placeholder="Ghi chú kiến thức trọng tâm..."
               />
             </div>
           )}
