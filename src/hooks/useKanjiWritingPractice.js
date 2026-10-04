@@ -1,6 +1,6 @@
 // src/hooks/useKanjiWritingPractice.js
 import { useCallback, useEffect, useState } from 'react';
-import { getDueKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
+import { getAllKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
 
 export function useKanjiWritingPractice(count = 10) {
     const [queue, setQueue] = useState([]);
@@ -17,8 +17,9 @@ export function useKanjiWritingPractice(count = 10) {
             // NOTE: giả định api.get() (client.js) đã tự unwrap và trả thẳng phần "data" trong
             // ApiResponse<T> của backend - nếu client.js chỉ unwrap response axios (trả nguyên
             // { success, message, data }), đổi dòng dưới thành: const { data } = await ...
-            const data = await getDueKanjiForWriting(count);
-            setQueue(data ?? []);
+            const data = await getAllKanjiForWriting(count);
+            // Ignore empty records so a malformed item cannot crash the practice page.
+            setQueue(Array.isArray(data) ? data.filter(Boolean) : []);
             setIndex(0);
         } catch (err) {
             setError(err.message ?? 'Không thể tải danh sách chữ cần luyện.');
@@ -28,23 +29,33 @@ export function useKanjiWritingPractice(count = 10) {
     }, [count]);
 
     useEffect(() => {
+        // Loading remote practice data is the purpose of this effect.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadQueue();
     }, [loadQueue]);
 
     const currentItem = queue[index] ?? null;
     const isFinished = !loading && queue.length > 0 && index >= queue.length;
 
+    const selectItem = useCallback((itemIndex) => {
+        setIndex(Math.max(0, Math.min(itemIndex, queue.length - 1)));
+        setLastResult(null);
+    }, [queue.length]);
+
     const submitResult = useCallback(
-        async (totalMistakes) => {
+        async ({ totalMistakes, score, practiceMode = 'guided' }) => {
             if (!currentItem) return;
             try {
                 // Cùng giả định unwrap như loadQueue ở trên.
                 const result = await submitKanjiWritingResult({
-                    kanjiEntryId: currentItem.kanjiEntryId,
+                    kanjiId: currentItem.kanjiId,
                     totalMistakes,
+                    score: Math.max(0, Math.min(100, score ?? (100 - totalMistakes * 10))),
+                    correctStrokeCount: Math.max(0, (currentItem.strokeCount || 1) - totalMistakes),
+                    totalStrokeCount: currentItem.strokeCount || 1,
+                    practiceMode,
                 });
                 setLastResult(result);
-                setIndex((i) => i + 1);
             } catch (err) {
                 setError(err.message ?? 'Không thể ghi nhận kết quả luyện viết.');
             }
@@ -53,6 +64,7 @@ export function useKanjiWritingPractice(count = 10) {
     );
 
     return {
+        queue,
         currentItem,
         index,
         total: queue.length,
@@ -61,6 +73,7 @@ export function useKanjiWritingPractice(count = 10) {
         error,
         lastResult,
         submitResult,
+        selectItem,
         reload: loadQueue,
     };
 }

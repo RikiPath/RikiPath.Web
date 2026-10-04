@@ -1,3 +1,5 @@
+import { getPreviewSession } from '../mocks/preview.js';
+
 const KEY = 'rikipath.auth';
 const PENDING_KEY = 'rikipath.pendingVerify';
 
@@ -9,6 +11,8 @@ export function saveSession(session, remember = true) {
 }
 
 export function getSession() {
+  const preview = getPreviewSession();
+  if (preview) return preview;
   const raw = localStorage.getItem(KEY) || sessionStorage.getItem(KEY);
   if (!raw) return null;
   try {

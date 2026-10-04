@@ -5,7 +5,13 @@ import { api } from './client.js';
  * @param {number} count
  */
 export async function getDueKanjiForWriting(count = 10) {
-    return await api.get('/kanjiwritingpractice/due', { params: { count } });
+    const response = await api.get('/kanjiwritingpractice/due', { params: { count } });
+    return response?.result ?? response;
+}
+
+export async function getAllKanjiForWriting(count = 100) {
+    const response = await api.get('/kanjiwritingpractice/all', { params: { count } });
+    return response?.result ?? response;
 }
 
 /**
@@ -13,5 +19,11 @@ export async function getDueKanjiForWriting(count = 10) {
  * @param {Object} data - { kanjiEntryId, totalMistakes }
  */
 export async function submitKanjiWritingResult(data) {
-    return await api.post('/kanjiwritingpractice/submit', data);
+    const response = await api.post('/kanjiwritingpractice/submit', data);
+    return response?.result ?? response;
+}
+
+export async function getKanjiWritingScores() {
+    const response = await api.get('/kanjiwritingpractice/scores');
+    return response?.result ?? response;
 }

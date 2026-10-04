@@ -20,7 +20,6 @@ import {
   Send,
   Radio,
   Wifi,
-  WifiOff,
   Maximize2,
   Minimize2,
   ScreenShareOff,
@@ -248,14 +247,13 @@ export default function ConsultationRoom() {
 
   return (
     <div
-      className="flex h-[calc(100vh-var(--preview-nav-h,7.5rem))] min-h-[640px] flex-col bg-[#120E10] text-white font-sans select-none overflow-hidden"
+      className="flex h-screen min-h-[640px] flex-col overflow-hidden bg-transparent text-[#2D282A]"
       data-page="WebRtcConsultationRoom"
     >
-      {/* 1. TOP BAR */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4 sm:px-6 bg-[#1A1416]/90 backdrop-blur-md z-20">
+      <header className="z-20 flex h-[72px] shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#D94B68] to-[#E05A7A] text-white font-black text-sm shadow-md shadow-[#D94B68]/30">
-            R
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white shadow-md shadow-[#D94B68]/25">
+            <span className="material-symbols-outlined text-[22px]">local_florist</span>
           </div>
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
@@ -282,13 +280,12 @@ export default function ConsultationRoom() {
           <button
             onClick={handleCopyInviteLink}
             type="button"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 hover:text-white transition-all cursor-pointer"
-            title="Sao chép link mời tham gia phòng"
+            className="hidden items-center gap-1.5 rounded-full border border-[#dfbfc1]/50 bg-white px-3.5 py-2 text-xs font-bold text-[#6F6669] shadow-sm hover:text-[#D94B68] sm:flex"
           >
             {copiedLink ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400">Đã chép link</span>
+                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="text-emerald-600">Đã chép link</span>
               </>
             ) : (
               <>
@@ -302,19 +299,19 @@ export default function ConsultationRoom() {
           <button
             onClick={toggleFullScreen}
             type="button"
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all cursor-pointer"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dfbfc1]/50 bg-white text-[#6F6669] shadow-sm hover:text-[#D94B68]"
             title="Toàn màn hình"
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
 
           {/* Rời phòng */}
           <button
             onClick={() => navigate('/consultation')}
             type="button"
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#E11D48] hover:bg-[#BE123C] text-white text-xs font-bold transition-all shadow-sm shadow-[#E11D48]/30 cursor-pointer"
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#D94B68]/25"
           >
-            <PhoneOff className="w-3.5 h-3.5" />
+            <PhoneOff className="h-3.5 w-3.5" />
             <span>Rời phòng</span>
           </button>
         </div>
@@ -502,10 +499,7 @@ export default function ConsultationRoom() {
             >
               {isCamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
             </button>
-
-            {/* Screen Share */}
             <button
-              onClick={toggleScreenShare}
               type="button"
               className={`p-3 rounded-xl transition-all cursor-pointer ${isScreenSharing
                 ? 'bg-[#E05A7A] text-white shadow-md shadow-[#E05A7A]/30'
@@ -518,7 +512,6 @@ export default function ConsultationRoom() {
 
             {/* Giơ tay */}
             <button
-              onClick={toggleHandRaise}
               type="button"
               className={`p-3 rounded-xl transition-all cursor-pointer ${isHandRaised
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
@@ -526,19 +519,18 @@ export default function ConsultationRoom() {
                 }`}
               title={isHandRaised ? 'Hạ tay' : 'Giơ tay phát biểu'}
             >
-              <Hand className="w-5 h-5" />
+              <Hand className="h-5 w-5" />
             </button>
 
             <div className="w-px h-6 bg-white/15 mx-1" />
 
             {/* Layout Mode */}
             <button
-              onClick={() => setLayoutMode(layoutMode === 'speaker' ? 'grid' : 'speaker')}
               type="button"
               className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
               title="Chuyển chế độ xem (Lưới / Diễn giả)"
             >
-              <Layers className="w-5 h-5" />
+              <Layers className="h-5 w-5" />
             </button>
           </div>
         </section>
@@ -571,7 +563,7 @@ export default function ConsultationRoom() {
           {/* TAB 1: CHAT */}
           {activeTab === 'chat' && (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 py-2">
                 {chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-2">
                     <MessageSquare className="w-8 h-8 stroke-1" />
@@ -620,10 +612,10 @@ export default function ConsultationRoom() {
                   />
                   <button
                     type="submit"
-                    className="p-2 rounded-xl bg-[#E05A7A] hover:bg-[#C94766] text-white transition-colors cursor-pointer shrink-0"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D94B68] text-white shadow-sm shadow-[#D94B68]/25"
                     title="Gửi"
                   >
-                    <Send className="w-4 h-4" />
+                    <Send className="h-4 w-4" />
                   </button>
                 </div>
               </form>
@@ -735,10 +727,8 @@ export default function ConsultationRoom() {
 
           {/* TAB 4: SHARED NOTES */}
           {activeTab === 'notes' && (
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-              <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider">
-                Ghi chú bài học chung (Live Sync)
-              </h4>
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A59B9E]">Ghi chú chung</h4>
               <textarea
                 value={sharedNotes}
                 onChange={(e) => setSharedNotes(e.target.value)}

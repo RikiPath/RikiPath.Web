@@ -267,6 +267,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         return;
       }
       localStreamRef.current = stream;
+      holdMedia(roomId, stream);
       setLocalStream(stream);
 
       const session = getSession();
