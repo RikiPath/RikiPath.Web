@@ -28,6 +28,7 @@ import {
   ExamResult,
   LearnerSettings,
   KanjiWritingPracticePage,
+  LearnerEssayPage,
   RikiSkillPlaceholder
 } from './pages/learner';
 
@@ -91,10 +92,10 @@ function NormalizePath() {
 
 function PreviewSessionSync() {
   const location = useLocation();
-  const auth = useContext(AuthContext);
+  const refreshSession = useContext(AuthContext)?.refreshSession;
   useEffect(() => {
-    auth?.refreshSession?.();
-  }, [location.search, auth]);
+    refreshSession?.();
+  }, [location.search, refreshSession]);
   if (!isPreviewEnabled()) return null;
   return (
     <div className="pointer-events-none fixed bottom-4 left-1/2 z-[80] -translate-x-1/2 rounded-full bg-[#2D282A] px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg">
@@ -136,7 +137,7 @@ export default function App() {
             <Route path={withSlash('/riki/listening')} element={<RikiSkillPlaceholder skill="listening" />} />
             <Route path={withSlash('/riki/speaking')} element={<RikiSkillPlaceholder skill="speaking" />} />
             <Route path={withSlash('/riki/reading')} element={<RikiSkillPlaceholder skill="reading" />} />
-            <Route path={withSlash('/riki/essay')} element={<RikiSkillPlaceholder skill="essay" />} />
+            <Route path={withSlash('/riki/essay')} element={<LearnerEssayPage />} />
             <Route path={withSlash('/lessons')} element={<LessonList />} />
             <Route path={withSlash('/lesson-player')} element={<LessonPlayer />} />
             <Route path={withSlash('/lesson-complete')} element={<LessonComplete />} />

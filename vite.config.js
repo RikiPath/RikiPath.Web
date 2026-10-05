@@ -10,8 +10,13 @@ export default defineConfig({
     allowedHosts: ['rikipath.app.edu.vn', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://localhost:5265',
+        target: 'http://localhost:5266',
         changeOrigin: true,
+      },
+      '/hubs': {
+        target: 'http://localhost:5266',
+        changeOrigin: true,
+        ws: true,
       },
     },
   },
