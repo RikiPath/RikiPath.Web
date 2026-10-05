@@ -27,7 +27,8 @@ import {
   VocabWordDetail,
   ExamResult,
   LearnerSettings,
-  KanjiWritingPracticePage
+  KanjiWritingPracticePage,
+  LearnerEssayPage
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -104,6 +105,7 @@ export default function App() {
             <Route path="/home-learner" element={<Navigate to="/app" replace />} />
             <Route path="/multi-dashboard" element={<Navigate to="/app" replace />} />
             <Route path="/kanji-writing" element={<KanjiWritingPracticePage />} />
+            <Route path="/riki/essay" element={<LearnerEssayPage />} />
             <Route path="/lessons" element={<LessonList />} />
             <Route path="/lesson-player" element={<LessonPlayer />} />
             <Route path="/lesson-complete" element={<LessonComplete />} />
@@ -176,4 +178,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
