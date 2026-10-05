@@ -4,6 +4,7 @@ import { getSession } from '../../auth/session.js';
 import { displayName, learnerRoleLabel, useLearnerProfile } from '../../hooks/useLearnerHome.js';
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
 
+<<<<<<< Updated upstream
 const SIDEBAR_W = 280;
 const RIKI_MENU_KEY = 'rikipath.rikiMenuOpen';
 
@@ -41,6 +42,10 @@ function NavCopy({ label, hint, active }) {
     </span>
   );
 }
+=======
+const SIDEBAR_W = 260;
+const RIKI_MENU_KEY = 'rikipath.rikiMenuOpen';
+>>>>>>> Stashed changes
 
 export default function LearnerShell({
   children,
@@ -67,6 +72,7 @@ export default function LearnerShell({
     }
   });
   const rikiMenuOpen = isRikiOpen || rikiActive;
+<<<<<<< Updated upstream
 
   useEffect(() => {
     try {
@@ -121,6 +127,118 @@ export default function LearnerShell({
                 ? child.children.some((nested) => pathMatches(pathname, nested))
                 : pathMatches(pathname, child);
               if (child.children) {
+=======
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RIKI_MENU_KEY, String(isRikiOpen));
+    } catch {
+      // Ignore storage restrictions; the menu remains usable for this session.
+    }
+  }, [isRikiOpen]);
+
+  return (
+    <div className="min-h-screen bg-surface text-on-surface font-body-md" data-shell="learner">
+      <aside
+        className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col justify-between overflow-y-auto bg-surface-container-lowest p-4"
+      >
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary-container">
+              <span className="material-symbols-outlined text-[24px] text-primary">local_florist</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-headline-sm text-headline-sm tracking-tight text-on-surface">
+                {LEARNER_NAV.brand.title}
+              </span>
+              <span className="font-label-xs text-label-xs uppercase tracking-wider text-on-surface-variant">
+                {LEARNER_NAV.brand.subtitle}
+              </span>
+            </div>
+          </div>
+          <nav className="flex flex-col gap-1">
+            {LEARNER_NAV.items.map((item) => {
+              if (item.id === 'riki' && !isLearner) return null;
+              if (item.children) {
+                const active = item.children.some((child) => pathMatches(pathname, child));
+                return (
+                  <div key={item.id || item.label}>
+                    <button
+                      type="button"
+                      onClick={() => setIsRikiOpen((open) => !open)}
+                      aria-expanded={rikiMenuOpen}
+                      className={[
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 font-body-md text-body-md transition-all',
+                        active
+                          ? 'bg-secondary-container font-semibold text-on-secondary-container'
+                          : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                      ].join(' ')}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      <span className="material-symbols-outlined text-[18px]">
+                        {rikiMenuOpen ? 'expand_less' : 'expand_more'}
+                      </span>
+                    </button>
+                    {rikiMenuOpen && (
+                      <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-outline-variant/50 pl-3">
+                        {item.children.map((child) => {
+                          const childActive = child.children
+                            ? child.children.some((nested) => pathMatches(pathname, nested))
+                            : pathMatches(pathname, child);
+                          if (child.children) {
+                            return (
+                              <div key={child.id || child.label}>
+                                <div className={[
+                                  'flex items-center gap-3 rounded-lg px-3 py-2 font-label-md text-label-md',
+                                  childActive ? 'font-semibold text-on-secondary-container' : 'text-on-surface-variant',
+                                ].join(' ')}>
+                                  <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                                  <span>{child.label}</span>
+                                </div>
+                                <div className="ml-3 flex flex-col gap-1 border-l border-outline-variant/40 pl-3">
+                                  {child.children.map((nested) => (
+                                    <NavLink
+                                      key={nested.to}
+                                      to={nested.to}
+                                      className={[
+                                        'flex items-center gap-3 rounded-lg px-3 py-2 font-label-md text-label-md transition-all',
+                                        pathMatches(pathname, nested)
+                                          ? 'bg-secondary-container/70 font-semibold text-on-secondary-container'
+                                          : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                                      ].join(' ')}
+                                    >
+                                      <span className="text-[16px] font-semibold">{nested.icon}</span>
+                                      <span>{nested.label}</span>
+                                    </NavLink>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <NavLink
+                              key={child.to}
+                              to={child.to}
+                              className={[
+                                'flex items-center gap-3 rounded-lg px-3 py-2 font-label-md text-label-md transition-all',
+                                childActive
+                                  ? 'bg-secondary-container/70 font-semibold text-on-secondary-container'
+                                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
+                              ].join(' ')}
+                            >
+                              <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                              <span>{child.label}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              if (item.neverActive) {
+>>>>>>> Stashed changes
                 return (
                   <div key={child.id || child.label} className="space-y-1">
                     <div className="flex items-center gap-2 px-2 py-1.5 text-[12px] font-bold text-[#8A8084]">

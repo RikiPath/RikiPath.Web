@@ -67,6 +67,7 @@ export const LEARNER_NAV = {
     { id: 'support', label: 'Hỗ trợ' },
   ],
   items: [
+<<<<<<< Updated upstream
     { to: '/app', label: 'Tổng quan', hint: 'Tiến độ hôm nay', icon: 'space_dashboard', end: true, group: 'study' },
     { to: '/roadmap', label: 'Lộ trình', hint: 'Khám phá JLPT', icon: 'explore', group: 'study' },
     { to: '/lessons', label: 'Bài học', hint: 'Giáo trình đang học', icon: 'menu_book', group: 'study' },
@@ -82,17 +83,40 @@ export const LEARNER_NAV = {
         {
           id: 'vocabulary',
           label: 'Từ vựng',
+=======
+    { to: '/app', label: 'Tổng quan', icon: 'dashboard', end: true },
+    { to: '/roadmap', label: 'Khám phá / Lộ trình', icon: 'explore' },
+    { to: '/lessons', label: 'Bài học', icon: 'menu_book' },
+    { to: '/vocabulary', label: 'Sổ từ & Kanji', icon: 'edit_note', alsoActive: ['/kanji-studio', '/kanji-notebook', '/vocabulary-detail'] },
+    { to: '/daily-srs', label: 'Ôn SRS', icon: 'style' },
+    {
+      id: 'riki',
+      label: 'Riki',
+      icon: 'auto_awesome',
+      children: [
+        {
+          id: 'vocabulary',
+          label: 'Từ Vựng',
+>>>>>>> Stashed changes
           icon: 'translate',
           children: [
             { to: '/kanji-writing?type=hiragana', label: 'Hiragana', icon: 'あ' },
             { to: '/kanji-writing?type=katakana', label: 'Katakana', icon: 'カ' },
           ],
         },
+<<<<<<< Updated upstream
         { to: '/kanji-writing?type=kanji', label: 'Hán tự', icon: '漢' },
         { to: '/riki/essay', label: 'Luyện làm văn', icon: 'edit_note' },
       ],
     },
     { to: '/ai-counselor', label: 'Cố vấn AI', hint: 'Haru đồng hành', icon: 'psychology', group: 'support' },
+=======
+        { to: '/kanji-writing?type=kanji', label: 'Hán Tự', icon: '漢' },
+        { to: '/riki/essay', label: 'Luyện Làm Văn', icon: 'edit_note' },
+      ],
+    },
+    { to: '/ai-counselor', label: 'Cố vấn AI', icon: 'psychology' },
+>>>>>>> Stashed changes
     {
       to: '/mentor',
       label: 'Tư vấn 1-1',

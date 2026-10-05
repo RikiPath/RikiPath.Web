@@ -4,7 +4,6 @@
  */
 
 const HUB_ENDPOINT = '/hubs/mentor-meeting';
-const DEFAULT_BACKEND_ORIGIN = 'https://localhost:7237';
 
 /**
  * Dynamically loads @microsoft/signalr script if not present in window
@@ -47,13 +46,8 @@ export async function loadSignalRLib() {
 export async function createMeetingHubConnection(token, customHubUrl) {
   const signalR = await loadSignalRLib();
 
-  // Determine full target URL (handling direct localhost:7237 or vite proxy)
-  let url = customHubUrl;
-  if (!url) {
-    // If running in dev on port 5173, point to backend 7237 directly or relative /hubs/mentor-meeting
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    url = isLocalhost ? `${DEFAULT_BACKEND_ORIGIN}${HUB_ENDPOINT}` : HUB_ENDPOINT;
-  }
+  // Use the current origin so both the Vite proxy and Docker reverse proxy can route the hub.
+  const url = customHubUrl || HUB_ENDPOINT;
 
   const builder = new signalR.HubConnectionBuilder()
     .withUrl(url, {
