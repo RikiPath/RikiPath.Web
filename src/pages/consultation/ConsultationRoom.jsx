@@ -239,8 +239,8 @@ export default function ConsultationRoom() {
   const statusMap = {
     connected: { icon: Wifi, color: 'text-emerald-400', label: 'SignalR Live Hub' },
     connecting: { icon: Radio, color: 'text-amber-400 animate-pulse', label: 'Đang kết nối...' },
-    error: { icon: WifiOff, color: 'text-rose-400', label: 'Không vào được phòng' },
-    disconnected: { icon: WifiOff, color: 'text-rose-400', label: 'Mất kết nối' },
+    error: { icon: Wifi, color: 'text-rose-400', label: 'Không vào được phòng' },
+    disconnected: { icon: Wifi, color: 'text-rose-400', label: 'Mất kết nối' },
   };
   const status = statusMap[connectionStatus] || statusMap.connecting;
   const StatusIcon = status.icon;
