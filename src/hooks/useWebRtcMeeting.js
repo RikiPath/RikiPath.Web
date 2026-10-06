@@ -43,7 +43,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
   const [localUser, setLocalUser] = useState(null);
   const [localStream, setLocalStream] = useState(null);
   const [screenStream, setScreenStream] = useState(null);
-  const [peers, setPeers] = useState([]); // Danh sách tất cả peer tham gia
+  const [peers, setPeers] = useState([]);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -61,8 +61,6 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
   const screenStreamRef = useRef(null);
   const mediaRef = useRef({ isMicOn: true, isCamOn: true, isScreenSharing: false, screenStreamId: null });
 
-  // Map lưu trữ PeerConnection của từng learner/mentor trong phòng
-  // connectionId -> PeerEntry
   const peersMapRef = useRef(new Map());
 
   const invokeHub = useCallback(async (method, ...args) => {
@@ -83,7 +81,6 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     [invokeHub]
   );
 
-  // Sync state từ Map ra React state array
   const syncPeersState = useCallback(() => {
     const list = Array.from(peersMapRef.current.values()).map((p) => ({
       connectionId: p.connectionId,
@@ -99,7 +96,6 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     setPeers(list);
   }, []);
 
-  // Khởi tạo PeerConnection cho một remote peer
   const createPeerConnection = useCallback(
     (targetConnId, peerInfo, isOfferer) => {
       if (!targetConnId) return null;
@@ -233,7 +229,6 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     }
   };
 
-  // Main Effect: media + Hub SignalR Connection
   useEffect(() => {
     if (!roomId) return undefined;
     let cancelled = false;
@@ -267,15 +262,12 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         return;
       }
       localStreamRef.current = stream;
-      holdMedia(roomId, stream);
       setLocalStream(stream);
 
       const session = getSession();
       const token = session?.accessToken || session?.token;
-      hub = createMeetingHubConnection(token);
+      hub = await createMeetingHubConnection(token);
       hubRef.current = hub;
-
-      // ================= SIGNALR HANDLERS =================
 
       hub.on('UserJoined', (peer) => {
         if (!peer || !peer.connectionId) return;
@@ -453,7 +445,6 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     };
   }, [roomId, createPeerConnection, syncPeersState, invokeHub, broadcastMedia]);
 
-  // Actions
   const toggleMic = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -577,7 +568,6 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     toggleHandRaise,
     sendChatMessage,
     muteParticipant,
-    // Phục hồi cho component cũ truy cập 1-1
     remoteStream: peers[0]?.stream || null,
     remoteScreenStream: peers.find((p) => p.screenStream)?.screenStream || null,
     remoteUser: peers[0] ? { name: peers[0].name, role: peers[0].role } : null,

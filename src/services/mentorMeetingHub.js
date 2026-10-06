@@ -1,9 +1,4 @@
-/**
- * Real-time SignalR Hub Client for WebRTC Mentor Meeting
- * Hub URL: /hubs/mentor-meeting
- */
-
-const HUB_ENDPOINT = '/hubs/mentor-meeting';
+const HUB_ENDPOINT = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SIGNALR_HUB) || '/hubs/mentor-meeting';
 
 /**
  * Dynamically loads @microsoft/signalr script if not present in window
