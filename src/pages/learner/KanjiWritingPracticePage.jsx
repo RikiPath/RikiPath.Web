@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
 import KanjiWritingCanvas from '../../components/kanji_writer/KanjiWritingCanvas';
@@ -6,19 +6,30 @@ import { useKanjiWritingPractice } from '../../hooks/useKanjiWritingPractice.js'
 
 const panelClass = 'rounded-3xl border border-[#eadfd9] bg-white shadow-sm';
 
+const HIRAGANA = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
+const KATAKANA = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+
 export default function KanjiWritingPracticePage() {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const requestedType = searchParams.get('type');
+  const isKana = requestedType === 'hiragana' || requestedType === 'katakana';
+  const kanaLabel = requestedType === 'katakana' ? 'Katakana' : 'Hiragana';
+  const kanaChart = requestedType === 'katakana' ? KATAKANA : HIRAGANA;
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [mode, setMode] = useState('guided');
-  const practice = useKanjiWritingPractice(200);
+  const practice = useKanjiWritingPractice(10, { enabled: !isKana });
   const {
     queue, loading, error, lastResult, submitResult, selectItem, reload,
   } = practice;
 
   const selectedItem = selectedIndex === null ? null : queue[selectedIndex];
   const activeItem = selectedItem;
+
+  useEffect(() => {
+    setSelectedIndex(null);
+    setMode('guided');
+  }, [requestedType]);
 
   const chooseItem = (index) => {
     setSelectedIndex(index);
@@ -37,32 +48,24 @@ export default function KanjiWritingPracticePage() {
   };
 
   let content;
-  if (requestedType === 'hiragana' || requestedType === 'katakana') {
+  if (isKana) {
     content = (
       <section className="mx-auto max-w-5xl px-6 py-8">
-        <h1 className="text-3xl font-bold text-[#2D282A]">
-          Luyện {requestedType === 'hiragana' ? 'Hiragana' : 'Katakana'}
-        </h1>
+        <h1 className="text-3xl font-bold text-[#2D282A]">Luyện {kanaLabel}</h1>
         <p className="mt-2 text-sm text-[#6F6669]">Chọn từng ký tự để bắt đầu luyện viết bảng chữ cái.</p>
         <div className="mt-6 rounded-3xl border border-[#eadfd9] bg-white p-6 shadow-sm">
           <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-            {(requestedType === 'hiragana'
-              ? 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん'
-              : 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'
-            ).split('').map((character) => (
+            {kanaChart.split('').map((character) => (
               <div key={character} className="flex h-14 items-center justify-center rounded-xl border border-[#eadfd9] bg-[#FAF7F5] text-2xl text-[#2D282A]">
                 {character}
               </div>
             ))}
           </div>
-          <p className="mt-6 rounded-2xl bg-[#fff9fb] p-4 text-sm text-[#6F6669]">
-            Khu vực luyện từng nét cho Kana sẽ được bổ sung trong phiên bản tiếp theo.
-          </p>
         </div>
       </section>
     );
   } else if (loading) {
-    content = <div className="mx-auto max-w-3xl px-6 py-16 text-center text-[#6F6669]">Đang tải danh sách Kanji từ Kanji Studio...</div>;
+    content = <div className="mx-auto max-w-3xl px-6 py-16 text-center text-[#6F6669]">Đang tải Kanji cần luyện hôm nay...</div>;
   } else if (error) {
     content = (
       <div className="mx-auto max-w-md px-6 py-16 text-center">
@@ -76,10 +79,10 @@ export default function KanjiWritingPracticePage() {
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#C43D67]">Riki · Kanji</p>
           <h1 className="mt-2 text-3xl font-bold text-[#2D282A]">Chọn Kanji để luyện viết</h1>
-          <p className="mt-2 text-sm text-[#6F6669]">Danh sách được lấy từ các Kanji đang có trong Kanji Studio của bạn.</p>
+          <p className="mt-2 text-sm text-[#6F6669]">Danh sách ưu tiên chữ đến hạn ôn, rồi bổ sung chữ mới.</p>
         </div>
         {queue.length === 0 ? (
-          <div className={`${panelClass} p-8 text-center text-[#6F6669]`}>Chưa có Kanji được xuất bản cho cấp độ học hiện tại.</div>
+          <div className={`${panelClass} p-8 text-center text-[#6F6669]`}>Hôm nay chưa có Kanji cần luyện.</div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {queue.map((item, index) => (

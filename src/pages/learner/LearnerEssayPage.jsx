@@ -41,6 +41,7 @@ export default function LearnerEssayPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [dragging, setDragging] = useState(false);
 
   async function loadEssays() {
     setLoading(true);
@@ -70,6 +71,12 @@ export default function LearnerEssayPage() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(nextFile);
     setPreviewUrl(URL.createObjectURL(nextFile));
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    setDragging(false);
+    chooseFile(event.dataTransfer.files?.[0]);
   }
 
   async function scan() {
@@ -175,15 +182,17 @@ export default function LearnerEssayPage() {
     }
   }
 
+  const previewSrc = file ? previewUrl : selected?.imageUrl;
+
   return (
     <LearnerShell pathname={pathname} breadcrumb="Riki - Luyện Làm Văn">
-      <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl px-6 py-8 text-on-surface">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
+      <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-4 py-6 text-on-surface sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-2xl">
             <p className="font-label-md uppercase tracking-[0.2em] text-primary">Riki</p>
-            <h1 className="mt-2 font-headline-lg text-headline-lg font-bold">Luyện Làm Văn</h1>
-            <p className="mt-2 max-w-2xl text-body-md text-on-surface-variant">
-              Tải ảnh bài viết tiếng Nhật để hệ thống nhận diện chữ, sau đó bạn có thể chỉnh sửa và lưu lại.
+            <h1 className="mt-1 font-headline-lg text-headline-lg font-bold">Luyện Làm Văn</h1>
+            <p className="mt-2 text-body-md text-on-surface-variant">
+              Chọn ảnh, quét chữ tiếng Nhật, rồi sửa nội dung ngay bên dưới.
             </p>
           </div>
           <button
@@ -206,67 +215,86 @@ export default function LearnerEssayPage() {
         {error && <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-on-error-container">{error}</div>}
         {notice && <div className="mb-4 rounded-2xl bg-secondary-container px-4 py-3 text-on-secondary-container">{notice}</div>}
 
-        <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-          <aside className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-[#eadfd9]">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="grid items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <aside className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-[#eadfd9] lg:sticky lg:top-4">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="font-headline-sm text-headline-sm font-bold">Bài đã quét</h2>
               <span className="rounded-full bg-secondary-container px-2.5 py-1 text-label-sm text-primary">{essays.length}</span>
             </div>
             {loading ? <p className="text-body-sm text-on-surface-variant">Đang tải...</p> : essays.length === 0 ? (
-              <p className="text-body-sm text-on-surface-variant">Chưa có bài viết nào.</p>
+              <p className="text-body-sm text-on-surface-variant">
+                {error ? 'Chưa tải được danh sách.' : 'Chưa có bài viết nào.'}
+              </p>
             ) : (
               <div className="space-y-2">
                 {essays.map((essay) => (
-                  <div key={essay.id} className={`rounded-2xl p-3 ${selected?.id === essay.id ? 'bg-secondary-container/60' : 'bg-surface-container-low'}`}>
-                    <button type="button" onClick={() => openEssay(essay.id)} className="w-full text-left">
+                  <div key={essay.id} className={`flex items-start gap-2 rounded-2xl p-3 ${selected?.id === essay.id ? 'bg-secondary-container/70 ring-1 ring-primary/20' : 'bg-surface-container-low'}`}>
+                    <button type="button" onClick={() => openEssay(essay.id)} className="min-w-0 flex-1 text-left">
                       <p className="line-clamp-2 font-label-md font-semibold">{essay.title}</p>
                       <p className="mt-1 text-label-sm text-on-surface-variant">{formatDate(essay.scannedAt)}</p>
                     </button>
-                    <button type="button" onClick={() => removeEssay(essay.id)} className="mt-2 text-label-sm text-error hover:underline">Xóa bài</button>
+                    <button type="button" onClick={() => removeEssay(essay.id)} aria-label={`Xóa ${essay.title}`} className="rounded-full p-1 text-error hover:bg-error-container">
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
                   </div>
                 ))}
               </div>
             )}
           </aside>
 
-          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#eadfd9] sm:p-7">
-            {selected ? (
-              <>
-                <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-headline-md text-headline-md font-bold">{selected.title}</h2>
-                    <p className="mt-1 text-label-sm text-on-surface-variant">Quét lúc {formatDate(selected.scannedAt)}</p>
+          <section className="min-w-0 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-[#eadfd9]">
+            <div
+              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className={`border-b border-[#eadfd9] px-5 py-5 sm:px-6 ${dragging ? 'bg-primary-light' : 'bg-surface-container-low'}`}
+            >
+              {previewSrc ? (
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)] sm:items-center">
+                  <img src={previewSrc} alt="Ảnh bài viết" className="max-h-52 w-full rounded-2xl bg-white object-contain p-2 ring-1 ring-[#eadfd9]" />
+                  <div className="min-w-0">
+                    <h2 className="font-headline-sm text-headline-sm font-bold">{selected?.title || file?.name || 'Ảnh đã chọn'}</h2>
+                    <p className="mt-1 text-label-sm text-on-surface-variant">
+                      {selected ? `Quét lúc ${formatDate(selected.scannedAt)}` : 'Ảnh chưa được quét. Bấm quét để nhận diện chữ.'}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {file && (
+                        <button type="button" onClick={selected ? rescan : scan} disabled={busy} className="rounded-full bg-primary px-4 py-2 font-label-md text-on-primary disabled:opacity-50">
+                          {busy ? 'Đang quét...' : selected ? 'Quét lại ảnh này' : 'Quét văn bản'}
+                        </button>
+                      )}
+                      {selected && (
+                        <button type="button" onClick={() => inputRef.current?.click()} className="rounded-full bg-white px-4 py-2 font-label-md text-primary ring-1 ring-[#eadfd9]">
+                          Đổi ảnh
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <button type="button" onClick={() => inputRef.current?.click()} className="rounded-full bg-surface-container px-4 py-2 text-label-md text-primary hover:bg-surface-container-high">Chọn ảnh để quét lại</button>
                 </div>
-                <div className="grid gap-5 xl:grid-cols-2">
-                  <div>
-                    <p className="mb-2 font-label-md font-semibold">Ảnh bài viết</p>
-                    <img src={file ? previewUrl : selected.imageUrl} alt="Bài viết đã quét" className="max-h-[520px] w-full rounded-2xl object-contain bg-surface-container-low p-2" />
-                    {file && <button type="button" onClick={rescan} disabled={busy} className="mt-3 w-full rounded-xl bg-primary px-4 py-2.5 font-label-md text-on-primary disabled:opacity-50">{busy ? 'Đang quét...' : 'Quét lại ảnh này'}</button>}
-                  </div>
-                  <div>
-                    <RomajiJapaneseInput value={text} onChange={setText} disabled={busy} />
-                    <button type="button" onClick={saveText} disabled={busy || !text.trim()} className="mt-3 rounded-xl bg-primary px-5 py-2.5 font-label-md text-on-primary disabled:opacity-50">{busy ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
+              ) : (
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-primary ring-1 ring-[#eadfd9]">
+                    <span className="material-symbols-outlined text-3xl">document_scanner</span>
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="font-headline-sm text-headline-sm font-bold">Kéo ảnh vào đây hoặc chọn từ máy</h2>
+                    <p className="mt-1 text-body-sm text-on-surface-variant">JPG, PNG, WEBP, tối đa 10MB. Sau khi quét, bài được lưu và hiện ở cột bên trái.</p>
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="grid gap-6 xl:grid-cols-2">
-                <div className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#eadfd9] bg-surface-container-low p-8 text-center">
-                  <span className="material-symbols-outlined text-6xl text-primary">document_scanner</span>
-                  <h2 className="mt-4 font-headline-md text-headline-md font-bold">Chọn ảnh để bắt đầu</h2>
-                  <p className="mt-2 max-w-md text-body-md text-on-surface-variant">Hỗ trợ JPG, PNG, WEBP tối đa 10MB. Sau khi OCR thành công, bài viết sẽ được lưu tự động.</p>
-                  {file && <div className="mt-5 w-full max-w-sm"><img src={previewUrl} alt="Ảnh xem trước" className="max-h-56 w-full rounded-2xl object-contain bg-white p-2" /><button type="button" onClick={scan} disabled={busy} className="mt-3 w-full rounded-xl bg-primary px-4 py-2.5 font-label-md text-on-primary disabled:opacity-50">{busy ? 'Đang quét...' : 'Quét văn bản'}</button></div>}
-                </div>
-                <div className="rounded-2xl border border-[#eadfd9] bg-white p-4 sm:p-5">
-                  <RomajiJapaneseInput value={text} onChange={setText} disabled={busy} />
-                  <p className="mt-3 text-label-sm text-on-surface-variant">
-                    Bạn có thể gõ Romaji hoặc bấm micro để nói tiếng Nhật. Sau khi quét ảnh, bạn có thể tiếp tục chỉnh sửa nội dung ngay trong ô này.
-                  </p>
-                </div>
+              )}
+            </div>
+
+            <div className="p-5 sm:p-6">
+              <RomajiJapaneseInput value={text} onChange={setText} disabled={busy} />
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="max-w-xl text-label-sm text-on-surface-variant">
+                  Gõ Romaji rồi nhấn Space để chọn từ, hoặc dùng micro để nói tiếng Nhật.
+                </p>
+                <button type="button" onClick={saveText} disabled={busy || !selected || !text.trim()} className="rounded-full bg-primary px-5 py-2.5 font-label-md text-on-primary disabled:opacity-50">
+                  {busy ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
               </div>
-            )}
+            </div>
           </section>
         </div>
       </main>

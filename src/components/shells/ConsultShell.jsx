@@ -40,7 +40,7 @@ function NavCopy({ label, hint, active }) {
 }
 
 export default function ConsultShell({ children, pathname, breadcrumb = 'Mentor' }) {
-  const { user, primaryRole } = useAuth();
+  const { user, primaryRole, logout } = useAuth();
   const displayName = user?.fullName || user?.name || user?.email || CONSULT_NAV.user.name;
   const roleName = primaryRole || CONSULT_NAV.user.role;
 
@@ -84,6 +84,15 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Mentor'
             <div className="truncate text-[13px] font-bold text-[#2D282A]">{displayName}</div>
             <div className="truncate text-[11px] font-medium text-[#A59B9E]">{roleName}</div>
           </div>
+          <button
+            type="button"
+            onClick={logout}
+            title="Đăng xuất"
+            aria-label="Đăng xuất"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[#A59B9E] hover:bg-[#fff0f5] hover:text-[#D94B68]"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+          </button>
         </div>
       </aside>
 

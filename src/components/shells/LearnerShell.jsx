@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useAuth } from '../../auth/AuthContext.jsx';
 import { getSession } from '../../auth/session.js';
 import { displayName, learnerRoleLabel, useLearnerProfile } from '../../hooks/useLearnerHome.js';
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
@@ -48,6 +49,7 @@ export default function LearnerShell({
   breadcrumb = 'Cổng học tập',
   searchPlaceholder = 'Tìm kiếm giáo trình, kanji, bài giảng...',
 }) {
+  const { logout } = useAuth();
   const session = getSession();
   const profileQuery = useLearnerProfile();
   const userName = displayName(profileQuery.data, session);
@@ -207,6 +209,15 @@ export default function LearnerShell({
             <div className="truncate text-[13px] font-bold text-[#2D282A]">{userName}</div>
             <div className="truncate text-[11px] font-medium text-[#A59B9E]">{userRole}</div>
           </div>
+          <button
+            type="button"
+            onClick={logout}
+            title="Đăng xuất"
+            aria-label="Đăng xuất"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[#A59B9E] hover:bg-[#fff0f5] hover:text-[#D94B68]"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+          </button>
         </div>
       </aside>
 

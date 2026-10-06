@@ -10,11 +10,11 @@ export default defineConfig({
     allowedHosts: ['rikipath.app.edu.vn', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://localhost:5266',
+        target: 'https://fact-like-tracy-displays.trycloudflare.com',
         changeOrigin: true,
       },
       '/hubs': {
-        target: 'http://localhost:5266',
+        target: 'https://fact-like-tracy-displays.trycloudflare.com',
         changeOrigin: true,
         ws: true,
       },
