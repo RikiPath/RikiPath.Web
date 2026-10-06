@@ -41,7 +41,7 @@ export async function createMeetingHubConnection(token) {
   const signalR = await loadSignalRLib();
 
   const builder = new signalR.HubConnectionBuilder()
-    .withUrl(hubUrl, {
+    .withUrl(HUB_ENDPOINT, {
       accessTokenFactory: () => token || '',
       skipNegotiation: false,
       transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
