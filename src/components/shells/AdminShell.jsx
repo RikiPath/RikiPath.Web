@@ -39,7 +39,14 @@ function NavCopy({ label, hint, active }) {
   );
 }
 
-export default function AdminShell({ children, pathname, breadcrumb = 'Tổng quan' }) {
+export default function AdminShell({
+  children,
+  pathname,
+  breadcrumb = 'Tổng quan',
+  searchValue,
+  onSearchChange,
+  searchPlaceholder = 'Tìm người dùng, mentor, nội dung...',
+}) {
   const { user, primaryRole, logout } = useAuth();
   const displayName = user?.fullName || user?.name || user?.email || 'Admin';
   const roleName = primaryRole || 'Admin';
@@ -110,8 +117,10 @@ export default function AdminShell({ children, pathname, breadcrumb = 'Tổng qu
               <span className="material-symbols-outlined absolute left-4 text-[18px] text-[#A59B9E]">search</span>
               <input
                 className="h-11 w-full rounded-full border border-[#dfbfc1]/50 bg-white pl-11 pr-4 text-[13px] text-[#2D282A] shadow-sm placeholder:text-[#C4B8BA] focus:outline-none focus:ring-2 focus:ring-[#D94B68]/20"
-                placeholder="Tìm người dùng, mentor, nội dung..."
+                placeholder={searchPlaceholder}
                 type="search"
+                value={onSearchChange ? searchValue : undefined}
+                onChange={onSearchChange ? (event) => onSearchChange(event.target.value) : undefined}
               />
             </div>
           </div>

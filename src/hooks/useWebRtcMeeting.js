@@ -272,7 +272,8 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
 
       const session = getSession();
       const token = session?.accessToken || session?.token;
-      hub = createMeetingHubConnection(token);
+      hub = await createMeetingHubConnection(token);
+      if (cancelled) return;
       hubRef.current = hub;
 
       // ================= SIGNALR HANDLERS =================

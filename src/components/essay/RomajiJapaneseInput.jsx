@@ -159,14 +159,14 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
 
   return (
     <div className="relative">
-      <div className="mb-2 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="font-label-md font-semibold">Nội dung bài viết</span>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={listening ? stopSpeechRecognition : startSpeechRecognition} disabled={disabled} className="inline-flex items-center gap-1 rounded-lg border border-[#eadfd9] bg-white px-2 py-1 text-label-sm text-primary disabled:opacity-50">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={listening ? stopSpeechRecognition : startSpeechRecognition} disabled={disabled} className="inline-flex items-center gap-1 rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm text-primary disabled:opacity-50">
             <span className="material-symbols-outlined text-[17px]">{listening ? 'mic_off' : 'mic'}</span>
             {listening ? 'Dừng ghi' : 'Nói tiếng Nhật'}
           </button>
-          <select value={mode} onChange={(event) => { setMode(event.target.value); setRomaji(''); setCandidates([]); setActiveCandidateIndex(0); }} className="rounded-lg border border-[#eadfd9] bg-white px-2 py-1 text-label-sm">
+          <select value={mode} onChange={(event) => { setMode(event.target.value); setRomaji(''); setCandidates([]); setActiveCandidateIndex(0); }} className="max-w-full rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm">
             <option value="romaji">Gõ Romaji</option>
             <option value="direct">Gõ tiếng Nhật trực tiếp</option>
           </select>
@@ -178,7 +178,7 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        className="min-h-[360px] w-full rounded-2xl border border-[#eadfd9] bg-surface-container-low p-4 text-body-md leading-8 outline-none focus:border-primary"
+        className="min-h-[280px] w-full rounded-2xl border border-[#eadfd9] bg-surface-container-low p-4 text-body-md leading-8 outline-none focus:border-primary"
         placeholder={mode === 'romaji' ? 'Gõ watashi wa rồi nhấn Space để chọn 私は...' : 'Nhập tiếng Nhật bằng IME hệ điều hành...'}
       />
       {romaji && <p className="mt-1 text-label-sm text-on-surface-variant">Đang nhập: {romajiToHiragana(romaji)}</p>}

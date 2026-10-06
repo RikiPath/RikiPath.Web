@@ -1,9 +1,9 @@
 /**
- * Real-time SignalR Hub Client for WebRTC Mentor Meeting
- * Hub URL: /hubs/mentor-meeting
+ * Real-time SignalR Hub Client for WebRTC Mentor Meeting.
+ * Hub URL comes from src/config/backend.js.
  */
 
-const HUB_ENDPOINT = '/hubs/mentor-meeting';
+import { hubUrl } from '../config/backend.js';
 
 /**
  * Dynamically loads @microsoft/signalr script if not present in window
@@ -39,18 +39,14 @@ export async function loadSignalRLib() {
 }
 
 /**
- * Creates and starts a SignalR Hub Connection to /hubs/mentor-meeting
+ * Creates a SignalR Hub Connection to the mentor meeting hub.
  * @param {string} token - Optional JWT Access Token
- * @param {string} [customHubUrl] - Optional full or relative hub URL
  */
-export async function createMeetingHubConnection(token, customHubUrl) {
+export async function createMeetingHubConnection(token) {
   const signalR = await loadSignalRLib();
 
-  // Use the current origin so both the Vite proxy and Docker reverse proxy can route the hub.
-  const url = customHubUrl || HUB_ENDPOINT;
-
   const builder = new signalR.HubConnectionBuilder()
-    .withUrl(url, {
+    .withUrl(hubUrl, {
       accessTokenFactory: () => token || '',
       skipNegotiation: false,
       transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,

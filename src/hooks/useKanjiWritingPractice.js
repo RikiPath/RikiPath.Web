@@ -1,8 +1,8 @@
 // src/hooks/useKanjiWritingPractice.js
 import { useCallback, useEffect, useState } from 'react';
-import { getAllKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
+import { getDueKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
 
-export function useKanjiWritingPractice(count = 10) {
+export function useKanjiWritingPractice(count = 10, { enabled = true } = {}) {
     const [queue, setQueue] = useState([]);
     const [index, setIndex] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -17,7 +17,7 @@ export function useKanjiWritingPractice(count = 10) {
             // NOTE: giả định api.get() (client.js) đã tự unwrap và trả thẳng phần "data" trong
             // ApiResponse<T> của backend - nếu client.js chỉ unwrap response axios (trả nguyên
             // { success, message, data }), đổi dòng dưới thành: const { data } = await ...
-            const data = await getAllKanjiForWriting(count);
+            const data = await getDueKanjiForWriting(count);
             // Ignore empty records so a malformed item cannot crash the practice page.
             setQueue(Array.isArray(data) ? data.filter(Boolean) : []);
             setIndex(0);
@@ -29,10 +29,12 @@ export function useKanjiWritingPractice(count = 10) {
     }, [count]);
 
     useEffect(() => {
+        if (!enabled) return undefined;
         // Loading remote practice data is the purpose of this effect.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         loadQueue();
-    }, [loadQueue]);
+        return undefined;
+    }, [enabled, loadQueue]);
 
     const currentItem = queue[index] ?? null;
     const isFinished = !loading && queue.length > 0 && index >= queue.length;

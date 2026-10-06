@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { getSession } from '../auth/session.js';
+import { apiBase } from '../config/backend.js';
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || '/api',
+  baseURL: apiBase,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',

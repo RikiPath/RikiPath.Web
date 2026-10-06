@@ -16,7 +16,7 @@ export async function getAllKanjiForWriting(count = 100) {
 
 /**
  * 2. POST /api/kanjiwritingpractice/submit (Ghi nhận kết quả 1 lượt luyện viết)
- * @param {Object} data - { kanjiEntryId, totalMistakes }
+ * @param {Object} data - { kanjiId, totalMistakes, score, correctStrokeCount, totalStrokeCount, practiceMode }
  */
 export async function submitKanjiWritingResult(data) {
     const response = await api.post('/kanjiwritingpractice/submit', data);
