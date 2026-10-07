@@ -39,6 +39,7 @@ export default function LearnerEssayPage() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false); // State riêng cho hiệu ứng scanning
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -55,20 +56,24 @@ export default function LearnerEssayPage() {
   }
 
   useEffect(() => {
-    // The initial API load synchronizes this screen with the server state.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadEssays();
   }, []);
 
   useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
   }, [previewUrl]);
 
   function chooseFile(nextFile) {
     const validationError = validateFile(nextFile);
     setError(validationError);
     if (validationError) return;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     setFile(nextFile);
     setPreviewUrl(URL.createObjectURL(nextFile));
   }
@@ -85,21 +90,18 @@ export default function LearnerEssayPage() {
       return;
     }
     setBusy(true);
+    setScanning(true); // Bật chế độ scanning
     setError('');
     setNotice('');
     try {
       const result = await scanLearnerEssay(file);
-      setSelected(result);
-      setText(result.contentText);
-      setFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(result.imageUrl);
-      await loadEssays();
-      setNotice('Quét và lưu bài viết thành công. Bạn có thể chỉnh sửa nội dung rồi bấm Lưu thay đổi.');
+      setText(result.text || '');
+      setNotice('Quét văn bản thành công! Bạn có thể chỉnh sửa nội dung ở ô bên dưới.');
     } catch (err) {
       setError(err.message || 'Quét văn bản thất bại.');
     } finally {
       setBusy(false);
+      setScanning(false); // Tắt chế độ scanning
     }
   }
 
@@ -110,7 +112,10 @@ export default function LearnerEssayPage() {
       const result = await getLearnerEssay(id);
       setSelected(result);
       setText(result.contentText);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
       setPreviewUrl(result.imageUrl);
       setFile(null);
     } catch (err) {
@@ -144,12 +149,16 @@ export default function LearnerEssayPage() {
       return;
     }
     setBusy(true);
+    setScanning(true); // Bật chế độ scanning khi rescan
     setError('');
     try {
       const result = await rescanLearnerEssay(selected.id, file);
       setSelected(result);
       setText(result.contentText);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
       setPreviewUrl(result.imageUrl);
       setFile(null);
       await loadEssays();
@@ -158,6 +167,7 @@ export default function LearnerEssayPage() {
       setError(err.message || 'Quét lại văn bản thất bại.');
     } finally {
       setBusy(false);
+      setScanning(false);
     }
   }
 
@@ -170,7 +180,9 @@ export default function LearnerEssayPage() {
       if (selected?.id === id) {
         setSelected(null);
         setText('');
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewUrl);
+        }
         setPreviewUrl('');
       }
       await loadEssays();
@@ -186,6 +198,18 @@ export default function LearnerEssayPage() {
 
   return (
     <LearnerShell pathname={pathname} breadcrumb="Riki - Luyện Làm Văn">
+      {/* CSS Animation cho tia Laser Scanning */}
+      <style>{`
+        @keyframes scanLineAnimation {
+          0% { top: 0%; opacity: 0.8; }
+          50% { top: 92%; opacity: 1; }
+          100% { top: 0%; opacity: 0.8; }
+        }
+        .animate-scan-laser {
+          animation: scanLineAnimation 2.2s ease-in-out infinite;
+        }
+      `}</style>
+
       <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-4 py-6 text-on-surface sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-2xl">
@@ -198,7 +222,8 @@ export default function LearnerEssayPage() {
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-label-md text-on-primary shadow-sm hover:opacity-90"
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-label-md text-on-primary shadow-sm hover:opacity-90 disabled:opacity-50"
           >
             <span className="material-symbols-outlined">add_photo_alternate</span>
             Chọn ảnh mới
@@ -229,11 +254,11 @@ export default function LearnerEssayPage() {
               <div className="space-y-2">
                 {essays.map((essay) => (
                   <div key={essay.id} className={`flex items-start gap-2 rounded-2xl p-3 ${selected?.id === essay.id ? 'bg-secondary-container/70 ring-1 ring-primary/20' : 'bg-surface-container-low'}`}>
-                    <button type="button" onClick={() => openEssay(essay.id)} className="min-w-0 flex-1 text-left">
+                    <button type="button" onClick={() => openEssay(essay.id)} disabled={busy} className="min-w-0 flex-1 text-left disabled:opacity-50">
                       <p className="line-clamp-2 font-label-md font-semibold">{essay.title}</p>
                       <p className="mt-1 text-label-sm text-on-surface-variant">{formatDate(essay.scannedAt)}</p>
                     </button>
-                    <button type="button" onClick={() => removeEssay(essay.id)} aria-label={`Xóa ${essay.title}`} className="rounded-full p-1 text-error hover:bg-error-container">
+                    <button type="button" onClick={() => removeEssay(essay.id)} disabled={busy} aria-label={`Xóa ${essay.title}`} className="rounded-full p-1 text-error hover:bg-error-container disabled:opacity-50">
                       <span className="material-symbols-outlined text-[18px]">delete</span>
                     </button>
                   </div>
@@ -251,20 +276,49 @@ export default function LearnerEssayPage() {
             >
               {previewSrc ? (
                 <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)] sm:items-center">
-                  <img src={previewSrc} alt="Ảnh bài viết" className="max-h-52 w-full rounded-2xl bg-white object-contain p-2 ring-1 ring-[#eadfd9]" />
+
+                  {/* Container Ảnh kèm Hiệu ứng Scanning Laser */}
+                  <div className="relative overflow-hidden rounded-2xl bg-white p-2 ring-1 ring-[#eadfd9]">
+                    <img src={previewSrc} alt="Ảnh bài viết" className="max-h-52 w-full object-contain" />
+
+                    {/* OVERLAY TIA SCANNING KHI ĐANG QUÉT */}
+                    {scanning && (
+                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-black/40 backdrop-blur-[2px]">
+                        {/* Đường Laser Quét Chạy Lên Xuống */}
+                        <div className="animate-scan-laser absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_#3b82f6]" />
+
+                        {/* Badge thông báo dạng Pulse */}
+                        <div className="flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1.5 shadow-md">
+                          <span className="h-2 w-2 animate-ping rounded-full bg-primary" />
+                          <span className="font-label-sm text-xs font-semibold text-primary">AI đang nhận diện...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="min-w-0">
                     <h2 className="font-headline-sm text-headline-sm font-bold">{selected?.title || file?.name || 'Ảnh đã chọn'}</h2>
                     <p className="mt-1 text-label-sm text-on-surface-variant">
-                      {selected ? `Quét lúc ${formatDate(selected.scannedAt)}` : 'Ảnh chưa được quét. Bấm quét để nhận diện chữ.'}
+                      {scanning
+                        ? 'Đang gửi ảnh sang Gemini AI để trích xuất chữ viết tay tiếng Nhật...'
+                        : selected
+                          ? `Quét lúc ${formatDate(selected.scannedAt)}`
+                          : 'Ảnh xem trước từ máy. Bấm quét để nhận diện chữ.'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {file && (
-                        <button type="button" onClick={selected ? rescan : scan} disabled={busy} className="rounded-full bg-primary px-4 py-2 font-label-md text-on-primary disabled:opacity-50">
-                          {busy ? 'Đang quét...' : selected ? 'Quét lại ảnh này' : 'Quét văn bản'}
+                        <button
+                          type="button"
+                          onClick={selected ? rescan : scan}
+                          disabled={busy}
+                          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 font-label-md text-on-primary disabled:opacity-50"
+                        >
+                          {scanning && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                          {scanning ? 'Đang quét AI...' : selected ? 'Quét lại ảnh này' : 'Quét văn bản'}
                         </button>
                       )}
                       {selected && (
-                        <button type="button" onClick={() => inputRef.current?.click()} className="rounded-full bg-white px-4 py-2 font-label-md text-primary ring-1 ring-[#eadfd9]">
+                        <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="rounded-full bg-white px-4 py-2 font-label-md text-primary ring-1 ring-[#eadfd9] disabled:opacity-50">
                           Đổi ảnh
                         </button>
                       )}
@@ -278,20 +332,30 @@ export default function LearnerEssayPage() {
                   </span>
                   <div className="min-w-0">
                     <h2 className="font-headline-sm text-headline-sm font-bold">Kéo ảnh vào đây hoặc chọn từ máy</h2>
-                    <p className="mt-1 text-body-sm text-on-surface-variant">JPG, PNG, WEBP, tối đa 10MB. Sau khi quét, bài được lưu và hiện ở cột bên trái.</p>
+                    <p className="mt-1 text-body-sm text-on-surface-variant">JPG, PNG, WEBP, tối đa 10MB.</p>
                   </div>
                 </div>
               )}
             </div>
 
             <div className="p-5 sm:p-6">
-              <RomajiJapaneseInput value={text} onChange={setText} disabled={busy} />
+              {/* Hiển thị Placeholder dạng Sketelon/Loading khi đang Scan */}
+              {scanning ? (
+                <div className="flex h-44 w-full flex-col items-center justify-center rounded-2xl bg-surface-container-low p-4 ring-1 ring-[#eadfd9]">
+                  <span className="material-symbols-outlined animate-bounce text-3xl text-primary">auto_awesome</span>
+                  <p className="mt-2 font-label-md font-semibold text-primary">Đang lọc chữ in và bóc tách chữ viết tay tiếng Nhật...</p>
+                  <p className="mt-1 text-label-sm text-on-surface-variant">Vui lòng đợi vài giây.</p>
+                </div>
+              ) : (
+                <RomajiJapaneseInput value={text} onChange={setText} disabled={busy} />
+              )}
+
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-xl text-label-sm text-on-surface-variant">
                   Gõ Romaji rồi nhấn Space để chọn từ, hoặc dùng micro để nói tiếng Nhật.
                 </p>
                 <button type="button" onClick={saveText} disabled={busy || !selected || !text.trim()} className="rounded-full bg-primary px-5 py-2.5 font-label-md text-on-primary disabled:opacity-50">
-                  {busy ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  {busy && !scanning ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </div>
