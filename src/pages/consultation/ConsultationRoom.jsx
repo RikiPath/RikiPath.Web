@@ -345,25 +345,26 @@ export default function ConsultationRoom() {
                         <span>{presenterName} đang trình bày</span>
                       </div>
                     </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 p-6 text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E05A7A]/20 border border-[#E05A7A]/40">
-                        <ScreenShare className="h-7 w-7 text-[#F472B6]" />
+                  ) : isPresentingSelf ? (
+                    <>
+                      {/* Preview màn hình đang share của chính mình */}
+                      <VideoTile stream={screenStream} contain className="h-full w-full" />
+                      {/* Label góc trên trái */}
+                      <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md border border-white/10">
+                        <ScreenShare className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                        <span className="text-emerald-300">Bạn đang chia sẻ màn hình</span>
                       </div>
-                      <h3 className="text-base font-bold">Bạn đang chia sẻ màn hình</h3>
-                      <p className="max-w-sm text-xs text-white/50">
-                        Mọi learner trong phòng đều đang nhìn thấy màn hình của bạn.
-                      </p>
+                      {/* Nút dừng góc trên phải */}
                       <button
                         type="button"
                         onClick={toggleScreenShare}
-                        className="flex items-center gap-1.5 rounded-xl bg-[#E11D48] px-4 py-2 text-xs font-bold text-white hover:bg-[#BE123C] cursor-pointer"
+                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-xl bg-[#E11D48]/90 px-3 py-1.5 text-xs font-bold text-white hover:bg-[#BE123C] backdrop-blur-md cursor-pointer shadow-lg"
                       >
-                        <ScreenShareOff className="h-4 w-4" />
+                        <ScreenShareOff className="h-3.5 w-3.5" />
                         Dừng chia sẻ
                       </button>
-                    </div>
-                  )}
+                    </>
+                  ) : null}
                 </div>
 
                 {/* Dải Camera dọc bên phải */}
@@ -501,6 +502,7 @@ export default function ConsultationRoom() {
             </button>
             <button
               type="button"
+              onClick={toggleScreenShare}
               className={`p-3 rounded-xl transition-all cursor-pointer ${isScreenSharing
                 ? 'bg-[#E05A7A] text-white shadow-md shadow-[#E05A7A]/30'
                 : 'bg-white/10 hover:bg-white/20 text-white'
@@ -513,6 +515,7 @@ export default function ConsultationRoom() {
             {/* Giơ tay */}
             <button
               type="button"
+              onClick={toggleHandRaise}
               className={`p-3 rounded-xl transition-all cursor-pointer ${isHandRaised
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
                 : 'bg-white/10 hover:bg-white/20 text-white'
@@ -527,6 +530,7 @@ export default function ConsultationRoom() {
             {/* Layout Mode */}
             <button
               type="button"
+              onClick={() => setLayoutMode((m) => (m === 'grid' ? 'speaker' : 'grid'))}
               className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
               title="Chuyển chế độ xem (Lưới / Diễn giả)"
             >
