@@ -463,6 +463,26 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     broadcastMedia({ isCamOn: next });
   }, [isCamOn, broadcastMedia]);
 
+  /**
+   * Gửi lại Offer tới một peer sau khi thêm/xóa track (renegotiation).
+   */
+  const renegotiatePeer = useCallback(
+    async (peerEntry) => {
+      const pc = peerEntry.pc;
+      if (!pc || pc.connectionState === 'closed') return;
+      try {
+        peerEntry.makingOffer = true;
+        await pc.setLocalDescription();
+        await invokeHub('SendOffer', peerEntry.connectionId, JSON.stringify(pc.localDescription));
+      } catch (e) {
+        console.warn('renegotiate failed:', e);
+      } finally {
+        peerEntry.makingOffer = false;
+      }
+    },
+    [invokeHub]
+  );
+
   const stopScreenSharing = useCallback(() => {
     if (!screenStreamRef.current) return;
     screenStreamRef.current.getTracks().forEach((t) => {
@@ -475,17 +495,24 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     peersMapRef.current.forEach((peerEntry) => {
       peerEntry.screenTransceivers?.forEach((tr) => {
         try {
-          if (typeof tr.stop === 'function') tr.stop();
-          else peerEntry.pc?.removeTrack(tr.sender);
+          // Đúng API: dùng tr.stop() cho RTCRtpTransceiver
+          if (tr && typeof tr.stop === 'function') {
+            tr.stop();
+          } else if (tr?.sender) {
+            tr.sender.replaceTrack(null).catch(() => {});
+            peerEntry.pc?.removeTrack(tr.sender);
+          }
         } catch (e) { }
       });
       peerEntry.screenTransceivers = [];
+      // Renegotiate để peer biết track đã bị xóa
+      renegotiatePeer(peerEntry);
     });
 
     setIsScreenSharing(false);
     broadcastMedia({ isScreenSharing: false, screenStreamId: null });
     invokeHub('StopPresenting');
-  }, [broadcastMedia, invokeHub]);
+  }, [broadcastMedia, invokeHub, renegotiatePeer]);
 
   const toggleScreenShare = useCallback(async () => {
     if (screenStreamRef.current) {
@@ -505,6 +532,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
       screenStreamRef.current = stream;
       setScreenStream(stream);
 
+      // Thêm screen track vào tất cả peer connections
       peersMapRef.current.forEach((peerEntry) => {
         peerEntry.screenTransceivers = attachScreen(peerEntry.pc, stream);
       });
@@ -512,12 +540,19 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
       setIsScreenSharing(true);
       broadcastMedia({ isScreenSharing: true, screenStreamId: stream.id });
       invokeHub('StartPresenting');
+
+      // Phải renegotiate với từng peer để họ nhận được screen track mới
+      const renegotiations = [];
+      peersMapRef.current.forEach((peerEntry) => {
+        renegotiations.push(renegotiatePeer(peerEntry));
+      });
+      await Promise.allSettled(renegotiations);
     } catch (err) {
       if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
         setError(`Không thể chia sẻ màn hình: ${err.message}`);
       }
     }
-  }, [broadcastMedia, stopScreenSharing, invokeHub]);
+  }, [broadcastMedia, stopScreenSharing, invokeHub, renegotiatePeer]);
 
   const toggleHandRaise = useCallback(() => {
     const next = !isHandRaised;
