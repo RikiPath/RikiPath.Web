@@ -29,7 +29,8 @@ import {
   LearnerSettings,
   KanjiWritingPracticePage,
   LearnerEssayPage,
-  RikiSkillPlaceholder
+  RikiSkillPlaceholder,
+  SpeakingPracticePage
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -153,6 +154,7 @@ export default function App() {
             <Route path={withSlash('/exam-result')} element={<ExamResult />} />
             <Route path={withSlash('/vocabulary-detail')} element={<VocabWordDetail />} />
             <Route path={withSlash('/settings')} element={<LearnerSettings />} />
+            <Route path={withSlash('/speech')} element={<SpeakingPracticePage />} />
 
             {/* ========== MENTOR ========== */}
             <Route path={withSlash('/mentor')} element={<Consultation />} />
