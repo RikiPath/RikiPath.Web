@@ -17,6 +17,42 @@ const ICE_SERVERS = {
 const DEFAULT_REMOTE_MEDIA = { isMicOn: true, isCamOn: true, isScreenSharing: false, screenStreamId: null };
 const parse = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
 
+// Hub nhận roomId kiểu Guid: chuỗi khác định dạng này sẽ làm SignalR lỗi bind tham số (thông báo rất khó hiểu).
+const ROOM_ID_REGEX = /^[0-9a-f]{8}-?(?:[0-9a-f]{4}-?){3}[0-9a-f]{12}$/i;
+
+// SignalR trả lỗi của HubException dạng "An unexpected error occurred invoking 'JoinRoom' on the server. HubException: <nội dung>".
+const hubErrorMessage = (err, fallback) => {
+  const raw = err?.message || '';
+  const marker = 'HubException:';
+  const idx = raw.indexOf(marker);
+  return (idx >= 0 ? raw.slice(idx + marker.length).trim() : raw) || fallback;
+};
+
+// ---- Chat: server là nguồn sự thật (id, người gửi, giờ gửi). Tin nhắn chỉ nằm trong RAM server. ----
+const formatChatTime = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// "Tin của tôi" xác định theo userId (ConnectionId đổi sau mỗi lần F5 / reconnect nên không dùng được).
+const toChatMessage = (raw, selfUserId) => ({
+  id: raw.id,
+  sender: raw.sender,
+  role: raw.role,
+  text: raw.text,
+  sentAt: raw.sentAt,
+  timestamp: formatChatTime(raw.sentAt),
+  senderUserId: raw.senderUserId,
+  isSelf: selfUserId != null && raw.senderUserId === selfUserId,
+});
+
+// Gộp theo id (tin có thể đến vừa qua realtime vừa nằm trong lịch sử) rồi xếp theo giờ gửi.
+const mergeChat = (prev, incoming) => {
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  incoming.forEach((m) => { if (!byId.has(m.id)) byId.set(m.id, m); });
+  return Array.from(byId.values()).sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+};
+
 const attachScreen = (pc, stream) => {
   if (!pc || !stream) return [];
   return stream.getTracks().map((track) => pc.addTransceiver(track, { direction: 'sendonly', streams: [stream] }));
@@ -55,6 +91,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
   roomIdRef.current = roomId;
   const userRef = useRef(currentUser);
   userRef.current = currentUser;
+  const selfUserIdRef = useRef(null);
 
   const hubRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -230,7 +267,11 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
   };
 
   useEffect(() => {
-    if (!roomId) return undefined;
+    if (!ROOM_ID_REGEX.test(String(roomId ?? ''))) {
+      setConnectionStatus('error');
+      setError('Liên kết phòng họp không hợp lệ. Vui lòng mở lại phòng từ lịch hẹn của bạn.');
+      return undefined;
+    }
     let cancelled = false;
     let hub = null;
 
@@ -264,9 +305,12 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const session = getSession();
-      const token = session?.accessToken || session?.token;
-      hub = await createMeetingHubConnection(token);
+      // Truyền HÀM (không phải chuỗi) để mỗi lần SignalR tự reconnect đều lấy token mới nhất, không dùng token đã hết hạn.
+      const getToken = () => {
+        const session = getSession();
+        return session?.accessToken || session?.token;
+      };
+      hub = await createMeetingHubConnection(getToken);
       hubRef.current = hub;
 
       hub.on('UserJoined', (peer) => {
@@ -375,8 +419,9 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         }
       });
 
-      hub.on('ReceiveChatMessage', (msg) => {
-        setChatMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { ...msg, isSelf: false }]));
+      hub.on('ReceiveChatMessage', (raw) => {
+        const msg = toChatMessage(raw, selfUserIdRef.current);
+        setChatMessages((prev) => mergeChat(prev, [msg]));
       });
 
       hub.on('ForceMuted', () => {
@@ -397,14 +442,16 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         }
       });
 
-      try {
-        await hub.start();
+      // Vào phòng + dựng peer cho những người đã có mặt + tải lịch sử chat. Dùng cho cả lần vào đầu tiên lẫn sau khi tự nối lại.
+      const joinRoom = async () => {
         const u = userRef.current;
         const resp = await hub.invoke('JoinRoom', roomId, u.name || 'Học viên', u.role || 'Learner');
+        if (cancelled) return;
 
         if (resp) {
           const selfInfo = resp.self || resp.Self;
           if (selfInfo) setLocalUser(selfInfo);
+          selfUserIdRef.current = selfInfo?.id ?? selfInfo?.Id ?? null;
 
           const participants = resp.participants || resp.Participants || [];
           participants.forEach((p) => {
@@ -414,11 +461,79 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
             }
           });
         }
-        setConnectionStatus('connected');
+
+        // Chat chỉ nằm trong RAM server: F5 / vào muộn / nối lại sau khi rớt mạng vẫn lấy được lịch sử buổi họp đang diễn ra.
+        try {
+          const history = await hub.invoke('GetChatHistory', roomId);
+          if (!cancelled && Array.isArray(history)) {
+            const selfId = selfUserIdRef.current;
+            setChatMessages((prev) => mergeChat(prev, history.map((m) => toChatMessage(m, selfId))));
+          }
+        } catch (e) {
+          console.warn('Không tải được lịch sử chat:', e);
+        }
+
+        // Người đã ở trong phòng chưa biết trạng thái mic/cam hiện tại của mình (nhất là sau khi nối lại).
+        invokeHub('ToggleMediaState', mediaRef.current);
+      };
+
+      // Mất kết nối SignalR: server coi connection cũ là đã rời phòng (UserLeft) nên toàn bộ peer cũ vô hiệu -> dựng lại từ đầu.
+      const resetAfterConnectionLoss = () => {
+        peersMapRef.current.forEach((entry) => {
+          try { entry.pc?.close(); } catch (e) { }
+        });
+        peersMapRef.current.clear();
+        syncPeersState();
+
+        // Quyền "đang chia sẻ màn hình" ở server cũng bị gỡ theo connection cũ -> dừng chia sẻ cho nhất quán.
+        if (screenStreamRef.current) {
+          screenStreamRef.current.getTracks().forEach((t) => t.stop());
+          screenStreamRef.current = null;
+          setScreenStream(null);
+          setIsScreenSharing(false);
+          mediaRef.current = { ...mediaRef.current, isScreenSharing: false, screenStreamId: null };
+        }
+        setIsHandRaised(false);
+      };
+
+      hub.onreconnecting(() => {
+        if (!cancelled) setConnectionStatus('reconnecting');
+      });
+
+      hub.onreconnected(async () => {
+        if (cancelled) return;
+        resetAfterConnectionLoss();
+        try {
+          await joinRoom();
+          if (!cancelled) {
+            setError(null);
+            setConnectionStatus('connected');
+          }
+        } catch (err) {
+          if (cancelled) return;
+          console.error('Không thể vào lại phòng sau khi nối lại:', err);
+          setConnectionStatus('error');
+          setError(hubErrorMessage(err, 'Không thể vào lại phòng họp sau khi mất kết nối.'));
+        }
+      });
+
+      // Hết số lần tự nối lại: người dùng cần tải lại trang.
+      hub.onclose(() => {
+        if (!cancelled) setConnectionStatus((s) => (s === 'error' ? s : 'disconnected'));
+      });
+
+      try {
+        await hub.start();
+        await joinRoom();
+        if (!cancelled) setConnectionStatus('connected');
       } catch (err) {
+        if (cancelled) return;
         console.error('Không thể kết nối phòng SignalR:', err);
         setConnectionStatus('error');
-        setError(err.message || 'Không thể kết nối tới máy chủ phòng họp.');
+        setError(hubErrorMessage(err, 'Không thể kết nối tới máy chủ phòng họp.'));
+        // Không vào được phòng (đã đủ người / không có quyền...) thì tắt camera/mic ngay, đừng để đèn camera sáng suốt.
+        localStreamRef.current?.getTracks().forEach((t) => t.stop());
+        setLocalStream(null);
       }
     })();
 
@@ -499,7 +614,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
           if (tr && typeof tr.stop === 'function') {
             tr.stop();
           } else if (tr?.sender) {
-            tr.sender.replaceTrack(null).catch(() => {});
+            tr.sender.replaceTrack(null).catch(() => { });
             peerEntry.pc?.removeTrack(tr.sender);
           }
         } catch (e) { }
@@ -560,23 +675,31 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
     invokeHub('RaiseHand', next);
   }, [isHandRaised, invokeHub]);
 
-  const sendChatMessage = useCallback(
-    async (text) => {
-      const trimmed = text?.trim();
-      if (!trimmed) return;
-      const u = userRef.current;
-      const msg = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        sender: u.name || 'Tôi',
-        role: u.role || 'Learner',
-        text: trimmed,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setChatMessages((prev) => [...prev, { ...msg, isSelf: true }]);
-      await invokeHub('SendChatMessage', { ...msg, isSelf: false });
-    },
-    [invokeHub]
-  );
+  // Trả về true/false để UI biết có gửi được không (mất kết nối thì giữ nguyên nội dung đang gõ).
+  const sendChatMessage = useCallback(async (text) => {
+    const trimmed = text?.trim();
+    if (!trimmed) return false;
+
+    const hub = hubRef.current;
+    if (!hub || hub.state !== 'Connected') {
+      setError('Mất kết nối tới phòng họp, chưa gửi được tin nhắn.');
+      return false;
+    }
+
+    try {
+      // Server lưu RAM rồi trả lại tin đã chuẩn hoá (id + giờ do server cấp); người gửi không nhận lại qua ReceiveChatMessage.
+      const saved = await hub.invoke('SendChatMessage', roomIdRef.current, { text: trimmed });
+      if (saved) {
+        const msg = { ...toChatMessage(saved, selfUserIdRef.current), isSelf: true };
+        setChatMessages((prev) => mergeChat(prev, [msg]));
+      }
+      return true;
+    } catch (e) {
+      console.warn('SendChatMessage failed:', e);
+      setError(hubErrorMessage(e, 'Không gửi được tin nhắn. Vui lòng thử lại.'));
+      return false;
+    }
+  }, []);
 
   const muteParticipant = useCallback(
     (targetConnectionId) => {

@@ -35,14 +35,16 @@ export async function loadSignalRLib() {
 
 /**
  * Creates a SignalR Hub Connection to the mentor meeting hub.
- * @param {string} token - Optional JWT Access Token
+ * @param {string | (() => string | undefined)} tokenOrGetter - JWT Access Token, hoặc HÀM trả về token.
+ *   Nên truyền hàm: accessTokenFactory được gọi lại ở MỖI lần SignalR tự reconnect, nên token cố định
+ *   (đã hết hạn sau một buổi họp dài) sẽ làm lần nối lại bị 401.
  */
-export async function createMeetingHubConnection(token) {
+export async function createMeetingHubConnection(tokenOrGetter) {
   const signalR = await loadSignalRLib();
 
   const builder = new signalR.HubConnectionBuilder()
     .withUrl(HUB_ENDPOINT, {
-      accessTokenFactory: () => token || '',
+      accessTokenFactory: () => (typeof tokenOrGetter === 'function' ? tokenOrGetter() : tokenOrGetter) || '',
       skipNegotiation: false,
       transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
     })
