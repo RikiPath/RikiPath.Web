@@ -8,8 +8,24 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    ...(env.VITE_TURN_URL
-      ? [{ urls: env.VITE_TURN_URL, username: env.VITE_TURN_USERNAME, credential: env.VITE_TURN_CREDENTIAL }]
+    ...(env.VITE_TURN_URL && env.VITE_TURN_USERNAME
+      ? [
+        {
+          urls: env.VITE_TURN_URL, // turn:global.relay.metered.ca:443
+          username: env.VITE_TURN_USERNAME,
+          credential: env.VITE_TURN_CREDENTIAL,
+        },
+        {
+          urls: 'turn:global.relay.metered.ca:80',
+          username: env.VITE_TURN_USERNAME,
+          credential: env.VITE_TURN_CREDENTIAL,
+        },
+        {
+          urls: 'turn:global.relay.metered.ca:443?transport=tcp',
+          username: env.VITE_TURN_USERNAME,
+          credential: env.VITE_TURN_CREDENTIAL,
+        },
+      ]
       : []),
   ],
 };
