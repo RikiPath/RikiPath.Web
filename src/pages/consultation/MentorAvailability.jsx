@@ -1,28 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { getSession } from '../../auth/session.js';
 import { ConsultShell } from '../../components/shells';
 
+const TIME_ZONE = 'Asia/Ho_Chi_Minh';
+const asDate = iso => new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`);
 function toDayKey(iso) {
-  return String(iso || '').slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(asDate(iso));
 }
 
 function formatDate(iso) {
-  const d = new Date(iso);
+  const d = asDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('vi-VN', {
     weekday: 'long',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: TIME_ZONE,
   });
 }
 
 function formatTime(iso) {
-  const d = new Date(iso);
+  const d = asDate(iso);
   if (Number.isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('vi-VN', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' });
 }
 
 function groupByDate(slots) {
@@ -65,7 +68,11 @@ function previewSlots() {
 }
 
 function SlotCard({ slot, onDelete, deleting }) {
-  const booked = Boolean(slot.isBooked);
+  const booked = Boolean(slot.bookedCount > 0 || slot.isBooked);
+  const rejected = Boolean(slot.rejectedAt);
+  const pending = slot.isApproved === false && !rejected;
+  const expired = asDate(slot.endTime) <= new Date();
+  const status = rejected ? 'Đã từ chối' : pending ? 'Chờ duyệt' : expired ? 'Đã kết thúc' : slot.isBooked ? 'Đã đầy' : 'Đang mở';
 
   return (
     <article
@@ -79,7 +86,7 @@ function SlotCard({ slot, onDelete, deleting }) {
             booked ? 'bg-white text-[#D94B68]' : 'bg-emerald-50 text-emerald-700'
           }`}
         >
-          {booked ? 'Đã đặt' : 'Còn trống'}
+          {status}
         </span>
         <span className="font-mono text-[11px] text-[#A59B9E]">#{slot.id}</span>
       </div>
@@ -89,6 +96,9 @@ function SlotCard({ slot, onDelete, deleting }) {
       {slot.mentorName ? (
         <p className="mt-1 text-xs text-[#6F6669]">{slot.mentorName}</p>
       ) : null}
+      {pending && <p className="mt-2 text-xs text-amber-700">Lịch chưa hiển thị cho học viên vì đang chờ duyệt.</p>}
+      {rejected && <p className="mt-2 text-xs text-rose-700">{slot.rejectionReason || 'Lịch không được duyệt.'}</p>}
+      {!pending && !rejected && !expired && <p className="mt-2 text-xs text-[#6F6669]">{slot.bookedCount || 0}/{slot.maxLearners || 4} học viên đã đặt</p>}
       <div className="mt-4 flex items-center justify-between">
         {booked ? (
           <p className="text-xs text-[#A59B9E]">Link phòng sẽ cập nhật sau khi học viên vào buổi.</p>
@@ -119,7 +129,7 @@ export default function MentorAvailability() {
   const [deletingId, setDeletingId] = useState(null);
   const [form, setForm] = useState({ start: '', end: '' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -136,16 +146,17 @@ export default function MentorAvailability() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [preview]);
 
   useEffect(() => {
-    load();
-  }, []);
+    Promise.resolve().then(load);
+  }, [load]);
 
   const grouped = useMemo(() => groupByDate(slots), [slots]);
   const days = Object.keys(grouped).sort();
-  const booked = slots.filter((s) => s.isBooked).length;
-  const open = slots.length - booked;
+  const booked = slots.filter(s => s.bookedCount > 0 || s.isBooked).length;
+  const open = slots.filter(s => s.isApproved !== false && !s.rejectedAt && !s.isBooked && asDate(s.endTime) > new Date()).length;
+  const pending = slots.filter(s => s.isApproved === false && !s.rejectedAt).length;
 
   const createSlot = async (event) => {
     event.preventDefault();
@@ -153,6 +164,7 @@ export default function MentorAvailability() {
     setSaving(true);
     setNotice('');
     try {
+      let approved = preview;
       const body = { startTime: new Date(form.start).toISOString(), endTime: new Date(form.end).toISOString() };
       if (preview) {
         setSlots((prev) => [
@@ -166,11 +178,12 @@ export default function MentorAvailability() {
           },
         ]);
       } else {
-        await api.post('/mentor/availability', body);
+        const created = await api.post('/mentor/availability', body);
+        approved = created.result?.isApproved;
         await load();
       }
       setForm({ start: '', end: '' });
-      setNotice('Đã mở slot mới.');
+      setNotice(approved ? 'Đã mở slot mới. Học viên có thể thấy lịch này.' : 'Đã tạo slot mới, đang chờ duyệt trước khi hiển thị cho học viên.');
     } catch (err) {
       setNotice(err.message || 'Không tạo được slot.');
     } finally {
@@ -179,7 +192,7 @@ export default function MentorAvailability() {
   };
 
   const deleteSlot = async (slot) => {
-    if (slot.isBooked) return;
+    if (slot.isBooked || slot.bookedCount > 0) return;
     setDeletingId(slot.id);
     setNotice('');
     try {
@@ -204,7 +217,7 @@ export default function MentorAvailability() {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#C4B8BA]">Lịch mentor</p>
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-[#2D282A]">Lịch khả dụng</h1>
-            <p className="mt-1 text-sm text-[#6F6669]">Mở khung giờ để học viên đặt, hoặc đóng slot còn trống.</p>
+            <p className="mt-1 text-sm text-[#6F6669]">Quản lý khung giờ và trạng thái hiển thị cho học viên. Giờ Việt Nam (GMT+7).</p>
           </div>
           <button
             type="button"
@@ -216,11 +229,12 @@ export default function MentorAvailability() {
           </button>
         </div>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'Tổng slot', value: slots.length, tone: 'text-[#2D282A]', bg: 'bg-white' },
             { label: 'Đã đặt', value: booked, tone: 'text-[#D94B68]', bg: 'bg-[#fff8f8]' },
-            { label: 'Còn trống', value: open, tone: 'text-emerald-700', bg: 'bg-emerald-50' },
+            { label: 'Đang mở', value: open, tone: 'text-emerald-700', bg: 'bg-emerald-50' },
+            { label: 'Chờ duyệt', value: pending, tone: 'text-amber-700', bg: 'bg-amber-50' },
           ].map((item) => (
             <div key={item.label} className={`rounded-[22px] border border-[#eadfd9] ${item.bg} px-5 py-4 shadow-sm`}>
               <p className={`text-3xl font-extrabold ${item.tone}`}>{loading ? '—' : item.value}</p>

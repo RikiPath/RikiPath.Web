@@ -2,6 +2,8 @@ import { useContext, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import MentorPrivateChat from './pages/consultation/MentorPrivateChat.jsx';
+import AdminMentorSchedules from './pages/admin/AdminMentorSchedules.jsx';
 import { isPreviewEnabled } from './mocks/preview.js';
 // —— Marketing ——
 import { HomeLanding, AboutRiki, CourseCatalog, MockExam, CourseDetail, FeatureDetail } from './pages/marketing';
@@ -159,15 +161,18 @@ export default function App() {
             <Route path={withSlash('/speech')} element={<SpeakingPracticePage />} />
 
             {/* ========== MENTOR ========== */}
+            <Route path={withSlash('/mentor-chat')} element={<ProtectedRoute allowedRoles={['Learner', 'Mentor']}><MentorPrivateChat /></ProtectedRoute>} />
             <Route path={withSlash('/mentor')} element={<Consultation />} />
             <Route path={withSlash('/consultation')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-hub')} element={<Navigate to={withSlash('/mentor')} replace />} />
-            <Route path={withSlash('/consultation-center')} element={<ConsultationCenter />} />
-            <Route path={withSlash('/booking-schedule')} element={<BookingSchedule />} />
-            <Route path={withSlash('/consultation-payment')} element={<ConsultationPayment />} />
+            <Route path={withSlash('/consultation-center')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationCenter /></ProtectedRoute>} />
+            <Route path={withSlash('/booking-schedule')} element={<ProtectedRoute allowedRoles={['Learner']}><BookingSchedule /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
+            <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
+            <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/sensei-profile')} element={<SenseiProfile />} />
-            <Route path={withSlash('/consultation-session')} element={<ConsultationSessionDetail />} />
-            <Route path={withSlash('/consultation-receipt')} element={<ConsultationReceipt />} />
+            <Route path={withSlash('/consultation-session')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationSessionDetail /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-receipt')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-room')} element={<ConsultationRoom />} />
             <Route path={withSlash('/consultation-room/:roomId')} element={<ConsultationRoom />} />
             <Route path={withSlash('/meeting-room')} element={<ConsultationRoom />} />
@@ -197,6 +202,7 @@ export default function App() {
             <Route path={withSlash('/lesson-cms-detail')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CmsLessonDetail /></ProtectedRoute>} />
 
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
+            <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorSchedules /></ProtectedRoute>} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><AdminOverview /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users/detail')} element={<ProtectedRoute requireAdmin><AdminUserDetail /></ProtectedRoute>} />
