@@ -29,7 +29,7 @@ export default function CourseDetail() {
 <nav className="flex flex-col gap-space-sm">
 <a className="bg-primary-container text-on-primary-container rounded-lg px-4 py-2 flex items-center gap-space-md transition-all duration-200" href="#">
 <span className="material-symbols-outlined" data-icon="menu_book">menu_book</span>
-<span className="">Khóa học</span>
+<span className="">Bài luyện tập</span>
 </a>
 <a className="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-4 py-2 flex items-center gap-space-md transition-all duration-200" href="#">
 <span className="material-symbols-outlined" data-icon="alt_route">alt_route</span>
@@ -49,7 +49,7 @@ export default function CourseDetail() {
 </a>
 </nav>
 <div className="mt-auto pt-space-lg">
-<button className="w-full bg-primary text-on-primary rounded-full py-space-sm font-title-sm text-title-sm hover:opacity-90 shadow-md shadow-primary/20 transition-all duration-200">Học thử miễn phí</button>
+<button className="w-full bg-primary text-on-primary rounded-full py-space-sm font-title-sm text-title-sm hover:opacity-90 shadow-md shadow-primary/20 transition-all duration-200">Bắt đầu ôn luyện</button>
 </div>
 </div>
 
@@ -62,7 +62,7 @@ export default function CourseDetail() {
 <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-support-sm font-support-sm text-on-surface-variant mb-space-lg">
 <Link className="hover:text-primary transition-colors" to="/">Trang chủ</Link>
 <span className="material-symbols-outlined text-[16px]" data-icon="chevron_right">chevron_right</span>
-<Link className="hover:text-primary transition-colors" to="/courses">Khóa học</Link>
+<Link className="hover:text-primary transition-colors" to="/courses">Bài luyện tập</Link>
 <span className="material-symbols-outlined text-[16px]" data-icon="chevron_right">chevron_right</span>
 <span className="text-on-surface font-medium">Chinh phục JLPT N4 Toàn diện</span>
 </nav>
@@ -81,7 +81,7 @@ export default function CourseDetail() {
 </div>
 <div className="p-space-lg bg-surface">
 <h1 className="text-display-lg-mobile md:text-display-lg font-display-lg-mobile md:font-display-lg text-on-surface mb-space-md">Chinh phục JLPT N4 Toàn diện</h1>
-<p className="text-body-md font-body-md text-on-surface-variant mb-space-lg leading-relaxed">{"Khóa học thiết kế đặc biệt giúp bạn nắm vững ngữ pháp, từ vựng và kỹ năng đọc hiểu N4 trong 3 tháng. Lộ trình cá nhân hóa, bài tập thực hành sát đề thi thực tế.\n                        "}</p>
+<p className="text-body-md font-body-md text-on-surface-variant mb-space-lg leading-relaxed">{"Bài luyện tập giúp bạn nắm vững ngữ pháp, từ vựng và đọc hiểu N4. Lộ trình ôn luyện, bài tập sát đề và xem lại lỗi sai.\n                        "}</p>
 <div className="flex flex-wrap gap-space-md items-center">
 <div className="flex items-center gap-space-xxs text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-full border border-border-base">
 <span className="material-symbols-outlined text-warning" data-icon="star" data-weight="fill">star</span>
@@ -90,11 +90,11 @@ export default function CourseDetail() {
 </div>
 <div className="flex items-center gap-space-xxs text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-full border border-border-base">
 <span className="material-symbols-outlined text-primary" data-icon="group">group</span>
-<span className="">15,000+ Học viên</span>
+<span className="">15,000+ người ôn luyện</span>
 </div>
 <div className="flex items-center gap-space-xxs text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-full border border-border-base">
 <span className="material-symbols-outlined text-primary" data-icon="schedule">schedule</span>
-<span className="">60 Giờ học</span>
+<span className="">60 giờ ôn</span>
 </div>
 </div>
 </div>
@@ -103,7 +103,7 @@ export default function CourseDetail() {
 <section>
 <h2 className="text-headline-md font-headline-md text-on-surface mb-space-lg flex items-center gap-2">
 <span className="w-2.5 h-6 bg-primary rounded-full inline-block"></span>
-<span className="">Bạn sẽ học được gì?</span>
+<span className="">Bạn sẽ ôn được gì?</span>
 </h2>
 <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
 <div className="bg-surface p-space-lg rounded-xl border border-border-base flex items-start gap-space-md hover:border-primary/40 hover:bg-surface-container-low/40 transition-all duration-200">
@@ -149,9 +149,9 @@ export default function CourseDetail() {
 <div className="flex justify-between items-center mb-space-lg">
 <h2 className="text-headline-md font-headline-md text-on-surface flex items-center gap-2">
 <span className="w-2.5 h-6 bg-primary rounded-full inline-block"></span>
-<span className="">Nội dung khóa học</span>
+<span className="">Nội dung bài luyện tập</span>
 </h2>
-<span className="text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1 rounded-full border border-border-base font-medium">4 Chương • 48 Bài giảng</span>
+<span className="text-support-sm font-support-sm text-on-surface-variant bg-surface-container-low px-3 py-1 rounded-full border border-border-base font-medium">4 chương • 48 bài luyện tập</span>
 </div>
 <div className="flex flex-col gap-space-sm">
 {/*  Accordion Item 1  */}
@@ -219,7 +219,7 @@ export default function CourseDetail() {
 <h3 className="text-title-sm font-title-sm text-on-surface">Cô Nguyễn Thu Hà</h3>
 <p className="text-support-sm font-support-sm text-primary font-medium mb-space-md flex items-center gap-1">
 <span className="material-symbols-outlined text-[16px]">verified</span>{" Chuyên gia luyện thi JLPT N3, N4\n"}</p>
-<p className="text-body-md font-body-md text-on-surface-variant leading-relaxed">{"Với hơn 8 năm kinh nghiệm giảng dạy tiếng Nhật và từng sống, làm việc tại Tokyo trong 5 năm. Cô Hà nổi tiếng với phương pháp giảng dạy trực quan, dễ hiểu, giúp hàng ngàn học viên vượt qua kỳ thi JLPT với điểm số ấn tượng.\n                            "}</p>
+<p className="text-body-md font-body-md text-on-surface-variant leading-relaxed">{"Với hơn 8 năm kinh nghiệm giảng dạy tiếng Nhật và từng sống, làm việc tại Tokyo trong 5 năm. Cô Hà nổi tiếng với phương pháp giảng dạy trực quan, dễ hiểu, giúp hàng ngàn người ôn luyện vượt qua kỳ thi JLPT với điểm số ấn tượng.\n                            "}</p>
 </div>
 </div>
 </section>
@@ -238,11 +238,11 @@ export default function CourseDetail() {
 </div>
 <Link to="/register" className="w-full bg-primary text-on-primary rounded-full py-space-md font-title-sm text-title-sm mb-space-sm hover:opacity-95 active:scale-[0.99] transition-all duration-200 shadow-[0_6px_16px_rgba(217,75,104,0.3)] flex items-center justify-center gap-2">
 <span className="material-symbols-outlined text-[20px]">local_florist</span>
-<span className="">Đăng ký học ngay</span>
+<span className="">Bắt đầu ôn luyện</span>
 </Link>
-<Link to="/register" className="w-full border border-border-base bg-surface-container-low/40 text-on-surface rounded-full py-space-md font-title-sm text-title-sm hover:bg-surface-container-low hover:border-primary/40 transition-all duration-200 text-center">{"Học thử miễn phí\n                        "}</Link>
+<Link to="/register" className="w-full border border-border-base bg-surface-container-low/40 text-on-surface rounded-full py-space-md font-title-sm text-title-sm hover:bg-surface-container-low hover:border-primary/40 transition-all duration-200 text-center">{"Bắt đầu ôn luyện\n                        "}</Link>
 <div className="mt-space-lg pt-space-lg border-t border-border-base flex flex-col gap-space-sm">
-<h4 className="text-title-sm font-title-sm text-on-surface mb-space-xxs">Khóa học bao gồm:</h4>
+<h4 className="text-title-sm font-title-sm text-on-surface mb-space-xxs">Bài luyện tập gồm:</h4>
 <div className="flex items-center gap-space-md text-support-sm font-support-sm text-on-surface-variant">
 <span className="material-symbols-outlined text-[18px] text-primary" data-icon="ondemand_video">ondemand_video</span>
 <span className="">60 giờ video bài giảng chất lượng cao</span>
@@ -263,7 +263,7 @@ export default function CourseDetail() {
 </div>
 {/*  Reviews Summary Card  */}
 <div className="bg-surface rounded-xl border border-border-base p-space-lg shadow-xs">
-<h3 className="text-title-sm font-title-sm text-on-surface mb-space-md">Đánh giá học viên</h3>
+<h3 className="text-title-sm font-title-sm text-on-surface mb-space-md">Người ôn luyện nói gì</h3>
 <div className="flex items-center gap-space-lg mb-space-md">
 <div className="text-center">
 <div className="text-display-lg-mobile md:text-display-lg font-display-lg-mobile md:font-display-lg text-on-surface font-bold leading-none">4.8</div>

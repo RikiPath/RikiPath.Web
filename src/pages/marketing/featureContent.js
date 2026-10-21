@@ -77,7 +77,7 @@ export const FEATURES = {
       { k: '28 thẻ', v: 'hàng đợi hôm nay' },
     ],
     steps: [
-      { t: 'Nạp từ bài học', d: 'Mỗi bài hoàn thành đẩy từ mới + kanji vào sổ.' },
+      { t: 'Nạp từ bài luyện tập', d: 'Mỗi bài hoàn thành đẩy từ mới + kanji vào sổ.' },
       { t: 'Ôn đúng hạn', d: 'Khẩn cấp / đến hạn / củng cố — 6–15 phút mỗi sáng.' },
       { t: 'Nhớ sâu', d: 'Sai 2 lần thì gắn ví dụ AI và bộ thủ liên tưởng.' },
     ],
@@ -115,7 +115,7 @@ export const FEATURES = {
     points: [
       'Hồ sơ Sensei: chuyên môn N3–N1, đánh giá thật',
       'Phiếu trước buổi — không mất 15 phút hỏi lại ngữ cảnh',
-      'Ghi chú buổi học vào sổ học viên sau khi rời phòng',
+      'Ghi chú buổi tư vấn vào sổ của người ôn luyện sau khi rời phòng',
     ],
     demo: {
       title: 'Sensei Sato · Tokyo',

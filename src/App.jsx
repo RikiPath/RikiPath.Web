@@ -4,7 +4,7 @@ import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { isPreviewEnabled } from './mocks/preview.js';
 // —— Marketing ——
-import { HomeLanding, CourseCatalog, CourseDetail, FeatureDetail } from './pages/marketing';
+import { HomeLanding, AboutRiki, CourseCatalog, MockExam, CourseDetail, FeatureDetail } from './pages/marketing';
 
 // —— Auth ——
 import { Auth, Register, ForgotPassword, OnboardingSurvey, VerifyEmail, UpdateEmail, ChangePassword } from './pages/auth';
@@ -115,8 +115,10 @@ export default function App() {
           <Routes>
             {/* ========== MARKETING ========== */}
             <Route path="/" element={<HomeLanding />} />
+            <Route path={withSlash('/about')} element={<AboutRiki />} />
             <Route path={withSlash('/landing')} element={<Navigate to="/" replace />} />
             <Route path={withSlash('/courses')} element={<CourseCatalog />} />
+            <Route path={withSlash('/thi-thu')} element={<MockExam />} />
             <Route path={withSlash('/course-detail')} element={<CourseDetail />} />
             <Route path={withSlash('/feature/:slug')} element={<FeatureDetail />} />
 

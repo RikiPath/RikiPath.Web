@@ -141,14 +141,14 @@ export const CONSULT_NAV = {
 
 export const MARKETING_NAV = {
   links: [
-    { to: '/', label: 'RikiPath là gì?', end: true },
+    { to: '/about', label: 'RikiPath là gì?' },
     { to: '/courses', label: 'Luyện thi JLPT' },
-    { to: '/feature/ai-scoring', label: 'Thi thử' },
+    { to: '/thi-thu', label: 'Thi thử' },
     { to: '/#pathway', label: 'Cấu trúc đề' },
     { to: '/mentor', label: 'Tư vấn' },
   ],
   login: { to: '/auth', label: 'Đăng nhập' },
-  cta: { to: '/register', label: 'Bắt đầu học' },
+  cta: { to: '/register', label: 'Bắt đầu ôn luyện' },
 };
 
 export function pathMatches(pathname, item) {
