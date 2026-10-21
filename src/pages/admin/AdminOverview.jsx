@@ -1,54 +1,18 @@
 import { AdminShell } from '../../components/shells';
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getAdminDashboard, getAdminPendingContent, unwrapApiList, unwrapApiResult } from '../../api/admin.js';
 
-const PENDING_TYPES = ['Lesson', 'Vocabulary', 'Kanji', 'GrammarPattern', 'MockTest', 'PracticeExercise'];
-
-function prettyLabel(key) {
-  return String(key)
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/[._]/g, ' ')
-    .trim();
-}
+const METRICS = [['totalUsers', 'Người dùng hoạt động'], ['learners', 'Học viên'], ['mentors', 'Mentor'], ['pendingContent', 'Nội dung chờ duyệt'], ['pendingMentorSchedules', 'Lịch Mentor chờ duyệt'], ['mentorBookings', 'Lượt đặt lịch'], ['activePlans', 'Gói đang mở'], ['paidSubscriptions', 'Gói đã thanh toán']];
 
 export default function AdminOverview() {
   const { pathname } = useLocation();
-  const [dashboard, setDashboard] = useState(null);
-  const [dashboardError, setDashboardError] = useState('');
-  const [pendingItems, setPendingItems] = useState([]);
-
-  useEffect(() => {
-    getAdminDashboard()
-      .then((data) => setDashboard(unwrapApiResult(data)))
-      .catch((error) => setDashboardError(error.message || 'Không tải được số liệu quản trị.'));
-    Promise.allSettled(
-      PENDING_TYPES.map(async (type) => ({
-        type,
-        rows: unwrapApiList(await getAdminPendingContent(type)),
-      })),
-    ).then((results) =>
-      setPendingItems(
-        results.flatMap((result) =>
-          result.status === 'fulfilled'
-            ? result.value.rows.map((item) => ({ ...item, entityType: result.value.type }))
-            : [],
-        ).slice(0, 6),
-      ),
-    );
-  }, []);
-
-  const dashboardMetrics = dashboard
-    ? Object.entries(dashboard)
-      .flatMap(([key, value]) =>
-        value && typeof value === 'object' && !Array.isArray(value)
-          ? Object.entries(value)
-            .filter(([, nested]) => ['string', 'number', 'boolean'].includes(typeof nested))
-            .map(([nestedKey, nested]) => [prettyLabel(`${key} ${nestedKey}`), nested])
-          : ['string', 'number', 'boolean'].includes(typeof value) ? [[prettyLabel(key), value]] : [],
-      )
-      .slice(0, 8)
-    : [];
+  const dashboardQuery = useQuery({ queryKey: ['admin-dashboard'], queryFn: async () => unwrapApiResult(await getAdminDashboard()) });
+  const pendingQuery = useQuery({ queryKey: ['admin-pending-content'], queryFn: async () => unwrapApiList(await getAdminPendingContent()) });
+  const dashboard = dashboardQuery.data;
+  const dashboardError = dashboardQuery.error?.message;
+  const pendingItems = [...(pendingQuery.data || [])].sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt))).slice(0, 6);
+  const dashboardMetrics = dashboard ? METRICS.map(([key, label]) => [label, dashboard[key] ?? 0]) : [];
 
   return (
     <AdminShell pathname={pathname} breadcrumb="Tổng quan">
@@ -91,7 +55,7 @@ export default function AdminOverview() {
             <div className="flex items-center justify-between border-b border-[#f0e8e4] px-5 py-4">
               <div>
                 <h2 className="font-bold text-[#2D282A]">Hàng chờ duyệt</h2>
-                <p className="mt-0.5 text-xs text-[#A59B9E]">Nội dung PendingReview gần nhất</p>
+                <p className="mt-0.5 text-xs text-[#A59B9E]">Yêu cầu duyệt nội dung gần nhất</p>
               </div>
               <Link to="/admin/content-review" className="text-sm font-semibold text-[#D94B68] hover:underline">Xem tất cả</Link>
             </div>
@@ -107,19 +71,19 @@ export default function AdminOverview() {
                 </thead>
                 <tbody>
                   {pendingItems.length ? pendingItems.map((item, index) => (
-                    <tr key={item.id ?? `${item.entityType}-${index}`} className="border-t border-[#f0e8e4]">
+                    <tr key={item.requestId ?? `${item.entityType}-${index}`} className="border-t border-[#f0e8e4]">
                       <td className="px-5 py-3 font-semibold text-[#2D282A]">
-                        {item.title || item.name || `${item.entityType} #${item.id ?? item.entityId ?? ''}`}
+                        {item.rowKey || `${item.entityType} #${item.requestId}`}
                       </td>
                       <td className="px-5 py-3 text-[#6F6669]">{item.entityType}</td>
-                      <td className="px-5 py-3 text-[#6F6669]">{item.reviewedByName || item.authorName || '—'}</td>
+                      <td className="px-5 py-3 text-[#6F6669]">{item.submittedByName || '—'}</td>
                       <td className="px-5 py-3 text-right">
-                        <Link to="/admin/content-review" className="font-semibold text-[#D94B68] hover:underline">Duyệt</Link>
+                        <Link to={`/admin/content-review/?type=${item.entityType}&requestId=${item.requestId}`} className="font-semibold text-[#D94B68] hover:underline">Duyệt</Link>
                       </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={4} className="px-5 py-10 text-center text-[#6F6669]">Chưa có nội dung chờ duyệt.</td>
+                      <td colSpan={4} className="px-5 py-10 text-center text-[#6F6669]">{pendingQuery.isPending ? 'Đang tải hàng chờ…' : pendingQuery.isError ? <span role="alert">{pendingQuery.error.message}</span> : 'Chưa có nội dung chờ duyệt.'}</td>
                     </tr>
                   )}
                 </tbody>
@@ -134,6 +98,7 @@ export default function AdminOverview() {
               {[
                 ['/admin/users', 'group', 'Người dùng'],
                 ['/admin/mentors', 'support_agent', 'Mentor'],
+                ['/admin/mentor-schedules', 'event_available', 'Duyệt lịch Mentor'],
                 ['/admin/operations', 'tune', 'Gói & lịch'],
                 ['/admin/content-review', 'fact_check', 'Duyệt nội dung'],
               ].map(([to, icon, label]) => (

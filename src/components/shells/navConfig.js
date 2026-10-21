@@ -47,6 +47,7 @@ export const ADMIN_NAV = {
       label: 'Mentor',
       items: [
         { to: '/admin/mentors', label: 'Quản lý Mentor', hint: 'Hồ sơ sensei', icon: 'support_agent' },
+        { to: '/admin/mentor-schedules', label: 'Duyệt lịch Mentor', hint: 'Lịch chờ phê duyệt', icon: 'event_available' },
         { to: '/admin/operations', label: 'Gói & lịch', hint: 'Feature, booking', icon: 'tune' },
       ],
     },
@@ -93,6 +94,7 @@ export const LEARNER_NAV = {
       ],
     },
     { to: '/ai-counselor', label: 'Cố vấn AI', hint: 'Haru đồng hành', icon: 'psychology', group: 'support' },
+    { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với Mentor', icon: 'forum', group: 'support' },
     {
       to: '/mentor',
       label: 'Tư vấn 1-1',
@@ -122,10 +124,11 @@ export const CONSULT_NAV = {
       label: 'Buổi học',
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
+        { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
         { to: '/consultation-queue', label: 'Hàng đợi', hint: 'Yêu cầu chờ nhận', icon: 'pending_actions' },
         { to: '/consultation-prep', label: 'Chuẩn bị buổi', hint: 'Ghi chú trước giờ', icon: 'fact_check' },
         { to: '/consultation-request', label: 'Chi tiết yêu cầu', hint: 'Hồ sơ học viên', icon: 'description' },
-        { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Chat bất đồng bộ', icon: 'forum' },
+        { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Phản hồi bài viết', icon: 'edit_note' },
       ],
     },
     {

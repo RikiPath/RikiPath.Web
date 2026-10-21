@@ -1,57 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { AdminShell } from '../../components/shells';
-import { getAdminPendingContent, getAdminContentDetails, reviewAdminContent, unwrapApiList } from '../../api/admin.js';
+import { getAdminPendingContent, reviewAdminContent, unwrapApiList } from '../../api/admin.js';
 
 const TYPES = ['Lesson', 'Vocabulary', 'Kanji', 'Grammar', 'MockTest', 'PracticeExercise'];
 
 export default function AdminContentReview() {
-  const { pathname } = useLocation();
-  const [type, setType] = useState(TYPES[0]);
-  const [items, setItems] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [details, setDetails] = useState(null);
+  const { pathname, search } = useLocation();
+  const params = new URLSearchParams(search);
+  const client = useQueryClient();
+  const [type, setType] = useState(() => TYPES.includes(params.get('type')) ? params.get('type') : TYPES[0]);
+  const [selectedId, setSelectedId] = useState(() => Number(params.get('requestId')) || null);
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const load = async () => {
-    setBusy(true); setError('');
-    try { setItems(unwrapApiList(await getAdminPendingContent(type))); setSelected(null); setDetails(null); }
-    catch (e) { setError(e.message || 'Không tải được hàng chờ duyệt.'); }
-    finally { setBusy(false); }
-  };
-  useEffect(() => { load(); }, [type]);
-  const openItem = async (item) => {
-    const id = item.id ?? item.entityId;
-    setSelected(item); setDetails(null); setBusy(true); setError('');
-    try { setDetails(await getAdminContentDetails(type, id)); }
-    catch (e) { setError(e.message || 'Không tải được chi tiết nội dung.'); }
-    finally { setBusy(false); }
-  };
-  const submitReview = async (approved) => {
-    const id = selected?.id ?? selected?.entityId;
-    if (id == null) return;
-    setBusy(true); setError('');
-    try {
-      await reviewAdminContent(type, id, { isApproved: approved, rejectionReason: approved ? null : reason.trim() });
-      await load();
-    } catch (e) { setError(e.message || 'Không gửi được quyết định kiểm duyệt.'); }
-    finally { setBusy(false); }
-  };
+  const query = useQuery({ queryKey: ['admin-pending-content', type], queryFn: async () => unwrapApiList(await getAdminPendingContent(type)) });
+  const items = query.data || [];
+  const selected = items.find(item => item.requestId === selectedId);
+  const details = selected;
+  const review = useMutation({
+    mutationFn: approved => reviewAdminContent(selected.requestId, { approve: approved, reviewNote: approved ? null : reason.trim() }),
+    onSuccess: () => {
+      setSelectedId(null); setReason('');
+      client.invalidateQueries({ queryKey: ['admin-pending-content'] });
+      client.invalidateQueries({ queryKey: ['admin-dashboard'] });
+    },
+  });
+  const busy = query.isFetching || review.isPending;
+  const error = (query.error || review.error)?.message;
+  const openItem = item => { setSelectedId(item.requestId); setReason(''); review.reset(); };
+  const submitReview = approved => { if (selected) review.mutate(approved); };
   const value = (obj, keys) => keys.map((key) => obj?.[key]).find((v) => v != null && v !== '');
   return <AdminShell pathname={pathname} breadcrumb="Duyệt nội dung">
     <div className="min-h-screen bg-[#FAF7F5] p-6 md:p-8 text-[#30282B]">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="text-2xl font-bold">Hàng chờ kiểm duyệt</h1><p className="mt-1 text-sm text-[#6F6669]">Nội dung đang chờ Admin xem xét.</p></div>
-        <label className="text-sm font-medium">Loại nội dung <select className="ml-2 rounded-lg border border-[#eadfd9] bg-white px-3 py-2" value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((x) => <option key={x}>{x}</option>)}</select></label>
+        <label className="text-sm font-medium">Loại nội dung <select disabled={review.isPending} className="ml-2 rounded-lg border border-[#eadfd9] bg-white px-3 py-2" value={type} onChange={(e) => { setType(e.target.value); setSelectedId(null); setReason(''); review.reset(); }}>{TYPES.map((x) => <option key={x}>{x}</option>)}</select></label>
       </header>
       {error && <p role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <section className="overflow-hidden rounded-2xl border border-[#eadfd9] bg-white">
           <div className="border-b border-[#eadfd9] px-5 py-4 font-bold">Đang chờ ({items.length})</div>
           {busy && !selected ? <p className="p-6 text-sm text-[#6F6669]">Đang tải…</p> : items.length === 0 ? <p className="p-6 text-sm text-[#6F6669]">Không có nội dung đang chờ.</p> : <ul className="divide-y divide-[#f0e8e4]">{items.map((item, index) => {
-            const id = item.id ?? item.entityId ?? index;
-            return <li key={id}><button onClick={() => openItem(item)} className={`w-full p-4 text-left hover:bg-[#fff8f8] ${selected === item ? 'bg-[#fff8f8]' : ''}`}><span className="block font-semibold">{value(item, ['title', 'name', 'contentTitle']) || `${type} #${id}`}</span><span className="mt-1 block text-xs text-[#6F6669]">{value(item, ['authorName', 'createdByName', 'email']) || 'Tác giả'} · {value(item, ['submittedAt', 'createdAt']) || ''}</span></button></li>;
+            const id = item.requestId ?? index;
+            return <li key={id}><button disabled={review.isPending} onClick={() => openItem(item)} className={`w-full p-4 text-left hover:bg-[#fff8f8] ${selected === item ? 'bg-[#fff8f8]' : ''}`}><span className="block font-semibold">{item.rowKey || `${type} #${id}`}</span><span className="mt-1 block text-xs text-[#6F6669]">{item.submittedByName || 'Tác giả'} · {value(item, ['submittedAt', 'createdAt']) || ''}</span></button></li>;
           })}</ul>}
         </section>
         <section className="rounded-2xl border border-[#eadfd9] bg-white p-5">
