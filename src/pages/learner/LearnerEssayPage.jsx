@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+
 import { LearnerShell } from '../../components/shells';
 import RomajiJapaneseInput from '../../components/essay/RomajiJapaneseInput.jsx';
+
 import {
   deleteLearnerEssay,
   getLearnerEssay,
@@ -14,66 +16,142 @@ import {
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE = 10 * 1024 * 1024;
 
+const BUTTON_CLASS =
+  'inline-flex min-h-9 items-center justify-center gap-1.5 ' +
+  'rounded-lg border border-[#E7D7DF] bg-white px-3 py-2 ' +
+  'text-[12px] text-[#9C6B80] transition hover:bg-[#FCF3F7] ' +
+  'disabled:cursor-not-allowed disabled:opacity-40';
+
+const PRIMARY_CLASS =
+  'inline-flex min-h-9 items-center justify-center gap-1.5 ' +
+  'rounded-lg bg-[#AD3155] px-4 py-2 text-[12px] font-medium ' +
+  'text-white transition hover:bg-[#982B4B] ' +
+  'disabled:cursor-not-allowed disabled:opacity-40';
+
+function Icon({ name, className = '' }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`material-symbols-outlined ${className}`}
+    >
+      {name}
+    </span>
+  );
+}
+
 function formatDate(value) {
-  if (!value) return '';
-  return new Intl.DateTimeFormat('vi-VN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  if (!value) return '—';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function validateFile(file) {
   if (!file) return 'Vui lòng chọn ảnh bài viết.';
-  if (!ACCEPTED_TYPES.includes(file.type)) return 'Chỉ chấp nhận ảnh JPG, PNG hoặc WEBP.';
-  if (file.size > MAX_SIZE) return 'Ảnh bài viết tối đa 10MB.';
+  if (!ACCEPTED_TYPES.includes(file.type)) {
+    return 'Chỉ chấp nhận ảnh JPG, PNG hoặc WEBP.';
+  }
+  if (file.size > MAX_SIZE) return 'Ảnh tối đa 10MB.';
   return '';
 }
 
 export default function LearnerEssayPage() {
   const { pathname } = useLocation();
   const inputRef = useRef(null);
+
   const [essays, setEssays] = useState([]);
   const [selected, setSelected] = useState(null);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [text, setText] = useState('');
+
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [scanning, setScanning] = useState(false); // State riêng cho hiệu ứng scanning
+  const [operation, setOperation] = useState('');
+  const [listError, setListError] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [dragging, setDragging] = useState(false);
 
-  async function loadEssays() {
+  const busy = Boolean(operation);
+  const scanning = operation === 'scan' || operation === 'rescan';
+  const previewSrc = file ? previewUrl : selected?.imageUrl;
+  const changed = Boolean(
+    selected && text !== (selected.contentText || ''),
+  );
+
+  const loadEssays = useCallback(async () => {
     setLoading(true);
+    setListError('');
+
     try {
-      setEssays(await getLearnerEssays());
+      const result = await getLearnerEssays();
+
+      if (!Array.isArray(result)) {
+        throw new Error('Danh sách bài viết chưa đúng định dạng.');
+      }
+
+      setEssays(result);
     } catch (err) {
-      setError(err.message);
+      setListError(err.message || 'Không tải được danh sách.');
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadEssays();
-  }, []);
+  }, [loadEssays]);
 
-  useEffect(() => () => {
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(previewUrl);
-    }
+  useEffect(() => {
+    return () => {
+      if (previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
   }, [previewUrl]);
 
-  function chooseFile(nextFile) {
-    const validationError = validateFile(nextFile);
-    setError(validationError);
-    if (validationError) return;
+  function clearMessages() {
+    setError('');
+    setNotice('');
+  }
 
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(previewUrl);
+  function confirmDiscard() {
+    return (
+      !changed ||
+      window.confirm('Bài viết có thay đổi chưa lưu. Bạn muốn tiếp tục?')
+    );
+  }
+
+  function newEssay() {
+    if (busy || !confirmDiscard()) return;
+
+    setSelected(null);
+    setFile(null);
+    setPreviewUrl('');
+    setText('');
+    clearMessages();
+
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  function chooseFile(nextFile) {
+    if (busy || !nextFile) return;
+
+    const validationError = validateFile(nextFile);
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
+    clearMessages();
     setFile(nextFile);
     setPreviewUrl(URL.createObjectURL(nextFile));
   }
@@ -81,282 +159,539 @@ export default function LearnerEssayPage() {
   function handleDrop(event) {
     event.preventDefault();
     setDragging(false);
-    chooseFile(event.dataTransfer.files?.[0]);
-  }
 
-  async function scan() {
-    if (!file) {
-      setError('Vui lòng chọn ảnh trước khi quét.');
-      return;
-    }
-    setBusy(true);
-    setScanning(true); // Bật chế độ scanning
-    setError('');
-    setNotice('');
-    try {
-      const result = await scanLearnerEssay(file);
-      setText(result.text || '');
-      setNotice('Quét văn bản thành công! Bạn có thể chỉnh sửa nội dung ở ô bên dưới.');
-    } catch (err) {
-      setError(err.message || 'Quét văn bản thất bại.');
-    } finally {
-      setBusy(false);
-      setScanning(false); // Tắt chế độ scanning
-    }
+    if (!busy) chooseFile(event.dataTransfer.files?.[0]);
   }
 
   async function openEssay(id) {
-    setBusy(true);
-    setError('');
+    if (busy || !confirmDiscard()) return;
+
+    setOperation('open');
+    clearMessages();
+
     try {
       const result = await getLearnerEssay(id);
-      setSelected(result);
-      setText(result.contentText);
 
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setPreviewUrl(result.imageUrl);
+      setSelected(result);
+      setText(result.contentText || '');
       setFile(null);
+      setPreviewUrl('');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Không mở được bài viết.');
     } finally {
-      setBusy(false);
+      setOperation('');
+    }
+  }
+
+  async function scanImage() {
+    if (busy) return;
+
+    const validationError = validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    if (
+      (changed || (!selected && text.trim())) &&
+      !window.confirm('Nhận dạng ảnh sẽ thay thế nội dung đang nhập. Tiếp tục?')
+    ) {
+      return;
+    }
+
+    clearMessages();
+    setOperation(selected ? 'rescan' : 'scan');
+
+    try {
+      if (selected) {
+        const result = await rescanLearnerEssay(selected.id, file);
+
+        setSelected(result);
+        setText(result.contentText ?? result.text ?? '');
+        setFile(null);
+        setPreviewUrl('');
+        setNotice('Đã nhận dạng lại. Bạn hãy kiểm tra nội dung.');
+      } else {
+        const result = await scanLearnerEssay(file);
+        const content = result.contentText ?? result.text ?? '';
+
+        setText(content);
+
+        // Chỉ coi là bản ghi có thể cập nhật khi API trả về ID.
+        if (result.id != null) {
+          setSelected({
+            ...result,
+            contentText: content,
+          });
+
+          if (result.imageUrl) {
+            setFile(null);
+            setPreviewUrl('');
+          }
+
+          setNotice('Đã nhận dạng văn bản. Bạn có thể chỉnh sửa nội dung.');
+        } else {
+          setNotice(
+            'Đã nhận dạng văn bản. API chưa trả mã bài viết để lưu chỉnh sửa.',
+          );
+        }
+      }
+
+      await loadEssays();
+    } catch (err) {
+      setError(err.message || 'Không thể nhận dạng văn bản.');
+    } finally {
+      setOperation('');
     }
   }
 
   async function saveText() {
-    if (!selected || !text.trim()) return;
-    setBusy(true);
-    setError('');
+    if (busy || !selected || !text.trim() || !changed) return;
+
+    setOperation('save');
+    clearMessages();
+
     try {
       const result = await updateLearnerEssay(selected.id, text);
+
       setSelected(result);
-      setText(result.contentText);
+      setText(result.contentText ?? text);
+      setNotice('Đã lưu thay đổi.');
       await loadEssays();
-      setNotice('Đã lưu nội dung bài viết.');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Không lưu được bài viết.');
     } finally {
-      setBusy(false);
+      setOperation('');
     }
   }
 
-  async function rescan() {
-    const validationError = validateFile(file);
-    if (validationError || !selected) {
-      setError(validationError || 'Vui lòng chọn ảnh mới.');
+  async function removeEssay(essay) {
+    if (
+      busy ||
+      !window.confirm(`Xóa "${essay.title || 'bài viết này'}"?`)
+    ) {
       return;
     }
-    setBusy(true);
-    setScanning(true); // Bật chế độ scanning khi rescan
-    setError('');
-    try {
-      const result = await rescanLearnerEssay(selected.id, file);
-      setSelected(result);
-      setText(result.contentText);
 
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setPreviewUrl(result.imageUrl);
-      setFile(null);
-      await loadEssays();
-      setNotice('Đã quét lại. Nội dung OCR cũ đã được ghi đè.');
-    } catch (err) {
-      setError(err.message || 'Quét lại văn bản thất bại.');
-    } finally {
-      setBusy(false);
-      setScanning(false);
-    }
-  }
+    setOperation('delete');
+    clearMessages();
 
-  async function removeEssay(id) {
-    if (!window.confirm('Bạn có chắc muốn xóa bài viết này không?')) return;
-    setBusy(true);
-    setError('');
     try {
-      await deleteLearnerEssay(id);
-      if (selected?.id === id) {
+      await deleteLearnerEssay(essay.id);
+
+      if (selected?.id === essay.id) {
         setSelected(null);
         setText('');
-        if (previewUrl && previewUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(previewUrl);
-        }
+        setFile(null);
         setPreviewUrl('');
       }
-      await loadEssays();
+
       setNotice('Đã xóa bài viết.');
+      await loadEssays();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Không xóa được bài viết.');
     } finally {
-      setBusy(false);
+      setOperation('');
     }
   }
 
-  const previewSrc = file ? previewUrl : selected?.imageUrl;
-
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Riki - Luyện Làm Văn">
-      {/* CSS Animation cho tia Laser Scanning */}
-      <style>{`
-        @keyframes scanLineAnimation {
-          0% { top: 0%; opacity: 0.8; }
-          50% { top: 92%; opacity: 1; }
-          100% { top: 0%; opacity: 0.8; }
-        }
-        .animate-scan-laser {
-          animation: scanLineAnimation 2.2s ease-in-out infinite;
-        }
-      `}</style>
-
-      <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-4 py-6 text-on-surface sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div className="max-w-2xl">
-            <p className="font-label-md uppercase tracking-[0.2em] text-primary">Riki</p>
-            <h1 className="mt-1 font-headline-lg text-headline-lg font-bold">Luyện Làm Văn</h1>
-            <p className="mt-2 text-body-md text-on-surface-variant">
-              Chọn ảnh, quét chữ tiếng Nhật, rồi sửa nội dung ngay bên dưới.
+    <LearnerShell pathname={pathname} breadcrumb="Luyện viết">
+      <main
+        className="mx-auto max-w-[1320px] px-5 py-6
+                   text-[#49353F] lg:px-7"
+      >
+        <header
+          className="mb-5 flex flex-wrap items-center
+                     justify-between gap-3"
+        >
+          <div>
+            <h1
+              className="text-[25px] font-semibold
+                         leading-tight tracking-tight"
+            >
+              Luyện viết tiếng Nhật
+            </h1>
+            <p className="mt-1.5 text-[13px] text-[#967F8A]">
+              Tải ảnh bài viết, nhận dạng chữ và chỉnh sửa nội dung.
             </p>
           </div>
+
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={newEssay}
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-label-md text-on-primary shadow-sm hover:opacity-90 disabled:opacity-50"
+            className={BUTTON_CLASS}
           >
-            <span className="material-symbols-outlined">add_photo_alternate</span>
-            Chọn ảnh mới
+            <Icon name="add" className="text-[18px]" />
+            Bài mới
           </button>
-          <input
-            ref={inputRef}
-            hidden
-            type="file"
-            accept=".jpg,.jpeg,.png,.webp"
-            onChange={(event) => chooseFile(event.target.files?.[0])}
-          />
-        </div>
+        </header>
 
-        {error && <div className="mb-4 rounded-2xl bg-error-container px-4 py-3 text-on-error-container">{error}</div>}
-        {notice && <div className="mb-4 rounded-2xl bg-secondary-container px-4 py-3 text-on-secondary-container">{notice}</div>}
+        {error && (
+          <div
+            role="alert"
+            className="mb-4 flex items-start gap-2
+                       rounded-lg bg-[#FFF0F3] px-4 py-3
+                       text-[12px] leading-5 text-[#A15A70]"
+          >
+            <Icon
+              name="error_outline"
+              className="mt-0.5 shrink-0 text-[16px]"
+            />
+            {error}
+          </div>
+        )}
 
-        <div className="grid items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
-          <aside className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-[#eadfd9] lg:sticky lg:top-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-headline-sm text-headline-sm font-bold">Bài đã quét</h2>
-              <span className="rounded-full bg-secondary-container px-2.5 py-1 text-label-sm text-primary">{essays.length}</span>
-            </div>
-            {loading ? <p className="text-body-sm text-on-surface-variant">Đang tải...</p> : essays.length === 0 ? (
-              <p className="text-body-sm text-on-surface-variant">
-                {error ? 'Chưa tải được danh sách.' : 'Chưa có bài viết nào.'}
+        {notice && (
+          <div
+            role="status"
+            className="mb-4 flex items-start justify-between
+                       gap-3 rounded-lg bg-[#F7F0F4]
+                       px-4 py-3 text-[12px] leading-5 text-[#987385]"
+          >
+            <span>{notice}</span>
+            <button
+              type="button"
+              onClick={() => setNotice('')}
+              aria-label="Đóng thông báo"
+            >
+              <Icon name="close" className="text-[16px]" />
+            </button>
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          hidden
+          type="file"
+          disabled={busy}
+          accept=".jpg,.jpeg,.png,.webp"
+          onChange={(event) => {
+            chooseFile(event.target.files?.[0]);
+            event.target.value = '';
+          }}
+        />
+
+        <div
+          className="grid items-start gap-4
+                     lg:grid-cols-[220px_minmax(0,1fr)]"
+        >
+          {/* Lịch sử */}
+          <aside
+            className="overflow-hidden rounded-xl border
+                       border-[#EADFE5] bg-white
+                       lg:sticky lg:top-[84px]"
+          >
+            <header
+              className="flex items-center justify-between
+                         border-b border-[#F0E7EC] px-4 py-3"
+            >
+              <h2 className="text-[13px] font-medium">
+                Bài viết của tôi
+                <span className="ml-2 text-[11px] text-[#B08E9E]">
+                  {loading ? '…' : essays.length}
+                </span>
+              </h2>
+
+              <button
+                type="button"
+                onClick={loadEssays}
+                disabled={loading || busy}
+                aria-label="Tải lại danh sách"
+                className="rounded p-1 text-[#B08E9E]
+                           hover:bg-[#FCF2F6] disabled:opacity-40"
+              >
+                <Icon
+                  name="refresh"
+                  className={`text-[17px] ${
+                    loading ? 'animate-spin' : ''
+                  }`}
+                />
+              </button>
+            </header>
+
+            {loading ? (
+              <p className="px-4 py-6 text-[12px] text-[#A08A95]">
+                Đang tải…
               </p>
-            ) : (
-              <div className="space-y-2">
-                {essays.map((essay) => (
-                  <div key={essay.id} className={`flex items-start gap-2 rounded-2xl p-3 ${selected?.id === essay.id ? 'bg-secondary-container/70 ring-1 ring-primary/20' : 'bg-surface-container-low'}`}>
-                    <button type="button" onClick={() => openEssay(essay.id)} disabled={busy} className="min-w-0 flex-1 text-left disabled:opacity-50">
-                      <p className="line-clamp-2 font-label-md font-semibold">{essay.title}</p>
-                      <p className="mt-1 text-label-sm text-on-surface-variant">{formatDate(essay.scannedAt)}</p>
-                    </button>
-                    <button type="button" onClick={() => removeEssay(essay.id)} disabled={busy} aria-label={`Xóa ${essay.title}`} className="rounded-full p-1 text-error hover:bg-error-container disabled:opacity-50">
-                      <span className="material-symbols-outlined text-[18px]">delete</span>
-                    </button>
-                  </div>
-                ))}
+            ) : listError ? (
+              <div className="px-4 py-5">
+                <p role="alert" className="text-[12px] leading-5 text-[#A15A70]">
+                  {listError}
+                </p>
+                <button
+                  type="button"
+                  onClick={loadEssays}
+                  disabled={busy}
+                  className="mt-2 text-[12px] text-[#AD3155] underline"
+                >
+                  Thử lại
+                </button>
               </div>
+            ) : essays.length === 0 ? (
+              <div className="px-4 py-6">
+                <Icon
+                  name="description"
+                  className="text-[25px] text-[#CBB2BE]"
+                />
+                <p className="mt-2 text-[12px] text-[#967F8A]">
+                  Chưa có bài viết.
+                </p>
+                <p className="mt-1 text-[11px] leading-5 text-[#B09AA5]">
+                  Bắt đầu bằng cách tải ảnh bài viết của bạn.
+                </p>
+              </div>
+            ) : (
+              <ul className="max-h-[65vh] divide-y divide-[#F5EDF1] overflow-y-auto">
+                {essays.map((essay) => (
+                  <li
+                    key={essay.id}
+                    className={`flex items-start gap-1 px-3 py-3 ${
+                      selected?.id === essay.id
+                        ? 'bg-[#FCEEF4]'
+                        : 'hover:bg-[#FFFAFC]'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openEssay(essay.id)}
+                      disabled={busy}
+                      className="min-w-0 flex-1 text-left disabled:opacity-50"
+                    >
+                      <span className="block truncate text-[12px] font-medium">
+                        {essay.title || 'Bài viết tiếng Nhật'}
+                      </span>
+                      <span className="mt-1 block text-[10px] text-[#AD95A1]">
+                        {formatDate(essay.scannedAt)}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => removeEssay(essay)}
+                      disabled={busy}
+                      aria-label={`Xóa ${essay.title || 'bài viết'}`}
+                      className="rounded p-1 text-[#C09BAA]
+                                 hover:bg-[#F8E4EC]
+                                 hover:text-[#AD3155]
+                                 disabled:opacity-40"
+                    >
+                      <Icon name="delete_outline" className="text-[16px]" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </aside>
 
-          <section className="min-w-0 overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-[#eadfd9]">
-            <div
-              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={handleDrop}
-              className={`border-b border-[#eadfd9] px-5 py-5 sm:px-6 ${dragging ? 'bg-primary-light' : 'bg-surface-container-low'}`}
+          {/* Không gian làm bài */}
+          <section
+            aria-label="Biên tập bài viết"
+            className="min-w-0 overflow-hidden rounded-2xl
+                       border border-[#EADFE5] bg-white"
+          >
+            <header
+              className="flex flex-wrap items-center justify-between
+                         gap-2 border-b border-[#F0E7EC] px-5 py-3.5"
             >
-              {previewSrc ? (
-                <div className="grid gap-4 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)] sm:items-center">
+              <h2 className="min-w-0 break-words text-[14px] font-medium">
+                {selected?.title || 'Bài viết mới'}
+              </h2>
+              <span className="text-[11px] text-[#AE95A1]">
+                {changed ? 'Có thay đổi chưa lưu' : 'Ảnh → Văn bản → Chỉnh sửa'}
+              </span>
+            </header>
 
-                  {/* Container Ảnh kèm Hiệu ứng Scanning Laser */}
-                  <div className="relative overflow-hidden rounded-2xl bg-white p-2 ring-1 ring-[#eadfd9]">
-                    <img src={previewSrc} alt="Ảnh bài viết" className="max-h-52 w-full object-contain" />
+            <div
+              className="grid items-start
+                         xl:grid-cols-[260px_minmax(0,1fr)]"
+            >
+              {/* Ảnh gốc */}
+              <div
+                className="border-b border-[#F0E7EC]
+                           bg-[#FFFBFD] p-4
+                           xl:border-b-0 xl:border-r"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-[12px] font-medium text-[#947584]">
+                    Ảnh bài viết
+                  </h3>
+                  {previewSrc && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => inputRef.current?.click()}
+                      className="text-[11px] text-[#B2748D]
+                                 hover:text-[#AD3155] disabled:opacity-40"
+                    >
+                      Đổi ảnh
+                    </button>
+                  )}
+                </div>
 
-                    {/* OVERLAY TIA SCANNING KHI ĐANG QUÉT */}
-                    {scanning && (
-                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-black/40 backdrop-blur-[2px]">
-                        {/* Đường Laser Quét Chạy Lên Xuống */}
-                        <div className="animate-scan-laser absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_#3b82f6]" />
+                <div
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!busy) setDragging(true);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                      setDragging(false);
+                    }
+                  }}
+                  onDrop={handleDrop}
+                  className={[
+                    'relative overflow-hidden rounded-xl border',
+                    dragging
+                      ? 'border-[#C87C99] bg-[#FBEAF1]'
+                      : 'border-[#EBDDE5] bg-white',
+                  ].join(' ')}
+                >
+                  {previewSrc ? (
+                    <div className="relative p-2">
+                      <img
+                        src={previewSrc}
+                        alt="Ảnh gốc của bài viết tiếng Nhật"
+                        className="max-h-[350px] w-full object-contain"
+                      />
 
-                        {/* Badge thông báo dạng Pulse */}
-                        <div className="flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1.5 shadow-md">
-                          <span className="h-2 w-2 animate-ping rounded-full bg-primary" />
-                          <span className="font-label-sm text-xs font-semibold text-primary">AI đang nhận diện...</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <h2 className="font-headline-sm text-headline-sm font-bold">{selected?.title || file?.name || 'Ảnh đã chọn'}</h2>
-                    <p className="mt-1 text-label-sm text-on-surface-variant">
-                      {scanning
-                        ? 'Đang gửi ảnh sang Gemini AI để trích xuất chữ viết tay tiếng Nhật...'
-                        : selected
-                          ? `Quét lúc ${formatDate(selected.scannedAt)}`
-                          : 'Ảnh xem trước từ máy. Bấm quét để nhận diện chữ.'}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {file && (
-                        <button
-                          type="button"
-                          onClick={selected ? rescan : scan}
-                          disabled={busy}
-                          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 font-label-md text-on-primary disabled:opacity-50"
+                      {scanning && (
+                        <div
+                          className="absolute inset-0 flex items-center
+                                     justify-center bg-white/80"
                         >
-                          {scanning && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
-                          {scanning ? 'Đang quét AI...' : selected ? 'Quét lại ảnh này' : 'Quét văn bản'}
-                        </button>
-                      )}
-                      {selected && (
-                        <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="rounded-full bg-white px-4 py-2 font-label-md text-primary ring-1 ring-[#eadfd9] disabled:opacity-50">
-                          Đổi ảnh
-                        </button>
+                          <span
+                            role="status"
+                            className="inline-flex items-center gap-2
+                                       text-[12px] text-[#AD627F]"
+                          >
+                            <Icon
+                              name="progress_activity"
+                              className="animate-spin text-[19px]"
+                            />
+                            Đang nhận dạng…
+                          </span>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => inputRef.current?.click()}
+                      disabled={busy}
+                      className="flex min-h-[190px] w-full
+                                 flex-col items-center justify-center
+                                 px-4 py-6 text-center
+                                 hover:bg-[#FFF8FB]
+                                 disabled:opacity-50"
+                    >
+                      <span
+                        className="flex h-11 w-11 items-center justify-center
+                                   rounded-xl bg-[#FAEAF1] text-[#BB8199]"
+                      >
+                        <Icon name="add_photo_alternate" className="text-[25px]" />
+                      </span>
+                      <span className="mt-3 text-[13px] font-medium">
+                        Chọn ảnh bài viết
+                      </span>
+                      <span className="mt-1 text-[11px] text-[#AE95A1]">
+                        hoặc kéo ảnh vào đây
+                      </span>
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-primary ring-1 ring-[#eadfd9]">
-                    <span className="material-symbols-outlined text-3xl">document_scanner</span>
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="font-headline-sm text-headline-sm font-bold">Kéo ảnh vào đây hoặc chọn từ máy</h2>
-                    <p className="mt-1 text-body-sm text-on-surface-variant">JPG, PNG, WEBP, tối đa 10MB.</p>
-                  </div>
-                </div>
-              )}
-            </div>
 
-            <div className="p-5 sm:p-6">
-              {/* Hiển thị Placeholder dạng Sketelon/Loading khi đang Scan */}
-              {scanning ? (
-                <div className="flex h-44 w-full flex-col items-center justify-center rounded-2xl bg-surface-container-low p-4 ring-1 ring-[#eadfd9]">
-                  <span className="material-symbols-outlined animate-bounce text-3xl text-primary">auto_awesome</span>
-                  <p className="mt-2 font-label-md font-semibold text-primary">Đang lọc chữ in và bóc tách chữ viết tay tiếng Nhật...</p>
-                  <p className="mt-1 text-label-sm text-on-surface-variant">Vui lòng đợi vài giây.</p>
-                </div>
-              ) : (
-                <RomajiJapaneseInput value={text} onChange={setText} disabled={busy} />
-              )}
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="max-w-xl text-label-sm text-on-surface-variant">
-                  Gõ Romaji rồi nhấn Space để chọn từ, hoặc dùng micro để nói tiếng Nhật.
+                <p className="mt-2 text-[10px] leading-5 text-[#AF98A3]">
+                  JPG, PNG, WEBP · Tối đa 10MB
                 </p>
-                <button type="button" onClick={saveText} disabled={busy || !selected || !text.trim()} className="rounded-full bg-primary px-5 py-2.5 font-label-md text-on-primary disabled:opacity-50">
-                  {busy && !scanning ? 'Đang lưu...' : 'Lưu thay đổi'}
-                </button>
+
+                {file && (
+                  <>
+                    <p
+                      title={file.name}
+                      className="mt-2 truncate text-[11px] text-[#A0808E]"
+                    >
+                      {file.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={scanImage}
+                      disabled={busy}
+                      className={`${PRIMARY_CLASS} mt-3 w-full`}
+                    >
+                      <Icon
+                        name={scanning ? 'progress_activity' : 'document_scanner'}
+                        className={`text-[17px] ${
+                          scanning ? 'animate-spin' : ''
+                        }`}
+                      />
+                      {scanning
+                        ? 'Đang nhận dạng…'
+                        : selected
+                          ? 'Nhận dạng lại'
+                          : 'Nhận dạng chữ'}
+                    </button>
+                  </>
+                )}
+
+                <p className="mt-4 text-[11px] leading-5 text-[#AE95A1]">
+                  Chụp rõ chữ, đủ sáng và giữ ảnh ngay ngắn.
+                </p>
+              </div>
+
+              {/* Nội dung */}
+              <div className="min-w-0 p-4 sm:p-5">
+                {operation === 'open' ? (
+                  <div
+                    role="status"
+                    className="flex min-h-[260px] items-center
+                               justify-center gap-2 text-[13px] text-[#A0808E]"
+                  >
+                    <Icon
+                      name="progress_activity"
+                      className="animate-spin text-[19px]"
+                    />
+                    Đang mở bài viết…
+                  </div>
+                ) : (
+                  <RomajiJapaneseInput
+                    value={text}
+                    onChange={setText}
+                    disabled={busy}
+                  />
+                )}
+
+                <div
+                  className="mt-4 flex flex-wrap items-center justify-between
+                             gap-3 border-t border-[#F0E7EC] pt-4"
+                >
+                  <p className="text-[11px] leading-5 text-[#AE95A1]">
+                    Kiểm tra lại chữ được nhận dạng trước khi lưu.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={saveText}
+                    disabled={busy || !selected || !text.trim() || !changed}
+                    className={PRIMARY_CLASS}
+                  >
+                    <Icon
+                      name={operation === 'save' ? 'progress_activity' : 'check'}
+                      className={`text-[16px] ${
+                        operation === 'save' ? 'animate-spin' : ''
+                      }`}
+                    />
+                    {operation === 'save' ? 'Đang lưu…' : 'Lưu thay đổi'}
+                  </button>
+                </div>
+
+                {!selected && text.trim() && (
+                  <p className="mt-3 text-[11px] leading-5 text-[#AA8495]">
+                    Chưa có mã bài viết để lưu. Nếu bài đã xuất hiện
+                    trong lịch sử, hãy mở bài đó để chỉnh sửa.
+                  </p>
+                )}
               </div>
             </div>
           </section>

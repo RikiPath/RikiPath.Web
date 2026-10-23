@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+
 import { getSession, patchSession } from '../../auth/session.js';
 import { useSetJlptGoalMutation } from '../../hooks/useAuth.js';
 import { prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
@@ -8,69 +9,87 @@ const LEVELS = [
   {
     id: 1,
     name: 'N5',
-    title: 'Mới bắt đầu / JLPT N5',
-    badge: 'Nhập môn',
-    desc: 'Chưa biết hoặc mới học Hiragana & Katakana. Mục tiêu thi N5.',
+    title: 'Ôn luyện nền tảng',
+    desc: 'Từ vựng, chữ Hán và mẫu câu cơ bản.',
   },
   {
     id: 2,
     name: 'N4',
-    title: 'JLPT N4',
-    badge: 'Sơ cấp 2',
-    desc: 'Đã thuộc hai bảng chữ, giao tiếp vỡ lòng. Mục tiêu thi N4.',
+    title: 'Củng cố sơ cấp',
+    desc: 'Ôn kiến thức và các tình huống quen thuộc.',
   },
   {
     id: 3,
     name: 'N3',
-    title: 'JLPT N3',
-    badge: 'Trung cấp',
-    desc: 'Giao tiếp độc lập, đọc tin tức đơn giản. Mục tiêu thi N3.',
-    popular: true,
+    title: 'Ôn luyện trung cấp',
+    desc: 'Mở rộng từ vựng, luyện đọc và nghe hiểu.',
   },
   {
     id: 4,
     name: 'N2',
-    title: 'JLPT N2',
-    badge: 'Cao cấp',
-    desc: 'Hiểu văn bản chuyên sâu, tài liệu công việc. Mục tiêu thi N2.',
-  },
-  {
-    id: 5,
-    name: 'N1',
-    title: 'JLPT N1',
-    badge: 'Thượng cấp',
-    desc: 'Gần mức người bản ngữ, văn học và tài liệu phức tạp. Mục tiêu thi N1.',
+    title: 'Nâng cao năng lực',
+    desc: 'Luyện hiểu văn bản dài và chủ đề đa dạng.',
   },
 ];
 
 const MINUTES = [15, 30, 45, 60, 90];
 
+function Icon({ name, className = '' }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`material-symbols-outlined ${className}`}
+    >
+      {name}
+    </span>
+  );
+}
+
 export default function OnboardingSurvey() {
   const navigate = useNavigate();
   const session = getSession();
   const goalMutation = useSetJlptGoalMutation();
+
   const [levelId, setLevelId] = useState(3);
   const [minutes, setMinutes] = useState(30);
   const [error, setError] = useState('');
+  const [redirecting, setRedirecting] = useState(false);
+
+  const selectedLevel = LEVELS.find((level) => level.id === levelId);
+  const busy = goalMutation.isPending || redirecting;
 
   function skipForNow() {
+    if (busy) return;
+
     patchSession({ skipOnboarding: true });
     navigate('/app', { replace: true });
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (busy) return;
+
     setError('');
+
     goalMutation.mutate(
-      { targetJlptLevelId: levelId, dailyStudyMinutes: minutes },
+      {
+        targetJlptLevelId: levelId,
+        dailyStudyMinutes: minutes,
+      },
       {
         onSuccess: () => {
+          setRedirecting(true);
+
           prefetchLearnerHome()
             .catch(() => {})
-            .finally(() => navigate('/app', { replace: true }));
+            .finally(() => {
+              navigate('/app', { replace: true });
+            });
         },
         onError: (err) => {
-          setError(err.message || 'Không lưu được mục tiêu JLPT.');
+          setError(
+            err?.message || 'Không lưu được mục tiêu. Vui lòng thử lại.',
+          );
         },
       },
     );
@@ -81,133 +100,390 @@ export default function OnboardingSurvey() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF7F5] text-[#1f1a1c]" data-page="OnboardingSurvey">
-      <header className="sticky top-0 z-50 border-b border-[#eadfd9] bg-[#FAF7F5]/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-6">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[24px] text-[#D94B68]">spa</span>
-            <span className="text-lg font-bold tracking-tight">
-              Riki<span className="text-[#D94B68]">Path</span>
+    <div
+      data-page="OnboardingSurvey"
+      className="flex min-h-screen items-center justify-center
+                 bg-[#F8F5F4] px-4 py-6
+                 font-['Be_Vietnam_Pro',sans-serif]
+                 text-[#352C31] sm:px-6 lg:py-8"
+    >
+      <main
+        className="grid w-full max-w-[1100px] overflow-hidden
+                   rounded-[24px] border border-[#EEE4E7]
+                   bg-white shadow-[0_12px_48px_rgba(75,42,55,0.06)]
+                   lg:grid-cols-[0.8fr_1.4fr]"
+      >
+        {/* Giới thiệu */}
+        <aside
+          className="relative flex flex-col overflow-hidden
+                     bg-[#92344F] px-7 py-7 text-white
+                     sm:px-9 lg:p-9"
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-24
+                       -top-24 h-72 w-72 rounded-full
+                       border border-white/[0.07]"
+          />
+
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-32
+                       -left-24 h-80 w-80 rounded-full
+                       border border-white/[0.07]"
+          />
+
+          <Link
+            to="/"
+            className="relative inline-flex w-fit items-center
+                       gap-2.5 rounded-lg
+                       focus-visible:outline-none
+                       focus-visible:ring-2
+                       focus-visible:ring-white/70"
+          >
+            <span
+              className="flex h-10 w-10 items-center justify-center
+                         rounded-xl bg-white/10"
+            >
+              <Icon name="spa" className="text-[25px]" />
+            </span>
+
+            <span className="text-[21px] font-semibold tracking-tight">
+              RikiPath
             </span>
           </Link>
-          <button
-            type="button"
-            onClick={skipForNow}
-            className="text-sm font-semibold text-[#6F6669] hover:text-[#D94B68]"
-          >
-            Để sau
-          </button>
-        </div>
-      </header>
 
-      <main className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-6 sm:py-10">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#D94B68]">Khảo sát trình độ</p>
-        <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight sm:text-[32px]">
-          Mục tiêu JLPT của bạn là gì?
-        </h1>
-        <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#6F6669] sm:text-base">
-          Đăng ký chưa hỏi cấp độ thi. Chọn mục tiêu tại đây để trang chủ hiện đúng kỳ thi và nhịp học mỗi ngày.
-        </p>
+          <div className="relative mt-7 lg:mt-10">
+            <p className="text-[12px] font-medium text-[#EBC7D2]">
+              Thiết lập mục tiêu ôn luyện
+            </p>
 
-        <form className="mt-8 flex flex-col gap-8" onSubmit={handleSubmit}>
-          <div>
-            <p className="mb-3 text-base font-bold">Cấp độ mục tiêu</p>
-            <div className="flex flex-col gap-3">
-              {LEVELS.map((level) => {
-                const selected = levelId === level.id;
-                return (
-                  <label
-                    key={level.id}
-                    className={[
-                      'flex cursor-pointer items-start gap-4 rounded-2xl border p-4 sm:p-5 transition-all',
-                      selected
-                        ? 'border-[#D94B68]/40 bg-[#FEE8EE] shadow-sm'
-                        : 'border-[#eadfd9] bg-white hover:border-[#D94B68]/30 hover:shadow-sm',
-                    ].join(' ')}
-                  >
-                    <input
-                      type="radio"
-                      name="jlpt-goal"
-                      className="sr-only"
-                      checked={selected}
-                      onChange={() => setLevelId(level.id)}
-                    />
-                    <div
-                      className={[
-                        'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold',
-                        selected ? 'bg-[#D94B68] text-white' : 'bg-[#f4ece9] text-[#6F6669]',
-                      ].join(' ')}
-                    >
-                      {level.name}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold">{level.title}</span>
-                        <span className="rounded-full bg-[#f4ece9] px-2 py-0.5 text-[11px] font-semibold text-[#6F6669]">
-                          {level.badge}
-                        </span>
-                        {level.popular ? (
-                          <span className="rounded-full bg-[#D94B68]/10 px-2 py-0.5 text-[11px] font-semibold text-[#D94B68]">
-                            Phổ biến
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-sm leading-relaxed text-[#6F6669]">{level.desc}</p>
-                    </div>
-                    <div
-                      className={[
-                        'mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
-                        selected ? 'bg-[#D94B68] text-white' : 'border border-[#eadfd9] bg-white text-transparent',
-                      ].join(' ')}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">check</span>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-3 text-base font-bold">Bạn muốn học bao nhiêu phút mỗi ngày?</p>
-            <div className="flex flex-wrap gap-2">
-              {MINUTES.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setMinutes(value)}
-                  className={[
-                    'rounded-full px-4 py-2 text-sm font-bold transition-colors',
-                    minutes === value
-                      ? 'bg-[#D94B68] text-white'
-                      : 'bg-white text-[#6F6669] ring-1 ring-[#eadfd9] hover:bg-[#FEE8EE]',
-                  ].join(' ')}
-                >
-                  {value} phút
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {error ? <p className="text-sm font-medium text-[#B3261E]">{error}</p> : null}
-
-          <div className="flex flex-col-reverse gap-3 border-t border-[#eadfd9] pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="button"
-              onClick={skipForNow}
-              className="text-center text-sm font-semibold text-[#6F6669] hover:text-[#D94B68]"
+            <h1
+              className="mt-3 max-w-[330px] text-[30px]
+                         font-semibold leading-[1.25]
+                         tracking-tight lg:text-[34px]"
             >
-              Bỏ qua, vào trang chủ
-            </button>
+              Bắt đầu từ
+              <br />
+              mục tiêu của bạn.
+            </h1>
+
+            <p
+              className="mt-4 max-w-[320px] text-[13px]
+                         leading-6 text-[#EDD4DC]"
+            >
+              Chọn cấp độ từ N5 đến N2 và thời gian phù hợp
+              để bắt đầu ôn luyện cùng RikiPath.
+            </p>
+          </div>
+
+          <ol className="relative mt-7 hidden space-y-4 lg:block">
+            {[
+              ['01', 'Chọn cấp độ', 'Xác định mục tiêu JLPT của bạn.'],
+              ['02', 'Chọn thời gian', 'Dành thời gian ôn luyện mỗi ngày.'],
+              ['03', 'Bắt đầu ôn luyện', 'Luyện tập và xem lại kết quả.'],
+            ].map(([number, title, description]) => (
+              <li key={number} className="flex items-start gap-3">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center
+                             justify-center rounded-full
+                             border border-white/20
+                             text-[11px] text-[#EBC7D2]"
+                >
+                  {number}
+                </span>
+
+                <div className="pt-0.5">
+                  <p className="text-[13px] font-medium">{title}</p>
+                  <p className="mt-1 text-[12px] text-[#DFC0CB]">
+                    {description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <div
+            className="relative mt-auto hidden items-start gap-2
+                       border-t border-white/15 pt-4
+                       text-[12px] leading-5 text-[#E7CBD5]
+                       lg:flex"
+          >
+            <Icon
+              name="lightbulb"
+              className="mt-0.5 shrink-0 text-[18px]"
+            />
+            <p>
+              Chọn thời lượng bạn có thể duy trì đều đặn
+              mỗi ngày.
+            </p>
+          </div>
+        </aside>
+
+        {/* Chọn mục tiêu */}
+        <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
+          <header>
+            <p className="text-[12px] font-medium text-[#AD526F]">
+              Mục tiêu của bạn
+            </p>
+
+            <h2
+              className="mt-2 text-[25px] font-semibold
+                         leading-tight tracking-tight sm:text-[28px]"
+            >
+              Bạn muốn ôn luyện cấp độ nào?
+            </h2>
+
+            <p className="mt-2 text-[13px] leading-6 text-[#8A7A82]">
+              Chọn cấp độ JLPT bạn đang hướng đến.
+            </p>
+          </header>
+
+          <form onSubmit={handleSubmit} className="mt-5">
+            <fieldset disabled={busy}>
+              <legend className="sr-only">
+                Cấp độ JLPT mục tiêu
+              </legend>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {LEVELS.map((level) => {
+                  const selected = levelId === level.id;
+
+                  return (
+                    <label key={level.id} className="relative block">
+                      <input
+                        type="radio"
+                        name="jlpt-goal"
+                        value={level.id}
+                        checked={selected}
+                        onChange={() => {
+                          setLevelId(level.id);
+                          setError('');
+                        }}
+                        aria-describedby={`level-${level.id}-description`}
+                        className="peer sr-only"
+                      />
+
+                      <div
+                        className={[
+                          'flex h-full cursor-pointer items-start',
+                          'gap-3 rounded-xl border p-4',
+                          'transition-colors duration-150',
+                          'peer-focus-visible:ring-2',
+                          'peer-focus-visible:ring-[#D94B68]/40',
+                          'peer-focus-visible:ring-offset-2',
+                          'peer-disabled:cursor-wait',
+                          selected
+                            ? 'border-[#CD708C] bg-[#FFF5F8]'
+                            : 'border-[#EAE2E6] bg-white hover:border-[#D8A7B7] hover:bg-[#FFFCFD]',
+                        ].join(' ')}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={[
+                            'flex h-10 w-10 shrink-0 items-center',
+                            'justify-center rounded-[10px]',
+                            'text-[14px] font-semibold',
+                            selected
+                              ? 'bg-[#D94B68] text-white'
+                              : 'bg-[#F5EFF2] text-[#947983]',
+                          ].join(' ')}
+                        >
+                          {level.name}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="flex items-center
+                                       justify-between gap-2"
+                          >
+                            <span className="text-[14px] font-semibold">
+                              JLPT {level.name}
+                            </span>
+
+                            <span
+                              aria-hidden="true"
+                              className={[
+                                'flex h-[18px] w-[18px] shrink-0',
+                                'items-center justify-center rounded-full',
+                                selected
+                                  ? 'bg-[#D94B68] text-white'
+                                  : 'border border-[#DCD1D6]',
+                              ].join(' ')}
+                            >
+                              {selected && (
+                                <Icon
+                                  name="check"
+                                  className="text-[13px]"
+                                />
+                              )}
+                            </span>
+                          </div>
+
+                          <p
+                            className="mt-1 text-[12px]
+                                       font-medium text-[#8C6E7A]"
+                          >
+                            {level.title}
+                          </p>
+
+                          <p
+                            id={`level-${level.id}-description`}
+                            className="mt-1 text-[12px] leading-5
+                                       text-[#94858C]"
+                          >
+                            {level.desc}
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            {/* Thời gian mỗi ngày */}
+            <fieldset
+              disabled={busy}
+              className="mt-5 border-t border-[#F0E8EC] pt-5"
+            >
+              <legend className="sr-only">
+                Thời gian ôn luyện mỗi ngày
+              </legend>
+
+              <h3 className="text-[14px] font-medium">
+                Bạn dành bao nhiêu phút ôn luyện mỗi ngày?
+              </h3>
+
+              <div className="mt-3 grid grid-cols-5 gap-2">
+                {MINUTES.map((value) => {
+                  const selected = minutes === value;
+
+                  return (
+                    <label key={value} className="relative">
+                      <input
+                        type="radio"
+                        name="daily-minutes"
+                        value={value}
+                        checked={selected}
+                        onChange={() => {
+                          setMinutes(value);
+                          setError('');
+                        }}
+                        aria-label={`${value} phút mỗi ngày`}
+                        className="peer sr-only"
+                      />
+
+                      <span
+                        className={[
+                          'flex cursor-pointer items-center',
+                          'justify-center rounded-lg border',
+                          'py-2.5 text-[12px] transition-colors',
+                          'peer-focus-visible:ring-2',
+                          'peer-focus-visible:ring-[#D94B68]/40',
+                          'peer-focus-visible:ring-offset-2',
+                          'peer-disabled:cursor-wait',
+                          selected
+                            ? 'border-[#CD708C] bg-[#FBEAF0] font-semibold text-[#AD3155]'
+                            : 'border-[#EAE2E6] text-[#8A7A82] hover:bg-[#FCF7F9]',
+                        ].join(' ')}
+                      >
+                        {value}
+                        <span className="ml-1 hidden sm:inline">
+                          phút
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <p className="mt-2 text-[11px] text-[#A08E97]">
+                Chọn thời gian phù hợp với lịch sinh hoạt của bạn.
+              </p>
+            </fieldset>
+
+            {/* Tóm tắt */}
+            <div
+              className="mt-5 flex items-center gap-2.5
+                         rounded-lg bg-[#FAF5F7] px-3 py-2.5"
+            >
+              <Icon
+                name="flag"
+                className="shrink-0 text-[19px] text-[#B26E86]"
+              />
+
+              <p className="text-[12px] text-[#8C6E7A]">
+                Mục tiêu đã chọn:
+                <strong className="ml-1 font-medium text-[#9E3658]">
+                  JLPT {selectedLevel.name} · {minutes} phút/ngày
+                </strong>
+              </p>
+            </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="mt-3 rounded-lg bg-[#FFF0F2]
+                           px-3 py-2.5 text-[12px]
+                           leading-5 text-[#A13950]"
+              >
+                {error}
+              </p>
+            )}
+
             <button
               type="submit"
-              disabled={goalMutation.isPending}
-              className="rounded-xl bg-[#D94B68] px-6 py-3 text-sm font-bold text-white shadow-md hover:bg-[#9E2A4B] disabled:opacity-60 sm:px-8"
+              disabled={busy}
+              className="mt-4 flex h-11 w-full items-center
+                         justify-center gap-2 rounded-[10px]
+                         bg-[#D94B68] px-4 text-[14px]
+                         font-semibold text-white
+                         transition-colors hover:bg-[#C43E5C]
+                         focus-visible:outline-none
+                         focus-visible:ring-2
+                         focus-visible:ring-[#D94B68]/40
+                         focus-visible:ring-offset-2
+                         disabled:cursor-wait disabled:opacity-60"
             >
-              {goalMutation.isPending ? 'Đang lưu…' : 'Lưu mục tiêu và vào trang chủ'}
+              {busy ? (
+                <>
+                  <Icon
+                    name="progress_activity"
+                    className="animate-spin text-[18px]"
+                  />
+                  {redirecting
+                    ? 'Đang chuyển trang…'
+                    : 'Đang lưu mục tiêu…'}
+                </>
+              ) : (
+                <>
+                  Lưu mục tiêu và tiếp tục
+                  <Icon
+                    name="arrow_forward"
+                    className="text-[18px]"
+                  />
+                </>
+              )}
             </button>
-          </div>
-        </form>
+
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={skipForNow}
+                disabled={busy}
+                className="rounded px-2 py-1 text-[12px]
+                           text-[#94858C] hover:text-[#AD3155]
+                           focus-visible:outline-none
+                           focus-visible:ring-2
+                           focus-visible:ring-[#D94B68]/30
+                           disabled:opacity-40"
+              >
+                Để sau, vào trang chủ
+              </button>
+            </div>
+          </form>
+        </section>
       </main>
     </div>
   );

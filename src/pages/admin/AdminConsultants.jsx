@@ -1,5 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation } from 'react-router-dom';
+import {
+  Plus,
+  Search,
+  RefreshCw,
+  CheckCircle2,
+  Calendar,
+  X,
+  MoreHorizontal,
+  Info,
+} from 'lucide-react';
+
 import { AdminShell } from '../../components/shells';
 import {
   getAdminMentors,
@@ -7,829 +24,1110 @@ import {
   setAdminMentorActive,
   unwrapApiList,
 } from '../../api/admin.js';
-import {
-  UserCheck,
-  UserPlus,
-  Search,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-  AlertCircle,
-  ToggleLeft,
-  ToggleRight,
-  Mail,
-  Phone,
-  Shield,
-  X,
-  Users,
-  Calendar,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  BookOpen,
-  Check,
-  Info,
-} from 'lucide-react';
 
-export default function AdminConsultants() {
-  const { pathname } = useLocation();
+const EMPTY_FORM = {
+  email: '',
+  password: '',
+  firstName: '',
+  lastName: '',
+  phoneNumber: '',
+};
 
-  // Search & Filter
-  const [searchTerm, setSearchTerm] = useState('');
+const INPUT_CLASS =
+  'h-10 w-full rounded-lg border border-[#E5DDE1] bg-white ' +
+  'px-3 text-[13px] text-[#4B4247] outline-none ' +
+  'placeholder:text-[#A99CA3] focus:border-[#C8889D] ' +
+  'focus:ring-2 focus:ring-[#AD3155]/10';
 
-  // Data States
-  const [consultants, setConsultants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const BUTTON_CLASS =
+  'inline-flex h-9 items-center justify-center gap-2 rounded-lg ' +
+  'border border-[#E5DDE1] bg-white px-3 text-[13px] ' +
+  'text-[#75616C] transition hover:bg-[#FAF5F7] ' +
+  'disabled:cursor-not-allowed disabled:opacity-50';
 
-  // Toast Notification
-  const [toast, setToast] = useState(null);
+function getName(mentor) {
+  return (
+    mentor.fullName ||
+    mentor.name ||
+    [mentor.lastName, mentor.firstName].filter(Boolean).join(' ') ||
+    mentor.email ||
+    'Mentor'
+  );
+}
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+function getInitials(name) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+}
 
-  // Modals
-  const [isAddConsultantOpen, setIsAddConsultantOpen] = useState(false);
-  const [consultantForm, setConsultantForm] = useState({
-    email: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    phoneNumber: '',
-  });
+function Status({ active }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-2 whitespace-nowrap
+        text-[13px] ${
+          active ? 'text-[#49745A]' : 'text-[#8C7D84]'
+        }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`h-1.5 w-1.5 rounded-full ${
+          active ? 'bg-[#51956B]' : 'bg-[#A99AA1]'
+        }`}
+      />
+      {active ? 'Hoạt động' : 'Đã tắt'}
+    </span>
+  );
+}
 
-  // Schedule Modal State
-  const [selectedConsultant, setSelectedConsultant] = useState(null);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0); // 0 = Thứ 2, 6 = Chủ Nhật
-
-  const [submitting, setSubmitting] = useState(false);
-
-  // Days of week generator
-  const daysOfWeek = useMemo(() => {
-    const days = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
-    const today = new Date();
-    const currentDay = today.getDay(); // 0 is Sunday
-    const distanceToMon = currentDay === 0 ? -6 : 1 - currentDay;
-
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + distanceToMon);
-
-    return days.map((dayName, idx) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + idx);
-      return {
-        name: dayName,
-        shortName: idx === 6 ? 'CN' : `T${idx + 2}`,
-        dateStr: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
-        fullDate: date,
-        isToday: date.toDateString() === today.toDateString(),
-      };
-    });
-  }, []);
-
-  // Mock schedule generator based on consultant ID for display
-  const consultantScheduleData = useMemo(() => {
-    if (!selectedConsultant) return [];
-
-    // Realistic time slots
-    const slots = [
-      { time: '08:30 - 09:15', period: 'Sáng' },
-      { time: '09:30 - 10:15', period: 'Sáng' },
-      { time: '10:30 - 11:15', period: 'Sáng' },
-      { time: '14:00 - 14:45', period: 'Chiều' },
-      { time: '15:00 - 15:45', period: 'Chiều' },
-      { time: '16:00 - 16:45', period: 'Chiều' },
-      { time: '19:00 - 19:45', period: 'Tối' },
-      { time: '20:00 - 20:45', period: 'Tối' },
-    ];
-
-    // Seed mock data for each day
-    return daysOfWeek.map((dayObj, dayIdx) => {
-      const daySlots = slots.map((s, slotIdx) => {
-        // Deterministic status simulation based on consultant id and indices
-        const seed = (selectedConsultant.id * 17 + dayIdx * 7 + slotIdx * 3) % 10;
-        let status = 'available'; // available, booked, break
-        let bookingInfo = null;
-
-        if (seed === 1 || seed === 4 || seed === 7) {
-          status = 'booked';
-          const studentNames = ['Nguyễn Văn Nam', 'Trần Thị Mai', 'Lê Hoàng Anh', 'Phạm Đức Minh', 'Đỗ Phương Thảo'];
-          const packagesList = ['Tư vấn Lộ trình JLPT N2', 'Chiến thuật Đọc hiểu N3', 'Định hướng Du học & Việc làm', 'Khắc phục từ vựng SRS'];
-          bookingInfo = {
-            studentName: studentNames[(dayIdx + slotIdx) % studentNames.length],
-            package: packagesList[(dayIdx + slotIdx) % packagesList.length],
-            target: `JLPT N${(slotIdx % 3) + 1}`,
-            statusText: slotIdx % 2 === 0 ? 'Đã xác nhận' : 'Hoàn thành',
-          };
-        } else if (seed === 9) {
-          status = 'break';
-        }
-
-        return {
-          id: `${dayIdx}-${slotIdx}`,
-          ...s,
-          status,
-          bookingInfo,
-        };
-      });
-
-      return {
-        day: dayObj,
-        slots: daySlots,
-      };
-    });
-  }, [selectedConsultant, daysOfWeek]);
-
-  // Fetch Consultants
-  const fetchConsultantsList = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getAdminMentors();
-      const list = unwrapApiList(res);
-      setConsultants(list);
-    } catch (err) {
-      console.error('Error fetching consultants:', err);
-      setError(err.message || 'Không thể tải danh sách Consultant');
-    } finally {
-      setLoading(false);
-    }
-  };
+/* Dialog dùng chung: khóa cuộn nền, hỗ trợ Escape và giữ focus. */
+function Dialog({ titleId, onClose, children, wide = false }) {
+  const panelRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
-    fetchConsultantsList();
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const panel = panelRef.current;
+    panel?.focus();
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        closeRef.current();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !panel) return;
+
+      const focusable = [...panel.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), ' +
+        'select:not([disabled]), textarea:not([disabled]), ' +
+        'a[href], [tabindex="0"]',
+      )];
+
+      if (!focusable.length) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (
+        event.shiftKey &&
+        (document.activeElement === first ||
+          document.activeElement === panel)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last ||
+          document.activeElement === panel)
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus?.();
+    };
   }, []);
 
-  // Filter Consultants
-  const filteredConsultants = useMemo(() => {
-    if (!searchTerm.trim()) return consultants;
-    const term = searchTerm.toLowerCase();
-    return consultants.filter(
-      (c) =>
-        (c.firstName && c.firstName.toLowerCase().includes(term)) ||
-        (c.lastName && c.lastName.toLowerCase().includes(term)) ||
-        (c.email && c.email.toLowerCase().includes(term)) ||
-        (c.phoneNumber && c.phoneNumber.toLowerCase().includes(term))
-    );
-  }, [consultants, searchTerm]);
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center
+                 justify-center bg-[#30242B]/35 p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`flex max-h-[90vh] w-full flex-col
+          overflow-hidden rounded-2xl bg-white
+          shadow-[0_16px_60px_rgba(48,36,43,0.16)]
+          outline-none ${wide ? 'max-w-[820px]' : 'max-w-[460px]'}`}
+      >
+        {children}
+      </section>
+    </div>
+  );
+}
 
-  // Handle Add Consultant Submit
-  const handleAddConsultant = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+function ScheduleDialog({ mentor, onClose }) {
+  const days = useMemo(() => {
+    const today = new Date();
+    const monday = new Date(today);
+    monday.setDate(
+      today.getDate() - ((today.getDay() + 6) % 7),
+    );
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+
+      return {
+        label: index === 6 ? 'CN' : `T${index + 2}`,
+        date: date.toLocaleDateString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+        }),
+        today: date.toDateString() === today.toDateString(),
+      };
+    });
+  }, []);
+
+  const [dayIndex, setDayIndex] = useState(() =>
+    (new Date().getDay() + 6) % 7,
+  );
+
+  // Dữ liệu minh họa, chưa lấy từ API lịch tư vấn.
+  const slots = useMemo(() => {
+    const times = [
+      '08:30–09:15',
+      '09:30–10:15',
+      '10:30–11:15',
+      '14:00–14:45',
+      '15:00–15:45',
+      '16:00–16:45',
+      '19:00–19:45',
+      '20:00–20:45',
+    ];
+
+    return times.map((time, index) => {
+      const seed = (dayIndex + index) % 5;
+      const booked = seed === 0 || seed === 2;
+      const status = booked
+        ? 'booked'
+        : seed === 4
+          ? 'break'
+          : 'available';
+
+      return {
+        time,
+        status,
+        name: booked
+          ? ['Nguyễn Văn Nam', 'Trần Thị Mai'][index % 2]
+          : '',
+        topic: booked
+          ? ['Lộ trình ôn luyện N2', 'Luyện đọc hiểu N3'][index % 2]
+          : '',
+      };
+    });
+  }, [dayIndex]);
+
+  const bookedCount = slots.filter(
+    (slot) => slot.status === 'booked',
+  ).length;
+
+  return (
+    <Dialog titleId="mentor-schedule-title" onClose={onClose} wide>
+      <header
+        className="flex items-start justify-between gap-4
+                   border-b border-[#EEE7EA] px-5 py-4"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center
+                       justify-center rounded-xl bg-[#F8EAF0]
+                       text-[13px] font-medium text-[#AD3155]"
+          >
+            {getInitials(getName(mentor))}
+          </div>
+          <div className="min-w-0">
+            <h2
+              id="mentor-schedule-title"
+              className="truncate text-[16px] font-semibold"
+            >
+              {getName(mentor)}
+            </h2>
+            <p className="mt-1 truncate text-[12px] text-[#8C7D84]">
+              {mentor.email || 'Lịch tư vấn'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Đóng lịch"
+          className="rounded-lg p-1.5 text-[#95858D]
+                     hover:bg-[#F8F3F5]"
+        >
+          <X size={19} />
+        </button>
+      </header>
+
+      <div
+        className="flex items-start gap-2 bg-[#FAF5F7]
+                   px-5 py-2.5 text-[12px] text-[#8C6E7B]"
+      >
+        <Info size={15} className="mt-0.5 shrink-0" />
+        Lịch minh họa, chưa kết nối dữ liệu lịch thực tế.
+      </div>
+
+      <div className="overflow-y-auto px-5 pb-3">
+        <div
+          aria-label="Chọn ngày xem lịch"
+          className="grid grid-cols-7 gap-1 border-b
+                     border-[#EEE7EA] py-3"
+        >
+          {days.map((day, index) => (
+            <button
+              key={day.label}
+              type="button"
+              aria-pressed={dayIndex === index}
+              onClick={() => setDayIndex(index)}
+              className={`rounded-lg py-2 text-center transition ${
+                dayIndex === index
+                  ? 'bg-[#F8EAF0] text-[#AD3155]'
+                  : 'text-[#82737B] hover:bg-[#FAF6F8]'
+              }`}
+            >
+              <span className="block text-[11px]">
+                {day.label}
+                {day.today ? ' •' : ''}
+              </span>
+              <span className="mt-1 block text-[12px] font-medium">
+                {day.date}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between py-3">
+          <h3 className="text-[13px] font-medium">
+            Lịch ngày {days[dayIndex].date}
+          </h3>
+          <span className="text-[12px] text-[#8C7D84]">
+            {bookedCount} lịch đã đặt
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left">
+            <thead className="bg-[#FCFAFB] text-[12px] text-[#8C7D84]">
+              <tr>
+                <th className="px-3 py-2.5 font-medium">Khung giờ</th>
+                <th className="px-3 py-2.5 font-medium">
+                  Người đặt / Nội dung
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium">
+                  Trạng thái
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F2EDF0]">
+              {slots.map((slot) => {
+                const labels = {
+                  booked: 'Đã đặt',
+                  available: 'Trống',
+                  break: 'Tạm nghỉ',
+                };
+
+                const colors = {
+                  booked: 'bg-[#AD3155]',
+                  available: 'bg-[#51956B]',
+                  break: 'bg-[#A99AA1]',
+                };
+
+                return (
+                  <tr key={slot.time}>
+                    <td
+                      className="whitespace-nowrap px-3 py-3
+                                 text-[13px] font-medium
+                                 tabular-nums text-[#62515A]"
+                    >
+                      {slot.time}
+                    </td>
+                    <td className="px-3 py-3">
+                      {slot.name ? (
+                        <>
+                          <p className="text-[13px] font-medium">
+                            {slot.name}
+                          </p>
+                          <p className="mt-0.5 text-[12px] text-[#8C7D84]">
+                            {slot.topic}
+                          </p>
+                        </>
+                      ) : (
+                        <span className="text-[#B4A6AD]">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span
+                        className="inline-flex items-center gap-2
+                                   whitespace-nowrap text-[12px]
+                                   text-[#75616C]"
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            colors[slot.status]
+                          }`}
+                        />
+                        {labels[slot.status]}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer
+        className="flex justify-end border-t
+                   border-[#EEE7EA] px-5 py-3"
+      >
+        <button type="button" onClick={onClose} className={BUTTON_CLASS}>
+          Đóng
+        </button>
+      </footer>
+    </Dialog>
+  );
+}
+
+export default function AdminConsultants({ embedded = false }) {
+  const { pathname } = useLocation();
+
+  const [mentors, setMentors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const [scheduleMentor, setScheduleMentor] = useState(null);
+  const [detailMentor, setDetailMentor] = useState(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState(false);
+  const [detailError, setDetailError] = useState('');
+
+  const requestRef = useRef(0);
+
+  const loadMentors = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    setLoading(true);
+    setError('');
+
     try {
-      await createAdminMentor(consultantForm);
-      showToast('Thêm Consultant mới thành công!', 'success');
-      setIsAddConsultantOpen(false);
-      setConsultantForm({
-        email: '',
-        password: '',
-        firstName: '',
-        lastName: '',
-        phoneNumber: '',
-      });
-      fetchConsultantsList();
+      const response = await getAdminMentors();
+      const list = unwrapApiList(response);
+
+      if (requestId === requestRef.current) {
+        setMentors(
+          list.map((mentor) => ({
+            ...mentor,
+            id: mentor.id ?? mentor.mentorId ?? mentor.userId,
+          })),
+        );
+      }
     } catch (err) {
-      showToast(err.message || 'Lỗi khi thêm Consultant', 'error');
+      if (requestId === requestRef.current) {
+        setError(err.message || 'Không thể tải danh sách Mentor.');
+      }
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMentors();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [loadMentors]);
+
+  const filteredMentors = useMemo(() => {
+    const keyword = search.trim().toLocaleLowerCase('vi-VN');
+
+    return mentors.filter((mentor) => {
+      const active = mentor.isActive !== false;
+      const matchStatus =
+        filter === 'all' ||
+        (filter === 'active' && active) ||
+        (filter === 'inactive' && !active);
+
+      const matchSearch = [
+        getName(mentor),
+        mentor.email,
+        mentor.phoneNumber,
+      ].some((value) =>
+        String(value || '').toLocaleLowerCase('vi-VN').includes(keyword),
+      );
+
+      return matchStatus && matchSearch;
+    });
+  }, [mentors, filter, search]);
+
+  const activeCount = mentors.filter(
+    (mentor) => mentor.isActive !== false,
+  ).length;
+
+  function updateForm(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function closeCreate() {
+    if (!submitting) setShowCreate(false);
+  }
+
+  async function createMentor(event) {
+    event.preventDefault();
+    setFormError('');
+    setSubmitting(true);
+    setNotice('');
+
+    try {
+      await createAdminMentor({
+        ...form,
+        email: form.email.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phoneNumber: form.phoneNumber.trim(),
+      });
+
+      setShowCreate(false);
+      setForm({ ...EMPTY_FORM });
+      setNotice('Đã thêm Mentor.');
+      await loadMentors();
+    } catch (err) {
+      setFormError(err.message || 'Không thể thêm Mentor.');
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  // Handle Consultant Active Toggle
-  const handleToggleConsultantActive = async (e, consultant) => {
-    e.stopPropagation(); // Stop row click trigger
-    const currentActive = consultant.isActive !== undefined ? consultant.isActive : true;
-    const nextActive = !currentActive;
+  function openDetail(mentor) {
+    setDetailMentor(mentor);
+    setConfirmStatus(false);
+    setDetailError('');
+  }
 
-    // Optimistic update
-    setConsultants((prev) =>
-      prev.map((c) => (c.id === consultant.id ? { ...c, isActive: nextActive } : c))
-    );
+  function closeDetail() {
+    if (!changingStatus) {
+      setDetailMentor(null);
+      setConfirmStatus(false);
+    }
+  }
+
+  async function changeStatus() {
+    if (!detailMentor || changingStatus) return;
+    const nextActive = detailMentor.isActive === false;
+
+    setChangingStatus(true);
+    setDetailError('');
 
     try {
-      await setAdminMentorActive(consultant.id, nextActive);
-      showToast(`Đã ${nextActive ? 'kích hoạt' : 'vô hiệu hóa'} Consultant #${consultant.id}`, 'success');
-    } catch (err) {
-      // Revert optimistic update
-      setConsultants((prev) =>
-        prev.map((c) => (c.id === consultant.id ? { ...c, isActive: currentActive } : c))
-      );
-      showToast(err.message || 'Lỗi khi thay đổi trạng thái Consultant', 'error');
-    }
-  };
+      await setAdminMentorActive(detailMentor.id, nextActive);
 
-  return (
-    <AdminShell pathname={pathname} breadcrumb="Quản lý Consultant">
-      <div className="bg-[#FAF7F5] min-h-screen p-6 md:p-8 font-sans">
-        {/* Toast Alert */}
-        {toast && (
-          <div
-            className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl border text-sm font-medium animate-in fade-in slide-in-from-top-4 duration-300 ${toast.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              }`}
+      setMentors((current) =>
+        current.map((mentor) =>
+          mentor.id === detailMentor.id
+            ? { ...mentor, isActive: nextActive }
+            : mentor,
+        ),
+      );
+
+      setDetailMentor((current) => ({
+        ...current,
+        isActive: nextActive,
+      }));
+      setConfirmStatus(false);
+      setNotice(
+        nextActive ? 'Đã kích hoạt Mentor.' : 'Đã vô hiệu hóa Mentor.',
+      );
+    } catch (err) {
+      setDetailError(err.message || 'Không thể đổi trạng thái.');
+    } finally {
+      setChangingStatus(false);
+    }
+  }
+
+  const page = (
+      <>
+        <header
+          className={`mb-4 flex flex-wrap items-center gap-3 ${
+            embedded ? 'justify-end' : 'justify-between'
+          }`}
+        >
+          {!embedded && (
+            <div>
+              <h1 className="text-[25px] font-semibold tracking-tight">
+                Quản lý Mentor
+              </h1>
+              <p className="mt-1 text-[13px] text-[#82737B]">
+                Hồ sơ và trạng thái tư vấn.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setForm({ ...EMPTY_FORM });
+              setFormError('');
+              setShowCreate(true);
+            }}
+            className="inline-flex h-10 items-center gap-2
+                       rounded-[10px] bg-[#AD3155] px-4
+                       text-[13px] font-medium text-white
+                       hover:bg-[#982B4B]"
           >
-            {toast.type === 'error' ? (
-              <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            )}
-            <span>{toast.message}</span>
+            <Plus size={17} />
+            Thêm Mentor
+          </button>
+        </header>
+
+        {notice && (
+          <div
+            role="status"
+            className="mb-4 flex items-center justify-between gap-3
+                       rounded-lg bg-[#EFF6F1] px-4 py-2.5
+                       text-[13px] text-[#49745A]"
+          >
+            <span>{notice}</span>
             <button
-              onClick={() => setToast(null)}
-              className="ml-2 text-gray-400 hover:text-gray-600"
+              type="button"
+              onClick={() => setNotice('')}
+              aria-label="Đóng thông báo"
             >
-              <X className="w-4 h-4" />
+              <X size={16} />
             </button>
           </div>
         )}
 
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl">
-                <Shield className="w-6 h-6" />
+        <section
+          aria-label="Danh sách Mentor"
+          className="overflow-hidden rounded-xl border
+                     border-[#EAE1E6] bg-white"
+        >
+          <div
+            className="flex flex-wrap items-center justify-between
+                       gap-3 border-b border-[#EEE7EA] px-5 py-3.5"
+          >
+            <p className="text-[13px] text-[#82737B]">
+              {loading ? (
+                'Đang tải…'
+              ) : (
+                <>
+                  <span className="font-medium text-[#51434A]">
+                    {mentors.length} Mentor
+                  </span>
+                  <span className="mx-2 text-[#C9BBC2]">·</span>
+                  {activeCount} đang hoạt động
+                </>
+              )}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3
+                             top-1/2 -translate-y-1/2 text-[#A09399]"
+                />
+                <input
+                  type="search"
+                  aria-label="Tìm Mentor"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Tên, email, số điện thoại..."
+                  className="h-9 w-[240px] rounded-lg border
+                             border-[#EAE1E6] bg-[#FDFBFC]
+                             pl-9 pr-3 text-[12px] outline-none
+                             focus:border-[#C8889D]
+                             focus:ring-2 focus:ring-[#AD3155]/10"
+                />
               </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-                  Quản lý Consultants
-                </h1>
-                <p className="text-gray-500 text-sm mt-0.5">
-                  Quản lý danh sách chuyên gia tư vấn và lịch làm việc / ca trực tư vấn
-                </p>
-              </div>
+
+              <select
+                aria-label="Lọc trạng thái Mentor"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                className="h-9 rounded-lg border border-[#EAE1E6]
+                           bg-white px-2 text-[12px] text-[#75616C]"
+              >
+                <option value="all">Mọi trạng thái</option>
+                <option value="active">Hoạt động</option>
+                <option value="inactive">Đã tắt</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={loadMentors}
+                disabled={loading}
+                aria-label="Tải lại danh sách"
+                title="Tải lại"
+                className="flex h-9 w-9 items-center justify-center
+                           rounded-lg text-[#95858D]
+                           hover:bg-[#FAF5F7] disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={16}
+                  className={loading ? 'animate-spin' : ''}
+                />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                fetchConsultantsList();
-                showToast('Đã làm mới dữ liệu!', 'success');
-              }}
-              className="p-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors shadow-sm flex items-center gap-2 text-sm font-medium"
-              title="Tải lại dữ liệu"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Làm mới</span>
-            </button>
+          {error ? (
+            <div role="alert" className="px-5 py-10 text-center">
+              <p className="text-[13px] text-[#A13950]">{error}</p>
+              <button
+                type="button"
+                onClick={loadMentors}
+                className="mt-3 text-[13px] text-[#AD3155] underline"
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table
+                aria-busy={loading}
+                className="w-full min-w-[700px] table-fixed text-left"
+              >
+                <colgroup>
+                  <col className="w-[43%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
 
-            <button
-              onClick={() => setIsAddConsultantOpen(true)}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl text-sm transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Thêm Consultant</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Stat Cards Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                Tổng Consultants
-              </p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-                {loading ? '...' : consultants.length}
-              </h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <UserCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                Email Đã Xác Thực
-              </p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-                {loading ? '...' : consultants.filter((c) => c.isEmailVerified).length}
-              </h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                Hoạt Động Kích Hoạt
-              </p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-                {loading
-                  ? '...'
-                  : consultants.filter((c) => c.isActive !== false).length}
-              </h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                Lịch Làm Việc / Tuần
-              </p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-0.5">
-                {consultants.length * 56} Ca
-              </h3>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Table Container */}
-        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden mb-6">
-          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-gray-100">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Danh sách Chuyên Gia Tư Vấn</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Nhấp vào hàng bất kỳ để xem chi tiết & Lịch tư vấn tuần này của Consultant
-              </p>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm tên, email, SĐT Consultant..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* TABLE CONTENT */}
-          <div className="overflow-x-auto">
-            {loading ? (
-              <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center gap-3">
-                <RefreshCw className="w-6 h-6 animate-spin text-rose-600" />
-                <p className="text-sm font-medium">Đang tải danh sách Consultant...</p>
-              </div>
-            ) : error ? (
-              <div className="p-12 text-center text-rose-600 flex flex-col items-center justify-center gap-3">
-                <AlertCircle className="w-8 h-8 text-rose-500" />
-                <p className="text-sm font-medium">{error}</p>
-                <button
-                  onClick={fetchConsultantsList}
-                  className="mt-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-xl text-xs font-semibold hover:bg-rose-200"
-                >
-                  Thử lại
-                </button>
-              </div>
-            ) : filteredConsultants.length === 0 ? (
-              <div className="p-12 text-center text-gray-400 flex flex-col items-center justify-center gap-2">
-                <Users className="w-10 h-10 text-gray-300" />
-                <p className="text-sm font-medium text-gray-600">Không tìm thấy Consultant nào</p>
-              </div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/80 text-gray-500 text-xs uppercase tracking-wider font-semibold border-b border-gray-100">
-                    <th className="py-3.5 px-6">ID</th>
-                    <th className="py-3.5 px-6">Họ và Tên</th>
-                    <th className="py-3.5 px-6">Email</th>
-                    <th className="py-3.5 px-6">Số Điện Thoại</th>
-                    <th className="py-3.5 px-6">Xác Thực Email</th>
-                    <th className="py-3.5 px-6">Ngày Tạo</th>
-                    <th className="py-3.5 px-6 text-center">Lịch Làm Việc</th>
-                    <th className="py-3.5 px-6 text-right">Trạng Thái</th>
+                <thead className="bg-[#FCFAFB] text-[12px] text-[#8C7D84]">
+                  <tr>
+                    <th scope="col" className="px-5 py-3 font-medium">
+                      Mentor
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Số điện thoại
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Trạng thái
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-5 py-3 text-right font-medium"
+                    >
+                      Thao tác
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-                  {filteredConsultants.map((c) => {
-                    const isActive = c.isActive !== undefined ? c.isActive : true;
-                    const fullName = [c.lastName, c.firstName].filter(Boolean).join(' ') || 'N/A';
-                    return (
-                      <tr
-                        key={c.id}
-                        onClick={() => setSelectedConsultant(c)}
-                        className="hover:bg-rose-50/40 cursor-pointer transition-colors group"
+
+                <tbody className="divide-y divide-[#F2EDF0]">
+                  {loading ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="py-12 text-center text-[13px] text-[#8C7D84]"
                       >
-                        <td className="py-4 px-6 font-mono text-xs text-gray-400">#{c.id}</td>
-                        <td className="py-4 px-6 font-semibold text-gray-900">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-rose-100 text-rose-700 rounded-full flex items-center justify-center font-bold text-sm shrink-0 group-hover:scale-105 transition-transform">
-                              {fullName.charAt(0).toUpperCase()}
+                        Đang tải danh sách…
+                      </td>
+                    </tr>
+                  ) : filteredMentors.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center">
+                        <p className="text-[14px] text-[#62515A]">
+                          Không có Mentor phù hợp
+                        </p>
+                        <p className="mt-1 text-[12px] text-[#95858D]">
+                          Thử thay đổi từ khóa hoặc bộ lọc.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredMentors.map((mentor) => {
+                      const name = getName(mentor);
+
+                      return (
+                        <tr key={mentor.id} className="hover:bg-[#FDFAFC]">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div
+                                aria-hidden="true"
+                                className="flex h-9 w-9 shrink-0
+                                           items-center justify-center
+                                           rounded-xl bg-[#F8EAF0]
+                                           text-[12px] font-medium
+                                           text-[#AD3155]"
+                              >
+                                {getInitials(name)}
+                              </div>
+
+                              <div className="min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openDetail(mentor)}
+                                  title={name}
+                                  className="block max-w-full truncate
+                                             text-left text-[14px]
+                                             font-medium hover:text-[#AD3155]"
+                                >
+                                  {name}
+                                </button>
+
+                                <div className="mt-0.5 flex items-center gap-1.5">
+                                  <span
+                                    title={mentor.email}
+                                    className="truncate text-[12px] text-[#8C7D84]"
+                                  >
+                                    {mentor.email || '—'}
+                                  </span>
+                                  {mentor.isEmailVerified && (
+                                    <span
+                                      role="img"
+                                      aria-label="Email đã xác thực"
+                                      title="Email đã xác thực"
+                                      className="shrink-0 text-[#629171]"
+                                    >
+                                      <CheckCircle2 size={13} />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-semibold text-gray-900 group-hover:text-rose-600 transition-colors">
-                                {fullName}
-                              </p>
-                              <p className="text-xs text-gray-400">Chuyên gia tư vấn</p>
+                          </td>
+
+                          <td className="px-4 py-3.5 text-[13px] text-[#82737B]">
+                            {mentor.phoneNumber || '—'}
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <Status active={mentor.isActive !== false} />
+                          </td>
+
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setScheduleMentor(mentor)}
+                                className="inline-flex items-center gap-1.5
+                                           whitespace-nowrap rounded-md
+                                           px-2 py-1.5 text-[12px]
+                                           text-[#9E4563] hover:bg-[#FAEDF2]"
+                              >
+                                <Calendar size={14} />
+                                Xem lịch
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => openDetail(mentor)}
+                                aria-label={`Chi tiết ${name}`}
+                                title="Chi tiết và trạng thái"
+                                className="rounded-md p-1.5
+                                           text-[#95858D] hover:bg-[#F5EFF2]"
+                              >
+                                <MoreHorizontal size={18} />
+                              </button>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-gray-600">
-                          <div className="flex items-center gap-1.5">
-                            <Mail className="w-3.5 h-3.5 text-gray-400" />
-                            <span>{c.email || 'N/A'}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-gray-600">
-                          <div className="flex items-center gap-1.5">
-                            <Phone className="w-3.5 h-3.5 text-gray-400" />
-                            <span>{c.phoneNumber || 'N/A'}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          {c.isEmailVerified ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Đã xác thực
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                              <XCircle className="w-3.5 h-3.5 text-amber-500" />
-                              Chờ xác thực
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-4 px-6 text-xs text-gray-500">
-                          {c.createdDate
-                            ? new Date(c.createdDate).toLocaleDateString('vi-VN')
-                            : 'N/A'}
-                        </td>
-                        <td className="py-4 px-6 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedConsultant(c);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 font-semibold text-xs hover:bg-purple-100 transition-colors"
-                          >
-                            <Calendar className="w-3.5 h-3.5 text-purple-600" />
-                            <span>Xem Lịch Tuần</span>
-                          </button>
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleConsultantActive(e, c)}
-                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl font-medium text-xs transition-all ${isActive
-                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                              }`}
-                            title="Bấm để bật/tắt kích hoạt"
-                          >
-                            {isActive ? (
-                              <>
-                                <ToggleRight className="w-4 h-4 text-emerald-600" />
-                                <span>Hoạt động</span>
-                              </>
-                            ) : (
-                              <>
-                                <ToggleLeft className="w-4 h-4 text-gray-400" />
-                                <span>Vô hiệu</span>
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* MODAL 1: THÊM CONSULTANT MỚI */}
-        {isAddConsultantOpen && (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
-                <div className="flex items-center gap-2 text-rose-600 font-bold">
-                  <UserPlus className="w-5 h-5" />
-                  <h3 className="text-lg text-gray-900">Thêm Consultant Mới</h3>
-                </div>
-                <button
-                  onClick={() => setIsAddConsultantOpen(false)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+          {!loading && !error && (
+            <div
+              className="border-t border-[#EEE7EA] px-5 py-2.5
+                         text-[12px] text-[#95858D]"
+            >
+              Hiển thị {filteredMentors.length}/{mentors.length} Mentor
+            </div>
+          )}
+        </section>
 
-              <form onSubmit={handleAddConsultant} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                    Email <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={consultantForm.email}
-                    onChange={(e) => setConsultantForm({ ...consultantForm, email: e.target.value })}
-                    placeholder="consultant@rikipath.vn"
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                  />
-                </div>
+        {showCreate && (
+          <Dialog titleId="add-mentor-title" onClose={closeCreate}>
+            <header
+              className="flex items-center justify-between
+                         border-b border-[#EEE7EA] px-5 py-4"
+            >
+              <h2 id="add-mentor-title" className="text-[17px] font-semibold">
+                Thêm Mentor
+              </h2>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={closeCreate}
+                aria-label="Đóng"
+                className="rounded-lg p-1 text-[#95858D] hover:bg-[#FAF5F7]"
+              >
+                <X size={18} />
+              </button>
+            </header>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                    Mật khẩu khởi tạo <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={consultantForm.password}
-                    onChange={(e) =>
-                      setConsultantForm({ ...consultantForm, password: e.target.value })
-                    }
-                    placeholder="••••••••"
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                  />
-                </div>
-
+            <form onSubmit={createMentor} className="overflow-y-auto p-5">
+              <fieldset disabled={submitting} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                      Họ (Last Name)
+                  {[
+                    ['lastName', 'Họ', 'Nguyễn'],
+                    ['firstName', 'Tên', 'Minh Anh'],
+                  ].map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-1.5 block text-[13px]">{label}</span>
+                      <input
+                        value={form[field]}
+                        onChange={(event) => updateForm(field, event.target.value)}
+                        placeholder={placeholder}
+                        className={INPUT_CLASS}
+                        autoComplete={
+                          field === 'lastName' ? 'family-name' : 'given-name'
+                        }
+                      />
                     </label>
-                    <input
-                      type="text"
-                      value={consultantForm.lastName}
-                      onChange={(e) =>
-                        setConsultantForm({ ...consultantForm, lastName: e.target.value })
-                      }
-                      placeholder="Nguyễn"
-                      className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                      Tên (First Name)
-                    </label>
-                    <input
-                      type="text"
-                      value={consultantForm.firstName}
-                      onChange={(e) =>
-                        setConsultantForm({ ...consultantForm, firstName: e.target.value })
-                      }
-                      placeholder="Văn A"
-                      className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                    />
-                  </div>
+                  ))}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px]">Email *</span>
+                  <input
+                    required
+                    type="email"
+                    autoComplete="email"
+                    value={form.email}
+                    onChange={(event) => updateForm('email', event.target.value)}
+                    placeholder="ten@example.com"
+                    className={INPUT_CLASS}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px]">
+                    Mật khẩu khởi tạo *
+                  </span>
+                  <input
+                    required
+                    type="password"
+                    minLength={6}
+                    autoComplete="new-password"
+                    value={form.password}
+                    onChange={(event) => updateForm('password', event.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                  <span className="mt-1 block text-[11px] text-[#95858D]">
+                    Tối thiểu 6 ký tự theo form hiện tại.
+                  </span>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px]">
                     Số điện thoại
-                  </label>
+                  </span>
                   <input
                     type="tel"
-                    value={consultantForm.phoneNumber}
-                    onChange={(e) =>
-                      setConsultantForm({ ...consultantForm, phoneNumber: e.target.value })
+                    autoComplete="tel"
+                    value={form.phoneNumber}
+                    onChange={(event) =>
+                      updateForm('phoneNumber', event.target.value)
                     }
-                    placeholder="0912345678"
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    className={INPUT_CLASS}
                   />
-                </div>
+                </label>
+              </fieldset>
 
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddConsultantOpen(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl text-sm transition-all shadow-md flex items-center gap-2"
-                  >
-                    {submitting ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Đang lưu...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="w-4 h-4" />
-                        <span>Thêm Consultant</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+              {formError && (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-lg bg-[#FFF1F4]
+                             px-3 py-2 text-[12px] text-[#A13950]"
+                >
+                  {formError}
+                </p>
+              )}
+
+              <footer
+                className="mt-5 flex justify-end gap-2
+                           border-t border-[#EEE7EA] pt-4"
+              >
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={closeCreate}
+                  className={BUTTON_CLASS}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-9 rounded-lg bg-[#AD3155] px-4
+                             text-[13px] text-white hover:bg-[#982B4B]
+                             disabled:opacity-50"
+                >
+                  {submitting ? 'Đang thêm…' : 'Thêm Mentor'}
+                </button>
+              </footer>
+            </form>
+          </Dialog>
         )}
 
-        {/* MODAL 2: LỊCH LÀM VIỆC CỦA CONSULTANT (SCHEDULE VIEW) */}
-        {selectedConsultant && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
-              {/* Modal Header */}
-              <div className="p-6 bg-gradient-to-r from-rose-500 to-purple-600 text-white flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center font-bold text-xl text-white border border-white/30">
-                    {([selectedConsultant.lastName, selectedConsultant.firstName]
-                      .filter(Boolean)
-                      .join(' ') || 'C')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold">
-                        {[selectedConsultant.lastName, selectedConsultant.firstName]
-                          .filter(Boolean)
-                          .join(' ') || 'Consultant'}
-                      </h3>
-                      <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-xs font-semibold backdrop-blur-md">
-                        ID #{selectedConsultant.id}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4 text-white/80 text-xs mt-1">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3.5 h-3.5" />
-                        {selectedConsultant.email}
-                      </span>
-                      {selectedConsultant.phoneNumber && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3.5 h-3.5" />
-                          {selectedConsultant.phoneNumber}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        {detailMentor && (
+          <Dialog titleId="mentor-detail-title" onClose={closeDetail}>
+            <header
+              className="flex items-center justify-between
+                         border-b border-[#EEE7EA] px-5 py-4"
+            >
+              <h2 id="mentor-detail-title" className="text-[17px] font-semibold">
+                Thông tin Mentor
+              </h2>
+              <button
+                type="button"
+                disabled={changingStatus}
+                onClick={closeDetail}
+                aria-label="Đóng chi tiết"
+                className="rounded-lg p-1 text-[#95858D] hover:bg-[#FAF5F7]"
+              >
+                <X size={18} />
+              </button>
+            </header>
 
-                <button
-                  onClick={() => setSelectedConsultant(null)}
-                  className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-all"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+            <div className="overflow-y-auto p-5">
+              <p className="text-[16px] font-medium">{getName(detailMentor)}</p>
+              <div className="mt-2">
+                <Status active={detailMentor.isActive !== false} />
               </div>
 
-              {/* Day Selector Navigation Bar */}
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-2 overflow-x-auto shrink-0">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-purple-600" />
-                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Lịch tư vấn tuần này
-                  </span>
-                </div>
+              <dl className="mt-5 space-y-3 text-[13px]">
+                {[
+                  ['Mã Mentor', detailMentor.id],
+                  ['Email', detailMentor.email],
+                  ['Số điện thoại', detailMentor.phoneNumber],
+                  [
+                    'Xác thực email',
+                    detailMentor.isEmailVerified === true
+                      ? 'Đã xác thực'
+                      : detailMentor.isEmailVerified === false
+                        ? 'Chưa xác thực'
+                        : 'Chưa có thông tin',
+                  ],
+                  [
+                    'Ngày tạo',
+                    detailMentor.createdAt &&
+                    !Number.isNaN(new Date(detailMentor.createdAt).getTime())
+                      ? new Date(detailMentor.createdAt).toLocaleDateString('vi-VN')
+                      : null,
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label} className="grid grid-cols-[120px_1fr] gap-3">
+                    <dt className="text-[#95858D]">{label}</dt>
+                    <dd className="break-words text-[#62515A]">
+                      {value ?? '—'}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
 
-                <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-gray-200/80 shadow-sm">
-                  {daysOfWeek.map((dayObj, idx) => {
-                    const isSelected = selectedDayIndex === idx;
-                    return (
+              {detailError && (
+                <p role="alert" className="mt-4 text-[12px] text-[#A13950]">
+                  {detailError}
+                </p>
+              )}
+
+              <div className="mt-5 border-t border-[#EEE7EA] pt-4">
+                {confirmStatus ? (
+                  <div className="rounded-lg bg-[#FAF3F6] p-3">
+                    <p className="text-[13px] text-[#75616C]">
+                      {detailMentor.isActive === false
+                        ? 'Kích hoạt lại Mentor này?'
+                        : 'Vô hiệu hóa Mentor này?'}
+                    </p>
+                    <div className="mt-3 flex justify-end gap-2">
                       <button
-                        key={idx}
-                        onClick={() => setSelectedDayIndex(idx)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex flex-col items-center gap-0.5 ${isSelected
-                          ? 'bg-rose-600 text-white shadow-md'
-                          : dayObj.isToday
-                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                            : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                        type="button"
+                        disabled={changingStatus}
+                        onClick={() => setConfirmStatus(false)}
+                        className={BUTTON_CLASS}
                       >
-                        <span className="text-[10px] opacity-80">{dayObj.shortName}</span>
-                        <span>{dayObj.dateStr}</span>
+                        Hủy
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Modal Body - Time Slots Grid */}
-              <div className="p-6 overflow-y-auto flex-1 bg-[#FAF7F5]">
-                {/* Active Selected Day Overview Banner */}
-                <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm mb-6 flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
-                      <Clock className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900">
-                        {daysOfWeek[selectedDayIndex].name} ({daysOfWeek[selectedDayIndex].dateStr})
-                      </h4>
-                      <p className="text-xs text-gray-500">
-                        Chi tiết các ca trực tư vấn trong ngày
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Slot Status Legends */}
-                  <div className="flex items-center gap-4 text-xs font-medium">
-                    <span className="flex items-center gap-1.5 text-emerald-700">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                      Trống ({consultantScheduleData[selectedDayIndex]?.slots.filter((s) => s.status === 'available').length})
-                    </span>
-                    <span className="flex items-center gap-1.5 text-rose-700">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                      Đã Đặt ({consultantScheduleData[selectedDayIndex]?.slots.filter((s) => s.status === 'booked').length})
-                    </span>
-                    <span className="flex items-center gap-1.5 text-gray-500">
-                      <span className="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                      Nghỉ
-                    </span>
-                  </div>
-                </div>
-
-                {/* Slots Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {consultantScheduleData[selectedDayIndex]?.slots.map((slot) => {
-                    const isBooked = slot.status === 'booked';
-                    const isAvailable = slot.status === 'available';
-
-                    return (
-                      <div
-                        key={slot.id}
-                        className={`p-4 rounded-2xl border transition-all ${isBooked
-                          ? 'bg-white border-rose-200 shadow-sm'
-                          : isAvailable
-                            ? 'bg-white border-emerald-200/80 shadow-sm hover:border-emerald-400'
-                            : 'bg-gray-100/70 border-gray-200 opacity-60'
-                          }`}
+                      <button
+                        type="button"
+                        disabled={changingStatus}
+                        onClick={changeStatus}
+                        className="h-9 rounded-lg bg-[#AD3155] px-3
+                                   text-[13px] text-white disabled:opacity-50"
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <Clock className={`w-4 h-4 ${isBooked ? 'text-rose-600' : isAvailable ? 'text-emerald-600' : 'text-gray-400'}`} />
-                            <span className="font-bold text-gray-900 font-mono text-sm">
-                              {slot.time}
-                            </span>
-                          </div>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${isBooked
-                              ? 'bg-rose-100 text-rose-700'
-                              : isAvailable
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-gray-200 text-gray-600'
-                              }`}
-                          >
-                            {isBooked ? 'Đã đặt hẹn' : isAvailable ? 'Có thể đặt' : 'Tạm nghỉ'}
-                          </span>
-                        </div>
-
-                        {isBooked && slot.bookingInfo && (
-                          <div className="mt-3 pt-3 border-t border-rose-100 bg-rose-50/50 p-3 rounded-xl text-xs space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-gray-900">
-                                Học viên: {slot.bookingInfo.studentName}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-md">
-                                {slot.bookingInfo.target}
-                              </span>
-                            </div>
-                            <p className="text-gray-600 text-xs">
-                              Gói: <span className="font-medium text-gray-800">{slot.bookingInfo.package}</span>
-                            </p>
-                            <p className="text-emerald-700 text-[11px] font-semibold pt-1 flex items-center gap-1">
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              Trạng thái: {slot.bookingInfo.statusText}
-                            </p>
-                          </div>
-                        )}
-
-                        {isAvailable && (
-                          <p className="text-xs text-emerald-600 mt-2 font-medium">
-                            ✓ Khung giờ sẵn sàng cho học viên đặt lịch
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-white border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Info className="w-4 h-4 text-gray-400" />
-                  <span>Dữ liệu lịch làm việc đồng bộ trực tiếp với hệ thống đặt lịch tư vấn</span>
-                </div>
-                <button
-                  onClick={() => setSelectedConsultant(null)}
-                  className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl text-xs transition-colors"
-                >
-                  Đóng
-                </button>
+                        {changingStatus ? 'Đang xử lý…' : 'Xác nhận'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={detailMentor.id == null}
+                      onClick={() => setConfirmStatus(true)}
+                      className="text-[12px] text-[#AD3155] disabled:opacity-40"
+                    >
+                      {detailMentor.isActive === false
+                        ? 'Kích hoạt Mentor'
+                        : 'Vô hiệu hóa Mentor'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeDetail}
+                      className={BUTTON_CLASS}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          </Dialog>
         )}
-      </div>
+
+        {scheduleMentor && (
+          <ScheduleDialog
+            mentor={scheduleMentor}
+            onClose={() => setScheduleMentor(null)}
+          />
+        )}
+      </>
+  );
+
+  if (embedded) {
+    return <div className="text-[#352C31]">{page}</div>;
+  }
+
+  return (
+    <AdminShell pathname={pathname} breadcrumb="Mentor">
+      <main
+        className="mx-auto max-w-[1320px] px-4 py-5
+                   text-[#352C31] sm:px-6 lg:px-8"
+      >
+        {page}
+      </main>
     </AdminShell>
   );
 }

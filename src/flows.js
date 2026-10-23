@@ -66,10 +66,9 @@ export const ALL_PAGES = [
   { to: '/kanji-editor', label: 'Kanji Edit', page: 'KanjiEditor', group: 'cms' },
   { to: '/video-editor', label: 'Video Edit', page: 'VideoLessonEditor', group: 'cms' },
   // Admin
-  { to: '/admin', label: 'Admin', page: 'AdminOverview', group: 'admin' },
+  { to: '/admin/users', label: 'Admin', page: 'AdminUsers', group: 'admin' },
   { to: '/admin/users', label: 'Users', page: 'AdminUsers', group: 'admin' },
   { to: '/admin/users/detail', label: 'Chi tiết user', page: 'AdminUserDetail', group: 'admin' },
-  { to: '/admin/roles', label: 'Roles', page: 'AdminRoles', group: 'admin' },
   { to: '/admin/content-review', label: 'Duyệt ND', page: 'AdminContentReview', group: 'admin' },
 ];
 
@@ -197,13 +196,11 @@ export const FLOWS = [
     id: 'admin',
     stepLabel: 'Luồng 7',
     title: 'Quản trị Admin',
-    description: 'Tổng quan → người dùng → phân quyền → duyệt nội dung',
+    description: 'Người dùng → duyệt nội dung',
     steps: [
-      { n: 1, to: '/admin', label: 'Tổng quan', page: 'AdminOverview', hint: 'Overview' },
-      { n: 2, to: '/admin/users', label: 'Người dùng', page: 'AdminUsers', hint: 'Users' },
-      { n: 3, to: '/admin/users/detail', label: 'Chi tiết user', page: 'AdminUserDetail', hint: 'User detail' },
-      { n: 4, to: '/admin/roles', label: 'Phân quyền', page: 'AdminRoles', hint: 'Roles' },
-      { n: 5, to: '/admin/content-review', label: 'Duyệt ND', page: 'AdminContentReview', hint: 'Review' },
+      { n: 1, to: '/admin/users', label: 'Tổng quan', page: 'AdminUsers', hint: 'Users' },
+      { n: 2, to: '/admin/users/detail', label: 'Chi tiết user', page: 'AdminUserDetail', hint: 'User detail' },
+      { n: 3, to: '/admin/content-review', label: 'Duyệt ND', page: 'AdminContentReview', hint: 'Review' },
     ],
   },
 ];
