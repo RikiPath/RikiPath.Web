@@ -1,256 +1,733 @@
-import { NavLink } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { getSession } from '../../auth/session.js';
-import { displayName, learnerRoleLabel, useLearnerProfile } from '../../hooks/useLearnerHome.js';
+import {
+  displayName,
+  learnerRoleLabel,
+  useLearnerProfile,
+} from '../../hooks/useLearnerHome.js';
+
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
 
-const SIDEBAR_W = 280;
-const RIKI_MENU_KEY = 'rikipath.rikiMenuOpen';
+const SIDEBAR_W = 216;
+const HEADER_H = 64;
+const STORAGE_KEY = 'rikipath.learnerMenuGroups.v2';
 
-function navClass(active) {
-  return [
-    'rp-nav-item group/nav flex w-full items-center gap-3 rounded-[16px] px-2.5 py-2 text-left transition-all',
-    active ? 'rp-nav-item-active' : 'text-[#6F6669] hover:bg-white hover:text-[#2D282A]',
-  ].join(' ');
-}
+const MAIN_ITEMS = [
+  {
+    to: '/app',
+    label: 'Bảng điều khiển',
+    icon: 'home',
+    end: true,
+  },
+  {
+    to: '/roadmap',
+    label: 'Lộ trình ôn luyện',
+    icon: 'alt_route',
+  },
+];
 
-function NavIcon({ name, active, glyph }) {
+const MENU_GROUPS = [
+  {
+    id: 'practice',
+    label: 'Ôn luyện JLPT',
+    icon: 'edit_square',
+    items: [
+      {
+        to: '/lessons',
+        label: 'Bài luyện tập',
+        icon: 'menu_book',
+      },
+      {
+        to: '/exam-n3',
+        label: 'Thi thử ',
+        icon: 'quiz',
+      },
+      {
+        to: '/riki/listening',
+        label: 'Nghe hiểu',
+        icon: 'headphones',
+      },
+      {
+        to: '/riki/reading',
+        label: 'Đọc hiểu',
+        icon: 'auto_stories',
+      },
+      {
+        to: '/riki/essay',
+        label: 'Luyện viết',
+        icon: 'edit_note',
+      },
+      {
+        to: '/speech',
+        label: 'Luyện nói',
+        icon: 'mic',
+        alsoActive: ['/riki/speaking'],
+      },
+    ],
+  },
+  {
+    id: 'knowledge',
+    label: 'Kho kiến thức',
+    icon: 'local_library',
+    items: [
+      {
+        to: '/vocabulary',
+        label: 'Từ vựng',
+        icon: 'translate',
+        alsoActive: ['/vocabulary-detail'],
+      },
+      {
+        to: '/kanji-writing?type=kanji',
+        label: 'Hán tự',
+        icon: 'draw',
+      },
+      {
+        to: '/kanji-writing?type=hiragana',
+        label: 'Hiragana',
+        symbol: 'あ',
+      },
+      {
+        to: '/kanji-writing?type=katakana',
+        label: 'Katakana',
+        symbol: 'ア',
+      },
+    ],
+  },
+  {
+    id: 'review',
+    label: 'Ôn tập & kết quả',
+    icon: 'history',
+    items: [
+      {
+        to: '/daily-srs',
+        label: 'Ôn tập đến hạn',
+        icon: 'history',
+      },
+      {
+        to: '/kanji-notebook',
+        label: 'Sổ tay cá nhân',
+        icon: 'bookmarks',
+        alsoActive: ['/kanji-studio'],
+      },
+      {
+        to: '/exam-result',
+        label: 'Kết quả thi',
+        icon: 'fact_check',
+      },
+    ],
+  },
+  {
+    id: 'support',
+    label: 'Hỗ trợ',
+    icon: 'forum',
+    items: [
+      {
+        to: '/ai-counselor',
+        label: 'Trợ lý Haru',
+        icon: 'psychology',
+      },
+      {
+        to: '/mentor',
+        label: 'Tư vấn Mentor',
+        icon: 'support_agent',
+        alsoActive: [
+          '/booking-schedule',
+          '/consultation-payment',
+          '/consultation-center',
+          '/consultation-session',
+          '/consultation-receipt',
+          '/consultation-room',
+          '/sensei-profile',
+        ],
+      },
+      {
+        to: '/mentor-chat',
+        label: 'Tin nhắn',
+        icon: 'forum',
+      },
+    ],
+  },
+];
+
+const ACCOUNT_ITEMS = [
+  {
+    to: '/settings',
+    label: 'Tài khoản của tôi',
+    icon: 'account_circle',
+  },
+  {
+    to: '/exam-result',
+    label: 'Kết quả ôn luyện',
+    icon: 'monitoring',
+  },
+  {
+    to: '/onboarding',
+    label: 'Mục tiêu ôn luyện',
+    icon: 'flag',
+  },
+];
+
+function Icon({ name, className = '' }) {
   return (
     <span
-      className={[
-        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[18px] transition-colors',
-        active ? 'bg-[#ffd9e4] text-[#D94B68]' : 'bg-[#FFF8F8] text-[#A59B9E] group-hover/nav:bg-[#fff0f5] group-hover/nav:text-[#D94B68]',
-      ].join(' ')}
+      aria-hidden="true"
+      className={`material-symbols-outlined ${className}`}
     >
-      {glyph ? <span className="font-jp text-[15px] font-semibold leading-none">{glyph}</span> : <span className="material-symbols-outlined text-[20px]">{name}</span>}
+      {name}
     </span>
   );
 }
 
-function NavCopy({ label, hint, active }) {
+function itemActive(pathname, search, item) {
+  const [path, query] = item.to.split('?');
+
+  if (!pathMatches(pathname, { ...item, to: path })) {
+    return false;
+  }
+
+  if (!query) return true;
+
+  const wanted = new URLSearchParams(query);
+  const current = new URLSearchParams(search);
+
+  return [...wanted.entries()].every(
+    ([key, value]) => current.get(key) === value,
+  );
+}
+
+function groupForPath(pathname, search) {
+  return MENU_GROUPS.find((group) =>
+    group.items.some((item) => itemActive(pathname, search, item)),
+  )?.id;
+}
+
+function MenuRow({ item, active }) {
   return (
-    <span className="min-w-0 flex-1">
-      <span className={['block truncate text-[14px] leading-5 tracking-normal', active ? 'font-bold text-[#9E2A4B]' : 'font-semibold'].join(' ')}>
-        {label}
+    <NavLink
+      to={item.to}
+      end={item.end}
+      title={item.label}
+      aria-current={active ? 'page' : undefined}
+      className={[
+        'group flex min-h-[32px] items-center gap-2',
+        'rounded-lg px-2 text-[13px]',
+        'transition-colors duration-150',
+        'focus-visible:outline-none focus-visible:ring-2',
+        'focus-visible:ring-[#AD3155]/25',
+        active
+          ? 'bg-[#FADDE8] font-medium text-[#A12E50]'
+          : 'text-[#826773] hover:bg-[#FCE7EF] hover:text-[#A24867]',
+      ].join(' ')}
+    >
+      <span
+        aria-hidden="true"
+        className={[
+          'flex h-6 w-6 shrink-0 items-center justify-center',
+          active
+            ? 'text-[#AD3155]'
+            : 'text-[#B18B9B] group-hover:text-[#B26582]',
+        ].join(' ')}
+      >
+        {item.symbol ? (
+          <span className="text-[16px] font-medium">
+            {item.symbol}
+          </span>
+        ) : (
+          <Icon name={item.icon} className="text-[19px]" />
+        )}
       </span>
-      {hint ? (
-        <span className={['mt-0.5 block truncate text-[11px] font-medium leading-4', active ? 'text-[#D94B68]/80' : 'text-[#A59B9E]'].join(' ')}>
-          {hint}
-        </span>
-      ) : null}
-    </span>
+
+      <span className="min-w-0 flex-1 truncate">
+        {item.label}
+      </span>
+
+      {active && (
+        <span
+          aria-hidden="true"
+          className="h-1 w-1 shrink-0 rounded-full bg-[#C57792]"
+        />
+      )}
+    </NavLink>
   );
 }
 
 export default function LearnerShell({
   children,
   pathname,
-  breadcrumb = 'Cổng học tập',
-  searchPlaceholder = 'Tìm kiếm giáo trình, kanji, bài giảng...',
+  breadcrumb = 'Tổng quan',
+  searchPlaceholder = 'Tìm bài luyện, từ vựng...',
+  searchValue,
+  onSearchChange,
 }) {
+  const location = useLocation();
+  const currentPath = pathname || location.pathname;
+
   const { logout } = useAuth();
   const session = getSession();
   const profileQuery = useLearnerProfile();
-  const userName = displayName(profileQuery.data, session);
+
+  const userName =
+    displayName(profileQuery.data, session) || 'Người dùng';
+
   const userRole = learnerRoleLabel(profileQuery.data, session);
-  const avatarUrl = profileQuery.data?.avatarUrl;
-  const sessionRole = session?.role || session?.user?.role;
-  const isLearner = !sessionRole || ['learner', 'student'].includes(String(sessionRole).toLowerCase());
-  const rikiItem = LEARNER_NAV.items.find((item) => item.id === 'riki');
-  const rikiActive = rikiItem?.children?.some((child) => (
-    child.children?.some((nested) => pathMatches(pathname, nested)) || pathMatches(pathname, child)
-  )) ?? false;
-  const [isRikiOpen, setIsRikiOpen] = useState(() => {
+  const initial = userName.trim().charAt(0).toUpperCase() || 'R';
+
+  const accountRef = useRef(null);
+  const accountButtonRef = useRef(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+
+  const [openGroups, setOpenGroups] = useState(() => {
+    let saved = {};
+
     try {
-      return localStorage.getItem(RIKI_MENU_KEY) === 'true';
+      const stored = JSON.parse(
+        localStorage.getItem(STORAGE_KEY) || '{}',
+      );
+
+      if (
+        stored &&
+        typeof stored === 'object' &&
+        !Array.isArray(stored)
+      ) {
+        saved = stored;
+      }
     } catch {
-      return false;
+      // Dùng trạng thái mặc định nếu không đọc được dữ liệu đã lưu.
     }
+
+    const activeGroup = groupForPath(
+      currentPath,
+      location.search,
+    );
+
+    return {
+      practice: true,
+      knowledge: false,
+      review: false,
+      support: false,
+      ...saved,
+      ...(activeGroup ? { [activeGroup]: true } : {}),
+    };
   });
-  const rikiMenuOpen = isRikiOpen || rikiActive;
 
   useEffect(() => {
     try {
-      localStorage.setItem(RIKI_MENU_KEY, String(isRikiOpen));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(openGroups),
+      );
     } catch {
-      // Ignore storage restrictions; the menu remains usable for this session.
+      // Menu vẫn hoạt động khi trình duyệt chặn localStorage.
     }
-  }, [isRikiOpen]);
+  }, [openGroups]);
 
-  const groups = LEARNER_NAV.groups || [{ id: 'all', label: null }];
+  useEffect(() => {
+    setAccountOpen(false);
 
-  const renderLeaf = (item) => {
-    if (item.neverActive) {
-      return (
-        <div key={item.label} className={navClass(false)}>
-          <NavIcon name={item.icon} />
-          <NavCopy label={item.label} hint={item.hint} />
-        </div>
+    const activeGroup = groupForPath(
+      currentPath,
+      location.search,
+    );
+
+    if (activeGroup) {
+      setOpenGroups((current) =>
+        current[activeGroup]
+          ? current
+          : { ...current, [activeGroup]: true },
       );
     }
-    const active = pathMatches(pathname, item);
-    return (
-      <NavLink key={item.to || item.label} to={item.to} end={item.end} className={navClass(active)}>
-        <NavIcon name={item.icon} active={active} />
-        <NavCopy label={item.label} hint={item.hint} active={active} />
-      </NavLink>
-    );
-  };
+  }, [currentPath, location.search]);
 
-  const renderRiki = (item) => {
-    const active = item.children.some((child) => (
-      child.children?.some((nested) => pathMatches(pathname, nested)) || pathMatches(pathname, child)
-    ));
-    return (
-      <div key={item.id || item.label} className="space-y-1">
-        <button
-          type="button"
-          onClick={() => setIsRikiOpen((open) => !open)}
-          aria-expanded={rikiMenuOpen}
-          className={navClass(active)}
+  useEffect(() => {
+    if (!accountOpen) return undefined;
+
+    function closeOutside(event) {
+      if (!accountRef.current?.contains(event.target)) {
+        setAccountOpen(false);
+      }
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') {
+        setAccountOpen(false);
+        accountButtonRef.current?.focus();
+      }
+    }
+
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [accountOpen]);
+
+  function toggleGroup(id) {
+    setOpenGroups((current) => ({
+      ...current,
+      [id]: !current[id],
+    }));
+  }
+
+  return (
+    <div
+      data-shell="learner"
+      className="min-h-screen bg-[#FAF8F7]
+                 font-['Nunito',sans-serif]
+                 text-[#3F3038]"
+    >
+      {/* Thanh trên cùng */}
+      <header
+        style={{ height: HEADER_H }}
+        className="fixed inset-x-0 top-0 z-50 flex items-center
+                   justify-between gap-5 border-b border-[#E8DFDC]
+                   bg-[#FAF8F7] px-5"
+      >
+        <NavLink
+          to="/app"
+          className="flex shrink-0 items-center gap-2.5 rounded-lg
+                     focus-visible:outline-none
+                     focus-visible:ring-2
+                     focus-visible:ring-[#AD3155]/30"
         >
-          <NavIcon name={item.icon} active={active} />
-          <NavCopy label={item.label} hint={item.hint} active={active} />
-          <span className="material-symbols-outlined pr-1 text-[18px] text-[#A59B9E]">
-            {rikiMenuOpen ? 'expand_less' : 'expand_more'}
+          <span
+            className="flex h-9 w-9 items-center justify-center
+                       rounded-xl bg-[#AD3155] text-white"
+          >
+            <Icon name="spa" className="text-[22px]" />
           </span>
-        </button>
-        {rikiMenuOpen && (
-          <div className="ml-4 space-y-1 border-l border-[#dfbfc1]/40 pl-3">
-            {item.children.map((child) => {
-              const childActive = child.children
-                ? child.children.some((nested) => pathMatches(pathname, nested))
-                : pathMatches(pathname, child);
-              if (child.children) {
-                return (
-                  <div key={child.id || child.label} className="space-y-1">
-                    <div className="flex items-center gap-2 px-2 py-1.5 text-[12px] font-bold text-[#8A8084]">
-                      <span className="material-symbols-outlined text-[16px]">{child.icon}</span>
-                      <span>{child.label}</span>
-                    </div>
-                    {child.children.map((nested) => {
-                      const nestedActive = pathMatches(pathname, nested);
-                      return (
-                        <NavLink key={nested.to} to={nested.to} className={navClass(nestedActive)}>
-                          <NavIcon glyph={nested.icon} active={nestedActive} />
-                          <NavCopy label={nested.label} active={nestedActive} />
-                        </NavLink>
-                      );
-                    })}
-                  </div>
-                );
+
+          <span className="leading-tight">
+            <span
+              className="block text-[17px] font-medium
+                         tracking-normal"
+            >
+              {LEARNER_NAV.brand.title}
+            </span>
+
+            <span
+              className="mt-0.5 block text-[10px]
+                         text-[#AA8F9B]"
+            >
+              Ôn luyện tiếng Nhật
+            </span>
+          </span>
+        </NavLink>
+
+        <div
+          className="hidden min-w-0 flex-1 items-center
+                     gap-2 md:flex"
+        >
+          <span className="text-[12px] text-[#AA98A1]">
+            Ôn luyện
+          </span>
+
+          <Icon
+            name="chevron_right"
+            className="text-[16px] text-[#C9B8C0]"
+          />
+
+          <span className="truncate text-[12px] text-[#826A76]">
+            {breadcrumb}
+          </span>
+        </div>
+
+        {typeof onSearchChange === 'function' && (
+          <label className="relative hidden w-[280px] lg:block">
+            <span className="sr-only">
+              {searchPlaceholder}
+            </span>
+
+            <Icon
+              name="search"
+              className="pointer-events-none absolute left-3
+                         top-1/2 -translate-y-1/2
+                         text-[18px] text-[#B29DA7]"
+            />
+
+            <input
+              type="search"
+              placeholder={searchPlaceholder}
+              value={searchValue ?? ''}
+              onChange={(event) =>
+                onSearchChange(event.target.value)
               }
+              className="h-9 w-full rounded-[10px] border
+                         border-[#EEDFE6] bg-white
+                         pl-9 pr-3 text-[12px] outline-none
+                         placeholder:text-[#B29DA7]
+                         focus:border-[#D6A2B5]
+                         focus:ring-2 focus:ring-[#AD3155]/10"
+            />
+          </label>
+        )}
+
+        {/* Tài khoản */}
+        <div ref={accountRef} className="relative shrink-0">
+          <button
+            ref={accountButtonRef}
+            type="button"
+            aria-expanded={accountOpen}
+            aria-controls="learner-account-panel"
+            aria-label={`Tài khoản ${userName}`}
+            onClick={() =>
+              setAccountOpen((current) => !current)
+            }
+            className="flex items-center gap-2 rounded-lg
+                       px-2 py-1 hover:bg-[#FCE7EF]
+                       focus-visible:outline-none
+                       focus-visible:ring-2
+                       focus-visible:ring-[#AD3155]/25"
+          >
+            <span className="hidden text-right sm:block">
+              <span
+                className="block max-w-[150px] truncate
+                           text-[12px] font-medium"
+              >
+                {userName}
+              </span>
+
+              <span
+                className="mt-0.5 block text-[10px]
+                           text-[#AA8F9B]"
+              >
+                {userRole}
+              </span>
+            </span>
+
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 items-center justify-center
+                         rounded-full bg-[#F8DFE9]
+                         text-[12px] font-medium text-[#AD3155]"
+            >
+              {initial}
+            </span>
+
+            <Icon
+              name={accountOpen ? 'expand_less' : 'expand_more'}
+              className="text-[17px] text-[#B29DA7]"
+            />
+          </button>
+
+          {accountOpen && (
+            <div
+              id="learner-account-panel"
+              className="absolute right-0 top-[calc(100%+12px)]
+                         w-[250px] overflow-hidden rounded-xl
+                         border border-[#EEDCE5] bg-white
+                         shadow-[0_12px_32px_rgba(75,42,55,0.10)]"
+            >
+              <div
+                className="border-b border-[#F1E8ED]
+                           bg-[#FFF7FA] px-4 py-3"
+              >
+                <p className="truncate text-[13px] font-medium">
+                  {userName}
+                </p>
+
+                <p className="mt-1 text-[11px] text-[#AA8F9B]">
+                  {userRole}
+                </p>
+              </div>
+
+              <nav
+                aria-label="Tài khoản"
+                className="space-y-0.5 p-2"
+              >
+                {ACCOUNT_ITEMS.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setAccountOpen(false)}
+                    className="flex items-center gap-2.5
+                               rounded-lg px-2.5 py-2.5
+                               text-[12px] text-[#826A76]
+                               hover:bg-[#FFF1F6]"
+                  >
+                    <Icon
+                      name={item.icon}
+                      className="text-[18px] text-[#AC8E9B]"
+                    />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
+
+              <div className="border-t border-[#F1E8ED] p-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    logout();
+                  }}
+                  className="flex w-full items-center gap-2.5
+                             rounded-lg px-2.5 py-2.5 text-left
+                             text-[12px] text-[#AD3155]
+                             hover:bg-[#FCEDF3]"
+                >
+                  <Icon
+                    name="logout"
+                    className="text-[18px]"
+                  />
+                  Đăng xuất
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <aside
+        aria-label="Điều hướng ôn luyện"
+        style={{
+          width: SIDEBAR_W,
+          top: HEADER_H,
+        }}
+        className="fixed bottom-0 left-0 z-40 flex flex-col
+                   border-r border-[#E8DFDC] bg-[#FAF8F7]"
+      >
+        <nav
+          aria-label="Menu chính"
+          className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3"
+        >
+          <div
+            className="mb-2 px-2.5 text-[10px] font-medium
+                       tracking-[0.08em] text-[#B18F9E]"
+          >
+            TỔNG QUAN
+          </div>
+
+          <div className="space-y-1">
+            {MAIN_ITEMS.map((item) => (
+              <MenuRow
+                key={item.to}
+                item={item}
+                active={itemActive(
+                  currentPath,
+                  location.search,
+                  item,
+                )}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 space-y-0.5">
+            {MENU_GROUPS.map((group) => {
+              const open = Boolean(openGroups[group.id]);
+
+              const active = group.items.some((item) =>
+                itemActive(
+                  currentPath,
+                  location.search,
+                  item,
+                ),
+              );
+
               return (
-                <NavLink key={child.to} to={child.to} className={navClass(childActive)}>
-                  {child.icon?.length <= 2
-                    ? <NavIcon glyph={child.icon} active={childActive} />
-                    : <NavIcon name={child.icon} active={childActive} />}
-                  <NavCopy label={child.label} active={childActive} />
-                </NavLink>
+                <div key={group.id}>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    aria-controls={`learner-group-${group.id}`}
+                    onClick={() => toggleGroup(group.id)}
+                    className={[
+                      'flex min-h-[34px] w-full items-center',
+                      'gap-2 rounded-lg px-2 text-left',
+                      'text-[12px] font-normal',
+                      'transition-colors hover:bg-[#FCE7EF]',
+                      'focus-visible:outline-none',
+                      'focus-visible:ring-2',
+                      'focus-visible:ring-[#AD3155]/25',
+                      active
+                        ? 'text-[#A24867]'
+                        : 'text-[#8A727E]',
+                    ].join(' ')}
+                  >
+                    <Icon
+                      name={group.icon}
+                      className={`text-[19px] ${
+                        active
+                          ? 'text-[#B05D7A]'
+                          : 'text-[#B18B9B]'
+                      }`}
+                    />
+
+                    <span className="flex-1">
+                      {group.label}
+                    </span>
+
+                    <Icon
+                      name="expand_more"
+                      className={[
+                        'text-[17px] text-[#B99AA8]',
+                        'transition-transform duration-150',
+                        open ? 'rotate-180' : '',
+                      ].join(' ')}
+                    />
+                  </button>
+
+                  {open && (
+                    <div
+                      id={`learner-group-${group.id}`}
+                      className="mb-1 ml-[18px] mt-0.5
+                                 space-y-0.5 border-l
+                                 border-[#E6D9D4] pl-1.5"
+                    >
+                      {group.items.map((item) => (
+                        <MenuRow
+                          key={item.to}
+                          item={item}
+                          active={itemActive(
+                            currentPath,
+                            location.search,
+                            item,
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-transparent text-[#2D282A]" data-shell="learner">
-      <aside
-        className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col overflow-y-auto px-4 py-5"
-      >
-        <div className="mb-6 flex items-center gap-3 px-2">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white">
-            <span className="material-symbols-outlined text-[22px]">local_florist</span>
-          </div>
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-[18px] font-extrabold tracking-tight text-[#2D282A]">
-              {LEARNER_NAV.brand.title}
-            </div>
-            <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A59B9E]">
-              {LEARNER_NAV.brand.subtitle}
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex flex-1 flex-col gap-6">
-          {groups.map((group) => {
-            const items = LEARNER_NAV.items.filter((item) => {
-              if (item.id === 'riki' && !isLearner) return false;
-              return !group.id || group.id === 'all' || item.group === group.id;
-            });
-            if (!items.length) return null;
-            return (
-              <div key={group.id}>
-                {group.label ? (
-                  <div className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[#C4B8BA]">
-                    {group.label}
-                  </div>
-                ) : null}
-                <div className="flex flex-col gap-1">
-                  {items.map((item) => (item.children ? renderRiki(item) : renderLeaf(item)))}
-                </div>
-              </div>
-            );
-          })}
         </nav>
 
-        <div className="rp-catalog-card mt-6 flex items-center gap-3 rounded-[22px] p-3">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-10 w-10 rounded-2xl object-cover" />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fff0f5] text-[#D94B68]">
-              <span className="material-symbols-outlined text-[20px]">person</span>
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-bold text-[#2D282A]">{userName}</div>
-            <div className="truncate text-[11px] font-medium text-[#A59B9E]">{userRole}</div>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            title="Đăng xuất"
-            aria-label="Đăng xuất"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[#A59B9E] hover:bg-[#fff0f5] hover:text-[#D94B68]"
-          >
-            <span className="material-symbols-outlined text-[18px]">logout</span>
-          </button>
+        {/* Cài đặt cố định ở đáy */}
+        <div
+          className="shrink-0 border-t border-[#E8DFDC]
+                     px-2.5 py-2"
+        >
+          <MenuRow
+            item={{
+              to: '/settings',
+              label: 'Cài đặt tài khoản',
+              icon: 'settings',
+            }}
+            active={itemActive(
+              currentPath,
+              location.search,
+              { to: '/settings' },
+            )}
+          />
         </div>
       </aside>
 
-      <div className="min-w-0" style={{ paddingLeft: SIDEBAR_W }}>
-        <header
-          className="fixed top-0 right-0 z-40 flex h-[72px] items-center justify-between gap-4 px-6 sm:px-8"
-          style={{ left: SIDEBAR_W }}
+      {/* Nội dung trang */}
+      <div
+        style={{ paddingLeft: SIDEBAR_W }}
+        className="min-w-0"
+      >
+        <div
+          style={{ paddingTop: HEADER_H }}
+          className="min-h-screen"
         >
-          <div className="hidden min-w-0 items-center gap-2 text-[13px] text-[#8A8084] sm:flex">
-            <span>Học tập</span>
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-            <span className="truncate font-bold text-[#2D282A]">{breadcrumb}</span>
-          </div>
-          <div className="mx-0 max-w-md flex-1 sm:mx-6">
-            <div className="relative flex items-center">
-              <span className="material-symbols-outlined absolute left-4 text-[18px] text-[#A59B9E]">search</span>
-              <input
-                className="h-11 w-full rounded-full border border-[#dfbfc1]/50 bg-white pl-11 pr-4 text-[13px] text-[#2D282A] shadow-sm placeholder:text-[#C4B8BA] focus:outline-none focus:ring-2 focus:ring-[#D94B68]/20"
-                placeholder={searchPlaceholder}
-                type="text"
-              />
-            </div>
-          </div>
-          <button
-            type="button"
-            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#dfbfc1]/45 bg-white text-[#6F6669] shadow-sm hover:text-[#D94B68]"
-            aria-label="Thông báo"
-          >
-            <span className="material-symbols-outlined text-[20px]">notifications</span>
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#D94B68]" />
-          </button>
-        </header>
-        <main className="min-h-screen pt-[72px]">{children}</main>
+          {children}
+        </div>
       </div>
     </div>
   );

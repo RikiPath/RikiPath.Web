@@ -15,7 +15,7 @@ try {
     consultation: ['ConsultantOverview','ConsultationPrep','SenseiProfile','TextConsultationReply','WorkSchedule','Consultation','ConsultationHub','MentorAvailability'],
     learner: ['AICounselor','AIScoringResult','ExamN3','ExamResult','HomeLearner','KanjiNotebook','LessonComplete','LessonList','LessonPlayer','MultiColumnDashboard','RoadmapJLPT','SentenceStudio','VocabularyNotebook','VocabWordDetail','KanjiStudio'],
     marketing: ['HomeLanding','CourseDetail','FeatureDetail'],
-    admin: ['AdminConsultants','AdminRoles'],
+    admin: ['AdminConsultants'],
   };
   let count = 0;
   for (const [group, pages] of Object.entries(groups)) for (const page of pages) {

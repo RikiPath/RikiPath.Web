@@ -38,16 +38,29 @@ export const ADMIN_NAV = {
     {
       label: 'Điều hành',
       items: [
-        { to: '/admin', label: 'Tổng quan', hint: 'Số liệu hệ thống', icon: 'dashboard', end: true },
-        { to: '/admin/users', label: 'Người dùng', hint: 'Học viên & tài khoản', icon: 'group', alsoActive: ['/admin/users/detail'] },
-        { to: '/admin/roles', label: 'Vai trò & quyền', hint: 'Phân quyền', icon: 'lock_person' },
+        {
+          to: '/admin/users',
+          label: 'Tổng quan',
+          hint: 'Người dùng',
+          icon: 'space_dashboard',
+          alsoActive: ['/admin/users/detail'],
+        },
       ],
     },
     {
       label: 'Mentor',
       items: [
-        { to: '/admin/mentors', label: 'Quản lý Mentor', hint: 'Hồ sơ sensei', icon: 'support_agent' },
-        { to: '/admin/mentor-schedules', label: 'Duyệt lịch Mentor', hint: 'Lịch chờ phê duyệt', icon: 'event_available' },
+        {
+          to: '/admin/mentors',
+          label: 'Mentor',
+          hint: 'Hồ sơ và duyệt lịch',
+          icon: 'support_agent',
+          alsoActive: ['/admin/mentor-schedules', '/admin/consultants'],
+          children: [
+            { to: '/admin/mentors', label: 'Hồ sơ', alsoActive: ['/admin/consultants'] },
+            { to: '/admin/mentor-schedules', label: 'Duyệt lịch' },
+          ],
+        },
         { to: '/admin/operations', label: 'Gói & lịch', hint: 'Feature, booking', icon: 'tune' },
       ],
     },

@@ -1,293 +1,578 @@
+import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
 import { LearnerShell } from '../../components/shells';
-import { useLocation } from 'react-router-dom';
+
+const LEVELS = {
+  N5: {
+    label: 'Nền tảng',
+    description: 'Ôn kiến thức cơ bản và làm quen cách làm đề.',
+    vocabulary: 'Từ vựng quen thuộc và chữ Hán cơ bản.',
+    grammar: 'Trợ từ, chia động từ và mẫu câu đơn giản.',
+    reading: 'Câu ngắn, thông báo và hội thoại thường ngày.',
+    listening: 'Nghe thông tin đơn giản và ý chính.',
+  },
+  N4: {
+    label: 'Sơ cấp',
+    description: 'Củng cố kiến thức sơ cấp và luyện theo từng kỹ năng.',
+    vocabulary: 'Từ vựng đời sống và chữ Hán thường gặp.',
+    grammar: 'Các dạng động từ và mẫu câu sơ cấp.',
+    reading: 'Đoạn văn ngắn và thông tin trong đời sống.',
+    listening: 'Hội thoại quen thuộc và thông tin cần thiết.',
+  },
+  N3: {
+    label: 'Trung cấp',
+    description: 'Ôn có trọng tâm, luyện đọc nghe và kiểm tra qua đề thi.',
+    vocabulary: 'Từ vựng theo chủ đề và các chữ Hán dễ nhầm.',
+    grammar: 'Phân biệt mẫu câu gần nghĩa và cách dùng.',
+    reading: 'Đoạn văn, thông báo và tìm kiếm thông tin.',
+    listening: 'Nắm ý chính và theo dõi diễn biến hội thoại.',
+  },
+  N2: {
+    label: 'Nâng cao',
+    description: 'Luyện xử lý nội dung dài và phân bổ thời gian làm đề.',
+    vocabulary: 'Từ ghép, cách kết hợp từ và sắc thái nghĩa.',
+    grammar: 'Mẫu câu nâng cao và quan hệ giữa các ý.',
+    reading: 'Văn bản dài, lập luận và quan điểm tác giả.',
+    listening: 'Thông tin chi tiết và ý định người nói.',
+  },
+};
+
+function getStages(level) {
+  const content = LEVELS[level];
+
+  return [
+    {
+      id: 'knowledge',
+      number: '01',
+      japanese: '語彙・文法',
+      title: 'Củng cố kiến thức',
+      description: 'Từ vựng, Hán tự và ngữ pháp theo cấp độ.',
+      tasks: [
+        {
+          icon: 'translate',
+          title: 'Từ vựng',
+          description: content.vocabulary,
+          to: '/vocabulary',
+        },
+        {
+          icon: 'draw',
+          title: 'Hán tự',
+          description: 'Ôn cách đọc, nghĩa và phân biệt mặt chữ.',
+          to: '/kanji-writing?type=kanji',
+        },
+        {
+          icon: 'menu_book',
+          title: 'Bài luyện tập',
+          description: content.grammar,
+          to: '/lessons',
+        },
+      ],
+    },
+    {
+      id: 'skills',
+      number: '02',
+      japanese: '読解・聴解',
+      title: 'Luyện đọc và nghe',
+      description: 'Luyện từng kỹ năng trước khi làm đề tổng hợp.',
+      tasks: [
+        {
+          icon: 'auto_stories',
+          title: 'Đọc hiểu',
+          description: content.reading,
+          to: '/riki/reading',
+        },
+        {
+          icon: 'headphones',
+          title: 'Nghe hiểu',
+          description: content.listening,
+          to: '/riki/listening',
+        },
+      ],
+    },
+    {
+      id: 'exam',
+      number: '03',
+      japanese: '模擬試験',
+      title: 'Luyện đề thi thử',
+      description: 'Làm đề và rèn cách phân bổ thời gian.',
+      tasks:
+        level === 'N3'
+          ? [
+              {
+                icon: 'quiz',
+                title: 'Thi thử JLPT N3',
+                description: 'Thử sức với đề N3 và xem kết quả bài làm.',
+                to: '/exam-n3',
+              },
+              {
+                icon: 'fact_check',
+                title: 'Xem kết quả',
+                description: 'Đối chiếu kết quả qua các lần làm đề.',
+                to: '/exam-result',
+              },
+            ]
+          : [
+              {
+                icon: 'quiz',
+                title: `Thi thử JLPT ${level}`,
+                description:
+                  'Chưa cấu hình đường dẫn danh sách đề cho cấp độ này.',
+                to: null,
+              },
+              {
+                icon: 'fact_check',
+                title: 'Xem kết quả',
+                description: 'Xem lại các bài thi đã thực hiện.',
+                to: '/exam-result',
+              },
+            ],
+    },
+    {
+      id: 'review',
+      number: '04',
+      japanese: '復習',
+      title: 'Ôn lại và điều chỉnh',
+      description: 'Quay lại nội dung cần củng cố sau mỗi lần luyện.',
+      tasks: [
+        {
+          icon: 'history',
+          title: 'Ôn tập đến hạn',
+          description: 'Ôn lại từ vựng và Hán tự theo lịch nhắc lại.',
+          to: '/daily-srs',
+        },
+        {
+          icon: 'bookmarks',
+          title: 'Sổ tay cá nhân',
+          description: 'Xem lại những nội dung bạn đã lưu.',
+          to: '/kanji-notebook',
+        },
+        {
+          icon: 'support_agent',
+          title: 'Tư vấn Mentor',
+          description: 'Trao đổi khi cần điều chỉnh kế hoạch ôn luyện.',
+          to: '/mentor',
+        },
+      ],
+    },
+  ];
+}
+
+function Icon({ name, className = '' }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`material-symbols-outlined ${className}`}
+    >
+      {name}
+    </span>
+  );
+}
+
+function TaskRow({ task }) {
+  const content = (
+    <>
+      <span
+        className="flex h-9 w-9 shrink-0 items-center
+                   justify-center rounded-lg bg-[#FAF0F5]
+                   text-[#B47F95]"
+      >
+        <Icon name={task.icon} className="text-[20px]" />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-medium text-[#62505A]">
+          {task.title}
+        </span>
+
+        <span className="mt-1 block text-[12px] leading-5 text-[#967F8A]">
+          {task.description}
+        </span>
+      </span>
+
+      {task.to && (
+        <Icon
+          name="arrow_forward"
+          className="shrink-0 text-[17px] text-[#BE98A8]"
+        />
+      )}
+    </>
+  );
+
+  const className =
+    'flex items-center gap-3 rounded-xl px-3 py-3 text-left ' +
+    'transition-colors ' +
+    (task.to
+      ? 'hover:bg-[#FCF5F8] focus-visible:outline-none ' +
+        'focus-visible:ring-2 focus-visible:ring-[#AD3155]/25'
+      : 'bg-[#FCFAFB]');
+
+  return task.to ? (
+    <Link to={task.to} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <div className={className}>{content}</div>
+  );
+}
 
 export default function RoadmapJLPT() {
   const { pathname } = useLocation();
 
+  const [level, setLevel] = useState('N3');
+  const [openStage, setOpenStage] = useState('knowledge');
+
+  const stages = getStages(level);
+  const currentIndex = stages.findIndex(
+    (stage) => stage.id === openStage,
+  );
+
+  function chooseLevel(value) {
+    setLevel(value);
+    setOpenStage('knowledge');
+  }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Lộ trình">
-<div className="bg-background font-body-md text-on-surface antialiased" data-page="RoadmapJLPT" data-shell-unified="1">
+    <LearnerShell pathname={pathname} breadcrumb="Lộ trình ôn luyện">
+      <main
+        data-page="RoadmapJLPT"
+        className="mx-auto max-w-[1240px] px-5 py-6
+                   font-['Be_Vietnam_Pro',sans-serif]
+                   text-[#49353F] lg:px-7"
+      >
+        {/* Tiêu đề gọn */}
+        <header
+          className="mb-5 flex flex-wrap items-start
+                     justify-between gap-4"
+        >
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                lang="ja"
+                className="font-['Noto_Serif_JP',serif]
+                           text-[15px] text-[#B47F95]"
+              >
+                道
+              </span>
+              <span className="text-[11px] text-[#AA8D9B]">
+                Từng bước ôn luyện
+              </span>
+            </div>
 
-<div className="pl-0"><main className="relative pt-0 bg-background min-h-screen">
-<p role="status">Mục này chưa có dữ liệu.</p>
-<div className="max-w-[1440px] mx-auto px-space-xl py-space-lg"><div className="flex flex-col w-full gap-space-xl">
-{/*  Visual Ambient Flourish (Petal mist glow)  */}
-<div className="relative w-full overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm p-space-xl">
-<div className="absolute -right-20 -top-24 w-96 h-96 rounded-full bg-secondary-container/20 blur-3xl pointer-events-none"></div>
-<div className="absolute left-1/3 -bottom-16 w-80 h-80 rounded-full bg-primary-fixed/20 blur-2xl pointer-events-none"></div>
-<div className="relative flex flex-col gap-space-lg">
-{/*  Breadcrumb / Overline  */}
-<div className="flex items-center justify-between">
-<div className="flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
-<span className="text-primary font-japanese-display text-japanese-display">—</span>
-<span className="">•</span>
-<span className="tracking-wide uppercase font-label-sm text-label-sm text-outline">Lộ Trình Học Tập Cá Nhân Hóa</span>
-<span className="">/</span>
-<span className="text-primary font-medium">—</span>
-</div>
-<div className="flex items-center gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-full">
-<span className="material-symbols-outlined text-tertiary text-[18px]">workspace_premium</span>
-<span className="font-label-sm text-label-sm text-on-surface-variant">{'—'}<strong className="text-on-surface">—</strong></span>
-</div>
-</div>
-{/*  Main Headline & Quick Stats Grid  */}
-<div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-space-lg">
-<div className="flex flex-col gap-space-xxs max-w-2xl">
-<h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">{'—'}</h1>
-<p className="font-body-md text-body-md text-on-surface-variant">—</p>
-</div>
-{/*  Metric Rings / Progress Cluster  */}
-<div className="flex items-center gap-space-lg bg-surface-container-low p-space-md rounded-xl">
-<div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-<svg className="w-full h-full transform -rotate-90" viewBox="0 0 48 48">
-<circle className="text-outline-variant/30" cx="24" cy="24" fill="none" r="20" stroke="currentColor" strokeWidth="4.5"></circle>
-<circle className="transition-all duration-1000" cx="24" cy="24" fill="none" r="20" stroke="#e05a7a" strokeDasharray="125.6" strokeDashoffset="9999" strokeLinecap="round" strokeWidth="4.5"></circle>
-</svg>
-<div className="absolute inset-0 flex flex-col items-center justify-center">
-<span className="font-title-sm text-title-sm text-on-surface font-bold leading-none">—</span>
-</div>
-</div>
-<div className="flex flex-col">
-<span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Tiến độ tổng quan</span>
-<span className="font-title-md text-title-md text-on-surface font-bold">{'—'}<span className="font-body-sm text-body-sm font-normal text-on-surface-variant">Bài học</span></span>
-<span className="font-body-sm text-body-sm text-tertiary flex items-center gap-1 mt-0.5">
-<span className="material-symbols-outlined text-[14px]">trending_up</span>{'—'}</span>
-</div>
-</div>
-</div>
-{/*  Level Selector Tabs  */}
-<div className="flex items-center gap-space-xs pt-space-xs overflow-x-auto">
-{/*  N5  */}
-<button className="flex items-center gap-2 px-space-md py-space-sm rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all group">
-<span className="w-6 h-6 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center">
-<span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
-</span>
-<span className="font-title-sm text-title-sm">—</span>
-<span className="font-label-sm text-label-sm text-outline">—</span>
-</button>
-{/*  N4  */}
-<button className="flex items-center gap-2 px-space-md py-space-sm rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all group">
-<span className="w-6 h-6 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center">
-<span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
-</span>
-<span className="font-title-sm text-title-sm">—</span>
-<span className="font-label-sm text-label-sm text-outline">—</span>
-</button>
-{/*  N3 (Active)  */}
-<button className="flex items-center gap-2 px-space-lg py-space-sm rounded-xl neo-sakura-btn font-semibold cursor-pointer"><span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span><span className="font-title-sm text-title-sm text-white">—</span><span className="font-label-sm text-label-sm bg-white/20 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">—</span></button>
-{/*  N2 (Locked)  */}
-<button className="flex items-center gap-2 px-space-md py-space-sm rounded-xl bg-surface-container-low/60 text-outline cursor-not-allowed opacity-75">
-<span className="material-symbols-outlined text-[18px]">lock</span>
-<span className="font-title-sm text-title-sm">—</span>
-<span className="font-label-sm text-label-sm text-outline-variant">Khóa</span>
-</button>
-{/*  N1 (Locked)  */}
-<button className="flex items-center gap-2 px-space-md py-space-sm rounded-xl bg-surface-container-low/60 text-outline cursor-not-allowed opacity-75">
-<span className="material-symbols-outlined text-[18px]">lock</span>
-<span className="font-title-sm text-title-sm">—</span>
-<span className="font-label-sm text-label-sm text-outline-variant">Khóa</span>
-</button>
-</div>
-</div>
-</div>
-{/*  12-Column Core Architecture  */}
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start">
-{/*  LEFT 8-COLUMN STEPPER JOURNEY  */}
-<div className="lg:col-span-8 flex flex-col gap-space-lg">
-<div className="flex items-center justify-between">
-<div className="flex items-center gap-space-sm">
-<span className="material-symbols-outlined text-primary text-[24px]">alt_route</span>
-<h2 className="font-headline-sm text-headline-sm text-on-surface">Tiến trình theo chặng (Milestone Roadmap)</h2>
-</div>
-<div className="flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
-<span className="w-2 h-2 rounded-full bg-tertiary"></span>
-<span className="">—</span>
-</div>
-</div>
-{/*  Stepper Container  */}
-<div className="relative flex flex-col gap-space-lg">
-{/*  Connecting Vertical Guide Line  */}
-<div className="absolute left-6 top-8 bottom-8 w-1 bg-surface-container-high -z-0"></div>
-{/*  CHẶNG 1: HOÀN THÀNH  */}
-<div className="relative flex items-start gap-space-lg">
-{/*  Step Marker  */}
-<div className="w-12 h-12 rounded-2xl bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center flex-shrink-0 shadow-sm z-10">
-<span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>task_alt</span>
-</div>
-{/*  Card Content  */}
-<div className="flex-1 bg-surface-container-lowest rounded-xl p-space-lg shadow-sm">
-<div className="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
-<div className="flex flex-col">
-<div className="flex items-center gap-space-xs mb-1">
-<span className="px-2.5 py-0.5 rounded-full bg-tertiary-fixed/30 text-tertiary font-label-sm text-label-sm font-semibold">—</span>
-<span className="text-outline text-label-sm">—</span>
-</div>
-<h3 className="font-title-md text-title-md text-on-surface">—</h3>
-<p className="font-body-sm text-body-sm text-on-surface-variant mt-1">—</p>
-</div>
-<div className="flex items-center gap-space-sm flex-shrink-0">
-<div className="text-right">
-<span className="font-label-sm text-label-sm text-outline">Bài tập</span>
-<p className="font-title-sm text-title-sm text-tertiary font-bold">—</p>
-</div>
-<button className="w-10 h-10 rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container flex items-center justify-center transition-colors" title="Xem lại bài học">
-<span className="material-symbols-outlined text-[20px]">history</span>
-</button>
-</div>
-</div>
-</div>
-</div>
-{/*  CHẶNG 2: ĐANG HỌC (ACTIVE / HERO CARD)  */}
-<div className="relative flex items-start gap-space-lg">
-{/*  Step Marker  */}
-<div className="w-12 h-12 rounded-2xl bg-neo-sakura text-on-primary flex items-center justify-center flex-shrink-0 shadow-md z-10"><span className="material-symbols-outlined text-[24px] text-white">local_florist</span></div>
-{/*  Card Content Highlighted  */}
-<div className="flex-1 bg-surface-container-lowest rounded-xl p-space-lg shadow-md relative overflow-hidden"><div className="absolute top-0 right-0 w-48 h-48 bg-[#fce7eb]/50 rounded-bl-full pointer-events-none"></div><div className="relative flex flex-col gap-space-md"><div className="flex flex-col md:flex-row md:items-center justify-between gap-space-xs"><div className="flex flex-col"><div className="flex items-center gap-space-xs mb-1"><span className="px-2.5 py-0.5 rounded-full bg-neo-sakura-soft text-neo-sakura font-label-sm text-label-sm font-bold">—</span><span className="text-outline font-label-sm text-label-sm">{"• Shinkanzen Master Kanji & Goi"}</span></div><h3 className="font-headline-sm text-headline-sm text-on-surface">{"Từ vựng & Hán tự Shinkanzen Master"}</h3></div><span className="px-3 py-1 rounded-full bg-neo-sakura-soft text-neo-sakura font-title-sm text-title-sm font-bold self-start md:self-auto">—</span></div><p className="font-body-md text-body-md text-on-surface-variant">—</p><div className="w-full bg-surface-container-high h-2.5 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-700 bg-neo-sakura" style={{ width: "0%" }}></div></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-space-sm pt-space-xs"><div className="p-space-sm rounded-xl bg-[#fff8f8] border border-[#fce7eb] flex flex-col gap-1"><div className="flex items-center justify-between text-outline"><span className="font-label-sm text-label-sm">Từ vựng</span><span className="material-symbols-outlined text-[16px]">menu_book</span></div><span className="font-title-sm text-title-sm text-on-surface font-bold">{'—'}<span className="font-body-sm text-body-sm text-on-surface-variant font-normal">—</span></span><div className="w-full bg-[#f0e6e8] h-1 rounded-full overflow-hidden"><div className="bg-neo-sakura h-full rounded-full" style={{ width: "0%" }}></div></div></div><div className="p-space-sm rounded-xl bg-[#fff8f8] border border-[#fce7eb] flex flex-col gap-1"><div className="flex items-center justify-between text-outline"><span className="font-label-sm text-label-sm">Kanji cốt lõi</span><span className="material-symbols-outlined text-[16px]">translate</span></div><span className="font-title-sm text-title-sm text-on-surface font-bold">{'—'}<span className="font-body-sm text-body-sm text-on-surface-variant font-normal">—</span></span><div className="w-full bg-[#f0e6e8] h-1 rounded-full overflow-hidden"><div className="bg-neo-sakura h-full rounded-full" style={{ width: "0%" }}></div></div></div><div className="p-space-sm rounded-xl bg-[#fff8f8] border border-[#fce7eb] flex flex-col gap-1"><div className="flex items-center justify-between text-outline"><span className="font-label-sm text-label-sm">Mẫu ứng dụng</span><span className="material-symbols-outlined text-[16px]">psychology</span></div><span className="font-title-sm text-title-sm text-on-surface font-bold">{'—'}<span className="font-body-sm text-body-sm text-on-surface-variant font-normal">—</span></span><div className="w-full bg-[#f0e6e8] h-1 rounded-full overflow-hidden"><div className="bg-neo-sakura h-full rounded-full" style={{ width: "0%" }}></div></div></div></div><div className="flex flex-col sm:flex-row items-center justify-between gap-space-md pt-space-xs"><div className="flex items-center gap-space-sm"><div className="w-9 h-9 rounded-full bg-neo-sakura-soft flex items-center justify-center text-neo-sakura"><span className="material-symbols-outlined text-[20px] text-neo-sakura">play_circle</span></div><div className="flex flex-col"><span className="font-title-sm text-title-sm text-on-surface">—</span><span className="font-body-sm text-body-sm text-on-surface-variant">—</span></div></div><button className="w-full sm:w-auto px-space-lg py-space-sm rounded-xl neo-sakura-btn font-title-sm text-title-sm transition-all flex items-center justify-center gap-space-xs cursor-pointer"><span className="">Tiếp tục học ngay</span><span className="material-symbols-outlined text-[18px]">arrow_forward</span></button></div></div></div>
-</div>
-{/*  CHẶNG 3: MỞ KHÓA SAU 4 NGÀY  */}
-<div className="relative flex items-start gap-space-lg">
-{/*  Step Marker  */}
-<div className="w-12 h-12 rounded-2xl bg-surface-container-high text-on-surface-variant flex items-center justify-center flex-shrink-0 z-10">
-<span className="material-symbols-outlined text-[22px]">schedule</span>
-</div>
-{/*  Card Content  */}
-<div className="flex-1 bg-surface-container-lowest rounded-xl p-space-lg shadow-sm opacity-90">
-<div className="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
-<div className="flex flex-col">
-<div className="flex items-center gap-space-xs mb-1">
-<span className="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm font-semibold">—</span>
-<span className="text-primary font-label-sm text-label-sm font-medium">—</span>
-</div>
-<h3 className="font-title-md text-title-md text-on-surface">{"Đọc hiểu Dokkai & Shadowing AI Tokyo"}</h3>
-<p className="font-body-sm text-body-sm text-on-surface-variant mt-1">—</p>
-</div>
-<div className="flex items-center gap-space-xs self-start md:self-auto">
-<button className="px-space-md py-space-xs rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface font-label-md text-label-md transition-all flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px]">visibility</span>{" Xem trước nội dung\n                "}</button>
-</div>
-</div>
-{/*  Preview Badges  */}
-<div className="flex flex-wrap items-center gap-space-xs mt-space-md pt-space-xs">
-<span className="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm">—</span>
-<span className="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm">—</span>
-<span className="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm">—</span>
-</div>
-</div>
-</div>
-{/*  CHẶNG 4: LUYỆN ĐỀ THI THỰC CHIẾN (LOCKED)  */}
-<div className="relative flex items-start gap-space-lg">
-{/*  Step Marker  */}
-<div className="w-12 h-12 rounded-2xl bg-surface-container-high text-outline flex items-center justify-center flex-shrink-0 z-10">
-<span className="material-symbols-outlined text-[22px]">lock</span>
-</div>
-{/*  Card Content  */}
-<div className="flex-1 bg-surface-container-lowest rounded-xl p-space-lg shadow-sm opacity-60">
-<div className="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
-<div className="flex flex-col">
-<div className="flex items-center gap-space-xs mb-1">
-<span className="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-outline font-label-sm text-label-sm">—</span>
-<span className="text-outline text-label-sm">{'—'}</span>
-</div>
-<h3 className="font-title-md text-title-md text-outline">—</h3>
-<p className="font-body-sm text-body-sm text-outline mt-1">—</p>
-</div>
-<div className="flex items-center gap-space-xs text-outline font-label-sm text-label-sm">
-<span className="material-symbols-outlined text-[18px]">lock_clock</span>
-<span className="">Chưa khả dụng</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-{/*  Roadmap Footnote Tip  */}
-<div className="p-space-md rounded-xl bg-surface-container-low flex items-center gap-space-md">
-<div className="w-10 h-10 rounded-xl bg-primary-fixed/40 flex items-center justify-center text-primary flex-shrink-0">
-<span className="material-symbols-outlined text-[20px]">lightbulb</span>
-</div>
-<p className="font-body-sm text-body-sm text-on-surface-variant">—</p>
-</div>
-</div>
-{/*  RIGHT 4-COLUMN SUPPORTING PANELS  */}
-<div className="lg:col-span-4 flex flex-col gap-space-lg">
-{/*  1. HARU AI STUDY DIAGNOSTIC WIDGET  */}
-<div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md relative overflow-hidden"><div className="absolute -right-10 -bottom-10 w-32 h-32 rounded-full bg-[#fce7eb]/60 blur-xl pointer-events-none"></div><div className="flex items-start justify-between"><div className="flex items-center gap-space-sm"><div className="w-10 h-10 rounded-xl bg-neo-sakura text-white flex items-center justify-center shadow-sm"><span className="material-symbols-outlined text-[20px]">smart_toy</span></div><div className="flex flex-col"><h3 className="font-title-sm text-title-sm text-on-surface">Haru AI Chẩn Đoán</h3><span className="font-label-sm text-label-sm text-neo-sakura font-semibold">Cảnh báo lỗi thường gặp</span></div></div><span className="px-2 py-0.5 rounded-full bg-[#ffdad6] text-[#ba1a1a] font-label-sm text-label-sm font-semibold">—</span></div><div className="p-space-sm rounded-xl bg-[#fff8f8] border border-[#fce7eb] flex flex-col gap-space-xs"><span className="font-label-sm text-label-sm text-on-surface-variant">—</span><div className="grid grid-cols-4 gap-space-xs pt-1"><div className="p-space-xs bg-surface-container-lowest rounded-lg text-center shadow-sm border border-[#fce7eb]"><span className="font-japanese-display text-japanese-display text-neo-sakura block leading-none">—</span><span className="font-label-sm text-label-sm text-outline block mt-1">ĐÃI</span><span className="text-[10px] text-on-surface-variant block">Chờ đợi</span></div><div className="p-space-xs bg-surface-container-lowest rounded-lg text-center shadow-sm border border-[#f3e8eb]"><span className="font-japanese-display text-japanese-display text-on-surface block leading-none">—</span><span className="font-label-sm text-label-sm text-outline block mt-1">TRÌ</span><span className="text-[10px] text-on-surface-variant block">Cầm, giữ</span></div><div className="p-space-xs bg-surface-container-lowest rounded-lg text-center shadow-sm border border-[#f3e8eb]"><span className="font-japanese-display text-japanese-display text-on-surface block leading-none">—</span><span className="font-label-sm text-label-sm text-outline block mt-1">ĐẶC</span><span className="text-[10px] text-on-surface-variant block">Đặc biệt</span></div><div className="p-space-xs bg-surface-container-lowest rounded-lg text-center shadow-sm border border-[#f3e8eb]"><span className="font-japanese-display text-japanese-display text-on-surface block leading-none">—</span><span className="font-label-sm text-label-sm text-outline block mt-1">THỊ</span><span className="text-[10px] text-on-surface-variant block">Samurai</span></div></div></div><p className="font-body-sm text-body-sm text-on-surface-variant">—</p><button className="w-full py-space-sm px-space-md rounded-xl neo-sakura-pill-btn font-title-sm text-title-sm transition-all flex items-center justify-center gap-space-xs cursor-pointer" id="btn-quick-drill"><span className="material-symbols-outlined text-[18px]">bolt</span><span className="">—</span></button></div>
-{/*  2. WEEKLY SCHEDULE & STUDY RHYTHM  */}
-<div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
-<div className="flex items-center justify-between">
-<div className="flex items-center gap-space-xs">
-<span className="material-symbols-outlined text-on-surface-variant text-[20px]">calendar_month</span>
-<h3 className="font-title-sm text-title-sm text-on-surface">Nhịp học tuần này</h3>
-</div>
-<span className="font-label-sm text-label-sm text-tertiary font-bold bg-tertiary-fixed/30 px-2.5 py-0.5 rounded-full">—</span>
-</div>
-{/*  7-Day Dots Rhythm  */}
-<div className="grid grid-cols-7 gap-space-xs text-center">
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-outline">—</span>
-<div className="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-label-sm text-label-sm font-bold">✓</div>
-<span className="text-[10px] text-on-surface-variant">—</span>
-</div>
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-outline">—</span>
-<div className="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-label-sm text-label-sm font-bold">✓</div>
-<span className="text-[10px] text-on-surface-variant">—</span>
-</div>
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-outline">—</span>
-<div className="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-label-sm text-label-sm font-bold">✓</div>
-<span className="text-[10px] text-on-surface-variant">—</span>
-</div>
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-outline">—</span>
-<div className="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-label-sm text-label-sm font-bold">✓</div>
-<span className="text-[10px] text-on-surface-variant">—</span>
-</div>
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-outline">—</span>
-<div className="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-label-sm text-label-sm font-bold">✓</div>
-<span className="text-[10px] text-on-surface-variant">—</span>
-</div>
-{/*  Today  */}
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-primary font-bold">—</span>
-<div className="w-8 h-8 rounded-full bg-neo-sakura text-white flex items-center justify-center font-label-sm text-label-sm font-bold shadow-sm"><span className="material-symbols-outlined text-[16px]">edit</span></div>
-<span className="text-[10px] text-primary font-bold">—</span>
-</div>
-<div className="flex flex-col items-center gap-1.5">
-<span className="font-label-sm text-label-sm text-outline">CN</span>
-<div className="w-8 h-8 rounded-full bg-surface-container-high text-outline flex items-center justify-center font-label-sm text-label-sm font-medium">○</div>
-<span className="text-[10px] text-outline">--</span>
-</div>
-</div>
-<div className="pt-space-xs border-t border-surface-container flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
-<span className="">Mục tiêu hàng ngày:</span>
-<span className="font-title-sm text-title-sm text-on-surface font-bold">—</span>
-</div>
-</div>
-{/*  3. MINI MOCK TEST CTA CARD  */}
-<div className="bg-gradient-to-br from-surface-container-lowest to-surface-container-low rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md"><div className="flex items-center justify-between"><span className="px-2.5 py-0.5 rounded-full bg-neo-sakura-soft text-neo-sakura font-label-sm text-label-sm font-bold uppercase tracking-wider">Thử Thách Nhanh</span><div className="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm"><span className="material-symbols-outlined text-[16px]">timer</span><span className="">—</span></div></div><div className="flex flex-col gap-1"><h3 className="font-title-md text-title-md text-on-surface font-bold">—</h3><p className="font-body-sm text-body-sm text-on-surface-variant">—</p></div><div className="flex items-center gap-space-md p-space-sm rounded-xl bg-surface-container-lowest shadow-sm border border-[#fce7eb]"><div className="w-10 h-10 rounded-xl bg-neo-sakura-soft text-neo-sakura flex items-center justify-center flex-shrink-0"><span className="material-symbols-outlined text-[20px]">equalizer</span></div><div className="flex flex-col min-w-0"><span className="font-label-sm text-label-sm text-outline">Đánh giá tức thì</span><span className="font-title-sm text-title-sm text-on-surface font-semibold truncate">{"Dự báo điểm JLPT & Phân tích điểm yếu"}</span></div></div><button className="w-full py-space-sm px-space-md rounded-xl neo-sakura-btn font-title-sm text-title-sm shadow-sm transition-all flex items-center justify-center gap-space-xs cursor-pointer"><span className="material-symbols-outlined text-[18px]">quiz</span><span className="">Bắt đầu thi thử ngay</span></button></div>
-{/*  SENSEI MENTOR QUICK NOTE  */}
-<div className="p-space-md rounded-xl bg-surface-container-low flex items-center gap-space-md shadow-sm">
-<div className="relative flex-shrink-0">
-<div className="w-12 h-12 rounded-full bg-secondary-fixed flex items-center justify-center text-primary font-bold">
-<span className="material-symbols-outlined text-[24px]">school</span>
-</div>
-<span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-tertiary"></span>
-</div>
-<div className="flex flex-col min-w-0">
-<span className="font-title-sm text-title-sm text-on-surface font-semibold truncate">—</span>
-<p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">—</p>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div></main></div>
+            <h1
+              className="mt-2 text-[26px] font-semibold
+                         leading-tight tracking-tight"
+            >
+              Lộ trình ôn thi JLPT
+            </h1>
 
+            <p className="mt-2 text-[13px] text-[#967F8A]">
+              Ôn kiến thức, luyện kỹ năng và xem lại kết quả.
+            </p>
+          </div>
 
-    </div>
+          <Link
+            to="/onboarding"
+            className="inline-flex min-h-9 items-center gap-1.5
+                       rounded-lg border border-[#E7D7DF]
+                       bg-white px-3 text-[12px] text-[#A47186]
+                       hover:bg-[#FFF3F7]"
+          >
+            <Icon name="flag" className="text-[16px]" />
+            Đổi mục tiêu
+          </Link>
+        </header>
 
-</LearnerShell>
-);
+        {/* Chọn cấp độ */}
+        <section
+          aria-label="Chọn cấp độ xem lộ trình"
+          className="mb-5 rounded-xl border border-[#EADFE5]
+                     bg-white px-4 py-3.5"
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-[12px] text-[#A08A95]">
+              Cấp độ
+            </span>
+
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(LEVELS).map(([key, value]) => {
+                const active = level === key;
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => chooseLevel(key)}
+                    className={[
+                      'inline-flex min-h-9 items-center gap-2',
+                      'rounded-lg border px-3 text-[12px]',
+                      'transition-colors focus-visible:outline-none',
+                      'focus-visible:ring-2',
+                      'focus-visible:ring-[#AD3155]/25',
+                      active
+                        ? 'border-[#E8B8CB] bg-[#FCEAF2] text-[#A33E61]'
+                        : 'border-[#EFE5EA] text-[#967F8A] hover:bg-[#FFF7FA]',
+                    ].join(' ')}
+                  >
+                    <span className="font-semibold">{key}</span>
+                    <span className="hidden sm:inline">{value.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <p className="mt-3 text-[12px] leading-5 text-[#A08A95]">
+            {LEVELS[level].description}
+          </p>
+        </section>
+
+        <div
+          className="grid items-start gap-5
+                     xl:grid-cols-[minmax(0,1fr)_260px]"
+        >
+          {/* Lộ trình chính */}
+          <section aria-labelledby="roadmap-stages-title" className="min-w-0">
+            <div className="mb-4 flex items-center justify-between">
+              <h2
+                id="roadmap-stages-title"
+                className="text-[16px] font-semibold"
+              >
+                Các chặng ôn luyện
+              </h2>
+              <span className="text-[11px] text-[#AA8D9B]">
+                4 chặng · JLPT {level}
+              </span>
+            </div>
+
+            <ol className="space-y-3">
+              {stages.map((stage, index) => {
+                const open = openStage === stage.id;
+
+                return (
+                  <li key={stage.id} className="relative flex gap-3">
+                    {/* Đường dẫn nối các chặng */}
+                    <div className="relative flex w-9 shrink-0 justify-center">
+                      {index < stages.length - 1 && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute bottom-[-12px] top-9
+                                     w-px bg-[#EAD7E0]"
+                        />
+                      )}
+
+                      <span
+                        aria-hidden="true"
+                        className={[
+                          'relative z-10 mt-3 flex h-8 w-8',
+                          'items-center justify-center rounded-full',
+                          'border text-[11px] font-medium',
+                          open
+                            ? 'border-[#AD3155] bg-[#AD3155] text-white'
+                            : 'border-[#E7D7DF] bg-[#FAF4F7] text-[#AF8698]',
+                        ].join(' ')}
+                      >
+                        {stage.number}
+                      </span>
+                    </div>
+
+                    <div
+                      className={[
+                        'min-w-0 flex-1 overflow-hidden rounded-xl',
+                        'border bg-white',
+                        open ? 'border-[#E4B8C9]' : 'border-[#EADFE5]',
+                      ].join(' ')}
+                    >
+                      <h3>
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          aria-controls={`stage-${stage.id}`}
+                          onClick={() =>
+                            setOpenStage(open ? null : stage.id)
+                          }
+                          className={[
+                            'flex w-full items-center justify-between',
+                            'gap-3 px-4 py-4 text-left',
+                            'focus-visible:outline-none',
+                            'focus-visible:ring-2 focus-visible:ring-inset',
+                            'focus-visible:ring-[#AD3155]/25',
+                            open ? 'bg-[#FFF7FA]' : 'hover:bg-[#FFFBFD]',
+                          ].join(' ')}
+                        >
+                          <span className="min-w-0">
+                            <span
+                              lang="ja"
+                              className="block font-['Noto_Sans_JP',sans-serif]
+                                         text-[10px] tracking-wider text-[#BD8FA2]"
+                            >
+                              {stage.japanese}
+                            </span>
+
+                            <span
+                              className="mt-1 block text-[15px]
+                                         font-medium text-[#62505A]"
+                            >
+                              {stage.title}
+                            </span>
+
+                            {!open && (
+                              <span
+                                className="mt-1 block text-[12px]
+                                           leading-5 text-[#A08A95]"
+                              >
+                                {stage.description}
+                              </span>
+                            )}
+                          </span>
+
+                          <Icon
+                            name="expand_more"
+                            className={`shrink-0 text-[20px] text-[#B99AA8]
+                                        transition-transform ${
+                                          open ? 'rotate-180' : ''
+                                        }`}
+                          />
+                        </button>
+                      </h3>
+
+                      {open && (
+                        <div id={`stage-${stage.id}`} className="px-3 pb-3">
+                          <p className="px-1 pb-2 pt-3 text-[12px] text-[#A08A95]">
+                            {stage.description}
+                          </p>
+
+                          <div className="divide-y divide-[#F3EBEF]">
+                            {stage.tasks.map((task) => (
+                              <TaskRow key={task.title} task={task} />
+                            ))}
+                          </div>
+
+                          {index < stages.length - 1 && (
+                            <div
+                              className="mt-2 flex justify-end
+                                         border-t border-[#F3EBEF] pt-3"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenStage(stages[index + 1].id)
+                                }
+                                className="inline-flex items-center gap-1
+                                           rounded px-2 py-1 text-[12px]
+                                           text-[#AE6C87] hover:text-[#AD3155]"
+                              >
+                                Xem chặng tiếp
+                                <Icon name="arrow_forward" className="text-[15px]" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+
+          {/* Thông tin hỗ trợ */}
+          <aside className="space-y-4 xl:sticky xl:top-[84px]">
+            <section
+              className="rounded-xl border border-[#EADFE5]
+                         bg-white p-4"
+            >
+              <h2 className="text-[14px] font-medium">
+                Đang xem
+              </h2>
+
+              <div className="mt-4 flex items-center gap-3">
+                <span
+                  className="flex h-11 w-11 items-center
+                             justify-center rounded-xl bg-[#F9E8F0]
+                             text-[17px] font-semibold text-[#A84466]"
+                >
+                  {level}
+                </span>
+                <div>
+                  <p className="text-[13px] font-medium">
+                    JLPT {level}
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#A08A95]">
+                    {LEVELS[level].label}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 border-t border-[#F0E7EC] pt-3">
+                <p className="text-[12px] text-[#947584]">
+                  {currentIndex >= 0
+                    ? `Chặng ${currentIndex + 1}: ${stages[currentIndex].title}`
+                    : 'Chọn một chặng để xem nội dung.'}
+                </p>
+                <p className="mt-2 text-[11px] leading-5 text-[#AE95A1]">
+                  Đây là thứ tự ôn tập gợi ý. Bạn có thể mở
+                  bất kỳ chặng nào.
+                </p>
+              </div>
+            </section>
+
+            <section
+              className="rounded-xl border border-[#EEDCE5]
+                         bg-[#FCF2F6] p-4"
+            >
+              <div className="flex items-center gap-2">
+                <Icon
+                  name="history"
+                  className="text-[19px] text-[#B77E95]"
+                />
+                <h2 className="text-[13px] font-medium">
+                  Duy trì ôn tập
+                </h2>
+              </div>
+
+              <p className="mt-2 text-[12px] leading-6 text-[#A0808E]">
+                Xen kẽ luyện đề với ôn lại nội dung đã lưu
+                để việc ôn tập có trọng tâm.
+              </p>
+
+              <Link
+                to="/daily-srs"
+                className="mt-3 inline-flex items-center gap-1
+                           text-[12px] font-medium text-[#A84466]"
+              >
+                Ôn tập đến hạn
+                <Icon name="arrow_forward" className="text-[15px]" />
+              </Link>
+            </section>
+
+            <Link
+              to="/mentor"
+              className="flex items-center gap-3 rounded-xl
+                         border border-[#EADFE5] bg-white p-4
+                         transition-colors hover:bg-[#FFFAFC]"
+            >
+              <Icon
+                name="support_agent"
+                className="text-[22px] text-[#B48A9C]"
+              />
+              <span className="flex-1">
+                <span className="block text-[13px] font-medium">
+                  Cần hướng dẫn thêm?
+                </span>
+                <span className="mt-1 block text-[11px] text-[#A08A95]">
+                  Trao đổi cùng Mentor
+                </span>
+              </span>
+              <Icon
+                name="chevron_right"
+                className="text-[18px] text-[#B99AA8]"
+              />
+            </Link>
+          </aside>
+        </div>
+      </main>
+    </LearnerShell>
+  );
 }
