@@ -29,7 +29,7 @@ export const CMS_NAV = {
       ],
     },
   ],
-  user: { name: 'Tài khoản', role: 'Quản trị nội dung' },
+  user: { name: 'Sakura Admin', role: 'Content Lead' },
 };
 
 export const ADMIN_NAV = {
@@ -127,7 +127,7 @@ export const LEARNER_NAV = {
     },
     { to: '/settings', label: 'Cài đặt', hint: 'Tài khoản & mục tiêu', icon: 'settings', group: 'support' },
   ],
-  user: { name: 'Tài khoản', role: 'Học viên' },
+  user: { name: 'Minh Anh', role: 'Học viên N4' },
 };
 
 export const CONSULT_NAV = {
@@ -152,7 +152,7 @@ export const CONSULT_NAV = {
       ],
     },
   ],
-  user: { name: 'Tài khoản', role: 'Mentor' },
+  user: { name: 'Sensei Aoi', role: 'Mentor N3–N2' },
 };
 
 export const MARKETING_NAV = {

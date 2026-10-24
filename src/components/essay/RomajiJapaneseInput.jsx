@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { searchJapaneseDictionary } from '../../api/japaneseDictionaryApi.js';
+import { addPersonalDictionaryEntry, searchJapaneseDictionary } from '../../api/japaneseDictionaryApi.js';
 import { isRomajiKey, romajiToHiragana } from '../../utils/romaji.js';
 
 export default function RomajiJapaneseInput({ value, onChange, disabled = false }) {
@@ -9,21 +9,11 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
   const [candidates, setCandidates] = useState([]);
   const [activeCandidateIndex, setActiveCandidateIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const searchVersion = useRef(0);
+  const [personalForm, setPersonalForm] = useState(null);
   const [error, setError] = useState('');
   const bufferRange = useRef(null);
   const recognitionRef = useRef(null);
   const [listening, setListening] = useState(false);
-
-  function clearLookup() {
-    searchVersion.current += 1;
-    setCandidates([]);
-    setActiveCandidateIndex(0);
-    setLoading(false);
-    setSearched(false);
-    setError('');
-  }
 
   function replaceBuffer(text) {
     const textarea = textareaRef.current;
@@ -39,7 +29,6 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
   }
 
   function startSpeechRecognition() {
-    clearLookup();
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setError('Trình duyệt này chưa hỗ trợ nhập bằng giọng nói. Hãy dùng Chrome hoặc Edge.');
@@ -70,28 +59,27 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
 
   async function showCandidates(kana = romajiToHiragana(romaji)) {
     if (!kana) return;
-    const version = ++searchVersion.current;
     setLoading(true);
-    setSearched(false);
     setCandidates([]);
     setActiveCandidateIndex(0);
     setError('');
     try {
       const matches = await searchJapaneseDictionary(kana);
-      if (version !== searchVersion.current) return;
       setCandidates(matches);
       setActiveCandidateIndex(0);
-      setSearched(true);
+      if (!matches.length) {
+        replaceBuffer(`${romajiToHiragana(romaji)} `);
+        setRomaji('');
+        bufferRange.current = null;
+      }
     } catch (err) {
-      if (version !== searchVersion.current) return;
       setError(err.message);
     } finally {
-      if (version === searchVersion.current) setLoading(false);
+      setLoading(false);
     }
   }
 
   function chooseCandidate(candidate) {
-    clearLookup();
     replaceBuffer(candidate.surface);
     setRomaji('');
     setCandidates([]);
@@ -100,12 +88,22 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
   }
 
   function commitKanaAndContinue() {
-    clearLookup();
     replaceBuffer(`${romajiToHiragana(romaji)} `);
     setRomaji('');
     setCandidates([]);
     setActiveCandidateIndex(0);
     bufferRange.current = null;
+  }
+
+  async function savePersonalEntry(event) {
+    event.preventDefault();
+    try {
+      const saved = await addPersonalDictionaryEntry(personalForm);
+      chooseCandidate(saved);
+      setPersonalForm(null);
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   function handleKeyDown(event) {
@@ -137,20 +135,9 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
       chooseCandidate(candidates[activeCandidateIndex]);
       return;
     }
-    if (event.key === 'Escape') {
-      clearLookup();
-      return;
-    }
-    if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Delete'].includes(event.key)) {
-      clearLookup();
-      setRomaji('');
-      bufferRange.current = null;
-      return;
-    }
     if (event.isComposing) return;
     if (isRomajiKey(event.key)) {
       event.preventDefault();
-      clearLookup();
       const next = romaji + event.key;
       if (!romaji) {
         bufferRange.current = {
@@ -164,7 +151,6 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
     }
     if (event.key === 'Backspace' && romaji) {
       event.preventDefault();
-      clearLookup();
       const next = romaji.slice(0, -1);
       setRomaji(next);
       replaceBuffer(romajiToHiragana(next));
@@ -180,7 +166,7 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
             <span className="material-symbols-outlined text-[17px]">{listening ? 'mic_off' : 'mic'}</span>
             {listening ? 'Dừng ghi' : 'Nói tiếng Nhật'}
           </button>
-          <select value={mode} onChange={(event) => { clearLookup(); setMode(event.target.value); setRomaji(''); bufferRange.current = null; }} className="max-w-full rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm">
+          <select value={mode} onChange={(event) => { setMode(event.target.value); setRomaji(''); setCandidates([]); setActiveCandidateIndex(0); }} className="max-w-full rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm">
             <option value="romaji">Gõ Romaji</option>
             <option value="direct">Gõ tiếng Nhật trực tiếp</option>
           </select>
@@ -189,30 +175,41 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(event) => { clearLookup(); setRomaji(''); bufferRange.current = null; onChange(event.target.value); }}
-        onClick={() => { clearLookup(); setRomaji(''); bufferRange.current = null; }}
+        onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
         className="min-h-[280px] w-full rounded-2xl border border-[#eadfd9] bg-surface-container-low p-4 text-body-md leading-8 outline-none focus:border-primary"
-        placeholder={mode === 'romaji' ? 'Gõ Romaji rồi nhấn Space để tìm Kanji theo cách đọc...' : 'Nhập tiếng Nhật bằng IME hệ điều hành...'}
+        placeholder={mode === 'romaji' ? 'Gõ watashi wa rồi nhấn Space để chọn 私は...' : 'Nhập tiếng Nhật bằng IME hệ điều hành...'}
       />
       {romaji && <p className="mt-1 text-label-sm text-on-surface-variant">Đang nhập: {romajiToHiragana(romaji)}</p>}
-      {(loading || searched) && (
+      {(loading || candidates.length > 0 || (romaji && !loading)) && (
         <div className="absolute left-0 right-0 z-10 mt-1 rounded-2xl border border-[#eadfd9] bg-white p-3 shadow-lg">
           {loading && <p className="text-label-sm text-on-surface-variant">Đang tìm ứng viên...</p>}
           {!loading && candidates.map((candidate, index) => (
-            <button key={`${candidate.id}:${candidate.surface}`} type="button" onClick={() => chooseCandidate(candidate)} aria-pressed={activeCandidateIndex === index} className={`mr-2 mb-2 rounded-xl px-3 py-2 text-left ${activeCandidateIndex === index ? 'bg-secondary-container ring-2 ring-primary' : 'bg-surface-container-low hover:bg-secondary-container'}`}>
+            <button key={candidate.id} type="button" onClick={() => chooseCandidate(candidate)} aria-pressed={activeCandidateIndex === index} className={`mr-2 mb-2 rounded-xl px-3 py-2 text-left ${activeCandidateIndex === index ? 'bg-secondary-container ring-2 ring-primary' : 'bg-surface-container-low hover:bg-secondary-container'}`}>
               <strong className="mr-2 text-lg">{candidate.surface}</strong>
-              <span className="text-label-sm">{candidate.readingKana} · {candidate.meaning}{candidate.sinoVietnamese ? ` · ${candidate.sinoVietnamese}` : ''}</span>
+              <span className="text-label-sm">{candidate.readingKana} · {candidate.meaning}</span>
             </button>
           ))}
           {!loading && candidates.length > 0 && <p className="text-xs text-on-surface-variant">↑/↓ chọn · Enter thay thế · Space giữ kana và tiếp tục</p>}
-          {!loading && searched && !candidates.length && (
-            <p role="status" className="text-label-sm text-primary">Chưa có Kanji phù hợp trong dữ liệu.</p>
+          {!loading && !candidates.length && romaji && (
+            <button type="button" onClick={() => setPersonalForm({ surface: '', readingKana: romajiToHiragana(romaji), readingRomaji: romaji, meaning: '', isKatakana: false })} className="text-label-sm text-primary hover:underline">
+              Không có từ phù hợp? Thêm vào từ điển cá nhân
+            </button>
           )}
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-label-sm text-error">{error}</p>}
+      {personalForm && (
+        <form onSubmit={savePersonalEntry} className="mt-3 rounded-2xl bg-secondary-container/40 p-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {['surface', 'readingKana', 'readingRomaji', 'meaning'].map((field) => (
+              <input key={field} required={field !== 'readingRomaji'} value={personalForm[field]} onChange={(event) => setPersonalForm({ ...personalForm, [field]: event.target.value })} placeholder={field} className="rounded-lg border border-[#eadfd9] bg-white px-3 py-2 text-label-md" />
+            ))}
+          </div>
+          <button type="submit" className="mt-2 rounded-lg bg-primary px-3 py-2 text-label-sm text-on-primary">Lưu từ cá nhân</button>
+        </form>
+      )}
+      {error && <p className="mt-2 text-label-sm text-error">{error}</p>}
     </div>
   );
 }

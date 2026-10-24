@@ -26,8 +26,6 @@ export default function ExamBuilder() {
 
 {/*  Main Content Canvas (1440px Grid Standard Container)  */}
 <main className="flex-1 px-8 py-8 w-full max-w-[1440px] mx-auto space-y-7">
-<p role="status">Mục này chưa có dữ liệu.</p>
-
 {/*  Breadcrumbs & Status Bar  */}
 <div className="flex items-center justify-between">
 <div className="flex items-center gap-2 text-[12px] text-charcoal-muted">
@@ -35,19 +33,19 @@ export default function ExamBuilder() {
 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
 <a className="hover:text-brand transition-colors" href="#">Quản lý Khảo thí</a>
 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-<span className="text-charcoal font-semibold">—</span>
+<span className="text-charcoal font-semibold">Xây dựng Đề thi N3</span>
 </div>
 <div className="flex items-center gap-2 text-[12px] font-mono text-charcoal-muted">
-<span>Phiên bản ma trận: <strong>—</strong></span>
+<span>Phiên bản ma trận: <strong>JEES-2025.1</strong></span>
 <span>•</span>
-<span>—</span>
+<span>Cập nhật: Hôm nay 09:42</span>
 </div>
 </div>
 {/*  Master Header Hero Card  */}
 <div className="relative overflow-hidden rounded-2xl bg-surface border border-borderline p-7 shadow-card">
 {/*  Sakura Decorative Watermark  */}
 <div className="absolute right-10 -top-6 text-[110px] font-bold text-brand opacity-[0.04] pointer-events-none select-none font-sans">
-          —
+          桜試験
         </div>
 <div className="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-sakura-100/50 blur-3xl pointer-events-none"></div>
 <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
@@ -58,7 +56,7 @@ export default function ExamBuilder() {
               </span>
 <span className="w-1 h-1 rounded-full bg-borderline"></span>
 <span className="font-mono text-[12px] font-semibold text-charcoal-muted bg-canvas px-2 py-0.5 rounded border border-borderline">
-                —
+                ID: N3-EX-2025-005
               </span>
 <span className="w-1 h-1 rounded-full bg-borderline"></span>
 <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
@@ -67,9 +65,11 @@ export default function ExamBuilder() {
               </div>
 </div>
 <h1 className="text-[26px] font-extrabold text-charcoal tracking-tight flex items-center gap-2">
-              Thiết lập Đề thi thử JLPT N3 Đột Phá <span className="text-brand font-mono font-bold">—</span>
+              Thiết lập Đề thi thử JLPT N3 Đột Phá <span className="text-brand font-mono font-bold">#N3-EX-005</span>
 </h1>
-<p className="text-[14px] text-charcoal-muted leading-relaxed">—</p>
+<p className="text-[14px] text-charcoal-muted leading-relaxed">
+              Đề chuẩn hoá ma trận phân tầng năng lực theo khung khảo thí JEES (The Japan Educational Exchanges and Services) với thuật toán cân bằng độ khó đa thông số IRT Riki Haru v3.2.
+            </p>
 </div>
 {/*  Action Buttons  */}
 <div className="flex flex-wrap items-center gap-3 shrink-0 self-start xl:self-center">
@@ -99,8 +99,8 @@ export default function ExamBuilder() {
 </div>
 </div>
 <div className="my-3 flex items-baseline gap-1.5">
-<span className="text-[32px] font-extrabold text-charcoal tracking-tight">—</span>
-<span className="text-[13px] font-medium text-charcoal-muted">—</span>
+<span className="text-[32px] font-extrabold text-charcoal tracking-tight">140</span>
+<span className="text-[13px] font-medium text-charcoal-muted">phút (3 ca thi)</span>
 </div>
 <div className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-md w-fit">
 <span className="material-symbols-outlined text-[14px]">check_circle</span>
@@ -116,13 +116,13 @@ export default function ExamBuilder() {
 </div>
 </div>
 <div className="my-3 flex items-baseline gap-1.5">
-<span className="text-[32px] font-extrabold text-charcoal tracking-tight">—</span>
+<span className="text-[32px] font-extrabold text-charcoal tracking-tight">180</span>
 <span className="text-[13px] font-medium text-charcoal-muted">điểm chuẩn hóa</span>
 </div>
 <div className="text-[11px] text-charcoal-muted flex items-center gap-1">
 <span>Điểm sàn đỗ:</span>
-<strong className="text-charcoal font-bold">—</strong>
-<span className="text-[10px] text-charcoal-light">—</span>
+<strong className="text-charcoal font-bold">95/180</strong>
+<span className="text-[10px] text-charcoal-light">(Mỗi phần ≥ 19)</span>
 </div>
 </div>
 {/*  KPI 3  */}
@@ -134,12 +134,12 @@ export default function ExamBuilder() {
 </div>
 </div>
 <div className="my-3 flex items-baseline gap-1.5">
-<span className="text-[32px] font-extrabold text-charcoal tracking-tight">—</span>
+<span className="text-[32px] font-extrabold text-charcoal tracking-tight">102</span>
 <span className="text-[13px] font-medium text-charcoal-muted">câu hỏi khảo thí</span>
 </div>
 <div className="text-[11px] text-brand font-semibold flex items-center gap-1.5 bg-sakura-50 px-2.5 py-1 rounded-md w-fit">
 <span className="material-symbols-outlined text-[14px]">verified</span>
-<span>—</span>
+<span>Phủ 100% Mondai 1 - 5</span>
 </div>
 </div>
 {/*  KPI 4  */}
@@ -151,8 +151,8 @@ export default function ExamBuilder() {
 </div>
 </div>
 <div className="my-3 flex items-baseline gap-1.5">
-<span className="text-[32px] font-extrabold text-brand tracking-tight">—</span>
-<span className="text-[12px] font-mono text-charcoal-muted">—</span>
+<span className="text-[32px] font-extrabold text-brand tracking-tight">78.4%</span>
+<span className="text-[12px] font-mono text-charcoal-muted">(±1.8% dung sai)</span>
 </div>
 <div className="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
 <span className="material-symbols-outlined text-[14px] text-brand">auto_awesome</span>
@@ -166,11 +166,11 @@ export default function ExamBuilder() {
 <div className="flex items-center gap-2.5">
 <span className="w-2.5 h-6 rounded-full bg-brand"></span>
 <h2 className="text-[18px] font-bold text-charcoal">
-              Ma trận Cấu trúc Đề thi <span className="text-[14px] font-normal text-charcoal-muted">—</span>
+              Ma trận Cấu trúc Đề thi <span className="text-[14px] font-normal text-charcoal-muted">(JLPT N3 Examination Matrix)</span>
 </h2>
 </div>
 <span className="text-[12px] font-mono text-charcoal-muted bg-surface px-3 py-1 rounded-full border border-borderline">
-            —
+            Đồng bộ tự động với Ngân hàng câu hỏi v4.1
           </span>
 </div>
 {/*  3 Matrix Modules (3 Columns)  */}
@@ -181,15 +181,15 @@ export default function ExamBuilder() {
 <div className="p-5 bg-canvas border-b border-borderline flex items-center justify-between">
 <div className="flex items-center gap-3">
 <div className="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center font-bold text-[16px] shadow-sm">
-                  —
+                  一
                 </div>
 <div>
-<span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">—</span>
-<h3 className="text-[16px] font-extrabold text-charcoal">—</h3>
+<span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">Phần 1: Kiến thức ngôn ngữ</span>
+<h3 className="text-[16px] font-extrabold text-charcoal">文字・語彙・文法</h3>
 </div>
 </div>
 <span className="px-2.5 py-1 rounded-full bg-sakura-100 border border-sakura-200 text-brand font-mono text-[12px] font-bold">
-                —
+                60 Điểm
               </span>
 </div>
 {/*  Body Content  */}
@@ -197,15 +197,15 @@ export default function ExamBuilder() {
 <div className="space-y-2.5">
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">schedule</span> Thời gian làm bài</span>
-<span className="font-bold text-charcoal font-mono">—</span>
+<span className="font-bold text-charcoal font-mono">30 phút</span>
 </div>
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">quiz</span> Số lượng câu hỏi</span>
-<span className="font-bold text-charcoal">—</span>
+<span className="font-bold text-charcoal">35 câu (Mondai 1 → 5)</span>
 </div>
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">equalizer</span> Độ khó mục tiêu</span>
-<span className="px-2 py-0.5 rounded bg-canvas border border-borderline text-charcoal text-[11px] font-semibold">—</span>
+<span className="px-2 py-0.5 rounded bg-canvas border border-borderline text-charcoal text-[11px] font-semibold">Trung bình khá (0.62)</span>
 </div>
 {/*  Weight distribution bars  */}
 <div className="pt-2">
@@ -213,29 +213,29 @@ export default function ExamBuilder() {
 <div className="space-y-2">
 <div>
 <div className="flex justify-between text-[11px] text-charcoal mb-1">
-<span>—</span>
-<span className="font-mono font-bold text-brand">—</span>
+<span>Cách đọc Kanji & Đổi chữ Hán (Mondai 1-2)</span>
+<span className="font-mono font-bold text-brand">14 câu</span>
 </div>
 <div className="w-full h-1.5 bg-canvas rounded-full overflow-hidden border border-borderline/50">
-<div className="h-full bg-brand rounded-full" style={{ width: "0%" }}></div>
+<div className="h-full bg-brand rounded-full" style={{ width: "40%" }}></div>
 </div>
 </div>
 <div>
 <div className="flex justify-between text-[11px] text-charcoal mb-1">
-<span>—</span>
-<span className="font-mono font-bold text-brand">—</span>
+<span>Cấu tạo từ vựng & Ngữ cảnh (Mondai 3-4)</span>
+<span className="font-mono font-bold text-brand">11 câu</span>
 </div>
 <div className="w-full h-1.5 bg-canvas rounded-full overflow-hidden border border-borderline/50">
-<div className="h-full bg-sakura-300 rounded-full" style={{ width: "0%" }}></div>
+<div className="h-full bg-sakura-300 rounded-full" style={{ width: "32%" }}></div>
 </div>
 </div>
 <div>
 <div className="flex justify-between text-[11px] text-charcoal mb-1">
-<span>—</span>
-<span className="font-mono font-bold text-brand">—</span>
+<span>Ngữ nghĩa gần nhất & Ngữ cảnh dùng từ (M5)</span>
+<span className="font-mono font-bold text-brand">10 câu</span>
 </div>
 <div className="w-full h-1.5 bg-canvas rounded-full overflow-hidden border border-borderline/50">
-<div className="h-full bg-sakura-200 rounded-full" style={{ width: "0%" }}></div>
+<div className="h-full bg-sakura-200 rounded-full" style={{ width: "28%" }}></div>
 </div>
 </div>
 </div>
@@ -244,7 +244,7 @@ export default function ExamBuilder() {
 {/*  Module Footer  */}
 <div className="pt-4 border-t border-borderline flex items-center justify-between">
 <span className="text-[12px] text-emerald-600 font-semibold flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px]">check_circle</span> —
+<span className="material-symbols-outlined text-[16px]">check_circle</span> Đã thẩm định 35/35
                 </span>
 <button className="px-3 py-1.5 rounded-lg bg-sakura-50 hover:bg-sakura-100 text-brand text-[12px] font-bold transition-colors">
                   Chỉnh sửa chi tiết
@@ -258,15 +258,15 @@ export default function ExamBuilder() {
 <div className="p-5 bg-canvas border-b border-borderline flex items-center justify-between">
 <div className="flex items-center gap-3">
 <div className="w-10 h-10 rounded-xl bg-charcoal text-white flex items-center justify-center font-bold text-[16px] shadow-sm">
-                  —
+                  二
                 </div>
 <div>
-<span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">—</span>
-<h3 className="text-[16px] font-extrabold text-charcoal">—</h3>
+<span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">Phần 2: Đọc hiểu Dokkai</span>
+<h3 className="text-[16px] font-extrabold text-charcoal">読解 (Dokkai)</h3>
 </div>
 </div>
 <span className="px-2.5 py-1 rounded-full bg-sakura-100 border border-sakura-200 text-brand font-mono text-[12px] font-bold">
-                —
+                60 Điểm
               </span>
 </div>
 {/*  Body Content  */}
@@ -274,11 +274,11 @@ export default function ExamBuilder() {
 <div className="space-y-2.5">
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">schedule</span> Thời gian làm bài</span>
-<span className="font-bold text-charcoal font-mono">—</span>
+<span className="font-bold text-charcoal font-mono">70 phút</span>
 </div>
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">menu_book</span> Quy cách bài đọc</span>
-<span className="font-bold text-charcoal">—</span>
+<span className="font-bold text-charcoal">16 văn bản khảo sát</span>
 </div>
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">topic</span> Chủ đề văn bản</span>
@@ -289,16 +289,16 @@ export default function ExamBuilder() {
 <div className="text-[11px] font-bold uppercase tracking-wider text-charcoal-light mb-2">Cấu trúc độ dài văn bản</div>
 <div className="space-y-1.5">
 <div className="flex items-center justify-between p-2 rounded-lg bg-canvas border border-borderline/70 text-[12px]">
-<span className="text-charcoal">—</span>
-<span className="font-mono text-brand font-bold">—</span>
+<span className="text-charcoal">Đoản văn (150-200 từ)</span>
+<span className="font-mono text-brand font-bold">4 bài (4 câu)</span>
 </div>
 <div className="flex items-center justify-between p-2 rounded-lg bg-canvas border border-borderline/70 text-[12px]">
-<span className="text-charcoal">—</span>
-<span className="font-mono text-brand font-bold">—</span>
+<span className="text-charcoal">Trung văn Ikebana (350 từ)</span>
+<span className="font-mono text-brand font-bold">2 bài (6 câu)</span>
 </div>
 <div className="flex items-center justify-between p-2 rounded-lg bg-canvas border border-borderline/70 text-[12px]">
 <span className="text-charcoal">Trường văn & Tra cứu thông tin</span>
-<span className="font-mono text-brand font-bold">—</span>
+<span className="font-mono text-brand font-bold">2 bài (6 câu)</span>
 </div>
 </div>
 </div>
@@ -320,15 +320,15 @@ export default function ExamBuilder() {
 <div className="p-5 bg-canvas border-b border-borderline flex items-center justify-between">
 <div className="flex items-center gap-3">
 <div className="w-10 h-10 rounded-xl bg-sakura-300 text-white flex items-center justify-center font-bold text-[16px] shadow-sm">
-                  —
+                  三
                 </div>
 <div>
-<span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">—</span>
-<h3 className="text-[16px] font-extrabold text-charcoal">—</h3>
+<span className="text-[11px] font-bold uppercase tracking-wider text-charcoal-muted">Phần 3: Nghe hiểu Choukai</span>
+<h3 className="text-[16px] font-extrabold text-charcoal">聴解 (Choukai)</h3>
 </div>
 </div>
 <span className="px-2.5 py-1 rounded-full bg-sakura-100 border border-sakura-200 text-brand font-mono text-[12px] font-bold">
-                —
+                60 Điểm
               </span>
 </div>
 {/*  Body Content  */}
@@ -336,7 +336,7 @@ export default function ExamBuilder() {
 <div className="space-y-2.5">
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">schedule</span> Thời lượng ghi âm</span>
-<span className="font-bold text-charcoal font-mono">—</span>
+<span className="font-bold text-charcoal font-mono">40 phút (Không pause)</span>
 </div>
 <div className="flex items-center justify-between text-[13px] text-charcoal-muted pb-1.5 border-b border-borderline/60">
 <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-brand">mic</span> Tiêu chuẩn Audio</span>
@@ -355,25 +355,25 @@ export default function ExamBuilder() {
 </button>
 <div className="flex-1 min-w-0">
 <div className="flex justify-between font-mono text-[11px] text-charcoal-muted mb-1">
-<span className="truncate font-medium">—</span>
-<span className="text-brand font-semibold">—</span>
+<span className="truncate font-medium">N3_Choukai_Master_Final.flac</span>
+<span className="text-brand font-semibold">40:18</span>
 </div>
 <div className="w-full h-1.5 bg-borderline rounded-full overflow-hidden">
-<div className="h-full bg-brand rounded-full" style={{ width: "0%" }}></div>
+<div className="h-full bg-brand rounded-full" style={{ width: "42%" }}></div>
 </div>
 </div>
 </div>
 <div className="flex justify-between text-[10px] text-charcoal-muted px-1">
-<span>—</span>
-<span>—</span>
-<span>—</span>
+<span>M1: Trọng tâm</span>
+<span>M2: Tóm lược</span>
+<span>M3: Phản xạ nhanh</span>
 </div>
 </div>
 </div>
 {/*  Module Footer  */}
 <div className="pt-4 border-t border-borderline flex items-center justify-between">
 <span className="text-[12px] text-emerald-600 font-semibold flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px]">graphic_eq</span> —
+<span className="material-symbols-outlined text-[16px]">graphic_eq</span> 48kHz / 24bit Hi-Res
                 </span>
 <button className="px-3 py-1.5 rounded-lg bg-sakura-50 hover:bg-sakura-100 text-brand text-[12px] font-bold transition-colors">
                   Kiểm tra âm thanh
@@ -394,7 +394,7 @@ export default function ExamBuilder() {
 </div>
 <div>
 <h3 className="text-[16px] font-bold text-charcoal">Cấu hình Khảo thí & Công nghệ Phòng thi</h3>
-<span className="text-[12px] text-charcoal-muted">—</span>
+<span className="text-[12px] text-charcoal-muted">Chế độ kiểm định tiêu chuẩn kỳ thi thật</span>
 </div>
 </div>
 <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
@@ -412,14 +412,16 @@ export default function ExamBuilder() {
 </div>
 <div className="space-y-0.5">
 <div className="flex items-center gap-2">
-<span className="text-[13px] font-bold text-charcoal">—</span>
+<span className="text-[13px] font-bold text-charcoal">Thuật toán Riki Haru AI Scaled Scoring (IRT)</span>
 <span className="px-1.5 py-0.2 rounded bg-sakura-200 text-sakura-900 text-[10px] font-bold font-mono uppercase">Độc quyền</span>
 </div>
-<p className="text-[12px] text-charcoal-muted leading-relaxed">—</p>
+<p className="text-[12px] text-charcoal-muted leading-relaxed">
+                    Mô phỏng chính xác thang điểm Scaled Score (Item Response Theory) của JEES thay vì cách tính điểm thô thông thường (Raw Score).
+                  </p>
 </div>
 </div>
 <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-<input disabled className="sr-only peer" type="checkbox" />
+<input checked className="sr-only peer" type="checkbox" />
 <div className="w-10 h-5.5 bg-borderline peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-brand"></div>
 </label>
 </div>
@@ -430,12 +432,14 @@ export default function ExamBuilder() {
 <span className="material-symbols-outlined text-[18px]">av_timer</span>
 </div>
 <div className="space-y-0.5">
-<span className="text-[13px] font-bold text-charcoal">—</span>
-<p className="text-[12px] text-charcoal-muted leading-relaxed">—</p>
+<span className="text-[13px] font-bold text-charcoal">Đồng hồ đếm ngược nghiêm ngặt & Tự động nộp bài</span>
+<p className="text-[12px] text-charcoal-muted leading-relaxed">
+                    Khóa bài thi tức thì khi hết 140 phút, đồng bộ thời gian từ máy chủ NTP chống can thiệp đồng hồ thiết bị học viên.
+                  </p>
 </div>
 </div>
 <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-<input disabled className="sr-only peer" type="checkbox" />
+<input checked className="sr-only peer" type="checkbox" />
 <div className="w-10 h-5.5 bg-borderline peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-brand"></div>
 </label>
 </div>
@@ -446,12 +450,14 @@ export default function ExamBuilder() {
 <span className="material-symbols-outlined text-[18px]">insights</span>
 </div>
 <div className="space-y-0.5">
-<span className="text-[13px] font-bold text-charcoal">—</span>
-<p className="text-[12px] text-charcoal-muted leading-relaxed">—</p>
+<span className="text-[13px] font-bold text-charcoal">Phân tích chuyên sâu & Gợi ý lộ trình bù khuyết điểm</span>
+<p className="text-[12px] text-charcoal-muted leading-relaxed">
+                    Hiển thị lời giải thích ngữ pháp, từ điển ngữ cảnh và tự động sinh lộ trình học cá nhân hóa 7 ngày cho các phần bị mất điểm.
+                  </p>
 </div>
 </div>
 <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-<input disabled className="sr-only peer" type="checkbox" />
+<input checked className="sr-only peer" type="checkbox" />
 <div className="w-10 h-5.5 bg-borderline peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-brand"></div>
 </label>
 </div>
@@ -462,12 +468,14 @@ export default function ExamBuilder() {
 <span className="material-symbols-outlined text-[18px]">shuffle</span>
 </div>
 <div className="space-y-0.5">
-<span className="text-[13px] font-bold text-charcoal">—</span>
-<p className="text-[12px] text-charcoal-muted leading-relaxed">—</p>
+<span className="text-[13px] font-bold text-charcoal">Xáo trộn ngẫu nhiên thứ tự đáp án (A-B-C-D)</span>
+<p className="text-[12px] text-charcoal-muted leading-relaxed">
+                    Giữ nguyên cấu trúc ngữ cảnh bài đọc nhưng đảo ngẫu nhiên vị trí đáp án để ngăn chặn hành vi chia sẻ bài giải trực tiếp.
+                  </p>
 </div>
 </div>
 <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-<input disabled className="sr-only peer" type="checkbox" />
+<input checked className="sr-only peer" type="checkbox" />
 <div className="w-10 h-5.5 bg-borderline peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-brand"></div>
 </label>
 </div>
@@ -478,10 +486,12 @@ export default function ExamBuilder() {
 <div className="space-y-1">
 <div className="flex items-center justify-between">
 <span className="text-[11px] font-bold uppercase tracking-wider text-brand">Mô phỏng Phân phối Điểm</span>
-<span className="text-[11px] font-mono text-charcoal-light bg-canvas px-2 py-0.5 rounded border border-borderline">—</span>
+<span className="text-[11px] font-mono text-charcoal-light bg-canvas px-2 py-0.5 rounded border border-borderline">v3.2 Gaussian IRT</span>
 </div>
 <h4 className="text-[16px] font-bold text-charcoal">Đường cong Phân hóa Năng lực</h4>
-<p className="text-[12px] text-charcoal-muted">—</p>
+<p className="text-[12px] text-charcoal-muted">
+              Dựa trên tập dữ liệu chuẩn hoá từ 54,000+ sĩ tử tại các kỳ thi chính thức JEES 2021-2024.
+            </p>
 </div>
 {/*  Curve Graphic Box  */}
 <div className="p-4 rounded-xl bg-canvas border border-borderline flex flex-col items-center">
@@ -490,24 +500,24 @@ export default function ExamBuilder() {
 <svg className="w-full h-full text-brand" fill="none" preserveAspectRatio="none" viewBox="0 0 320 120">
 <defs>
 <linearGradient id="neoSakuraGrad" x1="0" x2="0" y1="0" y2="1">
-<stop offset="0%" stopColor="#E05A7A" stopOpacity="0.25"></stop>
-<stop offset="100%" stopColor="#E05A7A" stopOpacity="0.0"></stop>
+<stop offset="0%" stop-color="#E05A7A" stop-opacity="0.25"></stop>
+<stop offset="100%" stop-color="#E05A7A" stop-opacity="0.0"></stop>
 </linearGradient>
 </defs>
-<path d="" fill="none" stroke="#E05A7A" strokeWidth="2.5"></path>
-<path d="" fill="url(#neoSakuraGrad)"></path>
+<path d="M 0 115 Q 80 112 115 70 Q 160 10 205 70 Q 240 112 320 115" fill="none" stroke="#E05A7A" strokeWidth="2.5"></path>
+<path d="M 0 115 Q 80 112 115 70 Q 160 10 205 70 Q 240 112 320 115 L 320 120 L 0 120 Z" fill="url(#neoSakuraGrad)"></path>
 {/*  Cut-off Line: 95 Passing score  */}
-<line stroke="#059669" strokeDasharray="3 3" strokeWidth="1.8" x1="175" x2="175" y1="12" y2="120"></line>
+<line stroke="#059669" stroke-dasharray="3 3" strokeWidth="1.8" x1="175" x2="175" y1="12" y2="120"></line>
 </svg>
 {/*  Floating Benchmark Badge  */}
 <div className="absolute top-2 left-[55%] -translate-x-1/2 px-2.5 py-1 rounded bg-emerald-600 text-white font-mono text-[10px] font-bold shadow-sm">
-                —
+                Điểm Đỗ: 95/180
               </div>
 </div>
 <div className="w-full flex justify-between font-mono text-[11px] text-charcoal-muted pt-2 border-t border-borderline/60 mt-1">
-<span>—</span>
-<span className="font-bold text-charcoal">—</span>
-<span>—</span>
+<span>0 (Cực khó)</span>
+<span className="font-bold text-charcoal">Điểm TB: 108</span>
+<span>180 (Hoàn hảo)</span>
 </div>
 </div>
 {/*  AI Expert Recommendation Card  */}
@@ -516,7 +526,7 @@ export default function ExamBuilder() {
 <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
 </div>
 <div className="text-[12px] text-charcoal leading-relaxed">
-<strong className="font-bold text-brand">Khuyến nghị Ban Chuyên môn:</strong> —
+<strong className="font-bold text-brand">Khuyến nghị Ban Chuyên môn:</strong> Tăng tỷ lệ bẫy liên từ ở Mondai 3 để nâng hệ số phân hóa học viên giỏi đạt mức kỳ vọng 78.4%.
             </div>
 </div>
 </div>
@@ -527,9 +537,9 @@ export default function ExamBuilder() {
 <div>
 <div className="flex items-center gap-2.5">
 <h3 className="text-[18px] font-bold text-charcoal">Đề thi Đột Phá đã Phát hành</h3>
-<span className="px-2.5 py-0.5 rounded-full bg-sakura-100 border border-sakura-200 text-brand font-mono text-[11px] font-bold">—</span>
+<span className="px-2.5 py-0.5 rounded-full bg-sakura-100 border border-sakura-200 text-brand font-mono text-[11px] font-bold">Series N3</span>
 </div>
-<p className="text-[12px] text-charcoal-muted mt-0.5">—</p>
+<p className="text-[12px] text-charcoal-muted mt-0.5">Bảng giám sát thống kê lượt thi trực tiếp từ hệ thống phòng thi ảo</p>
 </div>
 {/*  Controls  */}
 <div className="flex items-center gap-2">
@@ -560,15 +570,168 @@ export default function ExamBuilder() {
 <th className="py-3 px-4 rounded-r-lg text-right">Thao tác</th>
 </tr>
 </thead>
-<tbody className="divide-y divide-borderline/60 text-[13px]"><tr><td colSpan={20} className="p-6 text-center">—</td></tr></tbody>
+<tbody className="divide-y divide-borderline/60 text-[13px]">
+{/*  Row 1  */}
+<tr className="hover:bg-canvas/60 transition-colors">
+<td className="py-4 px-4">
+<div className="flex items-center gap-3">
+<div className="w-9 h-9 rounded-xl bg-sakura-100 text-brand border border-sakura-200 flex items-center justify-center font-mono font-bold text-[13px]">
+                      04
+                    </div>
+<div className="flex flex-col">
+<span className="font-bold text-charcoal hover:text-brand transition-colors cursor-pointer">Đề thi Đột Phá N3 #N3-EX-004 (Bản chuẩn)</span>
+<span className="text-[11px] font-mono text-charcoal-muted">Xuất bản: 15/02/2025 • Chuẩn JEES Tokyo</span>
+</div>
+</div>
+</td>
+<td className="py-4 px-4 font-mono text-[13px] text-charcoal-muted">140 phút</td>
+<td className="py-4 px-4">
+<div className="flex flex-col">
+<span className="font-bold text-charcoal font-mono">54,120</span>
+<span className="text-[11px] text-emerald-600 font-semibold">Đã hoàn thành</span>
+</div>
+</td>
+<td className="py-4 px-4">
+<div className="flex items-baseline gap-1">
+<span className="font-bold text-charcoal font-mono text-[14px]">108.4</span>
+<span className="text-[11px] text-charcoal-light">/ 180</span>
+</div>
+</td>
+<td className="py-4 px-4">
+<div className="flex items-center gap-2.5">
+<span className="font-bold text-emerald-600 font-mono text-[13px]">72.6%</span>
+<div className="w-20 h-2 bg-canvas border border-borderline rounded-full overflow-hidden">
+<div className="h-full bg-emerald-500 rounded-full" style={{ width: "72.6%" }}></div>
+</div>
+</div>
+</td>
+<td className="py-4 px-4">
+<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Đang mở tự do
+                  </span>
+</td>
+<td className="py-4 px-4 text-right">
+<div className="flex items-center justify-end gap-1">
+<button className="p-1.5 rounded-lg hover:bg-canvas text-charcoal-muted hover:text-brand transition-colors" title="Báo cáo chi tiết">
+<span className="material-symbols-outlined text-[18px]">analytics</span>
+</button>
+<button className="p-1.5 rounded-lg hover:bg-canvas text-charcoal-muted hover:text-brand transition-colors" title="Chỉnh sửa đề thi">
+<span className="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+{/*  Row 2  */}
+<tr className="hover:bg-canvas/60 transition-colors">
+<td className="py-4 px-4">
+<div className="flex items-center gap-3">
+<div className="w-9 h-9 rounded-xl bg-canvas text-charcoal-muted border border-borderline flex items-center justify-center font-mono font-bold text-[13px]">
+                      03
+                    </div>
+<div className="flex flex-col">
+<span className="font-bold text-charcoal hover:text-brand transition-colors cursor-pointer">Đề thi Đột Phá N3 #N3-EX-003 (Tập trung Dokkai)</span>
+<span className="text-[11px] font-mono text-charcoal-muted">Xuất bản: 10/01/2025 • Đề phân hóa</span>
+</div>
+</div>
+</td>
+<td className="py-4 px-4 font-mono text-[13px] text-charcoal-muted">140 phút</td>
+<td className="py-4 px-4">
+<div className="flex flex-col">
+<span className="font-bold text-charcoal font-mono">48,930</span>
+<span className="text-[11px] text-emerald-600 font-semibold">Đã hoàn thành</span>
+</div>
+</td>
+<td className="py-4 px-4">
+<div className="flex items-baseline gap-1">
+<span className="font-bold text-charcoal font-mono text-[14px]">102.1</span>
+<span className="text-[11px] text-charcoal-light">/ 180</span>
+</div>
+</td>
+<td className="py-4 px-4">
+<div className="flex items-center gap-2.5">
+<span className="font-bold text-brand font-mono text-[13px]">64.8%</span>
+<div className="w-20 h-2 bg-canvas border border-borderline rounded-full overflow-hidden">
+<div className="h-full bg-brand rounded-full" style={{ width: "64.8%" }}></div>
+</div>
+</div>
+</td>
+<td className="py-4 px-4">
+<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-canvas text-charcoal-muted border border-borderline text-[11px] font-semibold">
+                    Đóng lượt mới
+                  </span>
+</td>
+<td className="py-4 px-4 text-right">
+<div className="flex items-center justify-end gap-1">
+<button className="p-1.5 rounded-lg hover:bg-canvas text-charcoal-muted hover:text-brand transition-colors" title="Báo cáo chi tiết">
+<span className="material-symbols-outlined text-[18px]">analytics</span>
+</button>
+<button className="p-1.5 rounded-lg hover:bg-canvas text-charcoal-muted hover:text-brand transition-colors" title="Chỉnh sửa đề thi">
+<span className="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+{/*  Row 3  */}
+<tr className="hover:bg-canvas/60 transition-colors">
+<td className="py-4 px-4">
+<div className="flex items-center gap-3">
+<div className="w-9 h-9 rounded-xl bg-sakura-100 text-brand border border-sakura-200 flex items-center justify-center font-mono font-bold text-[13px]">
+                      02
+                    </div>
+<div className="flex flex-col">
+<span className="font-bold text-charcoal hover:text-brand transition-colors cursor-pointer">Đề thi Đột Phá N3 #N3-EX-002 (Bẫy Choukai & Moji)</span>
+<span className="text-[11px] font-mono text-charcoal-muted">Xuất bản: 12/12/2024 • Chuẩn JEES Tokyo</span>
+</div>
+</div>
+</td>
+<td className="py-4 px-4 font-mono text-[13px] text-charcoal-muted">140 phút</td>
+<td className="py-4 px-4">
+<div className="flex flex-col">
+<span className="font-bold text-charcoal font-mono">61,400</span>
+<span className="text-[11px] text-emerald-600 font-semibold">Đã hoàn thành</span>
+</div>
+</td>
+<td className="py-4 px-4">
+<div className="flex items-baseline gap-1">
+<span className="font-bold text-charcoal font-mono text-[14px]">111.5</span>
+<span className="text-[11px] text-charcoal-light">/ 180</span>
+</div>
+</td>
+<td className="py-4 px-4">
+<div className="flex items-center gap-2.5">
+<span className="font-bold text-emerald-600 font-mono text-[13px]">75.2%</span>
+<div className="w-20 h-2 bg-canvas border border-borderline rounded-full overflow-hidden">
+<div className="h-full bg-emerald-500 rounded-full" style={{ width: "75.2%" }}></div>
+</div>
+</div>
+</td>
+<td className="py-4 px-4">
+<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Đang mở tự do
+                  </span>
+</td>
+<td className="py-4 px-4 text-right">
+<div className="flex items-center justify-end gap-1">
+<button className="p-1.5 rounded-lg hover:bg-canvas text-charcoal-muted hover:text-brand transition-colors" title="Báo cáo chi tiết">
+<span className="material-symbols-outlined text-[18px]">analytics</span>
+</button>
+<button className="p-1.5 rounded-lg hover:bg-canvas text-charcoal-muted hover:text-brand transition-colors" title="Chỉnh sửa đề thi">
+<span className="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
 </table>
 </div>
 {/*  Pagination & Summary  */}
 <Pagination
   currentPage={examPage}
-  totalPages={1}
+  totalPages={Math.ceil(18 / examPageSize)}
   pageSize={examPageSize}
-  totalItems={0}
+  totalItems={18}
   onPageChange={setExamPage}
   onPageSizeChange={setExamPageSize}
   pageSizeOptions={[5, 10, 20]}
@@ -582,7 +745,7 @@ export default function ExamBuilder() {
 
 
     </div>
-
+  
 </CmsShell>
 );
 }

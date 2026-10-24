@@ -23,8 +23,8 @@ export default function NotificationPopover() {
     const markAllAsReadMutation = useMarkAllAsReadMutation();
 
     const notifications = notificationsData?.items || (Array.isArray(notificationsData) ? notificationsData : []);
-    const unreadCount = typeof unreadData === 'number'
-        ? unreadData
+    const unreadCount = typeof unreadData === 'number' 
+        ? unreadData 
         : (unreadData?.count ?? unreadData?.unreadCount ?? 0);
 
     // Đóng popover khi click ra ngoài

@@ -10,3 +10,6 @@ export async function searchJapaneseDictionary(readingKana) {
   }));
 }
 
+export async function addPersonalDictionaryEntry(entry) {
+  return result(await api.post('/japanese-dictionary/personal', entry));
+}

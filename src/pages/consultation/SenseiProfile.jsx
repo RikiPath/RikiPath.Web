@@ -1,9 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
 
-const SLOTS = [];
+const SLOTS = [
+  { day: 'Thứ 3', time: '14:00–14:45', open: true },
+  { day: 'Thứ 5', time: '10:00–10:45', open: true },
+  { day: 'Thứ 6', time: '19:30–20:15', open: false },
+];
 
-const REVIEWS = [];
+const REVIEWS = [
+  { name: 'Lan Anh', text: 'Sato-sensei giải Dokkai rất rõ — mình tăng 8 điểm phần đọc sau 3 buổi.', rating: 5 },
+  { name: 'Minh Đức', text: 'Chuẩn bị phiếu trước buổi rất kỹ, không mất thời gian hỏi lại ngữ cảnh.', rating: 5 },
+];
 
 export default function SenseiProfile() {
   const { pathname } = useLocation();
@@ -20,22 +27,22 @@ export default function SenseiProfile() {
           <div className="px-6 pb-8 sm:px-8">
             <div className="-mt-12 flex flex-col gap-5 sm:flex-row sm:items-end">
               <img
-                alt="Chưa có ảnh Mentor"
-
+                alt="Sensei Sato"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1rEBdofcr03ICOlXMbZQ4R1Alv6h6k77VqNg6kujnfyZ-g_Pz6-9dozYx4IlkBPcj7TZ-zEN921FtO4lzoYhOg0BYZMelBGE9VnH15zF0uax1pAasZx8SQpt0f8sf8s6GTEWBaWHUFhmtsaOghGa-XxKfLxvfAP5DYzIQhq4fJFZwJTAUoNSvmVe9qoutTzB3WCttq42EMyKQubCyCfQ1cf5SyO3pdHq6ITeXcThHJC9ePbaL2ROl2Q"
                 className="h-24 w-24 rounded-2xl border-4 border-white object-cover shadow-md"
-               src="/empty-avatar.svg" />
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold">—</h1>
-                  <span className="rounded-full bg-[#FFF0F5] px-2.5 py-0.5 text-[11px] font-bold text-[#9E2A4B]">—</span>
+                  <h1 className="text-2xl font-bold">Sensei Sato</h1>
+                  <span className="rounded-full bg-[#FFF0F5] px-2.5 py-0.5 text-[11px] font-bold text-[#9E2A4B]">JLPT N1 · Tokyo</span>
                 </div>
-                <p className="mt-1 text-sm text-[#6F6669]">Mục này chưa có dữ liệu.</p>
+                <p className="mt-1 text-sm text-[#6F6669]">Ngữ pháp &amp; Đọc hiểu · 8 năm đồng hành N3–N2</p>
                 <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold text-[#6F6669]">
                   <span className="inline-flex items-center gap-1 text-amber-600">
-                    <span className="material-symbols-outlined text-[16px]">star</span> —
+                    <span className="material-symbols-outlined text-[16px]">star</span> 4.9 · 112 đánh giá
                   </span>
-                  <span>—</span>
-                  <span>—</span>
+                  <span>312 buổi hoàn thành</span>
+                  <span>Phản hồi trung bình 6 giờ</span>
                 </div>
               </div>
               <Link
@@ -52,7 +59,11 @@ export default function SenseiProfile() {
           <div className="space-y-6 lg:col-span-7">
             <section className="rounded-2xl border border-[#eadfd9] bg-white p-6">
               <h2 className="text-lg font-bold">Giới thiệu</h2>
-              <p className="mt-3 text-sm leading-relaxed text-[#6F6669]">—</p>
+              <p className="mt-3 text-sm leading-relaxed text-[#6F6669]">
+                Từng giảng tại Shinjuku Campus, Sato-sensei tập trung vào chiến lược Dokkai: quét từ khóa,
+                bỏ bẫy phủ định kép, và lập thứ tự làm bài trong 70 phút. Mỗi buổi có phiếu chuẩn bị trước
+                và ghi chú sau buổi gửi vào sổ học viên.
+              </p>
               <ul className="mt-4 space-y-2 text-sm text-on-surface">
                 {['Chữa đề JEES 2022–2024', 'Lộ trình N3 → N2 16 tuần', 'Sửa 10 câu viết / buổi'].map((item) => (
                   <li key={item} className="flex items-center gap-2">
@@ -65,8 +76,11 @@ export default function SenseiProfile() {
             <section className="rounded-2xl border border-[#eadfd9] bg-white p-6">
               <h2 className="text-lg font-bold">Học viên nói gì</h2>
               <div className="mt-4 space-y-4">
-                {REVIEWS.length === 0 && <p>—</p>}{REVIEWS.map((r) => (
-                  <blockquote key={r.name} className="rounded-xl bg-[#FFF8F8] p-4">—</blockquote>
+                {REVIEWS.map((r) => (
+                  <blockquote key={r.name} className="rounded-xl bg-[#FFF8F8] p-4">
+                    <p className="text-sm leading-relaxed text-on-surface">“{r.text}”</p>
+                    <footer className="mt-2 text-xs font-semibold text-[#9E2A4B]">{r.name} · {'★'.repeat(r.rating)}</footer>
+                  </blockquote>
                 ))}
               </div>
             </section>
@@ -75,7 +89,7 @@ export default function SenseiProfile() {
             <section className="rounded-2xl border border-[#eadfd9] bg-white p-6">
               <h2 className="text-lg font-bold">Khung giờ gần nhất</h2>
               <ul className="mt-4 space-y-2">
-                {SLOTS.length === 0 && <p>—</p>}{SLOTS.map((s) => (
+                {SLOTS.map((s) => (
                   <li
                     key={`${s.day}${s.time}`}
                     className="flex items-center justify-between rounded-xl border border-[#eadfd9] px-3 py-2.5 text-sm"

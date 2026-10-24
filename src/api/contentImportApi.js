@@ -11,8 +11,8 @@ export const CONTENT_IMPORT_TYPES = [
 
 /**
  * Preview content import Excel file before committing changes.
- * @param {File|Blob} file
- * @param {string} [entityType]
+ * @param {File|Blob} file 
+ * @param {string} [entityType] 
  * @returns {Promise<any>}
  */
 export async function previewContentImport(file, entityType) {

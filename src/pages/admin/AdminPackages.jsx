@@ -51,7 +51,7 @@ export default function AdminPackages() {
     name: '',
     description: '',
     type: 'Meeting',
-    price: '',
+    price: 150000,
     durationMinutes: 45,
   });
 
@@ -60,7 +60,7 @@ export default function AdminPackages() {
   const [editPackageForm, setEditPackageForm] = useState({
     name: '',
     description: '',
-    price: '',
+    price: 150000,
     durationMinutes: 45,
   });
 
@@ -126,7 +126,7 @@ export default function AdminPackages() {
         name: '',
         description: '',
         type: 'Meeting',
-        price: '',
+        price: 150000,
         durationMinutes: 45,
       });
       fetchPackagesList();

@@ -9,7 +9,11 @@ export const FEATURES = {
     tryTo: '/lesson-player',
     tryLabel: 'Mở bài shadowing mẫu',
     lead: 'Rèn ngữ điệu, ngắt câu và pitch theo giọng phát thanh viên NHK — phản xạ nói tự nhiên thay vì đọc từng từ.',
-    stats: [],
+    stats: [
+      { k: '15 câu', v: 'mỗi phiên luyện' },
+      { k: 'NHK', v: 'mẫu ngữ điệu chuẩn' },
+      { k: '4 tốc độ', v: 'chậm → bản xứ' },
+    ],
     steps: [
       { t: 'Nghe mẫu', d: 'Câu thoại công sở / tin ngắn, waveform và dấu ngắt hơi hiện sẵn.' },
       { t: 'Nói chồng giọng', d: 'Thu âm cùng lúc với bản gốc, giữ nhịp chứ không dịch trong đầu.' },
@@ -20,7 +24,11 @@ export const FEATURES = {
       'Luyện kaiwa công sở và phỏng vấn Tokutei',
       'Đồng bộ với bài ngữ pháp đang học trên lộ trình',
     ],
-    demo: { title: 'Mục này chưa có dữ liệu.', line: '', note: '' },
+    demo: {
+      title: 'Phiên mẫu · Bài 15',
+      line: '今、電話をかけてもいいですか。',
+      note: 'Ngắt hơi sau 「今」、pitch rơi ở 「でんわ」。',
+    },
   },
   'ai-scoring': {
     slug: 'ai-scoring',
@@ -32,7 +40,11 @@ export const FEATURES = {
     tryTo: '/ai-scoring',
     tryLabel: 'Xem phiếu chấm mẫu',
     lead: 'Thuật toán phân tích Pitch Accent, lỗi âm tiết và dự báo điểm JLPT theo tuần — không chờ đến ngày thi thử.',
-    stats: [],
+    stats: [
+      { k: 'Pitch', v: 'từng mora' },
+      { k: '±4 điểm', v: 'dự báo mock N3' },
+      { k: '< 0.8s', v: 'phản hồi câu viết' },
+    ],
     steps: [
       { t: 'Nộp bài', d: 'Ghi âm, viết câu hoặc làm mini-test trong studio.' },
       { t: 'Haru chấm', d: 'Tách lỗi ngữ pháp, từ vựng và phát âm; gắn gợi ý sửa.' },
@@ -43,7 +55,11 @@ export const FEATURES = {
       'Biểu đồ quên lãng gắn với điểm yếu thật',
       'Chia sẻ phiếu cho Sensei 1-kèm-1 trước buổi học',
     ],
-    demo: { title: 'Mục này chưa có dữ liệu.', line: '', note: '' },
+    demo: {
+      title: 'Phiếu chấm · 経験',
+      line: 'Pitch け↘いけん · Mora 3 ổn, rơi muộn 1 nhịp.',
+      note: 'Gợi ý: nghe lại mẫu NHK 2 lần rồi thu chồng giọng.',
+    },
   },
   srs: {
     slug: 'srs',
@@ -55,7 +71,11 @@ export const FEATURES = {
     tryTo: '/daily-srs',
     tryLabel: 'Mở hàng đợi SRS',
     lead: 'Hán tự gắn hình tượng văn hóa, ôn đúng chu kỳ Ebbinghaus — nhớ gốc từ thay vì nhồi đêm trước kỳ thi.',
-    stats: [],
+    stats: [
+      { k: '10,000+', v: 'thẻ N5–N1' },
+      { k: 'SM-2', v: 'chu kỳ ngắt quãng' },
+      { k: '28 thẻ', v: 'hàng đợi hôm nay' },
+    ],
     steps: [
       { t: 'Nạp từ bài luyện tập', d: 'Mỗi bài hoàn thành đẩy từ mới + kanji vào sổ.' },
       { t: 'Ôn đúng hạn', d: 'Khẩn cấp / đến hạn / củng cố — 6–15 phút mỗi sáng.' },
@@ -66,7 +86,11 @@ export const FEATURES = {
       'Không nhồi 200 thẻ/ngày — chỉ đúng cửa sổ quên',
       'Xem chi tiết từng từ: pitch, ví dụ, nét viết',
     ],
-    demo: { title: 'Mục này chưa có dữ liệu.', line: '', note: '' },
+    demo: {
+      title: 'Thẻ hôm nay · 経験',
+      line: 'けいけん · kinh nghiệm · SRS vòng 3',
+      note: 'Ôn lại sau 2 ngày. Liên kết Bài 15 ～てもいいです.',
+    },
   },
   sensei: {
     slug: 'sensei',
@@ -78,7 +102,11 @@ export const FEATURES = {
     tryTo: '/consultation',
     tryLabel: 'Xem gói tư vấn',
     lead: 'Sensei người Nhật và giảng viên cao cấp sửa luận, giải đáp 24/7, định hướng nghề và phỏng vấn Tokutei.',
-    stats: [],
+    stats: [
+      { k: '45 phút', v: 'mỗi buổi video' },
+      { k: '24/7', v: 'hàng đợi văn bản' },
+      { k: 'Tokutei', v: 'kèm mock phỏng vấn' },
+    ],
     steps: [
       { t: 'Chọn gói', d: 'Video 1-kèm-1, chữa bài viết, hoặc combo lộ trình.' },
       { t: 'Đặt lịch & thanh toán', d: 'Biên lai + phiếu chuẩn bị gửi trước 24 giờ.' },
@@ -89,7 +117,11 @@ export const FEATURES = {
       'Phiếu trước buổi — không mất 15 phút hỏi lại ngữ cảnh',
       'Ghi chú buổi tư vấn vào sổ của người ôn luyện sau khi rời phòng',
     ],
-    demo: { title: 'Mục này chưa có dữ liệu.', line: '', note: '' },
+    demo: {
+      title: 'Sensei Sato · Tokyo',
+      line: 'Dokkai & ngữ pháp N3–N2 · 4.9 ★ · 312 buổi',
+      note: 'Slot mở: Thứ 3 14:00 · Thứ 5 10:00.',
+    },
   },
 };
 
