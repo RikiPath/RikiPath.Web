@@ -37,6 +37,11 @@ export const getAdminDashboard = () => api.get('/admin/dashboard');
 export const getAdminPendingContent = (entityType, params) => api.get(`/content-management/admin/pending/${entityType}`, { params });
 export const getAdminContentDetails = (entityType, entityId) => api.get(`/content-management/admin/details/${entityType}/${entityId}`);
 export const reviewAdminContent = (entityType, entityId, data) => api.post(`/content-management/admin/review/${entityType}/${entityId}`, data);
+// Content moderation
+export const getAdminPendingContent = (entityType, params) => api.get('/content-approvals/pending', {
+  params: { ...params, ...(entityType ? { entityType: entityType === 'GrammarPattern' ? 'Grammar' : entityType } : {}) },
+});
+export const reviewAdminContent = (requestId, data) => api.post(`/content-approvals/requests/${requestId}/review`, data);
 
 // Content approvals v1
 export async function getPendingApprovals(params = {}) {

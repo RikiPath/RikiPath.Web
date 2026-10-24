@@ -64,13 +64,15 @@ export default function MarketingShell({ children }) {
               Riki<span className="text-[#D94B68]">Path</span>
             </div>
             <p className="max-w-sm text-sm leading-relaxed text-[#6F6669]">
-              Tự học, luyện thi và thi thử JLPT trong một dashboard gọn, đồng bộ với tiến độ thật của bạn.
+              Ôn luyện và thi thử JLPT trong một dashboard gọn, đồng bộ với tiến độ của bạn.
             </p>
           </div>
           <div>
             <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[#A59B9E]">Khám phá</div>
             <div className="flex flex-col gap-2.5 text-sm text-[#6F6669]">
+              <Link to="/about" className="hover:text-[#D94B68]">RikiPath là gì?</Link>
               <Link to="/courses" className="hover:text-[#D94B68]">Luyện thi JLPT</Link>
+              <Link to="/thi-thu" className="hover:text-[#D94B68]">Thi thử</Link>
               <Link to="/mentor" className="hover:text-[#D94B68]">Tư vấn 1-1</Link>
               <Link to="/auth" className="hover:text-[#D94B68]">Vào dashboard</Link>
             </div>

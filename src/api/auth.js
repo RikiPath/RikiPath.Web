@@ -23,7 +23,7 @@ export function changePassword(userId, payload) {
 export function homePathForRole(role) {
   switch ((role || '').toLowerCase()) {
     case 'admin':
-      return '/admin';
+      return '/admin/users';
     case 'contentauthor':
       return '/cms-studio';
     case 'consultant':

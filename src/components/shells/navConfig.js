@@ -38,15 +38,29 @@ export const ADMIN_NAV = {
     {
       label: 'Điều hành',
       items: [
-        { to: '/admin', label: 'Tổng quan', hint: 'Số liệu hệ thống', icon: 'dashboard', end: true },
-        { to: '/admin/users', label: 'Người dùng', hint: 'Học viên & tài khoản', icon: 'group', alsoActive: ['/admin/users/detail'] },
-        { to: '/admin/roles', label: 'Vai trò & quyền', hint: 'Phân quyền', icon: 'lock_person' },
+        {
+          to: '/admin/users',
+          label: 'Tổng quan',
+          hint: 'Người dùng',
+          icon: 'space_dashboard',
+          alsoActive: ['/admin/users/detail'],
+        },
       ],
     },
     {
       label: 'Mentor',
       items: [
-        { to: '/admin/mentors', label: 'Quản lý Mentor', hint: 'Hồ sơ sensei', icon: 'support_agent' },
+        {
+          to: '/admin/mentors',
+          label: 'Mentor',
+          hint: 'Hồ sơ và duyệt lịch',
+          icon: 'support_agent',
+          alsoActive: ['/admin/mentor-schedules', '/admin/consultants'],
+          children: [
+            { to: '/admin/mentors', label: 'Hồ sơ', alsoActive: ['/admin/consultants'] },
+            { to: '/admin/mentor-schedules', label: 'Duyệt lịch' },
+          ],
+        },
         { to: '/admin/operations', label: 'Gói & lịch', hint: 'Feature, booking', icon: 'tune' },
       ],
     },
@@ -93,6 +107,7 @@ export const LEARNER_NAV = {
       ],
     },
     { to: '/ai-counselor', label: 'Cố vấn AI', hint: 'Haru đồng hành', icon: 'psychology', group: 'support' },
+    { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với Mentor', icon: 'forum', group: 'support' },
     {
       to: '/mentor',
       label: 'Tư vấn 1-1',
@@ -122,10 +137,11 @@ export const CONSULT_NAV = {
       label: 'Buổi học',
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
+        { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
         { to: '/consultation-queue', label: 'Hàng đợi', hint: 'Yêu cầu chờ nhận', icon: 'pending_actions' },
         { to: '/consultation-prep', label: 'Chuẩn bị buổi', hint: 'Ghi chú trước giờ', icon: 'fact_check' },
         { to: '/consultation-request', label: 'Chi tiết yêu cầu', hint: 'Hồ sơ học viên', icon: 'description' },
-        { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Chat bất đồng bộ', icon: 'forum' },
+        { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Phản hồi bài viết', icon: 'edit_note' },
       ],
     },
     {
@@ -141,14 +157,14 @@ export const CONSULT_NAV = {
 
 export const MARKETING_NAV = {
   links: [
-    { to: '/', label: 'RikiPath là gì?', end: true },
+    { to: '/about', label: 'RikiPath là gì?' },
     { to: '/courses', label: 'Luyện thi JLPT' },
-    { to: '/feature/ai-scoring', label: 'Thi thử' },
+    { to: '/thi-thu', label: 'Thi thử' },
     { to: '/#pathway', label: 'Cấu trúc đề' },
     { to: '/mentor', label: 'Tư vấn' },
   ],
   login: { to: '/auth', label: 'Đăng nhập' },
-  cta: { to: '/register', label: 'Bắt đầu học' },
+  cta: { to: '/register', label: 'Bắt đầu ôn luyện' },
 };
 
 export function pathMatches(pathname, item) {

@@ -2,9 +2,12 @@ import { useContext, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import RequireStudyPlan from './components/RequireStudyPlan.jsx';
+import MentorPrivateChat from './pages/consultation/MentorPrivateChat.jsx';
+import AdminMentorHub from './pages/admin/AdminMentorHub.jsx';
 import { isPreviewEnabled } from './mocks/preview.js';
 // —— Marketing ——
-import { HomeLanding, CourseCatalog, CourseDetail, FeatureDetail } from './pages/marketing';
+import { HomeLanding, AboutRiki, CourseCatalog, MockExam, CourseDetail, FeatureDetail } from './pages/marketing';
 
 // —— Auth ——
 import { Auth, Register, ForgotPassword, OnboardingSurvey, VerifyEmail, UpdateEmail, ChangePassword } from './pages/auth';
@@ -30,7 +33,8 @@ import {
   KanjiWritingPracticePage,
   LearnerEssayPage,
   RikiSkillPlaceholder,
-  SpeakingPracticePage
+  SpeakingPracticePage,
+  StudyPlans,
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -72,14 +76,15 @@ import {
 } from './pages/content-author'
 // —— Admin ——
 import {
-  AdminOverview,
   AdminUsers,
-  AdminRoles,
   AdminContentReview,
   AdminUserDetail,
-  AdminConsultants,
   AdminOperations,
 } from './pages/admin';
+
+function study(element) {
+  return <RequireStudyPlan>{element}</RequireStudyPlan>;
+}
 
 function withSlash(path) {
   if (!path || path === '/' || path === '*') return path;
@@ -118,8 +123,10 @@ export default function App() {
           <Routes>
             {/* ========== MARKETING ========== */}
             <Route path="/" element={<HomeLanding />} />
+            <Route path={withSlash('/about')} element={<AboutRiki />} />
             <Route path={withSlash('/landing')} element={<Navigate to="/" replace />} />
             <Route path={withSlash('/courses')} element={<CourseCatalog />} />
+            <Route path={withSlash('/thi-thu')} element={<MockExam />} />
             <Route path={withSlash('/course-detail')} element={<CourseDetail />} />
             <Route path={withSlash('/feature/:slug')} element={<FeatureDetail />} />
 
@@ -133,42 +140,46 @@ export default function App() {
             <Route path={withSlash('/onboarding')} element={<OnboardingSurvey />} />
 
             {/* ========== LEARNER ========== */}
-            <Route path={withSlash('/app')} element={<Dashboard />} />
+            <Route path={withSlash('/plans')} element={<StudyPlans />} />
+            <Route path={withSlash('/app')} element={study(<Dashboard />)} />
             <Route path={withSlash('/dashboard')} element={<Navigate to={withSlash('/app')} replace />} />
             <Route path={withSlash('/home-learner')} element={<Navigate to={withSlash('/app')} replace />} />
             <Route path={withSlash('/multi-dashboard')} element={<Navigate to={withSlash('/app')} replace />} />
-            <Route path={withSlash('/kanji-writing')} element={<KanjiWritingPracticePage />} />
-            <Route path={withSlash('/riki/listening')} element={<RikiSkillPlaceholder skill="listening" />} />
-            <Route path={withSlash('/riki/speaking')} element={<RikiSkillPlaceholder skill="speaking" />} />
-            <Route path={withSlash('/riki/reading')} element={<RikiSkillPlaceholder skill="reading" />} />
-            <Route path={withSlash('/riki/essay')} element={<LearnerEssayPage />} />
-            <Route path={withSlash('/lessons')} element={<LessonList />} />
-            <Route path={withSlash('/lesson-player')} element={<LessonPlayer />} />
-            <Route path={withSlash('/lesson-complete')} element={<LessonComplete />} />
-            <Route path={withSlash('/roadmap')} element={<RoadmapJLPT />} />
-            <Route path={withSlash('/sentence-studio')} element={<SentenceStudio />} />
-            <Route path={withSlash('/kanji-studio')} element={<KanjiStudio />} />
-            <Route path={withSlash('/kanji-notebook')} element={<KanjiNotebook />} />
-            <Route path={withSlash('/vocabulary')} element={<VocabularyNotebook />} />
-            <Route path={withSlash('/daily-srs')} element={<DailySRS />} />
-            <Route path={withSlash('/ai-counselor')} element={<AICounselor />} />
-            <Route path={withSlash('/ai-scoring')} element={<AIScoringResult />} />
-            <Route path={withSlash('/exam-n3')} element={<ExamN3 />} />
-            <Route path={withSlash('/exam-result')} element={<ExamResult />} />
-            <Route path={withSlash('/vocabulary-detail')} element={<VocabWordDetail />} />
+            <Route path={withSlash('/kanji-writing')} element={study(<KanjiWritingPracticePage />)} />
+            <Route path={withSlash('/riki/listening')} element={study(<RikiSkillPlaceholder skill="listening" />)} />
+            <Route path={withSlash('/riki/speaking')} element={study(<RikiSkillPlaceholder skill="speaking" />)} />
+            <Route path={withSlash('/riki/reading')} element={study(<RikiSkillPlaceholder skill="reading" />)} />
+            <Route path={withSlash('/riki/essay')} element={study(<LearnerEssayPage />)} />
+            <Route path={withSlash('/lessons')} element={study(<LessonList />)} />
+            <Route path={withSlash('/lesson-player')} element={study(<LessonPlayer />)} />
+            <Route path={withSlash('/lesson-complete')} element={study(<LessonComplete />)} />
+            <Route path={withSlash('/roadmap')} element={study(<RoadmapJLPT />)} />
+            <Route path={withSlash('/sentence-studio')} element={study(<SentenceStudio />)} />
+            <Route path={withSlash('/kanji-studio')} element={study(<KanjiStudio />)} />
+            <Route path={withSlash('/kanji-notebook')} element={study(<KanjiNotebook />)} />
+            <Route path={withSlash('/vocabulary')} element={study(<VocabularyNotebook />)} />
+            <Route path={withSlash('/daily-srs')} element={study(<DailySRS />)} />
+            <Route path={withSlash('/ai-counselor')} element={study(<AICounselor />)} />
+            <Route path={withSlash('/ai-scoring')} element={study(<AIScoringResult />)} />
+            <Route path={withSlash('/exam-n3')} element={study(<ExamN3 />)} />
+            <Route path={withSlash('/exam-result')} element={study(<ExamResult />)} />
+            <Route path={withSlash('/vocabulary-detail')} element={study(<VocabWordDetail />)} />
             <Route path={withSlash('/settings')} element={<LearnerSettings />} />
-            <Route path={withSlash('/speech')} element={<SpeakingPracticePage />} />
+            <Route path={withSlash('/speech')} element={study(<SpeakingPracticePage />)} />
 
             {/* ========== MENTOR ========== */}
+            <Route path={withSlash('/mentor-chat')} element={<ProtectedRoute allowedRoles={['Learner', 'Mentor']}><MentorPrivateChat /></ProtectedRoute>} />
             <Route path={withSlash('/mentor')} element={<Consultation />} />
             <Route path={withSlash('/consultation')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-hub')} element={<Navigate to={withSlash('/mentor')} replace />} />
-            <Route path={withSlash('/consultation-center')} element={<ConsultationCenter />} />
-            <Route path={withSlash('/booking-schedule')} element={<BookingSchedule />} />
-            <Route path={withSlash('/consultation-payment')} element={<ConsultationPayment />} />
+            <Route path={withSlash('/consultation-center')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationCenter /></ProtectedRoute>} />
+            <Route path={withSlash('/booking-schedule')} element={<ProtectedRoute allowedRoles={['Learner']}><BookingSchedule /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
+            <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
+            <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/sensei-profile')} element={<SenseiProfile />} />
-            <Route path={withSlash('/consultation-session')} element={<ConsultationSessionDetail />} />
-            <Route path={withSlash('/consultation-receipt')} element={<ConsultationReceipt />} />
+            <Route path={withSlash('/consultation-session')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationSessionDetail /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-receipt')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-room')} element={<ConsultationRoom />} />
             <Route path={withSlash('/consultation-room/:roomId')} element={<ConsultationRoom />} />
             <Route path={withSlash('/meeting-room')} element={<ConsultationRoom />} />
@@ -199,13 +210,14 @@ export default function App() {
             <Route path={withSlash('/lesson-cms-detail')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CmsLessonDetail /></ProtectedRoute>} />
 
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
-            <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><AdminOverview /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users/detail')} element={<ProtectedRoute requireAdmin><AdminUserDetail /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/roles')} element={<ProtectedRoute requireAdmin><AdminRoles /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/roles')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/content-review')} element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/consultants')} element={<ProtectedRoute requireAdmin><AdminConsultants /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/mentors')} element={<ProtectedRoute requireAdmin><AdminConsultants /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/consultants')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentors')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/packages')} element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
             <Route path={withSlash('/admin/operations')} element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
             <Route path={withSlash('/admin/approval-content')} element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />

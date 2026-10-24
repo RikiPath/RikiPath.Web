@@ -1,41 +1,37 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { ADMIN_NAV, pathMatches } from './navConfig.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import NotificationPopover from '../admin/NotificationPopover.jsx';
 
-const SIDEBAR_W = 280;
+const SIDEBAR_W = 248;
+const HEADER_H = 68;
 
 function navClass(active) {
   return [
-    'rp-nav-item group/nav flex w-full items-center gap-3 rounded-[16px] px-2.5 py-2 text-left transition-all',
-    active ? 'rp-nav-item-active' : 'text-[#6F6669] hover:bg-white hover:text-[#2D282A]',
+    'group/nav flex min-h-[44px] w-full items-center gap-3',
+    'rounded-[10px] px-3 text-left',
+    'transition-colors duration-150',
+    'focus-visible:outline-none focus-visible:ring-2',
+    'focus-visible:ring-[#AD3155]/30',
+    active
+      ? 'bg-[#FCEEF3] text-[#AD3155]'
+      : 'text-[#6F6669] hover:bg-[#F8F3F5] hover:text-[#4B4247]',
   ].join(' ');
 }
 
 function NavIcon({ name, active }) {
   return (
     <span
+      aria-hidden="true"
       className={[
-        'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[18px] transition-colors',
-        active ? 'bg-[#ffd9e4] text-[#D94B68]' : 'bg-[#FFF8F8] text-[#A59B9E] group-hover/nav:bg-[#fff0f5] group-hover/nav:text-[#D94B68]',
+        'material-symbols-outlined shrink-0 text-[21px]',
+        'transition-colors duration-150',
+        active
+          ? 'text-[#AD3155]'
+          : 'text-[#95888E] group-hover/nav:text-[#AD3155]',
       ].join(' ')}
     >
-      <span className="material-symbols-outlined text-[20px]">{name}</span>
-    </span>
-  );
-}
-
-function NavCopy({ label, hint, active }) {
-  return (
-    <span className="min-w-0 flex-1">
-      <span className={['block truncate text-[14px] leading-5', active ? 'font-bold text-[#9E2A4B]' : 'font-semibold'].join(' ')}>
-        {label}
-      </span>
-      {hint ? (
-        <span className={['mt-0.5 block truncate text-[11px] font-medium leading-4', active ? 'text-[#D94B68]/80' : 'text-[#A59B9E]'].join(' ')}>
-          {hint}
-        </span>
-      ) : null}
+      {name}
     </span>
   );
 }
@@ -43,91 +39,281 @@ function NavCopy({ label, hint, active }) {
 export default function AdminShell({
   children,
   pathname,
-  breadcrumb = 'Tổng quan',
+  breadcrumb = 'Người dùng',
   searchValue,
   onSearchChange,
   searchPlaceholder = 'Tìm người dùng, mentor, nội dung...',
+  onNotificationsClick,
 }) {
-  const { user, primaryRole, logout } = useAuth();
-  const displayName = user?.fullName || user?.name || user?.email || 'Admin';
-  const roleName = primaryRole || 'Admin';
+  const location = useLocation();
+  const currentPath = pathname || location.pathname;
+
+  const { user, logout } = useAuth();
+
+  const displayName =
+    user?.fullName || user?.name || user?.email || 'Admin';
+
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
+
+  const navItems = ADMIN_NAV.groups.flatMap((group) =>
+    group.items.map((item, index) => ({
+      ...item,
+      navKey: `${group.label}-${item.to}-${index}`,
+    })),
+  );
 
   return (
-    <div className="min-h-screen bg-transparent text-[#2D282A]" data-shell="admin">
-      <aside className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col overflow-y-auto px-4 py-5">
-        <div className="mb-6 flex items-center gap-3 px-2">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white">
-            <span className="material-symbols-outlined text-[22px]">admin_panel_settings</span>
-          </div>
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-[18px] font-extrabold tracking-tight text-[#2D282A]">{ADMIN_NAV.brand.title}</div>
-            <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A59B9E]">{ADMIN_NAV.brand.subtitle}</div>
+    <div
+      data-shell="admin"
+      className="min-h-screen bg-[#FAF8F9]
+                 font-['Be_Vietnam_Pro',sans-serif] text-[#2D282A]"
+    >
+      <aside
+        aria-label="Thanh điều hướng quản trị"
+        style={{ width: SIDEBAR_W }}
+        className="fixed inset-y-0 left-0 z-50 flex flex-col
+                   border-r border-[#EEE7EA] bg-[#FFFCFD]"
+      >
+        <div className="shrink-0 px-6 pb-6 pt-7">
+          <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className="flex h-10 w-10 shrink-0 items-center
+                         justify-center rounded-[14px]
+                         bg-[#AD3155] text-white"
+            >
+              <span className="material-symbols-outlined text-[23px]">
+                admin_panel_settings
+              </span>
+            </div>
+
+            <div className="min-w-0">
+              <div
+                className="truncate text-[19px] font-semibold
+                           tracking-tight text-[#352C31]"
+              >
+                {ADMIN_NAV.brand.title}
+              </div>
+
+              <div className="mt-0.5 text-[11px] text-[#8C7D84]">
+                Trang quản trị
+              </div>
+            </div>
           </div>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-5">
-          {ADMIN_NAV.groups.map((group) => (
-            <div key={group.label}>
-              <div className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[#C4B8BA]">{group.label}</div>
-              <div className="flex flex-col gap-1">
-                {group.items.map((item) => {
-                  const active = pathMatches(pathname, item);
-                  return (
-                    <NavLink key={`${group.label}-${item.to}`} to={item.to} end={item.end} className={navClass(active)}>
-                      <NavIcon name={item.icon} active={active} />
-                      <NavCopy label={item.label} hint={item.hint} active={active} />
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <nav
+          aria-label="Menu chính"
+          className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
+        >
+          <div className="flex flex-col gap-1">
+            {navItems.map((item) => {
+              const active = pathMatches(currentPath, item);
+
+              return (
+                <div key={item.navKey}>
+                  <NavLink
+                    to={item.to}
+                    end={item.end}
+                    className={navClass(active)}
+                    title={item.label}
+                  >
+                    <NavIcon name={item.icon} active={active} />
+
+                    <span
+                      className={[
+                        'min-w-0 flex-1 truncate text-[13px]',
+                        active ? 'font-semibold' : 'font-medium',
+                      ].join(' ')}
+                    >
+                      {item.label}
+                    </span>
+                  </NavLink>
+
+                  {item.children?.length > 0 && (
+                    <div className="mb-1 ml-[22px] border-l border-[#F0E6EA] pl-2">
+                      {item.children.map((child) => {
+                        const childActive = pathMatches(currentPath, child);
+
+                        return (
+                          <NavLink
+                            key={child.to}
+                            to={child.to}
+                            title={child.label}
+                            className={[
+                              'flex min-h-[34px] items-center rounded-lg px-2',
+                              'text-[12.5px] transition-colors',
+                              'focus-visible:outline-none focus-visible:ring-2',
+                              'focus-visible:ring-[#AD3155]/30',
+                              childActive
+                                ? 'font-semibold text-[#AD3155]'
+                                : 'font-medium text-[#8C7D84] hover:text-[#AD3155]',
+                            ].join(' ')}
+                          >
+                            {child.label}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </nav>
 
-        <div className="rp-catalog-card mt-6 flex items-center gap-3 rounded-[22px] p-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fff0f5] text-sm font-bold text-[#D94B68]">
-            {displayName.charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-bold text-[#2D282A]">{displayName}</div>
-            <div className="truncate text-[11px] font-medium text-[#A59B9E]">{roleName}</div>
-          </div>
-          <button
-            type="button"
-            onClick={logout}
-            title="Đăng xuất"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[#A59B9E] hover:bg-[#fff0f5] hover:text-[#D94B68]"
+        <div className="shrink-0 px-4 pb-4">
+          <div
+            className="flex items-center gap-2.5
+                       border-t border-[#EEE7EA] px-1 pt-4"
           >
-            <span className="material-symbols-outlined text-[18px]">logout</span>
-          </button>
+            <div
+              aria-hidden="true"
+              className="flex h-9 w-9 shrink-0 items-center
+                         justify-center rounded-full bg-[#F7E8EE]
+                         text-[13px] font-semibold text-[#AD3155]"
+            >
+              {initial}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div
+                title={displayName}
+                className="truncate text-[13px] font-medium
+                           text-[#4B4247]"
+              >
+                {displayName}
+              </div>
+
+              <div className="mt-0.5 text-[11px] text-[#8C7D84]">
+                Quản trị viên
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={logout}
+              title="Đăng xuất"
+              aria-label="Đăng xuất"
+              className="flex h-8 w-8 shrink-0 items-center
+                         justify-center rounded-lg text-[#95888E]
+                         transition-colors hover:bg-[#FCEEF3]
+                         hover:text-[#AD3155]
+                         focus-visible:outline-none
+                         focus-visible:ring-2
+                         focus-visible:ring-[#AD3155]/30"
+            >
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined text-[19px]"
+              >
+                logout
+              </span>
+            </button>
+          </div>
         </div>
       </aside>
 
-      <div className="min-w-0" style={{ paddingLeft: SIDEBAR_W }}>
+      <div
+        style={{ paddingLeft: SIDEBAR_W }}
+        className="min-w-0"
+      >
         <header
-          className="fixed top-0 right-0 z-40 flex h-[72px] items-center justify-between gap-4 px-6 sm:px-8"
-          style={{ left: SIDEBAR_W }}
+          style={{
+            left: SIDEBAR_W,
+            height: HEADER_H,
+          }}
+          className="fixed right-0 top-0 z-40 flex items-center
+                     justify-between gap-5 border-b
+                     border-[#EEE7EA] bg-[#FFFCFD] px-6 lg:px-8"
         >
-          <div className="hidden min-w-0 items-center gap-2 text-[13px] text-[#8A8084] sm:flex">
-            <span>Admin</span>
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-            <span className="truncate font-bold text-[#2D282A]">{breadcrumb}</span>
+          <div
+            aria-label="Vị trí hiện tại"
+            className="flex min-w-0 items-center gap-2
+                       text-[12px] text-[#95888E]"
+          >
+            <span className="shrink-0">Admin</span>
+
+            <span
+              aria-hidden="true"
+              className="material-symbols-outlined text-[16px]
+                         text-[#B4A8AE]"
+            >
+              chevron_right
+            </span>
+
+            <span
+              className="truncate font-medium text-[#4B4247]"
+              title={breadcrumb}
+            >
+              {breadcrumb}
+            </span>
           </div>
-          <div className="mx-0 max-w-md flex-1 sm:mx-6">
-            <div className="relative flex items-center">
-              <span className="material-symbols-outlined absolute left-4 text-[18px] text-[#A59B9E]">search</span>
-              <input
-                className="h-11 w-full rounded-full border border-[#dfbfc1]/50 bg-white pl-11 pr-4 text-[13px] text-[#2D282A] shadow-sm placeholder:text-[#C4B8BA] focus:outline-none focus:ring-2 focus:ring-[#D94B68]/20"
-                placeholder={searchPlaceholder}
-                type="search"
-                value={onSearchChange ? searchValue : undefined}
-                onChange={onSearchChange ? (event) => onSearchChange(event.target.value) : undefined}
-              />
-            </div>
+
+          <div className="flex min-w-0 items-center gap-3">
+            {typeof onSearchChange === 'function' && (
+              <div className="relative w-[240px] lg:w-[320px]">
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined
+                             pointer-events-none absolute left-3
+                             top-1/2 -translate-y-1/2
+                             text-[19px] text-[#A09399]"
+                >
+                  search
+                </span>
+
+                <input
+                  type="search"
+                  aria-label={searchPlaceholder}
+                  placeholder={searchPlaceholder}
+                  value={searchValue ?? ''}
+                  onChange={(event) =>
+                    onSearchChange(event.target.value)
+                  }
+                  className="h-9 w-full rounded-[10px] border
+                             border-[#E9E1E5] bg-white pl-9 pr-3
+                             text-[12px] text-[#4B4247]
+                             placeholder:text-[#A89BA2]
+                             focus:border-[#C8889D]
+                             focus:outline-none focus:ring-2
+                             focus:ring-[#AD3155]/10"
+                />
+              </div>
+            )}
+
+            {typeof onNotificationsClick === 'function' && (
+              <button
+                type="button"
+                onClick={onNotificationsClick}
+                aria-label="Mở thông báo"
+                title="Thông báo"
+                className="flex h-9 w-9 shrink-0 items-center
+                           justify-center rounded-[10px]
+                           text-[#8C7D84] transition-colors
+                           hover:bg-[#FCEEF3] hover:text-[#AD3155]
+                           focus-visible:outline-none
+                           focus-visible:ring-2
+                           focus-visible:ring-[#AD3155]/30"
+              >
+                <span
+                  aria-hidden="true"
+                  className="material-symbols-outlined text-[21px]"
+                >
+                  notifications
+                </span>
+              </button>
+            )}
           </div>
           <NotificationPopover />
         </header>
-        <main className="min-h-screen pt-[72px]">{children}</main>
+
+        <div
+          style={{ paddingTop: HEADER_H }}
+          className="min-h-screen"
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
