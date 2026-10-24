@@ -67,6 +67,9 @@ import {
   CmsLessonDetail,
 } from './pages/cms';
 
+import {
+  ContentImportPreviewPage
+} from './pages/content-author'
 // —— Admin ——
 import {
   AdminOverview,
@@ -192,6 +195,7 @@ export default function App() {
             <Route path={withSlash('/vocabulary-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VocabularyEditor /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><KanjiEditor /></ProtectedRoute>} />
             <Route path={withSlash('/video-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VideoLessonEditor /></ProtectedRoute>} />
+            <Route path={withSlash('/content-studio')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentImportPreviewPage /></ProtectedRoute>} />
             <Route path={withSlash('/lesson-cms-detail')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CmsLessonDetail /></ProtectedRoute>} />
 
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
@@ -204,7 +208,7 @@ export default function App() {
             <Route path={withSlash('/admin/mentors')} element={<ProtectedRoute requireAdmin><AdminConsultants /></ProtectedRoute>} />
             <Route path={withSlash('/admin/packages')} element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
             <Route path={withSlash('/admin/operations')} element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
-
+            <Route path={withSlash('/admin/approval-content')} element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { ADMIN_NAV, pathMatches } from './navConfig.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import NotificationPopover from '../admin/NotificationPopover.jsx';
 
 const SIDEBAR_W = 280;
 
@@ -124,13 +125,7 @@ export default function AdminShell({
               />
             </div>
           </div>
-          <button
-            type="button"
-            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#dfbfc1]/45 bg-white text-[#6F6669] shadow-sm hover:text-[#D94B68]"
-            aria-label="Thông báo"
-          >
-            <span className="material-symbols-outlined text-[20px]">notifications</span>
-          </button>
+          <NotificationPopover />
         </header>
         <main className="min-h-screen pt-[72px]">{children}</main>
       </div>
