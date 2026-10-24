@@ -1,63 +1,26 @@
+import { useQuery } from '@tanstack/react-query';
+import { getMeetingPlans, getBookingMentors } from '../../api/mentorBookingApi.js';
 import { Calendar, Clock, MessageCircle, Star, Video } from 'lucide-react';
 import { ConsultShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
 
-const PACKAGES = [
-  {
-    title: 'Gói Tư vấn Nhanh',
-    price: '199.000đ',
-    duration: '30 phút',
-    desc: 'Giải đáp thắc mắc lộ trình, chọn khóa học phù hợp trình độ hiện tại.',
-    features: ['1 buổi 1-1', 'Checklist lộ trình', 'Gợi ý khóa học'],
-    highlight: false,
-  },
-  {
-    title: 'Gói Đồng hành JLPT',
-    price: '599.000đ',
-    duration: '3 buổi × 45 phút',
-    desc: 'Phân tích điểm yếu, lập kế hoạch ôn thi và review tiến độ hàng tuần.',
-    features: ['Chẩn đoán trình độ', 'Lịch học cá nhân hóa', 'Chat hỗ trợ 7 ngày'],
-    highlight: true,
-  },
-  {
-    title: 'Gói Sensei Premium',
-    price: '1.290.000đ',
-    duration: '6 buổi × 60 phút',
-    desc: 'Đồng hành sâu với Sensei bản ngữ, luyện nói + chiến lược thi N3–N1.',
-    features: ['Sensei bản ngữ', 'Mock interview', 'Báo cáo tiến độ'],
-    highlight: false,
-  },
-];
 
-const CONSULTANTS = [
-  {
-    name: 'Sensei Hana',
-    role: 'JLPT N1 · Tokyo',
-    rating: 4.9,
-    focus: 'Ngữ pháp & Đọc hiểu',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB1rEBdofcr03ICOlXMbZQ4R1Alv6h6k77VqNg6kujnfyZ-g_Pz6-9dozYx4IlkBPcj7TZ-zEN921FtO4lzoYhOg0BYZMelBGE9VnH15zF0uax1pAasZx8SQpt0f8sf8s6GTEWBaWHUFhmtsaOghGa-XxKfLxvfAP5DYzIQhq4fJFZwJTAUoNSvmVe9qoutTzB3WCttq42EMyKQubCyCfQ1cf5SyO3pdHq6ITeXcThHJC9ePbaL2ROl2Q',
-  },
-  {
-    name: 'Sensei Minh',
-    role: 'JLPT N1 · Osaka',
-    rating: 4.8,
-    focus: 'Kaiwa & Phát âm',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB0E7nU0PmesZkWgs8CtczjdYWxAPGB3FaNVrOfuY6enzbSn0caEswADM-yv_XKDNwMlKkxIaLV5miDwPLGxxcw0oq34cKn1zsTzDrKjfZOQZuVR-_QzGn-Te7NcP-urO4j79lnwDQsNT5PPUvDwtJoleH7whVhFRSj_O-5YG0g4N2nEzoxAtQY52cFXdpDWPKR4SJqlWHRrNtnJDLjPb6wdORn-4fVHd2pU-t6R2pESvQ-6hgqKeZUDA',
-  },
-  {
-    name: 'Sensei Yuki',
-    role: 'JLPT N1 · Kyoto',
-    rating: 5.0,
-    focus: 'Chiến lược thi thử',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB1rEBdofcr03ICOlXMbZQ4R1Alv6h6k77VqNg6kujnfyZ-g_Pz6-9dozYx4IlkBPcj7TZ-zEN921FtO4lzoYhOg0BYZMelBGE9VnH15zF0uax1pAasZx8SQpt0f8sf8s6GTEWBaWHUFhmtsaOghGa-XxKfLxvfAP5DYzIQhq4fJFZwJTAUoNSvmVe9qoutTzB3WCttq42EMyKQubCyCfQ1cf5SyO3pdHq6ITeXcThHJC9ePbaL2ROl2Q',
-  },
-];
+
+
 
 export default function ConsultationHub() {
   const { pathname } = useLocation();
+  const plansQuery = useQuery({ queryKey: ['meeting-plans'], queryFn: getMeetingPlans });
+  const mentorsQuery = useQuery({ queryKey: ['booking-mentors'], queryFn: getBookingMentors });
+  const PACKAGES = (plansQuery.data || []).map(plan => ({
+    title: plan.name, price: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(plan.price),
+    duration: plan.durationDays ? plan.durationDays + ' ngày' : '—', desc: plan.description || '',
+    features: [plan.meetingSessionCount + ' buổi'], highlight: false,
+  }));
+  const CONSULTANTS = (mentorsQuery.data || []).map(mentor => ({
+    id: mentor.id, name: mentor.name, role: 'Mentor', focus: mentor.bio || '',
+    avatar: mentor.avatarUrl || '/empty-avatar.svg', rating: '—',
+  }));
   return (
     <ConsultShell pathname={pathname} breadcrumb="Hub">
 <div
@@ -71,15 +34,15 @@ export default function ConsultationHub() {
           <img
             alt="User Profile Avatar"
             className="w-8 h-8 rounded-full object-cover border border-border-base"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0E7nU0PmesZkWgs8CtczjdYWxAPGB3FaNVrOfuY6enzbSn0caEswADM-yv_XKDNwMlKkxIaLV5miDwPLGxxcw0oq34cKn1zsTzDrKjfZOQZuVR-_QzGn-Te7NcP-urO4j79lnwDQsNT5PPUvDwtJoleH7whVhFRSj_O-5YG0g4N2nEzoxAtQY52cFXdpDWPKR4SJqlWHRrNtnJDLjPb6wdORn-4fVHd2pU-t6R2pESvQ-6hgqKeZUDA"
+            src="/empty-avatar.svg"
           />
         </div>
       </nav>
 
-      
+
 
       <main className="flex-1 w-full max-w-7xl mx-auto flex flex-col px-6 py-6">
-        
+
 
         <div className="p-4 md:p-8 flex flex-col gap-8">
           <section className="bg-surface rounded-xl p-6 md:p-8 border border-border-base shadow-[0_4px_16px_rgba(217,75,104,0.06)] relative overflow-hidden">
@@ -113,6 +76,7 @@ export default function ConsultationHub() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {plansQuery.isError ? <p role="alert">{plansQuery.error.message}</p> : !plansQuery.isPending && PACKAGES.length === 0 ? <p>Mục này chưa có dữ liệu.</p> : null}
               {PACKAGES.map((pkg) => (
                 <article
                   key={pkg.title}
@@ -164,6 +128,7 @@ export default function ConsultationHub() {
               Chuyên gia đồng hành cùng bạn trên hành trình JLPT
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {mentorsQuery.isError ? <p role="alert">{mentorsQuery.error.message}</p> : !mentorsQuery.isPending && CONSULTANTS.length === 0 ? <p>Mục này chưa có dữ liệu.</p> : null}
               {CONSULTANTS.map((c) => (
                 <article
                   key={c.name}
@@ -214,7 +179,7 @@ export default function ConsultationHub() {
         </div>
       </main>
     </div>
-  
+
 </ConsultShell>
 );
 }

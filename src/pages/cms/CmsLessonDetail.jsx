@@ -1,12 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { CmsShell } from '../../components/shells';
 
-const BLOCKS = [
-  { t: 'Mục tiêu', d: 'Phân biệt わけにはいかない với わけではない trong ngữ cảnh xã hội.' },
-  { t: 'Video', d: '12 phút · Sensei Mai · đã gắn phụ đề JA/VI' },
-  { t: 'Ví dụ', d: '15 câu đời sống + 5 câu đề JEES' },
-  { t: 'Quiz', d: '8 câu trắc nghiệm · ngân hàng CH #QB-441' },
-];
+const BLOCKS = [];
 
 export default function CmsLessonDetail() {
   const { pathname } = useLocation();
@@ -20,11 +15,9 @@ export default function CmsLessonDetail() {
 
         <header className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-[#eadfd9] bg-white p-6">
           <div>
-            <p className="font-mono text-xs font-bold text-[#D94B68]">N3-BUN-07</p>
-            <h1 className="mt-1 text-2xl font-bold">Bài 07: Cấu trúc わけにはいかない</h1>
-            <p className="mt-1 text-sm text-[#6F6669]">
-              “Không bắt buộc vì lý do đạo đức / xã hội” · Ngữ pháp · JLPT N3 · Đã xuất bản
-            </p>
+            <p className="font-mono text-xs font-bold text-[#D94B68]">Mục này chưa có dữ liệu.</p>
+            <h1 className="mt-1 text-2xl font-bold">—</h1>
+            <p className="mt-1 text-sm text-[#6F6669]">—</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -47,7 +40,7 @@ export default function CmsLessonDetail() {
             {BLOCKS.map((b) => (
               <article key={b.t} className="rounded-2xl border border-[#eadfd9] bg-white p-5">
                 <h2 className="text-sm font-bold">{b.t}</h2>
-                <p className="mt-1 text-sm text-[#6F6669]">{b.d}</p>
+                <p className="mt-1 text-sm text-[#6F6669]">—</p>
               </article>
             ))}
           </section>
@@ -56,19 +49,19 @@ export default function CmsLessonDetail() {
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between">
                 <dt className="text-[#6F6669]">Lượt học</dt>
-                <dd className="font-bold">1.284</dd>
+                <dd className="font-bold">—</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-[#6F6669]">Hoàn thành</dt>
-                <dd className="font-bold">72%</dd>
+                <dt className="text-[#6F6669]">—</dt>
+                <dd className="font-bold">—</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-[#6F6669]">Điểm quiz TB</dt>
-                <dd className="font-bold">6.4 / 8</dd>
+                <dd className="font-bold">—</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-[#6F6669]">Tác giả</dt>
-                <dd className="font-bold">Sakura Admin</dd>
+                <dd className="font-bold">—</dd>
               </div>
             </dl>
             <Link to="/lesson-player" className="mt-6 inline-flex text-sm font-bold text-[#D94B68] hover:underline">

@@ -46,12 +46,7 @@ const PERMISSIONS = [
   { id: 'booking', group: 'Học tập', label: 'Đặt lịch mentor', description: 'Xem lịch và vào phòng tư vấn.' },
 ];
 
-const DEFAULT_GRANTS = {
-  Admin: PERMISSIONS.map((item) => item.id),
-  ContentAuthor: ['lessons', 'vocab', 'exams', 'import', 'study'],
-  Mentor: ['booking', 'study'],
-  Learner: ['study', 'writing', 'srs', 'booking'],
-};
+const DEFAULT_GRANTS = Object.fromEntries(ROLES.map(role => [role.id, []]));
 
 function cloneGrants(source) {
   return Object.fromEntries(Object.entries(source).map(([role, ids]) => [role, [...ids]]));
@@ -62,7 +57,7 @@ export default function AdminRoles() {
   const [selectedId, setSelectedId] = useState('Admin');
   const [grants, setGrants] = useState(() => cloneGrants(DEFAULT_GRANTS));
   const [query, setQuery] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState('Mục này chưa có dữ liệu. Chưa có API quản lý quyền.');
 
   const selected = ROLES.find((role) => role.id === selectedId) ?? ROLES[0];
   const enabled = new Set(grants[selected.id] ?? []);
@@ -74,23 +69,15 @@ export default function AdminRoles() {
 
   const groups = [...new Set(visible.map((item) => item.group))];
 
-  function toggle(permissionId) {
-    setNotice('');
-    setGrants((current) => {
-      const next = new Set(current[selected.id] ?? []);
-      if (next.has(permissionId)) next.delete(permissionId);
-      else next.add(permissionId);
-      return { ...current, [selected.id]: [...next] };
-    });
-  }
+  function toggle() { setNotice('Mục này chưa có dữ liệu. Chưa có API quản lý quyền.'); }
 
   function save() {
-    setNotice(`Đã cập nhật quyền của vai trò ${selected.label}.`);
+    setNotice('Mục này chưa có dữ liệu. Chưa có API lưu quyền.');
   }
 
   function resetRole() {
     setGrants((current) => ({ ...current, [selected.id]: [...DEFAULT_GRANTS[selected.id]] }));
-    setNotice(`Đã khôi phục quyền mặc định của ${selected.label}.`);
+    setNotice('Mục này chưa có dữ liệu. Chưa có API khôi phục quyền.');
   }
 
   return (

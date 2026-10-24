@@ -3,10 +3,7 @@ import { Link } from 'react-router-dom';
 import { MarketingShell } from '../../components/shells';
 
 function DashPreview() {
-  const days = Array.from({ length: 42 }, (_, i) => {
-    const n = (i * 7) % 11;
-    return n > 7 ? 'bg-[#D94B68]' : n > 4 ? 'bg-[#F8BBD0]' : 'bg-[#FFF0F5]';
-  });
+  const days = Array.from({ length: 42 }, () => 'bg-[#FFF0F5]');
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-[#dfbfc1]/50 bg-white shadow-[0_24px_60px_-28px_rgba(158,42,75,0.35)]">
@@ -41,13 +38,13 @@ function DashPreview() {
               <div className="text-[11px] text-[#A59B9E]">Kế hoạch ôn tập mỗi ngày</div>
               <div className="text-[18px] font-extrabold leading-tight">Hôm nay ôn đúng phần còn yếu.</div>
             </div>
-            <div className="rounded-full bg-[#fff0f5] px-2.5 py-1 text-[10px] font-semibold text-[#D94B68]">3 ngày liên tiếp</div>
+            <div className="rounded-full bg-[#fff0f5] px-2.5 py-1 text-[10px] font-semibold text-[#D94B68]">—</div>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-2xl bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] p-4 text-white">
               <div className="text-[11px] text-white/70">Việc tiếp theo</div>
-              <div className="mt-2 text-[20px] font-extrabold">Ôn lỗi đọc N3</div>
-              <p className="mt-2 text-[12px] leading-relaxed text-white/80">Xem lại câu sai ở lượt thi trước, rồi luyện thêm 15 phút.</p>
+              <div className="mt-2 text-[20px] font-extrabold">Mục này chưa có dữ liệu.</div>
+              <p className="mt-2 text-[12px] leading-relaxed text-white/80">Mục này chưa có dữ liệu.</p>
             </div>
             <div className="rounded-2xl border border-[#dfbfc1]/40 p-4">
               <div className="mb-2 flex items-center justify-between text-[11px] text-[#6F6669]">
@@ -63,9 +60,9 @@ function DashPreview() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              ['Từ vựng N3', '10 phút · theo chủ đề'],
-              ['Đọc hiểu', '20 phút · đoạn vừa'],
-              ['Nghe hiểu', '15 phút · hội thoại'],
+              ['Từ vựng N3', 'Mục này chưa có dữ liệu.'],
+              ['Đọc hiểu', 'Mục này chưa có dữ liệu.'],
+              ['Nghe hiểu', 'Mục này chưa có dữ liệu.'],
             ].map(([title, sub]) => (
               <div key={title} className="rounded-2xl border border-[#dfbfc1]/40 p-3">
                 <div className="text-[13px] font-bold">{title}</div>

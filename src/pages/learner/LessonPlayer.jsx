@@ -21,6 +21,8 @@ export default function LessonPlayer() {
 
 {/*  12-Column Responsive Body Container  */}
 <main className="flex-1 overflow-y-auto custom-scrollbar">
+<p role="status">Mục này chưa có dữ liệu.</p>
+
 <div className="max-w-[1440px] mx-auto p-6 md:p-8">
 <div className="grid grid-cols-12 gap-8 items-start">
 {/*  LEFT COLUMN: 8 Columns (Video & Study Workspace)  */}
@@ -34,13 +36,13 @@ export default function LessonPlayer() {
 {/*  Top Overlay Gradient  */}
 <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-black/75 to-transparent z-10 p-4 flex items-center justify-between text-white">
 <div className="flex items-center gap-2">
-<span className="px-2 py-0.5 rounded bg-primary/90 text-white font-bold text-[11px] tracking-wider uppercase">1080p FHD</span>
-<span className="text-[13px] font-semibold drop-shadow-sm">Bài 15: Ngữ pháp xin phép「〜てもいいです」</span>
+<span className="px-2 py-0.5 rounded bg-primary/90 text-white font-bold text-[11px] tracking-wider uppercase">—</span>
+<span className="text-[13px] font-semibold drop-shadow-sm">—</span>
 </div>
 <div className="flex items-center gap-2 text-white/90">
 <span className="text-[11px] bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/10 flex items-center gap-1">
 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Sensei Aoi Takahashi
+                    —
                   </span>
 </div>
 </div>
@@ -53,15 +55,15 @@ export default function LessonPlayer() {
 {/*  Bilingual Subtitle Overlay Preview  */}
 <div className="relative z-20 px-6 pb-2 text-center">
 <div className="inline-block bg-black/70 backdrop-blur-md px-4 py-1.5 rounded-lg border border-white/10 text-white">
-<p className="font-jp text-[14px] text-pink-100 font-medium tracking-wide">「写真を撮ってもいいですか。」</p>
-<p className="text-[12px] text-white/90 font-sans">"Tôi có thể chụp ảnh ở đây được không ạ?"</p>
+<p className="font-jp text-[14px] text-pink-100 font-medium tracking-wide">—</p>
+<p className="text-[12px] text-white/90 font-sans">—</p>
 </div>
 </div>
 {/*  Professional Video Controls Overlay  */}
 <div className="relative z-20 p-4 pt-1 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-white">
 {/*  Progress Bar (#E05A7A)  */}
 <div className="w-full h-1.5 bg-white/20 hover:h-2.5 rounded-full mb-3 cursor-pointer group/bar transition-all flex items-center">
-<div className="w-[35%] h-full bg-primary rounded-full relative">
+<div className="w-0 h-full bg-primary rounded-full relative">
 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md scale-0 group-hover/bar:scale-100 transition-transform"></div>
 </div>
 </div>
@@ -88,7 +90,7 @@ export default function LessonPlayer() {
 </div>
 </div>
 {/*  Timestamp  */}
-<span className="font-medium text-[12px] ml-1 text-white/80 tracking-tight font-mono">05:23 / 15:40</span>
+<span className="font-medium text-[12px] ml-1 text-white/80 tracking-tight font-mono">—</span>
 </div>
 {/*  Right side controls  */}
 <div className="flex items-center gap-3">
@@ -117,17 +119,17 @@ export default function LessonPlayer() {
 <div className="flex items-center gap-2.5 w-full sm:w-auto">
 <button className="flex-1 sm:flex-none px-4 py-2 border border-border-soft rounded-xl text-[13px] font-semibold text-charcoal hover:text-primary hover:border-primary/40 hover:bg-primary-50 transition-all flex items-center justify-center gap-2">
 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-<span>Bài trước <span className="text-text-muted font-normal text-[12px] hidden md:inline">(Bài 14: Thể TE)</span></span>
+<span>Bài trước <span className="text-text-muted font-normal text-[12px] hidden md:inline">—</span></span>
 </button>
 <button className="flex-1 sm:flex-none px-4 py-2 border border-border-soft rounded-xl text-[13px] font-semibold text-charcoal hover:text-primary hover:border-primary/40 hover:bg-primary-50 transition-all flex items-center justify-center gap-2">
-<span>Bài tiếp <span className="text-text-muted font-normal text-[12px] hidden md:inline">(Bài 16)</span></span>
+<span>Bài tiếp <span className="text-text-muted font-normal text-[12px] hidden md:inline">—</span></span>
 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </button>
 </div>
 {/*  Main CTA: Mark as Complete  */}
 <Link to="/lesson-complete" className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[14px] font-bold shadow-md shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-95">
 <span className="material-symbols-outlined text-[19px]">check_circle</span>
-<span>Mark as Complete / Hoàn thành bài học</span>
+<span>—</span>
 </Link>
 </div>
 {/*  Study Workspace Multi-tabs  */}
@@ -137,7 +139,7 @@ export default function LessonPlayer() {
 <button className="px-5 py-3 text-[14px] font-bold text-primary border-b-2 border-primary bg-white rounded-t-xl flex items-center gap-2 whitespace-nowrap shadow-sm">
 <span className="material-symbols-outlined text-[18px] icon-fill">dictionary</span>
 <span>Từ vựng quan trọng</span>
-<span className="px-2 py-0.5 text-[11px] font-extrabold rounded-full bg-primary-100 text-primary">4</span>
+<span className="px-2 py-0.5 text-[11px] font-extrabold rounded-full bg-primary-100 text-primary">—</span>
 </button>
 <button className="px-5 py-3 text-[14px] font-medium text-text-muted hover:text-charcoal transition-colors flex items-center gap-2 whitespace-nowrap">
 <span className="material-symbols-outlined text-[18px]">menu_book</span>
@@ -159,7 +161,7 @@ export default function LessonPlayer() {
 <div className="flex items-center justify-between mb-4">
 <h3 className="text-[15px] font-bold text-charcoal flex items-center gap-2">
 <span className="w-1.5 h-4 bg-primary rounded-full"></span>
-                    Từ vựng cốt lõi dùng với mẫu câu ～てもいいです
+                    —
                   </h3>
 <button className="text-[12px] font-semibold text-primary hover:underline flex items-center gap-1">
 <span className="material-symbols-outlined text-[16px]">bookmark_added</span>
@@ -173,10 +175,10 @@ export default function LessonPlayer() {
 <div className="flex items-start justify-between">
 <div>
 <div className="flex items-baseline gap-2">
-<span className="font-jp text-[24px] font-bold text-charcoal">図書館</span>
-<span className="text-[12px] font-medium text-text-muted font-jp">【としょかん】</span>
+<span className="font-jp text-[24px] font-bold text-charcoal">—</span>
+<span className="text-[12px] font-medium text-text-muted font-jp">—</span>
 </div>
-<p className="text-[13px] text-charcoal font-medium mt-1">thư viện</p>
+<p className="text-[13px] text-charcoal font-medium mt-1">—</p>
 </div>
 <button className="w-8 h-8 rounded-lg bg-surface-soft hover:bg-primary-50 text-text-muted hover:text-primary flex items-center justify-center transition-colors" title="Nghe phát âm chuẩn Tokyo">
 <span className="material-symbols-outlined text-[18px]">volume_up</span>
@@ -184,10 +186,10 @@ export default function LessonPlayer() {
 </div>
 </div>
 <div className="mt-4 pt-3 border-t border-border-soft/60 flex items-center justify-between">
-<span className="text-[11px] font-semibold text-text-muted uppercase">Danh từ • N5/N4</span>
+<span className="text-[11px] font-semibold text-text-muted uppercase">—</span>
 <button className="text-[12px] font-semibold text-primary hover:text-primary-hover flex items-center gap-1 bg-primary-50 px-2.5 py-1 rounded-lg transition-colors">
 <span className="material-symbols-outlined text-[16px] icon-fill">bookmark_added</span>
-<span>Đã lưu</span>
+<span>—</span>
 </button>
 </div>
 </div>
@@ -197,10 +199,10 @@ export default function LessonPlayer() {
 <div className="flex items-start justify-between">
 <div>
 <div className="flex items-baseline gap-2">
-<span className="font-jp text-[24px] font-bold text-charcoal">写真を撮る</span>
-<span className="text-[12px] font-medium text-text-muted font-jp">【しゃしんをとる】</span>
+<span className="font-jp text-[24px] font-bold text-charcoal">—</span>
+<span className="text-[12px] font-medium text-text-muted font-jp">—</span>
 </div>
-<p className="text-[13px] text-charcoal font-medium mt-1">chụp ảnh</p>
+<p className="text-[13px] text-charcoal font-medium mt-1">—</p>
 </div>
 <button className="w-8 h-8 rounded-lg bg-surface-soft hover:bg-primary-50 text-text-muted hover:text-primary flex items-center justify-center transition-colors" title="Nghe phát âm chuẩn Tokyo">
 <span className="material-symbols-outlined text-[18px]">volume_up</span>
@@ -208,7 +210,7 @@ export default function LessonPlayer() {
 </div>
 </div>
 <div className="mt-4 pt-3 border-t border-border-soft/60 flex items-center justify-between">
-<span className="text-[11px] font-semibold text-text-muted uppercase">Cụm động từ nhóm 1</span>
+<span className="text-[11px] font-semibold text-text-muted uppercase">—</span>
 <button className="text-[12px] font-semibold text-text-muted hover:text-primary flex items-center gap-1 hover:bg-surface-soft px-2.5 py-1 rounded-lg transition-colors">
 <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
 <span>+ Lưu vào Sổ từ</span>
@@ -221,10 +223,10 @@ export default function LessonPlayer() {
 <div className="flex items-start justify-between">
 <div>
 <div className="flex items-baseline gap-2">
-<span className="font-jp text-[24px] font-bold text-charcoal">借りる</span>
-<span className="text-[12px] font-medium text-text-muted font-jp">【かりる】</span>
+<span className="font-jp text-[24px] font-bold text-charcoal">—</span>
+<span className="text-[12px] font-medium text-text-muted font-jp">—</span>
 </div>
-<p className="text-[13px] text-charcoal font-medium mt-1">mượn, vay</p>
+<p className="text-[13px] text-charcoal font-medium mt-1">—</p>
 </div>
 <button className="w-8 h-8 rounded-lg bg-surface-soft hover:bg-primary-50 text-text-muted hover:text-primary flex items-center justify-center transition-colors" title="Nghe phát âm chuẩn Tokyo">
 <span className="material-symbols-outlined text-[18px]">volume_up</span>
@@ -232,7 +234,7 @@ export default function LessonPlayer() {
 </div>
 </div>
 <div className="mt-4 pt-3 border-t border-border-soft/60 flex items-center justify-between">
-<span className="text-[11px] font-semibold text-text-muted uppercase">Động từ nhóm 2</span>
+<span className="text-[11px] font-semibold text-text-muted uppercase">—</span>
 <button className="text-[12px] font-semibold text-text-muted hover:text-primary flex items-center gap-1 hover:bg-surface-soft px-2.5 py-1 rounded-lg transition-colors">
 <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
 <span>+ Lưu vào Sổ từ</span>
@@ -245,10 +247,10 @@ export default function LessonPlayer() {
 <div className="flex items-start justify-between">
 <div>
 <div className="flex items-baseline gap-2">
-<span className="font-jp text-[24px] font-bold text-charcoal">たばこを吸う</span>
-<span className="text-[12px] font-medium text-text-muted font-jp">【たばこをすう】</span>
+<span className="font-jp text-[24px] font-bold text-charcoal">—</span>
+<span className="text-[12px] font-medium text-text-muted font-jp">—</span>
 </div>
-<p className="text-[13px] text-charcoal font-medium mt-1">hút thuốc lá</p>
+<p className="text-[13px] text-charcoal font-medium mt-1">—</p>
 </div>
 <button className="w-8 h-8 rounded-lg bg-surface-soft hover:bg-primary-50 text-text-muted hover:text-primary flex items-center justify-center transition-colors" title="Nghe phát âm chuẩn Tokyo">
 <span className="material-symbols-outlined text-[18px]">volume_up</span>
@@ -256,7 +258,7 @@ export default function LessonPlayer() {
 </div>
 </div>
 <div className="mt-4 pt-3 border-t border-border-soft/60 flex items-center justify-between">
-<span className="text-[11px] font-semibold text-text-muted uppercase">Cụm động từ nhóm 1</span>
+<span className="text-[11px] font-semibold text-text-muted uppercase">—</span>
 <button className="text-[12px] font-semibold text-text-muted hover:text-primary flex items-center gap-1 hover:bg-surface-soft px-2.5 py-1 rounded-lg transition-colors">
 <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
 <span>+ Lưu vào Sổ từ</span>
@@ -275,24 +277,24 @@ export default function LessonPlayer() {
 <div className="p-3.5 bg-white rounded-xl border border-border-soft mb-3 flex items-center justify-between">
 <div className="flex items-center gap-3">
 <span className="px-2.5 py-1 bg-primary-100 text-primary font-bold text-[12px] rounded-md font-jp">Cấu trúc</span>
-<span className="text-[16px] font-bold text-charcoal font-jp">V-て + もいいです (か)</span>
+<span className="text-[16px] font-bold text-charcoal font-jp">—</span>
 </div>
-<span className="text-[12px] font-semibold text-primary">Ý nghĩa: Được phép làm V / Xin phép làm V</span>
+<span className="text-[12px] font-semibold text-primary">—</span>
 </div>
 {/*  Example list  */}
 <div className="space-y-2 text-[13px]">
 <div className="p-2.5 bg-white/70 rounded-lg border border-border-soft/50 flex items-start gap-2">
-<span className="text-primary font-bold">例1:</span>
+<span className="text-primary font-bold">—</span>
 <div>
-<p className="font-jp text-charcoal font-medium">ここで写真を撮ってもいいですか。 — はい、いいですよ。</p>
-<p className="text-text-muted text-[12px] mt-0.5">Tôi chụp ảnh ở đây được không? — Vâng, được chứ ạ.</p>
+<p className="font-jp text-charcoal font-medium">—</p>
+<p className="text-text-muted text-[12px] mt-0.5">—</p>
 </div>
 </div>
 <div className="p-2.5 bg-white/70 rounded-lg border border-border-soft/50 flex items-start gap-2">
-<span className="text-primary font-bold">例2:</span>
+<span className="text-primary font-bold">—</span>
 <div>
-<p className="font-jp text-charcoal font-medium">この辞書を借りてもいいですか。</p>
-<p className="text-text-muted text-[12px] mt-0.5">Tôi có thể mượn cuốn từ điển này không?</p>
+<p className="font-jp text-charcoal font-medium">—</p>
+<p className="text-text-muted text-[12px] mt-0.5">—</p>
 </div>
 </div>
 </div>
@@ -307,22 +309,22 @@ export default function LessonPlayer() {
 <div className="flex items-center justify-between pb-3 border-b border-border-soft">
 <div>
 <h3 className="text-[16px] font-bold text-charcoal">Chương trình học</h3>
-<p className="text-[12px] text-text-muted">Khóa học JLPT N3 Tổng hợp</p>
+<p className="text-[12px] text-text-muted">—</p>
 </div>
-<span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary-100 text-primary">N3 Pathway</span>
+<span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary-100 text-primary">—</span>
 </div>
 {/*  Progress Bar Section (32%)  */}
 <div className="mt-4 mb-5">
 <div className="flex items-center justify-between text-[12px] mb-1.5">
 <span className="text-text-muted font-medium">Tiến độ khóa học</span>
-<span className="font-extrabold text-primary">32% Hoàn thành</span>
+<span className="font-extrabold text-primary">—</span>
 </div>
 <div className="w-full h-2 bg-surface-soft rounded-full overflow-hidden">
-<div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: "32%" }}></div>
+<div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: "0%" }}></div>
 </div>
 <div className="flex justify-between items-center text-[11px] text-text-muted mt-1.5">
-<span>Đã học 8/25 bài</span>
-<span>Còn 17 bài học</span>
+<span>—</span>
+<span>—</span>
 </div>
 </div>
 {/*  Chapters & Lessons Accordion  */}
@@ -330,7 +332,7 @@ export default function LessonPlayer() {
 {/*  Chapter 1: In Progress  */}
 <div className="rounded-xl border border-border-soft overflow-hidden">
 <button className="w-full p-3 bg-surface-soft/80 flex items-center justify-between text-left hover:bg-surface-soft transition-colors">
-<span className="text-[13px] font-bold text-charcoal">Chương 1: Các mẫu câu xin phép & điều kiện</span>
+<span className="text-[13px] font-bold text-charcoal">—</span>
 <span className="material-symbols-outlined text-[18px] text-text-muted">expand_less</span>
 </button>
 {/*  Lessons in Chapter 1  */}
@@ -339,11 +341,11 @@ export default function LessonPlayer() {
 <a className="p-3 flex items-start gap-3 hover:bg-surface-soft/50 transition-colors group" href="#">
 <span className="material-symbols-outlined text-success-teal text-[19px] icon-fill mt-0.5">check_circle</span>
 <div className="flex-1 min-w-0">
-<p className="text-[13px] font-medium text-text-muted group-hover:text-charcoal truncate">Bài 14: Thể TE & Quy tắc biến âm</p>
+<p className="text-[13px] font-medium text-text-muted group-hover:text-charcoal truncate">—</p>
 <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted">
-<span>12:30</span>
+<span>—</span>
 <span>•</span>
-<span className="text-success-teal font-semibold">Đã hoàn thành</span>
+<span className="text-success-teal font-semibold">—</span>
 </div>
 </div>
 </a>
@@ -352,12 +354,12 @@ export default function LessonPlayer() {
 <span className="material-symbols-outlined text-primary text-[19px] icon-fill mt-0.5">play_circle</span>
 <div className="flex-1 min-w-0">
 <div className="flex items-center justify-between">
-<p className="text-[13px] font-bold text-primary truncate">Bài 15: Mẫu câu ～てもいいです</p>
+<p className="text-[13px] font-bold text-primary truncate">—</p>
 </div>
 <div className="flex items-center gap-2 mt-0.5 text-[11px]">
-<span className="text-primary font-bold">15:40</span>
+<span className="text-primary font-bold">—</span>
 <span className="text-primary/60">•</span>
-<span className="px-2 py-0.2 rounded bg-primary text-white font-bold text-[10px]">Đang học</span>
+<span className="px-2 py-0.2 rounded bg-primary text-white font-bold text-[10px]">—</span>
 </div>
 </div>
 </div>
@@ -365,9 +367,9 @@ export default function LessonPlayer() {
 <a className="p-3 flex items-start gap-3 hover:bg-surface-soft/50 transition-colors group opacity-85" href="#">
 <span className="material-symbols-outlined text-border-soft text-[19px] mt-0.5 group-hover:text-text-muted">radio_button_unchecked</span>
 <div className="flex-1 min-w-0">
-<p className="text-[13px] font-medium text-charcoal group-hover:text-primary transition-colors truncate">Bài 16: Mẫu câu ～てはいけません (Cấm đoán)</p>
+<p className="text-[13px] font-medium text-charcoal group-hover:text-primary transition-colors truncate">—</p>
 <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted">
-<span>10:15</span>
+<span>—</span>
 <span>•</span>
 <span>Chưa học</span>
 </div>
@@ -380,7 +382,7 @@ export default function LessonPlayer() {
 <button className="w-full p-3 bg-surface text-left flex items-center justify-between hover:bg-surface-soft transition-colors">
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[16px] text-text-muted">lock</span>
-<span className="text-[13px] font-medium text-charcoal">Chương 2: Diễn tả trạng thái tiếp diễn</span>
+<span className="text-[13px] font-medium text-charcoal">—</span>
 </div>
 <span className="material-symbols-outlined text-[18px] text-text-muted">expand_more</span>
 </button>
@@ -390,7 +392,7 @@ export default function LessonPlayer() {
 <button className="w-full p-3 bg-surface text-left flex items-center justify-between hover:bg-surface-soft transition-colors">
 <div className="flex items-center gap-2">
 <span className="material-symbols-outlined text-[16px] text-text-muted">lock</span>
-<span className="text-[13px] font-medium text-charcoal">Chương 3: Nối các vế câu và thứ tự hành động</span>
+<span className="text-[13px] font-medium text-charcoal">—</span>
 </div>
 <span className="material-symbols-outlined text-[18px] text-text-muted">expand_more</span>
 </button>
@@ -409,20 +411,18 @@ export default function LessonPlayer() {
 <h4 className="text-[14px] font-bold text-charcoal">Cố vấn AI Haru Sensei</h4>
 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
 </div>
-<p className="text-[11px] text-text-muted">Trợ lý gia sư 24/7 trực tuyến</p>
+<p className="text-[11px] text-text-muted">—</p>
 </div>
 </div>
-<p className="text-[13px] text-charcoal leading-relaxed mb-4">
-              Bạn có thắc mắc về bài giảng này? Đặt câu hỏi cho <span className="font-bold text-primary">Haru Sensei</span> để được giải thích chi tiết và lấy thêm ví dụ tức thì!
-            </p>
+<p className="text-[13px] text-charcoal leading-relaxed mb-4">—</p>
 {/*  Quick prompt suggestions  */}
 <div className="space-y-1.5 mb-4">
 <button className="w-full text-left text-[11px] p-2 bg-white rounded-lg border border-border-soft hover:border-primary/50 hover:bg-primary-50 text-text-muted hover:text-charcoal transition-colors flex items-center justify-between">
-<span>"Phân biệt ～てもいい và ～てもかまいません?"</span>
+<span>—</span>
 <span className="material-symbols-outlined text-[14px] text-primary">chevron_right</span>
 </button>
 <button className="w-full text-left text-[11px] p-2 bg-white rounded-lg border border-border-soft hover:border-primary/50 hover:bg-primary-50 text-text-muted hover:text-charcoal transition-colors flex items-center justify-between">
-<span>"Cách chia động từ nhóm 1 sang thể TE?"</span>
+<span>—</span>
 <span className="material-symbols-outlined text-[14px] text-primary">chevron_right</span>
 </button>
 </div>
@@ -444,7 +444,7 @@ export default function LessonPlayer() {
 
 
     </div>
-  
+
 </LearnerShell>
 );
 }

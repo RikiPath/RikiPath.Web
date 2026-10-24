@@ -71,6 +71,7 @@ export default function Dashboard() {
 <div className="bg-background font-body-md text-on-surface antialiased" data-page="Dashboard" data-shell-unified="1">
 
 <div className="pl-0"><main className="relative pt-0 bg-background min-h-screen"><div className="max-w-[1440px] mx-auto px-space-xl py-space-lg"><div className="flex flex-col w-full gap-space-lg">
+{home.error && <p role="alert">{home.error.message || 'Mục này chưa có dữ liệu.'}</p>}
 <div className="grid grid-cols-12 gap-space-lg w-full items-start">
 <div className="col-span-12 lg:col-span-8 flex flex-col gap-space-lg">
 {/*  Welcome Editorial Card  */}
@@ -143,7 +144,7 @@ export default function Dashboard() {
 <div className="flex flex-col flex-1 min-w-0 gap-space-xxs">
 <div className="flex items-center justify-between gap-space-xs">
 <div className="flex items-center gap-space-xs">
-<span className="font-title-sm text-title-sm text-on-surface font-bold">Haru Sensei AI</span>
+<span className="font-title-sm text-title-sm text-on-surface font-bold">AI AI</span>
 <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-label-sm text-label-sm font-semibold">Cố vấn cá nhân</span>
 </div>
 <button className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container-high text-primary transition-colors" id="audio-play-btn" onClick={(e) => { const p = e.currentTarget.querySelector('.material-symbols-outlined'); p.innerText = p.innerText === 'volume_up' ? 'graphic_eq' : 'volume_up'; }}>
@@ -153,7 +154,7 @@ export default function Dashboard() {
 </div>
 <p className="font-body-md text-body-md text-on-surface-variant">{weakest
   ? `"${honorific}, kỹ năng ${weakest.skillName} đang ở ${Math.round(weakest.averageScore ?? 0)}/100 sau ${weakest.attemptCount ?? 0} lượt. Hãy luyện thêm phần này hôm nay."`
-  : `"${honorific}, chưa có dữ liệu kỹ năng từ bài thi thử. Học bài hoặc làm mini-test để Haru Sensei cá nhân hóa lời khuyên."`}</p>
+  : `"${honorific}, chưa có dữ liệu kỹ năng từ bài thi thử. Học bài hoặc làm mini-test để AI cá nhân hóa lời khuyên."`}</p>
 <div className="flex flex-wrap items-center gap-space-sm pt-space-xs">
 <Link to="/exam-n3" className="px-space-md py-2 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm hover:opacity-95 active:scale-98 transition-all flex items-center gap-1.5">
 <span className="material-symbols-outlined text-[18px]">spellcheck</span>
@@ -236,7 +237,7 @@ export default function Dashboard() {
 <div className="flex items-center justify-between pt-space-xs">
 <div className="flex items-center gap-1 text-outline font-label-sm text-label-sm">
 <span className="material-symbols-outlined text-[15px]">av_timer</span>
-<span className="">~6 phút</span>
+<span className="">—</span>
 </div>
 <Link to="/daily-srs" className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
 <span className="">Ôn tập</span>
@@ -251,11 +252,11 @@ export default function Dashboard() {
 <div className="w-11 h-11 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary group-hover:scale-105 transition-transform">
 <span className="material-symbols-outlined text-[22px]">draw</span>
 </div>
-<span className="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-sm text-label-sm font-bold">{"+50 EXP\n                "}</span>
+<span className="px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-sm text-label-sm font-bold">{"—\n                "}</span>
 </div>
 <div className="flex flex-col">
 <h4 className="font-title-sm text-title-sm text-on-surface font-bold">Luyện viết câu AI</h4>
-<p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">{"Thực hành ghép câu tự do với cấu trúc vừa học, Haru Sensei sửa câu tức thì.\n                "}</p>
+<p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">{"Thực hành ghép câu tự do với cấu trúc vừa học, AI sửa câu tức thì.\n                "}</p>
 </div>
 </div>
 <div className="flex items-center justify-between pt-space-xs">
@@ -276,7 +277,7 @@ export default function Dashboard() {
 <div className="w-11 h-11 rounded-xl bg-secondary-container/40 flex items-center justify-center text-secondary group-hover:scale-105 transition-transform">
 <span className="font-japanese-display text-[18px] font-bold">漢</span>
 </div>
-<span className="px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm font-bold">{"650 chữ\n                "}</span>
+<span className="px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm font-bold">{"—\n                "}</span>
 </div>
 <div className="flex flex-col">
 <h4 className="font-title-sm text-title-sm text-on-surface font-bold">Sổ tay Kanji N3</h4>
@@ -286,7 +287,7 @@ export default function Dashboard() {
 <div className="flex items-center justify-between pt-space-xs">
 <div className="flex items-center gap-1 text-outline font-label-sm text-label-sm">
 <span className="material-symbols-outlined text-[15px]">checklist</span>
-<span className="">Đạt 380/650</span>
+<span className="">Mục này chưa có dữ liệu.</span>
 </div>
 <Link to="/kanji-notebook" className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary font-label-md text-label-md font-bold transition-colors flex items-center gap-1">
 <span className="">Mở sổ</span>
@@ -438,7 +439,7 @@ export default function Dashboard() {
 
 
     </div>
-  
+
 </LearnerShell>
 );
 }

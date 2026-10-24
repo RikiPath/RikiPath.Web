@@ -10,7 +10,7 @@ export default function LearnerSettings() {
     <LearnerShell pathname={pathname} breadcrumb="Cài đặt">
       <div className="mx-auto max-w-3xl px-6 py-8 text-on-surface" data-page="LearnerSettings">
         <h1 className="text-2xl font-bold">Hồ sơ &amp; cài đặt</h1>
-        <p className="mt-1 text-sm text-[#6F6669]">Thông tin tài khoản và mục tiêu JLPT của bạn.</p>
+        <p className="mt-1 text-sm text-[#6F6669]">Mục này chưa có dữ liệu.</p>
 
         <section className="mt-6 rounded-2xl border border-[#eadfd9] bg-white p-6">
           <h2 className="text-lg font-bold">Tài khoản</h2>
@@ -43,14 +43,14 @@ export default function LearnerSettings() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-[#eadfd9] bg-white p-6">
-          <h2 className="text-lg font-bold">Thông báo</h2>
+          <h2 className="text-lg font-bold">Thông báo</h2><p>Mục này chưa có dữ liệu.</p>
           <label className="mt-4 flex items-center justify-between text-sm">
             <span>Nhắc ôn SRS lúc 20:00</span>
-            <input type="checkbox" defaultChecked className="h-4 w-4 accent-[#D94B68]" />
+            <input type="checkbox" disabled className="h-4 w-4 accent-[#D94B68]" />
           </label>
           <label className="mt-3 flex items-center justify-between text-sm">
             <span>Email trước buổi tư vấn 12 giờ</span>
-            <input type="checkbox" defaultChecked className="h-4 w-4 accent-[#D94B68]" />
+            <input type="checkbox" disabled className="h-4 w-4 accent-[#D94B68]" />
           </label>
         </section>
       </div>

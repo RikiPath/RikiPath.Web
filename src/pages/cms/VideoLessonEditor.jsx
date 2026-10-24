@@ -1,34 +1,8 @@
-import { useEffect } from 'react';
 import { CmsShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
 export default function VideoLessonEditor() {
   const { pathname } = useLocation();
-  useEffect(() => {
-    const orig = document.addEventListener.bind(document);
-    document.addEventListener = (type, fn, opts) => {
-      if (type === 'DOMContentLoaded') {
-        try { fn(); } catch (err) { console.warn(err); }
-        return;
-      }
-      return orig(type, fn, opts);
-    };
-    try {
-      // Interactive play toggle button
-          document.getElementById('studio-play-trigger')?.addEventListener('click', function() {
-            const icon = this.querySelector('.material-symbols-outlined');
-            if (icon) {
-              if (icon.textContent.trim() === 'play_arrow') {
-                icon.textContent = 'pause';
-              } else {
-                icon.textContent = 'play_arrow';
-              }
-            }
-          });
-    } catch (err) {
-      console.warn('Stitch script:', err);
-    }
-    document.addEventListener = orig;
-  }, []);
+
 
   return (
     <CmsShell pathname={pathname} breadcrumb="Video">
@@ -49,17 +23,19 @@ export default function VideoLessonEditor() {
 
 {/*  Page Content Container (Standard 1440px desktop frame)  */}
 <main className="flex-1 w-full max-w-[1440px] mx-auto px-8 py-6">
+<p role="status">Mục này chưa có dữ liệu.</p>
+
 {/*  Top Breadcrumb & Workflow Status Header  */}
 <div className="w-full pb-6 mb-2 border-b border-card-border">
 {/*  Breadcrumb  */}
 <nav className="flex items-center gap-1.5 text-text-muted text-xs mb-3">
 <span className="hover:text-primary cursor-pointer transition-colors">Kho học liệu</span>
 <span className="material-symbols-outlined text-[14px] text-text-subtle">chevron_right</span>
-<span className="hover:text-primary cursor-pointer transition-colors">JLPT N3</span>
+<span className="hover:text-primary cursor-pointer transition-colors">—</span>
 <span className="material-symbols-outlined text-[14px] text-text-subtle">chevron_right</span>
 <span className="hover:text-primary cursor-pointer transition-colors">Ngữ pháp</span>
 <span className="material-symbols-outlined text-[14px] text-text-subtle">chevron_right</span>
-<span className="hover:text-primary cursor-pointer transition-colors">Bài 07: Cấu trúc わけにはいかない</span>
+<span className="hover:text-primary cursor-pointer transition-colors">—</span>
 <span className="material-symbols-outlined text-[14px] text-text-subtle">chevron_right</span>
 <span className="text-primary font-semibold">Quản lý Video & Phụ đề</span>
 </nav>
@@ -69,14 +45,14 @@ export default function VideoLessonEditor() {
 <div className="flex flex-wrap items-center gap-2 mb-0.5">
 <span className="px-2.5 py-0.5 rounded-full bg-accent-light border border-accent text-primary text-[11px] font-bold flex items-center gap-1.5">
 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                JLPT N3 • Video 4K Master
+                —
               </span>
 <span className="px-2.5 py-0.5 rounded-full bg-tertiary-bg border border-tertiary/30 text-tertiary text-[11px] font-semibold flex items-center gap-1">
 <span className="material-symbols-outlined text-[13px]">verified</span>
-                Đã xuất bản
+                —
               </span>
 <span className="px-2.5 py-0.5 rounded-md bg-card border border-card-border text-text-muted text-[11px] tracking-wider font-mono">
-                ID: N3-BUN-07-VID
+                —
               </span>
 </div>
 <h1 className="text-2xl lg:text-[28px] text-text font-bold tracking-tight">
@@ -85,7 +61,7 @@ export default function VideoLessonEditor() {
 <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
 <span className="flex items-center gap-1">
 <span className="material-symbols-outlined text-[15px] text-primary">schedule</span>
-                Thời lượng: <strong className="text-text font-semibold">14:20 phút</strong>
+                Thời lượng: <strong className="text-text font-semibold">—</strong>
 </span>
 <span className="w-1 h-1 rounded-full bg-card-border"></span>
 <span className="flex items-center gap-1">
@@ -95,7 +71,7 @@ export default function VideoLessonEditor() {
 <span className="w-1 h-1 rounded-full bg-card-border"></span>
 <span className="flex items-center gap-1">
 <span className="material-symbols-outlined text-[15px] text-text-subtle">update</span>
-                Tải lên: Hôm nay, 11:20
+                —
               </span>
 </div>
 </div>
@@ -107,7 +83,7 @@ export default function VideoLessonEditor() {
 </button>
 <button className="px-4 py-2 rounded-xl bg-accent-light border border-accent/60 hover:bg-accent/20 text-primary font-semibold text-xs transition-all flex items-center gap-2">
 <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
-<span>Thay thế Video Master (4K)</span>
+<span>—</span>
 </button>
 <button className="px-5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-xs transition-all shadow-[0_4px_16px_rgba(224,90,122,0.35)] flex items-center gap-2 active:scale-95">
 <span className="material-symbols-outlined text-[18px]">save</span>
@@ -127,7 +103,7 @@ export default function VideoLessonEditor() {
 {/*  16:9 Video Screen  */}
 <div className="relative w-full aspect-video bg-[#1F1A1C] flex items-center justify-center group overflow-hidden select-none">
 {/*  Video Teacher Image  */}
-<img className="w-full h-full object-cover" data-alt="Japanese sensei instructor Mayumi standing beside an elegant digital blackboard inside a bright minimalist Tokyo studio, teaching JLPT N3 grammar with soft cherry blossom lighting and cinematic composition" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZdmffsObtf74rejWz_vYuQN7OcpNpksBg_A4H9isohb4n_gEci43jIUv7BvU0g-aDyJltnfUsLa9p5JhBbpsRwh9pOo7JuhVwgw0VvVDpBfVoS1m870Efa80rrcGUX6t0CgEs_txi5I8uRwMEDOUXflyrmCJsi73dIl-v3pkJHp1svnBuHhmyWu09oJ_MetAJrMyKhGssh31jGX0-6VGqSdeuz7qd3r3AadsbZv1RCyAXIHV6yQJR" />
+<img className="w-full h-full object-cover" data-alt="Japanese sensei instructor Mayumi standing beside an elegant digital blackboard inside a bright minimalist Tokyo studio, teaching JLPT N3 grammar with soft cherry blossom lighting and cinematic composition"   src="/empty-avatar.svg" />
 {/*  Gradient Scrim Overlay  */}
 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/40 pointer-events-none"></div>
 {/*  Top Overlay Badges  */}
@@ -135,10 +111,10 @@ export default function VideoLessonEditor() {
 <div className="flex items-center gap-2 pointer-events-auto">
 <span className="px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-[11px] font-semibold flex items-center gap-1.5 shadow">
 <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                    4K ULTRA HD • 60fps • HEVC
+                    —
                   </span>
 <span className="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white/90 text-[11px]">
-                    Bitrate: 18.4 Mbps
+                    —
                   </span>
 </div>
 <div className="flex items-center gap-2 pointer-events-auto">
@@ -155,12 +131,8 @@ export default function VideoLessonEditor() {
 {/*  Video Subtitle Scrim Overlay Bar  */}
 <div className="absolute bottom-14 left-4 right-4 flex flex-col items-center justify-center text-center pointer-events-none">
 <div className="inline-block px-4 py-2 rounded-xl bg-black/80 backdrop-blur-md border border-white/10 shadow-lg max-w-xl">
-<p className="text-sm font-medium text-white leading-snug">
-                    明日は大事な会議があるから、休む<span className="text-accent font-bold underline decoration-primary decoration-2 underline-offset-4">わけにはいかない</span>んです。
-                  </p>
-<p className="text-xs text-white/80 mt-0.5">
-                    (Vì ngày mai có cuộc họp quan trọng, tôi tuyệt đối không thể nghỉ được.)
-                  </p>
+<p className="text-sm font-medium text-white leading-snug">—</p>
+<p className="text-xs text-white/80 mt-0.5">—</p>
 </div>
 </div>
 {/*  Video Control Deck  */}
@@ -168,7 +140,7 @@ export default function VideoLessonEditor() {
 {/*  Timeline Scrubber with Primary Color Active Track  */}
 <div className="relative w-full h-1.5 hover:h-2.5 bg-white/30 rounded-full cursor-pointer flex items-center group/scrubber transition-all">
 {/*  Active Progress (Primary #E05A7A)  */}
-<div className="h-full bg-primary rounded-full relative" style={{ width: "29.6%" }}>
+<div className="h-full bg-primary rounded-full relative" style={{ width: "0%" }}>
 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow ring-2 ring-primary transform scale-100"></div>
 </div>
 {/*  Markers / Chapters  */}
@@ -190,9 +162,9 @@ export default function VideoLessonEditor() {
 <span className="material-symbols-outlined text-[19px]">forward_10</span>
 </button>
 <div className="flex items-center gap-1 text-xs ml-1 font-mono font-medium">
-<span className="text-white font-semibold">04:15</span>
+<span className="text-white font-semibold">—</span>
 <span className="text-white/50">/</span>
-<span className="text-white/70">14:20</span>
+<span className="text-white/70">—</span>
 </div>
 <div className="flex items-center gap-1.5 ml-2">
 <span className="material-symbols-outlined text-[19px] hover:text-accent cursor-pointer">volume_up</span>
@@ -227,10 +199,10 @@ export default function VideoLessonEditor() {
 </div>
 <div className="flex flex-col min-w-0">
 <span className="text-xs font-bold text-text truncate">
-                    Mayumi_Bun07_WakeNiwaIkanai_Master_v2.4.mp4
+                    —
                   </span>
 <span className="text-[11px] text-text-subtle">
-                    1.42 GB • H.265 / HEVC • Stereo AAC 48kHz • 3840x2160 (16:9)
+                    —
                   </span>
 </div>
 </div>
@@ -254,9 +226,7 @@ export default function VideoLessonEditor() {
 <span className="material-symbols-outlined text-primary text-[20px]">bookmarks</span>
                   Mốc thời gian bài học (Timestamps - 4 mốc cốt lõi)
                 </h2>
-<p className="text-xs text-text-muted">
-                  Phân đoạn bài học thành các chương mục để học viên tra cứu ngữ cảnh tức thời
-                </p>
+<p className="text-xs text-text-muted">—</p>
 </div>
 <button className="px-3 py-1.5 rounded-xl bg-primary text-white hover:bg-primary-hover text-xs font-semibold transition-all shadow-[0_3px_10px_rgba(224,90,122,0.25)] flex items-center gap-1">
 <span className="material-symbols-outlined text-[16px]">add_circle</span>
@@ -271,15 +241,15 @@ export default function VideoLessonEditor() {
 </span>
 <div className="flex flex-col">
 <span className="text-xs text-text font-bold">
-                    Tự động dừng phát để làm Quiz tương tác tại mốc 12:30
+                    —
                   </span>
 <span className="text-[11px] text-text-muted">
-                    Học viên phải hoàn thành câu hỏi phân biệt với ~わけがない trước khi mở khoá tiếp bài
+                    —
                   </span>
 </div>
 </div>
 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-<input checked className="sr-only peer" type="checkbox" />
+<input disabled className="sr-only peer" type="checkbox" />
 <div className="w-10 h-5 bg-card-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
 </label>
 </div>
@@ -289,15 +259,13 @@ export default function VideoLessonEditor() {
 <div className="p-3 rounded-xl bg-background border border-card-border hover:border-accent transition-all flex items-center justify-between gap-3">
 <div className="flex items-center gap-3 min-w-0">
 <span className="px-2.5 py-1 rounded-lg bg-card border border-card-border text-text font-mono font-bold text-xs shrink-0">
-                    00:00
+                    —
                   </span>
 <div className="flex flex-col min-w-0">
 <span className="text-xs font-bold text-text truncate">
-                      1. Khái quát ý nghĩa xã hội & tâm lý người Nhật
+                      —
                     </span>
-<span className="text-[11px] text-text-muted truncate">
-                      Tâm thế gượng gạo, ràng buộc trách nhiệm công dân và bổn phận nội tâm
-                    </span>
+<span className="text-[11px] text-text-muted truncate">—</span>
 </div>
 </div>
 <div className="flex items-center gap-1 shrink-0">
@@ -316,17 +284,17 @@ export default function VideoLessonEditor() {
 <div className="p-3 rounded-xl bg-accent-light/80 border-2 border-primary/40 shadow-sm flex items-center justify-between gap-3">
 <div className="flex items-center gap-3 min-w-0">
 <span className="px-2.5 py-1 rounded-lg bg-primary text-white font-mono font-bold text-xs shrink-0 shadow-sm">
-                    03:45
+                    —
                   </span>
 <div className="flex flex-col min-w-0">
 <div className="flex items-center gap-2">
 <span className="text-xs font-bold text-text truncate">
-                        2. Công thức V-る / V-ない + わけにはいかない
+                        —
                       </span>
 <span className="px-2 py-0.5 rounded bg-accent text-primary text-[10px] font-bold">Đang xem</span>
 </div>
 <span className="text-[11px] text-text-muted truncate">
-                      Phân tích kỹ lưỡng 2 dạng thể khẳng định và phủ định kép
+                      —
                     </span>
 </div>
 </div>
@@ -346,15 +314,13 @@ export default function VideoLessonEditor() {
 <div className="p-3 rounded-xl bg-background border border-card-border hover:border-accent transition-all flex items-center justify-between gap-3">
 <div className="flex items-center gap-3 min-w-0">
 <span className="px-2.5 py-1 rounded-lg bg-card border border-card-border text-text font-mono font-bold text-xs shrink-0">
-                    08:12
+                    —
                   </span>
 <div className="flex flex-col min-w-0">
 <span className="text-xs font-bold text-text truncate">
-                      3. 5 Tình huống giao tiếp công sở thực tế (Business Nihongo)
+                      —
                     </span>
-<span className="text-[11px] text-text-muted truncate">
-                      Gặp đối tác thương mại, xin phép về sớm và từ chối lời mời khéo léo
-                    </span>
+<span className="text-[11px] text-text-muted truncate">—</span>
 </div>
 </div>
 <div className="flex items-center gap-1 shrink-0">
@@ -374,17 +340,17 @@ export default function VideoLessonEditor() {
 <div className="flex items-center gap-3 min-w-0">
 <span className="px-2.5 py-1 rounded-lg bg-accent-light border border-accent text-primary font-mono font-bold text-xs shrink-0 flex items-center gap-1">
 <span className="material-symbols-outlined text-[14px]">quiz</span>
-                    12:30
+                    —
                   </span>
 <div className="flex flex-col min-w-0">
 <div className="flex items-center gap-2">
 <span className="text-xs font-bold text-text truncate">
-                        4. Điểm bẫy dễ nhầm với ~わけがない & Bài tập nhanh
+                        —
                       </span>
 <span className="px-2 py-0.5 rounded bg-tertiary-bg border border-tertiary/30 text-tertiary text-[10px] font-bold">Quiz Auto-Pause</span>
 </div>
 <span className="text-[11px] text-text-muted truncate">
-                      3 câu hỏi trắc nghiệm trực quan củng cố phản xạ trước khi kết thúc bài giảng
+                      —
                     </span>
 </div>
 </div>
@@ -409,7 +375,7 @@ export default function VideoLessonEditor() {
 <div className="flex items-center justify-between border-b border-card-border pb-2">
 <h3 className="text-xs font-bold text-text flex items-center gap-1.5">
 <span className="material-symbols-outlined text-primary text-[18px]">history</span>
-                  Lịch sử Phiên bản (3)
+                  —
                 </h3>
 <span className="text-[11px] text-text-subtle font-mono">Git media</span>
 </div>
@@ -417,18 +383,18 @@ export default function VideoLessonEditor() {
 <div className="relative flex flex-col gap-0.5">
 <div className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-primary ring-2 ring-accent"></div>
 <div className="flex items-center justify-between">
-<span className="text-xs font-bold text-primary font-mono">v2.4 (Hiện tại)</span>
-<span className="text-[10px] text-text-subtle">11:20</span>
+<span className="text-xs font-bold text-primary font-mono">—</span>
+<span className="text-[10px] text-text-subtle">—</span>
 </div>
-<p className="text-[11px] text-text leading-tight">Cập nhật ví dụ thực tế số 5 theo yêu cầu chuyên môn.</p>
+<p className="text-[11px] text-text leading-tight">—</p>
 </div>
 <div className="relative flex flex-col gap-0.5">
 <div className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-card-border"></div>
 <div className="flex items-center justify-between">
-<span className="text-xs font-semibold text-text font-mono">v2.3</span>
-<span className="text-[10px] text-text-subtle">18/03</span>
+<span className="text-xs font-semibold text-text font-mono">—</span>
+<span className="text-[10px] text-text-subtle">—</span>
 </div>
-<p className="text-[11px] text-text-muted leading-tight">Đồng bộ phụ đề AI Whisper và mốc dừng quiz.</p>
+<p className="text-[11px] text-text-muted leading-tight">—</p>
 </div>
 </div>
 </section>
@@ -441,15 +407,13 @@ export default function VideoLessonEditor() {
                 </h3>
 </div>
 <div className="flex items-center gap-2">
-<img className="w-7 h-7 rounded-full object-cover border border-card-border" data-alt="Director Kenji portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuARv-9xtYNy2qtYLtgtVgrgg53MKGnIvN5eBRXpPH-hAejvxXrkWy7bUhL2xKxlPXUFT4dbMs5Mm2KC0z4joDr6jnDvlPsCGg0m1YCl-KwJWhyq8GvlPrJ2X8yd6jtC_1CQNh79HlEx3J7NA7sSgRhNOcvSwo7Tqx23N1_grqAY010W0oxBwDEvDeeRm4sSvVVu3llIfQaTnzgeEK1DhvdlnKAbdrSwvLiUYjOC_GpoRvoXNm8MGTQD" />
+<img className="w-7 h-7 rounded-full object-cover border border-card-border"    src="/empty-avatar.svg" />
 <div className="flex flex-col leading-tight">
 <span className="text-xs font-bold text-text">Trưởng khoa Kenji</span>
-<span className="text-[10px] text-tertiary font-semibold">Đã duyệt kiểm thử Tokyo</span>
+<span className="text-[10px] text-tertiary font-semibold">—</span>
 </div>
 </div>
-<p className="text-[11px] text-text-muted italic bg-background p-2 rounded-lg border border-card-border leading-relaxed">
-                “Ánh sáng và phát âm của Mayumi Sensei rất chuẩn, âm lượng đã giảm 3dB theo đúng quy chuẩn trường quay.”
-              </p>
+<p className="text-[11px] text-text-muted italic bg-background p-2 rounded-lg border border-card-border leading-relaxed">—</p>
 </section>
 </div>
 </div>
@@ -463,9 +427,7 @@ export default function VideoLessonEditor() {
 <span className="material-symbols-outlined text-primary text-[20px]">subtitles</span>
                   Phụ đề Đa ngôn ngữ (Bilingual Sync Studio)
                 </h2>
-<p className="text-xs text-text-muted">
-                  Đồng bộ Furigana & bản dịch nghĩa học thuật chuẩn JLPT N3
-                </p>
+<p className="text-xs text-text-muted">—</p>
 </div>
 <div className="flex items-center gap-1.5">
 <button className="px-2.5 py-1 rounded-lg bg-background border border-card-border hover:border-primary/40 text-text text-xs font-semibold transition-colors flex items-center gap-1" title="Tự sửa Furigana">
@@ -486,10 +448,10 @@ export default function VideoLessonEditor() {
 </div>
 <div className="flex flex-col min-w-0">
 <div className="flex items-center gap-1.5">
-<span className="text-xs font-bold text-text font-mono truncate">n3_bun07_bilingual_sync.srt</span>
-<span className="px-1.5 py-0.2 rounded bg-tertiary text-white text-[10px] font-bold">Khớp 100%</span>
+<span className="text-xs font-bold text-text font-mono truncate">—</span>
+<span className="px-1.5 py-0.2 rounded bg-tertiary text-white text-[10px] font-bold">—</span>
 </div>
-<span className="text-[10px] text-text-subtle truncate">AI Whisper & Riki Align Engine v2.4</span>
+<span className="text-[10px] text-text-subtle truncate">—</span>
 </div>
 </div>
 <button className="px-3 py-1 rounded-lg bg-card border border-card-border hover:border-primary/40 text-primary text-xs font-semibold transition-colors flex items-center gap-1 shrink-0">
@@ -524,16 +486,12 @@ export default function VideoLessonEditor() {
 <div className="col-span-3">
 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-accent border border-primary/30 font-mono text-[11px] font-bold text-primary">
 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
-                      03:45 - 03:52
+                      —
                     </span>
 </div>
 <div className="col-span-8 flex flex-col gap-1">
-<p className="text-xs font-bold text-text leading-snug">
-                      明日は大事な会議があるから、休む<span className="text-primary font-extrabold bg-accent-light px-1 rounded">わけにはいかない</span>んです。
-                    </p>
-<p className="text-[11px] text-text-muted leading-tight">
-                      Vì ngày mai có cuộc họp quan trọng, tôi tuyệt đối không thể nghỉ được.
-                    </p>
+<p className="text-xs font-bold text-text leading-snug">—</p>
+<p className="text-[11px] text-text-muted leading-tight">—</p>
 </div>
 <div className="col-span-1 flex flex-col items-end gap-1 text-text-subtle">
 <button className="hover:text-primary transition-colors" title="Sửa"><span className="material-symbols-outlined text-[16px]">edit_note</span></button>
@@ -544,16 +502,12 @@ export default function VideoLessonEditor() {
 <div className="grid grid-cols-12 px-3.5 py-3 items-start gap-2 hover:bg-background transition-colors">
 <div className="col-span-3">
 <span className="inline-flex items-center px-2 py-0.5 rounded bg-background border border-card-border font-mono text-[11px] font-semibold text-text-subtle">
-                      03:53 - 04:02
+                      —
                     </span>
 </div>
 <div className="col-span-8 flex flex-col gap-1">
-<p className="text-xs font-medium text-text leading-snug">
-                      ここで使う『<span className="text-primary font-bold">わけにはいかない</span>』は、社会的な責任や道徳心を表します。
-                    </p>
-<p className="text-[11px] text-text-muted leading-tight">
-                      Cấu trúc được sử dụng ở đây thể hiện tinh thần trách nhiệm xã hội và chuẩn mực đạo đức.
-                    </p>
+<p className="text-xs font-medium text-text leading-snug">—</p>
+<p className="text-[11px] text-text-muted leading-tight">—</p>
 </div>
 <div className="col-span-1 flex flex-col items-end gap-1 text-text-subtle">
 <button className="hover:text-primary transition-colors" title="Sửa"><span className="material-symbols-outlined text-[16px]">edit_note</span></button>
@@ -564,16 +518,12 @@ export default function VideoLessonEditor() {
 <div className="grid grid-cols-12 px-3.5 py-3 items-start gap-2 hover:bg-background transition-colors">
 <div className="col-span-3">
 <span className="inline-flex items-center px-2 py-0.5 rounded bg-background border border-card-border font-mono text-[11px] font-semibold text-text-subtle">
-                      04:03 - 04:12
+                      —
                     </span>
 </div>
 <div className="col-span-8 flex flex-col gap-1">
-<p className="text-xs font-medium text-text leading-snug">
-                      単に「できない」と言うよりも、強い心理的な葛藤が含まれているのが特徴です。
-                    </p>
-<p className="text-[11px] text-text-muted leading-tight">
-                      Điểm đặc trưng là biểu thị sự giằng xé nội tâm mạnh mẽ hơn là chỉ nói "không thể làm" đơn thuần.
-                    </p>
+<p className="text-xs font-medium text-text leading-snug">—</p>
+<p className="text-[11px] text-text-muted leading-tight">—</p>
 </div>
 <div className="col-span-1 flex flex-col items-end gap-1 text-text-subtle">
 <button className="hover:text-primary transition-colors" title="Sửa"><span className="material-symbols-outlined text-[16px]">edit_note</span></button>
@@ -584,16 +534,12 @@ export default function VideoLessonEditor() {
 <div className="grid grid-cols-12 px-3.5 py-3 items-start gap-2 hover:bg-background transition-colors">
 <div className="col-span-3">
 <span className="inline-flex items-center px-2 py-0.5 rounded bg-background border border-card-border font-mono text-[11px] font-semibold text-text-subtle">
-                      04:13 - 04:22
+                      —
                     </span>
 </div>
 <div className="col-span-8 flex flex-col gap-1">
-<p className="text-xs font-medium text-text leading-snug">
-                      例えば、風邪を引いても休めない時などによく使われます。
-                    </p>
-<p className="text-[11px] text-text-muted leading-tight">
-                      Ví dụ, mẫu câu này thường được sử dụng khi bị cảm cúm nhưng vẫn không thể xin nghỉ việc.
-                    </p>
+<p className="text-xs font-medium text-text leading-snug">—</p>
+<p className="text-[11px] text-text-muted leading-tight">—</p>
 </div>
 <div className="col-span-1 flex flex-col items-end gap-1 text-text-subtle">
 <button className="hover:text-primary transition-colors" title="Sửa"><span className="material-symbols-outlined text-[16px]">edit_note</span></button>
@@ -605,7 +551,7 @@ export default function VideoLessonEditor() {
 {/*  Add Subtitle Row Quick Trigger  */}
 <button className="w-full py-2 rounded-xl bg-background border border-dashed border-card-border hover:border-primary text-text-muted hover:text-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1">
 <span className="material-symbols-outlined text-[16px]">add</span>
-<span>Thêm dòng phụ đề tại vị trí hiện tại (04:15)</span>
+<span>—</span>
 </button>
 </section>
 {/*  2. CDN Infrastructure & Tokyo Studio Audio Quality  */}
@@ -618,7 +564,7 @@ export default function VideoLessonEditor() {
                 </h3>
 </div>
 <span className="px-2.5 py-0.5 rounded-full bg-tertiary-bg border border-tertiary/30 text-tertiary text-[11px] font-bold">
-                Tối ưu 100%
+                —
               </span>
 </div>
 {/*  CDN Edge Node Server  */}
@@ -627,8 +573,8 @@ export default function VideoLessonEditor() {
 <span className="material-symbols-outlined text-[20px]">dns</span>
 </div>
 <div className="flex flex-col">
-<span className="text-xs font-bold text-text">Sakura Tokyo Edge Node #4</span>
-<span className="text-[11px] text-text-muted">Băng thông định tuyến đa điểm APAC (VN & JP)</span>
+<span className="text-xs font-bold text-text">—</span>
+<span className="text-[11px] text-text-muted">—</span>
 </div>
 </div>
 {/*  Media Metrics Bento Grid  */}
@@ -637,24 +583,24 @@ export default function VideoLessonEditor() {
 <div className="p-3 rounded-xl bg-background border border-card-border flex flex-col justify-between">
 <span className="text-[11px] text-text-muted">Độ trễ TTFB</span>
 <div className="flex items-baseline gap-1 my-1">
-<span className="text-xl font-bold text-text font-mono">120</span>
+<span className="text-xl font-bold text-text font-mono">—</span>
 <span className="text-[11px] text-tertiary font-bold">ms (Cực nhanh)</span>
 </div>
 {/*  Sparkline SVG  */}
 <svg className="w-full h-4 text-tertiary" fill="none" preserveAspectRatio="none" viewBox="0 0 100 20">
-<path d="M0 15 Q20 5, 40 12 T80 6 T100 10" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2"></path>
+<path d="" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2"></path>
 </svg>
 </div>
 {/*  Video Mobile Compression  */}
 <div className="p-3 rounded-xl bg-background border border-card-border flex flex-col justify-between">
-<span className="text-[11px] text-text-muted">Nén H.265 Mobile</span>
+<span className="text-[11px] text-text-muted">—</span>
 <div className="flex items-baseline gap-1 my-1">
-<span className="text-xl font-bold text-primary font-mono">-40%</span>
+<span className="text-xl font-bold text-primary font-mono">—</span>
 <span className="text-[11px] text-text-subtle">Data save</span>
 </div>
 {/*  Progress Bar with Primary & Accent  */}
 <div className="w-full h-1.5 bg-card-border rounded-full overflow-hidden">
-<div className="h-full bg-primary rounded-full w-[60%]"></div>
+<div className="h-full bg-primary rounded-full w-0"></div>
 </div>
 </div>
 </div>
@@ -666,7 +612,7 @@ export default function VideoLessonEditor() {
 </div>
 <div className="flex flex-col leading-tight">
 <span className="text-xs font-bold text-text">Khử nhiễu Tokyo NHK Studio</span>
-<span className="text-[11px] text-text-muted">Chuẩn Hi-Res Audio Master 24-bit / 48kHz</span>
+<span className="text-[11px] text-text-muted">—</span>
 </div>
 </div>
 <span className="material-symbols-outlined text-tertiary text-[20px]">check_circle</span>
@@ -674,7 +620,7 @@ export default function VideoLessonEditor() {
 {/*  Cross Device Test Button  */}
 <button className="w-full py-2.5 rounded-xl bg-card border border-card-border hover:border-primary/40 text-text font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm">
 <span className="material-symbols-outlined text-[17px] text-primary">devices</span>
-<span>Kiểm tra tương thích phát sóng đa thiết bị (Web / iOS / Android)</span>
+<span>—</span>
 </button>
 </section>
 </div>
@@ -684,7 +630,7 @@ export default function VideoLessonEditor() {
 
 
     </div>
-  
+
 </CmsShell>
 );
 }

@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../api/client.js';
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AdminShell } from '../../components/shells';
@@ -89,58 +91,24 @@ export default function AdminConsultants() {
     });
   }, []);
 
-  // Mock schedule generator based on consultant ID for display
-  const consultantScheduleData = useMemo(() => {
-    if (!selectedConsultant) return [];
-
-    // Realistic time slots
-    const slots = [
-      { time: '08:30 - 09:15', period: 'Sáng' },
-      { time: '09:30 - 10:15', period: 'Sáng' },
-      { time: '10:30 - 11:15', period: 'Sáng' },
-      { time: '14:00 - 14:45', period: 'Chiều' },
-      { time: '15:00 - 15:45', period: 'Chiều' },
-      { time: '16:00 - 16:45', period: 'Chiều' },
-      { time: '19:00 - 19:45', period: 'Tối' },
-      { time: '20:00 - 20:45', period: 'Tối' },
-    ];
-
-    // Seed mock data for each day
-    return daysOfWeek.map((dayObj, dayIdx) => {
-      const daySlots = slots.map((s, slotIdx) => {
-        // Deterministic status simulation based on consultant id and indices
-        const seed = (selectedConsultant.id * 17 + dayIdx * 7 + slotIdx * 3) % 10;
-        let status = 'available'; // available, booked, break
-        let bookingInfo = null;
-
-        if (seed === 1 || seed === 4 || seed === 7) {
-          status = 'booked';
-          const studentNames = ['Nguyễn Văn Nam', 'Trần Thị Mai', 'Lê Hoàng Anh', 'Phạm Đức Minh', 'Đỗ Phương Thảo'];
-          const packagesList = ['Tư vấn Lộ trình JLPT N2', 'Chiến thuật Đọc hiểu N3', 'Định hướng Du học & Việc làm', 'Khắc phục từ vựng SRS'];
-          bookingInfo = {
-            studentName: studentNames[(dayIdx + slotIdx) % studentNames.length],
-            package: packagesList[(dayIdx + slotIdx) % packagesList.length],
-            target: `JLPT N${(slotIdx % 3) + 1}`,
-            statusText: slotIdx % 2 === 0 ? 'Đã xác nhận' : 'Hoàn thành',
-          };
-        } else if (seed === 9) {
-          status = 'break';
-        }
-
-        return {
-          id: `${dayIdx}-${slotIdx}`,
-          ...s,
-          status,
-          bookingInfo,
-        };
-      });
-
-      return {
-        day: dayObj,
-        slots: daySlots,
-      };
-    });
-  }, [selectedConsultant, daysOfWeek]);
+  const scheduleQuery = useQuery({
+    queryKey: ['admin-mentor-schedules'],
+    queryFn: async () => (await api.get('/admin/mentor-availabilities')).result || [],
+    enabled: Boolean(selectedConsultant),
+  });
+  const consultantScheduleData = daysOfWeek.map(day => ({
+    day,
+    slots: (scheduleQuery.data || []).filter(slot => {
+      const start = new Date(slot.startTime);
+      return slot.mentorId === selectedConsultant?.id && start.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) === day.fullDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+    }).map(slot => ({
+      id: slot.id,
+      time: [slot.startTime, slot.endTime].map(value => new Date(value).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })).join(' - '),
+      period: slot.isApproved ? 'Đã duyệt' : slot.rejectedAt ? 'Đã từ chối' : 'Chờ duyệt',
+      status: slot.isBooked ? 'booked' : slot.isApproved && !slot.rejectedAt ? 'available' : 'unavailable',
+      bookingInfo: null,
+    })),
+  }));
 
   // Fetch Consultants
   const fetchConsultantsList = async () => {
@@ -749,6 +717,7 @@ export default function AdminConsultants() {
 
                 {/* Slots Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {scheduleQuery.isPending ? <p role="status">Đang tải lịch…</p> : scheduleQuery.error ? <p role="alert">{scheduleQuery.error.message}</p> : consultantScheduleData[selectedDayIndex]?.slots.length === 0 ? <p>Mục này chưa có dữ liệu.</p> : null}
                   {consultantScheduleData[selectedDayIndex]?.slots.map((slot) => {
                     const isBooked = slot.status === 'booked';
                     const isAvailable = slot.status === 'available';
@@ -778,7 +747,7 @@ export default function AdminConsultants() {
                                 : 'bg-gray-200 text-gray-600'
                               }`}
                           >
-                            {isBooked ? 'Đã đặt hẹn' : isAvailable ? 'Có thể đặt' : 'Tạm nghỉ'}
+                            {isBooked ? 'Đã đặt hẹn' : isAvailable ? 'Có thể đặt' : slot.period}
                           </span>
                         </div>
 
