@@ -33,11 +33,36 @@ export const getAdminMentors = () => api.get('/admin/mentors');
 export const setAdminMentorActive = (mentorId, isActive) => api.put(`/admin/mentors/${mentorId}/active`, null, { params: { isActive } });
 export const getAdminDashboard = () => api.get('/admin/dashboard');
 
+// Content moderation (legacy)
+export const getAdminPendingContent = (entityType, params) => api.get(`/content-management/admin/pending/${entityType}`, { params });
+export const getAdminContentDetails = (entityType, entityId) => api.get(`/content-management/admin/details/${entityType}/${entityId}`);
+export const reviewAdminContent = (entityType, entityId, data) => api.post(`/content-management/admin/review/${entityType}/${entityId}`, data);
 // Content moderation
 export const getAdminPendingContent = (entityType, params) => api.get('/content-approvals/pending', {
   params: { ...params, ...(entityType ? { entityType: entityType === 'GrammarPattern' ? 'Grammar' : entityType } : {}) },
 });
 export const reviewAdminContent = (requestId, data) => api.post(`/content-approvals/requests/${requestId}/review`, data);
+
+// Content approvals v1
+export async function getPendingApprovals(params = {}) {
+  const res = await api.get('/content-approvals/pending', { params });
+  return res?.result ?? res;
+}
+
+export async function getApprovalDetail(approvalId) {
+  const res = await api.get(`/content-approvals/${approvalId}`);
+  return res?.result ?? res;
+}
+
+export async function approveContent(approvalId) {
+  const res = await api.post(`/content-approvals/${approvalId}/approve`);
+  return res?.result ?? res;
+}
+
+export async function rejectContent(approvalId, body) {
+  const res = await api.post(`/content-approvals/${approvalId}/reject`, body);
+  return res?.result ?? res;
+}
 
 export function unwrapApiResult(response) {
   return response?.result ?? response?.data?.result ?? response?.data ?? response;
@@ -50,4 +75,17 @@ export function unwrapApiList(response) {
     if (Array.isArray(value?.[key])) return value[key];
   }
   return [];
+}
+
+export async function reviewContentRequest(requestId, data) {
+  // data: { approve: boolean, reviewNote: string }
+  const res = await api.post(`/content-approvals/requests/${requestId}/review`, data);
+  return res?.result ?? res;
+}
+
+// Duyệt / Từ chối hàng loạt
+export async function batchReviewContentRequests(items) {
+  // items: Array<{ requestId: number, approve: boolean, reviewNote: string }>
+  const res = await api.post('/content-approvals/requests/batch-review', { items });
+  return res?.result ?? res;
 }

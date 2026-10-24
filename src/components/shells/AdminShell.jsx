@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { ADMIN_NAV, pathMatches } from './navConfig.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import NotificationPopover from '../admin/NotificationPopover.jsx';
 
 const SIDEBAR_W = 248;
 const HEADER_H = 68;
@@ -304,6 +305,7 @@ export default function AdminShell({
               </button>
             )}
           </div>
+          <NotificationPopover />
         </header>
 
         <div
