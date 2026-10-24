@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../../api/client.js';
-import { getSession } from '../../auth/session.js';
 import { ConsultShell } from '../../components/shells';
 
 const TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -41,31 +40,6 @@ function groupByDate(slots) {
   return map;
 }
 
-function previewSlots() {
-  return [
-    {
-      id: 990001,
-      mentorName: 'Sensei Aoi',
-      startTime: '2026-10-02T09:00:00',
-      endTime: '2026-10-02T10:00:00',
-      isBooked: true,
-    },
-    {
-      id: 990002,
-      mentorName: 'Sensei Aoi',
-      startTime: '2026-10-02T19:30:00',
-      endTime: '2026-10-02T20:15:00',
-      isBooked: false,
-    },
-    {
-      id: 990003,
-      mentorName: 'Sensei Aoi',
-      startTime: '2026-10-03T14:00:00',
-      endTime: '2026-10-03T15:00:00',
-      isBooked: false,
-    },
-  ];
-}
 
 function SlotCard({ slot, onDelete, deleting }) {
   const booked = Boolean(slot.bookedCount > 0 || slot.isBooked);
@@ -119,7 +93,6 @@ function SlotCard({ slot, onDelete, deleting }) {
 
 export default function MentorAvailability() {
   const { pathname } = useLocation();
-  const preview = Boolean(getSession()?.isPreview);
 
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -137,16 +110,12 @@ export default function MentorAvailability() {
       const list = res?.result ?? (Array.isArray(res) ? res : []);
       setSlots(Array.isArray(list) ? list : []);
     } catch (err) {
-      if (preview) {
-        setSlots(previewSlots());
-        setError('');
-      } else {
-        setError(err.message || 'Không tải được lịch khả dụng.');
-      }
+      setSlots([]);
+      setError(err.message || 'Không tải được lịch khả dụng.');
     } finally {
       setLoading(false);
     }
-  }, [preview]);
+  }, []);
 
   useEffect(() => {
     Promise.resolve().then(load);
@@ -164,24 +133,10 @@ export default function MentorAvailability() {
     setSaving(true);
     setNotice('');
     try {
-      let approved = preview;
       const body = { startTime: new Date(form.start).toISOString(), endTime: new Date(form.end).toISOString() };
-      if (preview) {
-        setSlots((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            mentorName: getSession()?.fullName || 'Sensei',
-            startTime: form.start,
-            endTime: form.end,
-            isBooked: false,
-          },
-        ]);
-      } else {
-        const created = await api.post('/mentor/availability', body);
-        approved = created.result?.isApproved;
-        await load();
-      }
+      const created = await api.post('/mentor/availability', body);
+      const approved = created.result?.isApproved;
+      await load();
       setForm({ start: '', end: '' });
       setNotice(approved ? 'Đã mở slot mới. Học viên có thể thấy lịch này.' : 'Đã tạo slot mới, đang chờ duyệt trước khi hiển thị cho học viên.');
     } catch (err) {
@@ -196,12 +151,8 @@ export default function MentorAvailability() {
     setDeletingId(slot.id);
     setNotice('');
     try {
-      if (preview) {
-        setSlots((prev) => prev.filter((item) => item.id !== slot.id));
-      } else {
-        await api.delete(`/mentor/availability/${slot.id}`);
+      await api.delete(`/mentor/availability/${slot.id}`);
         await load();
-      }
       setNotice('Đã đóng slot trống.');
     } catch (err) {
       setNotice(err.message || 'Không xóa được slot.');

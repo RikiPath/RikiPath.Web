@@ -175,68 +175,7 @@ function normalizeImportedRow(rowObj, index) {
   };
 }
 
-const INITIAL_DEMO_RECORDS = [
-  {
-    id: 1,
-    lineNumber: 1,
-    type: 'Vocabulary',
-    term: '咲き誇る',
-    furigana: 'さきほこる',
-    meaning: 'Nở rộ khoe sắc rực rỡ',
-    level: 'N3',
-    status: 'valid',
-    warning: null,
-    example: '桜の花が満開に咲き誇っている。',
-  },
-  {
-    id: 2,
-    lineNumber: 2,
-    type: 'Vocabulary',
-    term: '一期一会',
-    furigana: 'いちごいちえ',
-    meaning: 'Đời người chỉ gặp một lần (quý trọng từng khoảnh khắc)',
-    level: 'N3',
-    status: 'warning',
-    warning: 'Thiếu phiên âm Furigana ở ký tự thứ 3. Đã tự động điền.',
-    example: '人との出会いは一期一会だと大切にする。',
-  },
-  {
-    id: 3,
-    lineNumber: 3,
-    type: 'Kanji',
-    term: '咲',
-    furigana: 'ショウ / さ.く',
-    meaning: 'TIẾU (Nở hoa, mỉm cười)',
-    level: 'N3',
-    status: 'valid',
-    warning: null,
-    example: '春になると花が咲く。',
-  },
-  {
-    id: 4,
-    lineNumber: 4,
-    type: 'Grammar',
-    term: '〜に違いない',
-    furigana: '〜にちがいない',
-    meaning: 'Chắc chắn là, nhất định là...',
-    level: 'N3',
-    status: 'valid',
-    warning: null,
-    example: '明日は雨に違いない。',
-  },
-  {
-    id: 5,
-    lineNumber: 5,
-    type: 'Kanji',
-    term: '桜',
-    furigana: 'オウ / さくら',
-    meaning: 'ANH (Hoa anh đào)',
-    level: 'N3',
-    status: 'valid',
-    warning: null,
-    example: '桜が満開です。',
-  },
-];
+
 
 export default function BulkImport() {
   const { pathname } = useLocation();
@@ -245,13 +184,13 @@ export default function BulkImport() {
   // File state
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileMetadata, setFileMetadata] = useState({
-    name: 'RikiPath_Sample_JLPT.xlsx',
-    size: '1.8 MB',
-    uploadedAt: 'Hôm nay lúc 09:15',
+    name: '',
+    size: '',
+    uploadedAt: '',
   });
 
   // Records state
-  const [records, setRecords] = useState(INITIAL_DEMO_RECORDS);
+  const [records, setRecords] = useState([]);
   const [isParsing, setIsParsing] = useState(false);
 
   // Filters
@@ -467,53 +406,15 @@ export default function BulkImport() {
   const handleDownloadSampleTemplate = async () => {
     try {
       const XLSX = await loadXlsxLib();
-      const sampleData = [
-        {
-          Type: 'Vocabulary',
-          Term: '咲き誇る',
-          Reading: 'さきほこる',
-          Meaning: 'Nở rộ khoe sắc rực rỡ',
-          Level: 'N3',
-          Example: '桜の花が満開に咲き誇っている。',
-        },
-        {
-          Type: 'Kanji',
-          Term: '咲',
-          Reading: 'ショウ / さ.く',
-          Meaning: 'TIẾU (Nở hoa, mỉm cười)',
-          Level: 'N3',
-          Example: '春になると花が咲く。',
-        },
-        {
-          Type: 'Grammar',
-          Term: '〜に違いない',
-          Reading: '〜にちがいない',
-          Meaning: 'Chắc chắn là, nhất định là...',
-          Level: 'N3',
-          Example: 'V-thường + に違いない | 明日は雨に違いない。',
-        },
-        {
-          Type: 'Vocabulary',
-          Term: '桜吹雪',
-          Reading: 'さくらふぶき',
-          Meaning: 'Trận mưa hoa anh đào bay trong gió',
-          Level: 'N3',
-          Example: '風が吹いて桜吹雪が舞った。',
-        },
-      ];
+      const templateRows = [{ Type: '', Term: '', Reading: '', Meaning: '', Level: '', Example: '' }];
 
-      const ws = XLSX.utils.json_to_sheet(sampleData);
+      const ws = XLSX.utils.json_to_sheet(templateRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'HocLieu_RikiPath');
       XLSX.writeFile(wb, 'RikiPath_Mau_Nhap_Hoc_Lieu_JLPT.xlsx');
     } catch {
       // Fallback to CSV
-      const csv =
-        '\uFEFF' +
-        'Type,Term,Reading,Meaning,Level,Example\n' +
-        'Vocabulary,咲き誇る,さきほこる,Nở rộ khoe sắc rực rỡ,N3,桜の花が満開に咲き誇っている。\n' +
-        'Kanji,咲,ショウ / さ.く,TIẾU (Nở hoa),N3,春になると花が咲く。\n' +
-        'Grammar,〜に違いない,〜にちがいない,Chắc chắn là,N3,明日は雨に違いない。\n';
+      const csv = '\uFEFFType,Term,Reading,Meaning,Level,Example\n';
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

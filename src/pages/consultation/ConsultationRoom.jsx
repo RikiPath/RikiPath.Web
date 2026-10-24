@@ -24,7 +24,6 @@ import {
   Minimize2,
   ScreenShareOff,
   Shield,
-  User,
 } from 'lucide-react';
 
 // Tile hiển thị Stream Video
@@ -90,7 +89,7 @@ function ParticipantTile({
                 {name}
                 {isMentor && <Shield className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />}
               </h3>
-              <p className="text-[11px] text-white/50">Camera đã tắt</p>
+              <p className="text-[11px] text-white/50">Mục này chưa có dữ liệu.</p>
             </div>
           )}
         </div>
@@ -142,17 +141,16 @@ export default function ConsultationRoom() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const roomId = pathRoomId || searchParams.get('roomId') || 'mentor-room-n3-dokkai';
+  const roomId = pathRoomId || searchParams.get('roomId') || '';
 
   const currentUser = {
-    id: user?.id || 'user-anon',
-    name: user?.fullName || user?.name || (user?.email ? user.email.split('@')[0] : 'Minh Anh'),
+    id: user?.userId || user?.id,
+    name: user?.fullName || user?.name || (user?.email ? user.email.split('@')[0] : 'Người dùng'),
     role: user?.primaryRole || (user?.roles && user.roles[0]) || 'Learner',
   };
 
   const {
     connectionStatus,
-    localUser,
     localStream,
     screenStream,
     peers,
@@ -179,16 +177,9 @@ export default function ConsultationRoom() {
   const [layoutMode, setLayoutMode] = useState('grid'); // 'grid' | 'speaker'
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const [agendaList, setAgendaList] = useState([
-    { id: 1, text: 'Phân tích 3 câu Dokkai N3 khó - Đề tháng 12/2024', done: true },
-    { id: 2, text: 'Chiến thuật đọc lướt tìm từ khóa: 余白 / 間', done: false },
-    { id: 3, text: 'Luyện cấu trúc ngữ pháp: 〜わけにはいかない', done: false },
-    { id: 4, text: 'Hỏi đáp & Định hướng lộ trình 1-on-1', done: false },
-  ]);
+  const [agendaList, setAgendaList] = useState([]);
 
-  const [sharedNotes, setSharedNotes] = useState(
-    '【Ghi chú bài học nhóm】\n- Lưu ý các liên từ chuyển ý: しかし, ところが, それに対して.\n- Khi gặp bài đọc dài, scan nhanh câu đầu và câu cuối của từng đoạn để nắm ý chính.'
-  );
+  const [sharedNotes, setSharedNotes] = useState('');
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -258,7 +249,7 @@ export default function ConsultationRoom() {
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-bold text-white">
-                Phòng Học Nhóm Mentor · JLPT N3
+                Phòng họp Mentor
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D94B68]/20 border border-[#D94B68]/40 text-[#F472B6]">
                 {totalParticipantsCount} Người
@@ -704,6 +695,7 @@ export default function ConsultationRoom() {
                 </span>
               </div>
               <div className="space-y-2">
+                {agendaList.length === 0 && <p>Mục này chưa có dữ liệu.</p>}
                 {agendaList.map((item) => (
                   <button
                     key={item.id}

@@ -1,11 +1,11 @@
-import { useContext, useEffect } from 'react';
+
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
+import { AuthProvider } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RequireStudyPlan from './components/RequireStudyPlan.jsx';
 import MentorPrivateChat from './pages/consultation/MentorPrivateChat.jsx';
 import AdminMentorHub from './pages/admin/AdminMentorHub.jsx';
-import { isPreviewEnabled } from './mocks/preview.js';
+
 // —— Marketing ——
 import { HomeLanding, AboutRiki, CourseCatalog, MockExam, CourseDetail, FeatureDetail } from './pages/marketing';
 
@@ -99,19 +99,6 @@ function NormalizePath() {
   return null;
 }
 
-function PreviewSessionSync() {
-  const location = useLocation();
-  const refreshSession = useContext(AuthContext)?.refreshSession;
-  useEffect(() => {
-    refreshSession?.();
-  }, [location.search, refreshSession]);
-  if (!isPreviewEnabled()) return null;
-  return (
-    <div className="pointer-events-none fixed bottom-4 left-1/2 z-[80] -translate-x-1/2 rounded-full bg-[#2D282A] px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg">
-      Đang xem bằng mock data · thêm ?preview=0 để tắt
-    </div>
-  );
-}
 
 export default function App() {
   return (
@@ -119,7 +106,7 @@ export default function App() {
       <BrowserRouter>
         <div className="rikipath-shell min-h-screen bg-[#FAF7F5]">
           <NormalizePath />
-          <PreviewSessionSync />
+
           <Routes>
             {/* ========== MARKETING ========== */}
             <Route path="/" element={<HomeLanding />} />

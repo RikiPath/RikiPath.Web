@@ -4,7 +4,6 @@ import { getMyProfile } from '../api/profile.js';
 import { queryClient } from '../api/queryClient.js';
 import { getDailyReviewQueue } from '../api/reviews.js';
 import { getSession } from '../auth/session.js';
-import { MOCK_COMPLETION, MOCK_PROFILE, MOCK_SKILLS, MOCK_SRS, MOCK_STREAK } from '../mocks/preview.js';
 
 export const learnerKeys = {
   profile: ['learner', 'profile'],
@@ -28,19 +27,12 @@ export async function prefetchLearnerHome() {
   ]);
 }
 
-const previewFns = {
-  profile: async () => MOCK_PROFILE,
-  streak: async () => MOCK_STREAK,
-  completion: async () => MOCK_COMPLETION,
-  skills: async () => MOCK_SKILLS,
-  srs: async () => MOCK_SRS,
-};
 
 export function useLearnerProfile() {
   const session = getSession();
   return useQuery({
-    queryKey: [...learnerKeys.profile, session?.isPreview ? 'preview' : 'live'],
-    queryFn: session?.isPreview ? previewFns.profile : getMyProfile,
+    queryKey: [...learnerKeys.profile, 'live'],
+    queryFn: getMyProfile,
     enabled: Boolean(session?.accessToken),
     ...learnerQuery,
   });
@@ -50,41 +42,38 @@ export function useLearnerHome() {
   const session = getSession();
   const enabled = Boolean(session?.accessToken);
 
-  const preview = Boolean(session?.isPreview);
   const profileQuery = useQuery({
-    queryKey: [...learnerKeys.profile, preview ? 'preview' : 'live'],
-    queryFn: preview ? previewFns.profile : getMyProfile,
+    queryKey: [...learnerKeys.profile, 'live'],
+    queryFn: getMyProfile,
     enabled,
     ...learnerQuery,
   });
   const streakQuery = useQuery({
-    queryKey: [...learnerKeys.streak, preview ? 'preview' : 'live'],
-    queryFn: preview ? previewFns.streak : getStudyStreak,
+    queryKey: [...learnerKeys.streak, 'live'],
+    queryFn: getStudyStreak,
     enabled,
     ...learnerQuery,
   });
   const completionQuery = useQuery({
-    queryKey: [...learnerKeys.completion, preview ? 'preview' : 'live'],
-    queryFn: preview ? previewFns.completion : getCompletionStats,
+    queryKey: [...learnerKeys.completion, 'live'],
+    queryFn: getCompletionStats,
     enabled,
     ...learnerQuery,
   });
   const skillsQuery = useQuery({
-    queryKey: [...learnerKeys.skills, preview ? 'preview' : 'live'],
-    queryFn: preview ? previewFns.skills : getSkillBreakdown,
+    queryKey: [...learnerKeys.skills, 'live'],
+    queryFn: getSkillBreakdown,
     enabled,
     ...learnerQuery,
   });
   const srsQuery = useQuery({
-    queryKey: [...learnerKeys.srs, preview ? 'preview' : 'live'],
-    queryFn: preview ? previewFns.srs : getDailyReviewQueue,
+    queryKey: [...learnerKeys.srs, 'live'],
+    queryFn: getDailyReviewQueue,
     enabled,
     ...learnerQuery,
   });
 
-  const unauthorized = preview
-    ? false
-    : [profileQuery, streakQuery, completionQuery, skillsQuery, srsQuery].some(
+  const unauthorized = [profileQuery, streakQuery, completionQuery, skillsQuery, srsQuery].some(
       (q) => q.error?.status === 401,
     );
 
@@ -97,6 +86,7 @@ export function useLearnerHome() {
     srs: srsQuery.data,
     isLoading: enabled && [profileQuery, streakQuery, completionQuery, skillsQuery, srsQuery].some((q) => q.isPending),
     unauthorized,
+    error: [profileQuery, streakQuery, completionQuery, skillsQuery, srsQuery].find(q => q.error)?.error,
   };
 }
 
