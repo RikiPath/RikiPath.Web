@@ -202,7 +202,7 @@ export default function App() {
             <Route path={withSlash('/question-bank')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><QuestionBank /></ProtectedRoute>} />
             <Route path={withSlash('/content-library')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentLibrary /></ProtectedRoute>} />
             <Route path={withSlash('/lesson-cms')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><LessonCMS /></ProtectedRoute>} />
-            <Route path={withSlash('/bulk-import')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><BulkImport /></ProtectedRoute>} />
+            <Route path={withSlash('/bulk-import')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentImportPreviewPage /></ProtectedRoute>} />
             <Route path={withSlash('/vocabulary-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VocabularyEditor /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><KanjiEditor /></ProtectedRoute>} />
             <Route path={withSlash('/video-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VideoLessonEditor /></ProtectedRoute>} />
