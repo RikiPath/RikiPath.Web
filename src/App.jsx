@@ -35,6 +35,7 @@ import {
   RikiSkillPlaceholder,
   SpeakingPracticePage,
   StudyPlans,
+  StudyPayment,
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -67,7 +68,6 @@ import {
   BulkImport,
   VocabularyEditor,
   KanjiEditor,
-  VideoLessonEditor,
   CmsLessonDetail,
 } from './pages/cms';
 
@@ -141,7 +141,8 @@ export default function App() {
 
             {/* ========== LEARNER ========== */}
             <Route path={withSlash('/plans')} element={<StudyPlans />} />
-            <Route path={withSlash('/app')} element={study(<Dashboard />)} />
+            <Route path={withSlash('/study-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><StudyPayment /></ProtectedRoute>} />
+            <Route path={withSlash('/app')} element={<Dashboard />} />
             <Route path={withSlash('/dashboard')} element={<Navigate to={withSlash('/app')} replace />} />
             <Route path={withSlash('/home-learner')} element={<Navigate to={withSlash('/app')} replace />} />
             <Route path={withSlash('/multi-dashboard')} element={<Navigate to={withSlash('/app')} replace />} />
@@ -162,7 +163,7 @@ export default function App() {
             <Route path={withSlash('/ai-counselor')} element={study(<AICounselor />)} />
             <Route path={withSlash('/ai-scoring')} element={study(<AIScoringResult />)} />
             <Route path={withSlash('/exam-n3')} element={study(<ExamN3 />)} />
-            <Route path={withSlash('/exam-result')} element={study(<ExamResult />)} />
+            <Route path={withSlash('/exam-result')} element={(<ExamResult />)} />
             <Route path={withSlash('/vocabulary-detail')} element={study(<VocabWordDetail />)} />
             <Route path={withSlash('/settings')} element={<LearnerSettings />} />
             <Route path={withSlash('/speech')} element={study(<SpeakingPracticePage />)} />
@@ -205,7 +206,6 @@ export default function App() {
             <Route path={withSlash('/bulk-import')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><BulkImport /></ProtectedRoute>} />
             <Route path={withSlash('/vocabulary-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VocabularyEditor /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><KanjiEditor /></ProtectedRoute>} />
-            <Route path={withSlash('/video-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VideoLessonEditor /></ProtectedRoute>} />
             <Route path={withSlash('/content-studio')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentImportPreviewPage /></ProtectedRoute>} />
             <Route path={withSlash('/lesson-cms-detail')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CmsLessonDetail /></ProtectedRoute>} />
 

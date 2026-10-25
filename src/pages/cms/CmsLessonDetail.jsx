@@ -1,82 +1,108 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+
 import { CmsShell } from '../../components/shells';
 
-const BLOCKS = [
-  { t: 'Mục tiêu', d: 'Phân biệt わけにはいかない với わけではない trong ngữ cảnh xã hội.' },
-  { t: 'Video', d: '12 phút · Sensei Mai · đã gắn phụ đề JA/VI' },
-  { t: 'Ví dụ', d: '15 câu đời sống + 5 câu đề JEES' },
-  { t: 'Quiz', d: '8 câu trắc nghiệm · ngân hàng CH #QB-441' },
-];
+const fieldClass =
+  'mt-1 w-full rounded-lg border border-[#E8DFDC] bg-white px-3 py-2 text-[13px] text-[#2D282A] outline-none focus:border-[#E7C9D4]';
 
 export default function CmsLessonDetail() {
   const { pathname } = useLocation();
+  const [saved, setSaved] = useState(false);
+  const [form, setForm] = useState({
+    title: 'わけにはいかない',
+    level: 'N3',
+    skill: 'Ngữ pháp',
+    goal: 'Phân biệt với わけではない.',
+    video: '',
+    examples: '',
+    quiz: '',
+  });
+
+  function setField(key, value) {
+    setSaved(false);
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   return (
-    <CmsShell pathname={pathname} breadcrumb="Chi tiết bài học">
-      <div className="p-8 text-on-surface" data-page="CmsLessonDetail">
-        <Link to="/lesson-cms" className="mb-6 inline-flex items-center gap-1.5 text-sm text-[#6F6669] hover:text-[#D94B68]">
+    <CmsShell pathname={pathname} breadcrumb="Chi tiết bài">
+      <main data-page="CmsLessonDetail" className="mx-auto w-full max-w-3xl px-6 py-7 sm:px-8">
+        <Link
+          to="/lesson-cms"
+          className="inline-flex items-center gap-1 text-[13px] text-[#967F8A] hover:text-[#AD3155]"
+        >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Quản lý bài học
+          Bài học
         </Link>
 
-        <header className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-[#eadfd9] bg-white p-6">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-xs font-bold text-[#D94B68]">N3-BUN-07</p>
-            <h1 className="mt-1 text-2xl font-bold">Bài 07: Cấu trúc わけにはいかない</h1>
-            <p className="mt-1 text-sm text-[#6F6669]">
-              “Không bắt buộc vì lý do đạo đức / xã hội” · Ngữ pháp · JLPT N3 · Đã xuất bản
+            <h1 className="text-[22px] font-medium text-[#2D282A]">Một bài</h1>
+            <p className="mt-1 text-[13px] text-[#967F8A]">
+              Bố cục mẫu. Giữ chỉ áp dụng trên trang này.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              to="/video-editor"
-              className="rounded-lg border border-[#eadfd9] px-3 py-2 text-sm font-semibold"
-            >
-              Sửa video
-            </Link>
-            <Link
-              to="/admin/content-review"
-              className="rounded-lg bg-[#D94B68] px-3 py-2 text-sm font-semibold text-white"
-            >
-              Gửi duyệt lại
-            </Link>
-          </div>
-        </header>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-12">
-          <section className="space-y-3 lg:col-span-7">
-            {BLOCKS.map((b) => (
-              <article key={b.t} className="rounded-2xl border border-[#eadfd9] bg-white p-5">
-                <h2 className="text-sm font-bold">{b.t}</h2>
-                <p className="mt-1 text-sm text-[#6F6669]">{b.d}</p>
-              </article>
-            ))}
-          </section>
-          <aside className="rounded-2xl border border-[#eadfd9] bg-white p-6 lg:col-span-5">
-            <h2 className="text-lg font-bold">Thống kê</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-[#6F6669]">Lượt học</dt>
-                <dd className="font-bold">1.284</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-[#6F6669]">Hoàn thành</dt>
-                <dd className="font-bold">72%</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-[#6F6669]">Điểm quiz TB</dt>
-                <dd className="font-bold">6.4 / 8</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-[#6F6669]">Tác giả</dt>
-                <dd className="font-bold">Sakura Admin</dd>
-              </div>
-            </dl>
-            <Link to="/lesson-player" className="mt-6 inline-flex text-sm font-bold text-[#D94B68] hover:underline">
-              Xem như học viên
-            </Link>
-          </aside>
+          <button
+            type="button"
+            onClick={() => setSaved(true)}
+            className="h-10 rounded-xl bg-[#AD3155] px-3.5 text-[13px] text-white hover:bg-[#9A2849]"
+          >
+            Giữ trên trang
+          </button>
         </div>
-      </div>
+        {saved && <p className="mt-3 text-[12px] text-[#AD3155]">Đã giữ trên trang này.</p>}
+
+        <form className="mt-5 grid gap-4 rounded-xl border border-[#E8DFDC] bg-white p-4 sm:grid-cols-2">
+          <label className="sm:col-span-2">
+            <span className="text-[12px] text-[#967F8A]">Tên bài</span>
+            <input
+              value={form.title}
+              onChange={(event) => setField('title', event.target.value)}
+              className={fieldClass}
+            />
+          </label>
+          <label>
+            <span className="text-[12px] text-[#967F8A]">Cấp</span>
+            <select
+              value={form.level}
+              onChange={(event) => setField('level', event.target.value)}
+              className={fieldClass}
+            >
+              {['N5', 'N4', 'N3', 'N2', 'N1'].map((level) => (
+                <option key={level}>{level}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="text-[12px] text-[#967F8A]">Kỹ năng</span>
+            <select
+              value={form.skill}
+              onChange={(event) => setField('skill', event.target.value)}
+              className={fieldClass}
+            >
+              {['Ngữ pháp', 'Từ vựng', 'Hán tự', 'Đọc', 'Nghe'].map((skill) => (
+                <option key={skill}>{skill}</option>
+              ))}
+            </select>
+          </label>
+          {[
+            ['goal', 'Mục tiêu'],
+            ['video', 'Video'],
+            ['examples', 'Ví dụ'],
+            ['quiz', 'Câu hỏi'],
+          ].map(([key, label]) => (
+            <label key={key} className="sm:col-span-2">
+              <span className="text-[12px] text-[#967F8A]">{label}</span>
+              <textarea
+                rows={2}
+                value={form[key]}
+                onChange={(event) => setField(key, event.target.value)}
+                className={fieldClass}
+              />
+            </label>
+          ))}
+        </form>
+      </main>
     </CmsShell>
   );
 }

@@ -10,7 +10,6 @@ export const CMS_NAV = {
         { to: '/lesson-cms', label: 'Bài học', hint: 'Giáo trình & bài giảng', icon: 'menu_book', alsoActive: ['/lesson-cms-detail'] },
         { to: '/vocabulary-editor', label: 'Từ vựng & Hán tự', hint: 'Kho từ, kanji, kana', icon: 'translate', alsoActive: ['/kanji-editor'] },
         { to: '/content-library', label: 'Ngữ pháp', hint: 'Mẫu câu & cấu trúc', icon: 'psychology' },
-        { to: '/video-editor', label: 'Video bài giảng', hint: 'Biên tập clip', icon: 'videocam' },
       ],
     },
     {
@@ -25,7 +24,6 @@ export const CMS_NAV = {
       label: 'Kiểm duyệt',
       items: [
         { to: '/author-dashboard', label: 'Bảng tác giả', hint: 'Nội dung của tôi', icon: 'edit_note' },
-        { to: '/admin/content-review', label: 'Duyệt nội dung', hint: 'Hàng chờ admin', icon: 'fact_check' },
       ],
     },
   ],
