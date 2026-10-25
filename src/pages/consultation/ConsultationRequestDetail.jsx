@@ -1,14 +1,30 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
-import { getMentorBooking, acceptMentorBooking } from '../../api/mentorBookingsApi.js';
+import { getMentorBooking, getMentorBookings, acceptMentorBooking } from '../../api/mentorBookingsApi.js';
 import { bookingTime, canAcceptBooking, bookingStatus, bookingExpired } from '../../utils/mentorBooking.js';
 
 export default function ConsultationRequestDetail() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const id = Number(params.get('bookingId')) || null;
   const client = useQueryClient();
+  const list = useQuery({
+    queryKey: ['mentor-bookings'],
+    queryFn: getMentorBookings,
+    enabled: !id,
+  });
+
+  useEffect(() => {
+    if (id || !list.isSuccess) return;
+    const rows = list.data || [];
+    const next = rows.find(canAcceptBooking) || rows[0];
+    if (next?.id) {
+      navigate(`/consultation-request/?bookingId=${next.id}`, { replace: true });
+    }
+  }, [id, list.isSuccess, list.data, navigate]);
   const query = useQuery({ queryKey: ['mentor-booking', id], queryFn: () => getMentorBooking(id), enabled: Boolean(id), refetchInterval: 30000 });
   const booking = query.data;
   const accept = useMutation({ mutationFn: () => acceptMentorBooking(id), onSuccess: data => {
@@ -20,7 +36,11 @@ export default function ConsultationRequestDetail() {
       <Link to="/consultation-queue/" className="text-sm font-semibold text-[#9E2A4B]">← Hàng đợi yêu cầu</Link>
       <h1 className="mt-5 text-2xl font-bold">Chi tiết yêu cầu {id ? `#${id}` : ''}</h1>
       {(query.error || accept.error) && <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{(query.error || accept.error).message}</p>}
-      {!id ? <p className="mt-5 text-[#6F6669]">Chọn một booking từ hàng đợi để xem thông tin.</p> : query.isPending ? <p role="status" className="mt-5">Đang tải yêu cầu…</p> : booking && <>
+      {!id ? (
+        list.isError ? <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{list.error.message}</p>
+        : list.isSuccess && !(list.data || []).length ? <p className="mt-5 text-[#6F6669]">Chưa có yêu cầu trong hàng đợi.</p>
+        : <p role="status" className="mt-5 text-[#6F6669]">Đang mở yêu cầu…</p>
+      ) : query.isPending ? <p role="status" className="mt-5">Đang tải yêu cầu…</p> : booking && <>
         <section className="mt-5 rounded-2xl border border-[#eadfd9] bg-white p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-bold">{booking.learnerName || `Học viên #${booking.learnerId}`}</h2><p className="mt-2 text-sm text-[#6F6669]">Mã học viên: {booking.learnerId} · Booking #{booking.id}</p></div><span className="rounded-full bg-[#fff0f5] px-4 py-2 text-sm font-semibold text-[#9E2A4B]">{bookingStatus(booking)}</span></div>
           <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">{[['Mentor', booking.mentorName], ['Thanh toán', booking.paymentStatus === 'Paid' ? 'Đã thanh toán' : booking.paymentStatus], ['Bắt đầu (GMT+7)', bookingTime(booking.scheduledAt)], ['Kết thúc (GMT+7)', bookingTime(booking.endsAt)]].map(([label, value]) => <div key={label}><dt className="text-[#8c7f83]">{label}</dt><dd className="mt-1 font-semibold">{value || 'Chưa có thông tin'}</dd></div>)}</dl>
         </section>

@@ -136,9 +136,14 @@ export const CONSULT_NAV = {
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
         { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
-        { to: '/consultation-queue', label: 'Hàng đợi', hint: 'Yêu cầu chờ nhận', icon: 'pending_actions' },
+        {
+          to: '/consultation-request',
+          label: 'Hàng đợi',
+          hint: 'Yêu cầu chờ nhận',
+          icon: 'pending_actions',
+          alsoActive: ['/consultation-queue'],
+        },
         { to: '/consultation-prep', label: 'Chuẩn bị buổi', hint: 'Ghi chú trước giờ', icon: 'fact_check' },
-        { to: '/consultation-request', label: 'Chi tiết yêu cầu', hint: 'Hồ sơ học viên', icon: 'description' },
         { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Phản hồi bài viết', icon: 'edit_note' },
       ],
     },

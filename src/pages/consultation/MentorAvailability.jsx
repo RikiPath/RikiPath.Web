@@ -67,49 +67,60 @@ function previewSlots() {
   ];
 }
 
-function SlotCard({ slot, onDelete, deleting }) {
-  const booked = Boolean(slot.bookedCount > 0 || slot.isBooked);
+const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+function thisWeek() {
+  const todayKey = toDayKey(new Date().toISOString());
+  const [year, month, day] = todayKey.split('-').map(Number);
+  const noon = new Date(Date.UTC(year, month - 1, day, 12));
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE,
+    weekday: 'short',
+  }).format(noon);
+  const index = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[weekday] ?? 0;
+  const monday = new Date(noon);
+  monday.setUTCDate(noon.getUTCDate() - index);
+  return Array.from({ length: 7 }, (_, offset) => {
+    const date = new Date(monday);
+    date.setUTCDate(monday.getUTCDate() + offset);
+    const key = toDayKey(date.toISOString());
+    return { key, name: DAY_NAMES[offset], date: Number(key.slice(-2)), today: key === todayKey };
+  });
+}
+
+const focusClass =
+  'focus-visible:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
+
+function slotStatus(slot) {
   const rejected = Boolean(slot.rejectedAt);
   const pending = slot.isApproved === false && !rejected;
   const expired = asDate(slot.endTime) <= new Date();
-  const status = rejected ? 'Đã từ chối' : pending ? 'Chờ duyệt' : expired ? 'Đã kết thúc' : slot.isBooked ? 'Đã đầy' : 'Đang mở';
+  if (rejected) return 'Đã từ chối';
+  if (pending) return 'Chờ duyệt';
+  if (expired) return 'Đã kết thúc';
+  if (slot.bookedCount > 0 || slot.isBooked) return 'Đã đặt';
+  return 'Đang mở';
+}
+
+function SlotRow({ slot, onDelete, deleting, light = false }) {
+  const booked = Boolean(slot.bookedCount > 0 || slot.isBooked);
 
   return (
-    <article
-      className={`rounded-[22px] border p-5 shadow-sm ${
-        booked ? 'border-[#f8bbd0] bg-[#fff8f8]' : 'border-[#eadfd9] bg-white'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-            booked ? 'bg-white text-[#D94B68]' : 'bg-emerald-50 text-emerald-700'
-          }`}
-        >
-          {status}
-        </span>
-        <span className="font-mono text-[11px] text-[#A59B9E]">#{slot.id}</span>
-      </div>
-      <p className="mt-3 text-lg font-extrabold text-[#2D282A]">
-        {formatTime(slot.startTime)} – {formatTime(slot.endTime)}
+    <article className={`rounded-lg px-1.5 py-1 ${light ? 'bg-white/15' : ''}`}>
+      <p className={`text-[12px] font-medium ${light ? 'text-white' : 'text-[#543E49]'}`}>
+        {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
       </p>
-      {slot.mentorName ? (
-        <p className="mt-1 text-xs text-[#6F6669]">{slot.mentorName}</p>
-      ) : null}
-      {pending && <p className="mt-2 text-xs text-amber-700">Lịch chưa hiển thị cho học viên vì đang chờ duyệt.</p>}
-      {rejected && <p className="mt-2 text-xs text-rose-700">{slot.rejectionReason || 'Lịch không được duyệt.'}</p>}
-      {!pending && !rejected && !expired && <p className="mt-2 text-xs text-[#6F6669]">{slot.bookedCount || 0}/{slot.maxLearners || 4} học viên đã đặt</p>}
-      <div className="mt-4 flex items-center justify-between">
-        {booked ? (
-          <p className="text-xs text-[#A59B9E]">Link phòng sẽ cập nhật sau khi học viên vào buổi.</p>
-        ) : (
+      <div className="mt-0.5 flex items-center justify-between gap-1">
+        <p className={`text-[10px] ${light ? 'text-white/75' : 'text-[#947B88]'}`}>{slotStatus(slot)}</p>
+        {booked ? null : (
           <button
             type="button"
             disabled={deleting}
             onClick={() => onDelete(slot)}
-            className="text-xs font-semibold text-[#D94B68] hover:underline disabled:opacity-50"
+            className={`text-[10px] font-medium disabled:opacity-50 ${light ? 'text-white' : 'text-[#AD3155]'} ${focusClass} rounded`}
           >
-            {deleting ? 'Đang xóa…' : 'Đóng slot'}
+            {deleting ? '…' : 'Đóng'}
           </button>
         )}
       </div>
@@ -153,7 +164,9 @@ export default function MentorAvailability() {
   }, [load]);
 
   const grouped = useMemo(() => groupByDate(slots), [slots]);
-  const days = Object.keys(grouped).sort();
+  const week = useMemo(() => thisWeek(), []);
+  const weekKeys = new Set(week.map((day) => day.key));
+  const laterDays = Object.keys(grouped).filter((day) => !weekKeys.has(day)).sort();
   const booked = slots.filter(s => s.bookedCount > 0 || s.isBooked).length;
   const open = slots.filter(s => s.isApproved !== false && !s.rejectedAt && !s.isBooked && asDate(s.endTime) > new Date()).length;
   const pending = slots.filter(s => s.isApproved === false && !s.rejectedAt).length;
@@ -212,118 +225,125 @@ export default function MentorAvailability() {
 
   return (
     <ConsultShell pathname={pathname} breadcrumb="Lịch khả dụng">
-      <div className="px-6 py-8 sm:px-8" data-page="MentorAvailability">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div
+        data-page="MentorAvailability"
+        className="mx-auto w-full max-w-[1120px] px-4 py-6 text-[#49353F] sm:px-6 lg:px-8"
+      >
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#C4B8BA]">Lịch mentor</p>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-[#2D282A]">Lịch khả dụng</h1>
-            <p className="mt-1 text-sm text-[#6F6669]">Quản lý khung giờ và trạng thái hiển thị cho học viên. Giờ Việt Nam (GMT+7).</p>
+            <h1 className="text-[25px] font-semibold tracking-tight">Lịch khả dụng</h1>
+            <p className="mt-1.5 text-[13px] text-[#927B88]">
+              {loading ? 'Đang tải…' : error
+                ? 'Giờ Việt Nam.'
+                : `${slots.length} khung · ${open} đang mở · ${booked} đã đặt · ${pending} chờ duyệt`}
+            </p>
           </div>
           <button
             type="button"
             onClick={load}
             disabled={loading}
-            className="rounded-full border border-[#eadfd9] bg-white px-4 py-2 text-sm font-semibold text-[#6F6669] disabled:opacity-50"
+            className={`h-9 rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] disabled:opacity-50 ${focusClass}`}
           >
             Làm mới
           </button>
-        </div>
+        </header>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: 'Tổng slot', value: slots.length, tone: 'text-[#2D282A]', bg: 'bg-white' },
-            { label: 'Đã đặt', value: booked, tone: 'text-[#D94B68]', bg: 'bg-[#fff8f8]' },
-            { label: 'Đang mở', value: open, tone: 'text-emerald-700', bg: 'bg-emerald-50' },
-            { label: 'Chờ duyệt', value: pending, tone: 'text-amber-700', bg: 'bg-amber-50' },
-          ].map((item) => (
-            <div key={item.label} className={`rounded-[22px] border border-[#eadfd9] ${item.bg} px-5 py-4 shadow-sm`}>
-              <p className={`text-3xl font-extrabold ${item.tone}`}>{loading ? '—' : item.value}</p>
-              <p className="mt-1 text-xs font-semibold text-[#A59B9E]">{item.label}</p>
-            </div>
-          ))}
-        </div>
-
-        <form onSubmit={createSlot} className="mb-6 rounded-[22px] border border-[#eadfd9] bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-bold text-[#2D282A]">Mở slot mới</h2>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <label className="text-xs font-semibold text-[#6F6669]">
+        <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <form onSubmit={createSlot} className="rounded-3xl border border-[#E7C9D6] bg-[#FCF4F8] p-5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#AD3155] text-white">
+              <span className="material-symbols-outlined text-[24px]">event_available</span>
+            </span>
+            <h2 className="mt-4 text-[18px] font-semibold text-[#79465D]">Mở một khung</h2>
+            <p className="mt-1 text-[12px] leading-5 text-[#A0788B]">Học viên chỉ đặt được vào giờ bạn mở.</p>
+            <label className="mt-4 block text-[12px] text-[#8C6070]">
               Bắt đầu
               <input
                 type="datetime-local"
                 required
                 value={form.start}
-                onChange={(e) => setForm((prev) => ({ ...prev, start: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[#eadfd9] bg-[#FAF7F5] px-3 py-2.5 text-sm text-[#2D282A] outline-none focus:border-[#D94B68]"
+                onChange={(event) => setForm((prev) => ({ ...prev, start: event.target.value }))}
+                className={`mt-1 w-full rounded-xl border border-[#E7C9D6] bg-white px-3 py-2 text-[13px] outline-none ${focusClass}`}
               />
             </label>
-            <label className="text-xs font-semibold text-[#6F6669]">
+            <label className="mt-3 block text-[12px] text-[#8C6070]">
               Kết thúc
               <input
                 type="datetime-local"
                 required
                 value={form.end}
-                onChange={(e) => setForm((prev) => ({ ...prev, end: e.target.value }))}
-                className="mt-1 w-full rounded-2xl border border-[#eadfd9] bg-[#FAF7F5] px-3 py-2.5 text-sm text-[#2D282A] outline-none focus:border-[#D94B68]"
+                onChange={(event) => setForm((prev) => ({ ...prev, end: event.target.value }))}
+                className={`mt-1 w-full rounded-xl border border-[#E7C9D6] bg-white px-3 py-2 text-[13px] outline-none ${focusClass}`}
               />
             </label>
             <button
               type="submit"
               disabled={saving}
-              className="self-end rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              className={`mt-4 h-10 w-full rounded-xl bg-[#AD3155] text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50 ${focusClass}`}
             >
-              {saving ? 'Đang mở…' : 'Thêm slot'}
+              {saving ? 'Đang mở…' : 'Mở khung giờ'}
             </button>
+          </form>
+
+          <div>
+            {notice ? (
+              <p className="mb-3 rounded-xl bg-white px-4 py-3 text-[13px] text-[#8A6070]">{notice}</p>
+            ) : null}
+            {error ? (
+              <p role="alert" className="mb-3 rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">
+                {error}
+                <button type="button" onClick={load} className={`ml-3 font-medium ${focusClass} rounded`}>Thử lại</button>
+              </p>
+            ) : null}
+
+            <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7" aria-busy={loading}>
+              {week.map((day) => {
+                const items = grouped[day.key] || [];
+                return (
+                  <div
+                    key={day.key}
+                    className={`min-h-[148px] rounded-2xl border p-2.5 ${
+                      day.today
+                        ? 'border-[#AD3155] bg-[#AD3155] text-white'
+                        : 'border-dashed border-[#E7C9D6] bg-white text-[#49353F]'
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between">
+                      <span className={`text-[11px] ${day.today ? 'text-white/80' : 'text-[#B18F9E]'}`}>{day.name}</span>
+                      <span className="text-[20px] font-semibold leading-none">{day.date}</span>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {items.map((slot) => (
+                        <SlotRow key={slot.id} slot={slot} deleting={deletingId === slot.id} onDelete={deleteSlot} light={day.today} />
+                      ))}
+                      {!loading && items.length === 0 ? (
+                        <p className={`pt-5 text-center text-[11px] ${day.today ? 'text-white/70' : 'text-[#C4AEB8]'}`}>
+                          Chưa mở
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
           </div>
-        </form>
+        </div>
 
-        {notice ? (
-          <p className="mb-4 rounded-2xl border border-[#eadfd9] bg-white px-4 py-3 text-sm font-semibold text-[#2D282A]">{notice}</p>
-        ) : null}
-
-        {loading ? (
-          <p className="py-16 text-center text-sm text-[#A59B9E]">Đang tải lịch khả dụng…</p>
-        ) : null}
-
-        {!loading && error ? (
-          <div className="rounded-[22px] border border-[#f8bbd0] bg-[#fff8f8] p-5">
-            <p className="font-bold text-[#9E2A4B]">Không tải được dữ liệu</p>
-            <p className="mt-1 text-sm text-[#6F6669]">{error}</p>
-            <button type="button" onClick={load} className="mt-3 text-sm font-semibold text-[#D94B68]">
-              Thử lại
-            </button>
-          </div>
-        ) : null}
-
-        {!loading && !error && days.length === 0 ? (
-          <div className="rounded-[22px] border border-[#eadfd9] bg-white py-16 text-center shadow-sm">
-            <p className="text-lg font-bold text-[#2D282A]">Chưa có lịch nào</p>
-            <p className="mt-1 text-sm text-[#6F6669]">Mở slot ở form phía trên để học viên bắt đầu đặt.</p>
-          </div>
-        ) : null}
-
-        {!loading && !error && days.length > 0 ? (
-          <div className="space-y-6">
-            {days.map((day) => (
-              <section key={day}>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-bold capitalize text-[#2D282A]">{formatDate(grouped[day][0].startTime)}</h2>
-                  <span className="rounded-full bg-[#fff0f5] px-2 py-0.5 text-[11px] font-bold text-[#D94B68]">
-                    {grouped[day].length} slot
-                  </span>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {laterDays.length > 0 ? (
+          <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
+            <h2 className="border-b border-[#F0E7EC] px-4 py-2.5 text-[13px] font-medium text-[#705261]">Khung giờ khác</h2>
+            {laterDays.map((day) => (
+              <div key={day} className="border-b border-[#F0E7EC] last:border-b-0">
+                <p className="bg-[#FAF8F7] px-4 py-2 text-[12px] capitalize text-[#8C7782]">
+                  {formatDate(grouped[day][0].startTime)}
+                </p>
+                <div className="divide-y divide-[#F0E7EC]">
                   {grouped[day].map((slot) => (
-                    <SlotCard
-                      key={slot.id}
-                      slot={slot}
-                      deleting={deletingId === slot.id}
-                      onDelete={deleteSlot}
-                    />
+                    <SlotRow key={slot.id} slot={slot} deleting={deletingId === slot.id} onDelete={deleteSlot} />
                   ))}
                 </div>
-              </section>
+              </div>
             ))}
-          </div>
+          </section>
         ) : null}
       </div>
     </ConsultShell>
