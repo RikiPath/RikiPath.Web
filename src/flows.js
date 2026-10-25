@@ -64,7 +64,6 @@ export const ALL_PAGES = [
   { to: '/bulk-import', label: 'Bulk Import', page: 'BulkImport', group: 'cms' },
   { to: '/vocabulary-editor', label: 'Vocab Edit', page: 'VocabularyEditor', group: 'cms' },
   { to: '/kanji-editor', label: 'Kanji Edit', page: 'KanjiEditor', group: 'cms' },
-  { to: '/video-editor', label: 'Video Edit', page: 'VideoLessonEditor', group: 'cms' },
   // Admin
   { to: '/admin/users', label: 'Admin', page: 'AdminUsers', group: 'admin' },
   { to: '/admin/users', label: 'Users', page: 'AdminUsers', group: 'admin' },
@@ -189,7 +188,6 @@ export const FLOWS = [
       { n: 8, to: '/bulk-import', label: 'Import', page: 'BulkImport', hint: 'Import' },
       { n: 9, to: '/vocabulary-editor', label: 'Sửa từ', page: 'VocabularyEditor', hint: 'Vocab' },
       { n: 10, to: '/kanji-editor', label: 'Sửa Kanji', page: 'KanjiEditor', hint: 'Kanji' },
-      { n: 11, to: '/video-editor', label: 'Sửa video', page: 'VideoLessonEditor', hint: 'Video' },
     ],
   },
   {

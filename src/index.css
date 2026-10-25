@@ -318,7 +318,19 @@ body {
 html {
   --preview-nav-h: 0px !important;
 }
-[data-shell="cms"] > aside,
+[data-shell="cms"] > aside {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  width: 248px !important;
+  margin: 0 !important;
+  background: #FAF8F7 !important;
+  border-right: 1px solid #E8DFDC !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
 [data-shell="consult"] > aside {
   position: fixed !important;
   top: 0 !important;
@@ -349,7 +361,15 @@ html {
   width: 248px !important;
   margin: 0 !important;
 }
-[data-shell="cms"] > div > header,
+[data-shell="cms"] > div > header {
+  position: fixed !important;
+  top: 0 !important;
+  left: 248px !important;
+  right: 0 !important;
+  background: #FAF8F7 !important;
+  border-bottom: 1px solid #E8DFDC !important;
+  backdrop-filter: none !important;
+}
 [data-shell="consult"] > div > header {
   position: fixed !important;
   top: 0 !important;
@@ -511,14 +531,12 @@ body {
   box-shadow: 0 16px 40px -20px rgba(217, 75, 104, 0.32);
 }
 
-[data-shell="cms"] > aside,
 [data-shell="consult"] > aside {
   background: rgba(255, 255, 255, 0.72) !important;
   border-right: 1px solid rgba(223, 191, 193, 0.35);
   box-shadow: none;
   backdrop-filter: blur(18px);
 }
-[data-shell="cms"] > div > header,
 [data-shell="consult"] > div > header {
   background: rgba(250, 247, 245, 0.78) !important;
   border-bottom: 1px solid transparent;

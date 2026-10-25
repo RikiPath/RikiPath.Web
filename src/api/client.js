@@ -31,6 +31,7 @@ function toApiError(data, status, isNetwork) {
   const payload = data && typeof data === 'object' ? data : null;
   const message =
     payload?.errorMessage ||
+    (typeof payload?.error === 'string' ? payload.error : '') ||
     flattenErrors(payload?.errors) ||
     payload?.title ||
     (isNetwork || status === 502 || status === 503

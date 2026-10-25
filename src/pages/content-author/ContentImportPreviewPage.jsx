@@ -1,4 +1,7 @@
 import { useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+
+import { CmsShell } from '../../components/shells';
 import { CONTENT_IMPORT_TYPES } from '../../api/contentImportApi.js';
 import {
     usePreviewContentImportMutation,
@@ -523,6 +526,7 @@ function SummaryCard({ action, value, active, onClick }) {
 }
 
 export default function ContentImportPreviewPage() {
+    const { pathname } = useLocation();
     const inputRef = useRef(null);
     const [file, setFile] = useState(null);
     const [entityType, setEntityType] = useState(''); // '' = Bulk (mọi sheet)
@@ -617,16 +621,17 @@ export default function ContentImportPreviewPage() {
     }
 
     return (
-        <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <CmsShell pathname={pathname} breadcrumb="Xem trước import">
+        <div className="mx-auto max-w-6xl space-y-6 px-6 py-7 sm:px-8">
             <header>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Import nội dung từ Excel</h1>
-                <p className="mt-1 text-sm text-slate-500">
-                    Tải file lên để xem trước so sánh những gì sẽ thay đổi trong Cơ sở dữ liệu. Bước này chưa lưu dữ liệu vào hệ thống.
+                <h1 className="text-[22px] font-medium tracking-tight text-[#2D282A]">Xem trước import</h1>
+                <p className="mt-1 text-[13px] text-[#967F8A]">
+                    Tải file .xlsx để đối chiếu. Bước này chưa ghi vào kho.
                 </p>
             </header>
 
             {/* ---- Upload Card ---- */}
-            <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <form onSubmit={handleSubmit} className="rounded-xl border border-[#E8DFDC] bg-white p-5">
                 <div className="grid gap-4 md:grid-cols-[1fr_240px]">
                     <div
                         role="button"
@@ -643,7 +648,7 @@ export default function ContentImportPreviewPage() {
                             setDragOver(false);
                             pickFile(e.dataTransfer.files?.[0]);
                         }}
-                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors ${dragOver ? 'border-sky-500 bg-sky-50' : 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
+                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors ${dragOver ? 'border-[#AD3155] bg-[#FFF7F9]' : 'border-[#E8DFDC] bg-[#FBF8F7]'
                             }`}
                     >
                         <input
@@ -937,5 +942,6 @@ export default function ContentImportPreviewPage() {
                 />
             )}
         </div>
+        </CmsShell>
     );
 }

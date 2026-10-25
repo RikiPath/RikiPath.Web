@@ -1,13 +1,8 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { LearnerShell } from '../../components/shells';
-import {
-  getMySubscription,
-  getStudyPlans,
-  purchaseStudyPlan,
-} from '../../api/subscriptions.js';
+import { getMySubscription, getStudyPlans } from '../../api/subscriptions.js';
 
 function money(value) {
   return new Intl.NumberFormat('vi-VN', {
@@ -19,7 +14,6 @@ function money(value) {
 
 export default function StudyPlans() {
   const { pathname } = useLocation();
-  const [error, setError] = useState('');
 
   const plansQuery = useQuery({
     queryKey: ['study-plans'],
@@ -31,20 +25,6 @@ export default function StudyPlans() {
     queryKey: ['study-subscription'],
     queryFn: getMySubscription,
     retry: false,
-  });
-
-  const purchase = useMutation({
-    mutationFn: purchaseStudyPlan,
-    onSuccess: (result) => {
-      if (!result?.checkoutUrl) {
-        setError('Chưa nhận được liên kết thanh toán.');
-        return;
-      }
-      window.location.assign(result.checkoutUrl);
-    },
-    onError: (err) => {
-      setError(err.message || 'Không tạo được đơn mua gói.');
-    },
   });
 
   const plans = plansQuery.data ?? [];
@@ -114,26 +94,27 @@ export default function StudyPlans() {
                   ))}
                 </ul>
               )}
-              <button
-                type="button"
-                disabled={purchase.isPending || current?.active}
-                onClick={() => {
-                  setError('');
-                  purchase.mutate(plan.id);
-                }}
-                className="mt-4 h-10 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50"
-              >
-                {purchase.isPending ? 'Đang tạo đơn…' : 'Mua gói'}
-              </button>
+              {current?.active ? (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-4 h-10 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white opacity-50"
+                >
+                  Mua gói
+                </button>
+              ) : (
+                <Link
+                  to={`/study-payment?planId=${plan.id}`}
+                  state={{ plan }}
+                  className="mt-4 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
+                >
+                  Mua gói
+                </Link>
+              )}
             </article>
           ))}
         </div>
 
-        {error && (
-          <p className="mt-4 text-[13px] text-[#9E2A4B]" role="alert">
-            {error}
-          </p>
-        )}
       </main>
     </LearnerShell>
   );

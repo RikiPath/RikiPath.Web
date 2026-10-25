@@ -21,3 +21,4 @@ export { default as LearnerEssayPage } from './LearnerEssayPage.jsx';
 export { default as RikiSkillPlaceholder } from './RikiSkillPlaceholder.jsx';
 export { default as SpeakingPracticePage } from './SpeakingPracticePage.jsx';
 export { default as StudyPlans } from './StudyPlans.jsx';
+export { default as StudyPayment } from './StudyPayment.jsx';
