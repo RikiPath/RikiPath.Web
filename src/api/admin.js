@@ -23,6 +23,7 @@ export const disableAdminFeature = (id) => api.delete(`/admin/features/${id}`);
 export const getAdminMentorBookings = (params) => api.get('/admin/mentor-bookings', { params });
 export const updateAdminMentorBooking = (id, data) => api.put(`/admin/mentor-bookings/${id}`, data);
 export const getAdminMentorAvailabilities = (params) => api.get('/admin/mentor-availabilities', { params });
+export const getAdminMentorSchedule = async (mentorId, from, to) => (await api.get(`/admin/mentor-availabilities/mentor/${mentorId}/schedule`, { params: { from, to } })).result || [];
 export const createAdminMentorAvailability = (data) => api.post('/admin/mentor-availabilities', data);
 export const updateAdminMentorAvailability = (id, data) => api.put(`/admin/mentor-availabilities/${id}`, data);
 export const deleteAdminMentorAvailability = (id) => api.delete(`/admin/mentor-availabilities/${id}`);

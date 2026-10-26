@@ -1,3 +1,4 @@
+import MentorPayments from './pages/consultation/MentorPayments.jsx';
 import { useContext, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
@@ -175,6 +176,8 @@ export default function App() {
             <Route path={withSlash('/consultation-hub')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-center')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationCenter /></ProtectedRoute>} />
             <Route path={withSlash('/booking-schedule')} element={<ProtectedRoute allowedRoles={['Learner']}><BookingSchedule /></ProtectedRoute>} />
+            <Route path={withSlash('/payments')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
+            <Route path={withSlash('/payments/history')} element={<ProtectedRoute allowedRoles={['Learner']}><MentorPayments /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
             <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
@@ -211,6 +214,7 @@ export default function App() {
 
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
             <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users/detail')} element={<ProtectedRoute requireAdmin><AdminUserDetail /></ProtectedRoute>} />

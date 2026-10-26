@@ -124,6 +124,7 @@ const MENU_GROUPS = [
     label: 'Hỗ trợ',
     icon: 'forum',
     items: [
+      { to: '/payments', label: 'Thanh toán', icon: 'payments', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
       {
         to: '/ai-counselor',
         label: 'Trợ lý Haru',
@@ -135,10 +136,10 @@ const MENU_GROUPS = [
         icon: 'support_agent',
         alsoActive: [
           '/booking-schedule',
-          '/consultation-payment',
+
           '/consultation-center',
           '/consultation-session',
-          '/consultation-receipt',
+
           '/consultation-room',
           '/sensei-profile',
         ],
