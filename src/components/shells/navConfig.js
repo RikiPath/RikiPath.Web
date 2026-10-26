@@ -51,12 +51,13 @@ export const ADMIN_NAV = {
         {
           to: '/admin/mentors',
           label: 'Mentor',
-          hint: 'Hồ sơ và duyệt lịch',
+          hint: 'Hồ sơ và xếp lịch tuần',
           icon: 'support_agent',
-          alsoActive: ['/admin/mentor-schedules', '/admin/consultants'],
+          alsoActive: ['/admin/mentor-schedules', '/admin/mentor-plans', '/admin/consultants'],
           children: [
             { to: '/admin/mentors', label: 'Hồ sơ', alsoActive: ['/admin/consultants'] },
-            { to: '/admin/mentor-schedules', label: 'Duyệt lịch' },
+            { to: '/admin/mentor-schedules', label: 'Xếp lịch tuần' },
+            { to: '/admin/mentor-plans', label: 'Gói tư vấn' },
           ],
         },
         { to: '/admin/operations', label: 'Gói & lịch', hint: 'Feature, booking', icon: 'tune' },
@@ -123,6 +124,7 @@ export const LEARNER_NAV = {
         '/mentor-availability',
       ],
     },
+    { to: '/payments', label: 'Thanh toán', icon: 'payments', group: 'support', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
     { to: '/settings', label: 'Cài đặt', hint: 'Tài khoản & mục tiêu', icon: 'settings', group: 'support' },
   ],
   user: { name: 'Minh Anh', role: 'Học viên N4' },
@@ -151,7 +153,7 @@ export const CONSULT_NAV = {
       label: 'Lịch',
       items: [
         { to: '/work-schedule', label: 'Lịch làm việc', hint: 'Tuần của bạn', icon: 'calendar_month' },
-        { to: '/mentor-availability', label: 'Lịch khả dụng', hint: 'Slot mở đặt', icon: 'event_available' },
+        { to: '/mentor-availability', label: 'Lịch tuần', hint: 'Đăng ký buổi rảnh', icon: 'event_available' },
       ],
     },
   ],

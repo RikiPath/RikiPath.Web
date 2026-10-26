@@ -8,3 +8,6 @@ export const getMeetingPlans = async () => (await api.get('/mentor-meetings/plan
 export const purchaseMeeting = async body => (await api.post('/mentor-meetings/purchase', body)).result;
 export const syncMeetingPurchase = async id => (await api.post(`/mentor-meetings/purchases/${id}/sync`)).result;
 export const getLearnerBookings = async () => (await api.get('/mentor-meetings/bookings')).result || [];
+
+export const getMentorPurchases = async () => (await api.get('/mentor-meetings/purchases')).result || [];
+export const bookMentorWithCredit = async body => (await api.post('/mentor-meetings/bookings', body)).result;

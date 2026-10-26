@@ -105,6 +105,10 @@ export default function MentorPrivateChat() {
       try {
         const [detail, history] = await Promise.all([getChatThread(selectedId), getChatMessages(selectedId)]);
         if (cancelled) return;
+        if (detail.bookingId !== selectedId) {
+          setParams({ bookingId: String(detail.bookingId) }, { replace: true });
+          return;
+        }
         setThreads(old => [...old.filter(t => t.bookingId !== selectedId), detail]);
         setMessages(old => merge(old, history)); setHasOlder(history.length === 50);
         const hub = hubRef.current;
@@ -165,7 +169,7 @@ export default function MentorPrivateChat() {
     <Shell pathname={pathname} breadcrumb="Tin nhắn 1–1">
       <div className="mx-auto max-w-7xl p-4 sm:p-7">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs font-bold uppercase tracking-widest text-[#D94B68]">Đồng hành cùng Sensei</p><h1 className="mt-1 text-2xl font-bold">Tin nhắn 1–1</h1><p className="mt-1 text-sm text-[#6F6669]">Trao đổi riêng theo lịch hẹn. Lịch sử tin nhắn được lưu để xem lại.</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-widest text-[#D94B68]">Đồng hành cùng Sensei</p><h1 className="mt-1 text-2xl font-bold">Tin nhắn 1–1</h1><p className="mt-1 text-sm text-[#6F6669]">Một cuộc trò chuyện với mỗi mentor. Gửi tin trong thời hạn gói; hết hạn vẫn xem được lịch sử.</p></div>
           <div className="flex items-center gap-2 text-xs"><span role="status" className={`rounded-full px-3 py-2 ${status === 'Đã kết nối' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{status}</span>{status === 'Mất kết nối' && <button onClick={() => window.location.reload()} className="underline">Kết nối lại</button>}</div>
         </div>
         {error && <div role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -191,7 +195,7 @@ export default function MentorPrivateChat() {
                 <div ref={bottomRef} />
               </div>
               <form onSubmit={send} className="border-t border-[#eadfd9] p-4">
-                {thread && !canSend && <p className="mb-3 text-xs text-[#6F6669]">Cuộc trò chuyện đã đóng hoặc lịch hẹn chưa đủ điều kiện gửi tin. Bạn vẫn có thể xem lịch sử.</p>}
+                {thread && !canSend && <p className="mb-3 text-xs text-[#6F6669]">Gói tư vấn đã hết hạn hoặc chưa có gói hợp lệ. Bạn vẫn có thể xem lịch sử.</p>}
                 <div className="flex items-end gap-3"><textarea aria-label="Nội dung tin nhắn" rows={2} maxLength={2000} value={draft} onChange={e => setDraft(e.target.value)} disabled={!canSend || sending} placeholder="Nhập tin nhắn…" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(e); } }} className="min-w-0 flex-1 resize-none rounded-xl border border-[#eadfd9] p-3 text-sm focus:outline-[#D94B68] disabled:bg-gray-50" /><button type="submit" disabled={!canSend || status !== 'Đã kết nối' || sending || !draft.trim()} className="rounded-xl bg-[#9E2A4B] px-5 py-3 font-semibold text-white disabled:opacity-40">{sending ? 'Đang gửi…' : 'Gửi'}</button></div>
                 <p className="mt-2 text-[11px] text-[#A59B9E]">Enter để gửi · Shift + Enter xuống dòng <span className="float-right">{draft.length}/2000</span></p>
               </form>
