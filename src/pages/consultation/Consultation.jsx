@@ -209,8 +209,8 @@ export default function Consultation() {
                 </h2>
 
                 <p className="mt-1 text-[13px] leading-6 text-[#9A7587]">
-                  Chọn mentor và khung giờ trước.
-                  Gói tư vấn được chọn khi thanh toán.
+                  Mua gói 1 hoặc 3 buổi để cộng lượt vào tài khoản.
+                  Sau đó chọn lịch với mentor và sử dụng 1 lượt cho mỗi tiết.
                 </p>
               </div>
             </div>
@@ -232,6 +232,7 @@ export default function Consultation() {
           </div>
         </section>
 
+        <Link to="/consultation-payment/" className="mb-5 inline-block rounded-lg bg-[#AD3155] px-4 py-3 text-sm font-semibold text-white">Mua lượt tư vấn</Link>
         <section aria-labelledby="plans-title">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 px-1">
             <h2

@@ -337,8 +337,12 @@ html {
   left: 0 !important;
   bottom: 0 !important;
   height: 100vh !important;
-  width: 280px !important;
+  width: 248px !important;
   margin: 0 !important;
+  background: #FAF8F7 !important;
+  border-right: 1px solid #E8DFDC !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 [data-shell="learner"] > aside {
   position: fixed !important;
@@ -373,8 +377,11 @@ html {
 [data-shell="consult"] > div > header {
   position: fixed !important;
   top: 0 !important;
-  left: 280px !important;
+  left: 248px !important;
   right: 0 !important;
+  background: #FAF8F7 !important;
+  border-bottom: 1px solid #E8DFDC !important;
+  backdrop-filter: none !important;
 }
 [data-shell="admin"] > div > header {
   position: fixed !important;
@@ -531,17 +538,6 @@ body {
   box-shadow: 0 16px 40px -20px rgba(217, 75, 104, 0.32);
 }
 
-[data-shell="consult"] > aside {
-  background: rgba(255, 255, 255, 0.72) !important;
-  border-right: 1px solid rgba(223, 191, 193, 0.35);
-  box-shadow: none;
-  backdrop-filter: blur(18px);
-}
-[data-shell="consult"] > div > header {
-  background: rgba(250, 247, 245, 0.78) !important;
-  border-bottom: 1px solid transparent;
-  backdrop-filter: blur(18px);
-}
 
 .rp-nav-item-active {
   background: #fff0f5;

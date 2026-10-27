@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { AdminShell } from '../../components/shells';
 import AdminConsultants from './AdminConsultants.jsx';
 import AdminMentorSchedules from './AdminMentorSchedules.jsx';
+import AdminMentorPlans from './AdminMentorPlans.jsx';
 
 const SECTIONS = [
   {
@@ -12,10 +13,11 @@ const SECTIONS = [
   },
   {
     to: '/admin/mentor-schedules',
-    label: 'Duyệt lịch',
-    note: 'Xét duyệt khung giờ tư vấn.',
+    label: 'Xếp lịch tuần',
+    note: 'Xếp tiết và công bố lịch tư vấn.',
     paths: ['/admin/mentor-schedules'],
   },
+  { to: '/admin/mentor-plans', label: 'Gói tư vấn', note: 'Cấu hình giá gói 1 và 3 buổi.', paths: ['/admin/mentor-plans'] },
 ];
 
 function cleanPath(pathname) {
@@ -75,7 +77,7 @@ export default function AdminMentorHub() {
           })}
         </nav>
 
-        {schedules ? (
+        {current === '/admin/mentor-plans' ? <AdminMentorPlans /> : schedules ? (
           <AdminMentorSchedules embedded />
         ) : (
           <AdminConsultants embedded />

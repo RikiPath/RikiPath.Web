@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { getBookingMentors, getMentorSlots } from '../../api/mentorBookingApi.js';
+import { getBookingMentors, getMentorSlots, getMentorPurchases, bookMentorWithCredit } from '../../api/mentorBookingApi.js';
 
 const GOALS = ['Đánh giá Dokkai & lộ trình học', 'Chữa phát âm & Kaiwa phỏng vấn', 'Chiến thuật thi JLPT', 'Chỉnh luận văn / CV tiếng Nhật'];
 const ZONE = 'Asia/Ho_Chi_Minh';
@@ -13,7 +13,8 @@ const clock = value => asDate(value).toLocaleTimeString('vi-VN', { timeZone: ZON
 const panel = 'rounded-[22px] border border-[#eadfd9] bg-white p-5 shadow-sm';
 
 export default function BookingSchedule() {
-  const { pathname } = useLocation();
+  const { pathname } = useLocation(); const navigate = useNavigate(); const cache = useQueryClient();
+  const wallet = useQuery({ queryKey: ['mentor-purchases'], queryFn: getMentorPurchases, refetchInterval: 15000 });
   const [selectedMentorId, setMentorId] = useState(null);
   const [selectedDayId, setDayId] = useState('');
   const [slotId, setSlotId] = useState(null);
@@ -38,7 +39,13 @@ export default function BookingSchedule() {
   const slots = availableSlots.filter(item => item.day === dayId);
   const slot = slots.find(item => item.id === slotId);
   const ready = Boolean(mentor && slot && !slotQuery.isFetching && !slotQuery.isError);
-  const error = mentorQuery.error || slotQuery.error;
+  const eligible = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && p.meetingSessionsUsed < p.meetingSessionsIncluded && (!p.endDate || asDate(p.endDate) >= asDate(slot?.endTime || new Date().toISOString())));
+  const balance = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && (!p.endDate || asDate(p.endDate) > new Date())).reduce((n,p) => n + Math.max(0,p.meetingSessionsIncluded-p.meetingSessionsUsed),0);
+  const book = useMutation({ mutationFn: () => bookMentorWithCredit({ mentorAvailabilityId: slot.id, question: [goal,note].filter(Boolean).join('\n') }), onSuccess: async () => {
+    await Promise.all([cache.invalidateQueries({ queryKey: ['mentor-purchases'] }), cache.invalidateQueries({ queryKey: ['learner-mentor-bookings'] }), cache.invalidateQueries({ queryKey: ['booking-slots'] })]);
+    navigate('/consultation-center/');
+  }, onError: () => { wallet.refetch(); slotQuery.refetch(); } });
+  const error = mentorQuery.error || slotQuery.error || wallet.error || book.error;
   const initial = name => (name || '?').slice(0, 1).toUpperCase();
 
   return (
@@ -83,8 +90,10 @@ export default function BookingSchedule() {
               <h2 className="text-sm font-bold">Tóm tắt lịch hẹn</h2>
               <div className="mt-4 flex items-center gap-3 rounded-2xl bg-[#FAF7F5] p-3"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-lg font-bold text-[#D94B68]">{initial(mentor?.name)}</span><div><p className="text-sm font-bold">{mentor?.name || 'Chưa chọn mentor'}</p><p className="text-xs text-[#6F6669]">Mentor</p></div></div>
               <dl className="mt-4 space-y-3 text-sm"><div className="flex justify-between gap-3"><dt className="text-[#A59B9E]">Thời gian</dt><dd className="text-right font-semibold">{slot ? `${dayTitle(dayId)} · ${slot.label}` : 'Chưa chọn khung giờ'}</dd></div><div className="flex justify-between gap-3"><dt className="text-[#A59B9E]">Nền tảng</dt><dd className="text-right font-semibold">Phòng họp RikiPath</dd></div><div className="flex justify-between gap-3"><dt className="text-[#A59B9E]">Mục tiêu</dt><dd className="text-right font-semibold">{goal}</dd></div></dl>
-              <Link to={ready ? `/consultation-payment/?mentorId=${mentor.id}&slotId=${slot.id}` : '#'} state={ready ? { mentor, slot, goal, note } : null} aria-disabled={!ready} tabIndex={ready ? 0 : -1} className={`mt-5 flex w-full items-center justify-center rounded-full px-4 py-3 text-sm font-semibold text-white ${ready ? 'bg-gradient-to-r from-[#D94B68] to-[#9E2A4B]' : 'pointer-events-none bg-[#C4B8BA]'}`}>Tiếp tục</Link>
-              <p className="mt-3 text-center text-xs leading-5 text-[#A59B9E]">Lịch chỉ được xác nhận sau khi hoàn tất đặt lịch và thanh toán.</p>
+              <p className="mt-4 text-sm font-semibold">Lượt còn hạn trong tài khoản: {wallet.isPending ? 'Đang tải…' : balance}</p>
+              <button disabled={!ready || !eligible.length || wallet.isFetching || book.isPending} onClick={() => book.mutate()} className="mt-5 w-full rounded-full bg-[#9E2A4B] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{book.isPending ? 'Đang đặt lịch…' : 'Xác nhận đặt lịch · Trừ 1 lượt'}</button>
+              {!wallet.isPending && !eligible.length && <p className="mt-3 text-xs text-[#A59B9E]">Chưa có lượt còn hạn phù hợp với ngày học. <Link to="/consultation-payment/" className="text-[#AD3155] underline">Mua thêm lượt</Link></p>}
+              <p className="mt-3 text-center text-xs leading-5 text-[#A59B9E]">Chỉ trừ 1 lượt khi đặt lịch thành công. Hủy trước ít nhất 24 tiếng được hoàn lượt theo hạn gói.</p>
             </section>
             <section className={panel}><h3 className="text-sm font-bold">Trước giờ học</h3><ul className="mt-2 space-y-2 text-xs text-[#6F6669]"><li>Kiểm tra micro và camera trước 5 phút.</li><li>Chuẩn bị tài liệu cần hỏi.</li><li>Vào đúng giờ theo khung lịch đã chọn.</li></ul></section>
           </aside>
