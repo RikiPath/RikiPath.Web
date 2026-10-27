@@ -5,6 +5,6 @@ export const bookingTime = value => bookingDate(value)?.toLocaleString('vi-VN', 
 export const bookingExpired = booking => Boolean(booking.endsAt && bookingDate(booking.endsAt) <= new Date());
 export const canAcceptBooking = booking => booking.status === 'Assigned' && !bookingExpired(booking);
 export const bookingStatus = booking => booking.status === 'Assigned' && bookingExpired(booking) ? 'Đã hết lịch' : ({
-  Assigned: 'Chờ tiếp nhận', Accepted: 'Đã tiếp nhận', Completed: 'Đã hoàn tất', Cancelled: 'Đã hủy',
+  Assigned: 'Chờ tiếp nhận', Accepted: 'Đã tiếp nhận', Confirmed: 'Đã xác nhận', Completed: 'Đã hoàn tất', Cancelled: 'Đã hủy',
   AwaitingPayment: 'Chờ thanh toán', PendingAssignment: 'Chờ phân công',
 }[booking.status] || booking.status);

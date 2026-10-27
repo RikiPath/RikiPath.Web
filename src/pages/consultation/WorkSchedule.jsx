@@ -4,8 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 
 import { ConsultShell } from '../../components/shells';
 import { api } from '../../api/client.js';
-import { getWeeklyAvailability } from '../../api/mentorScheduleApi.js';
-import { PERIODS } from '../../utils/mentorSchedule.js';
 import { getMentorBookings } from '../../api/mentorBookingsApi.js';
 import { bookingDate, bookingStatus, bookingTime } from '../../utils/mentorBooking.js';
 
@@ -96,8 +94,7 @@ export default function WorkSchedule() {
   const bookings = Array.isArray(query.data) ? query.data : [];
   const week = thisWeek(weekOffset);
   const assigned = useQuery({ queryKey: ['mentor-assigned-slots'], queryFn: async () => (await api.get('/mentor/availability')).result || [], refetchInterval: 15000 });
-  const registration = useQuery({ queryKey: ['mentor-week', week[0].key], queryFn: () => getWeeklyAvailability(week[0].key), refetchInterval: 15000 });
-  const scheduleError = query.error || assigned.error || registration.error;
+  const scheduleError = query.error || assigned.error;
   const selectedMonth = week[0].key.slice(0, 7);
   const monthLabel = `${Number(selectedMonth.slice(5))}/${selectedMonth.slice(0, 4)}`;
   const grouped = new Map(groupByDay(bookings));
@@ -114,7 +111,7 @@ export default function WorkSchedule() {
           <div>
             <h1 className="text-[25px] font-semibold tracking-tight">Lịch làm việc</h1>
             <p className="mt-1.5 text-[13px] leading-6 text-[#927B88]">
-              Buổi rảnh đã đăng ký và tiết admin đã xếp. Giờ Việt Nam.
+              Buổi đã đặt và khung giờ bạn đã mở. Giờ Việt Nam.
             </p>
           </div>
           <Link
@@ -158,8 +155,7 @@ export default function WorkSchedule() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
             {week.map((day) => {
               const items = grouped.get(day.key) || [];
-              const periods = (registration.data || []).filter(p => p.date === day.key);
-              const slots = (assigned.data || []).filter(s => dayKey(s.startTime) === day.key && !s.rejectedAt).sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
+              const slots = (assigned.data || []).filter(s => dayKey(s.startTime) === day.key).sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
               return (
                 <div
                   key={day.key}
@@ -172,8 +168,7 @@ export default function WorkSchedule() {
                     <span className="text-[20px] font-semibold leading-none">{day.date}</span>
                   </div>
                   <div className="mt-2 space-y-1.5">
-                    {periods.map(p => <p key={p.id || p.period} className="rounded-lg bg-[#FCEEF4] px-2 py-1 text-[11px] text-[#A36680]">Rảnh {PERIODS.find(x => x.id === p.period)?.name.toLowerCase()} · Đã đăng ký</p>)}
-                    {slots.map(slot => <div key={slot.id} className="rounded-lg border border-[#E7C9D6] px-2 py-2 text-[11px]"><p className="whitespace-nowrap font-semibold tabular-nums">{slotClock(slot.startTime)}–{slotClock(slot.endTime)}</p><p className="mt-1">{slot.bookedCount > 0 ? 'Đã có người đặt / giữ chỗ' : 'Chưa có người đặt'}</p>{!slot.isApproved && <p className="mt-1 text-[#A36680]">Admin chưa công bố</p>}</div>)}
+                    {slots.map(slot => <div key={slot.id} className="rounded-lg border border-[#E7C9D6] px-2 py-2 text-[11px]"><p className="whitespace-nowrap font-semibold tabular-nums">{slotClock(slot.startTime)}–{slotClock(slot.endTime)}</p><p className="mt-1">{slot.isBooked ? 'Đã có người đặt' : 'Chưa có người đặt'}</p></div>)}
                     {items.map((booking) => (
                       <Link
                         key={booking.id}
@@ -190,7 +185,7 @@ export default function WorkSchedule() {
                         </span>
                       </Link>
                     ))}
-                    {!query.isPending && !assigned.isPending && !registration.isPending && items.length === 0 && slots.length === 0 && periods.length === 0 ? (
+                    {!query.isPending && !assigned.isPending && items.length === 0 && slots.length === 0 ? (
                       <p className={`pt-4 text-center text-[11px] ${day.today ? 'text-white/70' : 'text-[#C4AEB8]'}`}>
                         Trống
                       </p>

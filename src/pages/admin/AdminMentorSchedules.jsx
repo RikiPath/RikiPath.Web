@@ -1,40 +1,99 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { AdminShell } from '../../components/shells';
 import { api } from '../../api/client.js';
-import { getWeeklyAvailability, saveWeeklyAvailability, assignWeeklySlots, publishWeeklySchedule, resolveSlotChange } from '../../api/mentorScheduleApi.js';
-import { getBookingMentors } from '../../api/mentorBookingApi.js';
-import { PERIODS, REGISTRATION_PERIODS, monday, shiftDate, localTime, vietnamDate } from '../../utils/mentorSchedule.js';
+
+function rows(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.result)) return data.result;
+  return [];
+}
+
+const clock = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Chưa có giờ';
+  return date.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default function AdminMentorSchedules({ embedded = false }) {
-  const { pathname } = useLocation(); const cache = useQueryClient();
-  const [week, setWeek] = useState(() => monday(1)); const [mentor, setMentor] = useState('');
-  const [selected, setSelected] = useState({}); const [notice, setNotice] = useState('');
-  const [resolve, setResolve] = useState(null); const [reason, setReason] = useState('');
-  const [availabilityDraft, setAvailabilityDraft] = useState(null);
-  const directory = useQuery({ queryKey: ['schedule-mentor-directory'], queryFn: getBookingMentors });
-  const registrations = useQuery({ queryKey: ['admin-mentor-week', week], queryFn: () => getWeeklyAvailability(week) });
-  const schedule = useQuery({ queryKey: ['admin-mentor-slots'], queryFn: async () => (await api.get('/admin/mentor-availabilities')).result || [] });
-  const refresh = async () => { setSelected({}); await cache.invalidateQueries({ queryKey: ['admin-mentor-slots'] }); };
-  const assign = useMutation({ mutationFn: assignWeeklySlots, onSuccess: refresh });
-  const publish = useMutation({ mutationFn: () => publishWeeklySchedule(week), onSuccess: async () => { setNotice('Đã công bố lịch và gửi thông báo, email riêng cho mentor.'); await refresh(); }, onError: refresh });
-  const decision = useMutation({ mutationFn: cancelSlot => resolveSlotChange(resolve.id, { cancelSlot, reason }), onSuccess: async () => { setResolve(null); setReason(''); setNotice('Đã xử lý lịch. Nếu hủy, các lượt hợp lệ đã được hoàn.'); await refresh(); } });
-  const override = useMutation({ mutationFn: saveWeeklyAvailability, onSuccess: async () => { setAvailabilityDraft(null); await cache.invalidateQueries({ queryKey: ['admin-mentor-week'] }); } });
-  const names = new Map([...(directory.data || []).map(r => [r.id, r.name]), ...(registrations.data || []).map(r => [r.mentorId, r.mentorName])]);
-  const allSlots = (schedule.data || []).filter(s => { const date = vietnamDate(new Date(/Z$|[+-]\d\d:\d\d$/.test(s.startTime) ? s.startTime : s.startTime + 'Z')); return date >= week && date < shiftDate(week, 7); });
-  const periods = (registrations.data || []).filter(r => !mentor || r.mentorId === Number(mentor));
-  const slots = allSlots.filter(s => !mentor || s.mentorId === Number(mentor));
-  const error = registrations.error || schedule.error || assign.error || publish.error || decision.error || override.error || directory.error;
-  const body = <main className="mx-auto max-w-7xl p-5 space-y-5"><header><h1 className="text-2xl font-bold">Xếp lịch mentor theo tuần</h1><p className="mt-2 text-sm">Mỗi tiết 50 phút, nghỉ 10 phút. Lịch nháp chưa mở cho learner. Công bố khi mỗi mentor đăng ký có ít nhất 5 tiết. Giờ Việt Nam.</p></header>
-    <div className="flex flex-wrap gap-4 items-center"><button onClick={() => { setWeek(shiftDate(week, -7)); setAvailabilityDraft(null); }}>← Tuần trước</button><strong>{week} – {shiftDate(week, 6)}</strong><button onClick={() => { setWeek(shiftDate(week, 7)); setAvailabilityDraft(null); }}>Tuần sau →</button><select aria-label="Lọc mentor" value={mentor} onChange={e => { setMentor(e.target.value); setAvailabilityDraft(null); }} className="rounded border p-2"><option value="">Tất cả mentor</option>{[...names].map(([id, name]) => <option value={id} key={id}>{name}</option>)}</select><button disabled={publish.isPending || schedule.isPending || registrations.isPending} onClick={() => publish.mutate()} className="rounded-full bg-[#9E2A4B] px-5 py-2 text-white disabled:opacity-50">Công bố lịch tuần</button></div>
-    {notice && <p role="status" className="text-green-800">{notice}</p>}{error && <p role="alert" className="text-red-700">{error.message}</p>}
-    <section className="rounded-xl border bg-white p-4"><p className="text-sm">Admin được bổ sung buổi rảnh ngoại lệ sau hạn đăng ký. Chọn một mentor ở bộ lọc trước khi sửa.</p><button disabled={!mentor} className="mt-2 text-[#9E2A4B] disabled:opacity-50" onClick={() => setAvailabilityDraft((registrations.data || []).filter(r => r.mentorId === Number(mentor)).map(r => `${r.date}|${r.period}`))}>Điều chỉnh buổi rảnh của mentor đã chọn</button></section>
-    {availabilityDraft && <section role="dialog" aria-label="Điều chỉnh buổi rảnh" className="rounded-xl border bg-white p-4"><h2 className="font-bold">{names.get(Number(mentor))} · buổi rảnh ngoại lệ</h2><div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">{Array.from({ length: 7 }, (_, i) => REGISTRATION_PERIODS.map(p => { const key = `${shiftDate(week, i)}|${p.id}`; return <label key={key}><input type="checkbox" checked={availabilityDraft.includes(key)} onChange={e => setAvailabilityDraft(old => e.target.checked ? [...old, key] : old.filter(v => v !== key))}/> {shiftDate(week, i)} · {p.name}</label>; }))}</div><button className="mt-4 mr-5" disabled={availabilityDraft.length < 3 || override.isPending} onClick={() => override.mutate({ weekStart: week, mentorId: Number(mentor), periods: availabilityDraft.map(k => { const [date, period] = k.split('|'); return { date, period }; }) })}>Lưu buổi rảnh</button><button onClick={() => setAvailabilityDraft(null)}>Đóng</button></section>}
-    <section className="rounded-2xl border bg-white p-4"><h2 className="font-bold">Số tiết đã xếp / tối thiểu 5</h2><div className="flex flex-wrap gap-3 mt-3">{[...names].map(([id, name]) => { const count = allSlots.filter(s => s.mentorId === id && !s.rejectedAt).length; return <p key={id} className={count < 5 ? 'text-amber-800' : 'text-green-800'}>{name}: {count}/5</p>; })}</div></section>
-    <section className="space-y-3"><h2 className="font-bold">Buổi mentor đăng ký rảnh</h2>{registrations.isPending && <p>Đang tải…</p>}{periods.map(r => { const period = PERIODS.find(p => p.id === r.period); const assigned = allSlots.filter(s => s.mentorWeeklyAvailabilityId === r.id && !s.rejectedAt); return <article key={r.id} className="rounded-xl border bg-white p-4"><h3 className="font-bold">{r.mentorName} · {r.date} · {period?.name}</h3><div className="flex flex-wrap gap-4 mt-3">{Array.from({ length: 4 }, (_, i) => { const existing = assigned.find(s => new Date(/Z$|[+-]\d\d:\d\d$/.test(s.startTime) ? s.startTime : s.startTime + 'Z').getUTCHours() + 7 === period.hour + i); return <label key={i} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!!existing || assign.isPending} checked={!!existing || (selected[r.id] || []).includes(i)} onChange={e => setSelected(old => ({ ...old, [r.id]: e.target.checked ? [...(old[r.id] || []), i] : (old[r.id] || []).filter(v => v !== i) }))}/>{period.hour + i}:00–{period.hour + i}:50{existing && ` · ${existing.bookedCount ? 'đã đặt' : existing.isApproved ? 'đã công bố' : 'nháp'}`}</label>; })}</div><button className="mr-4 mt-3 text-[#9E2A4B]" disabled={assign.isPending} onClick={() => setSelected(old => ({ ...old, [r.id]: [0,1,2,3].filter(i => !assigned.some(s => new Date(/Z$|[+-]\d\d:\d\d$/.test(s.startTime) ? s.startTime : s.startTime + 'Z').getUTCHours() + 7 === period.hour + i)) }))}>Chọn cả buổi</button><button className="mt-3 text-[#9E2A4B] disabled:opacity-50" disabled={!(selected[r.id] || []).length || assign.isPending} onClick={() => assign.mutate({ weeklyAvailabilityId: r.id, slotIndexes: selected[r.id] })}>Xếp các tiết đã chọn</button></article>; })}{!registrations.isPending && !periods.length && <p>Chưa có đăng ký rảnh trong tuần.</p>}</section>
-    <section className="rounded-2xl border bg-white p-4 overflow-x-auto"><h2 className="font-bold mb-3">Toàn bộ lịch · mentor và trạng thái từng tiết</h2><table className="w-full text-sm min-w-[650px]"><thead><tr className="text-left"><th>Mentor</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th>Điều chỉnh</th></tr></thead><tbody>{slots.map(s => <tr key={s.id} className="border-t"><td className="py-3">{s.mentorName}</td><td>{localTime(s.startTime)}</td><td>{localTime(s.endTime)}</td><td>{s.rejectedAt ? 'Từ chối' : s.bookedCount > 0 ? 'Đã có learner / giữ chỗ' : s.isApproved ? 'Đã công bố · trống' : 'Nháp'}</td><td>{s.changeRequestedAt && <p className="text-amber-800">Yêu cầu: {s.changeRequestReason}</p>}<button className="text-[#9E2A4B]" onClick={() => { setResolve(s); setReason(''); }}>Xử lý / hủy tiết</button></td></tr>)}</tbody></table></section>
-    {resolve && <section role="dialog" aria-label="Xử lý lịch" className="rounded-2xl border bg-white p-5"><h2 className="font-bold">{resolve.mentorName} · {localTime(resolve.startTime)}</h2><p className="text-sm mt-2">Hủy tiết sẽ hoàn lượt; gói đã thanh toán được bảo đảm còn ít nhất 7 ngày đặt bù. Muốn đổi giờ, hủy tiết cũ rồi xếp tiết mới trong buổi đã đăng ký.</p><textarea aria-label="Lý do xử lý" value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} className="w-full border rounded p-3 mt-3"/><div className="flex gap-4"><button disabled={!reason.trim() || decision.isPending} onClick={() => decision.mutate(true)}>Hủy tiết và thông báo</button>{resolve.changeRequestedAt && <button disabled={!reason.trim() || decision.isPending} onClick={() => decision.mutate(false)}>Giữ lịch / từ chối yêu cầu</button>}<button onClick={() => setResolve(null)}>Đóng</button></div></section>}
-  </main>;
-  return embedded ? body : <AdminShell pathname={pathname} breadcrumb="Xếp lịch mentor">{body}</AdminShell>;
+  const { pathname } = useLocation();
+  const [mentorId, setMentorId] = useState('');
+  const mentors = useQuery({
+    queryKey: ['admin-mentors'],
+    queryFn: async () => rows(await api.get('/admin/mentors')),
+  });
+  const slots = useQuery({
+    queryKey: ['admin-mentor-availabilities', mentorId],
+    queryFn: async () => rows(await api.get('/admin/mentor-availabilities', { params: mentorId ? { mentorId } : {} })),
+  });
+  const bookings = useQuery({
+    queryKey: ['admin-mentor-bookings'],
+    queryFn: async () => rows(await api.get('/admin/mentor-bookings')),
+  });
+  const names = new Map((mentors.data || []).map((item) => [
+    item.id,
+    `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email,
+  ]));
+  const booked = new Set(
+    (bookings.data || [])
+      .filter((item) => item.status !== 'Cancelled')
+      .map((item) => item.mentorAvailabilityId),
+  );
+  const error = mentors.error || slots.error || bookings.error;
+  const body = (
+    <div className="space-y-4">
+      <header>
+        <h1 className="text-[22px] font-semibold">Lịch mentor</h1>
+        <p className="mt-1 text-[13px] text-[#82737B]">Khung giờ đã mở và buổi đã đặt. Giờ Việt Nam.</p>
+      </header>
+      {error && <p role="alert" className="rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">{error.message}</p>}
+      <label className="block max-w-xs text-[12px] text-[#8C7782]">
+        Mentor
+        <select
+          value={mentorId}
+          onChange={(event) => setMentorId(event.target.value)}
+          className="mt-1 h-10 w-full rounded-xl border border-[#E7DAE1] bg-white px-3 text-[13px]"
+        >
+          <option value="">Tất cả</option>
+          {(mentors.data || []).map((item) => (
+            <option key={item.id} value={item.id}>{names.get(item.id)}</option>
+          ))}
+        </select>
+      </label>
+      {slots.isPending ? <p className="text-[13px] text-[#82737B]">Đang tải khung giờ…</p> : (
+        <div className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
+          <table className="w-full text-left text-[13px]">
+            <thead className="bg-[#FCFAFB] text-[#8C7D84]">
+              <tr>
+                <th className="px-4 py-3 font-medium">Mentor</th>
+                <th className="px-4 py-3 font-medium">Khung giờ</th>
+                <th className="px-4 py-3 font-medium">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(slots.data || []).map((slot) => (
+                <tr key={slot.id} className="border-t border-[#F2EDF0]">
+                  <td className="px-4 py-3">{names.get(slot.mentorId) || `Mentor #${slot.mentorId}`}</td>
+                  <td className="px-4 py-3 tabular-nums">{clock(slot.startTime)} – {clock(slot.endTime)}</td>
+                  <td className="px-4 py-3">{booked.has(slot.id) ? 'Đã có buổi' : 'Đang mở'}</td>
+                </tr>
+              ))}
+              {!slots.isError && !(slots.data || []).length && (
+                <tr><td colSpan={3} className="px-4 py-6 text-[#8C7D84]">Chưa có khung giờ.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+  if (embedded) return body;
+  return <AdminShell pathname={pathname} breadcrumb="Lịch mentor">{body}</AdminShell>;
 }

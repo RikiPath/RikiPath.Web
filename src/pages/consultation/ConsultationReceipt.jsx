@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { LearnerShell } from '../../components/shells';
-import { syncMeetingPurchase } from '../../api/mentorBookingApi.js';
+import { getPurchaseStatus } from '../../api/mentorBookingApi.js';
 import { bookingTime } from '../../utils/mentorBooking.js';
 import IncludedMentorBooking from '../../components/consultation/IncludedMentorBooking.jsx';
 
@@ -11,7 +11,7 @@ export default function ConsultationReceipt() {
   const [params] = useSearchParams();
   const { user } = useAuth();
   const id = Number(params.get('subscriptionId') || params.get('orderCode')) || null;
-  const query = useQuery({ queryKey: ['meeting-purchase', id], queryFn: () => syncMeetingPurchase(id), enabled: Boolean(id),
+  const query = useQuery({ queryKey: ['meeting-purchase', id], queryFn: () => getPurchaseStatus(id), enabled: Boolean(id),
     refetchInterval: q => q.state.data?.paymentStatus === 'Pending' && !q.state.data?.isCheckoutExpired ? 15000 : false,
   });
   const purchase = query.data;

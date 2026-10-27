@@ -23,7 +23,42 @@ export const disableAdminFeature = (id) => api.delete(`/admin/features/${id}`);
 export const getAdminMentorBookings = (params) => api.get('/admin/mentor-bookings', { params });
 export const updateAdminMentorBooking = (id, data) => api.put(`/admin/mentor-bookings/${id}`, data);
 export const getAdminMentorAvailabilities = (params) => api.get('/admin/mentor-availabilities', { params });
-export const getAdminMentorSchedule = async (mentorId, from, to) => (await api.get(`/admin/mentor-availabilities/mentor/${mentorId}/schedule`, { params: { from, to } })).result || [];
+function rows(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.result)) return data.result;
+  return [];
+}
+
+export async function getAdminMentorSchedule(mentorId, from, to) {
+  const [slotsData, bookingsData] = await Promise.all([
+    api.get('/admin/mentor-availabilities', { params: { mentorId } }),
+    api.get('/admin/mentor-bookings'),
+  ]);
+  const start = new Date(from).getTime();
+  const end = new Date(to).getTime();
+  const bookings = rows(bookingsData);
+  return rows(slotsData)
+    .filter((slot) => {
+      const time = new Date(slot.startTime).getTime();
+      return time >= start && time < end;
+    })
+    .map((slot) => {
+      const slotBookings = bookings
+        .filter((booking) => booking.mentorAvailabilityId === slot.id)
+        .map((booking) => ({
+          ...booking,
+          status: booking.status === 'Confirmed' ? 'Accepted' : booking.status,
+          paymentStatus: ['Confirmed', 'Completed'].includes(booking.status) ? 'Paid' : 'Pending',
+          learnerName: booking.learnerName || (booking.learnerId ? `Học viên #${booking.learnerId}` : ''),
+        }));
+      const status = slotBookings.some((booking) => ['Accepted', 'Completed'].includes(booking.status))
+        ? 'Booked'
+        : slotBookings.some((booking) => booking.status === 'AwaitingPayment')
+          ? 'Held'
+          : 'Available';
+      return { ...slot, status, bookings: slotBookings };
+    });
+}
 export const createAdminMentorAvailability = (data) => api.post('/admin/mentor-availabilities', data);
 export const updateAdminMentorAvailability = (id, data) => api.put(`/admin/mentor-availabilities/${id}`, data);
 export const deleteAdminMentorAvailability = (id) => api.delete(`/admin/mentor-availabilities/${id}`);

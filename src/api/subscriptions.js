@@ -1,16 +1,13 @@
-import { api } from './client.js';
+const unavailable = () => Promise.reject(new Error('Backend chưa có API gói tự học cho học viên.'));
 
-export async function getStudyPlans() {
-  const data = await api.get('/subscriptions/plans');
-  return Array.isArray(data.result) ? data.result : [];
+export function getStudyPlans() {
+  return unavailable();
 }
 
-export async function getMySubscription() {
-  const data = await api.get('/subscriptions/me');
-  return data.result ?? { active: false };
+export function getMySubscription() {
+  return unavailable();
 }
 
-export async function purchaseStudyPlan(subscriptionPlanId) {
-  const data = await api.post('/subscriptions/purchase', { subscriptionPlanId });
-  return data.result;
+export function purchaseStudyPlan() {
+  return unavailable();
 }

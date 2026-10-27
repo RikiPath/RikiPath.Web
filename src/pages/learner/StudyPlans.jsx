@@ -40,9 +40,9 @@ export default function StudyPlans() {
           <p className="text-[11px] font-medium tracking-[0.14em] text-[#AD3155]">
             GÓI TỰ HỌC
           </p>
-          <h1 className="mt-2 text-[22px] font-semibold">Chọn gói để vào các trang ôn luyện</h1>
+          <h1 className="mt-2 text-[22px] font-semibold">Gói tự học</h1>
           <p className="mt-2 max-w-xl text-[13px] leading-6 text-[#8C7782]">
-            Tài khoản chưa có gói đang hiệu lực sẽ được đưa về trang này khi mở bài học, thi thử, sổ từ và các trang luyện tập.
+            Các trang ôn luyện vẫn mở. Danh sách gói tự học chưa có API cho học viên.
           </p>
           {current?.active && (
             <p className="mt-4 rounded-xl bg-[#FCEEF4] px-4 py-3 text-[13px] text-[#9E2A4B]">

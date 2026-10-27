@@ -41,57 +41,11 @@ export default function MentorPrivateChat() {
   }, []);
 
   useEffect(() => {
-    let disposed = false;
-    const hub = createMentorChatConnection();
-    hubRef.current = hub;
-    const readActive = async () => {
-      if (activeRef.current && document.visibilityState === 'visible') {
-        await hub.invoke('MarkRead', activeRef.current);
-        if (!disposed) setThreads(old => old.map(t => t.bookingId === activeRef.current ? { ...t, unreadCount: 0 } : t));
-      }
-    };
-    const sync = async () => {
-      const items = await refresh();
-      if (disposed) return;
-      await Promise.all(items.map(t => hub.invoke('JoinBookingChat', t.bookingId)));
-      if (disposed) return;
-      if (activeRef.current) {
-        const id = activeRef.current;
-        const history = await getChatMessages(id);
-        if (!disposed && activeRef.current === id) setMessages(old => merge(old, history));
-      }
-      await readActive();
-      if (!disposed) { setStatus('Đã kết nối'); setError(''); }
-    };
-    hub.on('ReceiveMentorChatMessage', message => {
-      if (disposed) return;
-      if (message.bookingId === activeRef.current) {
-        setMessages(old => merge(old, [message]));
-        readActive().catch(e => setError(e.message));
-      }
-      refresh().catch(e => setError(e.message));
-    });
-    hub.on('MentorChatRead', id => {
-      if (id === activeRef.current) setMessages(old => old.map(m => Number(m.senderUserId) === Number(user?.userId) ? { ...m, readAt: new Date().toISOString() } : m));
-    });
-    hub.onreconnecting(() => { if (!disposed) setStatus('Đang kết nối lại'); });
-    hub.onreconnected(() => sync().catch(e => { if (!disposed) { setError(e.message); setStatus('Chưa đồng bộ'); } }));
-    hub.onclose(() => { if (!disposed) setStatus('Mất kết nối'); });
-    hub.start().then(sync).catch(e => { if (!disposed) { setError(e.message); setStatus('Mất kết nối'); } });
-    const visible = () => readActive().catch(e => { if (!disposed) setError(e.message); });
-    document.addEventListener('visibilitychange', visible);
-    // Refresh booking permissions, unread counts, and newly assigned chats.
-    const timer = setInterval(() => {
-      if (hub.state === 'Connected') sync().catch(e => { if (!disposed) setError(e.message); });
-    }, 30000);
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', visible);
-      hub.stop();
-      if (hubRef.current === hub) hubRef.current = null;
-    };
-  }, [refresh, user?.userId]);
+    setThreadsLoading(false);
+    setLoading(false);
+    setStatus('Chưa có API');
+    setError('Backend chưa có API tin nhắn 1–1.');
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,8 +54,10 @@ export default function MentorPrivateChat() {
       // Reset when the asynchronous history subscription changes booking.
       await Promise.resolve();
       if (cancelled) return;
-      setMessages([]); setDraft(''); setError(''); setLoading(true); setHasOlder(false);
-      if (!selectedId) { setLoading(false); return; }
+      setMessages([]); setDraft(''); setLoading(true); setHasOlder(false);
+      setError('Backend chưa có API tin nhắn 1–1.');
+      setLoading(false);
+      return;
       try {
         const [detail, history] = await Promise.all([getChatThread(selectedId), getChatMessages(selectedId)]);
         if (cancelled) return;

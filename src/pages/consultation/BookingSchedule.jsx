@@ -41,7 +41,7 @@ export default function BookingSchedule() {
   const ready = Boolean(mentor && slot && !slotQuery.isFetching && !slotQuery.isError);
   const eligible = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && p.meetingSessionsUsed < p.meetingSessionsIncluded && (!p.endDate || asDate(p.endDate) >= asDate(slot?.endTime || new Date().toISOString())));
   const balance = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && (!p.endDate || asDate(p.endDate) > new Date())).reduce((n,p) => n + Math.max(0,p.meetingSessionsIncluded-p.meetingSessionsUsed),0);
-  const book = useMutation({ mutationFn: () => bookMentorWithCredit({ mentorAvailabilityId: slot.id, question: [goal,note].filter(Boolean).join('\n') }), onSuccess: async () => {
+  const book = useMutation({ mutationFn: () => bookMentorWithCredit({ subscriptionId: eligible[0].subscriptionId, mentorAvailabilityId: slot.id }), onSuccess: async () => {
     await Promise.all([cache.invalidateQueries({ queryKey: ['mentor-purchases'] }), cache.invalidateQueries({ queryKey: ['learner-mentor-bookings'] }), cache.invalidateQueries({ queryKey: ['booking-slots'] })]);
     navigate('/consultation-center/');
   }, onError: () => { wallet.refetch(); slotQuery.refetch(); } });
@@ -58,7 +58,7 @@ export default function BookingSchedule() {
             <section className={panel}>
               <h2 className="mb-4 text-sm font-bold">Chuyên gia <span className="font-normal text-[#A59B9E]">({mentors.length})</span></h2>
               {mentorQuery.isPending && <p role="status" className="text-sm text-[#6F6669]">Đang tải danh sách mentor…</p>}
-              {!mentorQuery.isPending && !mentorQuery.isError && !mentors.length && <p className="text-sm text-[#6F6669]">Chưa có mentor đang hoạt động.</p>}
+              {!mentorQuery.isPending && !mentorQuery.isError && !mentors.length && <p className="text-sm text-[#6F6669]">Chưa có khung giờ trống.</p>}
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {mentors.map(item => <button key={item.id} type="button" aria-pressed={item.id === mentorId} onClick={() => { setMentorId(item.id); setDayId(''); setSlotId(null); }} className={`rounded-2xl border p-4 text-left ${item.id === mentorId ? 'border-[#D94B68] bg-[#fff8f8]' : 'border-[#eadfd9] bg-[#FAF7F5]'}`}>
                   <div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white font-bold text-[#D94B68]">{item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : initial(item.name)}</span><div><p className="text-sm font-bold">{item.name || `Mentor #${item.id}`}</p><p className="mt-1 text-xs text-[#D94B68]">Mentor</p></div></div>
@@ -70,7 +70,7 @@ export default function BookingSchedule() {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Ngày rảnh · 89 ngày tới</h2><div className="flex items-center gap-3"><span className="text-xs text-[#A59B9E]">GMT+7</span><button type="button" onClick={() => setRange(new Date())} className="text-xs font-semibold text-[#D94B68]">Làm mới lịch</button></div></div>
               {slotQuery.isPending && mentor && <p role="status" className="py-4 text-sm text-[#6F6669]">Đang tải lịch trống của {mentor.name}…</p>}
               {!mentor && <p className="py-4 text-sm text-[#6F6669]">Chọn mentor để xem lịch.</p>}
-              {mentor && !slotQuery.isPending && !slotQuery.isError && !days.length && <p className="rounded-2xl bg-[#FAF7F5] p-5 text-sm text-[#6F6669]">{mentor.name} chưa có lịch trống được duyệt trong 89 ngày tới. Bạn có thể chọn mentor khác hoặc quay lại sau.</p>}
+              {mentor && !slotQuery.isPending && !slotQuery.isError && !days.length && <p className="rounded-2xl bg-[#FAF7F5] p-5 text-sm text-[#6F6669]">{mentor.name} chưa có lịch trống trong 89 ngày tới. Bạn có thể chọn mentor khác hoặc quay lại sau.</p>}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {days.map(id => <button key={id} type="button" aria-pressed={id === dayId} onClick={() => { setDayId(id); setSlotId(null); }} className={`rounded-2xl px-2 py-3 text-center ${id === dayId ? 'bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white' : 'bg-[#FAF7F5]'}`}>
                   <span className="block text-xs">{new Date(`${id}T12:00:00+07:00`).toLocaleDateString('vi-VN', { timeZone: ZONE, weekday: 'short' })}</span><span className="mt-1 block text-lg font-bold">{id.slice(8)}/{id.slice(5, 7)}</span><span className="mt-1 block text-[10px]">{availableSlots.filter(s => s.day === id).length} khung giờ</span>
@@ -93,7 +93,7 @@ export default function BookingSchedule() {
               <p className="mt-4 text-sm font-semibold">Lượt còn hạn trong tài khoản: {wallet.isPending ? 'Đang tải…' : balance}</p>
               <button disabled={!ready || !eligible.length || wallet.isFetching || book.isPending} onClick={() => book.mutate()} className="mt-5 w-full rounded-full bg-[#9E2A4B] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{book.isPending ? 'Đang đặt lịch…' : 'Xác nhận đặt lịch · Trừ 1 lượt'}</button>
               {!wallet.isPending && !eligible.length && <p className="mt-3 text-xs text-[#A59B9E]">Chưa có lượt còn hạn phù hợp với ngày học. <Link to="/consultation-payment/" className="text-[#AD3155] underline">Mua thêm lượt</Link></p>}
-              <p className="mt-3 text-center text-xs leading-5 text-[#A59B9E]">Chỉ trừ 1 lượt khi đặt lịch thành công. Hủy trước ít nhất 24 tiếng được hoàn lượt theo hạn gói.</p>
+              <p className="mt-3 text-center text-xs leading-5 text-[#A59B9E]">Chỉ trừ 1 lượt khi đặt lịch thành công.</p>
             </section>
             <section className={panel}><h3 className="text-sm font-bold">Trước giờ học</h3><ul className="mt-2 space-y-2 text-xs text-[#6F6669]"><li>Kiểm tra micro và camera trước 5 phút.</li><li>Chuẩn bị tài liệu cần hỏi.</li><li>Vào đúng giờ theo khung lịch đã chọn.</li></ul></section>
           </aside>
