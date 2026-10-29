@@ -88,7 +88,7 @@ export default function ConsultationReceipt() {
             <Link to="/payments/history/" className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>Danh sách thanh toán</Link>
             {pending && checkoutUrl && (localCheckout
               ? <Link to={`/payment/local/?subscriptionId=${id}`} className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>Xác nhận thanh toán</Link>
-              : <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>Mở PayOS để thanh toán</a>)}
+              : <a href={checkoutUrl} className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>Mở PayOS để thanh toán</a>)}
             {id && (
               <button type="button" onClick={() => query.refetch()} disabled={query.isFetching} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] disabled:opacity-40 ${focus}`}>
                 {query.isFetching ? 'Đang kiểm tra…' : 'Kiểm tra thanh toán'}

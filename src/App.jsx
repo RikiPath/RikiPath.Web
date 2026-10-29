@@ -101,6 +101,11 @@ function NormalizePath() {
   return null;
 }
 
+function PaymentReturnToReceipt() {
+  const { search } = useLocation();
+  return <Navigate to={`/consultation-receipt/${search}`} replace />;
+}
+
 function PreviewSessionSync() {
   const location = useLocation();
   const refreshSession = useContext(AuthContext)?.refreshSession;
@@ -181,8 +186,8 @@ export default function App() {
             <Route path={withSlash('/payments/history')} element={<ProtectedRoute allowedRoles={['Learner']}><MentorPayments /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
             <Route path={withSlash('/payment/local')} element={<ProtectedRoute allowedRoles={['Learner']}><LocalCheckout /></ProtectedRoute>} />
-            <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
-            <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
+            <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><PaymentReturnToReceipt /></ProtectedRoute>} />
+            <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><PaymentReturnToReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/sensei-profile')} element={<SenseiProfile />} />
             <Route path={withSlash('/consultation-session')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationSessionDetail /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-receipt')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />

@@ -23,7 +23,7 @@ export default function LocalCheckout() {
     onSuccess: async (result) => {
       cache.setQueryData(['meeting-purchase', id], result);
       await cache.invalidateQueries({ queryKey: ['mentor-purchases'] });
-      navigate(`/payment/success/?subscriptionId=${id}`);
+      navigate(`/consultation-receipt/?subscriptionId=${id}`);
     },
   });
 
@@ -60,7 +60,7 @@ export default function LocalCheckout() {
               </button>
             )}
             {purchase?.paymentStatus === 'Paid' && (
-              <Link to={`/payment/success/?subscriptionId=${id}`} className={`inline-flex h-10 items-center rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
+              <Link to={`/consultation-receipt/?subscriptionId=${id}`} className={`inline-flex h-10 items-center rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
                 Xem biên lai
               </Link>
             )}
