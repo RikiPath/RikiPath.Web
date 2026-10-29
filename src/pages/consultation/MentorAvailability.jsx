@@ -3,14 +3,15 @@ import { useLocation } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { getWeeklyAvailability, saveWeeklyAvailability } from '../../api/mentorScheduleApi.js';
 import { getSession } from '../../auth/session.js';
+import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
 import { ConsultShell } from '../../components/shells';
 
 const TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const PERIODS = [
-  { id: 'morning', api: 'Morning', label: 'Sáng', start: '08:00', end: '08:50', from: 5, to: 12 },
-  { id: 'afternoon', api: 'Afternoon', label: 'Chiều', start: '13:00', end: '13:50', from: 12, to: 17 },
-  { id: 'evening', api: 'Evening', label: 'Tối', start: '19:00', end: '19:50', from: 17, to: 24 },
+  { id: 'morning', api: 'Morning', label: 'Sáng', startHour: 8, endHour: 12, from: 5, to: 12 },
+  { id: 'afternoon', api: 'Afternoon', label: 'Chiều', startHour: 13, endHour: 17, from: 12, to: 17 },
+  { id: 'evening', api: 'Evening', label: 'Tối', startHour: 18, endHour: 22, from: 17, to: 24 },
 ];
 const periodIdFromApi = (period) => PERIODS.find((item) => item.api === period)?.id || String(period || '').toLowerCase();
 
@@ -25,13 +26,21 @@ function toDayKey(iso) {
   }).format(asDate(iso));
 }
 
-function hourInZone(iso) {
-  const hour = new Intl.DateTimeFormat('en-GB', {
+function clockParts(iso) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: TIME_ZONE,
     hour: '2-digit',
+    minute: '2-digit',
     hourCycle: 'h23',
-  }).format(asDate(iso));
-  return Number(hour);
+  }).formatToParts(asDate(iso));
+  return {
+    hour: Number(parts.find((part) => part.type === 'hour')?.value),
+    minute: Number(parts.find((part) => part.type === 'minute')?.value),
+  };
+}
+
+function hourInZone(iso) {
+  return clockParts(iso).hour;
 }
 
 function periodOf(slot) {
@@ -183,8 +192,8 @@ export default function MentorAvailability() {
   };
 
   const createSlot = async (dayKey, period) => {
-    const start = new Date(`${dayKey}T${period.start}:00+07:00`);
-    const end = new Date(`${dayKey}T${period.end}:00+07:00`);
+    const start = new Date(`${dayKey}T${String(period.startHour).padStart(2, '0')}:00:00+07:00`);
+    const end = new Date(`${dayKey}T${String(period.startHour).padStart(2, '0')}:50:00+07:00`);
     if (preview) {
       setSlots((prev) => [
         ...prev,
@@ -281,6 +290,48 @@ export default function MentorAvailability() {
     }
   };
 
+  const nowParts = clockParts(new Date().toISOString());
+  const calendarEvents = week.flatMap((day) => {
+    const daySlots = grouped[day.key] || [];
+    const periods = PERIODS.flatMap((period) => {
+      const slotsInPeriod = daySlots.filter((slot) => periodOf(slot) === period.id);
+      if (slotsInPeriod.length) return [];
+      const on = checked(day.key, period.id);
+      const locked = day.past || slotsInPeriod.some(isBooked);
+      return [{
+        id: `period-${day.key}-${period.id}`,
+        dayKey: day.key,
+        startHour: period.startHour,
+        endHour: period.startHour + (on ? 1 : 0),
+        endMinute: on ? 0 : 40,
+        title: on ? `${period.label} · đã chọn` : period.label,
+        tone: on ? 'selected' : 'ghost',
+        onClick: () => toggle(day, period.id),
+        disabled: locked || saving,
+        z: 1,
+      }];
+    });
+    const placed = daySlots.map((slot) => {
+      const start = clockParts(slot.startTime);
+      const end = clockParts(slot.endTime);
+      return {
+        id: `slot-${slot.id}`,
+        dayKey: day.key,
+        startHour: start.hour,
+        startMinute: start.minute,
+        endHour: end.hour,
+        endMinute: end.minute,
+        title: `${formatTime(slot.startTime)}–${formatTime(slot.endTime)}`,
+        detail: slotStatus(slot),
+        tone: isBooked(slot) ? 'booked' : slot.isApproved === false ? 'pending' : 'open',
+        onClick: isBooked(slot) ? undefined : () => closeSlot(slot),
+        disabled: deletingId === slot.id,
+        z: 3,
+      };
+    });
+    return [...periods, ...placed];
+  });
+
   const closeSlot = async (slot) => {
     setDeletingId(slot.id);
     setNotice('');
@@ -356,7 +407,7 @@ export default function MentorAvailability() {
           <div className="min-w-[180px] flex-1">
             <h2 className="text-[14px] font-semibold text-[#79465D]">Đăng ký buổi rảnh</h2>
             <p className="text-[12px] leading-5 text-[#A0788B]">
-              Chọn ít nhất 3 buổi của tuần sau, trước 18:00 thứ Sáu. Admin sẽ chia mỗi buổi thành tiết 50 phút.
+              Bấm khung Sáng 8–12, Chiều 13–17 hoặc Tối 18–22. Chọn ít nhất 3 buổi của tuần sau, trước 18:00 thứ Sáu.
             </p>
           </div>
           <p className="text-[12px] text-[#8C6070]">Đã chọn {selectedCount} buổi</p>
@@ -380,77 +431,14 @@ export default function MentorAvailability() {
           </p>
         ) : null}
 
-        <div className="min-w-0">
-          <section className="grid grid-cols-7 items-start gap-2" aria-busy={loading}>
-            {week.map((day) => {
-              const items = grouped[day.key] || [];
-              return (
-                <article
-                  key={day.key}
-                  className={`flex min-w-0 flex-col rounded-2xl border bg-white px-2 py-2.5 ${
-                    day.today ? 'border-[#AD3155]' : 'border-[#E7C9D6]'
-                  }`}
-                >
-                  <div className="flex items-baseline justify-between">
-                    <span className={`text-[13px] ${day.today ? 'font-medium text-[#AD3155]' : 'text-[#B18F9E]'}`}>
-                      {day.name}
-                    </span>
-                    <span className={`text-[22px] font-semibold leading-none ${day.today ? 'text-[#AD3155]' : 'text-[#49353F]'}`}>
-                      {day.date}
-                    </span>
-                  </div>
-                  <div className="mt-2.5 space-y-1.5">
-                    {PERIODS.map((period) => {
-                      const on = checked(day.key, period.id);
-                      const locked = day.past || (grouped[day.key] || []).some((slot) => periodOf(slot) === period.id && isBooked(slot));
-                      return (
-                        <label key={period.id} className={`flex items-center gap-1.5 text-[12px] ${locked ? 'text-[#C4AEB8]' : 'text-[#6E5360]'}`}>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            disabled={locked || saving}
-                            onChange={() => toggle(day, period.id)}
-                            className="h-3.5 w-3.5 shrink-0 accent-[#AD3155]"
-                          />
-                          {period.label}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2">
-                    {items.length === 0 && !PERIODS.some((period) => checked(day.key, period.id) && !(grouped[day.key] || []).some((slot) => periodOf(slot) === period.id)) ? (
-                      <p className="pt-1 text-[12px] text-[#C4AEB8]">Chưa xếp tiết</p>
-                    ) : null}
-                    {PERIODS.filter((period) => checked(day.key, period.id) && !items.some((slot) => periodOf(slot) === period.id)).map((period) => (
-                      <p key={period.id} className="text-[12px] leading-5 text-[#B07A8C]">
-                        {period.start}–{period.end}
-                        <span className="mt-0.5 block text-[12px]">Chưa lưu</span>
-                      </p>
-                    ))}
-                    {items.map((slot) => (
-                      <div key={slot.id}>
-                        <p className="text-[12px] font-medium leading-5 text-[#543E49]">
-                          {formatTime(slot.startTime)}–{formatTime(slot.endTime)}
-                        </p>
-                        <p className="mt-0.5 text-[12px] text-[#AD3155]">{slotStatus(slot)}</p>
-                        {isBooked(slot) ? null : (
-                          <button
-                            type="button"
-                            disabled={deletingId === slot.id}
-                            onClick={() => closeSlot(slot)}
-                            className={`mt-0.5 text-[12px] font-medium text-[#AD3155] disabled:opacity-50 ${focusClass} rounded`}
-                          >
-                            {deletingId === slot.id ? '…' : 'Đóng'}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </section>
-        </div>
+        <WeekTimeGrid
+          days={week}
+          events={calendarEvents}
+          startHour={8}
+          endHour={22}
+          nowKey={toDayKey(new Date().toISOString())}
+          nowMinutes={nowParts.hour * 60 + nowParts.minute}
+        />
 
         {laterDays.length > 0 ? (
           <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
