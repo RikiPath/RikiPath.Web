@@ -14,7 +14,7 @@ const SECTIONS = [
   {
     to: '/admin/mentor-schedules',
     label: 'Xếp lịch tuần',
-    note: 'Khung giờ mentor đã mở và buổi đã đặt.',
+    note: 'Chọn tiết 50 phút từ buổi rảnh mentor đã đăng ký.',
     paths: ['/admin/mentor-schedules'],
   },
   { to: '/admin/mentor-plans', label: 'Gói tư vấn', note: 'Cấu hình giá gói 1 và 3 buổi.', paths: ['/admin/mentor-plans'] },

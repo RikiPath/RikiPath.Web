@@ -131,7 +131,7 @@ export default function MentorAvailability() {
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekOffset, setWeekOffset] = useState(1);
   const [picks, setPicks] = useState({});
   const [savedKeys, setSavedKeys] = useState([]);
 
@@ -250,6 +250,11 @@ export default function MentorAvailability() {
         }
         setPicks({});
         setNotice('Đã lưu buổi rảnh của tuần này.');
+        return;
+      }
+      const nextWeek = weekDays(1);
+      if (week[0].key !== nextWeek[0].key) {
+        setNotice(`Chỉ đăng ký tuần sau (${rangeLabel(nextWeek)}), trước 18:00 thứ Sáu.`);
         return;
       }
       const periods = week.flatMap((day) => (
