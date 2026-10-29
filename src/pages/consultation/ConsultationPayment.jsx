@@ -19,7 +19,10 @@ export default function ConsultationPayment() {
   const plans = query.data || [];
   const plan = plans.find((item) => item.id === planId) || plans[0];
   const purchase = useMutation({
-    mutationFn: () => purchaseMeeting({ subscriptionPlanId: plan.id }),
+    mutationFn: () => purchaseMeeting({
+      subscriptionPlanId: plan.id,
+      frontendOrigin: window.location.origin,
+    }),
     onSuccess: (result) => {
       sessionStorage.setItem(`mentor-checkout:${user.userId}:${result.subscriptionId}`, result.checkoutUrl);
       navigate(`/consultation-receipt/?subscriptionId=${result.subscriptionId}`);

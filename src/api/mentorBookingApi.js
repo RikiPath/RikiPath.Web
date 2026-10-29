@@ -44,8 +44,8 @@ export const getMentorSlots = async (mentorId, from, to) => {
 
 export const getBookingMentors = async () => list(await api.get('/mentor-meetings/mentors'));
 
-export const purchaseMeeting = ({ subscriptionPlanId }) =>
-  api.post('/mentor-meetings/purchase', { subscriptionPlanId }).then((data) => data.result);
+export const purchaseMeeting = ({ subscriptionPlanId, frontendOrigin }) =>
+  api.post('/mentor-meetings/purchase', { subscriptionPlanId, frontendOrigin }).then((data) => data.result);
 
 export const getPurchaseStatus = async (id) => (await api.get(`/mentor-meetings/purchases/${id}`)).result;
 

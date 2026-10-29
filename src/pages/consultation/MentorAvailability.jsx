@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../../api/client.js';
+import { getWeeklyAvailability, saveWeeklyAvailability } from '../../api/mentorScheduleApi.js';
 import { getSession } from '../../auth/session.js';
 import { ConsultShell } from '../../components/shells';
 
 const TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const PERIODS = [
-  { id: 'morning', label: 'Sáng', start: '08:00', end: '08:50', from: 5, to: 12 },
-  { id: 'afternoon', label: 'Chiều', start: '13:00', end: '13:50', from: 12, to: 17 },
-  { id: 'evening', label: 'Tối', start: '19:00', end: '19:50', from: 17, to: 24 },
+  { id: 'morning', api: 'Morning', label: 'Sáng', start: '08:00', end: '08:50', from: 5, to: 12 },
+  { id: 'afternoon', api: 'Afternoon', label: 'Chiều', start: '13:00', end: '13:50', from: 12, to: 17 },
+  { id: 'evening', api: 'Evening', label: 'Tối', start: '19:00', end: '19:50', from: 17, to: 24 },
 ];
+const periodIdFromApi = (period) => PERIODS.find((item) => item.api === period)?.id || String(period || '').toLowerCase();
 
 const asDate = (iso) => new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`);
 
@@ -131,6 +133,7 @@ export default function MentorAvailability() {
   const [deletingId, setDeletingId] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [picks, setPicks] = useState({});
+  const [savedKeys, setSavedKeys] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,9 +161,11 @@ export default function MentorAvailability() {
   const booked = weekSlots.filter(isBooked).length;
   const open = weekSlots.filter((slot) => slotStatus(slot) === 'Đang mở').length;
 
+  const saved = new Set(savedKeys);
   const checked = (dayKey, periodId) => {
     const key = `${dayKey}:${periodId}`;
     if (Object.prototype.hasOwnProperty.call(picks, key)) return picks[key];
+    if (saved.has(key)) return true;
     return (grouped[dayKey] || []).some((slot) => periodOf(slot) === periodId);
   };
 
@@ -207,24 +212,62 @@ export default function MentorAvailability() {
     await api.post('/mentor/availability/request-cancel', { ids: [slot.id] });
   };
 
+  useEffect(() => {
+    if (preview) {
+      setSavedKeys([]);
+      return undefined;
+    }
+    let cancel = false;
+    getWeeklyAvailability(week[0].key)
+      .then((rows) => {
+        if (!cancel) {
+          setSavedKeys((rows || []).map((row) => `${String(row.date).slice(0, 10)}:${periodIdFromApi(row.period)}`));
+        }
+      })
+      .catch(() => {
+        if (!cancel) setSavedKeys([]);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [preview, week]);
+
   const saveWeek = async () => {
     setSaving(true);
     setNotice('');
     try {
-      for (const day of week) {
-        if (day.past) continue;
-        for (const period of PERIODS) {
-          const existing = (grouped[day.key] || []).filter((slot) => periodOf(slot) === period.id);
-          const on = checked(day.key, period.id);
-          if (on && existing.length === 0) await createSlot(day.key, period);
-          if (!on) {
-            for (const slot of existing) await removeSlot(slot);
+      if (preview) {
+        for (const day of week) {
+          if (day.past) continue;
+          for (const period of PERIODS) {
+            const existing = (grouped[day.key] || []).filter((slot) => periodOf(slot) === period.id);
+            const on = checked(day.key, period.id);
+            if (on && existing.length === 0) await createSlot(day.key, period);
+            if (!on) {
+              for (const slot of existing) await removeSlot(slot);
+            }
           }
         }
+        setPicks({});
+        setNotice('Đã lưu buổi rảnh của tuần này.');
+        return;
       }
+      const periods = week.flatMap((day) => (
+        day.past ? [] : PERIODS.filter((period) => checked(day.key, period.id)).map((period) => ({
+          date: day.key,
+          period: period.api,
+        }))
+      ));
+      if (periods.length < 3) {
+        setNotice('Chọn ít nhất 3 buổi trong tuần sau, rồi lưu.');
+        return;
+      }
+      await saveWeeklyAvailability({ weekStart: week[0].key, periods });
       setPicks({});
-      if (!preview) await load();
-      setNotice('Đã lưu buổi rảnh của tuần này.');
+      await load();
+      const rows = await getWeeklyAvailability(week[0].key);
+      setSavedKeys((rows || []).map((row) => `${String(row.date).slice(0, 10)}:${periodIdFromApi(row.period)}`));
+      setNotice('Đã đăng ký buổi rảnh. Admin sẽ xếp các tiết 50 phút.');
     } catch (err) {
       setNotice(err.message || 'Không lưu được buổi rảnh.');
       if (!preview) await load();
@@ -308,7 +351,7 @@ export default function MentorAvailability() {
           <div className="min-w-[180px] flex-1">
             <h2 className="text-[14px] font-semibold text-[#79465D]">Đăng ký buổi rảnh</h2>
             <p className="text-[12px] leading-5 text-[#A0788B]">
-              Chọn Sáng, Chiều hoặc Tối trên lịch. Mỗi tiết 50 phút.
+              Chọn ít nhất 3 buổi của tuần sau, trước 18:00 thứ Sáu. Admin sẽ chia mỗi buổi thành tiết 50 phút.
             </p>
           </div>
           <p className="text-[12px] text-[#8C6070]">Đã chọn {selectedCount} buổi</p>
