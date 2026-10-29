@@ -53,8 +53,7 @@ export function useNotificationSignalR() {
         const token = getSession()?.accessToken || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
         if (!token) return;
 
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        const hubUrl = `${baseUrl.replace(/\/api\/?$/, '')}/hubs/notification`;
+        const hubUrl = '/hubs/notification';
 
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(hubUrl, {

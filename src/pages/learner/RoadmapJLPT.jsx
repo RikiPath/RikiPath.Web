@@ -64,7 +64,7 @@ function getStages(level) {
         {
           icon: 'menu_book',
           title: 'Bài luyện tập',
-          description: content.grammar,
+          description: 'Một bài đã duyệt gồm từ vựng, Kanji và ngữ pháp.',
           to: '/lessons',
         },
       ],

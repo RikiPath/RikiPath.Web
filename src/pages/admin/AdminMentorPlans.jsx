@@ -18,28 +18,20 @@ export default function AdminMentorPlans() {
   const query = useQuery({
     queryKey: ['admin-mentor-plans'],
     queryFn: async () => {
-      const data = await api.get('/admin/plans');
-      const plans = Array.isArray(data) ? data : data?.result || [];
-      return plans.filter((plan) => Number(plan.meetingSessionCount) > 0);
+      const data = await api.get('/admin/mentor-plans');
+      return Array.isArray(data?.result) ? data.result : Array.isArray(data) ? data : [];
     },
   });
   const save = useMutation({
     mutationFn: () => {
-      const current = (query.data || []).find((plan) => plan.id === editId);
       const body = {
         name: form.name.trim(),
         description: form.description.trim(),
-        durationDays: Number(form.meetingSessionCount) === 3 ? 35 : 14,
-        price: Number(form.price),
-        aiGradingQuota: current?.aiGradingQuota || 0,
         meetingSessionCount: Number(form.meetingSessionCount),
-        isPopular: Boolean(current?.isPopular),
-        isTrial: Boolean(current?.isTrial),
+        price: Number(form.price),
         isActive: form.isActive,
-        sortOrder: current?.sortOrder || 0,
-        featureIds: (current?.features || []).map((feature) => feature.id).filter(Boolean),
       };
-      return editId ? api.put(`/admin/plans/${editId}`, body) : api.post('/admin/plans', body);
+      return editId ? api.put(`/admin/mentor-plans/${editId}`, body) : api.post('/admin/mentor-plans', body);
     },
     onSuccess: async () => {
       setEditId(null);

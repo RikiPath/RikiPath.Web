@@ -30,23 +30,15 @@ export default function AdminMentorSchedules({ embedded = false }) {
     queryFn: async () => rows(await api.get('/admin/mentors')),
   });
   const slots = useQuery({
-    queryKey: ['admin-mentor-availabilities', mentorId],
-    queryFn: async () => rows(await api.get('/admin/mentor-availabilities', { params: mentorId ? { mentorId } : {} })),
+    queryKey: ['admin-mentor-availabilities'],
+    queryFn: async () => rows(await api.get('/admin/mentor-availabilities')),
   });
-  const bookings = useQuery({
-    queryKey: ['admin-mentor-bookings'],
-    queryFn: async () => rows(await api.get('/admin/mentor-bookings')),
-  });
+  const visible = (slots.data || []).filter((slot) => !mentorId || String(slot.mentorId) === String(mentorId));
   const names = new Map((mentors.data || []).map((item) => [
     item.id,
     `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email,
   ]));
-  const booked = new Set(
-    (bookings.data || [])
-      .filter((item) => item.status !== 'Cancelled')
-      .map((item) => item.mentorAvailabilityId),
-  );
-  const error = mentors.error || slots.error || bookings.error;
+  const error = mentors.error || slots.error;
   const body = (
     <div className="space-y-4">
       <header>
@@ -78,14 +70,14 @@ export default function AdminMentorSchedules({ embedded = false }) {
               </tr>
             </thead>
             <tbody>
-              {(slots.data || []).map((slot) => (
+              {visible.map((slot) => (
                 <tr key={slot.id} className="border-t border-[#F2EDF0]">
-                  <td className="px-4 py-3">{names.get(slot.mentorId) || `Mentor #${slot.mentorId}`}</td>
+                  <td className="px-4 py-3">{slot.mentorName || names.get(slot.mentorId) || `Mentor #${slot.mentorId}`}</td>
                   <td className="px-4 py-3 tabular-nums">{clock(slot.startTime)} – {clock(slot.endTime)}</td>
-                  <td className="px-4 py-3">{booked.has(slot.id) ? 'Đã có buổi' : 'Đang mở'}</td>
+                  <td className="px-4 py-3">{slot.isBooked ? 'Đã có buổi' : slot.rejectedAt ? 'Đã từ chối' : slot.isApproved ? 'Đang mở' : 'Chờ duyệt'}</td>
                 </tr>
               ))}
-              {!slots.isError && !(slots.data || []).length && (
+              {!slots.isError && !visible.length && (
                 <tr><td colSpan={3} className="px-4 py-6 text-[#8C7D84]">Chưa có khung giờ.</td></tr>
               )}
             </tbody>

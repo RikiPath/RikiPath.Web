@@ -204,7 +204,7 @@ export default function MentorAvailability() {
       setSlots((prev) => prev.filter((item) => item.id !== slot.id));
       return;
     }
-    await api.delete(`/mentor/availability/${slot.id}`);
+    await api.post('/mentor/availability/request-cancel', { ids: [slot.id] });
   };
 
   const saveWeek = async () => {

@@ -42,34 +42,23 @@ export const getMentorSlots = async (mentorId, from, to) => {
   return list(await api.get('/mentor-meetings/availability', { params }));
 };
 
-export const getBookingMentors = async () => {
-  const from = new Date();
-  const to = new Date(from.getTime() + 89 * 86400000);
-  const slots = await getMentorSlots(null, from.toISOString(), to.toISOString());
-  const mentors = new Map();
-  slots.forEach((slot) => {
-    if (!slot.mentorId || mentors.has(slot.mentorId)) return;
-    mentors.set(slot.mentorId, {
-      id: slot.mentorId,
-      name: slot.mentorName || `Mentor #${slot.mentorId}`,
-    });
-  });
-  return [...mentors.values()];
-};
+export const getBookingMentors = async () => list(await api.get('/mentor-meetings/mentors'));
 
-export const purchaseMeeting = ({ subscriptionPlanId, mentorAvailabilityId }) =>
-  api.post('/mentor-meetings/purchase', { subscriptionPlanId, mentorAvailabilityId }).then((data) => data.result);
+export const purchaseMeeting = ({ subscriptionPlanId }) =>
+  api.post('/mentor-meetings/purchase', { subscriptionPlanId }).then((data) => data.result);
 
 export const getPurchaseStatus = async (id) => (await api.get(`/mentor-meetings/purchases/${id}`)).result;
 
+export const syncMeetingPurchase = async (id) => (await api.post(`/mentor-meetings/purchases/${id}/sync`)).result;
+
+export const confirmLocalPurchase = async (id) => (await api.post(`/mentor-meetings/purchases/${id}/local-confirm`)).result;
+
 export const getLearnerBookings = async () => list(await api.get('/mentor-meetings/bookings'));
 
-export const getMentorPurchases = async () => {
-  const bookings = await getLearnerBookings();
-  const ids = [...new Set(bookings.map((item) => item.userSubscriptionId).filter(Boolean))];
-  const purchases = await Promise.all(ids.map((id) => getPurchaseStatus(id).catch(() => null)));
-  return purchases.filter(Boolean);
-};
+export const getMentorPurchases = async () => list(await api.get('/mentor-meetings/purchases'));
 
-export const bookMentorWithCredit = ({ subscriptionId, mentorAvailabilityId }) =>
-  api.post(`/mentor-meetings/subscriptions/${subscriptionId}/bookings`, { mentorAvailabilityId }).then((data) => data.result);
+export const bookMentorWithCredit = ({ mentorAvailabilityId, question }) =>
+  api.post('/mentor-meetings/bookings', {
+    mentorAvailabilityId,
+    question: question || null,
+  }).then((data) => data.result);

@@ -23,8 +23,8 @@ const QUICK_LINKS = [
   },
   {
     key: 'grammar',
-    title: 'Ngữ pháp',
-    description: 'Ôn mẫu câu',
+    title: 'Bài luyện tập',
+    description: 'Từ vựng, Kanji và ngữ pháp',
     icon: 'edit_note',
   },
   {
