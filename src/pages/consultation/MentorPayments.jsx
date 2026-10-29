@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
@@ -16,7 +17,7 @@ const remainingCredits = (order) => (
 export default function MentorPayments() {
   const { pathname } = useLocation();
   const query = useQuery({ queryKey: ['mentor-purchases'], queryFn: getMentorPurchases, refetchInterval: 15000 });
-  const orders = query.data || [];
+  const orders = useMemo(() => [...(query.data || [])].sort((a, b) => (b.subscriptionId || 0) - (a.subscriptionId || 0)), [query.data]);
   const balance = orders.reduce((total, order) => total + remainingCredits(order), 0);
 
   return (

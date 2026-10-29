@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { LearnerShell } from '../../components/shells';
 import { getMeetingPlans, purchaseMeeting } from '../../api/mentorBookingApi.js';
@@ -11,11 +11,13 @@ const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:rin
 export default function ConsultationPayment() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { user } = useAuth();
-  const [planId, setPlanId] = useState(null);
+  const requestedPlanId = Number(params.get('planId'));
+  const [planId, setPlanId] = useState(Number.isInteger(requestedPlanId) && requestedPlanId > 0 ? requestedPlanId : null);
   const query = useQuery({ queryKey: ['meeting-plans'], queryFn: getMeetingPlans });
   const plans = query.data || [];
-  const plan = plans.find((item) => item.id === (planId ?? plans[0]?.id));
+  const plan = plans.find((item) => item.id === planId) || plans[0];
   const purchase = useMutation({
     mutationFn: () => purchaseMeeting({ subscriptionPlanId: plan.id }),
     onSuccess: (result) => {

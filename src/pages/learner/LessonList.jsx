@@ -20,6 +20,31 @@ function matches(lesson, filter) {
   return true;
 }
 
+function lessonKey(lesson) {
+  const title = String(lesson.title || '').trim().toLocaleLowerCase('vi');
+  return title || `id:${lesson.lessonId}`;
+}
+
+function pickLesson(current, next) {
+  if (Boolean(next.isCompleted) !== Boolean(current.isCompleted)) return next.isCompleted ? next : current;
+  if ((next.progressPercent || 0) !== (current.progressPercent || 0)) {
+    return (next.progressPercent || 0) > (current.progressPercent || 0) ? next : current;
+  }
+  return next.lessonId < current.lessonId ? next : current;
+}
+
+function uniqueLessons(lessons) {
+  const chosen = new Map();
+  for (const lesson of lessons) {
+    const key = lessonKey(lesson);
+    const current = chosen.get(key);
+    chosen.set(key, current ? pickLesson(current, lesson) : lesson);
+  }
+  return [...chosen.values()].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.lessonId - b.lessonId,
+  );
+}
+
 export default function LessonList() {
   const { pathname } = useLocation();
   const [filter, setFilter] = useState('all');
@@ -37,7 +62,9 @@ export default function LessonList() {
     enabled: Boolean(levelId),
   });
   const catalog = lessonsQuery.data;
-  const lessons = (catalog?.lessons || []).filter((lesson) => matches(lesson, filter));
+  const allLessons = uniqueLessons(catalog?.lessons || []);
+  const completedCount = allLessons.filter((lesson) => lesson.isCompleted).length;
+  const lessons = allLessons.filter((lesson) => matches(lesson, filter));
 
   return (
     <LearnerShell pathname={pathname} breadcrumb="Bài luyện tập">
@@ -54,7 +81,7 @@ export default function LessonList() {
               <div className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-3">
                 <p className="text-[12px] text-[#95828C]">{catalog.levelCode || 'JLPT'}</p>
                 <p className="mt-1 text-[15px] font-medium text-[#AD3155]">
-                  {catalog.completedLessons}/{catalog.totalLessons} bài đã hoàn thành
+                  {completedCount}/{allLessons.length} bài đã hoàn thành
                 </p>
               </div>
             )}
@@ -149,7 +176,7 @@ export default function LessonList() {
               {!lessons.length && !lessonsQuery.isPending && (
                 <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
                   <p className="text-[15px] font-medium text-[#806371]">
-                    {catalog.totalLessons ? 'Không có bài trong nhóm này' : 'Chưa có bài đã duyệt cho cấp độ này'}
+                    {allLessons.length ? 'Không có bài trong nhóm này' : 'Chưa có bài đã duyệt cho cấp độ này'}
                   </p>
                   <p className="mt-1 text-[12px] leading-6 text-[#A18B97]">
                     Bài sẽ hiện sau khi admin duyệt bài gồm từ vựng, Kanji và ngữ pháp.
