@@ -20,8 +20,9 @@ const tones = {
 
 function EventBlock({ event, startHour, hourHeight }) {
   const { start, end } = minutesOf(event);
-  const top = ((start - startHour * 60) / 60) * hourHeight;
-  const height = Math.max(((end - start) / 60) * hourHeight - 2, 22);
+  const top = ((start - startHour * 60) / 60) * hourHeight + 3;
+  const span = ((end - start) / 60) * hourHeight;
+  const height = Math.max(span - 6, 20);
   const className = `absolute inset-x-1 overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] leading-4 ${tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
   const style = { top, height, zIndex: event.z || 1 };
   const body = (
@@ -82,8 +83,8 @@ export default function WeekTimeGrid({
             {hours.map((hour) => (
               <span
                 key={hour}
-                className="absolute right-2 -translate-y-1/2 text-[11px] text-[#B09AA4]"
-                style={{ top: (hour - startHour) * HOUR_HEIGHT }}
+                className="absolute right-2 text-[11px] leading-none text-[#B09AA4]"
+                style={{ top: (hour - startHour) * HOUR_HEIGHT + 10 }}
               >
                 {String(hour).padStart(2, '0')}:00
               </span>

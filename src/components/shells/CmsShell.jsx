@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 
+import NotificationPopover from '../admin/NotificationPopover.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CMS_NAV, pathMatches } from './navConfig.js';
 
@@ -170,13 +171,14 @@ export default function CmsShell({
             className="fixed right-0 top-0 z-40 flex items-center
                        border-b border-[#E8DFDC] bg-[#FAF8F7] px-6"
           >
-            <div className="flex min-w-0 items-center gap-2 text-[12px] text-[#AA98A1]">
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-[12px] text-[#AA98A1]">
               <span>Studio</span>
               <span className="material-symbols-outlined text-[16px] text-[#C9B8C0]">
                 chevron_right
               </span>
               <span className="truncate text-[#826A76]">{breadcrumb}</span>
             </div>
+            <NotificationPopover />
           </header>
         )}
         <main className={hideHeader ? 'min-h-screen' : 'min-h-screen'} style={hideHeader ? undefined : { paddingTop: HEADER_H }}>

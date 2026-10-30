@@ -8,8 +8,9 @@ export const CMS_NAV = {
       items: [
         { to: '/cms-studio', label: 'Tổng quan', hint: 'Dashboard studio', icon: 'space_dashboard' },
         { to: '/lesson-cms', label: 'Bài học', hint: 'Giáo trình & bài giảng', icon: 'menu_book', alsoActive: ['/lesson-cms-detail'] },
-        { to: '/vocabulary-editor', label: 'Từ vựng & Hán tự', hint: 'Kho từ, kanji, kana', icon: 'translate', alsoActive: ['/kanji-editor'] },
-        { to: '/content-library', label: 'Ngữ pháp', hint: 'Mẫu câu & cấu trúc', icon: 'psychology' },
+        { to: '/bulk-import', label: 'Import Excel', hint: 'Thêm cả một bài học', icon: 'upload_file' },
+        { to: '/vocabulary-editor', label: 'Từ vựng & Hán tự', hint: 'Hiện sau khi bài được duyệt', icon: 'translate', alsoActive: ['/kanji-editor'] },
+        { to: '/content-library', label: 'Ngữ pháp', hint: 'Hiện sau khi bài được duyệt', icon: 'psychology' },
       ],
     },
     {
@@ -17,7 +18,6 @@ export const CMS_NAV = {
       items: [
         { to: '/question-bank', label: 'Ngân hàng câu hỏi', hint: 'Câu hỏi theo kỹ năng', icon: 'quiz' },
         { to: '/exam-builder', label: 'Xây đề thi', hint: 'Đề mock & section', icon: 'assignment' },
-        { to: '/bulk-import', label: 'Import Excel', hint: 'Nạp học liệu .xlsx', icon: 'upload_file' },
       ],
     },
     {
