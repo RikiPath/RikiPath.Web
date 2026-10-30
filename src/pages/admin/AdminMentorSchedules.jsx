@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdminShell } from '../../components/shells';
 import { api } from '../../api/client.js';
+import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
 import { assignWeeklySlots, getWeeklyAvailability, publishWeeklySchedule } from '../../api/mentorScheduleApi.js';
 
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
@@ -12,6 +13,13 @@ const PERIODS = {
   Evening: { label: 'Tối', hour: 18 },
 };
 const PERIOD_ORDER = ['Morning', 'Afternoon', 'Evening'];
+const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+const MENTOR_COLORS = [
+  'border-l-4 border-[#AD3155] bg-[#FCE8F0] text-[#8B2344]',
+  'border-l-4 border-[#2F6B45] bg-[#E7F6EC] text-[#1E5C36]',
+  'border-l-4 border-[#315AAD] bg-[#E8F0FC] text-[#23448B]',
+  'border-l-4 border-[#C47B16] bg-[#FFF6E8] text-[#8A5A10]',
+];
 
 function rows(data) {
   if (Array.isArray(data)) return data;
@@ -19,8 +27,15 @@ function rows(data) {
   return [];
 }
 
+function asUtcDate(value) {
+  if (value instanceof Date) return value;
+  const text = String(value ?? '');
+  if (!text) return new Date(NaN);
+  return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(text) ? text : `${text}Z`);
+}
+
 function vnDayKey(value) {
-  const date = new Date(value);
+  const date = asUtcDate(value);
   if (Number.isNaN(date.getTime())) return String(value || '').slice(0, 10);
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -30,13 +45,21 @@ function vnDayKey(value) {
   }).format(date);
 }
 
-function vnHour(value) {
-  const hour = new Intl.DateTimeFormat('en-GB', {
+function vnClock(value) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Ho_Chi_Minh',
     hour: '2-digit',
+    minute: '2-digit',
     hourCycle: 'h23',
-  }).format(new Date(value));
-  return Number(hour);
+  }).formatToParts(asUtcDate(value));
+  return {
+    hour: Number(parts.find((part) => part.type === 'hour')?.value),
+    minute: Number(parts.find((part) => part.type === 'minute')?.value),
+  };
+}
+
+function vnHour(value) {
+  return vnClock(value).hour;
 }
 
 function mondayKey(offset) {
@@ -60,20 +83,24 @@ function pretty(key) {
   return `${day}/${month}/${year}`;
 }
 
-function clock(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Chưa có giờ';
-  return date.toLocaleString('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function slotHour(hour) {
+  return `${String(hour).padStart(2, '0')}:00`;
 }
 
-function slotLabel(hour) {
-  return `${String(hour).padStart(2, '0')}:00–${String(hour).padStart(2, '0')}:50`;
+function dayName(key) {
+  const [year, month, day] = String(key).slice(0, 10).split('-').map(Number);
+  const noon = new Date(Date.UTC(year, month - 1, day, 12));
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short' }).format(noon);
+  return { Mon: 'T2', Tue: 'T3', Wed: 'T4', Thu: 'T5', Fri: 'T6', Sat: 'T7', Sun: 'CN' }[weekday] || '';
+}
+
+function byDate(periods) {
+  const map = new Map();
+  periods.forEach((row) => {
+    const key = String(row.date).slice(0, 10);
+    map.set(key, [...(map.get(key) || []), row]);
+  });
+  return [...map.entries()];
 }
 
 export default function AdminMentorSchedules({ embedded = false }) {
@@ -128,14 +155,25 @@ export default function AdminMentorSchedules({ embedded = false }) {
     ]);
   };
   const assign = useMutation({
-    mutationFn: ({ id, slotIndexes }) => assignWeeklySlots({ weeklyAvailabilityId: id, slotIndexes }),
-    onSuccess: async (_, variables) => {
-      setPicks((current) => ({ ...current, [variables.id]: [] }));
+    mutationFn: async (jobs) => {
+      for (const job of jobs) {
+        await assignWeeklySlots({ weeklyAvailabilityId: job.id, slotIndexes: job.slotIndexes });
+      }
+    },
+    onSuccess: async (_, jobs) => {
+      setPicks((current) => {
+        const next = { ...current };
+        jobs.forEach((job) => { next[job.id] = []; });
+        return next;
+      });
       setError('');
       setNotice('Đã xếp tiết. Tiết đang ở trạng thái nháp cho đến khi công bố tuần.');
       await refresh();
     },
-    onError: (err) => setError(err.message || 'Không xếp được tiết.'),
+    onError: async (err) => {
+      setError(err.message || 'Không xếp được tiết.');
+      await refresh();
+    },
   });
   const publish = useMutation({
     mutationFn: () => publishWeeklySchedule(weekStart),
@@ -197,85 +235,136 @@ export default function AdminMentorSchedules({ embedded = false }) {
       )}
       {notice && <p className="rounded-xl bg-white px-4 py-3 text-[13px] text-[#2F6B45]">{notice}</p>}
 
-      <section className="rounded-2xl border border-[#E7C9D6] bg-[#FCF4F8] p-4">
-        <h2 className="text-[15px] font-semibold text-[#79465D]">Buổi rảnh cần xếp tiết</h2>
-        <p className="mt-1 text-[12px] leading-5 text-[#A0788B]">Mỗi buổi có 4 tiết. Công bố tuần khi mỗi mentor đã có ít nhất 5 tiết.</p>
-        {registrations.isPending && <p className="mt-3 text-[13px] text-[#82737B]">Đang tải buổi rảnh…</p>}
+      <section>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-[15px] font-semibold">Chọn tiết trong buổi rảnh</h2>
+            <p className="mt-1 text-[12px] text-[#82737B]">Bấm ô giờ để chọn. Mỗi ô là 50 phút. Công bố khi mỗi mentor có ít nhất 5 tiết.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px] text-[#8C7782]">
+            <span className="rounded-lg border border-[#E7DAE1] bg-white px-2 py-1">Trống</span>
+            <span className="rounded-lg bg-[#AD3155] px-2 py-1 text-white">Sẽ xếp</span>
+            <span className="rounded-lg bg-[#F3E4EA] px-2 py-1 text-[#8B2344]">Đã xếp</span>
+          </div>
+        </div>
+        {registrations.isPending && <p className="text-[13px] text-[#82737B]">Đang tải buổi rảnh…</p>}
         {!registrations.isPending && !groups.length && (
-          <p className="mt-3 text-[13px] text-[#82737B]">Chưa có mentor đăng ký buổi rảnh trong tuần này.</p>
+          <p className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-6 text-[13px] text-[#82737B]">Chưa có mentor đăng ký buổi rảnh trong tuần này.</p>
         )}
-        <div className="mt-3 space-y-3">
-          {groups.map((group) => (
-            <article key={group.id} className="rounded-2xl border border-[#EADFE5] bg-white p-4">
-              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-[15px] font-semibold">{group.name}</h3>
-                <p className="text-[12px] text-[#8C7782]">{group.periods.length} buổi rảnh · đã xếp {assignedCount(group.id)} tiết</p>
-              </div>
-              <div className="space-y-3">
-                {group.periods.map((row) => {
-                  const period = PERIODS[row.period] || { label: row.period, hour: 8 };
-                  const taken = assignedIndexes(row);
-                  const selected = picks[row.id] || [];
-                  return (
-                    <div key={row.id} className="rounded-xl bg-[#FCFAFB] px-3 py-3">
-                      <p className="text-[13px] font-medium">{pretty(row.date)} · {period.label}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {[0, 1, 2, 3].map((index) => {
-                          const locked = taken.has(index);
-                          const on = locked || selected.includes(index);
+        <div className="space-y-4">
+          {groups.map((group) => {
+            const placed = assignedCount(group.id);
+            const pending = group.periods.reduce((sum, row) => sum + (picks[row.id]?.length || 0), 0);
+            const jobs = group.periods
+              .map((row) => ({ id: row.id, slotIndexes: picks[row.id] || [] }))
+              .filter((job) => job.slotIndexes.length);
+            const saving = assign.isPending && assign.variables?.some((job) => jobs.some((item) => item.id === job.id));
+            return (
+              <article key={group.id} className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0E7EC] px-4 py-3">
+                  <div>
+                    <h3 className="text-[16px] font-semibold">{group.name}</h3>
+                    <p className={`mt-0.5 text-[12px] ${placed >= 5 ? 'text-[#2F6B45]' : 'text-[#8A5A10]'}`}>
+                      {placed} tiết đã xếp{placed >= 5 ? ' · đủ để công bố' : ` · còn thiếu ${5 - placed}`}
+                      {pending ? ` · đang chọn ${pending}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={assign.isPending || !jobs.length}
+                    onClick={() => { setNotice(''); setError(''); assign.mutate(jobs); }}
+                    className={`h-10 rounded-xl px-4 text-[13px] font-medium ${focus} ${jobs.length ? 'bg-[#AD3155] text-white hover:bg-[#982B4B]' : 'bg-[#F6F1F3] text-[#B09AA4]'}`}
+                  >
+                    {saving ? 'Đang xếp…' : pending ? `Xếp ${pending} tiết` : 'Chưa chọn tiết'}
+                  </button>
+                </div>
+                <div className="divide-y divide-[#F3EDF0]">
+                  {byDate(group.periods).map(([date, rows]) => (
+                    <div key={date} className="grid gap-3 px-4 py-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:items-start">
+                      <div>
+                        <p className="text-[13px] font-semibold">{dayName(date)} {pretty(date).slice(0, 5)}</p>
+                      </div>
+                      <div className="space-y-3">
+                        {rows.map((row) => {
+                          const period = PERIODS[row.period] || { label: row.period, hour: 8 };
+                          const taken = assignedIndexes(row);
+                          const selected = picks[row.id] || [];
                           return (
-                            <label key={index} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] ${locked ? 'border-[#E7DAE1] text-[#A99AA1]' : on ? 'border-[#AD3155] bg-[#FCEEF3] text-[#AD3155]' : 'border-[#E7DAE1] bg-white text-[#6E5360]'}`}>
-                              <input type="checkbox" checked={on} disabled={locked || assign.isPending} onChange={() => toggle(row.id, index, locked)} className="h-3.5 w-3.5 accent-[#AD3155]" />
-                              {slotLabel(period.hour + index)}
-                              {locked ? <span>đã xếp</span> : null}
-                            </label>
+                            <div key={row.id} className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-2">
+                              <p className="text-[12px] text-[#8C7782]">{period.label}</p>
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                {[0, 1, 2, 3].map((index) => {
+                                  const locked = taken.has(index);
+                                  const on = selected.includes(index);
+                                  return (
+                                    <button
+                                      key={index}
+                                      type="button"
+                                      disabled={locked || assign.isPending}
+                                      aria-pressed={locked || on}
+                                      onClick={() => toggle(row.id, index, locked)}
+                                      className={`h-10 rounded-lg text-[13px] font-medium ${focus} ${locked ? 'bg-[#F3E4EA] text-[#8B2344]' : on ? 'bg-[#AD3155] text-white' : 'border border-[#E7DAE1] bg-white text-[#49353F] hover:border-[#AD3155]'}`}
+                                    >
+                                      {slotHour(period.hour + index)}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           );
                         })}
-                        <button
-                          type="button"
-                          disabled={assign.isPending || !selected.length}
-                          onClick={() => { setNotice(''); setError(''); assign.mutate({ id: row.id, slotIndexes: selected }); }}
-                          className={`h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-40 ${focus}`}
-                        >
-                          {assign.isPending && assign.variables?.id === row.id ? 'Đang xếp…' : 'Xếp tiết đã chọn'}
-                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </article>
-          ))}
+                  ))}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
       <section>
         <h2 className="mb-2 text-[15px] font-semibold">Tiết đã xếp trong tuần</h2>
-        {slots.isPending ? <p className="text-[13px] text-[#82737B]">Đang tải khung giờ…</p> : (
-          <div className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-            <table className="w-full text-left text-[13px]">
-              <thead className="bg-[#FCFAFB] text-[#8C7D84]">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Mentor</th>
-                  <th className="px-4 py-3 font-medium">Khung giờ</th>
-                  <th className="px-4 py-3 font-medium">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weekSlots.map((slot) => (
-                  <tr key={slot.id} className="border-t border-[#F2EDF0]">
-                    <td className="px-4 py-3">{slot.mentorName || `Mentor #${slot.mentorId}`}</td>
-                    <td className="px-4 py-3 tabular-nums">{clock(slot.startTime)} – {clock(slot.endTime)}</td>
-                    <td className="px-4 py-3">{slot.isBooked ? 'Đã có buổi' : slot.rejectedAt ? 'Đã từ chối' : slot.isApproved ? 'Đang mở' : 'Nháp, chưa công bố'}</td>
-                  </tr>
-                ))}
-                {!slots.isError && !weekSlots.length && (
-                  <tr><td colSpan={3} className="px-4 py-6 text-[#8C7D84]">Tuần này chưa có tiết nào được xếp.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {slots.isPending ? <p className="text-[13px] text-[#82737B]">Đang tải khung giờ…</p> : weekSlots.length ? (
+          <>
+            <div className="mb-2 flex flex-wrap gap-2">
+              {[...new Map(weekSlots.map((slot) => [slot.mentorId, slot.mentorName || `Mentor #${slot.mentorId}`])).entries()].map(([id, name], index) => (
+                <span key={id} className={`rounded-full px-2.5 py-1 text-[11px] ${MENTOR_COLORS[index % MENTOR_COLORS.length]}`}>{name}</span>
+              ))}
+            </div>
+            <WeekTimeGrid
+              days={Array.from({ length: 7 }, (_, index) => {
+                const key = addDays(weekStart, index);
+                return { key, name: DAY_NAMES[index], date: Number(key.slice(-2)), today: key === vnDayKey(new Date().toISOString()) };
+              })}
+              events={(() => {
+                const mentors = [...new Set(weekSlots.map((item) => item.mentorId))];
+                return weekSlots.map((slot) => {
+                  const start = vnClock(slot.startTime);
+                  const end = vnClock(slot.endTime);
+                  return {
+                    id: slot.id,
+                    dayKey: vnDayKey(slot.startTime),
+                    startHour: start.hour,
+                    startMinute: start.minute,
+                    endHour: end.hour,
+                    endMinute: end.minute,
+                    title: slot.mentorName || `Mentor #${slot.mentorId}`,
+                    detail: slot.isBooked ? 'Đã có buổi' : slot.isApproved ? 'Đang mở' : 'Nháp',
+                    className: MENTOR_COLORS[Math.max(mentors.indexOf(slot.mentorId), 0) % MENTOR_COLORS.length],
+                  };
+                });
+              })()}
+              startHour={Math.min(8, ...weekSlots.map((slot) => vnHour(slot.startTime)))}
+              endHour={22}
+              nowKey={vnDayKey(new Date().toISOString())}
+              nowMinutes={(() => {
+                const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+                return Number(parts.find((part) => part.type === 'hour')?.value) * 60 + Number(parts.find((part) => part.type === 'minute')?.value);
+              })()}
+            />
+          </>
+        ) : <p className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-6 text-[13px] text-[#8C7D84]">Tuần này chưa có tiết nào được xếp.</p>}
       </section>
     </div>
   );

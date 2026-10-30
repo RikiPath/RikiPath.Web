@@ -18,13 +18,39 @@ const tones = {
   session: 'border-l-4 border-[#AD3155] bg-[#AD3155] text-white',
 };
 
+function layoutEvents(events) {
+  const sorted = [...events].sort((a, b) => minutesOf(a).start - minutesOf(b).start || minutesOf(a).end - minutesOf(b).end);
+  const placed = [];
+  sorted.forEach((event) => {
+    const current = minutesOf(event);
+    const overlapping = placed.filter((item) => {
+      const other = minutesOf(item);
+      return other.start < current.end && current.start < other.end;
+    });
+    const used = new Set(overlapping.map((item) => item.col));
+    let col = 0;
+    while (used.has(col)) col += 1;
+    placed.push({ ...event, col });
+  });
+  return placed.map((event) => {
+    const current = minutesOf(event);
+    const cluster = placed.filter((item) => {
+      const other = minutesOf(item);
+      return other.start < current.end && current.start < other.end;
+    });
+    return { ...event, cols: Math.max(...cluster.map((item) => item.col)) + 1 };
+  });
+}
+
 function EventBlock({ event, startHour, hourHeight }) {
   const { start, end } = minutesOf(event);
   const top = ((start - startHour * 60) / 60) * hourHeight + 3;
   const span = ((end - start) / 60) * hourHeight;
   const height = Math.max(span - 6, 20);
-  const className = `absolute inset-x-1 overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] leading-4 ${tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
-  const style = { top, height, zIndex: event.z || 1 };
+  const width = `calc(${100 / event.cols}% - 6px)`;
+  const left = `calc(${(event.col / event.cols) * 100}% + 3px)`;
+  const className = `absolute overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] leading-4 ${event.className || tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
+  const style = { top, height, width, left, zIndex: event.z || 1 };
   const body = (
     <>
       <span className="block truncate font-semibold">{event.title}</span>
@@ -91,7 +117,7 @@ export default function WeekTimeGrid({
             ))}
           </div>
           {days.map((day) => (
-            <div key={day.key} className={`relative border-l border-[#F0E7EC] ${day.today ? 'bg-[#FFF8FB]' : ''}`} style={{ height }}>
+            <div key={day.key} className={`relative overflow-hidden border-l border-[#F0E7EC] ${day.today ? 'bg-[#FFF8FB]' : ''}`} style={{ height }}>
               {hours.map((hour) => (
                 <div key={hour} className="absolute inset-x-0 border-t border-[#F3EDF0]" style={{ top: (hour - startHour) * HOUR_HEIGHT }} />
               ))}
@@ -100,7 +126,7 @@ export default function WeekTimeGrid({
                   <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-[#AD3155]" />
                 </div>
               ) : null}
-              {events.filter((event) => event.dayKey === day.key).map((event) => (
+              {layoutEvents(events.filter((event) => event.dayKey === day.key)).map((event) => (
                 <EventBlock key={event.id} event={event} startHour={startHour} hourHeight={HOUR_HEIGHT} />
               ))}
             </div>
