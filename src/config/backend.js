@@ -6,4 +6,22 @@ function isVercelHost() {
 }
 
 export const apiBase = env.VITE_API_BASE || (isVercelHost() ? `${LOCAL_HTTPS}/api` : '/api');
-export const hubUrl = env.VITE_HUB_URL || (isVercelHost() ? `${LOCAL_HTTPS}/hubs/mentor-meeting` : '/hubs/mentor-meeting');
+
+function backendOrigin() {
+  if (env.VITE_API_BASE) return String(env.VITE_API_BASE).replace(/\/api\/?$/, '');
+  if (isVercelHost()) return LOCAL_HTTPS;
+  return '';
+}
+
+export function hubEndpoint(path) {
+  const overrides = {
+    '/hubs/mentor-chat': env.VITE_MENTOR_CHAT_HUB,
+    '/hubs/mentor-meeting': env.VITE_HUB_URL || env.VITE_SIGNALR_HUB,
+    '/hubs/notification': env.VITE_NOTIFICATION_HUB,
+  };
+  if (overrides[path]) return overrides[path];
+  const origin = backendOrigin();
+  return origin ? `${origin}${path}` : path;
+}
+
+export const hubUrl = hubEndpoint('/hubs/mentor-meeting');
