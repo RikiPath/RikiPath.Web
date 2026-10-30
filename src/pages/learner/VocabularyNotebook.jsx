@@ -1,80 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import { useLearnerHome } from '../../hooks/useLearnerHome.js';
+import {
+  addNotebookEntry,
+  createNotebookList,
+  getNotebookEntries,
+  getNotebookLists,
+  removeNotebookEntry,
+} from '../../api/notebookApi.js';
 
-const LEVELS = ['N5', 'N4', 'N3', 'N2'];
-
-const STATUS = {
-  due: { label: 'Cần ôn', tone: 'due' },
-  review: { label: 'Đang ôn', tone: 'review' },
-  known: { label: 'Nhớ sâu', tone: 'known' },
-  new: { label: 'Mới lưu', tone: 'new' },
-};
-
-const SAMPLE_WORDS = [
-  {
-    id: 'keiken',
-    word: '経験',
-    reading: 'けいけん',
-    hanviet: 'Kinh nghiệm',
-    meaning: 'Kinh nghiệm, trải nghiệm đã tích lũy',
-    level: 'N3',
-    tag: 'Công việc',
-    status: 'review',
-    stage: 3,
-    lastReview: 'Hôm qua',
-  },
-  {
-    id: 'kaizen',
-    word: '改善',
-    reading: 'かいぜん',
-    hanviet: 'Cải thiện',
-    meaning: 'Cải tiến, làm cho tốt hơn',
-    level: 'N3',
-    tag: 'Công việc',
-    status: 'due',
-    stage: 1,
-    lastReview: '4 ngày trước',
-  },
-  {
-    id: 'annai',
-    word: '案内する',
-    reading: 'あんないする',
-    hanviet: 'Án nội',
-    meaning: 'Hướng dẫn, dẫn đường',
-    level: 'N4',
-    tag: 'Giao thông',
-    status: 'known',
-    stage: 4,
-    lastReview: '3 ngày trước',
-  },
-  {
-    id: 'yakusoku',
-    word: '約束',
-    reading: 'やくそく',
-    hanviet: 'Ước thúc',
-    meaning: 'Lời hứa, cuộc hẹn',
-    level: 'N4',
-    tag: 'Đời sống',
-    status: 'due',
-    stage: 2,
-    lastReview: '6 ngày trước',
-  },
-  {
-    id: 'junbi',
-    word: '準備',
-    reading: 'じゅんび',
-    hanviet: 'Chuẩn bị',
-    meaning: 'Chuẩn bị, sắp xếp',
-    level: 'N4',
-    tag: 'Cơ bản',
-    status: 'new',
-    stage: 0,
-    lastReview: '12 giờ trước',
-  },
+const TYPES = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'vocabulary', label: 'Từ vựng' },
+  { id: 'kanji', label: 'Hán tự' },
+  { id: 'manual', label: 'Tự thêm' },
 ];
 
 function Icon({ name, className = '', filled = false }) {
@@ -90,51 +31,22 @@ function Icon({ name, className = '', filled = false }) {
 }
 
 function speakJapanese(text) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  if (typeof window === 'undefined' || !window.speechSynthesis || !text) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'ja-JP';
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utterance);
 }
 
-function downloadCsv(rows) {
-  const header = ['Từ', 'Cách đọc', 'Hán Việt', 'Nghĩa', 'Cấp độ', 'Trạng thái'];
-  const lines = [
-    header,
-    ...rows.map((word) => [
-      word.word,
-      word.reading,
-      word.hanviet,
-      word.meaning,
-      word.level,
-      STATUS[word.status]?.label ?? word.status,
-    ]),
-  ];
-  const csv = lines
-    .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
-    .join('\n');
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'so-tu-minh-hoa.csv';
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function StageDots({ stage }) {
-  return (
-    <span className="inline-flex items-center gap-1" aria-hidden="true">
-      {Array.from({ length: 5 }, (_, index) => (
-        <span
-          key={index}
-          className={`h-1.5 w-1.5 rounded-full ${
-            index < stage ? 'bg-[#AD3155]' : 'bg-[#E7D5DC]'
-          }`}
-        />
-      ))}
-    </span>
-  );
+function formatAdded(value, locale) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
 }
 
 export default function VocabularyNotebook() {
@@ -143,23 +55,65 @@ export default function VocabularyNotebook() {
   const { profile, streak, srs } = useLearnerHome();
   const searchRef = useRef(null);
 
-  const [words, setWords] = useState(SAMPLE_WORDS);
+  const [lists, setLists] = useState([]);
+  const [listId, setListId] = useState(null);
+  const [entries, setEntries] = useState([]);
+  const [loadingLists, setLoadingLists] = useState(true);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [level, setLevel] = useState('all');
-  const [status, setStatus] = useState('all');
-  const [selected, setSelected] = useState(() => new Set());
+  const [type, setType] = useState('all');
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({
-    word: '',
-    reading: '',
-    hanviet: '',
-    meaning: '',
-    level: 'N3',
-  });
+  const [creatingList, setCreatingList] = useState(false);
+  const [listDraft, setListDraft] = useState({ name: '', description: '' });
+  const [draft, setDraft] = useState({ word: '', reading: '', meaning: '', note: '' });
 
   const streakDays = streak?.currentStreakDays;
   const dueCount = Number(srs?.totalDue ?? srs?.items?.length);
-  const levelName = profile?.targetJlptLevelName;
+  const selectedList = lists.find((list) => list.id === listId) || null;
+
+  async function loadLists(preferredId) {
+    setLoadingLists(true);
+    setError('');
+    try {
+      const next = await getNotebookLists();
+      setLists(next);
+      const stillThere = next.some((list) => list.id === preferredId);
+      setListId(stillThere ? preferredId : (next[0]?.id ?? null));
+    } catch (err) {
+      setError(err.status === 401 ? tr('Phiên đăng nhập đã hết hạn. Đăng nhập lại để xem sổ từ.') : err.message);
+    } finally {
+      setLoadingLists(false);
+    }
+  }
+
+  useEffect(() => {
+    loadLists(null);
+  }, []);
+
+  useEffect(() => {
+    if (!listId) {
+      setEntries([]);
+      return undefined;
+    }
+    let cancelled = false;
+    setLoadingEntries(true);
+    setError('');
+    getNotebookEntries(listId)
+      .then((rows) => {
+        if (!cancelled) setEntries(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingEntries(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listId]);
 
   useEffect(() => {
     function onKey(event) {
@@ -172,76 +126,81 @@ export default function VocabularyNotebook() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const keyword = search.trim().toLocaleLowerCase('vi-VN');
-
-  const searched = useMemo(() => {
-    return words.filter((word) => {
-      if (level !== 'all' && word.level !== level) return false;
+  const visible = useMemo(() => {
+    const keyword = search.trim().toLocaleLowerCase('vi-VN');
+    return entries.filter((entry) => {
+      if (type !== 'all' && entry.contentType !== type) return false;
       if (!keyword) return true;
-      return [word.word, word.reading, word.hanviet, word.meaning, word.tag]
+      return [entry.term, entry.reading, entry.meaning, entry.note]
         .join(' ')
         .toLocaleLowerCase('vi-VN')
         .includes(keyword);
     });
-  }, [words, level, keyword]);
+  }, [entries, search, type]);
 
-  const counts = useMemo(() => {
-    return searched.reduce((map, word) => {
-      map[word.status] = (map[word.status] ?? 0) + 1;
-      return map;
-    }, {});
-  }, [searched]);
-
-  const visible = status === 'all'
-    ? searched
-    : searched.filter((word) => word.status === status);
-
-  const visibleIds = visible.map((word) => word.id);
-  const allVisibleSelected = visibleIds.length > 0
-    && visibleIds.every((id) => selected.has(id));
-
-  function toggle(id) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  async function createList(event) {
+    event.preventDefault();
+    const name = listDraft.name.trim();
+    if (!name || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const created = await createNotebookList({
+        name,
+        description: listDraft.description.trim() || null,
+      });
+      setListDraft({ name: '', description: '' });
+      setCreatingList(false);
+      await loadLists(created?.id ?? null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function toggleVisible() {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
-      else visibleIds.forEach((id) => next.add(id));
-      return next;
-    });
-  }
-
-  function addWord(event) {
+  async function addWord(event) {
     event.preventDefault();
     const word = draft.word.trim();
-    const reading = draft.reading.trim();
-    if (!word || !reading) return;
-    setWords((current) => [
-      {
-        id: `local-${Date.now()}`,
+    const meaning = draft.meaning.trim();
+    if (!listId || !word || !meaning || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await addNotebookEntry({
+        learnerNoteId: listId,
         word,
-        reading,
-        hanviet: draft.hanviet.trim() || '—',
-        meaning: draft.meaning.trim() || tr("Chưa có nghĩa"),
-        level: draft.level,
-        tag: tr("Vừa thêm"),
-        status: 'new',
-        stage: 0,
-        lastReview: tr("Vừa thêm"),
-      },
-      ...current,
-    ]);
-    setDraft({ word: '', reading: '', hanviet: '', meaning: '', level: 'N3' });
-    setAdding(false);
-    setStatus('all');
-    setLevel('all');
+        reading: draft.reading.trim() || null,
+        meaning,
+        note: draft.note.trim() || null,
+      });
+      setDraft({ word: '', reading: '', meaning: '', note: '' });
+      setAdding(false);
+      const rows = await getNotebookEntries(listId);
+      setEntries(rows);
+      setLists((current) => current.map((list) => (
+        list.id === listId ? { ...list, entryCount: rows.length } : list
+      )));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeWord(entry) {
+    if (!window.confirm(tr('Xóa từ này khỏi sổ?'))) return;
+    setError('');
+    try {
+      await removeNotebookEntry(entry.noteEntryId);
+      const rows = entries.filter((item) => item.noteEntryId !== entry.noteEntryId);
+      setEntries(rows);
+      setLists((current) => current.map((list) => (
+        list.id === listId ? { ...list, entryCount: rows.length } : list
+      )));
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   const reviewLabel = Number.isFinite(dueCount)
@@ -249,12 +208,10 @@ export default function VocabularyNotebook() {
     : tr('Bắt đầu ôn tập');
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb={tr("Sổ từ")}>
+    <LearnerShell pathname={pathname} breadcrumb={tr('Sổ từ')}>
       <main
         data-page="VocabularyNotebook"
-        className="mx-auto max-w-[1180px] px-5 py-6
-                   font-['Be_Vietnam_Pro',sans-serif]
-                   text-[#49353F] lg:px-7"
+        className="mx-auto max-w-[1180px] px-5 py-6 font-['Be_Vietnam_Pro',sans-serif] text-[#49353F] lg:px-7"
       >
         <section className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -265,14 +222,15 @@ export default function VocabularyNotebook() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-[18px] font-semibold tracking-normal">{tr('Sổ tay Từ vựng')}</h1>
-                  <span className="rounded-full bg-[#FCEEF4] px-2.5 py-0.5 text-[11px] font-medium text-[#AD3155]">
-                    {levelName || tr("Minh họa")}
-                  </span>
+                  {profile?.targetJlptLevelName ? (
+                    <span className="rounded-full bg-[#FCEEF4] px-2.5 py-0.5 text-[11px] font-medium text-[#AD3155]">
+                      {profile.targetJlptLevelName}
+                    </span>
+                  ) : null}
                 </div>
-                <p className="mt-1 text-[13px] leading-5 text-[#8C7782]">{tr('Danh sách mẫu để xem sổ từ. Từ chưa được lưu vào tài khoản.')}</p>
+                <p className="mt-1 text-[13px] leading-5 text-[#8C7782]">{tr('Từ trong sổ được lưu vào tài khoản.')}</p>
               </div>
             </div>
-
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-2 rounded-xl border border-[#F0DDE5] bg-[#FFF8FA] px-3 py-2">
                 <Icon name="local_florist" className="text-[20px] text-[#AD3155]" filled />
@@ -289,17 +247,6 @@ export default function VocabularyNotebook() {
                   </span>
                 </span>
               </div>
-
-              <button
-                type="button"
-                onClick={() => searchRef.current?.focus()}
-                className="hidden h-10 items-center gap-2 rounded-xl border border-[#EADFE5] bg-white px-3 text-[13px] text-[#8C7782] sm:inline-flex"
-              >
-                <Icon name="search" className="text-[16px]" />{tr('Tìm nhanh')}<kbd className="rounded bg-[#F7EEF2] px-1.5 py-0.5 text-[10px] text-[#8C7782]">
-                  Ctrl K
-                </kbd>
-              </button>
-
               <Link
                 to="/daily-srs"
                 className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
@@ -311,9 +258,13 @@ export default function VocabularyNotebook() {
           </div>
         </section>
 
+        {error ? (
+          <p role="alert" className="mt-4 rounded-xl bg-[#FFF0F4] px-4 py-3 text-[13px] text-[#A33357]">{error}</p>
+        ) : null}
+
         <section className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-[18px] font-semibold">{tr('Từ trong sổ')}</h2>
               <span className="rounded-full bg-[#FCEEF4] px-2.5 py-0.5 text-[12px] font-medium text-[#AD3155]">
                 {locale === 'ja' ? `${visible.length}語` : `${visible.length} từ`}
@@ -322,133 +273,131 @@ export default function VocabularyNotebook() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={toggleVisible}
+                onClick={() => setCreatingList((open) => !open)}
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F1F3] px-3 text-[13px] text-[#6F5C66]"
               >
-                <Icon name="checklist" className="text-[18px]" />{tr('Chọn hàng loạt')}</button>
+                <Icon name="library_add" className="text-[18px]" />{tr('Tạo sổ')}
+              </button>
               <button
                 type="button"
-                onClick={() => downloadCsv(visible)}
-                disabled={visible.length === 0}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F1F3] px-3 text-[13px] text-[#6F5C66] disabled:opacity-50"
-              >
-                <Icon name="ios_share" className="text-[18px]" />{tr('Xuất CSV')}</button>
-              <button
-                type="button"
+                disabled={!listId}
                 onClick={() => setAdding((open) => !open)}
-                className="inline-flex h-9 items-center gap-1 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
+                className="inline-flex h-9 items-center gap-1 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-40"
               >
-                <Icon name="add" className="text-[18px]" />{tr('Thêm từ')}</button>
+                <Icon name="add" className="text-[18px]" />{tr('Thêm từ')}
+              </button>
             </div>
           </div>
 
-          {adding && (
-            <form
-              onSubmit={addWord}
-              className="mt-4 grid gap-2 rounded-xl bg-[#FFF8FA] p-3 sm:grid-cols-6"
-            >
-              <input
-                value={draft.word}
-                onChange={(event) => setDraft({ ...draft, word: event.target.value })}
-                placeholder={tr("Từ")}
-                aria-label={tr("Từ")}
-                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155] sm:col-span-1"
-              />
-              <input
-                value={draft.reading}
-                onChange={(event) => setDraft({ ...draft, reading: event.target.value })}
-                placeholder={tr("Cách đọc")}
-                aria-label={tr("Cách đọc")}
-                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
-              />
-              <input
-                value={draft.hanviet}
-                onChange={(event) => setDraft({ ...draft, hanviet: event.target.value })}
-                placeholder={tr("Hán Việt")}
-                aria-label={tr("Hán Việt")}
-                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
-              />
-              <input
-                value={draft.meaning}
-                onChange={(event) => setDraft({ ...draft, meaning: event.target.value })}
-                placeholder={tr("Nghĩa")}
-                aria-label={tr("Nghĩa")}
-                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155] sm:col-span-2"
-              />
-              <div className="flex gap-2">
-                <select
-                  value={draft.level}
-                  aria-label={tr("Cấp độ")}
-                  onChange={(event) => setDraft({ ...draft, level: event.target.value })}
-                  className="h-9 flex-1 rounded-lg border border-[#EADFE5] bg-white px-2 text-[13px]"
-                >
-                  {LEVELS.map((item) => (
-                    <option key={item}>{item}</option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  className="h-9 rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white"
-                >{tr('Lưu')}</button>
-              </div>
-              <p className="text-[11px] text-[#967F8A] sm:col-span-6">{tr('Từ thêm ở đây chỉ hiện trên trình duyệt này.')}</p>
-            </form>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className="relative min-w-[240px] flex-1">
-              <Icon
-                name="search"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[#B07A90]"
-              />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={tr("Tìm Kanji, cách đọc, Hán Việt, nghĩa")}
-                className="h-10 w-full rounded-xl bg-[#F7F1F3] pl-10 pr-3 text-[13px] outline-none focus:bg-white focus:ring-2 focus:ring-[#AD3155]/20"
-              />
-            </label>
-
-            <div className="flex rounded-xl bg-[#F7F1F3] p-1">
-              {['N5', 'N4', 'N3', 'all'].map((item) => {
-                const active = level === item;
+          {lists.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {lists.map((list) => {
+                const active = list.id === listId;
                 return (
                   <button
-                    key={item}
+                    key={list.id}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => setLevel(item)}
-                    className={`h-8 min-w-10 rounded-lg px-2.5 text-[12px] ${
-                      active ? 'bg-white font-medium text-[#AD3155] shadow-sm' : 'text-[#8C7782]'
+                    onClick={() => setListId(list.id)}
+                    className={`h-8 rounded-lg px-2.5 text-[12px] ${
+                      active ? 'bg-[#F8D5DE] font-medium text-[#9E2A4B]' : 'bg-[#F7F1F3] text-[#8C7782]'
                     }`}
                   >
-                    {item === 'all' ? tr("Tất cả") : item}
+                    {list.name} ({list.entryCount ?? 0})
                   </button>
                 );
               })}
             </div>
+          ) : null}
 
+          {creatingList ? (
+            <form onSubmit={createList} className="mt-4 grid gap-2 rounded-xl bg-[#FFF8FA] p-3 sm:grid-cols-[1fr_1fr_auto]">
+              <input
+                required
+                value={listDraft.name}
+                onChange={(event) => setListDraft({ ...listDraft, name: event.target.value })}
+                placeholder={tr('Tên sổ')}
+                aria-label={tr('Tên sổ')}
+                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
+              />
+              <input
+                value={listDraft.description}
+                onChange={(event) => setListDraft({ ...listDraft, description: event.target.value })}
+                placeholder={tr('Mô tả')}
+                aria-label={tr('Mô tả')}
+                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
+              />
+              <button type="submit" disabled={saving} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white disabled:opacity-50">
+                {saving ? tr('Đang lưu…') : tr('Tạo sổ')}
+              </button>
+            </form>
+          ) : null}
+
+          {adding && listId ? (
+            <form onSubmit={addWord} className="mt-4 grid gap-2 rounded-xl bg-[#FFF8FA] p-3 sm:grid-cols-4">
+              <input
+                required
+                value={draft.word}
+                onChange={(event) => setDraft({ ...draft, word: event.target.value })}
+                placeholder={tr('Từ')}
+                aria-label={tr('Từ')}
+                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
+              />
+              <input
+                value={draft.reading}
+                onChange={(event) => setDraft({ ...draft, reading: event.target.value })}
+                placeholder={tr('Cách đọc')}
+                aria-label={tr('Cách đọc')}
+                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
+              />
+              <input
+                required
+                value={draft.meaning}
+                onChange={(event) => setDraft({ ...draft, meaning: event.target.value })}
+                placeholder={tr('Nghĩa')}
+                aria-label={tr('Nghĩa')}
+                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
+              />
+              <input
+                value={draft.note}
+                onChange={(event) => setDraft({ ...draft, note: event.target.value })}
+                placeholder={tr('Ghi chú')}
+                aria-label={tr('Ghi chú')}
+                className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
+              />
+              <div className="sm:col-span-4">
+                <button type="submit" disabled={saving} className="h-9 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white disabled:opacity-50">
+                  {saving ? tr('Đang lưu…') : tr('Lưu')}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="relative min-w-[240px] flex-1">
+              <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[#B07A90]" />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={tr('Tìm Kanji, cách đọc, Hán Việt, nghĩa')}
+                className="h-10 w-full rounded-xl bg-[#F7F1F3] pl-10 pr-3 text-[13px] outline-none focus:bg-white focus:ring-2 focus:ring-[#AD3155]/20"
+              />
+            </label>
             <div className="flex flex-wrap gap-1.5">
-              {[
-                ['due', locale === 'ja' ? `要復習 (${counts.due ?? 0})` : `Cần ôn (${counts.due ?? 0})`],
-                ['known', locale === 'ja' ? `定着 (${counts.known ?? 0})` : `Nhớ sâu (${counts.known ?? 0})`],
-                ['new', locale === 'ja' ? `新しく保存 (${counts.new ?? 0})` : `Mới lưu (${counts.new ?? 0})`],
-              ].map(([id, label]) => {
-                const active = status === id;
+              {TYPES.map((item) => {
+                const active = type === item.id;
                 return (
                   <button
-                    key={id}
+                    key={item.id}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => setStatus(active ? 'all' : id)}
+                    onClick={() => setType(item.id)}
                     className={`h-8 rounded-lg px-2.5 text-[12px] ${
-                      active
-                        ? 'bg-[#F8D5DE] font-medium text-[#9E2A4B]'
-                        : 'bg-[#F7F1F3] text-[#8C7782]'
+                      active ? 'bg-white font-medium text-[#AD3155] shadow-sm' : 'bg-[#F7F1F3] text-[#8C7782]'
                     }`}
                   >
-                    {label}
+                    {tr(item.label)}
                   </button>
                 );
               })}
@@ -461,131 +410,84 @@ export default function VocabularyNotebook() {
             <table className="w-full min-w-[760px] text-left">
               <thead className="bg-[#FBF6F8] text-[12px] text-[#967F8A]">
                 <tr>
-                  <th className="w-12 py-3 pl-4">
-                    <input
-                      type="checkbox"
-                      aria-label={tr("Chọn các từ đang hiện")}
-                      checked={allVisibleSelected}
-                      onChange={toggleVisible}
-                      className="accent-[#AD3155]"
-                    />
-                  </th>
-                  <th className="px-3 py-3 font-medium">{tr('Từ')}</th>
-                  <th className="px-3 py-3 font-medium">{tr('Hán Việt và nghĩa')}</th>
-                  <th className="px-3 py-3 font-medium">{tr('Cấp độ')}</th>
-                  <th className="px-3 py-3 font-medium">SRS</th>
-                  <th className="px-3 py-3 font-medium">{tr('Lần ôn')}</th>
+                  <th className="px-4 py-3 font-medium">{tr('Từ')}</th>
+                  <th className="px-3 py-3 font-medium">{tr('Nghĩa')}</th>
+                  <th className="px-3 py-3 font-medium">{tr('Ghi chú')}</th>
+                  <th className="px-3 py-3 font-medium">{tr('Loại')}</th>
+                  <th className="px-3 py-3 font-medium">{tr('Ngày thêm')}</th>
                   <th className="py-3 pr-4 text-right font-medium">{tr('Thao tác')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3E7EC] text-[13px]">
-                {visible.length === 0 && (
+                {loadingLists || loadingEntries ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-[#967F8A]">{tr('Không có từ khớp bộ lọc.')}</td>
+                    <td colSpan={6} className="px-4 py-12 text-center text-[#967F8A]">{tr('Đang tải sổ từ…')}</td>
                   </tr>
-                )}
-                {visible.map((word) => {
-                  const checked = selected.has(word.id);
-                  const state = STATUS[word.status];
-                  return (
-                    <tr key={word.id} className={checked ? 'bg-[#FFF5F8]' : 'bg-white'}>
-                      <td className="py-3 pl-4">
-                        <input
-                          type="checkbox"
-                          aria-label={locale === 'ja' ? `${word.word}を選択` : `Chọn ${word.word}`}
-                          checked={checked}
-                          onChange={() => toggle(word.id)}
-                          className="accent-[#AD3155]"
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-start gap-2">
-                          <div>
-                            <p className="text-[11px] text-[#AD3155]">{word.reading}</p>
-                            {word.id === 'keiken' ? (
-                              <Link
-                                to="/vocabulary-detail"
-                                lang="ja"
-                                className="font-['Noto_Sans_JP',sans-serif] text-[22px] leading-tight hover:text-[#AD3155]"
-                              >
-                                {word.word}
-                              </Link>
-                            ) : (
-                              <p lang="ja" className="font-['Noto_Sans_JP',sans-serif] text-[22px] leading-tight">
-                                {word.word}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={locale === 'ja' ? `${word.word}を聞く` : `Nghe ${word.word}`}
-                            onClick={() => speakJapanese(word.word)}
-                            className="mt-4 text-[#B07A90] hover:text-[#AD3155]"
-                          >
-                            <Icon name="volume_up" className="text-[18px]" />
-                          </button>
+                ) : null}
+                {!loadingLists && !lists.length ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-[#967F8A]">
+                      <p className="font-medium text-[#6F5C66]">{tr('Chưa có sổ từ')}</p>
+                      <p className="mt-1">{tr('Tạo một sổ để bắt đầu lưu từ.')}</p>
+                    </td>
+                  </tr>
+                ) : null}
+                {!loadingLists && !loadingEntries && lists.length > 0 && visible.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-[#967F8A]">
+                      {entries.length ? tr('Không có từ khớp tìm kiếm.') : tr('Sổ từ đang trống.')}
+                    </td>
+                  </tr>
+                ) : null}
+                {!loadingEntries && visible.map((entry) => (
+                  <tr key={entry.noteEntryId} className="bg-white">
+                    <td className="px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <div>
+                          {entry.reading ? <p className="text-[11px] text-[#AD3155]">{entry.reading}</p> : null}
+                          <p lang="ja" className="font-['Noto_Sans_JP',sans-serif] text-[22px] leading-tight">{entry.term}</p>
                         </div>
-                      </td>
-                      <td className="max-w-[240px] px-3 py-3">
-                        <p className="text-[11px] uppercase tracking-wide text-[#A08B93]">
-                          {tr(word.hanviet)}
-                        </p>
-                        <p className="mt-0.5 truncate">{tr(word.meaning)}</p>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          <span className="rounded-full bg-[#FCEEF4] px-2 py-0.5 text-[11px] font-medium text-[#9E2A4B]">
-                            {word.level}
-                          </span>
-                          <span className="rounded-full bg-[#F7F1F3] px-2 py-0.5 text-[11px] text-[#8C7782]">
-                            {tr(word.tag)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <StageDots stage={word.stage} />
-                          <span className={`text-[11px] ${state?.tone === 'due' ? 'font-medium text-[#9E2A4B]' : 'text-[#8C7782]'}`}>
-                            {tr(state?.label)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-[#8C7782]">{tr(word.lastReview)}</td>
-                      <td className="py-3 pr-4 text-right">
-                        {word.id === 'keiken' && (
-                          <Link
-                            to="/vocabulary-detail"
-                            aria-label={tr("Xem chi tiết 経験")}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8C7782] hover:bg-[#F7F1F3] hover:text-[#49353F]"
-                          >
-                            <Icon name="visibility" className="text-[18px]" />
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <button
+                          type="button"
+                          aria-label={`${tr('Nghe')} ${entry.term}`}
+                          onClick={() => speakJapanese(entry.term)}
+                          className="mt-4 text-[#B07A90] hover:text-[#AD3155]"
+                        >
+                          <Icon name="volume_up" className="text-[18px]" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="max-w-[280px] px-3 py-3">
+                      <p className="line-clamp-2">{entry.meaning}</p>
+                    </td>
+                    <td className="max-w-[200px] px-3 py-3 text-[#8C7782]">
+                      <p className="line-clamp-2">{entry.note || '—'}</p>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="rounded-full bg-[#F7F1F3] px-2 py-0.5 text-[11px] text-[#8C7782]">
+                        {tr(TYPES.find((item) => item.id === entry.contentType)?.label || entry.contentType)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-[#8C7782]">{formatAdded(entry.addedAt, locale)}</td>
+                    <td className="py-3 pr-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeWord(entry)}
+                        className="inline-flex h-8 items-center rounded-lg px-2 text-[12px] text-[#A33357] hover:bg-[#FFF0F4]"
+                      >
+                        {tr('Xóa')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+          {selectedList?.description ? (
+            <p className="border-t border-[#F3E7EC] px-4 py-3 text-[12px] text-[#8C7782]">{selectedList.description}</p>
+          ) : null}
         </section>
       </main>
-
-      {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-2xl bg-[#3F3038] px-4 py-3 text-white shadow-lg">
-          <p className="text-[13px]">{tr("Đã chọn")}<strong>{selected.size}</strong>{tr("từ mẫu")}</p>
-          <button
-            type="button"
-            onClick={() => setSelected(new Set())}
-            className="rounded-xl bg-white/10 px-3 py-1.5 text-[12px]"
-          >{tr('Bỏ chọn')}</button>
-          <Link
-            to="/daily-srs"
-            className="inline-flex items-center gap-1 rounded-xl bg-[#AD3155] px-3 py-1.5 text-[12px] font-medium"
-          >
-            <Icon name="bolt" className="text-[16px]" filled />{tr("Ôn tập đến hạn")}</Link>
-        </div>
-      )}
     </LearnerShell>
   );
 }
