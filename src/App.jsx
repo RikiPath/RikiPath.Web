@@ -1,7 +1,7 @@
 import MentorPayments from './pages/consultation/MentorPayments.jsx';
-import { useContext, useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
+import { useContext, useEffect, useRef } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { AuthContext, AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RequireStudyPlan from './components/RequireStudyPlan.jsx';
 import MentorPrivateChat from './pages/consultation/MentorPrivateChat.jsx';
@@ -106,6 +106,21 @@ function PaymentReturnToReceipt() {
   return <Navigate to={`/consultation-receipt/${search}`} replace />;
 }
 
+function LogoutRedirect() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const wasAuthenticated = useRef(isAuthenticated);
+
+  useEffect(() => {
+    if (wasAuthenticated.current && !isAuthenticated) {
+      navigate('/auth/', { replace: true });
+    }
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, navigate]);
+
+  return null;
+}
+
 function PreviewSessionSync() {
   const location = useLocation();
   const refreshSession = useContext(AuthContext)?.refreshSession;
@@ -126,6 +141,7 @@ export default function App() {
       <BrowserRouter>
         <div className="rikipath-shell min-h-screen bg-[#FAF7F5]">
           <NormalizePath />
+          <LogoutRedirect />
           <PreviewSessionSync />
           <Routes>
             {/* ========== MARKETING ========== */}
