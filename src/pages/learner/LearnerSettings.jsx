@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { getSession } from '../../auth/session.js';
 import {
   displayName,
@@ -102,13 +103,14 @@ function SectionHeading({ title, description }) {
 
 export default function LearnerSettings() {
   const { pathname } = useLocation();
+  const { tr } = useLocale();
   const session = getSession();
   const profileQuery = useLearnerProfile();
 
   const [activeTab, setActiveTab] = useState('profile');
 
   const profile = profileQuery.data;
-  const name = displayName(profile, session) || 'Người dùng';
+  const name = displayName(profile, session) || tr('Người dùng');
   const email = profile?.email || session?.email || '';
   const phone = profile?.phoneNumber || profile?.phone || '';
   const initial = name.trim().charAt(0).toUpperCase() || 'R';
@@ -147,10 +149,10 @@ export default function LearnerSettings() {
             className="text-[25px] font-semibold
                        leading-tight tracking-tight"
           >
-            Hồ sơ & cài đặt
+            {tr('Hồ sơ & cài đặt')}
           </h1>
           <p className="mt-1 text-[13px] text-[#967F8A]">
-            Quản lý tài khoản và mục tiêu ôn luyện của bạn.
+            {tr('Quản lý tài khoản và mục tiêu ôn luyện của bạn.')}
           </p>
         </header>
 
@@ -196,8 +198,8 @@ export default function LearnerSettings() {
                     className="text-[14px]"
                   />
                   {verification
-                    ? 'Email đã xác thực'
-                    : 'Email chưa xác thực'}
+                    ? tr('Email đã xác thực')
+                    : tr('Email chưa xác thực')}
                 </span>
               )}
             </div>
@@ -206,10 +208,10 @@ export default function LearnerSettings() {
           <div className="flex items-center gap-5">
             <div>
               <p className="text-[11px] text-[#A0808E]">
-                Mục tiêu JLPT
+                {tr('Mục tiêu JLPT')}
               </p>
               <p className="mt-1 text-[15px] font-medium text-[#A84466]">
-                {level || 'Chưa chọn'}
+                {level || tr('Chưa chọn')}
               </p>
             </div>
 
@@ -217,10 +219,10 @@ export default function LearnerSettings() {
 
             <div>
               <p className="text-[11px] text-[#A0808E]">
-                Mỗi ngày
+                {tr('Mỗi ngày')}
               </p>
               <p className="mt-1 text-[15px] font-medium text-[#A84466]">
-                {minutes ? `${minutes} phút` : 'Chưa đặt'}
+                {minutes ? `${minutes} ${tr('phút')}` : tr('Chưa đặt')}
               </p>
             </div>
           </div>
@@ -279,7 +281,7 @@ export default function LearnerSettings() {
                     ].join(' ')}
                   >
                     <Icon name={tab.icon} className="text-[19px]" />
-                    {tab.label}
+                    {tr(tab.label)}
                   </button>
                 );
               })}
@@ -298,8 +300,8 @@ export default function LearnerSettings() {
             {activeTab === 'profile' && (
               <>
                 <SectionHeading
-                  title="Thông tin tài khoản"
-                  description="Thông tin hiện có trên tài khoản RikiPath."
+                  title={tr('Thông tin tài khoản')}
+                  description={tr('Thông tin hiện có trên tài khoản RikiPath.')}
                 />
 
                 {profileQuery.isPending && (
@@ -307,17 +309,17 @@ export default function LearnerSettings() {
                     role="status"
                     className="mb-4 text-[12px] text-[#A08A95]"
                   >
-                    Đang tải hồ sơ…
+                    {tr('Đang tải hồ sơ…')}
                   </p>
                 )}
 
                 <dl className="grid gap-4 sm:grid-cols-2">
-                  <InfoField label="Tên hiển thị" value={name} />
+                  <InfoField label={tr('Tên hiển thị')} value={name} />
                   <InfoField label="Email" value={email} />
-                  <InfoField label="Số điện thoại" value={phone} />
+                  <InfoField label={tr('Số điện thoại')} value={phone} />
                   <InfoField
-                    label="Nội dung ôn luyện"
-                    value="Tiếng Nhật · JLPT N5–N2"
+                    label={tr('Nội dung ôn luyện')}
+                    value={tr('Tiếng Nhật · JLPT N5–N2')}
                   />
                 </dl>
 
@@ -327,10 +329,10 @@ export default function LearnerSettings() {
                              border-t border-[#F0E7EC] pt-4"
                 >
                   <p className="text-[12px] text-[#A08A95]">
-                    Bạn có thể thay đổi email tại mục bảo mật.
+                    {tr('Bạn có thể thay đổi email tại mục bảo mật.')}
                   </p>
                   <ActionLink to="/update-email">
-                    Đổi email
+                    {tr('Đổi email')}
                   </ActionLink>
                 </div>
               </>
@@ -339,8 +341,8 @@ export default function LearnerSettings() {
             {activeTab === 'goal' && (
               <>
                 <SectionHeading
-                  title="Mục tiêu ôn luyện"
-                  description="Chọn cấp độ và thời gian phù hợp với bạn."
+                  title={tr('Mục tiêu ôn luyện')}
+                  description={tr('Chọn cấp độ và thời gian phù hợp với bạn.')}
                 />
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -353,10 +355,10 @@ export default function LearnerSettings() {
                       className="text-[23px] text-[#BA859B]"
                     />
                     <p className="mt-3 text-[12px] text-[#A08A95]">
-                      Cấp độ mục tiêu
+                      {tr('Cấp độ mục tiêu')}
                     </p>
                     <p className="mt-1 text-[24px] font-semibold text-[#A84466]">
-                      {level ? `JLPT ${level}` : 'Chưa chọn'}
+                      {level ? `JLPT ${level}` : tr('Chưa chọn')}
                     </p>
                   </div>
 
@@ -369,13 +371,13 @@ export default function LearnerSettings() {
                       className="text-[23px] text-[#BA859B]"
                     />
                     <p className="mt-3 text-[12px] text-[#A08A95]">
-                      Thời gian mỗi ngày
+                      {tr('Thời gian mỗi ngày')}
                     </p>
                     <p className="mt-1 text-[24px] font-semibold text-[#A84466]">
                       {minutes || '—'}
                       {minutes && (
                         <span className="ml-1 text-[13px] font-normal">
-                          phút
+                          {tr('phút')}
                         </span>
                       )}
                     </p>
@@ -393,22 +395,22 @@ export default function LearnerSettings() {
             {activeTab === 'security' && (
               <>
                 <SectionHeading
-                  title="Email & mật khẩu"
-                  description="Quản lý thông tin đăng nhập tài khoản."
+                  title={tr('Email & mật khẩu')}
+                  description={tr('Quản lý thông tin đăng nhập tài khoản.')}
                 />
 
                 <div className="divide-y divide-[#F0E7EC]">
                   <div className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <h3 className="text-[13px] font-medium">
-                        Email đăng nhập
+                        {tr('Email đăng nhập')}
                       </h3>
                       <p className="mt-1 break-all text-[12px] text-[#A08A95]">
                         {email || 'Chưa có email'}
                       </p>
                     </div>
                     <ActionLink to="/update-email">
-                      Đổi email
+                      {tr('Đổi email')}
                     </ActionLink>
                   </div>
 
@@ -418,11 +420,11 @@ export default function LearnerSettings() {
                         Mật khẩu
                       </h3>
                       <p className="mt-1 text-[12px] text-[#A08A95]">
-                        Thay đổi mật khẩu đăng nhập.
+                        {tr('Thay đổi mật khẩu đăng nhập.')}
                       </p>
                     </div>
                     <ActionLink to="/change-password">
-                      Đổi mật khẩu
+                      {tr('Đổi mật khẩu')}
                     </ActionLink>
                   </div>
                 </div>
@@ -436,8 +438,7 @@ export default function LearnerSettings() {
                     name="lock"
                     className="mt-0.5 shrink-0 text-[16px]"
                   />
-                  Không chia sẻ mật khẩu hoặc mã xác thực
-                  với người khác.
+                  {tr('Không chia sẻ mật khẩu hoặc mã xác thực với người khác.')}
                 </p>
               </>
             )}
@@ -445,21 +446,21 @@ export default function LearnerSettings() {
             {activeTab === 'notifications' && (
               <>
                 <SectionHeading
-                  title="Thông báo"
-                  description="Các hình thức nhắc ôn tập và lịch tư vấn."
+                  title={tr('Thông báo')}
+                  description={tr('Các hình thức nhắc ôn tập và lịch tư vấn.')}
                 />
 
                 <div className="divide-y divide-[#F0E7EC]">
                   {[
                     {
                       icon: 'history',
-                      title: 'Nhắc ôn tập đến hạn',
-                      description: 'Nhắc ôn từ vựng và Hán tự đã lưu.',
+                      title: tr('Nhắc ôn tập đến hạn'),
+                      description: tr('Nhắc ôn từ vựng và Hán tự đã lưu.'),
                     },
                     {
                       icon: 'event',
-                      title: 'Nhắc lịch tư vấn',
-                      description: 'Thông báo trước buổi tư vấn với Mentor.',
+                      title: tr('Nhắc lịch tư vấn'),
+                      description: tr('Thông báo trước buổi tư vấn với Mentor.'),
                     },
                   ].map((item) => (
                     <div
@@ -489,15 +490,14 @@ export default function LearnerSettings() {
                                    bg-[#F6F1F4] px-2 py-1
                                    text-[10px] text-[#A08A95]"
                       >
-                        Chưa kết nối
+                        {tr('Chưa kết nối')}
                       </span>
                     </div>
                   ))}
                 </div>
 
                 <p className="mt-4 text-[12px] leading-5 text-[#A08A95]">
-                  Tùy chọn thông báo cần được kết nối với hệ thống
-                  trước khi có thể bật hoặc tắt.
+                  {tr('Tùy chọn thông báo cần được kết nối với hệ thống trước khi có thể bật hoặc tắt.')}
                 </p>
               </>
             )}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 
 /*
  * Dữ liệu mẫu lấy từ giao diện cũ.
@@ -65,6 +66,7 @@ function ReadingBlock({ label, value }) {
 }
 
 export default function KanjiNotebook() {
+  const { tr } = useLocale();
   const { pathname } = useLocation();
 
   const [search, setSearch] = useState('');
@@ -102,7 +104,7 @@ export default function KanjiNotebook() {
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Sổ tay Hán tự">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Sổ tay Hán tự")}>
       <main
         data-page="KanjiNotebook"
         className="mx-auto max-w-[1240px] px-5 py-6
@@ -123,21 +125,15 @@ export default function KanjiNotebook() {
               >
                 漢字
               </span>
-              <span className="text-[11px] text-[#AA8D9B]">
-                Ôn lại từng chữ
-              </span>
+              <span className="text-[11px] text-[#AA8D9B]">{tr('Ôn lại từng chữ')}</span>
             </div>
 
             <h1
               className="mt-2 text-[25px] font-semibold
                          leading-tight tracking-tight"
-            >
-              Sổ tay Hán tự
-            </h1>
+            >{tr('Sổ tay Hán tự')}</h1>
 
-            <p className="mt-1.5 text-[13px] text-[#967F8A]">
-              Xem cách đọc, từ vựng và ghi chú của bạn.
-            </p>
+            <p className="mt-1.5 text-[13px] text-[#967F8A]">{tr('Xem cách đọc, từ vựng và ghi chú của bạn.')}</p>
           </div>
 
           <Link
@@ -147,9 +143,7 @@ export default function KanjiNotebook() {
                        bg-white px-3 text-[12px] text-[#A47186]
                        hover:bg-[#FFF3F7]"
           >
-            <Icon name="history" className="text-[17px]" />
-            Ôn tập đến hạn
-          </Link>
+            <Icon name="history" className="text-[17px]" />{tr("Ôn tập đến hạn")}</Link>
         </header>
 
         <div
@@ -161,9 +155,7 @@ export default function KanjiNotebook() {
             name="info"
             className="mt-0.5 shrink-0 text-[16px]"
           />
-          <p>
-            Nội dung minh họa. Ghi chú chưa được lưu vào tài khoản.
-          </p>
+          <p>{tr('Nội dung minh họa. Ghi chú chưa được lưu vào tài khoản.')}</p>
         </div>
 
         <div
@@ -172,16 +164,14 @@ export default function KanjiNotebook() {
         >
           {/* Danh sách */}
           <aside
-            aria-label="Danh sách Hán tự"
+            aria-label={tr("Danh sách Hán tự")}
             className="overflow-hidden rounded-xl border
                        border-[#EADFE5] bg-white
                        lg:sticky lg:top-[84px]"
           >
             <div className="border-b border-[#F0E7EC] p-3">
               <div className="mb-3 flex items-center justify-between px-1">
-                <h2 className="text-[13px] font-medium">
-                  Danh sách chữ
-                </h2>
+                <h2 className="text-[13px] font-medium">{tr('Danh sách chữ')}</h2>
                 <span className="text-[11px] text-[#B08E9E]">
                   {visibleItems.length}
                 </span>
@@ -198,8 +188,8 @@ export default function KanjiNotebook() {
                   type="search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Tìm chữ hoặc nghĩa..."
-                  aria-label="Tìm Hán tự"
+                  placeholder={tr("Tìm chữ hoặc nghĩa...")}
+                  aria-label={tr("Tìm Hán tự")}
                   className="h-9 w-full rounded-lg border
                              border-[#EADFE5] bg-[#FDFBFC]
                              pl-8 pr-2 text-[12px] outline-none
@@ -240,7 +230,7 @@ export default function KanjiNotebook() {
 
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13px] font-medium">
-                          {item.meaning}
+                          {tr(item.meaning)}
                         </span>
                         <span
                           lang="ja"
@@ -259,9 +249,7 @@ export default function KanjiNotebook() {
                   );
                 })
               ) : (
-                <p className="px-3 py-6 text-[12px] text-[#A08A95]">
-                  Không tìm thấy chữ phù hợp.
-                </p>
+                <p className="px-3 py-6 text-[12px] text-[#A08A95]">{tr('Không tìm thấy chữ phù hợp.')}</p>
               )}
             </div>
           </aside>
@@ -280,12 +268,10 @@ export default function KanjiNotebook() {
                              border-b border-[#F0E7EC]
                              px-5 py-3.5"
                 >
-                  <h2 className="text-[14px] font-medium">
-                    Chữ và cách đọc
-                  </h2>
+                  <h2 className="text-[14px] font-medium">{tr('Chữ và cách đọc')}</h2>
 
                   <span className="text-[11px] text-[#AA8D9B]">
-                    {selected.strokes} nét · Bộ {selected.radical}
+                    {selected.strokes} {tr('nét')} · {tr('Bộ')} {selected.radical}
                   </span>
                 </header>
 
@@ -333,16 +319,14 @@ export default function KanjiNotebook() {
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-[11px] text-[#AE95A1]">
-                      Nghĩa
-                    </p>
+                    <p className="text-[11px] text-[#AE95A1]">{tr('Nghĩa')}</p>
 
                     <h3
                       className="mt-2 min-h-[34px]
                                  text-[25px] font-semibold
                                  text-[#795563]"
                     >
-                      {showMeaning ? selected.meaning : '•••'}
+                      {showMeaning ? tr(selected.meaning) : '•••'}
                     </h3>
 
                     <button
@@ -357,16 +341,16 @@ export default function KanjiNotebook() {
                         name={showMeaning ? 'visibility_off' : 'visibility'}
                         className="text-[15px]"
                       />
-                      {showMeaning ? 'Ẩn nghĩa để tự ôn' : 'Hiện nghĩa'}
+                      {showMeaning ? tr("Ẩn nghĩa để tự ôn") : tr("Hiện nghĩa")}
                     </button>
 
                     <div className="mt-5 grid grid-cols-2 gap-2">
                       <ReadingBlock
-                        label="Âm On"
+                        label={tr("Âm On")}
                         value={selected.onyomi}
                       />
                       <ReadingBlock
-                        label="Âm Kun"
+                        label={tr("Âm Kun")}
                         value={selected.kunyomi}
                       />
                     </div>
@@ -379,9 +363,7 @@ export default function KanjiNotebook() {
                                  text-[12px] font-medium text-white
                                  hover:bg-[#982B4B]"
                     >
-                      <Icon name="draw" className="text-[17px]" />
-                      Mở trang luyện viết Hán tự
-                    </Link>
+                      <Icon name="draw" className="text-[17px]" />{tr('Mở trang luyện viết Hán tự')}</Link>
                   </div>
                 </div>
               </section>
@@ -395,9 +377,7 @@ export default function KanjiNotebook() {
                   className="border-b border-[#F0E7EC]
                              px-5 py-3.5"
                 >
-                  <h2 className="text-[14px] font-medium">
-                    Từ vựng đi kèm
-                  </h2>
+                  <h2 className="text-[14px] font-medium">{tr('Từ vựng đi kèm')}</h2>
                 </header>
 
                 <div className="divide-y divide-[#F3EBEF]">
@@ -427,7 +407,7 @@ export default function KanjiNotebook() {
                         className="self-center text-[13px]
                                    leading-6 text-[#967F8A]"
                       >
-                        {word.meaning}
+                        {tr(word.meaning)}
                       </p>
                     </div>
                   ))}
@@ -443,13 +423,9 @@ export default function KanjiNotebook() {
                   <label
                     htmlFor="kanji-note"
                     className="text-[14px] font-medium"
-                  >
-                    Ghi chú của bạn
-                  </label>
+                  >{tr('Ghi chú của bạn')}</label>
 
-                  <span className="text-[10px] text-[#B39AA5]">
-                    Chưa lưu vào tài khoản
-                  </span>
+                  <span className="text-[10px] text-[#B39AA5]">{tr('Chưa lưu vào tài khoản')}</span>
                 </div>
 
                 <textarea
@@ -464,7 +440,7 @@ export default function KanjiNotebook() {
                       [selected.id]: value,
                     }));
                   }}
-                  placeholder="Ghi cách nhớ hoặc đặt một câu ví dụ..."
+                  placeholder={tr("Ghi cách nhớ hoặc đặt một câu ví dụ...")}
                   className="mt-3 block w-full resize-y
                              rounded-lg border border-[#EBDDE5]
                              bg-[#FFFCFD] px-3 py-3
@@ -475,9 +451,7 @@ export default function KanjiNotebook() {
                              focus:ring-2 focus:ring-[#AD3155]/10"
                 />
 
-                <p className="mt-2 text-[11px] text-[#AE95A1]">
-                  Ghi chú sẽ mất khi tải lại hoặc rời trang.
-                </p>
+                <p className="mt-2 text-[11px] text-[#AE95A1]">{tr('Ghi chú sẽ mất khi tải lại hoặc rời trang.')}</p>
               </section>
             </div>
           )}

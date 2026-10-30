@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 
 const PRACTICE_OPTIONS = [
   {
@@ -111,6 +112,7 @@ function Icon({ name, className = '' }) {
 
 export default function AICounselor() {
   const { pathname } = useLocation();
+  const { tr } = useLocale();
   const [focusId, setFocusId] = useState('vocabulary');
 
   const focus =
@@ -136,11 +138,11 @@ export default function AICounselor() {
               </p>
 
               <h1 className="text-[25px] font-semibold tracking-tight sm:text-[28px]">
-                Hôm nay mình ôn gì?
+                {tr('Hôm nay mình ôn gì?')}
               </h1>
 
               <p className="mt-1.5 text-[14px] leading-6 text-[#8C7782]">
-                Chọn một kỹ năng, bắt đầu từ một phần nhỏ.
+                {tr('Chọn một kỹ năng, bắt đầu từ một phần nhỏ.')}
               </p>
             </div>
 
@@ -158,12 +160,12 @@ export default function AICounselor() {
             <section className="min-w-0 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
               <div className="border-b border-[#F0E7EC] px-4 py-4 sm:px-5">
                 <h2 className="text-[14px] font-semibold">
-                  Bạn muốn tập trung vào đâu?
+                  {tr('Bạn muốn tập trung vào đâu?')}
                 </h2>
 
                 <div
                   role="group"
-                  aria-label="Chọn kỹ năng ôn tập"
+                  aria-label={tr('Chọn kỹ năng ôn tập')}
                   className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"
                 >
                   {PRACTICE_OPTIONS.map((item) => {
@@ -189,7 +191,7 @@ export default function AICounselor() {
                           name={item.icon}
                           className="text-[18px]"
                         />
-                        {item.label}
+                        {tr(item.label)}
                       </button>
                     );
                   })}
@@ -201,15 +203,15 @@ export default function AICounselor() {
                   <div className="flex items-center gap-2 text-[12px] text-[#A46B81]">
                     <span lang="ja">{focus.japanese}</span>
                     <span aria-hidden="true">/</span>
-                    <span>Gợi ý ôn tập</span>
+                    <span>{tr('Gợi ý ôn tập')}</span>
                   </div>
 
                   <h3 className="mt-2 text-[20px] font-semibold leading-snug tracking-tight">
-                    {focus.title}
+                    {tr(focus.title)}
                   </h3>
 
                   <p className="mt-2 max-w-xl text-[13px] leading-6 text-[#88727E]">
-                    {focus.description}
+                    {tr(focus.description)}
                   </p>
                 </div>
 
@@ -222,7 +224,7 @@ export default function AICounselor() {
                       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F5EFF2] text-[11px] font-medium text-[#9C7C8C]">
                         {index + 1}
                       </span>
-                      <span className="text-[#75616D]">{step}</span>
+                      <span>{tr(step)}</span>
                     </li>
                   ))}
                 </ol>
@@ -238,7 +240,7 @@ export default function AICounselor() {
                       focusStyle,
                     ].join(' ')}
                   >
-                    {focus.action}
+                    {tr(focus.action)}
                     <Icon
                       name="arrow_forward"
                       className="text-[17px]"
@@ -253,7 +255,7 @@ export default function AICounselor() {
                       focusStyle,
                     ].join(' ')}
                   >
-                    {focus.secondaryLabel}
+                    {tr(focus.secondaryLabel)}
                   </Link>
                 </div>
               </div>
@@ -263,7 +265,7 @@ export default function AICounselor() {
             <aside className="space-y-4">
               <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
                 <h2 className="px-4 pb-2 pt-4 text-[14px] font-semibold">
-                  Tiếp tục từ đây
+                  {tr('Tiếp tục từ đây')}
                 </h2>
 
                 <div className="px-2 pb-2">
@@ -284,10 +286,10 @@ export default function AICounselor() {
 
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13px] font-medium">
-                          {item.title}
+                          {tr(item.title)}
                         </span>
                         <span className="mt-0.5 block text-[12px] leading-5 text-[#9A8691]">
-                          {item.description}
+                          {tr(item.description)}
                         </span>
                       </span>
 
@@ -307,12 +309,12 @@ export default function AICounselor() {
                     className="text-[18px] text-[#AF6B86]"
                   />
                   <h2 className="text-[13px] font-medium">
-                    Chưa biết bắt đầu ở đâu?
+                    {tr('Chưa biết bắt đầu ở đâu?')}
                   </h2>
                 </div>
 
                 <p className="mt-2 text-[13px] leading-6 text-[#927887]">
-                  Xem lại mục tiêu JLPT để chọn phần ôn phù hợp với bạn.
+                  {tr('Xem lại mục tiêu JLPT để chọn phần ôn phù hợp với bạn.')}
                 </p>
 
                 <Link
@@ -323,7 +325,7 @@ export default function AICounselor() {
                     focusStyle,
                   ].join(' ')}
                 >
-                  Xem mục tiêu
+                  {tr('Xem mục tiêu')}
                   <Icon
                     name="arrow_forward"
                     className="text-[16px]"

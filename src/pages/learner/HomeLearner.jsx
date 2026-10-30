@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 
 const ROUTES = {
   goal: '/onboarding',
@@ -65,6 +66,7 @@ function ActionLink({
   primary = false,
   className = '',
 }) {
+  const { tr } = useLocale();
   const classes = [
     'inline-flex min-h-10 items-center justify-center gap-2',
     'rounded-[10px] px-4 py-2 text-[13px] font-medium',
@@ -82,7 +84,7 @@ function ActionLink({
       <button
         type="button"
         disabled
-        title="Chưa cấu hình đường dẫn"
+        title={tr('Chưa cấu hình đường dẫn')}
         className={`${classes} cursor-not-allowed opacity-40`}
       >
         {children}
@@ -147,6 +149,7 @@ function Stat({ icon, label, value, unit }) {
 
 export default function HomeLearner({ data = null }) {
   const { pathname } = useLocation();
+  const { locale, tr } = useLocale();
 
   const targetLevel = ['N5', 'N4', 'N3', 'N2'].includes(
     data?.targetLevel,
@@ -170,8 +173,8 @@ export default function HomeLearner({ data = null }) {
   );
 
   const greeting = data?.displayName
-    ? `Chào ${data.displayName}!`
-    : 'Chào bạn!';
+    ? (locale === 'ja' ? `${data.displayName}さん、こんにちは！` : `Chào ${data.displayName}!`)
+    : tr('Chào bạn!');
 
   return (
     <LearnerShell pathname={pathname} breadcrumb="Tổng quan">
@@ -197,7 +200,7 @@ export default function HomeLearner({ data = null }) {
                 {greeting}
               </h1>
               <p className="mt-1 text-[13px] text-[#95828C]">
-                Bạn muốn ôn luyện gì hôm nay?
+                {tr('Bạn muốn ôn luyện gì hôm nay?')}
               </p>
             </div>
 
@@ -210,14 +213,14 @@ export default function HomeLearner({ data = null }) {
             >
               <Icon name="flag" className="text-[17px]" />
               {targetLevel
-                ? `Mục tiêu JLPT ${targetLevel}`
-                : 'Chọn mục tiêu JLPT'}
+                ? (locale === 'ja' ? `JLPT目標 ${targetLevel}` : `Mục tiêu JLPT ${targetLevel}`)
+                : tr('Chọn mục tiêu JLPT')}
               <Icon name="chevron_right" className="text-[16px]" />
             </Link>
           </header>
 
           <section
-            aria-label="Thống kê ôn luyện"
+            aria-label={tr('Thống kê ôn luyện')}
             className="mb-5 grid divide-y divide-[#F0E7EC]
                        overflow-hidden rounded-2xl
                        border border-[#EADFE5] bg-white
@@ -225,21 +228,21 @@ export default function HomeLearner({ data = null }) {
           >
             <Stat
               icon="task_alt"
-              label="Bài đã luyện"
+              label={tr('Bài đã luyện')}
               value={data?.completedExercises}
-              unit="bài"
+              unit={tr('bài')}
             />
             <Stat
               icon="schedule"
-              label="Thời gian ôn"
+              label={tr('Thời gian ôn')}
               value={data?.practiceMinutes}
-              unit="phút"
+              unit={tr('phút')}
             />
             <Stat
               icon="local_fire_department"
-              label="Ôn liên tiếp"
+              label={tr('Ôn liên tiếp')}
               value={data?.streakDays}
-              unit="ngày"
+              unit={tr('ngày')}
             />
           </section>
 
@@ -254,7 +257,7 @@ export default function HomeLearner({ data = null }) {
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h2 className="text-[17px] font-medium">
-                    Ôn luyện hôm nay
+                    {tr('Ôn luyện hôm nay')}
                   </h2>
 
                   <Link
@@ -263,7 +266,7 @@ export default function HomeLearner({ data = null }) {
                                text-[12px] text-[#A66B82]
                                hover:text-[#AD3155]"
                   >
-                    Lộ trình
+                    {tr('Lộ trình')}
                     <Icon name="arrow_forward" className="text-[15px]" />
                   </Link>
                 </div>
@@ -273,20 +276,20 @@ export default function HomeLearner({ data = null }) {
                              bg-[#FCF2F6] p-4 sm:p-5"
                 >
                   <p className="text-[11px] font-medium text-[#AD7389]">
-                    {resume ? 'TIẾP TỤC ÔN LUYỆN' : 'BẮT ĐẦU TỪ ĐÂY'}
+                    {resume ? tr('TIẾP TỤC ÔN LUYỆN') : tr('BẮT ĐẦU TỪ ĐÂY')}
                   </p>
 
                   <h3
                     className="mt-2 text-[20px] font-medium
                                leading-snug text-[#593B48]"
                   >
-                    {resume?.title || 'Thử sức với một đề thi'}
+                    {resume?.title || tr('Thử sức với một đề thi')}
                   </h3>
 
                   <p className="mt-2 text-[13px] leading-6 text-[#967A87]">
                     {resume
-                      ? resume.category || 'Quay lại nội dung đang luyện.'
-                      : 'Làm đề, xem kết quả và chọn phần cần ôn thêm.'}
+                      ? resume.category || tr('Quay lại nội dung đang luyện.')
+                      : tr('Làm đề, xem kết quả và chọn phần cần ôn thêm.')}
                   </p>
 
                   {resume &&
@@ -297,7 +300,7 @@ export default function HomeLearner({ data = null }) {
                           className="mb-2 flex justify-between
                                      text-[11px] text-[#A0808E]"
                         >
-                          <span>Tiến độ</span>
+                          <span>{tr('Tiến độ')}</span>
                           <span>
                             {Math.round(
                               Math.max(0, Math.min(100, resume.progress)),
@@ -307,7 +310,7 @@ export default function HomeLearner({ data = null }) {
                         </div>
                         <ProgressBar
                           value={resume.progress}
-                          label="Tiến độ bài đang luyện"
+                          label={tr('Tiến độ bài đang luyện')}
                         />
                       </div>
                     )}
@@ -317,7 +320,7 @@ export default function HomeLearner({ data = null }) {
                       to={resume ? resume.to : ROUTES.exam}
                       primary
                     >
-                      {resume ? 'Tiếp tục luyện' : 'Thi thử N3'}
+                      {resume ? tr('Tiếp tục luyện') : tr('Thi thử N3')}
                       <Icon name="arrow_forward" className="text-[17px]" />
                     </ActionLink>
                   </div>
@@ -358,10 +361,10 @@ export default function HomeLearner({ data = null }) {
 
                         <span className="min-w-0 flex-1">
                           <span className="block text-[13px] font-medium">
-                            {item.title}
+                            {tr(item.title)}
                           </span>
                           <span className="mt-1 block text-[12px] text-[#A08D97]">
-                            {item.text}
+                            {tr(item.text)}
                           </span>
                         </span>
 
@@ -381,7 +384,7 @@ export default function HomeLearner({ data = null }) {
                         key={item.title}
                         type="button"
                         disabled
-                        title="Chưa cấu hình đường dẫn"
+                        title={tr('Chưa cấu hình đường dẫn')}
                         className={className}
                       >
                         {content}
@@ -393,7 +396,7 @@ export default function HomeLearner({ data = null }) {
 
               <section>
                 <h2 className="mb-3 text-[16px] font-medium">
-                  Truy cập nhanh
+                  {tr('Truy cập nhanh')}
                 </h2>
 
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -413,10 +416,10 @@ export default function HomeLearner({ data = null }) {
                           className="text-[22px] text-[#B2778D]"
                         />
                         <span className="mt-3 block text-[13px] font-medium">
-                          {item.title}
+                          {tr(item.title)}
                         </span>
                         <span className="mt-1 block text-[11px] text-[#A08D97]">
-                          {item.description}
+                          {tr(item.description)}
                         </span>
                       </>
                     );
@@ -430,7 +433,7 @@ export default function HomeLearner({ data = null }) {
                         key={item.key}
                         type="button"
                         disabled
-                        title="Chưa cấu hình đường dẫn"
+                        title={tr('Chưa cấu hình đường dẫn')}
                         className={className}
                       >
                         {content}
@@ -448,7 +451,7 @@ export default function HomeLearner({ data = null }) {
               >
                 <div className="flex items-center justify-between">
                   <h2 className="text-[15px] font-medium">
-                    Ôn tập đến hạn
+                    {tr('Ôn tập đến hạn')}
                   </h2>
                   <Icon
                     name="history"
@@ -459,16 +462,16 @@ export default function HomeLearner({ data = null }) {
                 <p className="mt-4 text-[32px] font-medium text-[#9E4565]">
                   {dueCards ?? '—'}
                   <span className="ml-2 text-[13px] font-normal text-[#A08D97]">
-                    thẻ
+                    {tr('thẻ')}
                   </span>
                 </p>
 
                 <p className="mt-1 text-[12px] leading-5 text-[#95828C]">
                   {dueCards === null
-                    ? 'Chưa có dữ liệu ôn tập.'
+                    ? tr('Chưa có dữ liệu ôn tập.')
                     : dueCards === 0
-                      ? 'Bạn chưa có thẻ đến hạn.'
-                      : 'Ôn lại nội dung đã lưu trong sổ tay.'}
+                      ? tr('Bạn chưa có thẻ đến hạn.')
+                      : tr('Ôn lại nội dung đã lưu trong sổ tay.')}
                 </p>
 
                 <div className="mt-4">
@@ -477,7 +480,7 @@ export default function HomeLearner({ data = null }) {
                     className="w-full"
                     primary={dueCards > 0}
                   >
-                    {dueCards > 0 ? 'Bắt đầu ôn tập' : 'Mở sổ tay'}
+                    {dueCards > 0 ? tr('Bắt đầu ôn tập') : tr('Mở sổ tay')}
                     <Icon name="arrow_forward" className="text-[16px]" />
                   </ActionLink>
                 </div>
@@ -488,10 +491,10 @@ export default function HomeLearner({ data = null }) {
                            bg-white p-5"
               >
                 <h2 className="text-[15px] font-medium">
-                  Kết quả theo kỹ năng
+                  {tr('Kết quả theo kỹ năng')}
                 </h2>
                 <p className="mt-1 text-[11px] text-[#A08D97]">
-                  Dựa trên các bài luyện đã hoàn thành.
+                  {tr('Dựa trên các bài luyện đã hoàn thành.')}
                 </p>
 
                 <div className="mt-5 space-y-4">
@@ -511,10 +514,10 @@ export default function HomeLearner({ data = null }) {
                           className="mb-2 flex justify-between
                                      text-[12px] text-[#8C7480]"
                         >
-                          <span>{skill.label}</span>
+                          <span>{tr(skill.label)}</span>
                           <span>{percent === null ? '—' : `${percent}%`}</span>
                         </div>
-                        <ProgressBar value={value} label={skill.label} />
+                        <ProgressBar value={value} label={tr(skill.label)} />
                       </div>
                     );
                   })}
@@ -525,7 +528,7 @@ export default function HomeLearner({ data = null }) {
                     className="mt-4 border-t border-[#F0E7EC]
                                pt-3 text-[12px] leading-5 text-[#A08D97]"
                   >
-                    Hoàn thành một bài thi thử để có thêm kết quả.
+                    {tr('Hoàn thành một bài thi thử để có thêm kết quả.')}
                   </p>
                 )}
 
@@ -535,7 +538,7 @@ export default function HomeLearner({ data = null }) {
                     className="mt-4 inline-flex items-center gap-1
                                text-[12px] text-[#AD7389]"
                   >
-                    Xem kết quả
+                    {tr('Xem kết quả')}
                     <Icon name="arrow_forward" className="text-[15px]" />
                   </Link>
                 )}
@@ -552,7 +555,7 @@ export default function HomeLearner({ data = null }) {
                       className="text-[18px] text-[#B2778D]"
                     />
                     <h2 className="text-[13px] font-medium">
-                      Gợi ý từ Haru
+                      {tr('Gợi ý từ Haru')}
                     </h2>
                   </div>
 
@@ -566,7 +569,7 @@ export default function HomeLearner({ data = null }) {
                       className="mt-2 inline-flex items-center gap-1
                                  text-[12px] font-medium text-[#AD3155]"
                     >
-                      Xem thêm
+                      {tr('Xem thêm')}
                       <Icon name="arrow_forward" className="text-[15px]" />
                     </Link>
                   )}

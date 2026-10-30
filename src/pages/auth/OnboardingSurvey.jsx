@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
 import { getSession, patchSession } from '../../auth/session.js';
+import LanguageSwitch from '../../components/LanguageSwitch.jsx';
 import { useSetJlptGoalMutation } from '../../hooks/useAuth.js';
 import { prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
+import { useLocale } from '../../i18n/locale.js';
 
 const LEVELS = [
   {
@@ -46,6 +48,7 @@ function Icon({ name, className = '' }) {
 }
 
 export default function OnboardingSurvey() {
+  const { locale, tr } = useLocale();
   const navigate = useNavigate();
   const session = getSession();
   const goalMutation = useSetJlptGoalMutation();
@@ -88,7 +91,7 @@ export default function OnboardingSurvey() {
         },
         onError: (err) => {
           setError(
-            err?.message || 'Không lưu được mục tiêu. Vui lòng thử lại.',
+            err?.message || tr('Không lưu được mục tiêu. Vui lòng thử lại.'),
           );
         },
       },
@@ -155,7 +158,7 @@ export default function OnboardingSurvey() {
 
           <div className="relative mt-7 lg:mt-10">
             <p className="text-[12px] font-medium text-[#EBC7D2]">
-              Thiết lập mục tiêu ôn luyện
+              {tr('Thiết lập mục tiêu ôn luyện')}
             </p>
 
             <h1
@@ -163,25 +166,24 @@ export default function OnboardingSurvey() {
                          font-semibold leading-[1.25]
                          tracking-tight lg:text-[34px]"
             >
-              Bắt đầu từ
+              {tr('Bắt đầu từ')}
               <br />
-              mục tiêu của bạn.
+              {tr('mục tiêu của bạn.')}
             </h1>
 
             <p
               className="mt-4 max-w-[320px] text-[13px]
                          leading-6 text-[#EDD4DC]"
             >
-              Chọn cấp độ từ N5 đến N2 và thời gian phù hợp
-              để bắt đầu ôn luyện cùng RikiPath.
+              {tr('Chọn cấp độ từ N5 đến N2 và thời gian phù hợp để bắt đầu ôn luyện cùng RikiPath.')}
             </p>
           </div>
 
           <ol className="relative mt-7 hidden space-y-4 lg:block">
             {[
-              ['01', 'Chọn cấp độ', 'Xác định mục tiêu JLPT của bạn.'],
-              ['02', 'Chọn thời gian', 'Dành thời gian ôn luyện mỗi ngày.'],
-              ['03', 'Bắt đầu ôn luyện', 'Luyện tập và xem lại kết quả.'],
+              ['01', tr('Chọn cấp độ'), tr('Xác định mục tiêu JLPT của bạn.')],
+              ['02', tr('Chọn thời gian'), tr('Dành thời gian ôn luyện mỗi ngày.')],
+              ['03', tr('Bắt đầu ôn luyện'), tr('Luyện tập và xem lại kết quả.')],
             ].map(([number, title, description]) => (
               <li key={number} className="flex items-start gap-3">
                 <span
@@ -214,35 +216,37 @@ export default function OnboardingSurvey() {
               className="mt-0.5 shrink-0 text-[18px]"
             />
             <p>
-              Chọn thời lượng bạn có thể duy trì đều đặn
-              mỗi ngày.
+              {tr('Chọn thời lượng bạn có thể duy trì đều đặn mỗi ngày.')}
             </p>
           </div>
         </aside>
 
         {/* Chọn mục tiêu */}
         <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
+          <div className="mb-4 flex justify-end">
+            <LanguageSwitch className="inline-flex items-center gap-1 rounded-lg border border-[#EAE2E6] bg-[#FCF7F9] px-2.5 py-1 text-xs font-semibold text-[#6F5C66]" />
+          </div>
           <header>
             <p className="text-[12px] font-medium text-[#AD526F]">
-              Mục tiêu của bạn
+              {tr('Mục tiêu của bạn')}
             </p>
 
             <h2
               className="mt-2 text-[25px] font-semibold
                          leading-tight tracking-tight sm:text-[28px]"
             >
-              Bạn muốn ôn luyện cấp độ nào?
+              {tr('Bạn muốn ôn luyện cấp độ nào?')}
             </h2>
 
             <p className="mt-2 text-[13px] leading-6 text-[#8A7A82]">
-              Chọn cấp độ JLPT bạn đang hướng đến.
+              {tr('Chọn cấp độ JLPT bạn đang hướng đến.')}
             </p>
           </header>
 
           <form onSubmit={handleSubmit} className="mt-5">
             <fieldset disabled={busy}>
               <legend className="sr-only">
-                Cấp độ JLPT mục tiêu
+                {tr('Cấp độ JLPT mục tiêu')}
               </legend>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -324,7 +328,7 @@ export default function OnboardingSurvey() {
                             className="mt-1 text-[12px]
                                        font-medium text-[#8C6E7A]"
                           >
-                            {level.title}
+                            {tr(level.title)}
                           </p>
 
                           <p
@@ -332,7 +336,7 @@ export default function OnboardingSurvey() {
                             className="mt-1 text-[12px] leading-5
                                        text-[#94858C]"
                           >
-                            {level.desc}
+                            {tr(level.desc)}
                           </p>
                         </div>
                       </div>
@@ -348,11 +352,11 @@ export default function OnboardingSurvey() {
               className="mt-5 border-t border-[#F0E8EC] pt-5"
             >
               <legend className="sr-only">
-                Thời gian ôn luyện mỗi ngày
+                {tr('Thời gian ôn luyện mỗi ngày')}
               </legend>
 
               <h3 className="text-[14px] font-medium">
-                Bạn dành bao nhiêu phút ôn luyện mỗi ngày?
+                {tr('Bạn dành bao nhiêu phút ôn luyện mỗi ngày?')}
               </h3>
 
               <div className="mt-3 grid grid-cols-5 gap-2">
@@ -370,7 +374,7 @@ export default function OnboardingSurvey() {
                           setMinutes(value);
                           setError('');
                         }}
-                        aria-label={`${value} phút mỗi ngày`}
+                        aria-label={locale === 'ja' ? `1日${value}分` : `${value} phút mỗi ngày`}
                         className="peer sr-only"
                       />
 
@@ -390,7 +394,7 @@ export default function OnboardingSurvey() {
                       >
                         {value}
                         <span className="ml-1 hidden sm:inline">
-                          phút
+                          {tr('phút')}
                         </span>
                       </span>
                     </label>
@@ -399,7 +403,7 @@ export default function OnboardingSurvey() {
               </div>
 
               <p className="mt-2 text-[11px] text-[#A08E97]">
-                Chọn thời gian phù hợp với lịch sinh hoạt của bạn.
+                {tr('Chọn thời gian phù hợp với lịch sinh hoạt của bạn.')}
               </p>
             </fieldset>
 
@@ -414,9 +418,11 @@ export default function OnboardingSurvey() {
               />
 
               <p className="text-[12px] text-[#8C6E7A]">
-                Mục tiêu đã chọn:
+                {tr('Mục tiêu đã chọn:')}
                 <strong className="ml-1 font-medium text-[#9E3658]">
-                  JLPT {selectedLevel.name} · {minutes} phút/ngày
+                  {locale === 'ja'
+                    ? `JLPT ${selectedLevel.name} · 1日${minutes}分`
+                    : `JLPT ${selectedLevel.name} · ${minutes} phút/ngày`}
                 </strong>
               </p>
             </div>
@@ -453,12 +459,12 @@ export default function OnboardingSurvey() {
                     className="animate-spin text-[18px]"
                   />
                   {redirecting
-                    ? 'Đang chuyển trang…'
-                    : 'Đang lưu mục tiêu…'}
+                    ? tr('Đang chuyển trang…')
+                    : tr('Đang lưu mục tiêu…')}
                 </>
               ) : (
                 <>
-                  Lưu mục tiêu và tiếp tục
+                  {tr('Lưu mục tiêu và tiếp tục')}
                   <Icon
                     name="arrow_forward"
                     className="text-[18px]"
@@ -479,7 +485,7 @@ export default function OnboardingSurvey() {
                            focus-visible:ring-[#D94B68]/30
                            disabled:opacity-40"
               >
-                Để sau, vào trang chủ
+                {tr('Để sau, vào trang chủ')}
               </button>
             </div>
           </form>

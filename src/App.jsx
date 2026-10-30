@@ -18,10 +18,8 @@ import {
   Dashboard,
   LessonList,
   LessonPlayer,
-  LessonComplete,
   RoadmapJLPT,
   SentenceStudio,
-  KanjiStudio,
   KanjiNotebook,
   VocabularyNotebook,
   DailySRS,
@@ -51,7 +49,6 @@ import {
   ConsultationRequestDetail,
   WorkSchedule,
   TextConsultationReply,
-  SenseiProfile,
   ConsultationSessionDetail,
   ConsultationReceipt,
   LocalCheckout,
@@ -176,10 +173,8 @@ export default function App() {
             <Route path={withSlash('/riki/essay')} element={(<LearnerEssayPage />)} />
             <Route path={withSlash('/lessons')} element={(<LessonList />)} />
             <Route path={withSlash('/lesson-player')} element={(<LessonPlayer />)} />
-            <Route path={withSlash('/lesson-complete')} element={(<LessonComplete />)} />
             <Route path={withSlash('/roadmap')} element={(<RoadmapJLPT />)} />
             <Route path={withSlash('/sentence-studio')} element={(<SentenceStudio />)} />
-            <Route path={withSlash('/kanji-studio')} element={(<KanjiStudio />)} />
             <Route path={withSlash('/kanji-notebook')} element={(<KanjiNotebook />)} />
             <Route path={withSlash('/vocabulary')} element={(<VocabularyNotebook />)} />
             <Route path={withSlash('/daily-srs')} element={(<DailySRS />)} />
@@ -204,7 +199,6 @@ export default function App() {
             <Route path={withSlash('/payment/local')} element={<ProtectedRoute allowedRoles={['Learner']}><LocalCheckout /></ProtectedRoute>} />
             <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><PaymentReturnToReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><PaymentReturnToReceipt /></ProtectedRoute>} />
-            <Route path={withSlash('/sensei-profile')} element={<SenseiProfile />} />
             <Route path={withSlash('/consultation-session')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationSessionDetail /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-receipt')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-room')} element={<ConsultationRoom />} />

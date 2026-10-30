@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { useLearnerHome } from '../../hooks/useLearnerHome.js';
 
 const LEVELS = ['N5', 'N4', 'N3', 'N2'];
@@ -137,6 +138,7 @@ function StageDots({ stage }) {
 }
 
 export default function VocabularyNotebook() {
+  const { locale, tr } = useLocale();
   const { pathname } = useLocation();
   const { profile, streak, srs } = useLearnerHome();
   const searchRef = useRef(null);
@@ -227,12 +229,12 @@ export default function VocabularyNotebook() {
         word,
         reading,
         hanviet: draft.hanviet.trim() || '—',
-        meaning: draft.meaning.trim() || 'Chưa có nghĩa',
+        meaning: draft.meaning.trim() || tr("Chưa có nghĩa"),
         level: draft.level,
-        tag: 'Vừa thêm',
+        tag: tr("Vừa thêm"),
         status: 'new',
         stage: 0,
-        lastReview: 'Vừa thêm',
+        lastReview: tr("Vừa thêm"),
       },
       ...current,
     ]);
@@ -243,11 +245,11 @@ export default function VocabularyNotebook() {
   }
 
   const reviewLabel = Number.isFinite(dueCount)
-    ? `Bắt đầu ôn tập (${dueCount} từ)`
-    : 'Bắt đầu ôn tập';
+    ? (locale === 'ja' ? `復習を始める（${dueCount}語）` : `Bắt đầu ôn tập (${dueCount} từ)`)
+    : tr('Bắt đầu ôn tập');
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Sổ từ">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Sổ từ")}>
       <main
         data-page="VocabularyNotebook"
         className="mx-auto max-w-[1180px] px-5 py-6
@@ -262,16 +264,12 @@ export default function VocabularyNotebook() {
               </span>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-[18px] font-semibold tracking-normal">
-                    Sổ tay Từ vựng
-                  </h1>
+                  <h1 className="text-[18px] font-semibold tracking-normal">{tr('Sổ tay Từ vựng')}</h1>
                   <span className="rounded-full bg-[#FCEEF4] px-2.5 py-0.5 text-[11px] font-medium text-[#AD3155]">
-                    {levelName || 'Minh họa'}
+                    {levelName || tr("Minh họa")}
                   </span>
                 </div>
-                <p className="mt-1 text-[13px] leading-5 text-[#8C7782]">
-                  Danh sách mẫu để xem sổ từ. Từ chưa được lưu vào tài khoản.
-                </p>
+                <p className="mt-1 text-[13px] leading-5 text-[#8C7782]">{tr('Danh sách mẫu để xem sổ từ. Từ chưa được lưu vào tài khoản.')}</p>
               </div>
             </div>
 
@@ -281,13 +279,13 @@ export default function VocabularyNotebook() {
                 <span>
                   <span className="block text-[12px] font-medium leading-tight text-[#AD3155]">
                     {typeof streakDays === 'number'
-                      ? `Chuỗi ${streakDays} ngày`
-                      : 'Chuỗi học'}
+                      ? (locale === 'ja' ? `${streakDays}日連続` : `Chuỗi ${streakDays} ngày`)
+                      : tr('Chuỗi học')}
                   </span>
                   <span className="block text-[11px] leading-tight text-[#967F8A]">
                     {Number.isFinite(dueCount)
-                      ? `Hôm nay còn ${dueCount} thẻ đến hạn`
-                      : 'Số thẻ đến hạn đang tải'}
+                      ? (locale === 'ja' ? `今日は期限のカードが${dueCount}枚` : `Hôm nay còn ${dueCount} thẻ đến hạn`)
+                      : tr('Số thẻ đến hạn đang tải')}
                   </span>
                 </span>
               </div>
@@ -297,9 +295,7 @@ export default function VocabularyNotebook() {
                 onClick={() => searchRef.current?.focus()}
                 className="hidden h-10 items-center gap-2 rounded-xl border border-[#EADFE5] bg-white px-3 text-[13px] text-[#8C7782] sm:inline-flex"
               >
-                <Icon name="search" className="text-[16px]" />
-                Tìm nhanh
-                <kbd className="rounded bg-[#F7EEF2] px-1.5 py-0.5 text-[10px] text-[#8C7782]">
+                <Icon name="search" className="text-[16px]" />{tr('Tìm nhanh')}<kbd className="rounded bg-[#F7EEF2] px-1.5 py-0.5 text-[10px] text-[#8C7782]">
                   Ctrl K
                 </kbd>
               </button>
@@ -318,9 +314,9 @@ export default function VocabularyNotebook() {
         <section className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-[18px] font-semibold">Từ trong sổ</h2>
+              <h2 className="text-[18px] font-semibold">{tr('Từ trong sổ')}</h2>
               <span className="rounded-full bg-[#FCEEF4] px-2.5 py-0.5 text-[12px] font-medium text-[#AD3155]">
-                {visible.length} từ
+                {locale === 'ja' ? `${visible.length}語` : `${visible.length} từ`}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -329,26 +325,20 @@ export default function VocabularyNotebook() {
                 onClick={toggleVisible}
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F1F3] px-3 text-[13px] text-[#6F5C66]"
               >
-                <Icon name="checklist" className="text-[18px]" />
-                Chọn hàng loạt
-              </button>
+                <Icon name="checklist" className="text-[18px]" />{tr('Chọn hàng loạt')}</button>
               <button
                 type="button"
                 onClick={() => downloadCsv(visible)}
                 disabled={visible.length === 0}
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F1F3] px-3 text-[13px] text-[#6F5C66] disabled:opacity-50"
               >
-                <Icon name="ios_share" className="text-[18px]" />
-                Xuất CSV
-              </button>
+                <Icon name="ios_share" className="text-[18px]" />{tr('Xuất CSV')}</button>
               <button
                 type="button"
                 onClick={() => setAdding((open) => !open)}
                 className="inline-flex h-9 items-center gap-1 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
               >
-                <Icon name="add" className="text-[18px]" />
-                Thêm từ
-              </button>
+                <Icon name="add" className="text-[18px]" />{tr('Thêm từ')}</button>
             </div>
           </div>
 
@@ -360,35 +350,35 @@ export default function VocabularyNotebook() {
               <input
                 value={draft.word}
                 onChange={(event) => setDraft({ ...draft, word: event.target.value })}
-                placeholder="Từ"
-                aria-label="Từ"
+                placeholder={tr("Từ")}
+                aria-label={tr("Từ")}
                 className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155] sm:col-span-1"
               />
               <input
                 value={draft.reading}
                 onChange={(event) => setDraft({ ...draft, reading: event.target.value })}
-                placeholder="Cách đọc"
-                aria-label="Cách đọc"
+                placeholder={tr("Cách đọc")}
+                aria-label={tr("Cách đọc")}
                 className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
               />
               <input
                 value={draft.hanviet}
                 onChange={(event) => setDraft({ ...draft, hanviet: event.target.value })}
-                placeholder="Hán Việt"
-                aria-label="Hán Việt"
+                placeholder={tr("Hán Việt")}
+                aria-label={tr("Hán Việt")}
                 className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]"
               />
               <input
                 value={draft.meaning}
                 onChange={(event) => setDraft({ ...draft, meaning: event.target.value })}
-                placeholder="Nghĩa"
-                aria-label="Nghĩa"
+                placeholder={tr("Nghĩa")}
+                aria-label={tr("Nghĩa")}
                 className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155] sm:col-span-2"
               />
               <div className="flex gap-2">
                 <select
                   value={draft.level}
-                  aria-label="Cấp độ"
+                  aria-label={tr("Cấp độ")}
                   onChange={(event) => setDraft({ ...draft, level: event.target.value })}
                   className="h-9 flex-1 rounded-lg border border-[#EADFE5] bg-white px-2 text-[13px]"
                 >
@@ -399,13 +389,9 @@ export default function VocabularyNotebook() {
                 <button
                   type="submit"
                   className="h-9 rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white"
-                >
-                  Lưu
-                </button>
+                >{tr('Lưu')}</button>
               </div>
-              <p className="text-[11px] text-[#967F8A] sm:col-span-6">
-                Từ thêm ở đây chỉ hiện trên trình duyệt này.
-              </p>
+              <p className="text-[11px] text-[#967F8A] sm:col-span-6">{tr('Từ thêm ở đây chỉ hiện trên trình duyệt này.')}</p>
             </form>
           )}
 
@@ -419,7 +405,7 @@ export default function VocabularyNotebook() {
                 ref={searchRef}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm Kanji, cách đọc, Hán Việt, nghĩa"
+                placeholder={tr("Tìm Kanji, cách đọc, Hán Việt, nghĩa")}
                 className="h-10 w-full rounded-xl bg-[#F7F1F3] pl-10 pr-3 text-[13px] outline-none focus:bg-white focus:ring-2 focus:ring-[#AD3155]/20"
               />
             </label>
@@ -437,7 +423,7 @@ export default function VocabularyNotebook() {
                       active ? 'bg-white font-medium text-[#AD3155] shadow-sm' : 'text-[#8C7782]'
                     }`}
                   >
-                    {item === 'all' ? 'Tất cả' : item}
+                    {item === 'all' ? tr("Tất cả") : item}
                   </button>
                 );
               })}
@@ -445,9 +431,9 @@ export default function VocabularyNotebook() {
 
             <div className="flex flex-wrap gap-1.5">
               {[
-                ['due', `Cần ôn (${counts.due ?? 0})`],
-                ['known', `Nhớ sâu (${counts.known ?? 0})`],
-                ['new', `Mới lưu (${counts.new ?? 0})`],
+                ['due', locale === 'ja' ? `要復習 (${counts.due ?? 0})` : `Cần ôn (${counts.due ?? 0})`],
+                ['known', locale === 'ja' ? `定着 (${counts.known ?? 0})` : `Nhớ sâu (${counts.known ?? 0})`],
+                ['new', locale === 'ja' ? `新しく保存 (${counts.new ?? 0})` : `Mới lưu (${counts.new ?? 0})`],
               ].map(([id, label]) => {
                 const active = status === id;
                 return (
@@ -478,26 +464,24 @@ export default function VocabularyNotebook() {
                   <th className="w-12 py-3 pl-4">
                     <input
                       type="checkbox"
-                      aria-label="Chọn các từ đang hiện"
+                      aria-label={tr("Chọn các từ đang hiện")}
                       checked={allVisibleSelected}
                       onChange={toggleVisible}
                       className="accent-[#AD3155]"
                     />
                   </th>
-                  <th className="px-3 py-3 font-medium">Từ</th>
-                  <th className="px-3 py-3 font-medium">Hán Việt và nghĩa</th>
-                  <th className="px-3 py-3 font-medium">Cấp độ</th>
+                  <th className="px-3 py-3 font-medium">{tr('Từ')}</th>
+                  <th className="px-3 py-3 font-medium">{tr('Hán Việt và nghĩa')}</th>
+                  <th className="px-3 py-3 font-medium">{tr('Cấp độ')}</th>
                   <th className="px-3 py-3 font-medium">SRS</th>
-                  <th className="px-3 py-3 font-medium">Lần ôn</th>
-                  <th className="py-3 pr-4 text-right font-medium">Thao tác</th>
+                  <th className="px-3 py-3 font-medium">{tr('Lần ôn')}</th>
+                  <th className="py-3 pr-4 text-right font-medium">{tr('Thao tác')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3E7EC] text-[13px]">
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-[#967F8A]">
-                      Không có từ khớp bộ lọc.
-                    </td>
+                    <td colSpan={7} className="px-4 py-12 text-center text-[#967F8A]">{tr('Không có từ khớp bộ lọc.')}</td>
                   </tr>
                 )}
                 {visible.map((word) => {
@@ -508,7 +492,7 @@ export default function VocabularyNotebook() {
                       <td className="py-3 pl-4">
                         <input
                           type="checkbox"
-                          aria-label={`Chọn ${word.word}`}
+                          aria-label={locale === 'ja' ? `${word.word}を選択` : `Chọn ${word.word}`}
                           checked={checked}
                           onChange={() => toggle(word.id)}
                           className="accent-[#AD3155]"
@@ -534,7 +518,7 @@ export default function VocabularyNotebook() {
                           </div>
                           <button
                             type="button"
-                            aria-label={`Nghe ${word.word}`}
+                            aria-label={locale === 'ja' ? `${word.word}を聞く` : `Nghe ${word.word}`}
                             onClick={() => speakJapanese(word.word)}
                             className="mt-4 text-[#B07A90] hover:text-[#AD3155]"
                           >
@@ -544,9 +528,9 @@ export default function VocabularyNotebook() {
                       </td>
                       <td className="max-w-[240px] px-3 py-3">
                         <p className="text-[11px] uppercase tracking-wide text-[#A08B93]">
-                          {word.hanviet}
+                          {tr(word.hanviet)}
                         </p>
-                        <p className="mt-0.5 truncate">{word.meaning}</p>
+                        <p className="mt-0.5 truncate">{tr(word.meaning)}</p>
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-1">
@@ -554,7 +538,7 @@ export default function VocabularyNotebook() {
                             {word.level}
                           </span>
                           <span className="rounded-full bg-[#F7F1F3] px-2 py-0.5 text-[11px] text-[#8C7782]">
-                            {word.tag}
+                            {tr(word.tag)}
                           </span>
                         </div>
                       </td>
@@ -562,16 +546,16 @@ export default function VocabularyNotebook() {
                         <div className="flex items-center gap-2">
                           <StageDots stage={word.stage} />
                           <span className={`text-[11px] ${state?.tone === 'due' ? 'font-medium text-[#9E2A4B]' : 'text-[#8C7782]'}`}>
-                            {state?.label}
+                            {tr(state?.label)}
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-[#8C7782]">{word.lastReview}</td>
+                      <td className="px-3 py-3 text-[#8C7782]">{tr(word.lastReview)}</td>
                       <td className="py-3 pr-4 text-right">
                         {word.id === 'keiken' && (
                           <Link
                             to="/vocabulary-detail"
-                            aria-label="Xem chi tiết 経験"
+                            aria-label={tr("Xem chi tiết 経験")}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8C7782] hover:bg-[#F7F1F3] hover:text-[#49353F]"
                           >
                             <Icon name="visibility" className="text-[18px]" />
@@ -589,23 +573,17 @@ export default function VocabularyNotebook() {
 
       {selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-2xl bg-[#3F3038] px-4 py-3 text-white shadow-lg">
-          <p className="text-[13px]">
-            Đã chọn <strong>{selected.size}</strong> từ mẫu
-          </p>
+          <p className="text-[13px]">{tr("Đã chọn")}<strong>{selected.size}</strong>{tr("từ mẫu")}</p>
           <button
             type="button"
             onClick={() => setSelected(new Set())}
             className="rounded-xl bg-white/10 px-3 py-1.5 text-[12px]"
-          >
-            Bỏ chọn
-          </button>
+          >{tr('Bỏ chọn')}</button>
           <Link
             to="/daily-srs"
             className="inline-flex items-center gap-1 rounded-xl bg-[#AD3155] px-3 py-1.5 text-[12px] font-medium"
           >
-            <Icon name="bolt" className="text-[16px]" filled />
-            Ôn tập đến hạn
-          </Link>
+            <Icon name="bolt" className="text-[16px]" filled />{tr("Ôn tập đến hạn")}</Link>
         </div>
       )}
     </LearnerShell>

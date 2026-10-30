@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import { useLocale } from '../../i18n/locale.js';
 import { useWebRtcMeeting } from '../../hooks/useWebRtcMeeting.js';
 import {
   Mic,
@@ -62,6 +63,7 @@ function ParticipantTile({
   connectionId,
   canMute = false,
 }) {
+  const { tr } = useLocale();
   const showVideo = !!stream && isCamOn;
   const isMentor = role?.toLowerCase() === 'mentor';
 
@@ -90,7 +92,7 @@ function ParticipantTile({
                 {name}
                 {isMentor && <Shield className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />}
               </h3>
-              <p className="text-[11px] text-white/50">Camera đã tắt</p>
+              <p className="text-[11px] text-white/50">{tr("Camera đã tắt")}</p>
             </div>
           )}
         </div>
@@ -101,13 +103,13 @@ function ParticipantTile({
         <div className="flex items-center gap-1.5 min-w-0">
           {!isMicOn ? <MicOff className="w-3.5 h-3.5 text-rose-400 shrink-0" /> : <Mic className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
           <span className="truncate max-w-[120px] sm:max-w-[160px]">
-            {name} {isSelf && '(Bạn)'}
+            {name} {isSelf && tr('(Bạn)')}
           </span>
           <span
             className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${isMentor ? 'bg-[#D94B68]/30 text-[#F472B6] border border-[#D94B68]/40' : 'bg-white/10 text-white/70'
               }`}
           >
-            {isMentor ? 'Mentor' : 'Learner'}
+            {isMentor ? tr("Mentor") : 'Learner'}
           </span>
         </div>
 
@@ -117,10 +119,10 @@ function ParticipantTile({
             type="button"
             onClick={() => onMuteParticipant(connectionId)}
             className="hidden group-hover:flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600/80 hover:bg-rose-600 text-[10px] font-bold text-white transition-all cursor-pointer"
-            title="Tắt mic học viên này"
+            title={tr("Tắt mic học viên này")}
           >
             <MicOff className="w-3 h-3" />
-            <span>Tắt Mic</span>
+            <span>{tr("Tắt Mic")}</span>
           </button>
         )}
       </div>
@@ -129,7 +131,7 @@ function ParticipantTile({
       {isHandRaised && (
         <div className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg animate-bounce">
           <Hand className="w-3.5 h-3.5 fill-white" />
-          {!compact && <span>Giơ tay</span>}
+          {!compact && <span>{tr("Giơ tay")}</span>}
         </div>
       )}
     </div>
@@ -141,6 +143,7 @@ export default function ConsultationRoom() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { tr } = useLocale();
 
   const roomId = pathRoomId || searchParams.get('roomId') || 'mentor-room-n3-dokkai';
 
@@ -186,9 +189,7 @@ export default function ConsultationRoom() {
     { id: 4, text: 'Hỏi đáp & Định hướng lộ trình 1-on-1', done: false },
   ]);
 
-  const [sharedNotes, setSharedNotes] = useState(
-    '【Ghi chú bài học nhóm】\n- Lưu ý các liên từ chuyển ý: しかし, ところが, それに対して.\n- Khi gặp bài đọc dài, scan nhanh câu đầu và câu cuối của từng đoạn để nắm ý chính.'
-  );
+  const [sharedNotes, setSharedNotes] = useState(() => tr('【Ghi chú bài học nhóm】\n- Lưu ý các liên từ chuyển ý: しかし, ところが, それに対して.\n- Khi gặp bài đọc dài, scan nhanh câu đầu và câu cuối của từng đoạn để nắm ý chính.'));
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -227,7 +228,7 @@ export default function ConsultationRoom() {
   // Tìm stream màn hình đang chia sẻ (nếu có)
   const presentingPeer = peers.find((p) => p.screenStream);
   const remoteScreenStream = presentingPeer?.screenStream;
-  const presenterName = presentingPeer?.name || 'Ai đó';
+  const presenterName = presentingPeer?.name || tr("Ai đó");
 
   const isPresentingRemote = !!remoteScreenStream;
   const isPresentingSelf = isScreenSharing && !!screenStream;
@@ -238,9 +239,9 @@ export default function ConsultationRoom() {
 
   const statusMap = {
     connected: { icon: Wifi, color: 'text-emerald-400', label: 'SignalR Live Hub' },
-    connecting: { icon: Radio, color: 'text-amber-400 animate-pulse', label: 'Đang kết nối...' },
-    error: { icon: Wifi, color: 'text-rose-400', label: 'Không vào được phòng' },
-    disconnected: { icon: Wifi, color: 'text-rose-400', label: 'Mất kết nối' },
+    connecting: { icon: Radio, color: 'text-amber-400 animate-pulse', label: tr("Đang kết nối...") },
+    error: { icon: Wifi, color: 'text-rose-400', label: tr("Không vào được phòng") },
+    disconnected: { icon: Wifi, color: 'text-rose-400', label: tr("Mất kết nối") },
   };
   const status = statusMap[connectionStatus] || statusMap.connecting;
   const StatusIcon = status.icon;
@@ -257,11 +258,9 @@ export default function ConsultationRoom() {
           </div>
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-bold text-white">
-                Phòng Học Nhóm Mentor · JLPT N3
-              </span>
+              <span className="truncate text-sm font-bold text-white">{tr("Phòng Học Nhóm Mentor · JLPT N3")}</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D94B68]/20 border border-[#D94B68]/40 text-[#F472B6]">
-                {totalParticipantsCount} Người
+                {totalParticipantsCount} {tr('Người')}
               </span>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-white/50">
@@ -285,12 +284,12 @@ export default function ConsultationRoom() {
             {copiedLink ? (
               <>
                 <Check className="h-3.5 w-3.5 text-emerald-600" />
-                <span className="text-emerald-600">Đã chép link</span>
+                <span className="text-emerald-600">{tr("Đã chép link")}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5 text-white/70" />
-                <span>Mời Learner</span>
+                <span>{tr("Mời Learner")}</span>
               </>
             )}
           </button>
@@ -300,7 +299,7 @@ export default function ConsultationRoom() {
             onClick={toggleFullScreen}
             type="button"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dfbfc1]/50 bg-white text-[#6F6669] shadow-sm hover:text-[#D94B68]"
-            title="Toàn màn hình"
+            title={tr("Toàn màn hình")}
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
@@ -312,7 +311,7 @@ export default function ConsultationRoom() {
             className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] px-4 py-2 text-xs font-bold text-white shadow-md shadow-[#D94B68]/25"
           >
             <PhoneOff className="h-3.5 w-3.5" />
-            <span>Rời phòng</span>
+            <span>{tr("Rời phòng")}</span>
           </button>
         </div>
       </header>
@@ -342,7 +341,7 @@ export default function ConsultationRoom() {
                       <VideoTile stream={remoteScreenStream} contain className="h-full w-full" />
                       <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md border border-white/10">
                         <ScreenShare className="w-3.5 h-3.5 text-[#F472B6]" />
-                        <span>{presenterName} đang trình bày</span>
+                        <span>{presenterName} {tr('đang trình bày')}</span>
                       </div>
                     </>
                   ) : isPresentingSelf ? (
@@ -352,7 +351,7 @@ export default function ConsultationRoom() {
                       {/* Label góc trên trái */}
                       <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md border border-white/10">
                         <ScreenShare className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                        <span className="text-emerald-300">Bạn đang chia sẻ màn hình</span>
+                        <span className="text-emerald-300">{tr("Bạn đang chia sẻ màn hình")}</span>
                       </div>
                       {/* Nút dừng góc trên phải */}
                       <button
@@ -360,9 +359,7 @@ export default function ConsultationRoom() {
                         onClick={toggleScreenShare}
                         className="absolute right-3 top-3 flex items-center gap-1.5 rounded-xl bg-[#E11D48]/90 px-3 py-1.5 text-xs font-bold text-white hover:bg-[#BE123C] backdrop-blur-md cursor-pointer shadow-lg"
                       >
-                        <ScreenShareOff className="h-3.5 w-3.5" />
-                        Dừng chia sẻ
-                      </button>
+                        <ScreenShareOff className="h-3.5 w-3.5" />{tr("Dừng chia sẻ")}</button>
                     </>
                   ) : null}
                 </div>
@@ -483,7 +480,7 @@ export default function ConsultationRoom() {
                 ? 'bg-white/10 hover:bg-white/20 text-white'
                 : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30'
                 }`}
-              title={isMicOn ? 'Tắt Micro' : 'Bật Micro'}
+              title={isMicOn ? tr("Tắt Micro") : tr("Bật Micro")}
             >
               {isMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
             </button>
@@ -496,7 +493,7 @@ export default function ConsultationRoom() {
                 ? 'bg-white/10 hover:bg-white/20 text-white'
                 : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30'
                 }`}
-              title={isCamOn ? 'Tắt Camera' : 'Bật Camera'}
+              title={isCamOn ? tr("Tắt Camera") : tr("Bật Camera")}
             >
               {isCamOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
             </button>
@@ -507,7 +504,7 @@ export default function ConsultationRoom() {
                 ? 'bg-[#E05A7A] text-white shadow-md shadow-[#E05A7A]/30'
                 : 'bg-white/10 hover:bg-white/20 text-white'
                 }`}
-              title={isScreenSharing ? 'Dừng chia sẻ màn hình' : 'Chia sẻ màn hình'}
+              title={isScreenSharing ? tr("Dừng chia sẻ màn hình") : tr("Chia sẻ màn hình")}
             >
               {isScreenSharing ? <ScreenShareOff className="w-5 h-5" /> : <ScreenShare className="w-5 h-5" />}
             </button>
@@ -520,7 +517,7 @@ export default function ConsultationRoom() {
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
                 : 'bg-white/10 hover:bg-white/20 text-white'
                 }`}
-              title={isHandRaised ? 'Hạ tay' : 'Giơ tay phát biểu'}
+              title={isHandRaised ? tr("Hạ tay") : tr("Giơ tay phát biểu")}
             >
               <Hand className="h-5 w-5" />
             </button>
@@ -532,7 +529,7 @@ export default function ConsultationRoom() {
               type="button"
               onClick={() => setLayoutMode((m) => (m === 'grid' ? 'speaker' : 'grid'))}
               className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
-              title="Chuyển chế độ xem (Lưới / Diễn giả)"
+              title={tr("Chuyển chế độ xem (Lưới / Diễn giả)")}
             >
               <Layers className="h-5 w-5" />
             </button>
@@ -545,9 +542,9 @@ export default function ConsultationRoom() {
           <div className="flex shrink-0 border-b border-white/10">
             {[
               { id: 'chat', label: 'Chat', icon: MessageSquare },
-              { id: 'participants', label: `Thành viên (${totalParticipantsCount})`, icon: Users },
-              { id: 'agenda', label: 'Nội dung', icon: BookOpen },
-              { id: 'notes', label: 'Ghi chú', icon: FileText },
+              { id: 'participants', label: `${tr('Thành viên')} (${totalParticipantsCount})`, icon: Users },
+              { id: 'agenda', label: tr("Nội dung"), icon: BookOpen },
+              { id: 'notes', label: tr("Ghi chú"), icon: FileText },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -571,7 +568,7 @@ export default function ConsultationRoom() {
                 {chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-2">
                     <MessageSquare className="w-8 h-8 stroke-1" />
-                    <p className="text-xs">Chưa có tin nhắn trong phòng.<br />Hãy đặt câu hỏi cho Mentor!</p>
+                    <p className="text-xs">{tr("Chưa có tin nhắn trong phòng.")}<br />{tr("Hãy đặt câu hỏi cho Mentor!")}</p>
                   </div>
                 ) : (
                   chatMessages.map((msg) => (
@@ -611,13 +608,13 @@ export default function ConsultationRoom() {
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
-                    placeholder="Nhập tin nhắn tới mọi người..."
+                    placeholder={tr("Nhập tin nhắn tới mọi người...")}
                     className="flex-1 rounded-xl bg-white/5 border border-white/10 px-3.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#E05A7A]"
                   />
                   <button
                     type="submit"
                     className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D94B68] text-white shadow-sm shadow-[#D94B68]/25"
-                    title="Gửi"
+                    title={tr("Gửi")}
                   >
                     <Send className="h-4 w-4" />
                   </button>
@@ -630,7 +627,7 @@ export default function ConsultationRoom() {
           {activeTab === 'participants' && (
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider mb-2">
-                Thành viên trong phòng ({totalParticipantsCount})
+                {tr('Thành viên trong phòng')} ({totalParticipantsCount})
               </h4>
 
               {/* Bản thân */}
@@ -641,7 +638,7 @@ export default function ConsultationRoom() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-white flex items-center gap-1">
-                      {currentUser.name} <span className="text-[10px] text-emerald-400">(Bạn)</span>
+                      {currentUser.name} <span className="text-[10px] text-emerald-400">{tr('(Bạn)')}</span>
                     </p>
                     <p className="text-[10px] text-white/50">{currentUser.role}</p>
                   </div>
@@ -681,7 +678,7 @@ export default function ConsultationRoom() {
                         type="button"
                         onClick={() => muteParticipant(peer.connectionId)}
                         className="ml-1 p-1 rounded bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white transition-all cursor-pointer"
-                        title="Tắt mic"
+                        title={tr("Tắt mic")}
                       >
                         <MicOff className="w-3 h-3" />
                       </button>
@@ -696,11 +693,9 @@ export default function ConsultationRoom() {
           {activeTab === 'agenda' && (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider">
-                  Mục tiêu buổi học
-                </h4>
+                <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider">{tr("Mục tiêu buổi học")}</h4>
                 <span className="text-[11px] text-[#E05A7A] font-bold">
-                  {agendaList.filter((a) => a.done).length}/{agendaList.length} Hoàn thành
+                  {agendaList.filter((a) => a.done).length}/{agendaList.length} {tr('Hoàn thành')}
                 </span>
               </div>
               <div className="space-y-2">
@@ -721,7 +716,7 @@ export default function ConsultationRoom() {
                       {item.done && <Check className="w-3 h-3 stroke-3" />}
                     </div>
                     <span className={`text-xs ${item.done ? 'line-through text-white/50' : ''}`}>
-                      {item.text}
+                      {tr(item.text)}
                     </span>
                   </button>
                 ))}
@@ -732,12 +727,12 @@ export default function ConsultationRoom() {
           {/* TAB 4: SHARED NOTES */}
           {activeTab === 'notes' && (
             <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
-              <h4 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A59B9E]">Ghi chú chung</h4>
+              <h4 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A59B9E]">{tr("Ghi chú chung")}</h4>
               <textarea
                 value={sharedNotes}
                 onChange={(e) => setSharedNotes(e.target.value)}
                 className="flex-1 w-full min-h-[300px] p-3 rounded-xl bg-white/5 border border-white/10 text-xs text-white/90 font-mono leading-relaxed focus:outline-none focus:border-[#E05A7A] resize-none"
-                placeholder="Ghi chú kiến thức trọng tâm..."
+                placeholder={tr("Ghi chú kiến thức trọng tâm...")}
               />
             </div>
           )}

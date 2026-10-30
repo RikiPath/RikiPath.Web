@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LearnerShell } from '../../components/shells';
 import { completeLesson, getLessonDetail } from '../../api/lessons.js';
+import { useLocale } from '../../i18n/locale.js';
 
 const focus =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
@@ -84,11 +85,12 @@ function quizChoices(items, part, current, cursor) {
 }
 
 function StudyCard({ part, item, revealed, onReveal }) {
+  const { tr } = useLocale();
   const face = faceOf(part, item);
   return (
     <div className="overflow-hidden rounded-3xl border border-[#F0E4EA] bg-white shadow-[0_12px_32px_rgba(90,40,60,0.06)]">
       <button type="button" onClick={onReveal} className={`block w-full px-6 py-8 text-center ${focus}`}>
-        <p className="text-[12px] font-medium text-[#A08B96]">{revealed ? 'Nghĩa' : 'Bấm để lật nghĩa'}</p>
+        <p className="text-[12px] font-medium text-[#A08B96]">{revealed ? tr('Nghĩa') : tr('Bấm để lật nghĩa')}</p>
         <span className={`mx-auto mt-5 flex items-center justify-center rounded-3xl bg-[#FCF4F8] text-[#AD3155] ${face.large ? 'h-36 w-36 text-[76px]' : 'min-h-28 px-6 text-[36px] leading-tight'}`} style={jp}>
           {face.front}
         </span>
@@ -99,7 +101,7 @@ function StudyCard({ part, item, revealed, onReveal }) {
               <div className="flex flex-wrap justify-center gap-2">
                 {face.chips.map((chip) => (
                   <span key={chip.label} className="rounded-full bg-[#FCF4F8] px-3 py-1 text-[12px] text-[#8B2344]">
-                    {chip.label}: <span style={chip.vi ? vi : jp}>{chip.value}</span>
+                    {tr(chip.label)}: <span style={chip.vi ? vi : jp}>{chip.value}</span>
                   </span>
                 ))}
               </div>
@@ -118,12 +120,13 @@ function StudyCard({ part, item, revealed, onReveal }) {
 }
 
 function QuizCard({ part, item, items, cursor, pick, onPick }) {
+  const { tr } = useLocale();
   const prompt = quizPrompt(part, item);
   const choices = quizChoices(items, part, item, cursor);
   const correct = itemKey(part, item);
   return (
     <div className="rounded-3xl border border-[#F0E4EA] bg-white px-6 py-7 shadow-[0_12px_32px_rgba(90,40,60,0.06)]">
-      <p className="text-center text-[12px] font-medium text-[#A08B96]">Chọn đáp án đúng</p>
+      <p className="text-center text-[12px] font-medium text-[#A08B96]">{tr('Chọn đáp án đúng')}</p>
       <p className="mx-auto mt-3 max-w-md text-center text-[20px] font-medium leading-8 text-[#3F3038]" style={vi}>{prompt}</p>
       <div className="mt-6 grid gap-2">
         {choices.map((choice) => {
@@ -160,6 +163,7 @@ export default function LessonPlayer() {
   const { pathname } = useLocation();
   const [params] = useSearchParams();
   const lessonId = Number(params.get('lessonId')) || null;
+  const { locale, tr } = useLocale();
   const [part, setPart] = useState('vocab');
   const [mode, setMode] = useState('learn');
   const [pick, setPick] = useState(null);
@@ -241,14 +245,14 @@ export default function LessonPlayer() {
     <LearnerShell pathname={pathname} breadcrumb="Bài học">
       <div className="min-h-screen bg-[#FAF8F7] font-['Nunito',sans-serif] text-[#3F3038]">
         <main className="mx-auto w-full max-w-[1120px] px-5 py-6 lg:px-7">
-          <Link to="/lessons/" className={`text-[13px] font-medium text-[#AD3155] hover:underline ${focus}`}>Về danh sách bài</Link>
+          <Link to="/lessons/" className={`text-[13px] font-medium text-[#AD3155] hover:underline ${focus}`}>{tr('Về danh sách bài')}</Link>
           {!lessonId && (
             <div className="mt-5 rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
-              <p className="text-[15px] font-medium text-[#806371]">Chọn một bài từ danh sách</p>
-              <p className="mt-1 text-[13px] leading-6 text-[#A18B97]">Mỗi bài mở ra từ vựng, Kanji và ngữ pháp đã được duyệt cùng nhau.</p>
+              <p className="text-[15px] font-medium text-[#806371]">{tr('Chọn một bài từ danh sách')}</p>
+              <p className="mt-1 text-[13px] leading-6 text-[#A18B97]">{tr('Mỗi bài mở ra từ vựng, Kanji và ngữ pháp đã được duyệt cùng nhau.')}</p>
             </div>
           )}
-          {query.isPending && lessonId && <p className="mt-5 text-[13px] text-[#9A8390]">Đang tải bài…</p>}
+          {query.isPending && lessonId && <p className="mt-5 text-[13px] text-[#9A8390]">{tr('Đang tải bài…')}</p>}
           {query.isError && <p role="alert" className="mt-5 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{query.error.message}</p>}
           {lesson && (
             <>
@@ -264,7 +268,7 @@ export default function LessonPlayer() {
                   onClick={() => complete.mutate()}
                   className={`inline-flex h-9 items-center rounded-lg px-3 text-[12px] font-medium ${lesson.isCompleted ? 'bg-[#F3F8F4] text-[#2F6B45]' : 'bg-[#AD3155] text-white hover:bg-[#982B4B]'} disabled:opacity-70 ${focus}`}
                 >
-                  {lesson.isCompleted ? 'Đã hoàn thành' : complete.isPending ? 'Đang lưu…' : 'Đánh dấu đã học'}
+                  {lesson.isCompleted ? tr('Đã hoàn thành') : complete.isPending ? tr('Đang lưu…') : tr('Đánh dấu đã học')}
                 </button>
               </header>
               {complete.isError && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{complete.error.message}</p>}
@@ -281,14 +285,14 @@ export default function LessonPlayer() {
                       onClick={() => setPart(item.id)}
                       className={`rounded-lg px-3 py-1.5 text-[12px] font-medium ${active ? 'bg-[#AD3155] text-white' : 'border border-[#EADFE5] bg-white text-[#826271] hover:bg-[#FCF3F7]'} ${focus}`}
                     >
-                      {item.label} ({count})
+                      {tr(item.label)} ({count})
                     </button>
                   );
                 })}
               </div>
               {items.length > 0 && (
                 <div className="flex rounded-xl bg-[#F6EEF2] p-1">
-                  {[{ id: 'learn', label: 'Học' }, { id: 'quiz', label: 'Ôn' }].map((item) => (
+                  {[{ id: 'learn', label: tr('Học') }, { id: 'quiz', label: tr('Ôn') }].map((item) => (
                     <button
                       key={item.id}
                       type="button"
@@ -304,13 +308,13 @@ export default function LessonPlayer() {
               </div>
               {!items.length ? (
                 <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
-                  <p className="text-[15px] font-medium text-[#806371]">Phần này chưa có nội dung trong bài</p>
+                  <p className="text-[15px] font-medium text-[#806371]">{tr('Phần này chưa có nội dung trong bài')}</p>
                 </div>
               ) : showList ? (
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-[13px] text-[#8C7782]">Đã nhớ {knownCount}/{items.length}</p>
-                    <button type="button" onClick={() => openAt(0)} className={`h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>Học từ đầu</button>
+                    <p className="text-[13px] text-[#8C7782]">{locale === 'ja' ? `${knownCount}/${items.length} 覚えた` : `Đã nhớ ${knownCount}/${items.length}`}</p>
+                    <button type="button" onClick={() => openAt(0)} className={`h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>{tr('Học từ đầu')}</button>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {items.map((item, index) => {
@@ -325,7 +329,7 @@ export default function LessonPlayer() {
                         >
                           <span className="truncate text-[18px] text-[#593B48]" style={jp}>{faceOf(part, item).front}</span>
                           <span className={`shrink-0 text-[11px] ${state === true ? 'text-[#2F6B45]' : state === false ? 'text-[#8A5A10]' : 'text-[#A08B96]'}`}>
-                            {state === true ? 'Đã nhớ' : state === false ? 'Học lại' : 'Học'}
+                            {state === true ? tr('Đã nhớ') : state === false ? tr('Học lại') : tr('Học')}
                           </span>
                         </button>
                       );
@@ -336,26 +340,26 @@ export default function LessonPlayer() {
                 <div className="mx-auto max-w-[640px]">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="text-[13px] text-[#8C7782]">
-                      {done ? `Đã nhớ ${knownCount}/${items.length}` : `${Math.min(cursor + 1, deck.length)}/${deck.length}`}
+                      {done ? (locale === 'ja' ? `${knownCount}/${items.length} 覚えた` : `Đã nhớ ${knownCount}/${items.length}`) : `${Math.min(cursor + 1, deck.length)}/${deck.length}`}
                     </p>
-                    <button type="button" onClick={() => setShowList(true)} className={`h-9 rounded-lg px-3 text-[12px] text-[#8C6070] hover:bg-white ${focus}`}>Danh sách</button>
+                    <button type="button" onClick={() => setShowList(true)} className={`h-9 rounded-lg px-3 text-[12px] text-[#8C6070] hover:bg-white ${focus}`}>{tr('Danh sách')}</button>
                   </div>
                   <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-[#F3E8ED]">
                     <div className="h-full rounded-full bg-[#AD3155]" style={{ width: `${items.length ? (knownCount / items.length) * 100 : 0}%` }} />
                   </div>
                   {done ? (
                     <div className="rounded-3xl border border-[#EADFE5] bg-white px-6 py-8 text-center">
-                      <p className="text-[20px] font-medium">Bạn nhớ {knownCount}/{items.length} mục</p>
+                      <p className="text-[20px] font-medium">{locale === 'ja' ? `${knownCount}/${items.length} 覚えました` : `Bạn nhớ ${knownCount}/${items.length} mục`}</p>
                       <p className="mt-2 text-[13px] leading-6 text-[#8C7782]">
-                        {missedCount ? `${missedCount} mục cần xem lại.` : 'Bạn đã nhớ hết phần này.'}
+                        {missedCount ? (locale === 'ja' ? `${missedCount} 項目を見直します。` : `${missedCount} mục cần xem lại.`) : tr('Bạn đã nhớ hết phần này.')}
                       </p>
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
                         {missedCount > 0 && (
                           <button type="button" onClick={reviewMissed} className={`h-10 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
-                            Ôn {missedCount} mục chưa nhớ
+                            {locale === 'ja' ? `未習得 ${missedCount} 項目を復習` : `Ôn ${missedCount} mục chưa nhớ`}
                           </button>
                         )}
-                        <button type="button" onClick={restart} className={`h-10 rounded-xl border border-[#E7DAE1] bg-white px-4 text-[13px] text-[#6E5360] ${focus}`}>Học lại từ đầu</button>
+                        <button type="button" onClick={restart} className={`h-10 rounded-xl border border-[#E7DAE1] bg-white px-4 text-[13px] text-[#6E5360] ${focus}`}>{tr('Học lại từ đầu')}</button>
                       </div>
                     </div>
                   ) : current && mode === 'quiz' ? (
@@ -367,7 +371,7 @@ export default function LessonPlayer() {
                         onClick={() => grade(pick === itemKey(part, current))}
                         className={`mt-4 h-11 w-full rounded-xl bg-[#AD3155] text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-40 ${focus}`}
                       >
-                        Tiếp
+                        {tr('Tiếp')}
                       </button>
                     </>
                   ) : current && (
@@ -380,7 +384,7 @@ export default function LessonPlayer() {
                           onClick={() => grade(false)}
                           className={`h-11 rounded-xl border border-[#E7DAE1] bg-white text-[13px] font-medium text-[#8A5A10] hover:bg-[#FFF6E8] disabled:opacity-40 ${focus}`}
                         >
-                          Chưa nhớ
+                          {tr('Chưa nhớ')}
                         </button>
                         <button
                           type="button"
@@ -388,7 +392,7 @@ export default function LessonPlayer() {
                           onClick={() => grade(true)}
                           className={`h-11 rounded-xl bg-[#AD3155] text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-40 ${focus}`}
                         >
-                          Nhớ rồi
+                          {tr('Nhớ rồi')}
                         </button>
                       </div>
                     </>

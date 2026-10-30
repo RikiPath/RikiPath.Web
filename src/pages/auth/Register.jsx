@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { savePendingVerify } from '../../auth/session.js';
 import { useRegisterMutation } from '../../hooks/useAuth.js';
+import LanguageSwitch from '../../components/LanguageSwitch.jsx';
+import { useLocale } from '../../i18n/locale.js';
 
 export default function Register() {
   const navigate = useNavigate();
   const registerMutation = useRegisterMutation();
+  const { t } = useLocale();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,11 +23,11 @@ export default function Register() {
     e.preventDefault();
     setError('');
     if (password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp.');
+      setError(t('passwordMismatch'));
       return;
     }
     if (password.length < 6) {
-      setError('Mật khẩu tối thiểu 6 ký tự.');
+      setError(t('passwordShort'));
       return;
     }
     const payload = {
@@ -41,7 +44,7 @@ export default function Register() {
         goToVerify(result.email || registeredEmail, result.userId);
       },
       onError: (err) => {
-        const msg = err.message || 'Đăng ký thất bại.';
+        const msg = err.message || t('registerFailed');
         if (msg.includes('Tạo tài khoản thành công')) {
           goToVerify(registeredEmail, resultUserIdFromError(err), msg);
           return;
@@ -105,7 +108,7 @@ export default function Register() {
 <div className="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
 <span className="text-xl">⛩️</span>
 <div className="text-left">
-<p className="text-[11px] font-medium text-slate-500">Mỗi ngày một bước tiến</p>
+<p className="text-[11px] font-medium text-slate-500">{t('dailyStep')}</p>
 <p className="text-xs font-bold text-sakura-700 font-serif tracking-wider">一期一会 (Ichigo Ichie)</p>
 </div>
 </div>
@@ -115,8 +118,8 @@ export default function Register() {
 <footer className="relative z-10 text-center lg:text-left mt-4">
 {/*  Floating petal decorative accent  */}
 <div className="w-2.5 h-2.5 bg-sakura-300 rotate-45 mb-4 mx-auto lg:mx-0 opacity-80"></div>
-<h2 className="text-2xl xl:text-3xl font-extrabold text-charcoal-900 tracking-tight leading-snug">{"Cùng "}<span className="text-sakura-600">RikiPath</span>{" khởi đầu hành trình tiếng Nhật trong sắc hoa anh đào\n        "}</h2>
-<p className="mt-3 text-sm text-charcoal-500 leading-relaxed max-w-lg mx-auto lg:mx-0">{"Lộ trình cá nhân hóa JLPT N5 — N1 chuẩn mực, trợ giảng AI 24/7 và cộng đồng du học sinh & người học năng động nhất.\n        "}</p>
+<h2 className="text-2xl xl:text-3xl font-extrabold text-charcoal-900 tracking-tight leading-snug">{t('registerHeadlineBefore')}<span className="text-sakura-600">RikiPath</span>{t('registerHeadlineAfter')}</h2>
+<p className="mt-3 text-sm text-charcoal-500 leading-relaxed max-w-lg mx-auto lg:mx-0">{t('registerLead')}</p>
 </footer>
 </section>
 {/*  END: LeftShowcaseColumn  */}
@@ -136,31 +139,25 @@ export default function Register() {
 </div>
 </div>
 {/*  Language Selector  */}
-<div data-purpose="language-selector">
-<button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-charcoal-200 bg-white text-xs font-semibold text-charcoal-700 hover:bg-sakura-50/50 hover:border-sakura-200 transition-colors" type="button">
-<span className="">🇻🇳</span>
-<span className="">VN</span>
-<i className="ph ph-caret-down text-xs text-charcoal-400"></i>
-</button>
-</div>
+<LanguageSwitch className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-charcoal-200 bg-white text-xs font-semibold text-charcoal-700 hover:bg-sakura-50/50 hover:border-sakura-200 transition-colors" />
 </header>
 {/*  Segmented Tab Switcher (Sign in / Sign up)  */}
 <nav className="grid grid-cols-2 p-1 bg-charcoal-100/80 rounded-xl mb-7" data-purpose="auth-tabs">
 {/*  Inactive Login Tab  */}
-<Link to="/auth" className="py-2.5 text-center text-sm font-semibold text-charcoal-500 rounded-lg hover:text-sakura-600 transition-colors">Đăng nhập</Link>
+<Link to="/auth" className="py-2.5 text-center text-sm font-semibold text-charcoal-500 rounded-lg hover:text-sakura-600 transition-colors">{t('login')}</Link>
 {/*  Active Register Tab  */}
 <a className="py-2.5 text-center text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm flex items-center justify-center gap-1.5 border border-sakura-100" href="#">
-<span className="">Đăng ký</span>
+<span className="">{t('register')}</span>
 <span className="w-1.5 h-1.5 rounded-full bg-sakura-600"></span>
 </a>
 </nav>
 {/*  Form Title & Welcoming Introduction  */}
 <div className="mb-6">
 <div className="flex items-center gap-2">
-<h2 className="text-2xl sm:text-[26px] font-extrabold text-charcoal-900 tracking-tight">Tạo tài khoản mới!</h2>
+<h2 className="text-2xl sm:text-[26px] font-extrabold text-charcoal-900 tracking-tight">{t('createTitle')}</h2>
 <span className="text-xl">🌸</span>
 </div>
-<p className="mt-1.5 text-sm text-charcoal-500">Gia nhập cộng đồng học tiếng Nhật thông minh cùng RikiPath.</p>
+<p className="mt-1.5 text-sm text-charcoal-500">{t('join')}</p>
 </div>
 {/*  Registration Form Elements  */}
 <form className="space-y-4" data-purpose="signup-form" onSubmit={handleRegister}>
@@ -168,22 +165,22 @@ export default function Register() {
   <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">
     <p>{error}</p>
     {error.toLowerCase().includes('đã được đăng ký') ? (
-      <Link className="mt-1 inline-block font-bold text-sakura-600 underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>Đi tới xác thực email</Link>
+      <Link className="mt-1 inline-block font-bold text-sakura-600 underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>{t('goVerify')}</Link>
     ) : null}
   </div>
 ) : null}
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">Họ</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">{t('lastName')}</label>
 <input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
 </div>
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">Tên</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">{t('firstName')}</label>
 <input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
 </div>
 </div>
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{"Địa chỉ email\n            "}</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{t('emailShort')}</label>
 <div className="relative">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
 <i className="ph ph-envelope-simple"></i>
@@ -193,25 +190,25 @@ export default function Register() {
 </div>
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{"Mật khẩu\n              "}</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{t('password')}</label>
 <div className="relative">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
 <i className="ph ph-lock"></i>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="password" name="password" placeholder="Tối thiểu 6 ký tự" required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-<button aria-label="Hiện mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowPassword((v) => !v)}>
+<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="password" name="password" placeholder={t('passwordMin')} required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+<button aria-label={t('showPassword')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowPassword((v) => !v)}>
 <i className="ph ph-eye text-base"></i>
 </button>
 </div>
 </div>
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{"Xác nhận mật khẩu\n              "}</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{t('confirmPassword')}</label>
 <div className="relative">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
 <i className="ph ph-shield-check"></i>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="confirm-password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-<button aria-label="Hiện xác nhận mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowConfirm((v) => !v)}>
+<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="confirm-password" name="confirmPassword" placeholder={t('confirmPlaceholder')} required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+<button aria-label={t('showConfirm')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowConfirm((v) => !v)}>
 <i className="ph ph-eye text-base"></i>
 </button>
 </div>
@@ -220,11 +217,11 @@ export default function Register() {
 {/*  Terms Agreement Checkbox  */}
 <div className="flex items-start gap-2.5 pt-1">
 <input className="mt-1 w-4 h-4 rounded border-charcoal-300 text-sakura-600 focus:ring-sakura-500 cursor-pointer" id="terms" name="terms" required type="checkbox" />
-<label className="text-xs text-charcoal-600 leading-snug cursor-pointer select-none" htmlFor="terms">{"Tôi đồng ý với "}<a className="text-sakura-600 hover:underline font-semibold" href="#">Điều khoản dịch vụ</a>{" và "}<a className="text-sakura-600 hover:underline font-semibold" href="#">Chính sách bảo mật</a>{" của RikiPath.\n            "}</label>
+<label className="text-xs text-charcoal-600 leading-snug cursor-pointer select-none" htmlFor="terms">{t('agreeTerms')} <a className="text-sakura-600 hover:underline font-semibold" href="#">{t('serviceTerms')}</a> {t('and')} <a className="text-sakura-600 hover:underline font-semibold" href="#">{t('privacy')}</a> {t('ofRiki')}</label>
 </div>
 {/*  Primary Submit CTA Button  */}
 <button className="w-full py-3 px-6 mt-3 bg-sakura-600 hover:bg-sakura-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-xl shadow-sakura-btn hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60" data-purpose="submit-button" type="submit" disabled={loading}>
-<span className="">{loading ? 'Đang tạo tài khoản...' : 'Đăng ký tài khoản ngay'}</span>
+<span className="">{loading ? t('creating') : t('registerNow')}</span>
 <span className="text-base group-hover:rotate-12 transition-transform">🌸</span>
 </button>
 </form>
@@ -233,12 +230,12 @@ export default function Register() {
 <div aria-hidden="true" className="absolute inset-0 flex items-center">
 <div className="w-full border-t border-charcoal-200"></div>
 </div>
-<span className="relative bg-white px-3 text-[11px] font-bold text-charcoal-400 uppercase tracking-wider">{"Hoặc đăng ký với\n          "}</span>
+<span className="relative bg-white px-3 text-[11px] font-bold text-charcoal-400 uppercase tracking-wider">{t('orRegister')}</span>
 </div>
 {/*  Social Login Buttons  */}
 <div className="grid grid-cols-2 gap-3" data-purpose="social-login-group">
 {/*  Google Button  */}
-<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng ký Google">
+<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title={t('googleRegister')}>
 {/*  Google SVG Icon  */}
 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
 <path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
@@ -249,7 +246,7 @@ export default function Register() {
 <span className="">Google</span>
 </button>
 {/*  Facebook Button  */}
-<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng ký Facebook">
+<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title={t('facebookRegister')}>
 {/*  Facebook SVG Icon  */}
 <svg className="w-4 h-4 shrink-0 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073Z"></path>
@@ -260,11 +257,11 @@ export default function Register() {
 </div>
 {/*  Bottom Footer Navigation Link  */}
 <footer className="mt-8 pt-4 border-t border-charcoal-100 text-center text-xs text-charcoal-500">
-<p className="">{"Đã có tài khoản?"}<Link to="/auth" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">Đăng nhập ngay</Link>
+<p className="">{t('hasAccount')}<Link to="/auth" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">{t('loginNow')}</Link>
 </p>
-<p className="mt-2">{"Đã nhận mã?"}<Link to="/verify-email" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">Xác thực email</Link>
+<p className="mt-2">{t('gotCode')}<Link to="/verify-email" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">{t('verifyEmail')}</Link>
 </p>
-<p className="text-[11px] text-charcoal-400 mt-2">{"Bằng việc tiếp tục, bạn đồng ý nhận thông tin cập nhật học tập từ RikiPath.\n        "}</p>
+<p className="text-[11px] text-charcoal-400 mt-2">{t('registerFooter')}</p>
 </footer>
 </section>
 {/*  END: RightFormColumn  */}

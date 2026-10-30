@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { getMeetingPlans } from '../../api/mentorBookingApi.js';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 
 function money(value) {
   if (
@@ -83,7 +84,8 @@ const focusClass =
   'focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
 function PlanCard({ plan }) {
-  const name = readText(plan.name) || 'Gói tư vấn';
+  const { locale, tr } = useLocale();
+  const name = readText(plan.name) || tr('Gói tư vấn');
   const description = readText(plan.description).trim();
   const sessions = Number(plan.meetingSessionCount) || 0;
   const price = Number(plan.price);
@@ -97,10 +99,10 @@ function PlanCard({ plan }) {
       <h3 className="text-[16px] font-semibold leading-6 text-[#5A3E4C]">{name}</h3>
       <div className="mt-3 flex flex-wrap gap-2 text-[12px] text-[#7A6170]">
         {sessions > 0 && (
-          <span className="rounded-full bg-[#FAEDF3] px-2.5 py-1">{sessions} buổi</span>
+          <span className="rounded-full bg-[#FAEDF3] px-2.5 py-1">{sessions} {locale === 'ja' ? '回' : 'buổi'}</span>
         )}
         {plan.durationDays != null && (
-          <span className="rounded-full bg-[#FAEDF3] px-2.5 py-1">{plan.durationDays} ngày</span>
+          <span className="rounded-full bg-[#FAEDF3] px-2.5 py-1">{plan.durationDays} {tr('ngày')}</span>
         )}
       </div>
       {description && (
@@ -120,14 +122,14 @@ function PlanCard({ plan }) {
         <div>
           <p className="text-[22px] font-semibold tracking-tight text-[#A33357]">{money(plan.price)}</p>
           <p className="mt-0.5 text-[12px] text-[#A48D99]">
-            {perSession != null ? `${money(perSession)} / buổi` : 'Giá trọn gói'}
+            {perSession != null ? `${money(perSession)} / ${locale === 'ja' ? '回' : 'buổi'}` : tr('Giá trọn gói')}
           </p>
         </div>
         <Link
           to={`/consultation-payment/?planId=${plan.id}`}
           className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
         >
-          Mua gói này
+          {tr('Mua gói này')}
         </Link>
       </div>
     </article>
@@ -136,6 +138,7 @@ function PlanCard({ plan }) {
 
 export default function Consultation() {
   const { pathname } = useLocation();
+  const { tr } = useLocale();
 
   const plansQuery = useQuery({
     queryKey: ['meeting-plans'],
@@ -157,24 +160,24 @@ export default function Consultation() {
         <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-[25px] font-semibold tracking-tight text-[#49353F]">
-              Tư vấn cùng Mentor
+              {tr('Tư vấn cùng Mentor')}
             </h1>
             <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-[#927B88]">
-              Mua gói để cộng lượt, rồi chọn lịch. Mỗi tiết dùng 1 lượt.
+              {tr('Mua gói để cộng lượt, rồi chọn lịch. Mỗi tiết dùng 1 lượt.')}
             </p>
           </div>
           <Link
             to="/booking-schedule/"
             className={`inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#E7DAE1] bg-white px-3 text-[13px] font-medium text-[#705261] hover:bg-[#FFF6FA] ${focusClass}`}
           >
-            Đã có lượt, chọn lịch
+            {tr('Đã có lượt, chọn lịch')}
             <Icon name="arrow_forward" className="text-[16px]" />
           </Link>
         </header>
 
         <section aria-labelledby="plans-title">
           <h2 id="plans-title" className="mb-3 text-[15px] font-semibold text-[#705261]">
-            Chọn gói
+            {tr('Chọn gói')}
           </h2>
 
           <div aria-busy={plansQuery.isFetching}>
@@ -187,7 +190,7 @@ export default function Consultation() {
                   aria-hidden="true"
                   className="h-4 w-4 animate-spin rounded-full border-2 border-[#EBD9E2] border-t-[#AD3155] motion-reduce:animate-none"
                 />
-                Đang tải gói tư vấn…
+                {tr('Đang tải gói tư vấn…')}
               </div>
             ) : plansQuery.isError ? (
               <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-6">
@@ -196,7 +199,7 @@ export default function Consultation() {
                   className="text-[13px] leading-6 text-[#A33357]"
                 >
                   {plansQuery.error?.message ||
-                    'Không tải được gói tư vấn.'}
+                    tr('Không tải được gói tư vấn.')}
                 </p>
 
                 <button
@@ -211,7 +214,7 @@ export default function Consultation() {
                   ].join(' ')}
                 >
                   <Icon name="refresh" className="text-[17px]" />
-                  {plansQuery.isFetching ? 'Đang tải…' : 'Thử lại'}
+                  {plansQuery.isFetching ? tr('Đang tải…') : tr('Thử lại')}
                 </button>
               </div>
             ) : plans.length === 0 ? (
@@ -223,11 +226,11 @@ export default function Consultation() {
 
                 <div>
                   <p className="text-[14px] font-medium text-[#806371]">
-                    Chưa có gói tư vấn đang mở
+                    {tr('Chưa có gói tư vấn đang mở')}
                   </p>
 
                   <p className="mt-1 text-[12px] leading-6 text-[#A18B97]">
-                    Bạn có thể quay lại kiểm tra sau.
+                    {tr('Bạn có thể quay lại kiểm tra sau.')}
                   </p>
                 </div>
               </div>
@@ -242,7 +245,7 @@ export default function Consultation() {
         </section>
 
         <p className="mt-4 px-1 text-[12px] leading-6 text-[#A18A97]">
-          Lượt có hạn kể từ lúc thanh toán. Gói hết hạn sớm được dùng trước khi đặt lịch.
+          {tr('Lượt có hạn kể từ lúc thanh toán. Gói hết hạn sớm được dùng trước khi đặt lịch.')}
         </p>
       </div>
     </LearnerShell>

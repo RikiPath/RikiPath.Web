@@ -83,7 +83,7 @@ export const LEARNER_NAV = {
     { to: '/app', label: 'Tổng quan', hint: 'Tiến độ hôm nay', icon: 'space_dashboard', end: true, group: 'study' },
     { to: '/roadmap', label: 'Lộ trình', hint: 'Khám phá JLPT', icon: 'explore', group: 'study' },
     { to: '/lessons', label: 'Bài học', hint: 'Giáo trình đang học', icon: 'menu_book', group: 'study' },
-    { to: '/vocabulary', label: 'Sổ từ', hint: 'Từ vựng & Kanji', icon: 'edit_note', alsoActive: ['/kanji-studio', '/kanji-notebook', '/vocabulary-detail'], group: 'study' },
+    { to: '/vocabulary', label: 'Sổ từ', hint: 'Từ vựng & Kanji', icon: 'edit_note', alsoActive: ['/kanji-notebook', '/vocabulary-detail'], group: 'study' },
     { to: '/daily-srs', label: 'Ôn SRS', hint: 'Lặp ngắt quãng', icon: 'style', group: 'study' },
     {
       id: 'riki',
@@ -120,7 +120,6 @@ export const LEARNER_NAV = {
         '/consultation-session',
         '/consultation-receipt',
         '/consultation-room',
-        '/sensei-profile',
         '/mentor-availability',
       ],
     },

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { getStudyStreak } from '../../api/analytics.js';
 import { getSession } from '../../auth/session.js';
 
@@ -25,6 +26,7 @@ function Icon({ name, className = '' }) {
 }
 
 export default function ExamResult() {
+  const { locale, tr } = useLocale();
   const { pathname } = useLocation();
   const session = getSession();
   const [range, setRange] = useState('7d');
@@ -40,21 +42,21 @@ export default function ExamResult() {
   const rangeLabel = RANGES.find((item) => item.id === range)?.label;
 
   const stats = [
-    { icon: 'quiz', label: '0 bài đã làm' },
-    { icon: 'percent', label: 'Chưa có điểm TB' },
+    { icon: 'quiz', label: tr("0 bài đã làm") },
+    { icon: 'percent', label: tr("Chưa có điểm TB") },
     {
       icon: 'local_fire_department',
       label:
         typeof streakDays === 'number'
-          ? `Streak ${streakDays} ngày`
+          ? (locale === 'ja' ? `${streakDays}日連続` : `Streak ${streakDays} ngày`)
           : streakQuery.isPending
-            ? 'Streak …'
-            : 'Streak —',
+            ? tr('Streak …')
+            : tr('Streak —'),
     },
   ];
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Kết quả">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Kết quả")}>
       <main
         data-page="ExamResult"
         className="mx-auto max-w-[1100px] px-5 py-6
@@ -68,17 +70,13 @@ export default function ExamResult() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-[11px] font-medium tracking-[0.14em] text-[#AD3155]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#AD3155]" />
-                KẾT QUẢ CỦA TÔI
-              </p>
-              <p className="mt-3 max-w-xl text-[13px] leading-6 text-[#8C7782]">
-                Theo dõi bài thi thử, xem điểm trung bình và chọn phần cần ôn lại.
-              </p>
+                <span className="h-1.5 w-1.5 rounded-full bg-[#AD3155]" />{tr("KẾT QUẢ CỦA TÔI")}</p>
+              <p className="mt-3 max-w-xl text-[13px] leading-6 text-[#8C7782]">{tr('Theo dõi bài thi thử, xem điểm trung bình và chọn phần cần ôn lại.')}</p>
             </div>
 
             <div
               role="group"
-              aria-label="Khoảng thời gian"
+              aria-label={tr("Khoảng thời gian")}
               className="flex rounded-full border border-[#EADFE5] bg-[#FCF6F8] p-1"
             >
               {RANGES.map((item) => {
@@ -99,7 +97,7 @@ export default function ExamResult() {
                         : 'text-[#8F7682] hover:bg-white',
                     ].join(' ')}
                   >
-                    {item.label}
+                    {tr(item.label)}
                   </button>
                 );
               })}
@@ -116,13 +114,13 @@ export default function ExamResult() {
                              text-[12px] text-[#7D6874]"
                 >
                   <Icon name={item.icon} className="text-[15px] text-[#B07A90]" />
-                  {item.label}
+                  {tr(item.label)}
                 </span>
               ))}
             </div>
 
             <p className="text-[11px] text-[#B09AA4]">
-              Số liệu theo {rangeLabel?.toLowerCase()}.
+              {locale === 'ja' ? `集計期間: ${tr(rangeLabel)}` : `Số liệu theo ${rangeLabel?.toLowerCase()}.`}
             </p>
           </div>
         </section>
@@ -140,12 +138,12 @@ export default function ExamResult() {
             <Icon name="monitoring" className="text-[28px]" />
           </span>
 
-          <h1 className="mt-5 text-[18px] font-semibold">
-            Chưa có dữ liệu phân tích
-          </h1>
+          <h1 className="mt-5 text-[18px] font-semibold">{tr('Chưa có dữ liệu phân tích')}</h1>
           <p className="mt-2 max-w-sm text-[13px] leading-6 text-[#967F8A]">
-            Hoàn thành một bài thi thử để xem tiến độ trong {rangeLabel?.toLowerCase()}.
-            Kết quả bài minh họa chưa được lưu vào lịch sử.
+            {locale === 'ja'
+              ? `模擬試験を終えると、${tr(rangeLabel)}の進み具合が見られます。`
+              : `Hoàn thành một bài thi thử để xem tiến độ trong ${rangeLabel?.toLowerCase()}.`}
+            {' '}{tr('Kết quả bài minh họa chưa được lưu vào lịch sử.')}
           </p>
 
           <Link
@@ -153,9 +151,7 @@ export default function ExamResult() {
             className="mt-5 inline-flex h-10 items-center gap-1.5
                        rounded-full bg-[#AD3155] px-5 text-[13px]
                        font-medium text-white hover:bg-[#982B4B]"
-          >
-            Bắt đầu bài đầu tiên
-            <Icon name="arrow_forward" className="text-[16px]" />
+          >{tr('Bắt đầu bài đầu tiên')}<Icon name="arrow_forward" className="text-[16px]" />
           </Link>
         </section>
       </main>

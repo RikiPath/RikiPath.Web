@@ -5,11 +5,14 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 import { useLoginMutation } from '../../hooks/useAuth.js';
 import { learnerKeys, prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
 import { queryClient } from '../../api/queryClient.js';
+import LanguageSwitch from '../../components/LanguageSwitch.jsx';
+import { useLocale } from '../../i18n/locale.js';
 
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { t } = useLocale();
   const loginMutation = useLoginMutation();
   const [email, setEmail] = useState(() => location.state?.email || '');
   const [password, setPassword] = useState('');
@@ -63,7 +66,7 @@ export default function Auth() {
           }
         },
         onError: (err) => {
-          setError(err.message || 'Đăng nhập thất bại.');
+          setError(err.message || t('loginFailed'));
         },
       },
     );
@@ -99,7 +102,7 @@ export default function Auth() {
 <div className="relative z-10 flex items-center justify-between">
 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-sakura-200 shadow-sm">
 <span className="text-base leading-none">🌸</span>
-<span className="text-xs font-semibold tracking-wide text-sakura-700 uppercase">Học tiếng Nhật thông minh với AI Haru</span>
+<span className="text-xs font-semibold tracking-wide text-sakura-700 uppercase">{t('badge')}</span>
 </div>
 {/*  Kanji artistic tag  */}
 <span className="font-serif text-sm font-semibold text-sakura-600/70 tracking-widest hidden xl:block">桜・日本への道</span>
@@ -113,7 +116,7 @@ export default function Auth() {
 <div className="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
 <span className="text-xl">⛩️</span>
 <div className="text-left">
-<p className="text-[11px] font-medium text-slate-500">Mỗi ngày một bước tiến</p>
+<p className="text-[11px] font-medium text-slate-500">{t('dailyStep')}</p>
 <p className="text-xs font-bold text-sakura-700 font-serif tracking-wider">一期一会 (Ichigo Ichie)</p>
 </div>
 </div>
@@ -121,8 +124,8 @@ export default function Auth() {
 </div>
 {/*  Showcase Footer: Inspiring Slogan & Quote  */}
 <div className="relative z-10 text-center max-w-lg mx-auto" data-purpose="slogan-container">
-<h2 className="text-2xl xl:text-3xl font-bold text-slate-800 tracking-tight leading-snug">{"Cùng "}<span className="text-sakura-500 font-extrabold">RikiPath</span>{" chinh phục tiếng Nhật trong sắc hoa anh đào\n          "}</h2>
-<p className="mt-2.5 text-sm text-slate-600 font-normal leading-relaxed">{"Hành trình chạm đỉnh JLPT N5 — N1 với lộ trình chuẩn mực, hỗ trợ gia sư AI 24/7 và cộng đồng du học sinh năng động.\n          "}</p>
+<h2 className="text-2xl xl:text-3xl font-bold text-slate-800 tracking-tight leading-snug">{t('loginHeadlineBefore')}<span className="text-sakura-500 font-extrabold">RikiPath</span>{t('loginHeadlineAfter')}</h2>
+<p className="mt-2.5 text-sm text-slate-600 font-normal leading-relaxed">{t('loginLead')}</p>
 </div>
 </section>
 {/*  END: LeftBrandingShowcase  */}
@@ -139,24 +142,21 @@ export default function Auth() {
 </div>
 </a>
 {/*  Language selector button  */}
-<button className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-sakura-50 rounded-lg border border-slate-200/80 transition-colors" type="button">
-<span className="">🇻🇳 VN</span>
-<svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-</button>
+<LanguageSwitch className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-sakura-50 rounded-lg border border-slate-200/80 transition-colors" />
 </div>
 {/*  Tab Switcher (Login / Register)  */}
 <div className="mt-7 p-1 bg-sakura-50/70 border border-sakura-100 rounded-xl flex items-center" data-purpose="auth-tabs">
 <button aria-current="page" className="flex-1 py-2.5 text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm border border-sakura-100/60 transition-all text-center flex items-center justify-center gap-1.5" id="tab-login-btn" type="button">
-<span className="">Đăng nhập</span>
+<span className="">{t('login')}</span>
 <span className="w-1.5 h-1.5 rounded-full bg-sakura-500 inline-block"></span>
 </button>
-<Link to="/register" className="flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center flex items-center justify-center" id="tab-register-btn">Đăng ký</Link>
+<Link to="/register" className="flex-1 py-2.5 text-sm font-semibold text-slate-500 hover:text-sakura-600 rounded-lg transition-colors text-center flex items-center justify-center" id="tab-register-btn">{t('register')}</Link>
 </div>
 {/*  Welcome Titles  */}
 <div className="mt-6 mb-6">
-<h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">{"Chào mừng bạn trở lại! "}<span className="text-2xl animate-pulse">🌸</span>
+<h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">{t('welcome')} <span className="text-2xl animate-pulse">🌸</span>
 </h1>
-<p className="mt-1 text-sm text-slate-500">{"Vui lòng nhập thông tin tài khoản để tiếp tục học tập.\n            "}</p>
+<p className="mt-1 text-sm text-slate-500">{t('loginHint')}</p>
 </div>
 {/*  Authentication Form  */}
 <form className="space-y-4" data-purpose="login-form" onSubmit={handleLogin}>
@@ -165,12 +165,12 @@ export default function Auth() {
   <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">
     <p>{error}</p>
     {String(error).toLowerCase().includes('xác thực email') ? (
-      <Link className="mt-1 inline-block font-bold text-[#d94b68] underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>Nhập mã xác thực</Link>
+      <Link className="mt-1 inline-block font-bold text-[#d94b68] underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>{t('enterCode')}</Link>
     ) : null}
   </div>
 ) : null}
 <div>
-<label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" htmlFor="email">{"Địa chỉ Email\n              "}</label>
+<label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" htmlFor="email">{t('email')}</label>
 <div className="relative rounded-xl shadow-xs">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,7 +182,7 @@ export default function Auth() {
 </div>
 <div>
 <div className="flex items-center justify-between mb-1.5">
-<label className="block text-xs font-semibold uppercase tracking-wider text-slate-600" htmlFor="password">{"Mật khẩu\n                "}</label>
+<label className="block text-xs font-semibold uppercase tracking-wider text-slate-600" htmlFor="password">{t('password')}</label>
 </div>
 <div className="relative rounded-xl shadow-xs">
 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -190,8 +190,8 @@ export default function Auth() {
 <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
 </svg>
 </div>
-<input className="block w-full pl-11 pr-11 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="password" name="password" placeholder="Nhập mật khẩu" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-<button aria-label="Hiện hoặc ẩn mật khẩu" className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-sakura-600 focus:outline-none transition-colors" id="toggle-password" type="button" onClick={() => setShowPassword((v) => !v)}>
+<input className="block w-full pl-11 pr-11 py-3 bg-white border border-[#f2dfe3] rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20 transition-all duration-200" id="password" name="password" placeholder={t('passwordPlaceholder')} required type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+<button aria-label={t('togglePassword')} className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-sakura-600 focus:outline-none transition-colors" id="toggle-password" type="button" onClick={() => setShowPassword((v) => !v)}>
 <svg className="h-5 w-5" fill="none" id="eye-icon" stroke="currentColor" viewBox="0 0 24 24">
 <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
 <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
@@ -202,13 +202,13 @@ export default function Auth() {
 <div className="flex items-center justify-between pt-1">
 <label className="flex items-center gap-2 cursor-pointer select-none">
 <input checked={remember} className="w-4 h-4 text-sakura-500 border-sakura-300 rounded focus:ring-sakura-500 focus:ring-offset-0 transition-colors" id="remember-me" name="remember" type="checkbox" onChange={(e) => setRemember(e.target.checked)} />
-<span className="text-xs font-medium text-slate-600">Ghi nhớ đăng nhập</span>
+<span className="text-xs font-medium text-slate-600">{t('remember')}</span>
 </label>
-<Link className="text-xs font-semibold text-[#d94b68] hover:text-sakura-700 hover:underline transition-colors" to="/change-password">Đổi mật khẩu</Link>
+<Link className="text-xs font-semibold text-[#d94b68] hover:text-sakura-700 hover:underline transition-colors" to="/change-password">{t('changePassword')}</Link>
 </div>
 <div className="pt-2">
 <button className="w-full h-12 flex items-center justify-center gap-2 bg-[#d94b68] hover:bg-sakura-600 text-white font-bold text-sm tracking-wide rounded-[10px] shadow-sakura-soft hover:shadow-lg transition-all duration-200 transform active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-sakura-300/40 disabled:opacity-60" type="submit" disabled={loading}>
-<span className="">{loading ? 'Đang đăng nhập...' : 'Đăng nhập ngay'}</span>
+<span className="">{loading ? t('loggingIn') : t('loginNow')}</span>
 <span className="text-base leading-none">🌸</span>
 </button>
 </div>
@@ -219,13 +219,13 @@ export default function Auth() {
 <div className="w-full border-t border-slate-200/80"></div>
 </div>
 <div className="relative flex justify-center text-xs">
-<span className="px-3 bg-white text-slate-400 uppercase font-medium tracking-wider">hoặc tiếp tục với</span>
+<span className="px-3 bg-white text-slate-400 uppercase font-medium tracking-wider">{t('orContinue')}</span>
 </div>
 </div>
 {/*  Social Login Buttons  */}
 <div className="grid grid-cols-2 gap-3" data-purpose="social-auth-buttons">
 {/*  Google Login Button  */}
-<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng nhập Google">
+<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title={t('googleLogin')}>
 <svg className="w-4 h-4" viewBox="0 0 24 24">
 <path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
 <path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z" fill="#34A853"></path>
@@ -235,7 +235,7 @@ export default function Auth() {
 <span className="">Google</span>
 </button>
 {/*  Facebook / Apple Login Button  */}
-<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng nhập Facebook">
+<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title={t('facebookLogin')}>
 {/*  Facebook Icon  */}
 <svg className="w-4 h-4 text-[#1877F2] fill-current" viewBox="0 0 24 24">
 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path>
@@ -246,11 +246,11 @@ export default function Auth() {
 </div>
 {/*  Footer Notice & Registration Prompt  */}
 <footer className="mt-8 pt-6 border-t border-slate-100 text-center" data-purpose="auth-footer">
-<p className="text-xs text-slate-600">{"Chưa có tài khoản?"}<Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to="/register">Đăng ký miễn phí</Link>
-{" · "}
-<Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'}>Xác thực email</Link>
+<p className="text-xs text-slate-600">{t('noAccount')} <Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to="/register">{t('freeRegister')}</Link>
+{' · '}
+<Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'}>{t('verifyEmail')}</Link>
 </p>
-<p className="mt-2 text-[11px] text-slate-400">{"Bằng việc tiếp tục, bạn đồng ý với"}<a className="underline hover:text-slate-600" href="#">Điều khoản sử dụng</a>{" &"}<a className="underline hover:text-slate-600" href="#">Chính sách bảo mật</a>{" của RikiPath.\n          "}</p>
+<p className="mt-2 text-[11px] text-slate-400">{t('agreeContinue')} <a className="underline hover:text-slate-600" href="#">{t('terms')}</a> & <a className="underline hover:text-slate-600" href="#">{t('privacy')}</a> {t('ofRiki')}</p>
 </footer>
 </section>
 {/*  END: RightAuthFormSection  */}

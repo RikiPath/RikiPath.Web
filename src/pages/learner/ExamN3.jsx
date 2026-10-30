@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 
 const DURATION = 15 * 60;
 
@@ -68,6 +69,7 @@ const focusClass =
   'focus-visible:ring-[#AD3155]/40 focus-visible:ring-offset-2';
 
 export default function ExamN3() {
+  const { locale, tr } = useLocale();
   const { pathname } = useLocation();
 
   const [answers, setAnswers] = useState({});
@@ -149,7 +151,7 @@ export default function ExamN3() {
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Thi thử">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Thi thử")}>
       <div
         data-page="ExamN3"
         className="min-h-full bg-[#FCF8FA] text-[#49353F]"
@@ -158,18 +160,18 @@ export default function ExamN3() {
           {/* Tiêu đề và thời gian */}
           <header className="mb-4 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-[26px] font-semibold tracking-tight">
-                Thi thử
-              </h1>
+              <h1 className="text-[26px] font-semibold tracking-tight">{tr('Thi thử')}</h1>
               <p className="mt-1 text-[13px] text-[#927E89]">
-                Bài đọc minh họa · {QUESTIONS.length} câu · 15 phút
+                {locale === 'ja'
+                  ? `読解サンプル · ${QUESTIONS.length}問 · 15分`
+                  : `Bài đọc minh họa · ${QUESTIONS.length} câu · 15 phút`}
               </p>
             </div>
 
             <div className="flex items-center gap-3">
               <div
                 role="timer"
-                aria-label={`Thời gian còn lại ${formatTime(remaining)}`}
+                aria-label={locale === 'ja' ? `残り時間 ${formatTime(remaining)}` : `Thời gian còn lại ${formatTime(remaining)}`}
                 className={[
                   'flex items-center gap-2 rounded-xl border px-3 py-2',
                   remaining <= 60 && started && !submitted
@@ -188,25 +190,19 @@ export default function ExamN3() {
                   type="button"
                   onClick={startExam}
                   className={`h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
-                >
-                  Bắt đầu làm bài
-                </button>
+                >{tr('Bắt đầu làm bài')}</button>
               ) : submitted ? (
                 <button
                   type="button"
                   onClick={restartExam}
                   className={`h-10 rounded-lg border border-[#E2CBD5] bg-white px-4 text-[13px] font-medium text-[#AD3155] hover:bg-[#FFF4F8] ${focusClass}`}
-                >
-                  Làm lại
-                </button>
+                >{tr('Làm lại')}</button>
               ) : (
                 <button
                   type="button"
                   onClick={() => setConfirmSubmit(true)}
                   className={`h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
-                >
-                  Nộp bài
-                </button>
+                >{tr('Nộp bài')}</button>
               )}
             </div>
           </header>
@@ -219,23 +215,19 @@ export default function ExamN3() {
             >
               <div>
                 <p className="text-[14px] font-semibold text-[#A33357]">
-                  {expired ? 'Đã hết thời gian' : 'Đã hoàn thành bài đọc'}
+                  {expired ? tr("Đã hết thời gian") : tr("Đã hoàn thành bài đọc")}
                 </p>
                 <p className="mt-1 text-[13px] text-[#876C7B]">
-                  Đúng {correctCount}/{QUESTIONS.length} câu
-                  {unansweredCount > 0
-                    ? ` · ${unansweredCount} câu chưa trả lời`
-                    : ''}
-                  . Xem giải thích dưới mỗi câu.
+                  {locale === 'ja'
+                    ? `正解 ${correctCount}/${QUESTIONS.length}問${unansweredCount > 0 ? ` · 未回答 ${unansweredCount}問` : ''}。各問の下で解説を見てください。`
+                    : `Đúng ${correctCount}/${QUESTIONS.length} câu${unansweredCount > 0 ? ` · ${unansweredCount} câu chưa trả lời` : ''}. Xem giải thích dưới mỗi câu.`}
                 </p>
               </div>
 
               <Link
                 to="/roadmap"
                 className={`rounded text-[13px] font-medium text-[#AD3155] underline-offset-4 hover:underline ${focusClass}`}
-              >
-                Về lộ trình
-              </Link>
+              >{tr('Về lộ trình')}</Link>
             </div>
           )}
 
@@ -248,13 +240,13 @@ export default function ExamN3() {
                     name="menu_book"
                     className="text-[19px] text-[#AF7890]"
                   />
-                  <h2 className="text-[14px] font-medium">Bài đọc</h2>
+                  <h2 className="text-[14px] font-medium">{tr('Bài đọc')}</h2>
                 </div>
 
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    aria-label="Giảm cỡ chữ bài đọc"
+                    aria-label={tr("Giảm cỡ chữ bài đọc")}
                     disabled={fontSize <= 15}
                     onClick={() =>
                       setFontSize((current) => Math.max(15, current - 1))
@@ -270,7 +262,7 @@ export default function ExamN3() {
 
                   <button
                     type="button"
-                    aria-label="Tăng cỡ chữ bài đọc"
+                    aria-label={tr("Tăng cỡ chữ bài đọc")}
                     disabled={fontSize >= 22}
                     onClick={() =>
                       setFontSize((current) => Math.min(22, current + 1))
@@ -333,14 +325,14 @@ export default function ExamN3() {
             <section className="min-w-0 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
               <div className="border-b border-[#F0E7EC] px-4 py-3 sm:px-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-[14px] font-medium">Câu hỏi</h2>
+                  <h2 className="text-[14px] font-medium">{tr('Câu hỏi')}</h2>
                   <span className="text-[12px] text-[#98828E]">
-                    Đã chọn {answeredCount}/{QUESTIONS.length}
+                    {locale === 'ja' ? `回答済み ${answeredCount}/${QUESTIONS.length}` : `Đã chọn ${answeredCount}/${QUESTIONS.length}`}
                   </span>
                 </div>
 
                 <div
-                  aria-label="Đi đến câu hỏi"
+                  aria-label={tr("Đi đến câu hỏi")}
                   className="mt-3 flex items-center gap-2"
                 >
                   {QUESTIONS.map((question, index) => {
@@ -351,9 +343,9 @@ export default function ExamN3() {
                       <button
                         key={question.id}
                         type="button"
-                        aria-label={`Câu ${index + 1}${
-                          answered ? ', đã trả lời' : ', chưa trả lời'
-                        }${marked ? ', đã đánh dấu' : ''}`}
+                        aria-label={locale === 'ja'
+                          ? `問${index + 1}${answered ? '、回答済み' : '、未回答'}${marked ? '、マーク済み' : ''}`
+                          : `Câu ${index + 1}${answered ? ', đã trả lời' : ', chưa trả lời'}${marked ? ', đã đánh dấu' : ''}`}
                         onClick={() =>
                           questionRefs.current[question.id]?.scrollIntoView({
                             behavior: 'smooth',
@@ -378,15 +370,13 @@ export default function ExamN3() {
                   })}
 
                   <span className="ml-auto text-[11px] text-[#A08C97]">
-                    {flagged.length} đánh dấu
+                    {locale === 'ja' ? `マーク ${flagged.length}` : `${flagged.length} đánh dấu`}
                   </span>
                 </div>
               </div>
 
               {!started && (
-                <p className="border-b border-[#F0E7EC] bg-[#FFF6F9] px-4 py-3 text-[12px] leading-5 text-[#987584] sm:px-5">
-                  Nhấn “Bắt đầu làm bài” để chọn đáp án và tính giờ.
-                </p>
+                <p className="border-b border-[#F0E7EC] bg-[#FFF6F9] px-4 py-3 text-[12px] leading-5 text-[#987584] sm:px-5">{tr("Nhấn “Bắt đầu làm bài” để chọn đáp án và tính giờ.")}</p>
               )}
 
               <div className="divide-y divide-[#F0E7EC]">
@@ -404,12 +394,12 @@ export default function ExamN3() {
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <h3 className="text-[12px] font-semibold text-[#A33357]">
-                          Câu {questionIndex + 1}
+                          {locale === 'ja' ? `問 ${questionIndex + 1}` : `Câu ${questionIndex + 1}`}
                         </h3>
 
                         <button
                           type="button"
-                          aria-label={`Đánh dấu câu ${questionIndex + 1}`}
+                          aria-label={locale === 'ja' ? `問${questionIndex + 1}をマーク` : `Đánh dấu câu ${questionIndex + 1}`}
                           aria-pressed={marked}
                           disabled={!canAnswer}
                           onClick={() => toggleFlag(question.id)}
@@ -500,9 +490,9 @@ export default function ExamN3() {
                       {submitted && (
                         <p className="mt-3 text-[12px] leading-6 text-[#8B7581]">
                           <span className="font-medium text-[#597D65]">
-                            Đáp án {question.correct + 1}.{' '}
+                            {locale === 'ja' ? `正解 ${question.correct + 1}.` : `Đáp án ${question.correct + 1}.`}{' '}
                           </span>
-                          {question.explanation}
+                          {tr(question.explanation)}
                         </p>
                       )}
                     </article>
@@ -510,9 +500,7 @@ export default function ExamN3() {
                 })}
               </div>
 
-              <div className="border-t border-[#F0E7EC] bg-[#FDFAFC] px-4 py-3 text-[11px] leading-5 text-[#A18B97] sm:px-5">
-                Bài minh họa · Kết quả chưa được lưu vào lịch sử.
-              </div>
+              <div className="border-t border-[#F0E7EC] bg-[#FDFAFC] px-4 py-3 text-[11px] leading-5 text-[#A18B97] sm:px-5">{tr('Bài minh họa · Kết quả chưa được lưu vào lịch sử.')}</div>
             </section>
           </div>
 
@@ -554,18 +542,16 @@ export default function ExamN3() {
                 <h2
                   id="submit-title"
                   className="text-[18px] font-semibold"
-                >
-                  Nộp bài ngay?
-                </h2>
+                >{tr('Nộp bài ngay?')}</h2>
 
                 <p
                   id="submit-description"
                   className="mt-2 text-[13px] leading-6 text-[#927B88]"
                 >
                   {unansweredCount > 0
-                    ? `Bạn còn ${unansweredCount} câu chưa trả lời.`
-                    : 'Bạn đã trả lời tất cả câu hỏi.'}
-                  {' '}Sau khi nộp, bạn có thể xem đáp án và giải thích.
+                    ? (locale === 'ja' ? `未回答が${unansweredCount}問あります。` : `Bạn còn ${unansweredCount} câu chưa trả lời.`)
+                    : tr('Bạn đã trả lời tất cả câu hỏi.')}
+                  {' '}{tr('Sau khi nộp, bạn có thể xem đáp án và giải thích.')}
                 </p>
 
                 <div className="mt-5 flex justify-end gap-2">
@@ -574,17 +560,13 @@ export default function ExamN3() {
                     type="button"
                     onClick={() => setConfirmSubmit(false)}
                     className={`h-10 rounded-lg border border-[#EADFE5] px-4 text-[13px] text-[#856C7B] hover:bg-[#FCF7FA] ${focusClass}`}
-                  >
-                    Làm tiếp
-                  </button>
+                  >{tr('Làm tiếp')}</button>
 
                   <button
                     type="button"
                     onClick={submitExam}
                     className={`h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
-                  >
-                    Nộp bài
-                  </button>
+                  >{tr('Nộp bài')}</button>
                 </div>
               </section>
             </div>

@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { useLocation } from 'react-router-dom';
 
 export default function SentenceStudio() {
+  const { tr } = useLocale();
   const { pathname } = useLocation();
   useEffect(() => {
     const orig = document.addEventListener.bind(document);
@@ -51,7 +53,7 @@ export default function SentenceStudio() {
           // 3. Clear button
           if (btnClearText && writingInput) {
             btnClearText.addEventListener('click', () => {
-              if (confirm('Bạn có chắc chắn muốn xóa toàn bộ nội dung văn bản đang soạn?')) {
+              if (confirm(tr("Bạn có chắc chắn muốn xóa toàn bộ nội dung văn bản đang soạn?"))) {
                 writingInput.value = '';
                 writingInput.dispatchEvent(new Event('input'));
                 writingInput.focus();
@@ -62,9 +64,9 @@ export default function SentenceStudio() {
           // 4. Save Draft
           if (btnSaveDraft && saveStatus) {
             btnSaveDraft.addEventListener('click', () => {
-              saveStatus.textContent = 'Đã lưu thủ công vào bản nháp vừa xong';
+              saveStatus.textContent = tr("Đã lưu thủ công vào bản nháp vừa xong");
               setTimeout(() => {
-                saveStatus.textContent = 'Đã tự động lưu nháp (15 giây trước)';
+                saveStatus.textContent = tr("Đã tự động lưu nháp (15 giây trước)");
               }, 3000);
             });
           }
@@ -87,9 +89,9 @@ export default function SentenceStudio() {
             btnCopyNative.addEventListener('click', () => {
               const clean = nativeText.textContent.replace(/["“”]/g, '').trim();
               navigator.clipboard.writeText(clean).then(() => {
-                copyBtnText.textContent = 'Đã chép!';
+                copyBtnText.textContent = tr("Đã chép!");
                 setTimeout(() => {
-                  copyBtnText.textContent = 'Sao chép';
+                  copyBtnText.textContent = tr("Sao chép");
                 }, 2000);
               });
             });
@@ -100,7 +102,7 @@ export default function SentenceStudio() {
             btnEvaluate.addEventListener('click', () => {
               const prevContent = btnEvaluate.innerHTML;
               btnEvaluate.disabled = true;
-              btnEvaluate.innerHTML = '<span className="material-symbols-outlined text-[18px] animate-spin">sync</span><span>Đang phân tích Haru AI...</span>';
+              btnEvaluate.innerHTML = '<span className="material-symbols-outlined text-[18px] animate-spin">sync</span><span>{tr("Đang phân tích Haru AI...")}</span>';
               setTimeout(() => {
                 btnEvaluate.innerHTML = prevContent;
                 btnEvaluate.disabled = false;
@@ -122,7 +124,7 @@ export default function SentenceStudio() {
   }, []);
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Viết câu">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Viết câu")}>
 <div className="font-sans antialiased min-h-screen flex bg-warm-bg" data-page="SentenceStudio" data-shell-unified="1">
 
 
@@ -160,9 +162,9 @@ export default function SentenceStudio() {
 <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-brand-light/60 blur-3xl pointer-events-none"></div>
 <div className="space-y-2 max-w-3xl relative z-10">
 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-light text-brand text-xs font-bold uppercase tracking-wider">
-<span className="material-symbols-outlined text-[16px]">draw</span>{"Studio Luyện viết Sakurabito • 日本語作文\n          "}</div>
-<h1 className="text-3xl font-extrabold text-charcoal tracking-tight">{"Studio Luyện viết Câu & Chấm điểm Tức thì\n          "}</h1>
-<p className="text-sm text-charcoal-secondary leading-relaxed">{"Rèn giũa tư duy diễn đạt tiếng Nhật bản xứ theo triết lý "}<span className="font-bold text-charcoal italic">Ma (間)</span>{" kết hợp mô hình AI Haru phân tích kính ngữ và văn phong chuẩn Tokyo Native.\n          "}</p>
+<span className="material-symbols-outlined text-[16px]">draw</span>{tr("Studio Luyện viết Sakurabito • 日本語作文")}</div>
+<h1 className="text-3xl font-extrabold text-charcoal tracking-tight">{tr("Studio Luyện viết Câu & Chấm điểm Tức thì")}</h1>
+<p className="text-sm text-charcoal-secondary leading-relaxed">{tr("Rèn giũa tư duy diễn đạt tiếng Nhật bản xứ theo triết lý")}<span className="font-bold text-charcoal italic">Ma (間)</span>{tr("kết hợp mô hình AI Haru phân tích kính ngữ và văn phong chuẩn Tokyo Native.")}</p>
 </div>
 {/*  Target Level Card & Evaluator Status  */}
 <div className="flex items-center gap-4 relative z-10">
@@ -171,7 +173,7 @@ export default function SentenceStudio() {
 <span className="material-symbols-outlined text-[22px]">school</span>
 </div>
 <div className="flex flex-col">
-<span className="text-[11px] font-bold text-charcoal-muted uppercase tracking-wider">Mục tiêu cấp độ</span>
+<span className="text-[11px] font-bold text-charcoal-muted uppercase tracking-wider">{tr('Mục tiêu cấp độ')}</span>
 <span className="text-base font-extrabold text-charcoal">JLPT N3 / Business</span>
 </div>
 </div>
@@ -181,7 +183,7 @@ export default function SentenceStudio() {
 <span>AI Evaluator Pro v2.4</span>
 </div>
 <div className="text-[11px] text-charcoal-muted text-right font-medium flex items-center justify-end gap-1">
-<span className="material-symbols-outlined text-[14px] text-brand">bolt</span>{"Phản hồi < 0.8s\n            "}</div>
+<span className="material-symbols-outlined text-[14px] text-brand">bolt</span>{tr("Phản hồi < 0.8s")}</div>
 </div>
 </div>
 </section>
@@ -194,21 +196,21 @@ export default function SentenceStudio() {
 </div>
 <div className="space-y-3 flex-1">
 <div className="flex flex-wrap items-center gap-2.5">
-<span className="px-2.5 py-0.5 rounded-full bg-brand text-white text-[11px] font-bold uppercase tracking-wider">{"Thực hành trọng tâm\n            "}</span>
-<span className="text-xs font-semibold text-charcoal-secondary">{"Cấu trúc: "}<strong className="text-brand font-bold">〜わけにはいかない</strong>{" (Không thể nào / Về mặt đạo lý & trách nhiệm không cho phép)\n            "}</span>
+<span className="px-2.5 py-0.5 rounded-full bg-brand text-white text-[11px] font-bold uppercase tracking-wider">{tr("Thực hành trọng tâm")}</span>
+<span className="text-xs font-semibold text-charcoal-secondary">{tr("Cấu trúc:")}<strong className="text-brand font-bold">〜わけにはいかない</strong>{tr("(Không thể nào / Về mặt đạo lý & trách nhiệm không cho phép)")}</span>
 </div>
-<p className="text-base font-bold text-charcoal leading-relaxed">{"“Hãy viết một đoạn văn ngắn (3-4 câu) bằng tiếng Nhật sử dụng cấu trúc ngữ pháp "}<span className="text-brand underline decoration-brand-accent decoration-2 underline-offset-4">〜わけにはいかない</span>{" để giải thích lý do bạn không thể tham gia tiệc ngắm hoa anh đào (Hanami) cùng đồng nghiệp công ty vào cuối tuần này.”\n          "}</p>
+<p className="text-base font-bold text-charcoal leading-relaxed">{tr('“Hãy viết một đoạn văn ngắn (3-4 câu) bằng tiếng Nhật sử dụng cấu trúc ngữ pháp')} <span className="text-brand underline decoration-brand-accent decoration-2 underline-offset-4">〜わけにはいかない</span> {tr('để giải thích lý do bạn không thể tham gia tiệc ngắm hoa anh đào (Hanami) cùng đồng nghiệp công ty vào cuối tuần này.”')}</p>
 {/*  Keyword suggestions chips  */}
 <div className="flex flex-wrap items-center gap-2 pt-1">
 <span className="text-xs font-semibold text-charcoal-muted flex items-center gap-1">
-<span className="material-symbols-outlined text-[15px]">sell</span>{"Gợi ý từ khóa:\n            "}</span>
+<span className="material-symbols-outlined text-[15px]">sell</span>{tr("Gợi ý từ khóa:")}</span>
 <button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('花見') }}>{"花見 "}<span className="text-[11px] text-charcoal-muted font-normal">(Hanami)</span>
 </button>
-<button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('休日出勤') }}>{"休日出勤 "}<span className="text-[11px] text-charcoal-muted font-normal">(Đi làm ngày nghỉ)</span>
+<button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('休日出勤') }}>{"休日出勤 "}<span className="text-[11px] text-charcoal-muted font-normal">{tr("(Đi làm ngày nghỉ)")}</span>
 </button>
-<button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('参加する') }}>{"参加する "}<span className="text-[11px] text-charcoal-muted font-normal">(Tham gia)</span>
+<button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('参加する') }}>{"参加する "}<span className="text-[11px] text-charcoal-muted font-normal">{tr("(Tham gia)")}</span>
 </button>
-<button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('申し訳ございません') }}>{"申し訳ございません "}<span className="text-[11px] text-charcoal-muted font-normal">(Rất xin lỗi)</span>
+<button className="px-2.5 py-1 rounded-lg bg-warm-bg hover:bg-brand-light text-charcoal hover:text-brand border border-warm-border hover:border-brand-accent text-xs font-semibold transition-all" onClick={(e) => { insertKeyword('申し訳ございません') }}>{"申し訳ございません "}<span className="text-[11px] text-charcoal-muted font-normal">{tr("(Rất xin lỗi)")}</span>
 </button>
 </div>
 </div>
@@ -225,21 +227,21 @@ export default function SentenceStudio() {
 {/*  Toolbar: Mode Switch + Audio + Character counter  */}
 <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-warm-border/60">
 <div className="flex items-center gap-1.5 p-1 rounded-xl bg-warm-bg border border-warm-border">
-<button className="px-3 py-1 rounded-lg bg-white text-brand font-bold text-xs shadow-sm" id="btn-kana-tab">{"Romaji → Kana\n                "}</button>
-<button className="px-3 py-1 rounded-lg text-charcoal-secondary hover:text-charcoal font-semibold text-xs transition-colors" id="btn-kanji-tab">{"Kanji gợi ý\n                "}</button>
-<button className="px-3 py-1 rounded-lg text-charcoal-secondary hover:text-charcoal font-semibold text-xs transition-colors" id="btn-sample-tab">{"Nạp câu mẫu\n                "}</button>
+<button className="px-3 py-1 rounded-lg bg-white text-brand font-bold text-xs shadow-sm" id="btn-kana-tab">{tr("Romaji → Kana")}</button>
+<button className="px-3 py-1 rounded-lg text-charcoal-secondary hover:text-charcoal font-semibold text-xs transition-colors" id="btn-kanji-tab">{tr("Kanji gợi ý")}</button>
+<button className="px-3 py-1 rounded-lg text-charcoal-secondary hover:text-charcoal font-semibold text-xs transition-colors" id="btn-sample-tab">{tr("Nạp câu mẫu")}</button>
 </div>
 <div className="flex items-center gap-3">
-<button className="w-9 h-9 rounded-xl bg-warm-bg hover:bg-brand-light text-charcoal-secondary hover:text-brand border border-warm-border hover:border-brand-accent flex items-center justify-center transition-all" id="btn-speak" title="Phát âm đoạn văn Nhật">
+<button className="w-9 h-9 rounded-xl bg-warm-bg hover:bg-brand-light text-charcoal-secondary hover:text-brand border border-warm-border hover:border-brand-accent flex items-center justify-center transition-all" id="btn-speak" title={tr("Phát âm đoạn văn Nhật")}>
 <span className="material-symbols-outlined text-[20px]">volume_up</span>
 </button>
 <div className="px-3 py-1 rounded-full bg-warm-bg border border-warm-border text-xs font-semibold text-charcoal-secondary">
-<span className="text-brand font-bold" id="char-counter">111</span>{" / 200 ký tự\n                "}</div>
+<span className="text-brand font-bold" id="char-counter">111</span>{tr("/ 200 ký tự")}</div>
 </div>
 </div>
 {/*  Writing Textarea Area  */}
 <div className="relative my-4">
-<textarea className="w-full bg-warm-bg/40 border border-warm-border rounded-xl p-4 text-base font-medium text-charcoal leading-relaxed placeholder:text-charcoal-muted focus:outline-none focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all resize-none font-jp" id="writing-input" placeholder="Hãy gõ câu trả lời của bạn bằng tiếng Nhật tại đây..." rows="7">今週末のお花見にお誘いいただき、本当にありがとうございます。ただ、月曜日の納品に向けて休日出勤をしなければならないため、残念ながら参加するわけにはいきません。せっかくの機会ですが、皆さんとご一緒できず申し訳ございません。</textarea>
+<textarea className="w-full bg-warm-bg/40 border border-warm-border rounded-xl p-4 text-base font-medium text-charcoal leading-relaxed placeholder:text-charcoal-muted focus:outline-none focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all resize-none font-jp" id="writing-input" placeholder={tr("Hãy gõ câu trả lời của bạn bằng tiếng Nhật tại đây...")} rows="7">今週末のお花見にお誘いいただき、本当にありがとうございます。ただ、月曜日の納品に向けて休日出勤をしなければならないため、残念ながら参加するわけにはいきません。せっかくの機会ですが、皆さんとご一緒できず申し訳ございません。</textarea>
 {/*  IME Indicator Pill  */}
 <div className="absolute right-3 bottom-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-warm-border shadow-sm text-[11px] font-semibold text-charcoal-secondary pointer-events-none">
 <span className="material-symbols-outlined text-[14px] text-brand">keyboard</span>
@@ -248,7 +250,7 @@ export default function SentenceStudio() {
 </div>
 {/*  Quick Japanese Conversion bar  */}
 <div className="pt-1 pb-3 flex items-center gap-2 overflow-x-auto text-xs">
-<span className="text-charcoal-muted font-bold whitespace-nowrap text-[11px] uppercase tracking-wider">Gợi ý chuyển:</span>
+<span className="text-charcoal-muted font-bold whitespace-nowrap text-[11px] uppercase tracking-wider">{tr('Gợi ý chuyển:')}</span>
 <button className="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onClick={(e) => { insertKeyword('花見') }}>花見 [はなみ]</button>
 <button className="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onClick={(e) => { insertKeyword('納品') }}>納品 [のうひん]</button>
 <button className="px-2 py-0.5 rounded bg-warm-bg border border-warm-border hover:border-brand-accent text-charcoal font-medium whitespace-nowrap" onClick={(e) => { insertKeyword('休日出勤') }}>休日出勤 [しゅっきん]</button>
@@ -258,20 +260,20 @@ export default function SentenceStudio() {
 <div className="pt-4 border-t border-warm-border/60 flex flex-col sm:flex-row items-center justify-between gap-4">
 <div className="flex items-center gap-2 text-xs text-charcoal-secondary">
 <span className="material-symbols-outlined text-[16px] text-leaf">cloud_done</span>
-<span id="save-status">Đã tự động lưu nháp (15 giây trước)</span>
+<span id="save-status">{tr('Đã tự động lưu nháp (15 giây trước)')}</span>
 </div>
 <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
 <button className="px-4 py-2.5 rounded-xl border border-warm-border hover:bg-warm-bg text-charcoal-secondary hover:text-charcoal text-xs font-bold transition-colors flex items-center gap-1.5" id="btn-clear-text">
 <span className="material-symbols-outlined text-[17px]">backspace</span>
-<span>Xóa bài</span>
+<span>{tr('Xóa bài')}</span>
 </button>
 <button className="px-4 py-2.5 rounded-xl border border-warm-border hover:bg-warm-bg text-charcoal-secondary hover:text-charcoal text-xs font-bold transition-colors flex items-center gap-1.5" id="btn-save-draft">
 <span className="material-symbols-outlined text-[17px]">bookmark</span>
-<span>Lưu bản nháp</span>
+<span>{tr('Lưu bản nháp')}</span>
 </button>
 <button className="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-hover text-white text-xs font-bold shadow-md shadow-brand/30 hover:shadow-lg transition-all flex items-center gap-2 transform active:scale-95" id="btn-evaluate">
 <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-<span>{"Chấm & Phân tích tức thì"}</span>
+<span>{tr("Chấm & Phân tích tức thì")}</span>
 </button>
 </div>
 </div>
@@ -283,20 +285,20 @@ export default function SentenceStudio() {
 <div className="w-7 h-7 rounded-lg bg-brand-light text-brand flex items-center justify-center">
 <span className="material-symbols-outlined text-[18px]">menu_book</span>
 </div>
-<span>Cẩm nang ngữ pháp: 〜わけにはいかない</span>
+<span>{tr('Cẩm nang ngữ pháp: 〜わけにはいかない')}</span>
 </div>
-<span className="text-xs font-bold text-brand bg-brand-light px-2.5 py-0.5 rounded-full">{"JLPT N3 Trọng tâm\n              "}</span>
+<span className="text-xs font-bold text-brand bg-brand-light px-2.5 py-0.5 rounded-full">{tr("JLPT N3 Trọng tâm")}</span>
 </div>
-<p className="text-xs text-charcoal-secondary leading-relaxed">{"Diễn đạt trạng thái người nói "}<em>rất muốn</em>{" hoặc "}<em>có thể</em>{" làm một hành động, nhưng do các chuẩn mực xã hội, lương tâm, lý do nghề nghiệp hoặc nghĩa vụ bắt buộc mà "}<strong>không thể nào thực hiện được</strong>{". Khác biệt với "}<em>〜できない</em>{" (chỉ năng lực thuần túy).\n            "}</p>
+<p className="text-xs text-charcoal-secondary leading-relaxed">{tr('Diễn đạt trạng thái người nói rất muốn hoặc có thể làm một hành động, nhưng do các chuẩn mực xã hội, lương tâm, lý do nghề nghiệp hoặc nghĩa vụ bắt buộc mà không thể nào thực hiện được. Khác biệt với 〜できない (chỉ năng lực thuần túy).')}</p>
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
 <div className="p-3 rounded-xl bg-warm-bg border border-warm-border space-y-1">
-<span className="text-xs font-bold text-brand block">1. Khẳng định: V-ru + わけにはいかない</span>
-<p className="text-[11px] text-charcoal-secondary leading-normal">{"Vì lý do đạo đức, danh dự hay công việc nên "}<strong>KHÔNG THỂ LÀM</strong>{" dù rất muốn.\n                "}</p>
+<span className="text-xs font-bold text-brand block">{tr("1. Khẳng định: V-ru + わけにはいかない")}</span>
+<p className="text-[11px] text-charcoal-secondary leading-normal">{tr('Vì lý do đạo đức, danh dự hay công việc nên')} <strong>{tr('KHÔNG THỂ LÀM')}</strong> {tr('dù rất muốn.')}</p>
 <span className="text-[11px] font-jp text-charcoal font-semibold block pt-0.5">例: 大事な会議だから休むわけにはいかない。</span>
 </div>
 <div className="p-3 rounded-xl bg-warm-bg border border-warm-border space-y-1">
-<span className="text-xs font-bold text-leaf block">2. Phủ định: V-nai + わけにはいかない</span>
-<p className="text-[11px] text-charcoal-secondary leading-normal">{"Vì bổn phận và trách nhiệm ràng buộc nên "}<strong>PHẢI LÀM</strong>{" (không thể không làm).\n                "}</p>
+<span className="text-xs font-bold text-leaf block">{tr("2. Phủ định: V-nai + わけにはいかない")}</span>
+<p className="text-[11px] text-charcoal-secondary leading-normal">{tr('Vì bổn phận và trách nhiệm ràng buộc nên')} <strong>{tr('PHẢI LÀM')}</strong> {tr('(không thể không làm).')}</p>
 <span className="text-[11px] font-jp text-charcoal font-semibold block pt-0.5">例: 頼まれた仕事だから、やらないわけにはいかない。</span>
 </div>
 </div>
@@ -321,15 +323,15 @@ export default function SentenceStudio() {
 <div>
 <div className="flex items-center gap-1.5">
 <h3 className="font-extrabold text-charcoal text-base">Haru Sensei AI</h3>
-<span className="material-symbols-outlined text-brand text-[17px]" title="Chuyên gia thẩm định đạt chuẩn">verified</span>
+<span className="material-symbols-outlined text-brand text-[17px]" title={tr('Chuyên gia thẩm định đạt chuẩn')}>verified</span>
 </div>
-<span className="text-xs text-charcoal-secondary font-medium">Chuyên gia ngôn ngữ • Tokyo Native</span>
+<span className="text-xs text-charcoal-secondary font-medium">{tr("Chuyên gia ngôn ngữ • Tokyo Native")}</span>
 </div>
 </div>
 {/*  Score Pill Badge  */}
 <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-brand-light border border-brand-accent">
 <div className="flex flex-col text-right">
-<span className="text-[10px] font-extrabold uppercase tracking-wider text-brand">Điểm Haru</span>
+<span className="text-[10px] font-extrabold uppercase tracking-wider text-brand">{tr('Điểm Haru')}</span>
 <div className="text-2xl font-black text-brand leading-none">{"9.2"}<span className="text-xs font-semibold text-charcoal-secondary">/10</span>
 </div>
 </div>
@@ -339,9 +341,9 @@ export default function SentenceStudio() {
 {/*  Interactive Highlight Annotation  */}
 <div className="space-y-2">
 <div className="flex items-center justify-between text-xs">
-<span className="font-bold text-charcoal uppercase tracking-wider text-[11px]">Phân tích văn phong trực quan</span>
+<span className="font-bold text-charcoal uppercase tracking-wider text-[11px]">{tr('Phân tích văn phong trực quan')}</span>
 <span className="text-leaf font-bold flex items-center gap-1">
-<span className="w-2 h-2 rounded-full bg-leaf"></span>{"Độ tự nhiên: Rất cao\n                "}</span>
+<span className="w-2 h-2 rounded-full bg-leaf"></span>{tr("Độ tự nhiên: Rất cao")}</span>
 </div>
 {/*  Visual Highlighting Container  */}
 <div className="p-4 rounded-xl bg-warm-bg border border-warm-border font-jp text-sm text-charcoal leading-relaxed space-y-2">
@@ -350,35 +352,35 @@ export default function SentenceStudio() {
 {/*  Annotation Legend Tags  */}
 <div className="flex flex-wrap items-center gap-2 pt-1">
 <span className="px-2.5 py-1 rounded-full bg-leaf-bg border border-leaf-border text-leaf text-[11px] font-bold flex items-center gap-1">
-<span className="material-symbols-outlined text-[14px]">check_circle</span>{"Kính ngữ trang nhã chuẩn mực\n                "}</span>
+<span className="material-symbols-outlined text-[14px]">check_circle</span>{tr("Kính ngữ trang nhã chuẩn mực")}</span>
 <span className="px-2.5 py-1 rounded-full bg-brand-light border border-brand-accent text-brand text-[11px] font-bold flex items-center gap-1">
-<span className="material-symbols-outlined text-[14px]">task_alt</span>{"Áp dụng đúng ngữ cảnh 〜わけにはいかない\n                "}</span>
+<span className="material-symbols-outlined text-[14px]">task_alt</span>{tr("Áp dụng đúng ngữ cảnh 〜わけにはいかない")}</span>
 </div>
 </div>
 {/*  Detailed Sensei Feedback  */}
 <div className="p-4 rounded-xl bg-warm-bg border border-warm-border space-y-2">
 <div className="flex items-center gap-2 text-brand font-bold text-xs">
 <span className="material-symbols-outlined text-[18px]">troubleshoot</span>
-<span>Lời bình chi tiết của Haru</span>
+<span>{tr('Lời bình chi tiết của Haru')}</span>
 </div>
-<p className="text-xs text-charcoal-secondary leading-relaxed">{"Bạn sử dụng cấu trúc "}<strong className="text-charcoal font-semibold">参加するわけにはいきません</strong>{" hoàn toàn chuẩn xác theo tiêu chuẩn ngữ pháp JLPT N3, thể hiện được sự bứt rứt vì công việc ưu tiên. Tuy nhiên, trong văn hóa công ty Nhật Bản (Business Etiquette), bạn có thể nâng cấp sắc thái đuôi câu:\n              "}</p>
+<p className="text-xs text-charcoal-secondary leading-relaxed">{tr('Bạn sử dụng cấu trúc 参加するわけにはいきません hoàn toàn chuẩn xác theo tiêu chuẩn ngữ pháp JLPT N3, thể hiện được sự bứt rứt vì công việc ưu tiên. Tuy nhiên, trong văn hóa công ty Nhật Bản, bạn có thể nâng cấp sắc thái đuôi câu.')}</p>
 <div className="pt-1 pl-2 border-l-2 border-brand space-y-1">
-<p className="text-xs text-charcoal leading-snug">{"Thay vì "}<em>いきません</em>{", hãy cân nhắc "}<strong className="text-brand font-semibold">お受けするわけにはまいりません</strong>{" hoặc "}<strong className="text-brand font-semibold">参加いたしかねます</strong>{" để đạt phong thái khiêm nhường chuẩn Business Keigo cấp độ cao.\n                "}</p>
+<p className="text-xs text-charcoal leading-snug">{tr('Thay vì いきません, hãy cân nhắc お受けするわけにはまいりません hoặc 参加いたしかねます để đạt phong thái khiêm nhường chuẩn Business Keigo.')}</p>
 </div>
 </div>
 {/*  Bản nâng cấp Sakura Native with Copy Button  */}
 <div className="p-4 rounded-xl bg-brand-light/50 border border-brand-accent/70 space-y-2.5">
 <div className="flex items-center justify-between">
 <span className="text-xs font-extrabold text-brand uppercase tracking-wider flex items-center gap-1.5">
-<span className="material-symbols-outlined text-[17px]">local_florist</span>{"Bản nâng cấp Sakura Native\n                "}</span>
+<span className="material-symbols-outlined text-[17px]">local_florist</span>{tr("Bản nâng cấp Sakura Native")}</span>
 <button className="text-xs font-bold text-charcoal hover:text-brand transition-colors flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-warm-border shadow-xs" id="btn-copy-native">
 <span className="material-symbols-outlined text-[15px]">content_copy</span>
-<span id="copy-btn-text">Sao chép</span>
+<span id="copy-btn-text">{tr('Sao chép')}</span>
 </button>
 </div>
 <p className="text-sm font-semibold text-charcoal italic font-jp leading-relaxed bg-white/80 p-3 rounded-lg border border-brand-accent/40" id="native-text">{"“納期の都合上、出勤せざるを得ず、心苦しい限りですが今回は参加するわけにはまいりません。”\n              "}</p>
 <div className="text-[11px] text-charcoal-secondary leading-relaxed pt-0.5">
-<strong className="text-charcoal">Dịch nghĩa tự nhiên:</strong>{" Vì tiến độ bàn giao sản phẩm buộc tôi phải đi làm ngày nghỉ, bản thân vô cùng áy náy nhưng lần này thực sự không thể tham gia cùng mọi người được.\n              "}</div>
+<strong className="text-charcoal">{tr('Dịch nghĩa tự nhiên:')}</strong> {tr('Vì tiến độ bàn giao sản phẩm buộc tôi phải đi làm ngày nghỉ, bản thân vô cùng áy náy nhưng lần này thực sự không thể tham gia cùng mọi người được.')}</div>
 </div>
 {/*  Gamification / LP Achievement Badge  */}
 <div className="p-3.5 rounded-xl bg-leaf-bg border border-leaf-border flex items-center justify-between">
@@ -387,8 +389,8 @@ export default function SentenceStudio() {
 <span className="material-symbols-outlined text-[20px]">military_tech</span>
 </div>
 <div className="flex flex-col">
-<span className="text-xs font-bold text-leaf">Đạt chuẩn JLPT N3 Writing Studio</span>
-<span className="text-[11px] text-charcoal-secondary">Đã cộng vào thành tích cá nhân</span>
+<span className="text-xs font-bold text-leaf">{tr('Đạt chuẩn JLPT N3 Writing Studio')}</span>
+<span className="text-[11px] text-charcoal-secondary">{tr('Đã cộng vào thành tích cá nhân')}</span>
 </div>
 </div>
 <span className="text-sm font-extrabold text-leaf">+25 LP</span>
@@ -404,16 +406,16 @@ export default function SentenceStudio() {
 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
 <div>
 <div className="flex items-center gap-2 text-brand font-bold text-xs uppercase tracking-wider">
-<span className="material-symbols-outlined text-[16px]">history_edu</span>{"Hồ sơ học tập cá nhân\n            "}</div>
-<h2 className="text-xl font-extrabold text-charcoal">{"Nhật ký tiến bộ - Lịch sử nộp bài & Đánh giá gần đây\n            "}</h2>
+<span className="material-symbols-outlined text-[16px]">history_edu</span>{tr("Hồ sơ học tập cá nhân")}</div>
+<h2 className="text-xl font-extrabold text-charcoal">{tr("Nhật ký tiến bộ - Lịch sử nộp bài & Đánh giá gần đây")}</h2>
 </div>
 <div className="flex items-center gap-2">
 <button className="px-3.5 py-1.5 rounded-xl bg-white border border-warm-border hover:border-brand-accent text-charcoal-secondary hover:text-charcoal text-xs font-bold transition-all shadow-subtle flex items-center gap-1.5">
 <span className="material-symbols-outlined text-[17px]">filter_list</span>
-<span>Lọc theo cấp độ</span>
+<span>{tr('Lọc theo cấp độ')}</span>
 </button>
 <button className="px-3.5 py-1.5 rounded-xl bg-white border border-warm-border hover:border-brand text-brand text-xs font-bold transition-all shadow-subtle flex items-center gap-1">
-<span>Xem tất cả (18 bài)</span>
+<span>{tr('Xem tất cả (18 bài)')}</span>
 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
 </button>
 </div>
@@ -426,21 +428,21 @@ export default function SentenceStudio() {
 <div className="flex items-center justify-between">
 <span className="px-2.5 py-0.5 rounded-full bg-brand-light text-brand text-[11px] font-bold">{"N3 Business\n                "}</span>
 <span className="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
-<span className="material-symbols-outlined text-[14px]">schedule</span>{"Hôm nay 09:15\n                "}</span>
+<span className="material-symbols-outlined text-[14px]">schedule</span>{tr("Hôm nay 09:15")}</span>
 </div>
-<h3 className="text-base font-bold text-charcoal group-hover:text-brand transition-colors">{"Từ chối tiệc ngắm hoa Hanami\n              "}</h3>
+<h3 className="text-base font-bold text-charcoal group-hover:text-brand transition-colors">{tr("Từ chối tiệc ngắm hoa Hanami")}</h3>
 <p className="text-xs text-charcoal-secondary line-clamp-2 font-jp">{"今週末のお花見にお誘いいただき、本当にありがとうございます。ただ、月曜日の納品に向けて休日出勤...\n              "}</p>
 <div className="pt-1">
-<span className="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">{"Ngữ pháp: 〜わけにはいかない\n                "}</span>
+<span className="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">{tr("Ngữ pháp: 〜わけにはいかない")}</span>
 </div>
 </div>
 <div className="pt-3 border-t border-warm-border/60 flex items-center justify-between">
 <div className="flex items-center gap-2">
 <span className="text-xl font-extrabold text-brand">9.2</span>
 <span className="text-[11px] font-bold text-leaf flex items-center">
-<span className="material-symbols-outlined text-[15px]">verified</span>{"Đã chấm AI\n                "}</span>
+<span className="material-symbols-outlined text-[15px]">verified</span>{tr("Đã chấm AI")}</span>
 </div>
-<a className="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">{"Xem lại góp ý\n                "}<span className="material-symbols-outlined text-[15px]">chevron_right</span>
+<a className="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">{tr("Xem lại góp ý")}<span className="material-symbols-outlined text-[15px]">chevron_right</span>
 </a>
 </div>
 </div>
@@ -448,23 +450,23 @@ export default function SentenceStudio() {
 <div className="bg-white border border-warm-border rounded-2xl p-5 shadow-subtle hover:border-brand-accent hover:shadow-card transition-all flex flex-col justify-between group space-y-4">
 <div className="space-y-2.5">
 <div className="flex items-center justify-between">
-<span className="px-2.5 py-0.5 rounded-full bg-leaf-bg text-leaf text-[11px] font-bold">{"N3 Học thuật\n                "}</span>
+<span className="px-2.5 py-0.5 rounded-full bg-leaf-bg text-leaf text-[11px] font-bold">{tr("N3 Học thuật")}</span>
 <span className="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
-<span className="material-symbols-outlined text-[14px]">schedule</span>{"2 ngày trước\n                "}</span>
+<span className="material-symbols-outlined text-[14px]">schedule</span>{tr("2 ngày trước")}</span>
 </div>
-<h3 className="text-base font-bold text-charcoal group-hover:text-brand transition-colors">{"Viết thư cảm ơn thầy giáo hướng dẫn\n              "}</h3>
+<h3 className="text-base font-bold text-charcoal group-hover:text-brand transition-colors">{tr("Viết thư cảm ơn thầy giáo hướng dẫn")}</h3>
 <p className="text-xs text-charcoal-secondary line-clamp-2 font-jp">{"先生の熱心なご指導のおかげで、無事に日本語能力試験N3に合格することができました...\n              "}</p>
 <div className="pt-1">
-<span className="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">{"Ngữ pháp: 〜おかげで\n                "}</span>
+<span className="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">{tr("Ngữ pháp: 〜おかげで")}</span>
 </div>
 </div>
 <div className="pt-3 border-t border-warm-border/60 flex items-center justify-between">
 <div className="flex items-center gap-2">
 <span className="text-xl font-extrabold text-leaf">9.8</span>
 <span className="text-[11px] font-bold text-leaf flex items-center">
-<span className="material-symbols-outlined text-[15px]">stars</span>{"Xuất sắc\n                "}</span>
+<span className="material-symbols-outlined text-[15px]">stars</span>{tr("Xuất sắc")}</span>
 </div>
-<a className="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">{"Xem lại góp ý\n                "}<span className="material-symbols-outlined text-[15px]">chevron_right</span>
+<a className="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">{tr("Xem lại góp ý")}<span className="material-symbols-outlined text-[15px]">chevron_right</span>
 </a>
 </div>
 </div>
@@ -472,23 +474,23 @@ export default function SentenceStudio() {
 <div className="bg-white border border-warm-border rounded-2xl p-5 shadow-subtle hover:border-brand-accent hover:shadow-card transition-all flex flex-col justify-between group space-y-4">
 <div className="space-y-2.5">
 <div className="flex items-center justify-between">
-<span className="px-2.5 py-0.5 rounded-full bg-warm-bg text-charcoal-secondary text-[11px] font-bold">{"N3 Phỏng vấn\n                "}</span>
+<span className="px-2.5 py-0.5 rounded-full bg-warm-bg text-charcoal-secondary text-[11px] font-bold">{tr("N3 Phỏng vấn")}</span>
 <span className="text-[11px] text-charcoal-muted flex items-center gap-1 font-medium">
-<span className="material-symbols-outlined text-[14px]">schedule</span>{"5 ngày trước\n                "}</span>
+<span className="material-symbols-outlined text-[14px]">schedule</span>{tr("5 ngày trước")}</span>
 </div>
-<h3 className="text-base font-bold text-charcoal group-hover:text-brand transition-colors">{"Trình bày nguyện vọng phỏng vấn việc làm\n              "}</h3>
+<h3 className="text-base font-bold text-charcoal group-hover:text-brand transition-colors">{tr("Trình bày nguyện vọng phỏng vấn việc làm")}</h3>
 <p className="text-xs text-charcoal-secondary line-clamp-2 font-jp">{"将来は貴社のようなグローバルな環境で、ITエンジニアとして日本の先端技術力を活かすつもりです...\n              "}</p>
 <div className="pt-1">
-<span className="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">{"Ngữ pháp: 〜つもりです\n                "}</span>
+<span className="text-[11px] font-medium bg-warm-bg border border-warm-border px-2 py-0.5 rounded text-charcoal-secondary">{tr("Ngữ pháp: 〜つもりです")}</span>
 </div>
 </div>
 <div className="pt-3 border-t border-warm-border/60 flex items-center justify-between">
 <div className="flex items-center gap-2">
 <span className="text-xl font-extrabold text-charcoal">8.4</span>
 <span className="text-[11px] font-bold text-charcoal-secondary flex items-center">
-<span className="material-symbols-outlined text-[15px]">check_circle</span>{"Đạt chuẩn\n                "}</span>
+<span className="material-symbols-outlined text-[15px]">check_circle</span>{tr("Đạt chuẩn")}</span>
 </div>
-<a className="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">{"Xem lại góp ý\n                "}<span className="material-symbols-outlined text-[15px]">chevron_right</span>
+<a className="text-xs font-bold text-brand hover:underline flex items-center gap-0.5" href="#">{tr("Xem lại góp ý")}<span className="material-symbols-outlined text-[15px]">chevron_right</span>
 </a>
 </div>
 </div>
@@ -501,9 +503,9 @@ export default function SentenceStudio() {
 <span>© 2024 RikiPath Nihongo AI Studio. Triết lý Ma (間) trong học thuật tiếng Nhật.</span>
 </div>
 <div className="flex items-center gap-4">
-<a className="hover:text-brand transition-colors" href="#">Điều khoản học tập</a>
-<a className="hover:text-brand transition-colors" href="#">Tiêu chuẩn chấm Haru</a>
-<a className="hover:text-brand transition-colors" href="#">Hỗ trợ 24/7</a>
+<a className="hover:text-brand transition-colors" href="#">{tr('Điều khoản học tập')}</a>
+<a className="hover:text-brand transition-colors" href="#">{tr('Tiêu chuẩn chấm Haru')}</a>
+<a className="hover:text-brand transition-colors" href="#">{tr('Hỗ trợ 24/7')}</a>
 </div>
 </footer>
 </main>

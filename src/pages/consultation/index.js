@@ -1,5 +1,4 @@
 export { default as Consultation } from './Consultation.jsx';
-export { default as ConsultationHub } from './ConsultationHub.jsx';
 export { default as ConsultationCenter } from './ConsultationCenter.jsx';
 export { default as ConsultationQueue } from './ConsultationQueue.jsx';
 export { default as BookingSchedule } from './BookingSchedule.jsx';
@@ -9,7 +8,6 @@ export { default as ConsultationPrep } from './ConsultationPrep.jsx';
 export { default as ConsultationRequestDetail } from './ConsultationRequestDetail.jsx';
 export { default as WorkSchedule } from './WorkSchedule.jsx';
 export { default as TextConsultationReply } from './TextConsultationReply.jsx';
-export { default as SenseiProfile } from './SenseiProfile.jsx';
 export { default as ConsultationSessionDetail } from './ConsultationSessionDetail.jsx';
 export { default as ConsultationReceipt } from './ConsultationReceipt.jsx';
 export { default as LocalCheckout } from './LocalCheckout.jsx';

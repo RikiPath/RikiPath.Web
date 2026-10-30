@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { getStudyPlans, purchaseStudyPlan } from '../../api/subscriptions.js';
 
 function money(value) {
@@ -15,6 +16,7 @@ function money(value) {
 
 export default function StudyPayment() {
   const { pathname, state } = useLocation();
+  const { tr } = useLocale();
   const [params] = useSearchParams();
   const planId = Number(params.get('planId'));
   const [error, setError] = useState('');
@@ -32,13 +34,13 @@ export default function StudyPayment() {
     mutationFn: () => purchaseStudyPlan(plan.id),
     onSuccess: (result) => {
       if (!result?.checkoutUrl) {
-        setError('Chưa nhận được liên kết thanh toán.');
+        setError(tr('Chưa nhận được liên kết thanh toán.'));
         return;
       }
       window.location.assign(result.checkoutUrl);
     },
     onError: (err) => {
-      setError(err.message || 'Không tạo được đơn mua gói.');
+      setError(err.message || tr('Không tạo được đơn mua gói.'));
     },
   });
 
@@ -52,20 +54,20 @@ export default function StudyPayment() {
           to="/plans"
           className="text-[13px] font-medium text-[#AD3155] hover:text-[#982B4B]"
         >
-          ← Quay lại các gói
+          {tr('← Quay lại các gói')}
         </Link>
 
-        <h1 className="mt-4 text-[22px] font-semibold">Thanh toán gói học</h1>
+        <h1 className="mt-4 text-[22px] font-semibold">{tr('Thanh toán gói học')}</h1>
         <p className="mt-1.5 text-[13px] leading-6 text-[#8C7782]">
-          Kiểm tra gói đã chọn, rồi chuyển sang PayOS để thanh toán.
+          {tr('Kiểm tra gói đã chọn, rồi chuyển sang PayOS để thanh toán.')}
         </p>
 
         {planId <= 0 && (
-          <p className="mt-5 text-[13px] text-[#8C7782]">Chưa chọn gói để thanh toán.</p>
+          <p className="mt-5 text-[13px] text-[#8C7782]">{tr('Chưa chọn gói để thanh toán.')}</p>
         )}
 
         {planId > 0 && plansQuery.isPending && !plan && (
-          <p className="mt-5 text-[13px] text-[#8C7782]">Đang tải gói…</p>
+          <p className="mt-5 text-[13px] text-[#8C7782]">{tr('Đang tải gói…')}</p>
         )}
 
         {planId > 0 && plansQuery.isError && !plan && (
@@ -75,17 +77,17 @@ export default function StudyPayment() {
         )}
 
         {planId > 0 && !plansQuery.isPending && !plan && (
-          <p className="mt-5 text-[13px] text-[#8C7782]">Gói này không còn mở.</p>
+          <p className="mt-5 text-[13px] text-[#8C7782]">{tr('Gói này không còn mở.')}</p>
         )}
 
         {plan && (
           <section className="mt-5 rounded-2xl border border-[#EADFE5] bg-white p-5 sm:p-6">
             <p className="text-[11px] font-medium tracking-[0.14em] text-[#AD3155]">
-              ĐƠN HÀNG
+              {tr('ĐƠN HÀNG')}
             </p>
             <h2 className="mt-2 text-[18px] font-semibold">{plan.name}</h2>
             <p className="mt-2 text-[26px] font-semibold text-[#AD3155]">{money(plan.price)}</p>
-            <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays} ngày</p>
+            <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays} {tr('ngày')}</p>
             {plan.description && (
               <p className="mt-3 text-[13px] leading-6 text-[#6F5C66]">{plan.description}</p>
             )}
@@ -106,7 +108,7 @@ export default function StudyPayment() {
               }}
               className="mt-5 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-5 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50"
             >
-              {purchase.isPending ? 'Đang tạo đơn…' : 'Thanh toán'}
+              {purchase.isPending ? tr('Đang tạo đơn…') : tr('Thanh toán')}
             </button>
 
             {error && (
