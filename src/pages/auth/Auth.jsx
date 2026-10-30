@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { homePathForRole } from '../../api/auth.js';
+import { loginWithGoogle } from '../../api/auth.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import { finishAuthSession } from '../../auth/finishAuthSession.js';
+import GoogleSignInButton from '../../components/GoogleSignInButton.jsx';
 import { useLoginMutation } from '../../hooks/useAuth.js';
-import { learnerKeys, prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
-import { queryClient } from '../../api/queryClient.js';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
 import { useLocale } from '../../i18n/locale.js';
 
@@ -20,7 +20,26 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const loading = loginMutation.isPending;
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const loading = loginMutation.isPending || googleLoading;
+
+  function acceptSession(data) {
+    const ok = finishAuthSession({ data, remember, login, navigate });
+    if (!ok) setError(t('loginFailed'));
+  }
+
+  async function handleGoogle(idToken) {
+    setError('');
+    setNotice('');
+    setGoogleLoading(true);
+    try {
+      acceptSession(await loginWithGoogle({ idToken }));
+    } catch (err) {
+      setError(err.message || t('googleFailed'));
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
   function handleLogin(e) {
     e.preventDefault();
@@ -29,42 +48,7 @@ export default function Auth() {
     loginMutation.mutate(
       { email: email.trim(), password },
       {
-        onSuccess: (data) => {
-          const result = data.result || {};
-          if (!result.accessToken) {
-            setError('Đăng nhập thành công nhưng thiếu accessToken.');
-            return;
-          }
-
-          // Gọi login() từ AuthContext thay vì saveSession() trực tiếp
-          // để cập nhật session state TRƯỚC khi navigate → ProtectedRoute sẽ thấy isAuthenticated=true
-          login(
-            {
-              accessToken: result.accessToken,
-              userId: result.userId,
-              email: result.email,
-              fullName: result.fullName,
-              role: result.role,
-            },
-            remember,
-          );
-
-          const goHome = () => navigate(homePathForRole(result.role), { replace: true });
-          if ((result.role || '').toLowerCase() === 'learner') {
-            prefetchLearnerHome()
-              .catch(() => {})
-              .finally(() => {
-                const profile = queryClient.getQueryData(learnerKeys.profile);
-                if (!profile?.targetJlptLevelId) {
-                  navigate('/onboarding', { replace: true });
-                  return;
-                }
-                navigate('/app', { replace: true });
-              });
-          } else {
-            goHome();
-          }
-        },
+        onSuccess: acceptSession,
         onError: (err) => {
           setError(err.message || t('loginFailed'));
         },
@@ -223,26 +207,7 @@ export default function Auth() {
 </div>
 </div>
 {/*  Social Login Buttons  */}
-<div className="grid grid-cols-2 gap-3" data-purpose="social-auth-buttons">
-{/*  Google Login Button  */}
-<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title={t('googleLogin')}>
-<svg className="w-4 h-4" viewBox="0 0 24 24">
-<path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
-<path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z" fill="#34A853"></path>
-<path d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27 0-.78.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12c0 2.01.45 3.82 1.25 5.42l4.03-3.15Z" fill="#FBBC05"></path>
-<path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z" fill="#EA4335"></path>
-</svg>
-<span className="">Google</span>
-</button>
-{/*  Facebook / Apple Login Button  */}
-<button className="h-11 flex items-center justify-center gap-2.5 px-4 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed" type="button" disabled title={t('facebookLogin')}>
-{/*  Facebook Icon  */}
-<svg className="w-4 h-4 text-[#1877F2] fill-current" viewBox="0 0 24 24">
-<path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path>
-</svg>
-<span className="">Facebook</span>
-</button>
-</div>
+<GoogleSignInButton disabled={loading} onCredential={handleGoogle} onError={setError} />
 </div>
 {/*  Footer Notice & Registration Prompt  */}
 <footer className="mt-8 pt-6 border-t border-slate-100 text-center" data-purpose="auth-footer">
