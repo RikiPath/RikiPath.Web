@@ -6,11 +6,11 @@ import { getAdminUser, updateAdminUser } from '../../api/admin.js';
 const ROLES = [
   ['Learner', 'Người ôn luyện'],
   ['ContentAuthor', 'Biên tập viên'],
-  ['Mentor', 'Mentor'],
+  ['Mentor', 'Cố vấn'],
   ['Admin', 'Quản trị viên'],
 ];
 
-const roleLabel = (role) => ROLES.find(([value]) => value === role)?.[1] || role;
+const roleLabel = (role) => ROLES.find(([value]) => value === role)?.[1] || 'Vai trò chưa xác định';
 
 export default function AdminUserDetail() {
   const { pathname } = useLocation();

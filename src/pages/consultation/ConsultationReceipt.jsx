@@ -69,7 +69,7 @@ export default function ConsultationReceipt() {
               </dl>
               {purchase.bookings.map((booking) => (
                 <div key={booking.id} className="mt-3 rounded-2xl border border-[#EADFE5] px-4 py-3 text-[13px]">
-                  <p className="font-medium">{booking.mentorName || tr("Mentor")} · Buổi #{booking.id}</p>
+                  <p className="font-medium">{booking.mentorName || tr("Cố vấn chưa cập nhật tên")} · Buổi tư vấn</p>
                   <p className="mt-1 text-[#927B88]">{bookingTime(booking.scheduledAt)} · giờ Việt Nam</p>
                   {paid && <Link to={`/consultation-session/?bookingId=${booking.id}`} className="mt-2 inline-block font-medium text-[#AD3155]">{tr('Xem chi tiết buổi')}</Link>}
                 </div>

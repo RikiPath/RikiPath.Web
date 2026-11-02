@@ -460,7 +460,7 @@ export default function LearnerSettings() {
                     {
                       icon: 'event',
                       title: tr('Nhắc lịch tư vấn'),
-                      description: tr('Thông báo trước buổi tư vấn với Mentor.'),
+    description: tr('Thông báo trước buổi tư vấn với cố vấn.'),
                     },
                   ].map((item) => (
                     <div

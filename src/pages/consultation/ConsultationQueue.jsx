@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
 import Pagination from '../../components/Pagination.jsx';
 import { getMentorBookings, acceptMentorBooking } from '../../api/mentorBookingsApi.js';
-import { bookingDate, bookingTime, bookingExpired, canAcceptBooking, bookingStatus } from '../../utils/mentorBooking.js';
+import { bookingDate, bookingTime, bookingExpired, canAcceptBooking, bookingStatus, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
@@ -97,8 +97,8 @@ export default function ConsultationQueue() {
           </div>
         </section>
 
-        {query.error && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{query.error.message}</p>}
-        {accept.error && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{accept.error.message}</p>}
+        {query.error && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">Không tải được yêu cầu tư vấn. Vui lòng thử lại.</p>}
+        {accept.error && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">Không thể tiếp nhận yêu cầu. Vui lòng kiểm tra trạng thái mới nhất và thử lại.</p>}
 
         <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
           <div className="overflow-x-auto">
@@ -110,12 +110,12 @@ export default function ConsultationQueue() {
                 {rows.map((booking) => (
                   <tr key={booking.id} className="border-t border-[#F0E7EC]">
                     <td className="px-4 py-4">
-                      <p className="font-medium">{booking.learnerName || `Học viên #${booking.learnerId}`}</p>
-                      <p className="mt-1 text-[12px] text-[#8C7782]">Học viên {booking.learnerId} · Buổi #{booking.id}</p>
+                      <p className="font-medium">{booking.learnerName || 'Học viên chưa cập nhật tên'}</p>
+                      <p className="mt-1 text-[12px] text-[#8C7782]">Yêu cầu tư vấn 1-1</p>
                     </td>
                     <td className="max-w-xs px-4 py-4">
                       <p className="whitespace-pre-wrap break-words">{booking.question || 'Học viên chưa gửi câu hỏi.'}</p>
-                      <p className="mt-2 text-[12px] text-[#8C7782]">{booking.paymentStatus === 'Paid' ? 'Đã thanh toán' : (booking.paymentStatus || 'Chưa có trạng thái thanh toán')}</p>
+                      <p className="mt-2 text-[12px] text-[#8C7782]">{paymentStatusLabel(booking.paymentStatus)}</p>
                     </td>
                     <td className="px-4 py-4">
                       <p>{bookingTime(booking.scheduledAt)}</p>

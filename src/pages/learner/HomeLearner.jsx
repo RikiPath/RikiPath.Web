@@ -36,7 +36,7 @@ const QUICK_LINKS = [
   },
   {
     key: 'mentor',
-    title: 'Tư vấn Mentor',
+    title: 'Tư vấn 1-1',
     description: 'Trao đổi kế hoạch ôn',
     icon: 'forum',
   },

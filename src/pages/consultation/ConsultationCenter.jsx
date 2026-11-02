@@ -4,7 +4,7 @@ import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import { getLearnerBookings } from '../../api/mentorBookingApi.js';
 import { cancelMentorBooking } from '../../api/mentorScheduleApi.js';
-import { bookingDate, bookingTime, bookingStatus } from '../../utils/mentorBooking.js';
+import { bookingDate, bookingTime, bookingStatus, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
@@ -37,7 +37,7 @@ export default function ConsultationCenter() {
           <div>
             <h1 className="text-[25px] font-semibold tracking-tight">{tr('Lịch tư vấn của tôi')}</h1>
             <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-[#927B88]">
-              {tr('Các buổi đã đặt. Hủy trước giờ bắt đầu ít nhất 24 tiếng thì được trả lại 1 lượt.')}
+              {tr('Các buổi đã đặt. Hủy trước giờ bắt đầu ít nhất 24 tiếng thì được trả lại 1 vé tư vấn.')}
             </p>
           </div>
           <Link to="/booking-schedule/" className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
@@ -47,7 +47,7 @@ export default function ConsultationCenter() {
 
         {(query.error || cancel.error) && (
           <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">
-            {(query.error || cancel.error).message}
+            {tr('Không thể cập nhật lịch tư vấn. Vui lòng thử lại.')}
           </p>
         )}
         {query.isPending && <p role="status" className="text-[13px] text-[#9A8390]">{tr('Đang tải…')}</p>}
@@ -57,10 +57,11 @@ export default function ConsultationCenter() {
             <article key={booking.id} className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-[16px] font-semibold">{booking.mentorName || 'Mentor'}</h2>
+                  <h2 className="text-[16px] font-semibold">{booking.mentorName || tr('Cố vấn chưa được phân công')}</h2>
                   <p className="mt-1 text-[13px] text-[#927B88]">
-                    #{booking.id} · {bookingTime(booking.scheduledAt)} · {tr('giờ Việt Nam')}
+                    {bookingTime(booking.scheduledAt)} · {tr('giờ Việt Nam')}
                   </p>
+                  <p className="mt-1 text-[12px] text-[#927B88]">{tr('Thanh toán')}: {paymentStatusLabel(booking.paymentStatus)}</p>
                 </div>
                 <span className="rounded-full bg-[#FCEEF3] px-3 py-1 text-[12px] font-medium text-[#AD3155]">
                   {bookingStatus(booking)}
@@ -69,13 +70,15 @@ export default function ConsultationCenter() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link to={`/consultation-session/?bookingId=${booking.id}`} className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>{tr('Chi tiết')}</Link>
                 {booking.userSubscriptionId && (
-                  <Link to={`/consultation-receipt/?subscriptionId=${booking.userSubscriptionId}`} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Gói / số lượt còn lại')}</Link>
+                  <Link to={`/consultation-receipt/?subscriptionId=${booking.userSubscriptionId}`} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>
+                    {booking.paymentStatus === 'Paid' ? tr('Gói tư vấn / vé còn lại') : tr('Kiểm tra thanh toán')}
+                  </Link>
                 )}
                 {booking.paymentStatus === 'Paid' && (
-                  <Link to={`/mentor-chat/?bookingId=${booking.id}`} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Chat với mentor')}</Link>
+                  <Link to={`/mentor-chat/?bookingId=${booking.id}`} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Chat với cố vấn')}</Link>
                 )}
                 {booking.meetingLink && (
-                  <a href={booking.meetingLink} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Link phòng họp')}</a>
+                  <a href={booking.meetingLink} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Phòng tư vấn')}</a>
                 )}
                 {canCancel(booking) && (
                   <button
@@ -84,7 +87,7 @@ export default function ConsultationCenter() {
                     onClick={() => cancel.mutate(booking.id)}
                     className={`inline-flex h-9 items-center rounded-lg px-3 text-[12px] font-medium text-[#A33357] hover:bg-[#FCF4F8] disabled:opacity-50 ${focus}`}
                   >
-                    {cancel.isPending && cancel.variables === booking.id ? tr('Đang hủy…') : tr('Hủy buổi')}
+                    {cancel.isPending && cancel.variables === booking.id ? tr('Đang hủy…') : tr('Hủy lịch')}
                   </button>
                 )}
               </div>

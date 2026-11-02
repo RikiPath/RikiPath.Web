@@ -46,21 +46,22 @@ export const ADMIN_NAV = {
       ],
     },
     {
-      label: 'Mentor',
+      label: 'Tư vấn 1-1',
       items: [
         {
           to: '/admin/mentors',
-          label: 'Mentor',
-          hint: 'Hồ sơ và xếp lịch tuần',
+          label: 'Cố vấn',
+          hint: 'Hồ sơ và xét duyệt',
           icon: 'support_agent',
-          alsoActive: ['/admin/mentor-schedules', '/admin/mentor-plans', '/admin/consultants'],
+          alsoActive: ['/admin/mentor-schedules', '/admin/mentor-plans', '/admin/mentor-verifications', '/admin/consultants'],
           children: [
             { to: '/admin/mentors', label: 'Hồ sơ', alsoActive: ['/admin/consultants'] },
+            { to: '/admin/mentor-verifications', label: 'Xét duyệt cố vấn' },
             { to: '/admin/mentor-schedules', label: 'Xếp lịch tuần' },
             { to: '/admin/mentor-plans', label: 'Gói tư vấn' },
           ],
         },
-        { to: '/admin/operations', label: 'Gói & lịch', hint: 'Feature, booking', icon: 'tune' },
+        { to: '/admin/operations', label: 'Gói & lịch', hint: 'Quản lý gói và lịch tư vấn', icon: 'tune' },
       ],
     },
     {
@@ -73,7 +74,7 @@ export const ADMIN_NAV = {
 };
 
 export const LEARNER_NAV = {
-  brand: { title: 'RikiPath', subtitle: 'JLPT Academy' },
+  brand: { title: 'RikiPath', subtitle: 'Học tiếng Nhật và luyện thi JLPT' },
   groups: [
     { id: 'study', label: 'Học tập' },
     { id: 'riki', label: 'Riki' },
@@ -106,11 +107,11 @@ export const LEARNER_NAV = {
       ],
     },
     { to: '/ai-counselor', label: 'Cố vấn AI', hint: 'Haru đồng hành', icon: 'psychology', group: 'support' },
-    { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với Mentor', icon: 'forum', group: 'support' },
+    { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với cố vấn', icon: 'forum', group: 'support' },
     {
       to: '/mentor',
       label: 'Tư vấn 1-1',
-      hint: 'Sensei trực tiếp',
+      hint: 'Cố vấn hỗ trợ ôn luyện JLPT',
       icon: 'support_agent',
       group: 'support',
       alsoActive: [
@@ -126,14 +127,14 @@ export const LEARNER_NAV = {
     { to: '/payments', label: 'Thanh toán', icon: 'payments', group: 'support', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
     { to: '/settings', label: 'Cài đặt', hint: 'Tài khoản & mục tiêu', icon: 'settings', group: 'support' },
   ],
-  user: { name: 'Minh Anh', role: 'Học viên N4' },
+  user: { name: 'Học viên', role: 'Học viên' },
 };
 
 export const CONSULT_NAV = {
-  brand: { title: 'RikiPath', subtitle: 'Mentor' },
+  brand: { title: 'RikiPath', subtitle: 'Tư vấn 1-1' },
   groups: [
     {
-      label: 'Buổi học',
+      label: 'Buổi tư vấn',
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
         { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
@@ -156,7 +157,7 @@ export const CONSULT_NAV = {
       ],
     },
   ],
-  user: { name: 'Sensei Aoi', role: 'Mentor N3–N2' },
+  user: { name: 'Cố vấn', role: 'Cố vấn' },
 };
 
 export const MARKETING_NAV = {

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as signalR from '@microsoft/signalr';
 import { getSession } from '../auth/session.js';
+import { hubEndpoint } from '../config/backend.js';
 import {
     getNotifications,
     getUnreadNotificationCount,
@@ -50,30 +51,47 @@ export function useMarkAllAsReadMutation() {
 
 export function useNotificationSignalR() {
     useEffect(() => {
-        const token = getSession()?.accessToken || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        const token = getSession()?.accessToken || '';
         if (!token) return;
 
-        const hubUrl = '/hubs/notification';
+        const hubUrl = hubEndpoint('/hubs/notification');
 
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(hubUrl, {
-                accessTokenFactory: () => token,
+                accessTokenFactory: () => getSession()?.accessToken || '',
                 transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
             })
             .withAutomaticReconnect()
             .configureLogging(signalR.LogLevel.Warning)
             .build();
 
-        connection.on('ReceiveNotification', () => {
+        const handleRefresh = (notification) => {
             // Invalidate query để TanStack Query tự làm mới danh sách & số lượng chưa đọc
             queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+            if (notification?.type === 'MentorVerification') {
+                queryClient.invalidateQueries({ queryKey: ['admin-mentor-verifications'] });
+                window.dispatchEvent(new CustomEvent('rikipath:mentor-verification', { detail: notification }));
+            }
+        };
+
+        connection.on('ReceiveNotification', handleRefresh);
+        connection.on('NotificationReceived', handleRefresh);
+        connection.on('NotificationRead', handleRefresh);
+        connection.on('UnreadCountChanged', handleRefresh);
+        connection.onreconnected(() => {
+            handleRefresh();
+            connection.invoke('RequestSync').catch(() => {});
         });
 
         connection
             .start()
-            .catch((err) => console.error('SignalR NotificationHub error:', err));
+            .then(() => connection.invoke('RequestSync'))
+            .catch(() => handleRefresh());
+
+        const refreshTimer = window.setInterval(handleRefresh, 60000);
 
         return () => {
+            window.clearInterval(refreshTimer);
             connection.stop();
         };
     }, []);

@@ -150,7 +150,7 @@ function getStages(level) {
         },
         {
           icon: 'support_agent',
-          title: 'Tư vấn Mentor',
+    title: 'Tư vấn 1-1',
           description: 'Trao đổi khi cần điều chỉnh kế hoạch ôn luyện.',
           to: '/mentor',
         },
@@ -568,7 +568,7 @@ export default function RoadmapJLPT() {
                   {tr('Cần hướng dẫn thêm?')}
                 </span>
                 <span className="mt-1 block text-[11px] text-[#A08A95]">
-                  {tr('Trao đổi cùng Mentor')}
+                  {tr('Trao đổi cùng cố vấn')}
                 </span>
               </span>
               <Icon

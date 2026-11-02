@@ -15,7 +15,7 @@ import {
 const ROLE_LABELS = {
   Admin: 'Quản trị',
   ContentAuthor: 'Biên tập',
-  Mentor: 'Mentor',
+  Mentor: 'Cố vấn',
   Learner: 'Người ôn luyện',
 };
 

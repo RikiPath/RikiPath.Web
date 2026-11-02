@@ -135,7 +135,7 @@ export default function AdminMentorSchedules({ embedded = false }) {
     }
     return [...map.entries()].map(([id, periods]) => ({
       id,
-      name: periods[0]?.mentorName || `Mentor #${id}`,
+      name: periods[0]?.mentorName || 'Cố vấn chưa cập nhật tên',
       periods: periods.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)),
     }));
   }, [visibleRegistrations]);
@@ -179,7 +179,7 @@ export default function AdminMentorSchedules({ embedded = false }) {
     mutationFn: () => publishWeeklySchedule(weekStart),
     onSuccess: async () => {
       setError('');
-      setNotice('Đã công bố lịch tuần. Mentor thấy các tiết đã mở.');
+      setNotice('Đã công bố lịch tuần. Cố vấn có thể xem các khung giờ đã mở.');
       await refresh();
     },
     onError: (err) => setError(err.message || 'Không công bố được lịch.'),
@@ -198,9 +198,9 @@ export default function AdminMentorSchedules({ embedded = false }) {
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold">Xếp tiết cho mentor</h1>
+          <h1 className="text-[22px] font-semibold">Xếp lịch cho cố vấn</h1>
           <p className="mt-1 max-w-2xl text-[13px] leading-6 text-[#82737B]">
-            Mentor đăng ký buổi rảnh. Tại đây chọn tiết 50 phút trong từng buổi, rồi công bố tuần. Giờ Việt Nam.
+            Cố vấn đăng ký thời gian rảnh. Tại đây chọn các khung giờ của lịch hiện có rồi công bố tuần. Giờ Việt Nam.
           </p>
         </div>
         <button
@@ -239,7 +239,7 @@ export default function AdminMentorSchedules({ embedded = false }) {
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <div>
             <h2 className="text-[15px] font-semibold">Chọn tiết trong buổi rảnh</h2>
-            <p className="mt-1 text-[12px] text-[#82737B]">Bấm ô giờ để chọn. Mỗi ô là 50 phút. Công bố khi mỗi mentor có ít nhất 5 tiết.</p>
+            <p className="mt-1 text-[12px] text-[#82737B]">Bấm ô giờ để chọn. Lịch này dùng các khung 50 phút; công bố khi mỗi cố vấn có ít nhất 5 khung giờ.</p>
           </div>
           <div className="flex flex-wrap gap-2 text-[11px] text-[#8C7782]">
             <span className="rounded-lg border border-[#E7DAE1] bg-white px-2 py-1">Trống</span>
@@ -249,7 +249,7 @@ export default function AdminMentorSchedules({ embedded = false }) {
         </div>
         {registrations.isPending && <p className="text-[13px] text-[#82737B]">Đang tải buổi rảnh…</p>}
         {!registrations.isPending && !groups.length && (
-          <p className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-6 text-[13px] text-[#82737B]">Chưa có mentor đăng ký buổi rảnh trong tuần này.</p>
+          <p className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-6 text-[13px] text-[#82737B]">Chưa có cố vấn đăng ký thời gian rảnh trong tuần này.</p>
         )}
         <div className="space-y-4">
           {groups.map((group) => {
@@ -328,7 +328,7 @@ export default function AdminMentorSchedules({ embedded = false }) {
         {slots.isPending ? <p className="text-[13px] text-[#82737B]">Đang tải khung giờ…</p> : weekSlots.length ? (
           <>
             <div className="mb-2 flex flex-wrap gap-2">
-              {[...new Map(weekSlots.map((slot) => [slot.mentorId, slot.mentorName || `Mentor #${slot.mentorId}`])).entries()].map(([id, name], index) => (
+              {[...new Map(weekSlots.map((slot) => [slot.mentorId, slot.mentorName || 'Cố vấn chưa cập nhật tên'])).entries()].map(([id, name], index) => (
                 <span key={id} className={`rounded-full px-2.5 py-1 text-[11px] ${MENTOR_COLORS[index % MENTOR_COLORS.length]}`}>{name}</span>
               ))}
             </div>
@@ -349,7 +349,7 @@ export default function AdminMentorSchedules({ embedded = false }) {
                     startMinute: start.minute,
                     endHour: end.hour,
                     endMinute: end.minute,
-                    title: slot.mentorName || `Mentor #${slot.mentorId}`,
+                    title: slot.mentorName || 'Cố vấn chưa cập nhật tên',
                     detail: slot.isBooked ? 'Đã có buổi' : slot.isApproved ? 'Đang mở' : 'Nháp',
                     className: MENTOR_COLORS[Math.max(mentors.indexOf(slot.mentorId), 0) % MENTOR_COLORS.length],
                   };
@@ -369,5 +369,5 @@ export default function AdminMentorSchedules({ embedded = false }) {
     </div>
   );
   if (embedded) return body;
-  return <AdminShell pathname={pathname} breadcrumb="Lịch mentor">{body}</AdminShell>;
+  return <AdminShell pathname={pathname} breadcrumb="Lịch cố vấn">{body}</AdminShell>;
 }

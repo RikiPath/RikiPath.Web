@@ -160,7 +160,7 @@ export default function Consultation() {
         <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-[25px] font-semibold tracking-tight text-[#49353F]">
-              {tr('Tư vấn cùng Mentor')}
+              {tr('Tư vấn 1-1 với cố vấn')}
             </h1>
             <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-[#927B88]">
               {tr('Mua gói để cộng lượt, rồi chọn lịch. Mỗi tiết dùng 1 lượt.')}

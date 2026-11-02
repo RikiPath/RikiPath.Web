@@ -51,7 +51,7 @@ function getName(mentor) {
     mentor.name ||
     [mentor.lastName, mentor.firstName].filter(Boolean).join(' ') ||
     mentor.email ||
-    'Mentor'
+    'Cố vấn'
   );
 }
 
@@ -220,9 +220,9 @@ export default function AdminConsultants({ embedded = false }) {
           })),
         );
       }
-    } catch (err) {
+    } catch {
       if (requestId === requestRef.current) {
-        setError(err.message || 'Không thể tải danh sách Mentor.');
+        setError('Không thể tải danh sách cố vấn. Vui lòng thử lại.');
       }
     } finally {
       if (requestId === requestRef.current) setLoading(false);
@@ -287,10 +287,10 @@ export default function AdminConsultants({ embedded = false }) {
 
       setShowCreate(false);
       setForm({ ...EMPTY_FORM });
-      setNotice('Đã thêm Mentor.');
+      setNotice('Đã thêm cố vấn.');
       await loadMentors();
-    } catch (err) {
-      setFormError(err.message || 'Không thể thêm Mentor.');
+    } catch {
+      setFormError('Không thể thêm cố vấn. Vui lòng kiểm tra thông tin và thử lại.');
     } finally {
       setSubmitting(false);
     }
@@ -333,7 +333,7 @@ export default function AdminConsultants({ embedded = false }) {
       }));
       setConfirmStatus(false);
       setNotice(
-        nextActive ? 'Đã kích hoạt Mentor.' : 'Đã vô hiệu hóa Mentor.',
+        nextActive ? 'Đã kích hoạt cố vấn.' : 'Đã vô hiệu hóa cố vấn.',
       );
     } catch (err) {
       setDetailError(err.message || 'Không thể đổi trạng thái.');
@@ -352,7 +352,7 @@ export default function AdminConsultants({ embedded = false }) {
           {!embedded && (
             <div>
               <h1 className="text-[25px] font-semibold tracking-tight">
-                Quản lý Mentor
+                Quản lý cố vấn
               </h1>
               <p className="mt-1 text-[13px] text-[#82737B]">
                 Hồ sơ và trạng thái tư vấn.
@@ -373,7 +373,7 @@ export default function AdminConsultants({ embedded = false }) {
                        hover:bg-[#982B4B]"
           >
             <Plus size={17} />
-            Thêm Mentor
+            Thêm cố vấn
           </button>
         </header>
 
@@ -396,7 +396,7 @@ export default function AdminConsultants({ embedded = false }) {
         )}
 
         <section
-          aria-label="Danh sách Mentor"
+          aria-label="Danh sách cố vấn"
           className="overflow-hidden rounded-xl border
                      border-[#EAE1E6] bg-white"
         >
@@ -410,7 +410,7 @@ export default function AdminConsultants({ embedded = false }) {
               ) : (
                 <>
                   <span className="font-medium text-[#51434A]">
-                    {mentors.length} Mentor
+                    {mentors.length} cố vấn
                   </span>
                   <span className="mx-2 text-[#C9BBC2]">·</span>
                   {activeCount} đang hoạt động
@@ -427,7 +427,7 @@ export default function AdminConsultants({ embedded = false }) {
                 />
                 <input
                   type="search"
-                  aria-label="Tìm Mentor"
+                  aria-label="Tìm cố vấn"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Tên, email, số điện thoại..."
@@ -440,7 +440,7 @@ export default function AdminConsultants({ embedded = false }) {
               </div>
 
               <select
-                aria-label="Lọc trạng thái Mentor"
+                aria-label="Lọc trạng thái cố vấn"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
                 className="h-9 rounded-lg border border-[#EAE1E6]
@@ -496,7 +496,7 @@ export default function AdminConsultants({ embedded = false }) {
                 <thead className="bg-[#FCFAFB] text-[12px] text-[#8C7D84]">
                   <tr>
                     <th scope="col" className="px-5 py-3 font-medium">
-                      Mentor
+                      Cố vấn
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
                       Số điện thoại
@@ -527,7 +527,7 @@ export default function AdminConsultants({ embedded = false }) {
                     <tr>
                       <td colSpan={4} className="py-12 text-center">
                         <p className="text-[14px] text-[#62515A]">
-                          Không có Mentor phù hợp
+                          Không có cố vấn phù hợp
                         </p>
                         <p className="mt-1 text-[12px] text-[#95858D]">
                           Thử thay đổi từ khóa hoặc bộ lọc.
@@ -635,7 +635,7 @@ export default function AdminConsultants({ embedded = false }) {
               className="border-t border-[#EEE7EA] px-5 py-2.5
                          text-[12px] text-[#95858D]"
             >
-              Hiển thị {filteredMentors.length}/{mentors.length} Mentor
+              Hiển thị {filteredMentors.length}/{mentors.length} cố vấn
             </div>
           )}
         </section>
@@ -647,7 +647,7 @@ export default function AdminConsultants({ embedded = false }) {
                          border-b border-[#EEE7EA] px-5 py-4"
             >
               <h2 id="add-mentor-title" className="text-[17px] font-semibold">
-                Thêm Mentor
+                Thêm cố vấn
               </h2>
               <button
                 type="button"
@@ -758,7 +758,7 @@ export default function AdminConsultants({ embedded = false }) {
                              text-[13px] text-white hover:bg-[#982B4B]
                              disabled:opacity-50"
                 >
-                  {submitting ? 'Đang thêm…' : 'Thêm Mentor'}
+                  {submitting ? 'Đang thêm…' : 'Thêm cố vấn'}
                 </button>
               </footer>
             </form>
@@ -772,7 +772,7 @@ export default function AdminConsultants({ embedded = false }) {
                          border-b border-[#EEE7EA] px-5 py-4"
             >
               <h2 id="mentor-detail-title" className="text-[17px] font-semibold">
-                Thông tin Mentor
+                Thông tin cố vấn
               </h2>
               <button
                 type="button"
@@ -793,7 +793,7 @@ export default function AdminConsultants({ embedded = false }) {
 
               <dl className="mt-5 space-y-3 text-[13px]">
                 {[
-                  ['Mã Mentor', detailMentor.id],
+                  ['Mã hồ sơ', detailMentor.id],
                   ['Email', detailMentor.email],
                   ['Số điện thoại', detailMentor.phoneNumber],
                   [
@@ -832,8 +832,8 @@ export default function AdminConsultants({ embedded = false }) {
                   <div className="rounded-lg bg-[#FAF3F6] p-3">
                     <p className="text-[13px] text-[#75616C]">
                       {detailMentor.isActive === false
-                        ? 'Kích hoạt lại Mentor này?'
-                        : 'Vô hiệu hóa Mentor này?'}
+                        ? 'Kích hoạt lại cố vấn này?'
+                        : 'Vô hiệu hóa cố vấn này?'}
                     </p>
                     <div className="mt-3 flex justify-end gap-2">
                       <button
@@ -864,8 +864,8 @@ export default function AdminConsultants({ embedded = false }) {
                       className="text-[12px] text-[#AD3155] disabled:opacity-40"
                     >
                       {detailMentor.isActive === false
-                        ? 'Kích hoạt Mentor'
-                        : 'Vô hiệu hóa Mentor'}
+                        ? 'Kích hoạt cố vấn'
+                        : 'Vô hiệu hóa cố vấn'}
                     </button>
                     <button
                       type="button"
@@ -895,7 +895,7 @@ export default function AdminConsultants({ embedded = false }) {
   }
 
   return (
-    <AdminShell pathname={pathname} breadcrumb="Mentor">
+    <AdminShell pathname={pathname} breadcrumb="Cố vấn">
       <main
         className="mx-auto max-w-[1320px] px-4 py-5
                    text-[#352C31] sm:px-6 lg:px-8"

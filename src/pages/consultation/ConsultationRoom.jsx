@@ -258,7 +258,7 @@ export default function ConsultationRoom() {
           </div>
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-bold text-white">{tr("Phòng Học Nhóm Mentor · JLPT N3")}</span>
+              <span className="truncate text-sm font-bold text-white">{tr("Phòng học nhóm cùng cố vấn · JLPT N3")}</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D94B68]/20 border border-[#D94B68]/40 text-[#F472B6]">
                 {totalParticipantsCount} {tr('Người')}
               </span>
@@ -568,7 +568,7 @@ export default function ConsultationRoom() {
                 {chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-2">
                     <MessageSquare className="w-8 h-8 stroke-1" />
-                    <p className="text-xs">{tr("Chưa có tin nhắn trong phòng.")}<br />{tr("Hãy đặt câu hỏi cho Mentor!")}</p>
+                    <p className="text-xs">{tr("Chưa có tin nhắn trong phòng.")}<br />{tr("Hãy đặt câu hỏi cho cố vấn!")}</p>
                   </div>
                 ) : (
                   chatMessages.map((msg) => (

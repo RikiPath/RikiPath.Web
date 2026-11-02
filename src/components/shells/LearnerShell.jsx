@@ -133,7 +133,7 @@ const MENU_GROUPS = [
       },
       {
         to: '/mentor',
-        label: 'Tư vấn Mentor',
+        label: 'Tư vấn 1-1',
         icon: 'support_agent',
         alsoActive: [
           '/booking-schedule',

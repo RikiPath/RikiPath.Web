@@ -54,12 +54,12 @@ function navClass(active) {
 
 function roleLabel(role) {
   const value = String(role || '').toLowerCase();
-  if (value === 'mentor' || value === 'consultant') return 'Mentor';
+  if (value === 'mentor' || value === 'consultant') return 'Cố vấn';
   if (value === 'admin') return 'Quản trị viên';
-  return role || 'Mentor';
+  return 'Cố vấn';
 }
 
-export default function ConsultShell({ children, pathname, breadcrumb = 'Mentor' }) {
+export default function ConsultShell({ children, pathname, breadcrumb = 'Cố vấn' }) {
   const location = useLocation();
   const currentPath = pathname || location.pathname;
   const { user, primaryRole, logout } = useAuth();
@@ -77,7 +77,7 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Mentor'
                  font-['Nunito',sans-serif] text-[#3F3038]"
     >
       <aside
-        aria-label="Điều hướng mentor"
+          aria-label="Điều hướng cố vấn"
         style={{ width: SIDEBAR_W }}
         className="fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden
                    border-r border-[#E8DFDC] bg-[#FAF8F7]"
@@ -240,7 +240,7 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Mentor'
                      border-b border-[#E8DFDC] bg-[#FAF8F7] px-6"
         >
           <div className="flex min-w-0 items-center gap-2 text-[12px] text-[#AA98A1]">
-            <span>Mentor</span>
+            <span>Cố vấn</span>
             <span className="material-symbols-outlined text-[16px] text-[#C9B8C0]">
               chevron_right
             </span>

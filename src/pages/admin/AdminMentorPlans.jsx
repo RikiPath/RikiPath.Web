@@ -167,7 +167,7 @@ export default function AdminMentorPlans() {
               </div>
               <label className="block text-[12px] font-medium text-[#6E5360]">
                 Mô tả
-                <textarea rows={3} maxLength={2000} value={form.description} placeholder="Buổi 50 phút, đặt lịch với mentor đã chọn." onChange={(event) => update('description', event.target.value)} className={`${fieldClass} h-auto py-2 leading-5`} />
+                <textarea rows={3} maxLength={2000} value={form.description} placeholder="Buổi tư vấn 90 phút với cố vấn đã chọn." onChange={(event) => update('description', event.target.value)} className={`${fieldClass} h-auto py-2 leading-5`} />
               </label>
               <label className="flex items-center justify-between gap-3 rounded-xl bg-[#FCFAFB] px-3 py-3">
                 <span>
