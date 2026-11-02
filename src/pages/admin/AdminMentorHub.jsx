@@ -3,18 +3,20 @@ import { AdminShell } from '../../components/shells';
 import AdminConsultants from './AdminConsultants.jsx';
 import AdminMentorSchedules from './AdminMentorSchedules.jsx';
 import AdminMentorPlans from './AdminMentorPlans.jsx';
+import AdminMentorVerifications from './AdminMentorVerifications.jsx';
 
 const SECTIONS = [
   {
     to: '/admin/mentors',
-    label: 'Hồ sơ Mentor',
-    note: 'Danh sách, trạng thái và thêm Mentor.',
+    label: 'Quản lý cố vấn',
+    note: 'Danh sách và trạng thái cố vấn.',
     paths: ['/admin/mentors', '/admin/consultants'],
   },
+  { to: '/admin/mentor-verifications', label: 'Hồ sơ chờ xét duyệt', note: 'Phê duyệt, từ chối và yêu cầu bổ sung.', paths: ['/admin/mentor-verifications'] },
   {
     to: '/admin/mentor-schedules',
-    label: 'Xếp lịch tuần',
-    note: 'Chọn tiết 50 phút từ buổi rảnh mentor đã đăng ký.',
+    label: 'Lịch tư vấn',
+    note: 'Xem lịch tư vấn đã công bố.',
     paths: ['/admin/mentor-schedules'],
   },
   { to: '/admin/mentor-plans', label: 'Gói tư vấn', note: 'Cấu hình giá gói 1 và 3 buổi.', paths: ['/admin/mentor-plans'] },
@@ -28,25 +30,26 @@ export default function AdminMentorHub() {
   const { pathname } = useLocation();
   const current = cleanPath(pathname);
   const schedules = current === '/admin/mentor-schedules';
+  const verifications = current === '/admin/mentor-verifications';
 
   return (
-    <AdminShell pathname={pathname} breadcrumb="Mentor">
+    <AdminShell pathname={pathname} breadcrumb="Quản lý cố vấn">
       <main
         className="mx-auto max-w-[1320px] px-4 py-5
                    text-[#352C31] sm:px-6 lg:px-8"
       >
         <header className="mb-4">
           <h1 className="text-[25px] font-semibold tracking-tight">
-            Mentor
+            Quản lý cố vấn
           </h1>
           <p className="mt-1 text-[13px] text-[#82737B]">
-            Hồ sơ và lịch tư vấn.
+          Hồ sơ xét duyệt và lịch tư vấn.
           </p>
         </header>
 
         <nav
-          aria-label="Mục Mentor"
-          className="mb-5 grid gap-3 sm:grid-cols-2"
+          aria-label="Mục quản lý cố vấn"
+          className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
         >
           {SECTIONS.map((section) => {
             const active = section.paths.includes(current);
@@ -77,7 +80,7 @@ export default function AdminMentorHub() {
           })}
         </nav>
 
-        {current === '/admin/mentor-plans' ? <AdminMentorPlans /> : schedules ? (
+        {verifications ? <AdminMentorVerifications /> : current === '/admin/mentor-plans' ? <AdminMentorPlans /> : schedules ? (
           <AdminMentorSchedules embedded />
         ) : (
           <AdminConsultants embedded />

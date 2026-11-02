@@ -62,3 +62,47 @@ export const bookMentorWithCredit = ({ mentorAvailabilityId, question }) =>
     mentorAvailabilityId,
     question: question || null,
   }).then((data) => data.result);
+
+// Số dư vé tư vấn và lịch sử giao dịch.
+export const getCreditBalance = async () => (await api.get('/v1/mentor-credits/balance')).result;
+export const getCreditHistory = async () => (await api.get('/v1/mentor-credits/history')).result || [];
+
+// Đặt lịch tư vấn bằng vé và giải phóng giữ chỗ.
+export const bookMeetingWithCredit = async body => (await api.post('/v1/learner/mentor-bookings', body)).result;
+export const releaseBookingHold = async (bookingId, body) =>
+  (await api.post(`/v1/learner/mentor-bookings/${bookingId}/release`, body)).result;
+
+// Kiểm tra điều kiện hủy và đổi lịch.
+export const getCancellationEligibility = async bookingId =>
+  (await api.get(`/v1/mentor-bookings/${bookingId}/cancellation-eligibility`)).result;
+export const cancelMentorBooking = async (bookingId, body) =>
+  (await api.post(`/v1/mentor-bookings/${bookingId}/cancel`, body)).result;
+export const rescheduleMentorBooking = async (bookingId, body) =>
+  (await api.post(`/v1/mentor-bookings/${bookingId}/reschedule`, body)).result;
+
+// Đánh giá và phản hồi chất lượng cố vấn.
+export const createMentorReview = async body => (await api.post('/v1/mentor-reviews', body)).result;
+export const getMentorReviews = async (mentorId, params) =>
+  (await api.get(`/v1/mentors/${mentorId}/reviews`, { params })).result;
+export const getMentorRatingSummary = async mentorId =>
+  (await api.get(`/v1/mentors/${mentorId}/rating-summary`)).result;
+export const replyMentorReview = async (reviewId, body) =>
+  (await api.post(`/v1/mentor-reviews/${reviewId}/reply`, body)).result;
+
+// Khiếu nại và xử lý tranh chấp buổi tư vấn.
+export const createMentorDispute = async body => (await api.post('/v1/mentor-disputes', body)).result;
+export const getLearnerDisputes = async params =>
+  (await api.get('/v1/learner/mentor-disputes', { params })).result;
+export const getDisputeDetail = async disputeId =>
+  (await api.get(`/v1/mentor-disputes/${disputeId}`)).result;
+export const respondMentorDispute = async (disputeId, body) =>
+  (await api.post(`/v1/mentor-disputes/${disputeId}/respond`, body)).result;
+
+// Tìm kiếm cố vấn và xem hồ sơ công khai.
+export const searchMentors = async params => (await api.get('/v1/mentors', { params })).result;
+export const getPublicMentorProfile = async mentorId =>
+  (await api.get(`/v1/mentors/${mentorId}/profile`)).result;
+export const getMentorAvailableSlots = async (mentorId, from, to) =>
+  (await api.get(`/v1/mentors/${mentorId}/slots`, { params: { from, to } })).result;
+export const getMentorAvailableDates = async (mentorId, from, to) =>
+  (await api.get(`/v1/mentors/${mentorId}/available-dates`, { params: { from, to } })).result;

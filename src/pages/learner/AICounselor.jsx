@@ -94,7 +94,7 @@ const QUICK_LINKS = [
   {
     to: '/mentor',
     icon: 'forum',
-    title: 'Trao đổi với mentor',
+    title: 'Trao đổi với cố vấn',
     description: 'Khi bạn cần thêm hướng dẫn',
   },
 ];

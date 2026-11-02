@@ -252,7 +252,7 @@ export default function BulkImport() {
     setError('');
     setResult(null);
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      setError('API chỉ nhận file .xlsx.');
+      setError('Vui lòng chọn tệp Excel định dạng .xlsx.');
       return;
     }
     setReading(true);

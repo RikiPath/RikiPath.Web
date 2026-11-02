@@ -72,11 +72,28 @@ export function unwrapApiResult(response) {
 export function unwrapApiList(response) {
   const value = unwrapApiResult(response);
   if (Array.isArray(value)) return value;
-  for (const key of ['items', 'data', 'results', 'users', 'plans', 'features', 'mentors', 'bookings', 'availabilities', 'contents']) {
+  for (const key of ['items', 'data', 'results', 'users', 'plans', 'features', 'mentors', 'bookings', 'availabilities', 'contents', 'disputes', 'reviews', 'metrics', 'profiles', 'verifications']) {
     if (Array.isArray(value?.[key])) return value[key];
   }
   return [];
 }
+
+// Quan ly xac minh ho so, tranh chap, danh gia va chat luong Mentor 1-1
+export const getAdminMentorVerifications = (params) => api.get('/admin/mentors/verifications', { params });
+export const getAdminMentorProfile = (mentorId) => api.get(`/admin/mentors/${mentorId}/profile`);
+export const getAdminMentorVerificationDocument = (mentorId) =>
+  api.get(`/admin/mentors/${mentorId}/verification-document/content`, { responseType: 'blob' });
+export const verifyAdminMentor = (mentorId, data) => api.post(`/admin/mentors/${mentorId}/verify`, data);
+export const reviewAdminCancellationException = (bookingId, data) =>
+  api.post(`/admin/mentor-bookings/${bookingId}/review-cancellation`, data);
+export const moderateAdminMentorReview = (reviewId, data) =>
+  api.post(`/admin/mentor-reviews/${reviewId}/moderate`, data);
+export const getAdminMentorDisputesQueue = (params) => api.get('/admin/mentor-disputes/queue', { params });
+export const resolveAdminMentorDispute = (disputeId, data) =>
+  api.post(`/admin/mentor-disputes/${disputeId}/resolve`, data);
+export const updateAdminMentorDisputeStatus = (disputeId, data) =>
+  api.post(`/admin/mentor-disputes/${disputeId}/status`, data);
+export const getAdminMentorQualityMetrics = (params) => api.get('/admin/mentor-quality/metrics', { params });
 
 export async function reviewContentRequest(requestId, data) {
   // data: { approve: boolean, reviewNote: string }

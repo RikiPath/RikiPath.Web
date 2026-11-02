@@ -1,4 +1,4 @@
-const env = import.meta.env;
+const env = import.meta.env || {};
 const LOCAL_HTTPS = 'https://localhost:7237';
 
 function isVercelHost() {

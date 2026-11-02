@@ -102,7 +102,7 @@ export default function TextConsultationReply() {
           <section className="rounded-2xl border border-[#EADFE5] bg-white p-4">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="text-[16px] font-semibold text-[#5A3E4C]">Trần Thị B</h2>
-              <span className="text-[12px] text-[#AD3155]">N3 · YC #88412</span>
+              <span className="text-[12px] text-[#AD3155]">N3 · Yêu cầu luyện viết</span>
             </div>
             <p className="mt-1 text-[12px] text-[#947B88]">
               ～ものの · ～にもかかわらず · JLPT 7/2025 · 140/180
