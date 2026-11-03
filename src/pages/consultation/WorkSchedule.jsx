@@ -6,7 +6,7 @@ import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
 import { ConsultShell } from '../../components/shells';
 import { api } from '../../api/client.js';
 import { getMentorBookings } from '../../api/mentorBookingApi.js';
-import { bookingDate, bookingStatus, bookingTime } from '../../utils/mentorBooking.js';
+import { bookingDate, bookingTime } from '../../utils/mentorBooking.js';
 
 const focusClass =
   'focus-visible:outline-none focus-visible:ring-2 ' +
@@ -38,6 +38,19 @@ const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const slotClock = value => bookingDate(value)?.toLocaleTimeString('vi-VN', {
   timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false,
 }) || 'Chưa xếp giờ';
+
+function eventRange(event) {
+  return {
+    start: event.startHour * 60 + (event.startMinute || 0),
+    end: event.endHour * 60 + (event.endMinute || 0),
+  };
+}
+
+function rangesOverlap(left, right) {
+  const a = eventRange(left);
+  const b = eventRange(right);
+  return a.start < b.end && b.start < a.end;
+}
 
 function clockParts(value) {
   const date = bookingDate(value);
@@ -151,13 +164,14 @@ export default function WorkSchedule() {
         endHour: finish.hour,
         endMinute: finish.minute,
         title: booking.learnerName || `HV #${booking.learnerId || booking.id}`,
-        detail: bookingStatus(booking),
+        detail: `${slotClock(booking.scheduledAt)}–${String(finish.hour).padStart(2, '0')}:${String(finish.minute).padStart(2, '0')}`,
         tone: 'session',
         href: `/consultation-prep?bookingId=${booking.id}`,
         z: 3,
       };
     });
-    return [...slots, ...sessions];
+    const openSlots = slots.filter((slot) => !sessions.some((session) => rangesOverlap(slot, session)));
+    return [...openSlots, ...sessions];
   });
 
   return (

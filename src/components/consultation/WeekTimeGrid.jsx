@@ -15,7 +15,7 @@ const tones = {
   open: 'border-l-4 border-[#2F6B45] bg-[#E7F6EC] text-[#1E5C36]',
   booked: 'border-l-4 border-[#7A3E98] bg-[#F4E9F8] text-[#5C2E73]',
   pending: 'border-l-4 border-[#C47B16] bg-[#FFF6E8] text-[#8A5A10]',
-  session: 'border-l-4 border-[#AD3155] bg-[#AD3155] text-white',
+  session: 'border-l-4 border-[#AD3155] bg-[#FDE8F0] text-[#8E2948]',
 };
 
 function overlaps(a, b) {
@@ -65,12 +65,12 @@ function EventBlock({ event, startHour, hourHeight }) {
   const height = Math.max(slice - 6, 20);
   const width = `calc(${100 / event.cols}% - 6px)`;
   const left = `calc(${(event.col / event.cols) * 100}% + 3px)`;
-  const className = `absolute overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] leading-4 ${event.className || tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
+  const className = `absolute overflow-hidden rounded-lg px-2 py-1 text-left leading-tight ${event.className || tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
   const style = { top, height, width, left, zIndex: event.z || 1 };
   const body = (
     <>
-      <span className="block truncate font-semibold">{event.title}</span>
-      {height >= 36 && event.detail ? <span className="block truncate opacity-80">{event.detail}</span> : null}
+      <span className="block truncate text-[12px] font-semibold tracking-tight">{event.title}</span>
+      {height >= 32 && event.detail ? <span className="mt-0.5 block truncate text-[10px] font-medium opacity-70">{event.detail}</span> : null}
     </>
   );
   if (event.href) {
