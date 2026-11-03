@@ -15,7 +15,6 @@ const files = [
   'src/pages/learner/KanjiWritingPracticePage.jsx',
   'src/pages/consultation/ConsultationPayment.jsx',
   'src/pages/consultation/ConsultationReceipt.jsx',
-  'src/pages/consultation/LocalCheckout.jsx',
   'src/pages/consultation/MentorPayments.jsx',
   'src/pages/consultation/MentorPrivateChat.jsx',
 ];

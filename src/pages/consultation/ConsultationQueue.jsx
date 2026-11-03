@@ -1,39 +1,28 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
 import Pagination from '../../components/Pagination.jsx';
-import { getMentorBookings, acceptMentorBooking } from '../../api/mentorBookingsApi.js';
-import { bookingDate, bookingTime, bookingExpired, canAcceptBooking, bookingStatus, paymentStatusLabel } from '../../utils/mentorBooking.js';
+import { getMentorBookings } from '../../api/mentorBookingApi.js';
+import { bookingDate, bookingTime, bookingExpired, bookingStatus, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
 export default function ConsultationQueue() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const client = useQueryClient();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('schedule');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const query = useQuery({ queryKey: ['mentor-bookings'], queryFn: getMentorBookings, refetchInterval: 30000 });
-  const accept = useMutation({
-    mutationFn: acceptMentorBooking,
-    onSuccess: (booking) => {
-      client.invalidateQueries({ queryKey: ['mentor-bookings'] });
-      navigate(`/consultation-request/?bookingId=${booking.id}`);
-    },
-  });
   const bookings = query.data || [];
-  const isLive = (booking) => ['Accepted', 'Confirmed'].includes(booking.status) && !bookingExpired(booking);
-  const pending = bookings.filter(canAcceptBooking);
+  const isLive = (booking) => ['Assigned', 'Accepted', 'Confirmed'].includes(booking.status) && !bookingExpired(booking);
   const accepted = bookings.filter(isLive);
   const urgent = accepted.filter((booking) => bookingDate(booking.scheduledAt) >= new Date(query.dataUpdatedAt) && bookingDate(booking.scheduledAt) <= new Date(query.dataUpdatedAt + 2 * 3600000));
   const history = bookings.filter((booking) => bookingExpired(booking) || ['Completed', 'Cancelled'].includes(booking.status));
   const filtered = bookings.filter((booking) => {
     const matches = filter === 'all'
-      || (filter === 'pending' && canAcceptBooking(booking))
       || (filter === 'accepted' && isLive(booking))
       || (filter === 'history' && (bookingExpired(booking) || ['Completed', 'Cancelled'].includes(booking.status)));
     return matches && `${booking.learnerName || ''} ${booking.learnerId || ''} ${booking.id} ${booking.question || ''}`.toLowerCase().includes(search.trim().toLowerCase());
@@ -46,15 +35,13 @@ export default function ConsultationQueue() {
   const currentPage = Math.min(page, pages);
   const rows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const counts = [
-    ['Chờ tiếp nhận', pending.length],
+    ['Đã xác nhận', accepted.length],
     ['Bắt đầu trong 2 giờ', urgent.length],
-    ['Đã tiếp nhận', accepted.length],
     ['Lịch sử', history.length],
   ];
   const filters = [
     ['all', 'Tất cả', bookings.length],
-    ['pending', 'Chờ tiếp nhận', pending.length],
-    ['accepted', 'Đã tiếp nhận', accepted.length],
+    ['accepted', 'Đã xác nhận', accepted.length],
     ['history', 'Lịch sử', history.length],
   ];
 
@@ -98,7 +85,6 @@ export default function ConsultationQueue() {
         </section>
 
         {query.error && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">Không tải được yêu cầu tư vấn. Vui lòng thử lại.</p>}
-        {accept.error && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">Không thể tiếp nhận yêu cầu. Vui lòng kiểm tra trạng thái mới nhất và thử lại.</p>}
 
         <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
           <div className="overflow-x-auto">
@@ -122,17 +108,12 @@ export default function ConsultationQueue() {
                       {booking.endsAt ? <p className="mt-1 text-[12px] text-[#8C7782]">Kết thúc: {bookingTime(booking.endsAt)}</p> : null}
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-block rounded-full px-3 py-1 text-[12px] font-medium ${canAcceptBooking(booking) ? 'bg-[#FCF4F8] text-[#A33357]' : isLive(booking) ? 'bg-[#F3F8F4] text-[#2F6B45]' : 'bg-[#FCFAFB] text-[#8C7782]'}`}>
+                      <span className={`inline-block rounded-full px-3 py-1 text-[12px] font-medium ${isLive(booking) ? 'bg-[#F3F8F4] text-[#2F6B45]' : 'bg-[#FCFAFB] text-[#8C7782]'}`}>
                         {bookingStatus(booking)}
                       </span>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col items-start gap-2">
-                        {canAcceptBooking(booking) && (
-                          <button type="button" disabled={accept.isPending} onClick={() => accept.mutate(booking.id)} className={`rounded-lg bg-[#AD3155] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50 ${focus}`}>
-                            {accept.isPending && accept.variables === booking.id ? 'Đang tiếp nhận…' : 'Tiếp nhận'}
-                          </button>
-                        )}
                         <Link to={`/consultation-request/?bookingId=${booking.id}`} className="text-[13px] font-medium text-[#AD3155]">Xem chi tiết</Link>
                         <Link to={`/mentor-chat/?bookingId=${booking.id}`} className="text-[12px] text-[#8C7782] underline">Tin nhắn 1–1</Link>
                       </div>
