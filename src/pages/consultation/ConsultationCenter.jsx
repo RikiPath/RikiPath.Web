@@ -2,8 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
-import { getLearnerBookings } from '../../api/mentorBookingApi.js';
-import { cancelMentorBooking } from '../../api/mentorScheduleApi.js';
+import { cancelMentorBooking, getLearnerBookings } from '../../api/mentorBookingApi.js';
 import { bookingDate, bookingTime, bookingStatus, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
@@ -22,7 +21,7 @@ export default function ConsultationCenter() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ['learner-mentor-bookings'], queryFn: getLearnerBookings, refetchInterval: 15000 });
   const cancel = useMutation({
-    mutationFn: cancelMentorBooking,
+    mutationFn: (bookingId) => cancelMentorBooking(bookingId, { reason: 'Học viên hủy từ lịch tư vấn' }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['learner-mentor-bookings'] });
       client.invalidateQueries({ queryKey: ['mentor-purchases'] });
@@ -47,7 +46,7 @@ export default function ConsultationCenter() {
 
         {(query.error || cancel.error) && (
           <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">
-            {tr('Không thể cập nhật lịch tư vấn. Vui lòng thử lại.')}
+            {cancel.error?.message || query.error?.message || tr('Không thể cập nhật lịch tư vấn. Vui lòng thử lại.')}
           </p>
         )}
         {query.isPending && <p role="status" className="text-[13px] text-[#9A8390]">{tr('Đang tải…')}</p>}
@@ -77,8 +76,8 @@ export default function ConsultationCenter() {
                 {booking.paymentStatus === 'Paid' && (
                   <Link to={`/mentor-chat/?bookingId=${booking.id}`} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Chat với cố vấn')}</Link>
                 )}
-                {booking.meetingLink && (
-                  <a href={booking.meetingLink} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Phòng tư vấn')}</a>
+                {booking.roomId && (
+                  <Link to={`/consultation-room/${booking.roomId}/`} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Phòng tư vấn')}</Link>
                 )}
                 {canCancel(booking) && (
                   <button

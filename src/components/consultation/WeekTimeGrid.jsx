@@ -18,35 +18,51 @@ const tones = {
   session: 'border-l-4 border-[#AD3155] bg-[#AD3155] text-white',
 };
 
-function layoutEvents(events) {
+function overlaps(a, b) {
+  const left = minutesOf(a);
+  const right = minutesOf(b);
+  return left.start < right.end && right.start < left.end;
+}
+
+function layoutEvents(events, stackOverlaps) {
   const sorted = [...events].sort((a, b) => minutesOf(a).start - minutesOf(b).start || minutesOf(a).end - minutesOf(b).end);
   const placed = [];
   sorted.forEach((event) => {
-    const current = minutesOf(event);
-    const overlapping = placed.filter((item) => {
-      const other = minutesOf(item);
-      return other.start < current.end && current.start < other.end;
-    });
+    const overlapping = placed.filter((item) => overlaps(item, event));
+    if (stackOverlaps) {
+      placed.push({ ...event, row: overlapping.length, col: 0 });
+      return;
+    }
     const used = new Set(overlapping.map((item) => item.col));
     let col = 0;
     while (used.has(col)) col += 1;
-    placed.push({ ...event, col });
+    placed.push({ ...event, col, row: 0 });
   });
   return placed.map((event) => {
-    const current = minutesOf(event);
-    const cluster = placed.filter((item) => {
-      const other = minutesOf(item);
-      return other.start < current.end && current.start < other.end;
-    });
-    return { ...event, cols: Math.max(...cluster.map((item) => item.col)) + 1 };
+    const cluster = placed.filter((item) => overlaps(item, event));
+    if (!stackOverlaps) {
+      return { ...event, cols: Math.max(...cluster.map((item) => item.col)) + 1, rows: 1 };
+    }
+    const rows = Math.max(...cluster.map((item) => item.row)) + 1;
+    return {
+      ...event,
+      cols: 1,
+      rows,
+      stackStart: Math.min(...cluster.map((item) => minutesOf(item).start)),
+      stackEnd: Math.max(...cluster.map((item) => minutesOf(item).end)),
+    };
   });
 }
 
 function EventBlock({ event, startHour, hourHeight }) {
   const { start, end } = minutesOf(event);
-  const top = ((start - startHour * 60) / 60) * hourHeight + 3;
-  const span = ((end - start) / 60) * hourHeight;
-  const height = Math.max(span - 6, 20);
+  const stacked = event.rows > 1;
+  const spanStart = stacked ? event.stackStart : start;
+  const spanEnd = stacked ? event.stackEnd : end;
+  const span = ((spanEnd - spanStart) / 60) * hourHeight;
+  const slice = stacked ? span / event.rows : span;
+  const top = ((spanStart - startHour * 60) / 60) * hourHeight + (stacked ? event.row * slice : 0) + 3;
+  const height = Math.max(slice - 6, 20);
   const width = `calc(${100 / event.cols}% - 6px)`;
   const left = `calc(${(event.col / event.cols) * 100}% + 3px)`;
   const className = `absolute overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] leading-4 ${event.className || tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
@@ -85,6 +101,7 @@ export default function WeekTimeGrid({
   endHour = 22,
   nowKey,
   nowMinutes,
+  stackOverlaps = false,
 }) {
   const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
   const height = hours.length * HOUR_HEIGHT;
@@ -126,7 +143,7 @@ export default function WeekTimeGrid({
                   <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-[#AD3155]" />
                 </div>
               ) : null}
-              {layoutEvents(events.filter((event) => event.dayKey === day.key)).map((event) => (
+              {layoutEvents(events.filter((event) => event.dayKey === day.key), stackOverlaps).map((event) => (
                 <EventBlock key={event.id} event={event} startHour={startHour} hourHeight={HOUR_HEIGHT} />
               ))}
             </div>

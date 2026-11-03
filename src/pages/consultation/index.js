@@ -12,3 +12,7 @@ export { default as ConsultationSessionDetail } from './ConsultationSessionDetai
 export { default as ConsultationReceipt } from './ConsultationReceipt.jsx';
 export { default as ConsultationRoom } from './ConsultationRoom.jsx';
 export { default as MentorAvailability } from './MentorAvailability.jsx';
+export { default as MentorProfile } from './MentorProfile.jsx';
+export { default as MentorShiftSchedule } from './MentorShiftSchedule.jsx';
+export { default as MentorPublicProfile } from './MentorPublicProfile.jsx';
+export { default as MentorDisputes } from './MentorDisputes.jsx';

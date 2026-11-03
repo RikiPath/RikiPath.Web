@@ -95,10 +95,20 @@ export const respondMentorDispute = async (disputeId, body) =>
 export const searchMentors = async params => (await api.get('/mentors', { params })).result;
 export const getPublicMentorProfile = async mentorId =>
   (await api.get(`/mentors/${mentorId}/profile`)).result;
-export const getMentorAvailableSlots = async (mentorId, from, to) =>
-  (await api.get(`/mentors/${mentorId}/slots`, { params: { from, to } })).result;
-export const getMentorAvailableDates = async (mentorId, from, to) =>
-  (await api.get(`/mentors/${mentorId}/available-dates`, { params: { from, to } })).result;
+export const getMentorAvailableSlots = async (mentorId, startDate, endDate) =>
+  (await api.get(`/mentors/${mentorId}/slots`, {
+    params: { startDate, endDate, timeZoneId: 'Asia/Ho_Chi_Minh' },
+  })).result;
+export const getMentorAvailableDates = async (mentorId, startDate, endDate) =>
+  (await api.get(`/mentors/${mentorId}/available-dates`, {
+    params: { startDate, endDate, timeZoneId: 'Asia/Ho_Chi_Minh' },
+  })).result;
+
+export const checkRoomAccess = async roomId =>
+  (await api.get(`/mentor-meetings/rooms/${roomId}/access`)).result;
+
+export const getMentorDisputes = async params =>
+  (await api.get('/mentor/mentor-disputes', { params })).result;
 
 // Mentor booking reads share this client with booking lifecycle operations.
 export const getMentorBookings = async () => (await api.get('/mentor-bookings')).result || [];

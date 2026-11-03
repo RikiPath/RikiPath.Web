@@ -1,43 +1,10 @@
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CONSULT_NAV, pathMatches } from './navConfig.js';
 
 const SIDEBAR_W = 248;
 const HEADER_H = 64;
-const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
-function thisWeek() {
-  const keyFormat = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const todayKey = keyFormat.format(new Date());
-  const [year, month, day] = todayKey.split('-').map(Number);
-  const noon = new Date(Date.UTC(year, month - 1, day, 12));
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    weekday: 'short',
-  }).format(noon);
-  const index = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[weekday] ?? 0;
-  const monday = new Date(noon);
-  monday.setUTCDate(noon.getUTCDate() - index);
-
-  return Array.from({ length: 7 }, (_, offset) => {
-    const date = new Date(monday);
-    date.setUTCDate(monday.getUTCDate() + offset);
-    const key = keyFormat.format(date);
-    return {
-      key,
-      name: DAY_NAMES[offset],
-      date: Number(key.slice(-2)),
-      month: key.slice(5, 7),
-      today: key === todayKey,
-    };
-  });
-}
 
 function navClass(active) {
   return [
@@ -67,8 +34,6 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Cố v�
   const displayName =
     user?.fullName || user?.name || user?.email || CONSULT_NAV.user.name;
   const initial = displayName.trim().charAt(0).toUpperCase() || 'M';
-  const week = thisWeek();
-  const today = week.find((day) => day.today) || week[0];
 
   return (
     <div
@@ -104,7 +69,7 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Cố v�
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <nav
           aria-label="Menu chính"
-          className="shrink-0 px-2.5 pb-2"
+          className="px-2.5 pb-4"
         >
           {CONSULT_NAV.groups.map((group) => (
             <div key={group.label} className="mb-2.5">
@@ -149,53 +114,6 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Cố v�
             </div>
           ))}
         </nav>
-
-        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
-          <Link
-            to="/work-schedule"
-            aria-label={`Tuần này ${today.date}/${today.month}, mở lịch làm việc`}
-            className="flex min-h-[168px] flex-1 flex-col rounded-2xl
-                       border border-[#F0D3DE] bg-[#F8E4EC] p-3
-                       transition-colors hover:bg-[#F6DCE7]
-                       focus-visible:outline-none focus-visible:ring-2
-                       focus-visible:ring-[#AD3155]/25"
-          >
-            <span className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium tracking-[0.04em] text-[#AD3155]">
-                Tuần này
-              </span>
-              <span className="text-[10px] text-[#B07A8C]">
-                {week[0].date}/{week[0].month} – {week[6].date}/{week[6].month}
-              </span>
-            </span>
-            <span className="mt-2.5 grid grid-cols-7 gap-1">
-              {week.map((day) => (
-                <span
-                  key={day.key}
-                  className={[
-                    'flex flex-col items-center rounded-lg py-1',
-                    day.today ? 'bg-[#AD3155] text-white' : 'bg-white/70 text-[#8A6B78]',
-                  ].join(' ')}
-                >
-                  <span className="text-[9px] leading-none">{day.name}</span>
-                  <span className="mt-1 text-[11px] font-medium leading-none">{day.date}</span>
-                </span>
-              ))}
-            </span>
-            <span className="flex min-h-0 flex-1 items-center">
-              <span
-                aria-hidden="true"
-                className="font-['Noto_Serif_JP',serif] text-[64px]
-                           leading-none text-[#AD3155]/20"
-              >
-                {String(today.date).padStart(2, '0')}
-              </span>
-            </span>
-            <span className="pt-2 text-[10px] text-[#B07A8C]">
-              Hôm nay · giờ Việt Nam
-            </span>
-          </Link>
-        </div>
         </div>
 
         <div className="shrink-0 border-t border-[#E8DFDC] px-3 py-3">

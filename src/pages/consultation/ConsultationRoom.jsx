@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useLocale } from '../../i18n/locale.js';
 import { useWebRtcMeeting } from '../../hooks/useWebRtcMeeting.js';
+import { checkRoomAccess } from '../../api/mentorBookingApi.js';
+
+const ROOM_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import {
   Mic,
   MicOff,
@@ -145,7 +149,20 @@ export default function ConsultationRoom() {
   const { user } = useAuth();
   const { tr } = useLocale();
 
-  const roomId = pathRoomId || searchParams.get('roomId') || 'mentor-room-n3-dokkai';
+  const requestedRoomId = pathRoomId || searchParams.get('roomId') || '';
+  const roomGuid = ROOM_GUID.test(requestedRoomId) ? requestedRoomId : '';
+  const accessQuery = useQuery({
+    queryKey: ['room-access', roomGuid],
+    queryFn: () => checkRoomAccess(roomGuid),
+    enabled: Boolean(roomGuid),
+    retry: false,
+  });
+  const roomId = accessQuery.data?.canAccess ? roomGuid : '';
+  const accessMessage = !roomGuid
+    ? 'Liên kết phòng họp không hợp lệ. Vui lòng mở lại phòng từ lịch hẹn của bạn.'
+    : accessQuery.isPending
+      ? 'Đang kiểm tra quyền vào phòng…'
+      : accessQuery.error?.message || (accessQuery.data && !accessQuery.data.canAccess ? (accessQuery.data.reason || 'Bạn chưa được vào phòng này.') : '');
 
   const currentUser = {
     id: user?.id || 'user-anon',
@@ -320,10 +337,10 @@ export default function ConsultationRoom() {
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_360px] overflow-hidden">
         {/* KHU VỰC VIDEO */}
         <section className="relative flex flex-col justify-between p-3 sm:p-4 overflow-hidden bg-[#161013]">
-          {error && (
+          {(accessMessage || (roomId && error)) && (
             <div className="absolute top-4 left-4 right-4 z-30 p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-medium flex items-center gap-2 backdrop-blur-md">
               <span className="shrink-0 font-bold">⚠️ Thông báo:</span>
-              <span>{error}</span>
+              <span>{accessMessage || error}</span>
             </div>
           )}
 

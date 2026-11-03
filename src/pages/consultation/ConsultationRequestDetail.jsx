@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
-import { getMentorBooking, getMentorBookings } from '../../api/mentorBookingApi.js';
-import { cancelMentorBooking } from '../../api/mentorBookingApi.js';
+import { cancelMentorBooking, getCancellationEligibility, getMentorBooking, getMentorBookings } from '../../api/mentorBookingApi.js';
 import { bookingTime, bookingStatus, bookingExpired, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 export default function ConsultationRequestDetail() {
@@ -33,6 +32,11 @@ export default function ConsultationRequestDetail() {
 
   const query = useQuery({ queryKey: ['mentor-booking', id], queryFn: () => getMentorBooking(id), enabled: Boolean(id), refetchInterval: 30000 });
   const booking = query.data;
+  const eligibility = useQuery({
+    queryKey: ['cancel-eligibility', id],
+    queryFn: () => getCancellationEligibility(id),
+    enabled: Boolean(id) && showCancelPrompt,
+  });
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelMentorBooking(id, { reason: cancelReason }),
@@ -89,7 +93,7 @@ export default function ConsultationRequestDetail() {
           {showCancelPrompt && (
             <section className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/50 p-6">
               <h3 className="font-bold text-rose-900">Xác nhận hủy buổi tư vấn</h3>
-              <p className="mt-1 text-xs text-rose-700">Việc hoàn vé tư vấn sẽ được xử lý theo chính sách áp dụng cho buổi này.</p>
+              <p className="mt-1 text-xs text-rose-700">{eligibility.data?.message || 'Việc hoàn vé tư vấn sẽ được xử lý theo chính sách áp dụng cho buổi này.'}</p>
               <textarea
                 value={cancelReason}
                 onChange={e => setCancelReason(e.target.value)}
@@ -100,7 +104,7 @@ export default function ConsultationRequestDetail() {
               <div className="mt-3 flex gap-3">
                 <button
                   type="button"
-                  disabled={cancelMutation.isPending || !cancelReason.trim()}
+                  disabled={cancelMutation.isPending || !cancelReason.trim() || eligibility.data?.canCancel === false}
                   onClick={() => cancelMutation.mutate()}
                   className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50"
                 >

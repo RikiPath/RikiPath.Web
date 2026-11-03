@@ -122,6 +122,7 @@ export const LEARNER_NAV = {
         '/consultation-receipt',
         '/consultation-room',
         '/mentor-availability',
+        '/mentors',
       ],
     },
     { to: '/payments', label: 'Thanh toán', icon: 'payments', group: 'support', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
@@ -137,7 +138,6 @@ export const CONSULT_NAV = {
       label: 'Buổi tư vấn',
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
-        { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
         {
           to: '/consultation-request',
           label: 'Hàng đợi',
@@ -147,13 +147,21 @@ export const CONSULT_NAV = {
         },
         { to: '/consultation-prep', label: 'Chuẩn bị buổi', hint: 'Ghi chú trước giờ', icon: 'fact_check' },
         { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Phản hồi bài viết', icon: 'edit_note' },
+        { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
       ],
     },
     {
       label: 'Lịch',
       items: [
         { to: '/work-schedule', label: 'Lịch làm việc', hint: 'Tuần của bạn', icon: 'calendar_month' },
-        { to: '/mentor-availability', label: 'Lịch tuần', hint: 'Đăng ký buổi rảnh', icon: 'event_available' },
+        { to: '/mentor-shift-schedule', label: 'Ca làm việc', hint: 'Khung 90 phút', icon: 'event_available', alsoActive: ['/mentor-availability'] },
+      ],
+    },
+    {
+      label: 'Hồ sơ',
+      items: [
+        { to: '/mentor-profile', label: 'Hồ sơ chuyên gia', hint: 'Xác minh và chuyên môn', icon: 'badge' },
+        { to: '/mentor-disputes', label: 'Khiếu nại', hint: 'Giải trình của học viên', icon: 'gavel' },
       ],
     },
   ],

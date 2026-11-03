@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { getBookingMentors, getMentorSlots, getCreditBalance, bookMeetingWithCredit } from '../../api/mentorBookingApi.js';
-import { BOOKING_HORIZON_DAYS, bookingErrorMessage } from '../../utils/mentorBooking.js';
+import { getMentorAvailableSlots, getCreditBalance, bookMeetingWithCredit, searchMentors } from '../../api/mentorBookingApi.js';
+import { bookingErrorMessage } from '../../utils/mentorBooking.js';
+import { vietnamDate } from '../../utils/vietnamDate.js';
 
 const GOALS = ['Đánh giá Dokkai & lộ trình học', 'Chữa phát âm & Kaiwa phỏng vấn', 'Chiến thuật thi JLPT', 'Chỉnh luận văn / CV tiếng Nhật'];
 const ZONE = 'Asia/Ho_Chi_Minh';
-const asDate = value => new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`);
-const dayKey = value => new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(asDate(value));
 const dayTitle = id => id ? new Date(`${id}T12:00:00+07:00`).toLocaleDateString('vi-VN', { timeZone: ZONE, weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Chưa chọn ngày';
-const clock = value => asDate(value).toLocaleTimeString('vi-VN', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' });
 const panel = 'rounded-[22px] border border-[#eadfd9] bg-white p-5 shadow-sm';
 const initial = name => (name || '?').slice(0, 1).toUpperCase();
 
@@ -24,6 +22,10 @@ function MentorAvatar({ name, avatarUrl, sizeClass = 'h-11 w-11' }) {
 
 export default function BookingSchedule() {
   const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const presetMentorId = Number(params.get('mentorId')) || null;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [jlptLevel, setJlptLevel] = useState('');
   const [selectedMentorId, setMentorId] = useState(null);
   const [selectedDayId, setDayId] = useState('');
   const [slotId, setSlotId] = useState(null);
@@ -33,9 +35,18 @@ export default function BookingSchedule() {
   const [bookingSuccess, setBookingSuccess] = useState(null);
   const [bookingError, setBookingError] = useState('');
 
-  const mentorQuery = useQuery({ queryKey: ['booking-mentors'], queryFn: getBookingMentors });
-  const mentors = mentorQuery.data || [];
-  const mentorId = selectedMentorId ?? mentors[0]?.id;
+  const mentorQuery = useQuery({
+    queryKey: ['mentor-directory', searchTerm, jlptLevel],
+    queryFn: () => searchMentors({
+      searchTerm: searchTerm || undefined,
+      jlptLevel: jlptLevel || undefined,
+      page: 1,
+      pageSize: 20,
+      sortBy: 'experience_desc',
+    }),
+  });
+  const mentors = (mentorQuery.data?.items || []).map((item) => ({ ...item, id: item.mentorId }));
+  const mentorId = selectedMentorId ?? presetMentorId ?? mentors[0]?.id;
   const mentor = mentors.find(item => item.id === mentorId);
 
   const creditQuery = useQuery({
@@ -48,14 +59,18 @@ export default function BookingSchedule() {
 
   const slotQuery = useQuery({
     queryKey: ['booking-slots', mentorId, range.toISOString()],
-    queryFn: () => getMentorSlots(mentorId, range.toISOString(), new Date(range.getTime() + BOOKING_HORIZON_DAYS * 86400000).toISOString()),
+    queryFn: () => getMentorAvailableSlots(mentorId, vietnamDate(0), vietnamDate(13)),
     enabled: Boolean(mentor),
     refetchInterval: 30000,
   });
 
-  const availableSlots = (slotQuery.data || [])
-    .filter(item => item.mentorId === mentorId && !item.isBooked && asDate(item.startTime) > new Date())
-    .map(item => ({ ...item, day: dayKey(item.startTime), label: `${clock(item.startTime)} – ${clock(item.endTime)}` }));
+  const availableSlots = (slotQuery.data?.dailySlots || [])
+    .flatMap((day) => (day.slots || []).filter((item) => item.isAvailable).map((item) => ({
+      id: item.slotId,
+      mentorId: item.mentorId,
+      day: item.localDate,
+      label: `${String(item.localStart).slice(0, 5)} – ${String(item.localEnd).slice(0, 5)}`,
+    })));
   const days = [...new Set(availableSlots.map(item => item.day))].sort();
   const dayId = days.includes(selectedDayId) ? selectedDayId : days[0] || '';
   const slots = availableSlots.filter(item => item.day === dayId);
@@ -68,7 +83,8 @@ export default function BookingSchedule() {
       setBookingError('');
       return await bookMeetingWithCredit({
         mentorAvailabilityId: slot.id,
-        question: `${goal}. ${note}`.trim(),
+        question: goal,
+        notes: note || undefined,
       });
     },
     onSuccess: (data) => {
@@ -89,14 +105,24 @@ export default function BookingSchedule() {
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
           <div className="space-y-5">
             <section className={panel}>
-              <h2 className="mb-4 text-sm font-bold">Cố vấn <span className="font-normal text-[#A59B9E]">({mentors.length})</span></h2>
+              <div className="mb-4 flex flex-wrap gap-2">
+                <input value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setMentorId(null); }} placeholder="Tên hoặc chuyên môn" className="min-w-[180px] flex-1 rounded-2xl border border-[#eadfd9] bg-[#FAF7F5] px-3 py-2 text-sm" />
+                <select value={jlptLevel} onChange={(event) => { setJlptLevel(event.target.value); setMentorId(null); }} className="rounded-2xl border border-[#eadfd9] bg-[#FAF7F5] px-3 py-2 text-sm">
+                  <option value="">Mọi JLPT</option>
+                  {['N5', 'N4', 'N3', 'N2', 'N1'].map((level) => <option key={level}>{level}</option>)}
+                </select>
+              </div>
+              <h2 className="mb-4 text-sm font-bold">Cố vấn <span className="font-normal text-[#A59B9E]">({mentorQuery.data?.totalCount ?? mentors.length})</span></h2>
               {mentorQuery.isPending && <p role="status" className="text-sm text-[#6F6669]">Đang tải danh sách Cố vấn…</p>}
               {!mentorQuery.isPending && !mentorQuery.isError && !mentors.length && <p className="text-sm text-[#6F6669]">Chưa có Cố vấn đang hoạt động.</p>}
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {mentors.map(item => <button key={item.id} type="button" aria-pressed={item.id === mentorId} onClick={() => { setMentorId(item.id); setDayId(''); setSlotId(null); setBookingSuccess(null); }} className={`rounded-2xl border p-4 text-left ${item.id === mentorId ? 'border-[#D94B68] bg-[#fff8f8]' : 'border-[#eadfd9] bg-[#FAF7F5]'}`}>
-                  <div className="flex items-center gap-3"><MentorAvatar name={item.name} avatarUrl={item.avatarUrl} /><div><p className="text-sm font-bold">{item.name || 'Cố vấn chưa cập nhật tên'}</p><p className="mt-1 text-xs text-[#D94B68]">Cố vấn</p></div></div>
-                  <p className="mt-3 text-xs leading-relaxed text-[#6F6669]">Chọn để xem lịch trống.</p>
-                </button>)}
+                {mentors.map(item => <div key={item.id} className={`rounded-2xl border p-4 text-left ${item.id === mentorId ? 'border-[#D94B68] bg-[#fff8f8]' : 'border-[#eadfd9] bg-[#FAF7F5]'}`}>
+                  <button type="button" aria-pressed={item.id === mentorId} onClick={() => { setMentorId(item.id); setDayId(''); setSlotId(null); setBookingSuccess(null); }} className="w-full text-left">
+                    <div className="flex items-center gap-3"><MentorAvatar name={item.name} avatarUrl={item.avatarUrl} /><div><p className="text-sm font-bold">{item.name || 'Cố vấn chưa cập nhật tên'}</p><p className="mt-1 text-xs text-[#D94B68]">{item.jlptLevel || 'JLPT'} · {item.yearsOfExperience ?? 0} năm</p></div></div>
+                    <p className="mt-3 text-xs leading-relaxed text-[#6F6669]">{item.expertise || 'Chọn để xem lịch trống.'}</p>
+                  </button>
+                  <Link to={`/mentors/${item.id}/`} className="mt-2 inline-block text-xs font-semibold text-[#D94B68]">Xem hồ sơ</Link>
+                </div>)}
               </div>
             </section>
             <section className={panel}>

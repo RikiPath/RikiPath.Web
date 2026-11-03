@@ -213,6 +213,7 @@ export default function WorkSchedule() {
           endHour={22}
           nowKey={dayKey(new Date().toISOString())}
           nowMinutes={now.hour * 60 + now.minute}
+          stackOverlaps
         />
 
         {later.length > 0 ? (
