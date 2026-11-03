@@ -1,15 +1,15 @@
 const env = import.meta.env || {};
-const LOCAL_HTTPS = 'https://localhost:7237';
+const PUBLIC_API = 'https://fact-like-tracy-displays.trycloudflare.com';
 
 function isVercelHost() {
   return typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app');
 }
 
-export const apiBase = env.VITE_API_BASE || (isVercelHost() ? `${LOCAL_HTTPS}/api` : '/api');
+export const apiBase = env.VITE_API_BASE || (isVercelHost() ? `${PUBLIC_API}/api` : '/api');
 
 function backendOrigin() {
   if (env.VITE_API_BASE) return String(env.VITE_API_BASE).replace(/\/api\/?$/, '');
-  if (isVercelHost()) return LOCAL_HTTPS;
+  if (isVercelHost()) return PUBLIC_API;
   return '';
 }
 
