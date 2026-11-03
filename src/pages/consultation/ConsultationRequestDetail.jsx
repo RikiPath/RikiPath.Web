@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
-import { getMentorBooking, getMentorBookings, acceptMentorBooking } from '../../api/mentorBookingsApi.js';
+import { getMentorBooking, getMentorBookings } from '../../api/mentorBookingApi.js';
 import { cancelMentorBooking } from '../../api/mentorBookingApi.js';
-import { bookingTime, canAcceptBooking, bookingStatus, bookingExpired, paymentStatusLabel } from '../../utils/mentorBooking.js';
+import { bookingTime, bookingStatus, bookingExpired, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 export default function ConsultationRequestDetail() {
   const { pathname } = useLocation();
@@ -25,7 +25,7 @@ export default function ConsultationRequestDetail() {
   useEffect(() => {
     if (id || !list.isSuccess) return;
     const rows = list.data || [];
-    const next = rows.find(canAcceptBooking) || rows[0];
+    const next = rows[0];
     if (next?.id) {
       navigate(`/consultation-request/?bookingId=${next.id}`, { replace: true });
     }
@@ -33,15 +33,6 @@ export default function ConsultationRequestDetail() {
 
   const query = useQuery({ queryKey: ['mentor-booking', id], queryFn: () => getMentorBooking(id), enabled: Boolean(id), refetchInterval: 30000 });
   const booking = query.data;
-
-  const accept = useMutation({
-    mutationFn: () => acceptMentorBooking(id),
-    onSuccess: data => {
-      client.setQueryData(['mentor-booking', id], data);
-      client.invalidateQueries({ queryKey: ['mentor-bookings'] });
-    },
-    onError: () => query.refetch(),
-  });
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelMentorBooking(id, { reason: cancelReason }),
@@ -63,7 +54,7 @@ export default function ConsultationRequestDetail() {
       <div className="mx-auto max-w-5xl p-6 sm:p-8" data-page="ConsultationRequestDetail">
         <Link to="/consultation-queue/" className="text-sm font-semibold text-[#9E2A4B]">← Hàng đợi yêu cầu</Link>
         <h1 className="mt-5 text-2xl font-bold">Chi tiết yêu cầu tư vấn</h1>
-        {(query.error || accept.error || cancelError) && (
+        {(query.error || cancelError) && (
           <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
             {cancelError || 'Không tải được yêu cầu tư vấn. Vui lòng thử lại.'}
           </p>
@@ -128,11 +119,6 @@ export default function ConsultationRequestDetail() {
           )}
 
           <div className="mt-6 flex flex-wrap gap-3">
-            {canAcceptBooking(booking) && (
-              <button disabled={accept.isPending} onClick={() => accept.mutate()} className="rounded-xl bg-[#9E2A4B] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
-                {accept.isPending ? 'Đang xác nhận…' : 'Xác nhận tiếp nhận'}
-              </button>
-            )}
             <Link to={`/mentor-chat/?bookingId=${booking.id}`} className="rounded-xl border border-[#eadfd9] bg-white px-5 py-3 text-sm font-semibold">
               Tin nhắn 1–1
             </Link>
@@ -151,7 +137,7 @@ export default function ConsultationRequestDetail() {
               </button>
             )}
           </div>
-          {booking.status === 'Accepted' && <p role="status" className="mt-4 text-sm text-emerald-700">Yêu cầu đã được tiếp nhận và lưu trên hệ thống.</p>}
+          {['Assigned', 'Accepted', 'Confirmed'].includes(booking.status) && !bookingExpired(booking) && <p role="status" className="mt-4 text-sm text-emerald-700">Lịch tư vấn đã được xác nhận tự động.</p>}
           {booking.status === 'Cancelled' && <p role="status" className="mt-4 text-sm text-rose-700">Lịch hẹn này đã bị hủy. Vui lòng xem lịch sử vé tư vấn để biết kết quả hoàn vé.</p>}
           {bookingExpired(booking) && booking.status !== 'Cancelled' && <p className="mt-4 text-sm text-[#6F6669]">Lịch đã hết hạn, bạn chỉ có thể xem lại thông tin.</p>}
         </>}

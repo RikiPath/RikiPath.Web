@@ -56,8 +56,8 @@ describe('Notification API contract endpoints', () => {
         assert.equal(captured.url, '/Notification/42/read');
     });
 
-    test('markAllNotificationsAsRead calls /Notification/read-all', async () => {
+    test('markAllNotificationsAsRead calls /Notification/mark-all-read', async () => {
         await markAllNotificationsAsRead();
-        assert.equal(captured.url, '/Notification/read-all');
+        assert.equal(captured.url, '/Notification/mark-all-read');
     });
 });

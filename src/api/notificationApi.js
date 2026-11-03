@@ -16,6 +16,6 @@ export async function markNotificationAsRead(id) {
 }
 
 export async function markAllNotificationsAsRead() {
-    const res = await api.patch('/Notification/read-all');
+    const res = await api.patch('/Notification/mark-all-read');
     return res?.result ?? res;
 }

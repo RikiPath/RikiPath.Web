@@ -3,7 +3,6 @@ import { useContext, useEffect, useRef } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext, AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import RequireStudyPlan from './components/RequireStudyPlan.jsx';
 import MentorPrivateChat from './pages/consultation/MentorPrivateChat.jsx';
 import AdminMentorHub from './pages/admin/AdminMentorHub.jsx';
 import { isPreviewEnabled } from './mocks/preview.js';
@@ -51,7 +50,6 @@ import {
   TextConsultationReply,
   ConsultationSessionDetail,
   ConsultationReceipt,
-  LocalCheckout,
   ConsultationRoom,
   MentorAvailability,
 } from './pages/consultation';
@@ -80,10 +78,6 @@ import {
   AdminUserDetail,
   AdminOperations,
 } from './pages/admin';
-
-function study(element) {
-  return <RequireStudyPlan>{element}</RequireStudyPlan>;
-}
 
 function withSlash(path) {
   if (!path || path === '/' || path === '*') return path;
@@ -196,7 +190,6 @@ export default function App() {
             <Route path={withSlash('/payments')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
             <Route path={withSlash('/payments/history')} element={<ProtectedRoute allowedRoles={['Learner']}><MentorPayments /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
-            <Route path={withSlash('/payment/local')} element={<ProtectedRoute allowedRoles={['Learner']}><LocalCheckout /></ProtectedRoute>} />
             <Route path={withSlash('/payment/success')} element={<ProtectedRoute allowedRoles={['Learner']}><PaymentReturnToReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/payment/cancel')} element={<ProtectedRoute allowedRoles={['Learner']}><PaymentReturnToReceipt /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-session')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationSessionDetail /></ProtectedRoute>} />

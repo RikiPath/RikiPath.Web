@@ -2,12 +2,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { ConsultShell } from '../../components/shells';
-import { getMentorBookings } from '../../api/mentorBookingsApi.js';
+import { getMentorBookings } from '../../api/mentorBookingApi.js';
 import {
   bookingExpired,
   bookingStatus,
   bookingTime,
-  canAcceptBooking,
 } from '../../utils/mentorBooking.js';
 
 const focusClass =
@@ -50,9 +49,8 @@ export default function ConsultantOverview() {
   const counts = query.isPending || query.isError
     ? null
     : [
-      ['Chờ tiếp nhận', bookings.filter(canAcceptBooking).length],
-      ['Đã tiếp nhận', bookings.filter((booking) => (
-        booking.status === 'Accepted' && !bookingExpired(booking)
+      ['Đã xác nhận', bookings.filter((booking) => (
+        ['Assigned', 'Accepted', 'Confirmed'].includes(booking.status) && !bookingExpired(booking)
       )).length],
       ['Sắp diễn ra', nextSessions.length],
     ];
@@ -151,8 +149,7 @@ export default function ConsultantOverview() {
             <h2 className="text-[13px] font-semibold text-[#705261]">Trong lịch</h2>
             <dl className="mt-3 space-y-2">
               {(counts || [
-                ['Chờ tiếp nhận', '—'],
-                ['Đã tiếp nhận', '—'],
+                ['Đã xác nhận', '—'],
                 ['Sắp diễn ra', '—'],
               ]).map(([label, count]) => (
                 <div key={label} className="flex items-baseline justify-between gap-3">

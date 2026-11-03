@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
 import { ConsultShell } from '../../components/shells';
 import { api } from '../../api/client.js';
-import { getMentorBookings } from '../../api/mentorBookingsApi.js';
+import { getMentorBookings } from '../../api/mentorBookingApi.js';
 import { bookingDate, bookingStatus, bookingTime } from '../../utils/mentorBooking.js';
 
 const focusClass =

@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { ConsultShell } from '../../components/shells';
-import { getMentorBookings } from '../../api/mentorBookingsApi.js';
+import { getMentorBookings } from '../../api/mentorBookingApi.js';
 import {
   bookingExpired,
   bookingStatus,

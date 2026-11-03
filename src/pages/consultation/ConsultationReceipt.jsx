@@ -28,7 +28,6 @@ export default function ConsultationReceipt() {
   const paid = purchase?.paymentStatus === 'Paid';
   const pending = purchase?.paymentStatus === 'Pending' && !purchase.isCheckoutExpired;
   const checkoutUrl = id ? sessionStorage.getItem(`mentor-checkout:${user.userId}:${id}`) : null;
-  const localCheckout = Boolean(checkoutUrl?.includes('/payment/local/'));
   const title = !id
     ? tr("Chưa có giao dịch để xác nhận")
     : query.isPending
@@ -77,18 +76,15 @@ export default function ConsultationReceipt() {
               {paid && <p role="status" className="mt-4 text-[13px] text-[#2F6B45]">{tr('Lượt tư vấn đã được cộng vào tài khoản. Chọn lịch để sử dụng lượt.')}</p>}
               {pending && (
                 <p className="mt-4 text-[13px] leading-6 text-[#927B88]">
-                  {localCheckout
-                    ? tr("Xác nhận trên trang thanh toán local để cộng lượt. Không trừ tiền thật.")
-                    : tr("Hoàn tất thanh toán trên PayOS rồi quay lại đây. Trang kiểm tra trạng thái mỗi 15 giây.")}
+                  {tr("Hoàn tất thanh toán trên PayOS rồi quay lại đây. Trang kiểm tra trạng thái mỗi 15 giây.")}
                 </p>
               )}
             </>
           )}
           <div className="mt-6 flex flex-wrap gap-2">
             <Link to="/payments/history/" className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] ${focus}`}>{tr('Danh sách thanh toán')}</Link>
-            {pending && checkoutUrl && (localCheckout
-              ? <Link to={`/payment/local/?subscriptionId=${id}`} className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>{tr('Xác nhận thanh toán')}</Link>
-              : <a href={checkoutUrl} className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>{tr('Mở PayOS để thanh toán')}</a>)}
+            {pending && checkoutUrl && !purchase?.isQaSimulated && <a href={checkoutUrl} className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>{tr('Mở PayOS để thanh toán')}</a>}
+            {pending && purchase?.isQaSimulated && <p role="status" className="text-[12px] text-[#927B88]">Giao dịch mô phỏng chỉ được xác nhận qua quy trình quản trị QA.</p>}
             {id && (
               <button type="button" onClick={() => query.refetch()} disabled={query.isFetching} className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] hover:bg-[#FFF6FA] disabled:opacity-40 ${focus}`}>
                 {query.isFetching ? tr("Đang kiểm tra…") : tr("Kiểm tra thanh toán")}
