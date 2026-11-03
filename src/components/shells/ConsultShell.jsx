@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CONSULT_NAV, pathMatches } from './navConfig.js';
+import NotificationBell from './NotificationBell.jsx';
 
 const SIDEBAR_W = 248;
 const HEADER_H = 64;
@@ -154,7 +155,7 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Cá»‘ vá
       <div className="min-w-0" style={{ paddingLeft: SIDEBAR_W }}>
         <header
           style={{ left: SIDEBAR_W, height: HEADER_H }}
-          className="fixed right-0 top-0 z-40 flex items-center
+          className="fixed right-0 top-0 z-50 flex items-center
                      border-b border-[#E8DFDC] bg-[#FAF8F7] px-6"
         >
           <div className="flex min-w-0 items-center gap-2 text-[12px] text-[#AA98A1]">
@@ -163,6 +164,9 @@ export default function ConsultShell({ children, pathname, breadcrumb = 'Cá»‘ vá
               chevron_right
             </span>
             <span className="truncate text-[#826A76]">{breadcrumb}</span>
+          </div>
+          <div className="ml-auto">
+            <NotificationBell />
           </div>
         </header>
         <main className="min-h-screen" style={{ paddingTop: HEADER_H }}>

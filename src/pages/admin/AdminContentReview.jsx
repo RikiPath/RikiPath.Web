@@ -5,6 +5,7 @@ import { AdminShell } from '../../components/shells';
 import {
   getPendingApprovals,
   reviewContentRequest,
+  reviewLessonGroup,
   batchReviewContentRequests,
 } from '../../api/admin.js';
 
@@ -81,7 +82,7 @@ function FieldRow({ f }) {
   );
 }
 
-function DetailPanel({ item, onApprove, onReject, submitting }) {
+function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup, submitting }) {
   const [reason, setReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const fields = Array.isArray(item.fields) ? item.fields : [];
@@ -131,6 +132,15 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
         </div>
       )}
 
+      {Array.isArray(item.relatedLessonContent) && item.relatedLessonContent.length > 0 && (
+        <div className="rounded-xl border border-[#eadfd9] px-3 py-2">
+          <p className="text-[12px] font-medium text-[#705261]">Nội dung cùng bài</p>
+          {item.relatedLessonContent.map((row) => (
+            <p key={`${row.requestId}-${row.rowKey}`} className="mt-1 text-[12px] text-[#82737B]">{row.entityType} · {row.rowKey}</p>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-2 pt-2 border-t border-[#f0e8e4]">
         {showRejectForm ? (
           <>
@@ -161,6 +171,16 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
               >
                 {submitting ? 'Đang xử lý…' : 'Xác nhận từ chối'}
               </button>
+              {item.entityType === 'Lesson' && (
+                <button
+                  type="button"
+                  disabled={!reason.trim() || submitting}
+                  onClick={() => onRejectGroup(item.requestId, reason.trim())}
+                  className="rounded-xl border border-rose-300 px-4 py-2 text-[13px] font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  Từ chối cả nhóm
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -173,6 +193,16 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
             >
               <span className="material-symbols-outlined align-middle text-[16px] mr-1">close</span>Từ chối
             </button>
+            {item.entityType === 'Lesson' && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => onApproveGroup(item.requestId)}
+                className="rounded-xl border border-[#E7DAE1] px-4 py-2 text-[13px] font-semibold text-[#AD3155] hover:bg-[#FFF6FA] disabled:opacity-50"
+              >
+                Duyệt cả nhóm bài
+              </button>
+            )}
             <button
               type="button"
               onClick={handleApprove}
@@ -331,6 +361,10 @@ export default function AdminContentReview() {
   });
 
   // Batch review mutation
+  const groupReviewMutation = useMutation({
+    mutationFn: ({ requestId, approve, reviewNote }) => reviewLessonGroup(requestId, { approve, reviewNote }),
+    onSuccess: onMutationSuccess,
+  });
   const batchReviewMutation = useMutation({
     mutationFn: (batchItems) => batchReviewContentRequests(batchItems),
     onSuccess: onMutationSuccess,
@@ -375,8 +409,8 @@ export default function AdminContentReview() {
     return items.filter((item) => checkedIds.includes(item.requestId));
   }, [items, checkedIds]);
 
-  const isSubmitting = singleReviewMutation.isPending || batchReviewMutation.isPending;
-  const mutationError = singleReviewMutation.error?.message || batchReviewMutation.error?.message;
+  const isSubmitting = singleReviewMutation.isPending || batchReviewMutation.isPending || groupReviewMutation.isPending;
+  const mutationError = singleReviewMutation.error?.message || batchReviewMutation.error?.message || groupReviewMutation.error?.message;
 
   return (
     <AdminShell pathname={pathname} breadcrumb="Duyệt nội dung">
@@ -566,6 +600,8 @@ export default function AdminContentReview() {
                 item={selectedItem}
                 onApprove={handleSingleApprove}
                 onReject={handleSingleReject}
+                onApproveGroup={(id) => groupReviewMutation.mutate({ requestId: id, approve: true, reviewNote: '' })}
+                onRejectGroup={(id, reviewNote) => groupReviewMutation.mutate({ requestId: id, approve: false, reviewNote })}
                 submitting={isSubmitting}
               />
             )}

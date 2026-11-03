@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import { getSession } from '../../auth/session.js';
+import { updateNotificationSettings } from '../../api/profile.js';
 import {
   displayName,
+  learnerKeys,
   useLearnerProfile,
 } from '../../hooks/useLearnerHome.js';
 
@@ -106,6 +109,13 @@ export default function LearnerSettings() {
   const { tr } = useLocale();
   const session = getSession();
   const profileQuery = useLearnerProfile();
+  const queryClient = useQueryClient();
+  const notify = useMutation({
+    mutationFn: updateNotificationSettings,
+    onSuccess: (next) => {
+      queryClient.setQueryData(learnerKeys.profile, next);
+    },
+  });
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -453,52 +463,46 @@ export default function LearnerSettings() {
                 <div className="divide-y divide-[#F0E7EC]">
                   {[
                     {
-                      icon: 'history',
-                      title: tr('Nhắc ôn tập đến hạn'),
-                      description: tr('Nhắc ôn từ vựng và Hán tự đã lưu.'),
+                      key: 'emailNotificationsEnabled',
+                      icon: 'mail',
+                      title: tr('Thông báo qua email'),
+                      description: tr('Gửi nhắc học và lịch tư vấn tới email của bạn.'),
                     },
                     {
-                      icon: 'event',
-                      title: tr('Nhắc lịch tư vấn'),
-    description: tr('Thông báo trước buổi tư vấn với cố vấn.'),
+                      key: 'systemNotificationsEnabled',
+                      icon: 'notifications',
+                      title: tr('Thông báo trong ứng dụng'),
+                      description: tr('Hiện nhắc ôn tập và lịch tư vấn ngay trên RikiPath.'),
                     },
-                  ].map((item) => (
-                    <div
-                      key={item.title}
-                      className="flex items-start gap-3 py-4"
-                    >
-                      <span
-                        className="flex h-9 w-9 shrink-0
-                                   items-center justify-center
-                                   rounded-lg bg-[#FBEEF4]
-                                   text-[#B77E95]"
-                      >
-                        <Icon name={item.icon} className="text-[20px]" />
-                      </span>
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-[13px] font-medium">
-                          {item.title}
-                        </h3>
-                        <p className="mt-1 text-[12px] leading-5 text-[#A08A95]">
-                          {item.description}
-                        </p>
+                  ].map((item) => {
+                    const enabled = Boolean(profile?.[item.key]);
+                    return (
+                      <div key={item.key} className="flex items-start gap-3 py-4">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBEEF4] text-[#B77E95]">
+                          <Icon name={item.icon} className="text-[20px]" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-[13px] font-medium">{item.title}</h3>
+                          <p className="mt-1 text-[12px] leading-5 text-[#A08A95]">{item.description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={enabled}
+                          disabled={!profile || notify.isPending}
+                          onClick={() => notify.mutate({
+                            emailNotificationsEnabled: item.key === 'emailNotificationsEnabled' ? !enabled : Boolean(profile.emailNotificationsEnabled),
+                            systemNotificationsEnabled: item.key === 'systemNotificationsEnabled' ? !enabled : Boolean(profile.systemNotificationsEnabled),
+                          })}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-[#AD3155]' : 'bg-[#E7D7DF]'}`}
+                        >
+                          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${enabled ? 'left-5' : 'left-0.5'}`} />
+                        </button>
                       </div>
-
-                      <span
-                        className="shrink-0 rounded-md
-                                   bg-[#F6F1F4] px-2 py-1
-                                   text-[10px] text-[#A08A95]"
-                      >
-                        {tr('Chưa kết nối')}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-
-                <p className="mt-4 text-[12px] leading-5 text-[#A08A95]">
-                  {tr('Tùy chọn thông báo cần được kết nối với hệ thống trước khi có thể bật hoặc tắt.')}
-                </p>
+                {notify.isError && <p role="alert" className="mt-3 text-[12px] text-[#A33357]">{notify.error.message}</p>}
               </>
             )}
           </section>

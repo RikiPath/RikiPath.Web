@@ -66,9 +66,19 @@ export function useNotificationSignalR() {
             .build();
 
         const handleRefresh = (notification) => {
-            // Invalidate query để TanStack Query tự làm mới danh sách & số lượng chưa đọc
             queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-            if (notification?.type === 'MentorVerification') {
+            const title = notification?.title || notification?.Title;
+            if (title) {
+                window.dispatchEvent(new CustomEvent('rikipath:notification', {
+                    detail: {
+                        title,
+                        message: notification.message || notification.Message || '',
+                        linkUrl: notification.linkUrl || notification.LinkUrl || '',
+                        type: notification.type || notification.Type || '',
+                    },
+                }));
+            }
+            if (notification?.type === 'MentorVerification' || notification?.Type === 'MentorVerification') {
                 queryClient.invalidateQueries({ queryKey: ['admin-mentor-verifications'] });
                 window.dispatchEvent(new CustomEvent('rikipath:mentor-verification', { detail: notification }));
             }

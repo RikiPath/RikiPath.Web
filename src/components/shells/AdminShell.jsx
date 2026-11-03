@@ -8,7 +8,7 @@ const HEADER_H = 68;
 
 function navClass(active) {
   return [
-    'group/nav flex min-h-[44px] w-full items-center gap-3',
+    'group/nav flex min-h-[38px] w-full items-center gap-3',
     'rounded-[10px] px-3 text-left',
     'transition-colors duration-150',
     'focus-visible:outline-none focus-visible:ring-2',
@@ -55,13 +55,6 @@ export default function AdminShell({
 
   const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
 
-  const navItems = ADMIN_NAV.groups.flatMap((group) =>
-    group.items.map((item, index) => ({
-      ...item,
-      navKey: `${group.label}-${item.to}-${index}`,
-    })),
-  );
-
   return (
     <div
       data-shell="admin"
@@ -106,60 +99,38 @@ export default function AdminShell({
           aria-label="Menu chính"
           className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
         >
-          <div className="flex flex-col gap-1">
-            {navItems.map((item) => {
-              const active = pathMatches(currentPath, item);
+          {ADMIN_NAV.groups.map((group) => (
+            <div key={group.label} className="mb-3">
+              <div className="mb-1 px-3 text-[10px] font-medium tracking-[0.08em] text-[#B4A3AB]">
+                {group.label.toUpperCase()}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const active = pathMatches(currentPath, item);
 
-              return (
-                <div key={item.navKey}>
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    className={navClass(active)}
-                    title={item.label}
-                  >
-                    <NavIcon name={item.icon} active={active} />
-
-                    <span
-                      className={[
-                        'min-w-0 flex-1 truncate text-[13px]',
-                        active ? 'font-semibold' : 'font-medium',
-                      ].join(' ')}
+                  return (
+                    <NavLink
+                      key={`${group.label}-${item.to}`}
+                      to={item.to}
+                      end={item.end}
+                      className={navClass(active)}
+                      title={item.label}
                     >
-                      {item.label}
-                    </span>
-                  </NavLink>
-
-                  {item.children?.length > 0 && (
-                    <div className="mb-1 ml-[22px] border-l border-[#F0E6EA] pl-2">
-                      {item.children.map((child) => {
-                        const childActive = pathMatches(currentPath, child);
-
-                        return (
-                          <NavLink
-                            key={child.to}
-                            to={child.to}
-                            title={child.label}
-                            className={[
-                              'flex min-h-[34px] items-center rounded-lg px-2',
-                              'text-[12.5px] transition-colors',
-                              'focus-visible:outline-none focus-visible:ring-2',
-                              'focus-visible:ring-[#AD3155]/30',
-                              childActive
-                                ? 'font-semibold text-[#AD3155]'
-                                : 'font-medium text-[#8C7D84] hover:text-[#AD3155]',
-                            ].join(' ')}
-                          >
-                            {child.label}
-                          </NavLink>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                      <NavIcon name={item.icon} active={active} />
+                      <span
+                        className={[
+                          'min-w-0 flex-1 truncate text-[13px]',
+                          active ? 'font-semibold' : 'font-medium',
+                        ].join(' ')}
+                      >
+                        {item.label}
+                      </span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="shrink-0 px-4 pb-4">

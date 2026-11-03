@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { getSession } from '../../auth/session.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
+import NotificationBell from './NotificationBell.jsx';
 import { useLocale } from '../../i18n/locale.js';
 import {
   displayName,
@@ -471,6 +472,7 @@ export default function LearnerShell({
           </label>
         )}
 
+        <NotificationBell />
         <LanguageSwitch className="inline-flex items-center gap-1 rounded-lg border border-[#EEDCE5] bg-white px-2.5 py-1 text-[12px] font-medium text-[#826A76] hover:bg-[#FCE7EF]" />
         {/* Tài khoản */}
         <div ref={accountRef} className="relative shrink-0">

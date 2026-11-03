@@ -4,12 +4,19 @@ function result(response) {
   return response?.result ?? response;
 }
 
+function asImage(form) {
+  return api.post(form.url, form.body, {
+    transformRequest: [(payload, headers) => {
+      delete headers['Content-Type'];
+      return payload;
+    }],
+  });
+}
+
 export async function scanLearnerEssay(file) {
   const form = new FormData();
   form.append('image', file);
-  return result(await api.post('/learner-essays/scan', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }));
+  return result(await asImage({ url: '/learner-essays/scan', body: form }));
 }
 
 export async function getLearnerEssays() {
@@ -27,9 +34,7 @@ export async function updateLearnerEssay(id, contentText) {
 export async function rescanLearnerEssay(id, file) {
   const form = new FormData();
   form.append('image', file);
-  return result(await api.post(`/learner-essays/${id}/rescan`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }));
+  return result(await asImage({ url: `/learner-essays/${id}/rescan`, body: form }));
 }
 
 export async function deleteLearnerEssay(id) {

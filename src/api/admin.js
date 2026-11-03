@@ -107,3 +107,52 @@ export async function batchReviewContentRequests(items) {
   const res = await api.post('/content-approvals/requests/batch-review', { items });
   return res?.result ?? res;
 }
+
+export async function reviewLessonGroup(requestId, data) {
+  const res = await api.post(`/content-approvals/requests/${requestId}/review-lesson-group`, data);
+  return res?.result ?? res;
+}
+
+export async function getCertificateSections(params) {
+  const data = await api.get('/admin/certificate-sections', { params });
+  return data?.result ?? data ?? [];
+}
+
+export async function createCertificateSection(body) {
+  const data = await api.post('/admin/certificate-sections', body);
+  return data?.result ?? data;
+}
+
+export async function updateCertificateSection(id, body) {
+  const data = await api.put(`/admin/certificate-sections/${id}`, body);
+  return data?.result ?? data;
+}
+
+export async function archiveCertificateSection(id) {
+  const data = await api.delete(`/admin/certificate-sections/${id}`);
+  return data?.result ?? data;
+}
+
+export async function getPendingMentorSlots() {
+  const data = await api.get('/admin/mentor-availabilities/pending');
+  return data?.result ?? data ?? [];
+}
+
+export async function reviewMentorSlots(ids, approve, rejectionReason) {
+  const data = await api.post('/admin/mentor-availabilities/review', ids, {
+    params: { approve, rejectionReason: rejectionReason || undefined },
+  });
+  return data?.result ?? data;
+}
+
+export async function reviewMentorSlotCancels(ids, approve, rejectionReason) {
+  const data = await api.post('/admin/mentor-availabilities/review-cancel', ids, {
+    params: { approve, rejectionReason: rejectionReason || undefined },
+  });
+  return data?.result ?? data;
+}
+
+export async function completeQaPayment(subscriptionId) {
+  const data = await api.post(`/admin/qa-payments/${subscriptionId}/complete`);
+  return data?.result ?? data;
+}

@@ -18,15 +18,15 @@ export const CONTENT_IMPORT_TYPES = [
 export async function previewContentImport(file, entityType) {
   const formData = new FormData();
   formData.append('file', file, file.name || 'import.xlsx');
-  if (entityType) {
-    formData.append('entityType', entityType);
-  }
+  const params = entityType ? { entityType } : undefined;
 
   const response = await api.post('/content-import/preview', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    params,
     timeout: 60000,
+    transformRequest: [(payload, headers) => {
+      delete headers['Content-Type'];
+      return payload;
+    }],
   });
   return response?.result ?? response;
 }

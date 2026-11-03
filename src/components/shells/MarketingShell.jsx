@@ -73,7 +73,6 @@ export default function MarketingShell({ children }) {
               <Link to="/about" className="hover:text-[#D94B68]">RikiPath là gì?</Link>
               <Link to="/courses" className="hover:text-[#D94B68]">Luyện thi JLPT</Link>
               <Link to="/thi-thu" className="hover:text-[#D94B68]">Thi thử</Link>
-              <Link to="/mentor" className="hover:text-[#D94B68]">Tư vấn 1-1</Link>
               <Link to="/auth" className="hover:text-[#D94B68]">Vào dashboard</Link>
             </div>
           </div>
