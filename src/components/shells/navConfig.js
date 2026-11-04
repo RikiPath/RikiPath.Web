@@ -62,6 +62,7 @@ export const ADMIN_NAV = {
         { to: '/admin/mentor-schedules', label: 'Lịch tuần', icon: 'calendar_month' },
         { to: '/admin/slot-review', label: 'Khung giờ', icon: 'schedule' },
         { to: '/admin/mentor-plans', label: 'Gói tư vấn', icon: 'sell' },
+        { to: '/admin/mentor-compensation', label: 'Thù lao & Kỳ lương', icon: 'payments' },
         { to: '/admin/mentor-cases', label: 'Ngoại lệ', icon: 'gavel' },
       ],
     },

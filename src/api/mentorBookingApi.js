@@ -30,7 +30,7 @@ function list(data) {
   return [];
 }
 
-export const getMeetingPlans = async () => list(await api.get('/mentor-meetings/plans')).map((plan) => ({
+export const getMeetingPlans = async (params) => list(await api.get('/mentor-meetings/plans', params ? { params } : undefined)).map((plan) => ({
   ...plan,
   name: readText(plan.name),
   description: readText(plan.description),
@@ -44,8 +44,8 @@ export const getMentorSlots = async (mentorId, from, to) => {
 
 export const getBookingMentors = async () => list(await api.get('/mentor-meetings/mentors'));
 
-export const purchaseMeeting = ({ subscriptionPlanId, frontendOrigin }) =>
-  api.post('/mentor-meetings/purchase', { subscriptionPlanId, frontendOrigin }).then((data) => data.result);
+export const purchaseMeeting = ({ subscriptionPlanId, frontendOrigin, jlptLevel }) =>
+  api.post('/mentor-meetings/purchase', { subscriptionPlanId, frontendOrigin, ...(jlptLevel ? { jlptLevel } : {}) }).then((data) => data.result);
 
 export const getPurchaseStatus = async (id) => (await api.get(`/mentor-meetings/purchases/${id}`)).result;
 
