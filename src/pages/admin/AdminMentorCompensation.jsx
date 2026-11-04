@@ -135,7 +135,7 @@ function bankStatusBadge(rawStatus) {
 }
 
 export default function AdminMentorCompensation() {
-  const [activeTab, setActiveTab] = useState('config');
+  const [activeTab, setActiveTab] = useState(() => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') || 'config' : 'config'));
   const [selectedMentorId, setSelectedMentorId] = useState('');
   const [banner, setBanner] = useState({ type: '', text: '' });
 
