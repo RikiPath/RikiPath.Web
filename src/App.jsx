@@ -238,6 +238,7 @@ export default function App() {
             <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-verifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-compensation')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/dashboard" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/dashboard')} element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path={withSlash('/admin/certificate-sections')} element={<ProtectedRoute requireAdmin><AdminCertificateSections /></ProtectedRoute>} />

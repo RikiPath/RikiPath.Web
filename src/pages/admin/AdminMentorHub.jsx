@@ -4,6 +4,7 @@ import AdminConsultants from './AdminConsultants.jsx';
 import AdminMentorSchedules from './AdminMentorSchedules.jsx';
 import AdminMentorPlans from './AdminMentorPlans.jsx';
 import AdminMentorVerifications from './AdminMentorVerifications.jsx';
+import AdminMentorCompensation from './AdminMentorCompensation.jsx';
 
 const SECTIONS = [
   {
@@ -12,14 +13,30 @@ const SECTIONS = [
     note: 'Danh sách và trạng thái cố vấn.',
     paths: ['/admin/mentors', '/admin/consultants'],
   },
-  { to: '/admin/mentor-verifications', label: 'Hồ sơ chờ xét duyệt', note: 'Phê duyệt, từ chối và yêu cầu bổ sung.', paths: ['/admin/mentor-verifications'] },
+  {
+    to: '/admin/mentor-verifications',
+    label: 'Hồ sơ chờ xét duyệt',
+    note: 'Phê duyệt, từ chối và yêu cầu bổ sung.',
+    paths: ['/admin/mentor-verifications'],
+  },
   {
     to: '/admin/mentor-schedules',
     label: 'Lịch tư vấn',
     note: 'Xem lịch tư vấn đã công bố.',
     paths: ['/admin/mentor-schedules'],
   },
-  { to: '/admin/mentor-plans', label: 'Gói tư vấn', note: 'Cấu hình giá gói 1 và 3 buổi.', paths: ['/admin/mentor-plans'] },
+  {
+    to: '/admin/mentor-plans',
+    label: 'Gói tư vấn (N5–N2)',
+    note: 'Cấu hình giá gói 1 và 3 buổi theo JLPT.',
+    paths: ['/admin/mentor-plans'],
+  },
+  {
+    to: '/admin/mentor-compensation',
+    label: 'Thù lao & Kỳ lương',
+    note: 'Đơn giá giờ, hệ số JLPT, bảng kê và chi trả.',
+    paths: ['/admin/mentor-compensation'],
+  },
 ];
 
 function cleanPath(pathname) {
@@ -31,6 +48,7 @@ export default function AdminMentorHub() {
   const current = cleanPath(pathname);
   const schedules = current === '/admin/mentor-schedules';
   const verifications = current === '/admin/mentor-verifications';
+  const compensation = current === '/admin/mentor-compensation';
 
   return (
     <AdminShell pathname={pathname} breadcrumb="Quản lý cố vấn">
@@ -43,13 +61,13 @@ export default function AdminMentorHub() {
             Quản lý cố vấn
           </h1>
           <p className="mt-1 text-[13px] text-[#82737B]">
-          Hồ sơ xét duyệt và lịch tư vấn.
+            Hồ sơ xét duyệt, lịch tư vấn, gói tư vấn theo JLPT N5–N2, kỳ lương và chi trả thù lao.
           </p>
         </header>
 
         <nav
           aria-label="Mục quản lý cố vấn"
-          className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
         >
           {SECTIONS.map((section) => {
             const active = section.paths.includes(current);
@@ -80,7 +98,13 @@ export default function AdminMentorHub() {
           })}
         </nav>
 
-        {verifications ? <AdminMentorVerifications /> : current === '/admin/mentor-plans' ? <AdminMentorPlans /> : schedules ? (
+        {verifications ? (
+          <AdminMentorVerifications />
+        ) : current === '/admin/mentor-plans' ? (
+          <AdminMentorPlans />
+        ) : compensation ? (
+          <AdminMentorCompensation />
+        ) : schedules ? (
           <AdminMentorSchedules embedded />
         ) : (
           <AdminConsultants embedded />

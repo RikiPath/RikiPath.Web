@@ -229,14 +229,14 @@ describe('Web Mentor Booking & Scheduling API contract endpoints', () => {
     await getMentorAvailableSlots(15, '2026-11-01', '2026-11-07');
     assert.equal(lastRequest.method, 'get');
     assert.equal(lastRequest.url, '/mentors/15/slots');
-    assert.deepEqual(lastRequest.params, { from: '2026-11-01', to: '2026-11-07' });
+    assert.deepEqual(lastRequest.params, { startDate: '2026-11-01', endDate: '2026-11-07', timeZoneId: 'Asia/Ho_Chi_Minh' });
   });
 
   it('getMentorAvailableDates queries the canonical mentor dates route', async () => {
     await getMentorAvailableDates(15, '2026-11-01', '2026-11-07');
     assert.equal(lastRequest.method, 'get');
     assert.equal(lastRequest.url, '/mentors/15/available-dates');
-    assert.deepEqual(lastRequest.params, { from: '2026-11-01', to: '2026-11-07' });
+    assert.deepEqual(lastRequest.params, { startDate: '2026-11-01', endDate: '2026-11-07', timeZoneId: 'Asia/Ho_Chi_Minh' });
   });
 });
 

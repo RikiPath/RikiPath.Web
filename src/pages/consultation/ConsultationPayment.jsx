@@ -23,7 +23,7 @@ export default function ConsultationPayment() {
   const purchase = useMutation({
     mutationFn: () => purchaseMeeting({
       subscriptionPlanId: plan.id,
-      frontendOrigin: window.location.origin,
+      frontendOrigin: window.location.origin, jlptLevel: plan.jlptLevel || undefined,
     }),
     onSuccess: (result) => {
       sessionStorage.setItem(`mentor-checkout:${user.userId}:${result.subscriptionId}`, result.checkoutUrl);
@@ -68,7 +68,10 @@ export default function ConsultationPayment() {
                 onClick={() => setPlanId(item.id)}
                 className={`rounded-2xl border bg-white p-5 text-left ${selected ? 'border-[#AD3155] bg-[#FCEEF3]' : 'border-[#EADFE5] hover:bg-[#FDFAFC]'} ${focus}`}
               >
-                <h2 className="text-[16px] font-semibold">{item.name}</h2>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-[16px] font-semibold">{item.name}</h2>
+                  {item.jlptLevel && <span className="rounded-md bg-[#FCEEF3] px-2 py-0.5 text-[11px] font-bold text-[#AD3155]">JLPT {item.jlptLevel}</span>}
+                </div>
                 <p className="mt-3 text-[18px] font-semibold text-[#AD3155]">{money(item.price)}</p>
                 <p className="mt-2 text-[13px] text-[#8C7782]">{locale === 'ja'
                   ? `${item.meetingSessionCount}回 · 支払いから${item.durationDays}日間`

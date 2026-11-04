@@ -83,7 +83,7 @@ export default function BookingSchedule() {
       setBookingError('');
       return await bookMeetingWithCredit({
         mentorAvailabilityId: slot.id,
-        question: goal,
+        question: goal, jlptLevel: jlptLevel || mentor?.qualifiedJlptLevels?.[0] || mentor?.jlptLevel || 'N3',
         notes: note || undefined,
       });
     },
@@ -109,7 +109,7 @@ export default function BookingSchedule() {
                 <input value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setMentorId(null); }} placeholder="Tên hoặc chuyên môn" className="min-w-[180px] flex-1 rounded-2xl border border-[#eadfd9] bg-[#FAF7F5] px-3 py-2 text-sm" />
                 <select value={jlptLevel} onChange={(event) => { setJlptLevel(event.target.value); setMentorId(null); }} className="rounded-2xl border border-[#eadfd9] bg-[#FAF7F5] px-3 py-2 text-sm">
                   <option value="">Mọi JLPT</option>
-                  {['N5', 'N4', 'N3', 'N2', 'N1'].map((level) => <option key={level}>{level}</option>)}
+                  {['N5', 'N4', 'N3', 'N2'].map((level) => <option key={level}>{level}</option>)}
                 </select>
               </div>
               <h2 className="mb-4 text-sm font-bold">Cố vấn <span className="font-normal text-[#A59B9E]">({mentorQuery.data?.totalCount ?? mentors.length})</span></h2>
