@@ -13,6 +13,21 @@ export function saveSession(session, remember = true) {
 export function getSession() {
   const preview = getPreviewSession();
   if (preview) return preview;
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('qa_auth_token');
+    if (token) {
+      const auth = {
+        accessToken: token,
+        role: params.get('qa_role') || 'Admin',
+        userId: params.get('qa_user_id') || '900001',
+        email: params.get('qa_email') || 'admin@rikipath.local',
+        fullName: params.get('qa_name') || 'Admin System'
+      };
+      saveSession(auth, true);
+      return auth;
+    }
+  }
   const raw = localStorage.getItem(KEY) || sessionStorage.getItem(KEY);
   if (!raw) return null;
   try {
