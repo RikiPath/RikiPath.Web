@@ -11,7 +11,7 @@ import {
   getLearnerEssays,
   rescanLearnerEssay,
   scanLearnerEssay,
-  updateLearnerEssay,
+  saveLearnerEssayDraft,
 } from '../../api/learnerEssayApi.js';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -74,6 +74,7 @@ export default function LearnerEssayPage() {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [text, setText] = useState('');
+  const [originalOcrText, setOriginalOcrText] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [operation, setOperation] = useState('');
@@ -86,7 +87,7 @@ export default function LearnerEssayPage() {
   const scanning = operation === 'scan' || operation === 'rescan';
   const previewSrc = file ? previewUrl : selected?.imageUrl;
   const changed = Boolean(
-    selected && text !== (selected.contentText || ''),
+    file || (selected ? text !== (selected.contentText || '') : text.trim()),
   );
 
   const loadEssays = useCallback(async () => {
@@ -106,10 +107,11 @@ export default function LearnerEssayPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
-    loadEssays();
+    const timer = window.setTimeout(() => { void loadEssays(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadEssays]);
 
   useEffect(() => {
@@ -119,6 +121,16 @@ export default function LearnerEssayPage() {
       }
     };
   }, [previewUrl]);
+
+  useEffect(() => {
+    if (!changed) return;
+    const warnBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [changed]);
 
   function clearMessages() {
     setError('');
@@ -139,6 +151,7 @@ export default function LearnerEssayPage() {
     setFile(null);
     setPreviewUrl('');
     setText('');
+    setOriginalOcrText('');
     clearMessages();
 
     if (inputRef.current) inputRef.current.value = '';
@@ -155,6 +168,7 @@ export default function LearnerEssayPage() {
 
     clearMessages();
     setFile(nextFile);
+    setOriginalOcrText('');
     setPreviewUrl(URL.createObjectURL(nextFile));
   }
 
@@ -176,6 +190,7 @@ export default function LearnerEssayPage() {
 
       setSelected(result);
       setText(result.contentText || '');
+      setOriginalOcrText(result.originalOcrText || '');
       setFile(null);
       setPreviewUrl('');
     } catch (err) {
@@ -195,7 +210,7 @@ export default function LearnerEssayPage() {
     }
 
     if (
-      (changed || (!selected && text.trim())) &&
+      text.trim() &&
       !window.confirm(tr("Nhận dạng ảnh sẽ thay thế nội dung đang nhập. Tiếp tục?"))
     ) {
       return;
@@ -205,41 +220,13 @@ export default function LearnerEssayPage() {
     setOperation(selected ? 'rescan' : 'scan');
 
     try {
-      if (selected) {
-        const result = await rescanLearnerEssay(selected.id, file);
-
-        setSelected(result);
-        setText(result.contentText ?? result.text ?? '');
-        setFile(null);
-        setPreviewUrl('');
-        setNotice(tr("Đã nhận dạng lại. Bạn hãy kiểm tra nội dung."));
-      } else {
-        const result = await scanLearnerEssay(file);
-        const content = result.contentText ?? result.text ?? '';
-
-        setText(content);
-
-        // Chỉ coi là bản ghi có thể cập nhật khi API trả về ID.
-        if (result.id != null) {
-          setSelected({
-            ...result,
-            contentText: content,
-          });
-
-          if (result.imageUrl) {
-            setFile(null);
-            setPreviewUrl('');
-          }
-
-          setNotice(tr("Đã nhận dạng văn bản. Bạn có thể chỉnh sửa nội dung."));
-        } else {
-          setNotice(
-            tr("Đã nhận dạng văn bản. API chưa trả mã bài viết để lưu chỉnh sửa."),
-          );
-        }
-      }
-
-      await loadEssays();
+      const result = selected
+        ? await rescanLearnerEssay(selected.id, file)
+        : await scanLearnerEssay(file);
+      const content = result.text ?? '';
+      setText(content);
+      setOriginalOcrText(content);
+      setNotice(tr('Đã nhận dạng. Kiểm tra nội dung rồi bấm Lưu; bài đã lưu chưa thay đổi.'));
     } catch (err) {
       setError(err.message || tr("Không thể nhận dạng văn bản."));
     } finally {
@@ -248,16 +235,25 @@ export default function LearnerEssayPage() {
   }
 
   async function saveText() {
-    if (busy || !selected || !text.trim() || !changed) return;
+    if (busy || !text.trim() || !changed) return;
 
     setOperation('save');
     clearMessages();
 
     try {
-      const result = await updateLearnerEssay(selected.id, text);
+      const result = await saveLearnerEssayDraft({
+        id: selected?.id,
+        file,
+        contentText: text,
+        originalOcrText,
+      });
 
       setSelected(result);
       setText(result.contentText ?? text);
+      setOriginalOcrText(result.originalOcrText || '');
+      setFile(null);
+      setPreviewUrl('');
+      if (inputRef.current) inputRef.current.value = '';
       setNotice(tr("Đã lưu thay đổi."));
       await loadEssays();
     } catch (err) {
@@ -284,6 +280,7 @@ export default function LearnerEssayPage() {
       if (selected?.id === essay.id) {
         setSelected(null);
         setText('');
+        setOriginalOcrText('');
         setFile(null);
         setPreviewUrl('');
       }
@@ -641,7 +638,7 @@ export default function LearnerEssayPage() {
                   <button
                     type="button"
                     onClick={saveText}
-                    disabled={busy || !selected || !text.trim() || !changed}
+                    disabled={busy || !text.trim() || !changed}
                     className={PRIMARY_CLASS}
                   >
                     <Icon
@@ -650,13 +647,13 @@ export default function LearnerEssayPage() {
                         operation === 'save' ? 'animate-spin' : ''
                       }`}
                     />
-                    {operation === 'save' ? tr("Đang lưu…") : tr("Lưu thay đổi")}
+                    {operation === 'save' ? tr("Đang lưu…") : selected ? tr("Lưu thay đổi") : tr('Lưu bài viết')}
                   </button>
                 </div>
 
                 {!selected && text.trim() && (
                   <p className="mt-3 text-[11px] leading-5 text-[#AA8495]">
-                    {tr('Chưa có mã bài viết để lưu. Nếu bài đã xuất hiện trong lịch sử, hãy mở bài đó để chỉnh sửa.')}
+                    {tr('Bản nháp chưa lưu. Bấm Lưu bài viết để thêm vào danh sách của bạn.')}
                   </p>
                 )}
               </div>

@@ -5,12 +5,29 @@ function result(response) {
 }
 
 function asImage(form) {
-  return api.post(form.url, form.body, {
+  return api.request({
+    method: form.method || 'post',
+    url: form.url,
+    data: form.body,
     transformRequest: [(payload, headers) => {
       delete headers['Content-Type'];
       return payload;
     }],
   });
+}
+
+export async function saveLearnerEssayDraft({ id, file, contentText, originalOcrText }) {
+  const body = new FormData();
+  body.append('contentText', contentText);
+  if (file) {
+    body.append('image', file);
+    body.append('originalOcrText', originalOcrText || '');
+  }
+  return result(await asImage({
+    url: id == null ? '/learner-essays' : `/learner-essays/${id}/draft`,
+    method: id == null ? 'post' : 'put',
+    body,
+  }));
 }
 
 export async function scanLearnerEssay(file) {
