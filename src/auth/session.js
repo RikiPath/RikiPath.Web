@@ -13,7 +13,8 @@ export function saveSession(session, remember = true) {
 export function getSession() {
   const preview = getPreviewSession();
   if (preview) return preview;
-  if (typeof window !== 'undefined') {
+  const isQaOrDev = typeof import.meta !== 'undefined' && (import.meta.env?.DEV || import.meta.env?.MODE === 'development' || import.meta.env?.MODE === 'qa');
+  if (isQaOrDev && typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('qa_auth_token');
     if (token) {
@@ -25,6 +26,17 @@ export function getSession() {
         fullName: params.get('qa_name') || 'Admin System'
       };
       saveSession(auth, true);
+      try {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('qa_auth_token');
+        cleanUrl.searchParams.delete('qa_role');
+        cleanUrl.searchParams.delete('qa_user_id');
+        cleanUrl.searchParams.delete('qa_email');
+        cleanUrl.searchParams.delete('qa_name');
+        window.history.replaceState({}, document.title, cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : '') + cleanUrl.hash);
+      } catch {
+        // Safe no-op
+      }
       return auth;
     }
   }
