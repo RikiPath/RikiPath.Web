@@ -1,57 +1,32 @@
 import { Link, useLocation } from 'react-router-dom';
 import { CmsShell } from '../../components/shells';
 
-const SECTIONS = [
+const PRIMARY = [
   {
-    id: 'content',
-    label: 'Soạn nội dung',
-    description: 'Bài luyện tập và kho kiến thức',
-    items: [
-      {
-        to: '/content-plan',
-        label: 'Soạn với AI',
-        description: 'Lập kế hoạch, xem trước rồi gửi duyệt.',
-        icon: 'auto_awesome',
-      },
-      {
-        to: '/lesson-cms',
-        label: 'Bài luyện tập',
-        description: 'Biên soạn và chỉnh sửa bài luyện.',
-        icon: 'menu_book',
-      },
-      {
-        to: '/vocabulary-editor',
-        label: 'Từ vựng & Hán tự',
-        description: 'Quản lý từ, cách đọc và ví dụ.',
-        icon: 'translate',
-      },
-      {
-        to: '/content-library',
-        label: 'Ngữ pháp',
-        description: 'Cập nhật mẫu câu và cách dùng.',
-        icon: 'edit_note',
-      },
-    ],
+    to: '/content-plan',
+    label: 'Soạn với AI',
+    description: 'Viết ý tưởng, xem trước rồi gửi duyệt.',
+    icon: 'auto_awesome',
   },
   {
-    id: 'exam',
-    label: 'Chuẩn bị đề thi',
-    description: 'Từ câu hỏi đến bộ đề hoàn chỉnh',
-    items: [
-      {
-        to: '/question-bank',
-        label: 'Ngân hàng câu hỏi',
-        description: 'Biên soạn và quản lý câu hỏi.',
-        icon: 'quiz',
-      },
-      {
-        to: '/exam-builder',
-        label: 'Quản lý đề thi',
-        description: 'Sắp xếp câu hỏi thành bộ đề.',
-        icon: 'assignment',
-      },
-    ],
+    to: '/bulk-import',
+    label: 'Import Excel',
+    description: 'Đưa cả một bài học vào hàng chờ.',
+    icon: 'upload_file',
   },
+  {
+    to: '/author-dashboard',
+    label: 'Bảng theo dõi',
+    description: 'Xem bài chờ duyệt, đã duyệt hoặc bị từ chối.',
+    icon: 'fact_check',
+  },
+];
+
+const LIBRARY = [
+  { to: '/lesson-cms', label: 'Bài đã gửi', description: 'Danh sách bài đang chờ hoặc đã duyệt.', icon: 'menu_book' },
+  { to: '/vocabulary-editor', label: 'Từ vựng', description: 'Kho từ đã được duyệt.', icon: 'translate' },
+  { to: '/kanji-editor', label: 'Hán tự', description: 'Chữ, âm đọc và số nét đã duyệt.', icon: 'draw' },
+  { to: '/content-library', label: 'Ngữ pháp', description: 'Mẫu câu đã đi cùng bài học.', icon: 'psychology' },
 ];
 
 const focusClass =
@@ -69,36 +44,26 @@ function Icon({ name, className = '' }) {
   );
 }
 
-function ToolRow({ to, label, description, icon }) {
+function ToolCard({ to, label, description, icon, featured = false }) {
   return (
     <Link
       to={to}
       className={[
-        'group flex items-center gap-3 px-4 py-3.5 sm:px-5',
-        'transition-colors hover:bg-[#FFF7FA]',
-        'focus-visible:relative focus-visible:z-10',
-        'focus-visible:outline-none focus-visible:ring-2',
-        'focus-visible:ring-inset focus-visible:ring-[#AD3155]/35',
+        'group flex h-full flex-col rounded-2xl border bg-white p-4',
+        featured ? 'border-[#E7C9D6] shadow-[0_8px_24px_rgba(173,49,85,0.06)]' : 'border-[#EADFE5]',
+        'transition hover:-translate-y-0.5 hover:border-[#E7C9D6]',
+        focusClass,
       ].join(' ')}
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FAF0F5] text-[#B07891] transition-colors group-hover:bg-[#F7E5EE] group-hover:text-[#AD3155]">
-        <Icon name={icon} className="text-[21px]" />
+      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${featured ? 'bg-[#FCEEF3] text-[#AD3155]' : 'bg-[#FAF6F7] text-[#A67C8E]'}`}>
+        <Icon name={icon} className="text-[22px]" />
       </span>
-
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-5">
-        <span className="text-[14px] font-medium text-[#543E49] sm:w-[185px] sm:shrink-0">
-          {label}
-        </span>
-
-        <span className="text-[12px] leading-5 text-[#9A8590]">
-          {description}
-        </span>
+      <span className="mt-4 text-[15px] font-semibold text-[#543E49]">{label}</span>
+      <span className="mt-1 flex-1 text-[13px] leading-6 text-[#927B88]">{description}</span>
+      <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-[#AD3155]">
+        Mở
+        <Icon name="arrow_forward" className="text-[16px] transition group-hover:translate-x-0.5" />
       </span>
-
-      <Icon
-        name="chevron_right"
-        className="shrink-0 text-[19px] text-[#C8B4BF] transition-colors group-hover:text-[#AD3155]"
-      />
     </Link>
   );
 }
@@ -112,107 +77,38 @@ export default function CMSStudio() {
         data-page="CMSStudio"
         className="mx-auto w-full max-w-[1160px] px-4 py-6 text-[#49353F] sm:px-6 lg:px-8"
       >
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-[25px] font-semibold tracking-tight">
-              Tổng quan
-            </h1>
-
-            <p className="mt-1 text-[13px] leading-6 text-[#96808C]">
-              Không gian biên soạn nội dung RikiPath.
-            </p>
-          </div>
-
-          <Link
-            to="/bulk-import"
-            className={[
-              'inline-flex h-10 items-center justify-center gap-2',
-              'rounded-lg border border-[#E7DAE1] bg-white px-3.5',
-              'text-[13px] text-[#866777]',
-              'transition-colors hover:border-[#DBBACA] hover:bg-[#FFF6FA]',
-              focusClass,
-            ].join(' ')}
-          >
-            <Icon name="upload_file" className="text-[18px]" />
-            Nhập từ Excel
-          </Link>
+        <header className="mb-6 overflow-hidden rounded-3xl border border-[#E7C9D6] bg-[linear-gradient(135deg,#FFF7FA_0%,#FCEEF3_55%,#FFFDFC_100%)] px-6 py-6 sm:px-8">
+          <p className="text-[12px] font-medium tracking-[0.14em] text-[#AD3155]">STUDIO NỘI DUNG</p>
+          <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-[#49353F]">Xin chào, cùng soạn bài hôm nay.</h1>
+          <p className="mt-2 max-w-xl text-[14px] leading-6 text-[#8D7481]">
+            Gửi bài bằng Excel hoặc AI, rồi theo dõi admin duyệt. Kho từ và ngữ pháp hiện những mục đã được xuất bản.
+          </p>
         </header>
 
-        <section
-          aria-labelledby="author-workspace-title"
-          className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#ECD9E3] bg-[#FCEDF4] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-        >
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#EBCFDA] bg-white/70 text-[#AD3155]">
-              <Icon name="fact_check" className="text-[23px]" />
-            </span>
-
-            <div>
-              <h2
-                id="author-workspace-title"
-                className="text-[16px] font-medium text-[#79465D]"
-              >
-                Theo dõi nội dung của bạn
-              </h2>
-
-              <p className="mt-1 max-w-lg text-[13px] leading-6 text-[#A0788B]">
-                Xem trạng thái xét duyệt và phản hồi để chỉnh sửa.
-              </p>
-            </div>
-          </div>
-
-          <Link
-            to="/author-dashboard"
-            className={[
-              'inline-flex min-h-10 shrink-0 items-center justify-center gap-2',
-              'self-start rounded-lg bg-[#AD3155] px-4 py-2',
-              'text-[13px] font-medium text-white sm:self-auto',
-              'transition-colors hover:bg-[#982B4B]',
-              focusClass,
-            ].join(' ')}
-          >
-            Mở bảng theo dõi
-            <Icon name="arrow_forward" className="text-[17px]" />
-          </Link>
+        <section className="grid gap-3 md:grid-cols-3">
+          {PRIMARY.map((item) => <ToolCard key={item.to} {...item} featured />)}
         </section>
 
-        <div className="space-y-6">
-          {SECTIONS.map((section) => (
-            <section
-              key={section.id}
-              aria-labelledby={`${section.id}-title`}
-            >
-              <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
-                <h2
-                  id={`${section.id}-title`}
-                  className="text-[14px] font-semibold text-[#705261]"
-                >
-                  {section.label}
-                </h2>
+        <section className="mt-8">
+          <div className="mb-3 flex items-end justify-between px-1">
+            <h2 className="text-[15px] font-semibold text-[#705261]">Kho đã gửi và đã duyệt</h2>
+            <p className="text-[12px] text-[#AA929F]">Xem, không sửa trực tiếp</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {LIBRARY.map((item) => <ToolCard key={item.to} {...item} />)}
+          </div>
+        </section>
 
-                <p className="text-[12px] text-[#AA929F]">
-                  {section.description}
-                </p>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border border-[#EADFE5] bg-white">
-                <div className="divide-y divide-[#F2EAF0]">
-                  {section.items.map((item) => (
-                    <ToolRow key={item.to} {...item} />
-                  ))}
-                </div>
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <p className="mt-5 flex items-start gap-2 px-1 text-[12px] leading-6 text-[#AA929F]">
-          <Icon
-            name="info"
-            className="mt-0.5 shrink-0 text-[16px] text-[#B89DAA]"
-          />
-          Kiểm tra nội dung trước khi gửi duyệt.
-        </p>
+        <section className="mt-8">
+          <div className="mb-3 px-1">
+            <h2 className="text-[15px] font-semibold text-[#705261]">Nháp trên trình duyệt</h2>
+            <p className="mt-1 text-[12px] text-[#AA929F]">Câu hỏi và đề thi chưa có chỗ lưu trên máy chủ.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ToolCard to="/question-bank" label="Ngân hàng câu hỏi" description="Sắp xếp câu để xem bố cục. Chỉ giữ trong phiên này." icon="quiz" />
+            <ToolCard to="/exam-builder" label="Dàn ý đề thi" description="Phác đề theo cấp độ. Chưa gửi lên hàng chờ duyệt." icon="assignment" />
+          </div>
+        </section>
       </div>
     </CmsShell>
   );

@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 
 import BrandMark from '../BrandMark.jsx';
 import NotificationPopover from '../admin/NotificationPopover.jsx';
@@ -54,7 +54,13 @@ export default function CmsShell({
         className="fixed inset-y-0 left-0 z-50 flex flex-col
                    border-r border-[#E8DFDC] bg-[#FAF8F7]"
       >
-        <div className="flex h-16 shrink-0 items-center gap-2.5 px-4">
+        <Link
+          to="/"
+          aria-label="Về trang chủ"
+          className="flex h-16 shrink-0 items-center gap-2.5 px-4 rounded-lg
+                     focus-visible:outline-none focus-visible:ring-2
+                     focus-visible:ring-[#AD3155]/30"
+        >
           <BrandMark className="h-10 w-14" />
           <span className="min-w-0 leading-tight">
             <span className="block truncate text-[16px] font-medium">
@@ -64,7 +70,7 @@ export default function CmsShell({
               Studio nội dung
             </span>
           </span>
-        </div>
+        </Link>
 
         <nav
           aria-label="Menu chính"

@@ -54,16 +54,17 @@ function rangesOverlap(left, right) {
 
 function clockParts(value) {
   const date = bookingDate(value);
-  if (!date) return { hour: 8, minute: 0 };
-  const parts = new Intl.DateTimeFormat('en-GB', {
+  if (!date || Number.isNaN(date.getTime())) return { hour: 8, minute: 0 };
+  const text = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Ho_Chi_Minh',
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(date);
+  }).format(date);
+  const match = text.match(/(\d{1,2})\D+(\d{1,2})/);
   return {
-    hour: Number(parts.find((part) => part.type === 'hour')?.value),
-    minute: Number(parts.find((part) => part.type === 'minute')?.value),
+    hour: match ? Number(match[1]) % 24 : 8,
+    minute: match ? Number(match[2]) : 0,
   };
 }
 

@@ -2,11 +2,16 @@ import { Link } from 'react-router-dom';
 
 const HOUR_HEIGHT = 52;
 
+function minutePart(value) {
+  const minute = Number(value);
+  return Number.isFinite(minute) ? minute : 0;
+}
+
 function minutesOf(event) {
-  return {
-    start: event.startHour * 60 + (event.startMinute || 0),
-    end: event.endHour * 60 + (event.endMinute || 0),
-  };
+  const start = event.startHour * 60 + minutePart(event.startMinute);
+  let end = event.endHour * 60 + minutePart(event.endMinute);
+  if (end <= start) end += 24 * 60;
+  return { start, end };
 }
 
 const tones = {
@@ -61,12 +66,12 @@ function EventBlock({ event, startHour, hourHeight }) {
   const spanEnd = stacked ? event.stackEnd : end;
   const span = ((spanEnd - spanStart) / 60) * hourHeight;
   const slice = stacked ? span / event.rows : span;
-  const top = ((spanStart - startHour * 60) / 60) * hourHeight + (stacked ? event.row * slice : 0) + 3;
-  const height = Math.max(slice - 6, 20);
+  const top = ((spanStart - startHour * 60) / 60) * hourHeight + (stacked ? event.row * slice : 0) + 1;
+  const height = Math.max(slice - 2, 22);
   const width = `calc(${100 / event.cols}% - 6px)`;
   const left = `calc(${(event.col / event.cols) * 100}% + 3px)`;
   const className = `absolute overflow-hidden rounded-lg px-2 py-1 text-left leading-tight ${event.className || tones[event.tone] || tones.selected} ${event.onClick || event.href ? 'cursor-pointer' : ''}`;
-  const style = { top, height, width, left, zIndex: event.z || 1 };
+  const style = { top, height, width, left, zIndex: Math.max(event.z || 1, 1) + 5 };
   const body = (
     <>
       <span className="block truncate text-[12px] font-semibold tracking-tight">{event.title}</span>
@@ -103,9 +108,18 @@ export default function WeekTimeGrid({
   nowMinutes,
   stackOverlaps = false,
 }) {
-  const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
+  const bounds = events.reduce((range, event) => {
+    const { start, end } = minutesOf(event);
+    return {
+      start: Math.min(range.start, Math.floor(start / 60)),
+      end: Math.max(range.end, Math.ceil(end / 60)),
+    };
+  }, { start: startHour, end: endHour });
+  const firstHour = Math.max(0, Math.min(bounds.start, 23));
+  const lastHour = Math.max(firstHour + 1, Math.min(bounds.end, 24));
+  const hours = Array.from({ length: lastHour - firstHour }, (_, index) => firstHour + index);
   const height = hours.length * HOUR_HEIGHT;
-  const showNow = nowKey && nowMinutes >= startHour * 60 && nowMinutes <= endHour * 60;
+  const showNow = nowKey && nowMinutes >= firstHour * 60 && nowMinutes <= lastHour * 60;
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[#E6E0E4] bg-white">
@@ -127,7 +141,7 @@ export default function WeekTimeGrid({
               <span
                 key={hour}
                 className="absolute right-2 text-[11px] leading-none text-[#B09AA4]"
-                style={{ top: (hour - startHour) * HOUR_HEIGHT + 10 }}
+                style={{ top: (hour - firstHour) * HOUR_HEIGHT + 10 }}
               >
                 {String(hour).padStart(2, '0')}:00
               </span>
@@ -136,15 +150,15 @@ export default function WeekTimeGrid({
           {days.map((day) => (
             <div key={day.key} className={`relative overflow-hidden border-l border-[#F0E7EC] ${day.today ? 'bg-[#FFF8FB]' : ''}`} style={{ height }}>
               {hours.map((hour) => (
-                <div key={hour} className="absolute inset-x-0 border-t border-[#F3EDF0]" style={{ top: (hour - startHour) * HOUR_HEIGHT }} />
+                <div key={hour} className="pointer-events-none absolute inset-x-0 z-0 h-px bg-[#F3EDF0]" style={{ top: (hour - firstHour) * HOUR_HEIGHT }} />
               ))}
               {showNow && day.key === nowKey ? (
-                <div className="absolute inset-x-0 z-20 border-t-2 border-[#AD3155]" style={{ top: ((nowMinutes - startHour * 60) / 60) * HOUR_HEIGHT }}>
+                <div className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-[#AD3155]" style={{ top: ((nowMinutes - firstHour * 60) / 60) * HOUR_HEIGHT }}>
                   <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-[#AD3155]" />
                 </div>
               ) : null}
               {layoutEvents(events.filter((event) => event.dayKey === day.key), stackOverlaps).map((event) => (
-                <EventBlock key={event.id} event={event} startHour={startHour} hourHeight={HOUR_HEIGHT} />
+                <EventBlock key={event.id} event={event} startHour={firstHour} hourHeight={HOUR_HEIGHT} />
               ))}
             </div>
           ))}

@@ -119,13 +119,13 @@ export default function Auth() {
 <div>
 {/*  Brand Logo Header  */}
 <div className="flex items-center justify-between pb-6 border-b border-sakura-100" data-purpose="brand-header">
-<a aria-label="RikiPath Home" className="flex items-center gap-2.5 group focus:outline-none" href="#">
+<Link aria-label="Về trang chủ" className="flex items-center gap-2.5 group focus:outline-none" to="/">
 <BrandMark className="h-11 w-16" />
 <div>
 <span className="text-xl font-bold tracking-tight text-slate-900 block leading-tight">RikiPath</span>
 <span className="text-[11px] font-medium tracking-wide text-sakura-500 uppercase">Sakura Learning Hub</span>
 </div>
-</a>
+</Link>
 {/*  Language selector button  */}
 <LanguageSwitch className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-sakura-50 rounded-lg border border-slate-200/80 transition-colors" />
 </div>

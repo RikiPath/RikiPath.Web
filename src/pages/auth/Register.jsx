@@ -156,13 +156,13 @@ export default function Register() {
 {/*  Top App Bar: Brand Logo & Language Switcher  */}
 <header className="flex items-center justify-between gap-4 pb-6">
 {/*  Logo & Brand identity  */}
-<div className="flex items-center gap-3" data-purpose="brand-logo">
+<Link to="/" aria-label="Về trang chủ" className="flex items-center gap-3" data-purpose="brand-logo">
 <BrandMark className="h-12 w-[4.5rem]" />
 <div>
-<h1 className="text-xl font-extrabold text-charcoal-900 tracking-tight leading-none">RikiPath</h1>
+<span className="block text-xl font-extrabold text-charcoal-900 tracking-tight leading-none">RikiPath</span>
 <p className="text-[10px] tracking-widest font-bold text-sakura-600 mt-1 uppercase">Sakura Learning Hub</p>
 </div>
-</div>
+</Link>
 {/*  Language Selector  */}
 <LanguageSwitch className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-charcoal-200 bg-white text-xs font-semibold text-charcoal-700 hover:bg-sakura-50/50 hover:border-sakura-200 transition-colors" />
 </header>

@@ -44,12 +44,12 @@ export default function LessonCMS() {
 
   return (
     <CmsShell pathname={pathname} breadcrumb="Bài học">
-      <main data-page="LessonCMS" className="mx-auto w-full max-w-5xl px-6 py-7 sm:px-8">
+      <main data-page="LessonCMS" className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-[22px] font-medium tracking-tight text-[#2D282A]">Bài học</h1>
-            <p className="mt-1 max-w-xl text-[13px] leading-6 text-[#967F8A]">
-              Bài đã gửi duyệt. Từ vựng, Hán tự và ngữ pháp của bài đã duyệt nằm ở từng mục bên cạnh.
+            <h1 className="text-[26px] font-semibold tracking-tight text-[#49353F]">Bài đã gửi</h1>
+            <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-[#927B88]">
+              Mỗi thẻ là một bài đang trong hàng chờ hoặc đã được duyệt. Từ và ngữ pháp của bài đã duyệt nằm ở kho bên cạnh.
             </p>
           </div>
           <Link to="/bulk-import" className="inline-flex h-10 items-center rounded-xl bg-[#AD3155] px-3.5 text-[13px] text-white hover:bg-[#982B4B]">
@@ -57,43 +57,40 @@ export default function LessonCMS() {
           </Link>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          <input value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="Tìm bài" className="h-10 w-full max-w-xs rounded-lg border border-[#E8DFDC] bg-white px-3 text-[13px] outline-none focus:border-[#E7C9D4]" />
+        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-[#EADFE5] bg-white p-3">
+          <input value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="Tìm bài" className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#EADFE5] bg-[#FCFAFB] px-3 text-[13px] outline-none focus:border-[#E7C9D4]" />
           {['all', 'N5', 'N4', 'N3', 'N2', 'N1'].map((item) => (
-            <button key={item} type="button" onClick={() => setLevel(item)} className={`h-8 rounded-full px-3 text-[12px] ${level === item ? 'bg-[#FADDE8] text-[#A12E50]' : 'bg-white text-[#826773] ring-1 ring-[#E8DFDC]'}`}>
+            <button key={item} type="button" onClick={() => setLevel(item)} className={`h-8 rounded-full px-3 text-[12px] ${level === item ? 'bg-[#AD3155] text-white' : 'bg-[#FCFAFB] text-[#826773]'}`}>
               {item === 'all' ? 'Mọi cấp' : item}
             </button>
           ))}
-          <span className="ml-auto text-[12px] text-[#AA8F9B]">{query.isPending ? 'Đang tải…' : `${visible.length} bài`}</span>
+          <span className="px-1 text-[12px] text-[#AA8F9B]">{query.isPending ? 'Đang tải…' : `${visible.length} bài`}</span>
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-[#E8DFDC] bg-white">
-          {query.isError && <p className="px-4 py-8 text-center text-[13px] text-[#AD3155]">{query.error.message}</p>}
-          {query.isPending && <p className="px-4 py-8 text-center text-[13px] text-[#AA8F9B]">Đang tải bài học…</p>}
-          {!query.isPending && !query.isError && !visible.length && (
-            <p className="px-4 py-10 text-center text-[13px] text-[#AA8F9B]">Chưa có bài. Hãy import một bài học, rồi chờ admin duyệt.</p>
-          )}
-          {!query.isPending && !query.isError && visible.length > 0 && (
-            <table className="w-full text-left text-[13px]">
-              <thead className="bg-[#FBF8F7] text-[11px] text-[#B18F9E]">
-                <tr>{['Bài', 'Cấp', 'Trạng thái', 'File'].map((label) => <th key={label} className="px-3 py-2 font-medium">{label}</th>)}</tr>
-              </thead>
-              <tbody>
-                {visible.map((lesson) => {
-                  const [label, statusClass] = STATUS[lesson.status] || [lesson.status, 'bg-[#F6F3F4] text-[#6F5660]'];
-                  return (
-                    <tr key={lesson.id} className="border-t border-[#F1E8E6]">
-                      <td className="px-3 py-2.5 font-medium text-[#2D282A]" style={{ fontFamily: '"Segoe UI", "Yu Gothic", sans-serif' }}>{lesson.title}</td>
-                      <td className="px-3 py-2.5">{lesson.level}</td>
-                      <td className="px-3 py-2.5"><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClass}`}>{label}</span></td>
-                      <td className="px-3 py-2.5 text-[12px] text-[#967F8A]">{lesson.sourceFileName || '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {query.isError && <p className="mt-4 rounded-2xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{query.error.message}</p>}
+        {query.isPending && <p className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-4 py-10 text-center text-[13px] text-[#AA8F9B]">Đang tải bài học…</p>}
+        {!query.isPending && !query.isError && !visible.length && (
+          <div className="mt-4 rounded-2xl border border-dashed border-[#E7C9D6] bg-white px-4 py-12 text-center">
+            <p className="text-[15px] font-medium text-[#806371]">Chưa có bài nào</p>
+            <p className="mt-1 text-[13px] text-[#AA8F9B]">Import một bài học, rồi chờ admin duyệt.</p>
+          </div>
+        )}
+        {!query.isPending && !query.isError && visible.length > 0 && (
+          <div className="mt-4 grid gap-3">
+            {visible.map((lesson) => {
+              const [label, statusClass] = STATUS[lesson.status] || [lesson.status, 'bg-[#F6F3F4] text-[#6F5660]'];
+              return (
+                <article key={lesson.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#EADFE5] bg-white px-5 py-4">
+                  <div className="min-w-0">
+                    <h2 className="text-[16px] font-semibold text-[#49353F]" style={{ fontFamily: '"Segoe UI", "Yu Gothic", sans-serif' }}>{lesson.title}</h2>
+                    <p className="mt-1 text-[12px] text-[#967F8A]">{lesson.level} · {lesson.sourceFileName || 'Không có tên file'}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-[12px] font-medium ${statusClass}`}>{label}</span>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </main>
     </CmsShell>
   );

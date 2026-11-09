@@ -90,15 +90,15 @@ export default function AuthorDashboard() {
           </Link>
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-2">
+        <div className="mt-5 grid grid-cols-3 gap-3">
           {[
-            ['Chờ duyệt', pending],
-            ['Đã duyệt', approved],
-            ['Từ chối', rejected],
-          ].map(([label, count]) => (
-            <div key={label} className="rounded-xl border border-[#E8DFDC] bg-white px-3 py-3">
-              <p className="text-[12px] text-[#967F8A]">{label}</p>
-              <p className="mt-1 text-[20px] font-semibold text-[#AD3155]">{query.isPending ? '—' : count}</p>
+            ['Chờ duyệt', pending, 'bg-[#FFF6E8] text-[#8A5A10]'],
+            ['Đã duyệt', approved, 'bg-[#E7F6EC] text-[#1E5C36]'],
+            ['Từ chối', rejected, 'bg-[#FDECEE] text-[#A33357]'],
+          ].map(([label, count, tone]) => (
+            <div key={label} className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-4">
+              <p className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${tone}`}>{label}</p>
+              <p className="mt-2 text-[26px] font-semibold text-[#49353F]">{query.isPending ? '—' : count}</p>
             </div>
           ))}
         </div>

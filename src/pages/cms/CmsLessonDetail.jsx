@@ -35,24 +35,27 @@ export default function CmsLessonDetail() {
           Bài học
         </Link>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-[22px] font-medium text-[#2D282A]">Một bài</h1>
-            <p className="mt-1 text-[13px] text-[#967F8A]">
-              Bố cục mẫu. Giữ chỉ áp dụng trên trang này.
-            </p>
+        <div className="mt-4 overflow-hidden rounded-3xl border border-[#E7C9D6] bg-[linear-gradient(135deg,#FFF8FA,#FFFFFF)] px-5 py-5 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-medium tracking-[0.12em] text-[#AD3155]">BỐ CỤC MẪU</p>
+              <h1 className="mt-1 text-[24px] font-semibold text-[#49353F]">Một bài học</h1>
+              <p className="mt-1 max-w-lg text-[13px] leading-6 text-[#927B88]">
+                Trang này chỉ để xem cách một bài được trình bày. Nút giữ không gửi lên máy chủ.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaved(true)}
+              className="h-10 rounded-xl bg-[#AD3155] px-3.5 text-[13px] text-white hover:bg-[#982B4B]"
+            >
+              Giữ trên trang
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setSaved(true)}
-            className="h-10 rounded-xl bg-[#AD3155] px-3.5 text-[13px] text-white hover:bg-[#9A2849]"
-          >
-            Giữ trên trang
-          </button>
+          {saved && <p className="mt-3 text-[12px] text-[#1E5C36]">Đã giữ trên trang này.</p>}
         </div>
-        {saved && <p className="mt-3 text-[12px] text-[#AD3155]">Đã giữ trên trang này.</p>}
 
-        <form className="mt-5 grid gap-4 rounded-xl border border-[#E8DFDC] bg-white p-4 sm:grid-cols-2">
+        <form className="mt-4 grid gap-4 rounded-2xl border border-[#EADFE5] bg-white p-5 sm:grid-cols-2">
           <label className="sm:col-span-2">
             <span className="text-[12px] text-[#967F8A]">Tên bài</span>
             <input
