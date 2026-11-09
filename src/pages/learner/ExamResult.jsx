@@ -4,14 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
-import { getStudyStreak } from '../../api/analytics.js';
+import { getMonthlySkillAnalytics, getStudyStreak } from '../../api/analytics.js';
 import { getSession } from '../../auth/session.js';
 
 const RANGES = [
-  { id: '7d', label: '7 ngày' },
-  { id: '30d', label: '30 ngày' },
-  { id: '3m', label: '3 tháng' },
-  { id: 'all', label: 'Tất cả' },
+  { id: '30d', label: '1 tháng', months: 1 },
+  { id: '3m', label: '3 tháng', months: 3 },
+  { id: 'all', label: '12 tháng', months: 12 },
 ];
 
 function Icon({ name, className = '' }) {
@@ -29,7 +28,7 @@ export default function ExamResult() {
   const { locale, tr } = useLocale();
   const { pathname } = useLocation();
   const session = getSession();
-  const [range, setRange] = useState('7d');
+  const [range, setRange] = useState('30d');
 
   const streakQuery = useQuery({
     queryKey: ['learner', 'study-streak', 'exam-result'],
@@ -37,13 +36,21 @@ export default function ExamResult() {
     enabled: Boolean(session?.accessToken),
     retry: false,
   });
+  const months = RANGES.find((item) => item.id === range)?.months || 12;
+  const monthlyQuery = useQuery({
+    queryKey: ['skill-monthly', months],
+    queryFn: () => getMonthlySkillAnalytics(months),
+    enabled: Boolean(session?.accessToken),
+    retry: false,
+  });
 
   const streakDays = streakQuery.data?.currentStreakDays;
   const rangeLabel = RANGES.find((item) => item.id === range)?.label;
 
+  const monthly = monthlyQuery.data;
   const stats = [
-    { icon: 'quiz', label: tr("0 bài đã làm") },
-    { icon: 'percent', label: tr("Chưa có điểm TB") },
+    { icon: 'quiz', label: typeof monthly?.totalAttempts === 'number' ? `${monthly.totalAttempts} ${tr('lượt')}` : tr('Đang tải lượt làm') },
+    { icon: 'percent', label: typeof monthly?.currentOverallScorePercent === 'number' ? `${Math.round(monthly.currentOverallScorePercent)}%` : tr('Chưa có điểm TB') },
     {
       icon: 'local_fire_department',
       label:
@@ -125,6 +132,28 @@ export default function ExamResult() {
           </div>
         </section>
 
+        {monthly?.skills?.length > 0 ? (
+          <section className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-5">
+            <h2 className="text-[16px] font-semibold">{monthly.summary || tr('Năng lực theo kỹ năng')}</h2>
+            <ul className="mt-4 space-y-3">
+              {monthly.skills.map((skill) => {
+                const score = typeof skill.currentScorePercent === 'number' ? Math.max(0, Math.min(100, skill.currentScorePercent)) : 0;
+                return (
+                  <li key={skill.languageSkillName}>
+                    <div className="flex items-center justify-between text-[13px]">
+                      <span>{skill.languageSkillName}</span>
+                      <span className="text-[#8C7782]">{typeof skill.currentScorePercent === 'number' ? `${Math.round(skill.currentScorePercent)}%` : '—'}</span>
+                    </div>
+                    <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#F6EEF2]">
+                      <div className="h-full rounded-full bg-[#AD3155]" style={{ width: `${score}%` }} />
+                    </div>
+                    {skill.currentAssessment && <p className="mt-1 text-[12px] text-[#8C7782]">{skill.currentAssessment}</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : (
         <section
           className="mt-4 flex min-h-[340px] flex-col items-center
                      justify-center rounded-2xl border border-[#EADFE5]
@@ -147,13 +176,14 @@ export default function ExamResult() {
           </p>
 
           <Link
-            to="/exam-n3"
+            to="/placement/"
             className="mt-5 inline-flex h-10 items-center gap-1.5
                        rounded-full bg-[#AD3155] px-5 text-[13px]
                        font-medium text-white hover:bg-[#982B4B]"
-          >{tr('Bắt đầu bài đầu tiên')}<Icon name="arrow_forward" className="text-[16px]" />
+          >{tr('Làm bài đánh giá')}<Icon name="arrow_forward" className="text-[16px]" />
           </Link>
         </section>
+        )}
       </main>
     </LearnerShell>
   );

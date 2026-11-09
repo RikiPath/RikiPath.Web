@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { changePassword, loginAccount, registerAccount, updateEmail, verifyEmail } from '../api/auth.js';
+import { changePassword, loginAccount, registerAccount, resendVerificationEmail, updateEmail, verifyEmail } from '../api/auth.js';
 import { setJlptGoal } from '../api/profile.js';
 import { queryClient } from '../api/queryClient.js';
 import { learnerKeys } from './useLearnerHome.js';
@@ -14,6 +14,10 @@ export function useLoginMutation() {
 
 export function useVerifyEmailMutation() {
   return useMutation({ mutationFn: verifyEmail });
+}
+
+export function useResendVerificationMutation() {
+  return useMutation({ mutationFn: resendVerificationEmail });
 }
 
 export function useUpdateEmailMutation() {

@@ -19,3 +19,7 @@ export { default as RikiSkillPlaceholder } from './RikiSkillPlaceholder.jsx';
 export { default as SpeakingPracticePage } from './SpeakingPracticePage.jsx';
 export { default as StudyPlans } from './StudyPlans.jsx';
 export { default as StudyPayment } from './StudyPayment.jsx';
+export { default as PlacementTest } from './PlacementTest.jsx';
+export { default as PlacementExam } from './PlacementExam.jsx';
+export { default as PlacementResult } from './PlacementResult.jsx';
+export { default as LessonPractice } from './LessonPractice.jsx';

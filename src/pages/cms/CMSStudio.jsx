@@ -8,6 +8,12 @@ const SECTIONS = [
     description: 'Bài luyện tập và kho kiến thức',
     items: [
       {
+        to: '/content-plan',
+        label: 'Soạn với AI',
+        description: 'Lập kế hoạch, xem trước rồi gửi duyệt.',
+        icon: 'auto_awesome',
+      },
+      {
         to: '/lesson-cms',
         label: 'Bài luyện tập',
         description: 'Biên soạn và chỉnh sửa bài luyện.',

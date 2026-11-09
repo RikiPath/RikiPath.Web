@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
+import LearnerPathPanel from './LearnerPathPanel.jsx';
 
 const LEVELS = {
   N5: {
@@ -288,6 +289,8 @@ export default function RoadmapJLPT() {
             {tr('Đổi mục tiêu')}
           </Link>
         </header>
+
+        <LearnerPathPanel />
 
         {/* Chọn cấp độ */}
         <section

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import BrandMark from '../../components/BrandMark.jsx';
 
 export default function ForgotPassword() {
   useEffect(() => {
@@ -69,9 +70,7 @@ export default function ForgotPassword() {
 
 <header className="w-full relative z-20 border-b border-[#dfbfc1]/40 bg-white/70 backdrop-blur-md px-6 lg:px-12 py-3.5 flex items-center justify-between">
 <Link className="flex items-center gap-2.5 group" to="/">
-<div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#ab2848] to-[#cd425f] flex items-center justify-center text-white shadow-sm shadow-[#ab2848]/25 group-hover:scale-105 transition-transform duration-200">
-<span className="material-symbols-outlined text-[20px]">local_florist</span>
-</div>
+<BrandMark className="h-11 w-16" />
 <div>
 <div className="flex items-center gap-1.5 leading-none">
 <span className="font-bold text-lg text-[#ab2848] tracking-tight">RikiPath</span>

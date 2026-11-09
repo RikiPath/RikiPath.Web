@@ -262,6 +262,13 @@ export default function LessonPlayer() {
                   <h1 className="mt-1 text-[26px] font-medium leading-tight">{lesson.title}</h1>
                   {lesson.content && <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[#95828C]">{lesson.content}</p>}
                 </div>
+                <div className="flex flex-wrap gap-2">
+                <Link
+                  to={`/lesson-practice/?lessonId=${lessonId}`}
+                  className={`inline-flex h-9 items-center rounded-lg border border-[#E7D7DF] px-3 text-[12px] font-medium text-[#A47186] hover:bg-[#FFF3F7] ${focus}`}
+                >
+                  {tr('Làm bài tập')}
+                </Link>
                 <button
                   type="button"
                   disabled={complete.isPending || lesson.isCompleted}
@@ -270,6 +277,7 @@ export default function LessonPlayer() {
                 >
                   {lesson.isCompleted ? tr('Đã hoàn thành') : complete.isPending ? tr('Đang lưu…') : tr('Đánh dấu đã học')}
                 </button>
+                </div>
               </header>
               {complete.isError && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{complete.error.message}</p>}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

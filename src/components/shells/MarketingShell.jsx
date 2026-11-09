@@ -1,4 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
+import BrandMark from '../BrandMark.jsx';
 import { MARKETING_NAV } from './navConfig.js';
 
 export default function MarketingShell({ children }) {
@@ -7,9 +8,7 @@ export default function MarketingShell({ children }) {
       <header className="sticky top-0 z-50 border-b border-[#dfbfc1]/50 bg-[#FFF8F8]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-[76px] max-w-[1200px] items-center justify-between gap-4 px-5 sm:px-8">
           <Link to="/" className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white shadow-sm shadow-[#D94B68]/25">
-              <span className="material-symbols-outlined text-[18px]">local_florist</span>
-            </div>
+            <BrandMark className="h-11 w-16" />
             <div className="leading-tight">
               <div className="text-[15px] font-extrabold tracking-tight">
                 Riki<span className="text-[#D94B68]">Path</span>

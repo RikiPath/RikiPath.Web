@@ -16,6 +16,10 @@ export function verifyEmail(payload) {
   return api.post('/Auth/verify-email', payload);
 }
 
+export function resendVerificationEmail(email) {
+  return api.post('/Auth/resend-verification-email', { email });
+}
+
 export function updateEmail(userId, payload) {
   return api.put(`/Auth/update-email/${userId}`, payload);
 }

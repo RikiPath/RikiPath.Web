@@ -9,6 +9,7 @@ export const CMS_NAV = {
         { to: '/cms-studio', label: 'Tổng quan', hint: 'Dashboard studio', icon: 'space_dashboard' },
         { to: '/lesson-cms', label: 'Bài học', hint: 'Giáo trình & bài giảng', icon: 'menu_book', alsoActive: ['/lesson-cms-detail'] },
         { to: '/bulk-import', label: 'Import Excel', hint: 'Thêm cả một bài học', icon: 'upload_file' },
+        { to: '/content-plan', label: 'Soạn với AI', hint: 'Kế hoạch, kanji, gửi duyệt', icon: 'auto_awesome' },
         { to: '/vocabulary-editor', label: 'Từ vựng & Hán tự', hint: 'Hiện sau khi bài được duyệt', icon: 'translate', alsoActive: ['/kanji-editor'] },
         { to: '/content-library', label: 'Ngữ pháp', hint: 'Hiện sau khi bài được duyệt', icon: 'psychology' },
       ],
@@ -86,6 +87,7 @@ export const LEARNER_NAV = {
   items: [
     { to: '/app', label: 'Tổng quan', hint: 'Tiến độ hôm nay', icon: 'space_dashboard', end: true, group: 'study' },
     { to: '/roadmap', label: 'Lộ trình', hint: 'Khám phá JLPT', icon: 'explore', group: 'study' },
+    { to: '/placement', label: 'Đánh giá', hint: 'Ước tính trình độ JLPT', icon: 'quiz', prefix: true, group: 'study' },
     { to: '/lessons', label: 'Bài học', hint: 'Giáo trình đang học', icon: 'menu_book', group: 'study' },
     { to: '/vocabulary', label: 'Sổ từ', hint: 'Từ vựng & Kanji', icon: 'edit_note', alsoActive: ['/kanji-notebook', '/vocabulary-detail'], group: 'study' },
     { to: '/daily-srs', label: 'Ôn SRS', hint: 'Lặp ngắt quãng', icon: 'style', group: 'study' },
@@ -142,15 +144,15 @@ export const CONSULT_NAV = {
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
         {
-          to: '/consultation-request',
+          to: '/consultation-queue',
           label: 'Hàng đợi',
-          hint: 'Yêu cầu chờ nhận',
+          hint: 'Buổi được phân cho bạn',
           icon: 'pending_actions',
-          alsoActive: ['/consultation-queue'],
+          alsoActive: ['/consultation-request'],
         },
         { to: '/consultation-prep', label: 'Chuẩn bị buổi', hint: 'Ghi chú trước giờ', icon: 'fact_check' },
-        { to: '/consultation-reply', label: 'Trả lời văn bản', hint: 'Phản hồi bài viết', icon: 'edit_note' },
         { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
+        { to: '/mentor-reviews', label: 'Đánh giá', hint: 'Phản hồi học viên', icon: 'reviews' },
       ],
     },
     {
@@ -164,6 +166,7 @@ export const CONSULT_NAV = {
       label: 'Hồ sơ',
       items: [
         { to: '/mentor-profile', label: 'Hồ sơ chuyên gia', hint: 'Xác minh và chuyên môn', icon: 'badge' },
+        { to: '/mentor-compensation', label: 'Thù lao', hint: 'Bảng kê và tài khoản nhận', icon: 'payments' },
         { to: '/mentor-disputes', label: 'Khiếu nại', hint: 'Giải trình của học viên', icon: 'gavel' },
       ],
     },

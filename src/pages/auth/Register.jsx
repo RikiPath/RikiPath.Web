@@ -4,6 +4,7 @@ import { loginWithGoogle } from '../../api/auth.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { finishAuthSession } from '../../auth/finishAuthSession.js';
 import { savePendingVerify } from '../../auth/session.js';
+import BrandMark from '../../components/BrandMark.jsx';
 import GoogleSignInButton from '../../components/GoogleSignInButton.jsx';
 import { useRegisterMutation } from '../../hooks/useAuth.js';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
@@ -91,6 +92,10 @@ export default function Register() {
     });
   }
 
+  const verifyHref = email.trim()
+    ? `/verify-email?email=${encodeURIComponent(email.trim())}`
+    : '/verify-email';
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 lg:p-12 text-charcoal-900 antialiased selection:bg-sakura-200 selection:text-sakura-800" style={{ backgroundColor: "rgb(250, 247, 242)", position: "relative" }} data-page="Register">
 <div className="fixed inset-0 pointer-events-none z-0 opacity-20" style={{ backgroundImage: "url(\"https://lh3.googleusercontent.com/aida/AEtjO1XsYWpcypAaiicJ5aWDsaW-GEmVWOKogAEQ7kZW4nxNFB_JZTuC9dhy22iD5Mnutw1-dtQ-HzB6D_VzjEx9subcYz6PRrv0yijHn4N-jAJ5MXOS4-C7ZVxGV4l2XoEkHfC4wG6mbXFoj3jaBxyOPj_Z_xylJmm-FRcPsVf-1klRUQuv1hr9HgKslqHQcIxclS9hAnXtwq8jA0ngfRmWAVTjaBx5hh644yXJMi3Bdy5g8E0mhB9PvzPKpXg\")", backgroundRepeat: "repeat", backgroundSize: "120px 120px" }} aria-hidden="true"></div>
@@ -152,7 +157,7 @@ export default function Register() {
 <header className="flex items-center justify-between gap-4 pb-6">
 {/*  Logo & Brand identity  */}
 <div className="flex items-center gap-3" data-purpose="brand-logo">
-<div className="w-11 h-11 rounded-xl bg-sakura-50 border border-sakura-200 flex items-center justify-center text-xl shadow-sm">{"🌸\n            "}</div>
+<BrandMark className="h-12 w-[4.5rem]" />
 <div>
 <h1 className="text-xl font-extrabold text-charcoal-900 tracking-tight leading-none">RikiPath</h1>
 <p className="text-[10px] tracking-widest font-bold text-sakura-600 mt-1 uppercase">Sakura Learning Hub</p>
@@ -175,7 +180,7 @@ export default function Register() {
 <div className="mb-6">
 <div className="flex items-center gap-2">
 <h2 className="text-2xl sm:text-[26px] font-extrabold text-charcoal-900 tracking-tight">{t('createTitle')}</h2>
-<span className="text-xl">🌸</span>
+<span className="text-xl" aria-hidden="true">🌸</span>
 </div>
 <p className="mt-1.5 text-sm text-charcoal-500">{t('join')}</p>
 </div>
@@ -192,44 +197,56 @@ export default function Register() {
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">{t('lastName')}</label>
-<input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+<input className="h-11 w-full px-4 rounded-xl border border-[#f2dfe3] bg-white text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
 </div>
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">{t('firstName')}</label>
-<input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+<input className="h-11 w-full px-4 rounded-xl border border-[#f2dfe3] bg-white text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
 </div>
 </div>
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{t('emailShort')}</label>
 <div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-envelope-simple"></i>
+<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </div>
-<input className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-4 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 </div>
 </div>
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{t('password')}</label>
 <div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-lock"></i>
+<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="password" name="password" placeholder={t('passwordMin')} required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-<button aria-label={t('showPassword')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowPassword((v) => !v)}>
-<i className="ph ph-eye text-base"></i>
+<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-11 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="password" name="password" placeholder={t('passwordMin')} required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+<button aria-label={t('showPassword')} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-sakura-600" type="button" onClick={() => setShowPassword((v) => !v)}>
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </button>
 </div>
 </div>
 <div>
 <label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{t('confirmPassword')}</label>
 <div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-shield-check"></i>
+<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="confirm-password" name="confirmPassword" placeholder={t('confirmPlaceholder')} required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-<button aria-label={t('showConfirm')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowConfirm((v) => !v)}>
-<i className="ph ph-eye text-base"></i>
+<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-11 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="confirm-password" name="confirmPassword" placeholder={t('confirmPlaceholder')} required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+<button aria-label={t('showConfirm')} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-sakura-600" type="button" onClick={() => setShowConfirm((v) => !v)}>
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </button>
 </div>
 </div>
@@ -237,7 +254,13 @@ export default function Register() {
 {/*  Terms Agreement Checkbox  */}
 <div className="flex items-start gap-2.5 pt-1">
 <input className="mt-1 w-4 h-4 rounded border-charcoal-300 text-sakura-600 focus:ring-sakura-500 cursor-pointer" id="terms" name="terms" required type="checkbox" />
-<label className="text-xs text-charcoal-600 leading-snug cursor-pointer select-none" htmlFor="terms">{t('agreeTerms')} <a className="text-sakura-600 hover:underline font-semibold" href="#">{t('serviceTerms')}</a> {t('and')} <a className="text-sakura-600 hover:underline font-semibold" href="#">{t('privacy')}</a> {t('ofRiki')}</label>
+<label className="cursor-pointer select-none text-xs leading-5 text-charcoal-600" htmlFor="terms">
+<span className="whitespace-nowrap">{t('agreeTerms')}</span>{' '}
+<span className="whitespace-nowrap font-semibold text-sakura-600">{t('serviceTerms')}</span>{' '}
+<span className="whitespace-nowrap">{t('and')}</span>{' '}
+<span className="whitespace-nowrap font-semibold text-sakura-600">{t('privacy')}</span>{' '}
+<span className="whitespace-nowrap">{t('ofRiki')}</span>
+</label>
 </div>
 {/*  Primary Submit CTA Button  */}
 <button className="w-full py-3 px-6 mt-3 bg-sakura-600 hover:bg-sakura-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-xl shadow-sakura-btn hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60" data-purpose="submit-button" type="submit" disabled={loading}>
@@ -256,12 +279,23 @@ export default function Register() {
 <GoogleSignInButton disabled={loading} onCredential={handleGoogle} onError={setError} />
 </div>
 {/*  Bottom Footer Navigation Link  */}
-<footer className="mt-8 pt-4 border-t border-charcoal-100 text-center text-xs text-charcoal-500">
-<p className="">{t('hasAccount')}<Link to="/auth" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">{t('loginNow')}</Link>
+<footer className="mt-8 border-t border-[#F4EAEE] pt-5">
+<p className="mb-2 text-center text-[12px] text-[#8A7380]">{t('hasAccount')}</p>
+<div className="grid grid-cols-2 gap-2">
+<Link to="/auth" className="flex h-10 items-center justify-center rounded-lg bg-[#FDF2F5] text-[12px] font-semibold text-[#C43E5C] hover:bg-[#FBE7EE]">
+{t('loginNow')}
+</Link>
+<Link to={verifyHref} className="flex h-10 items-center justify-center rounded-lg border border-[#F0E4E8] text-[12px] font-semibold text-[#7A6570] hover:bg-[#FFF8FA]">
+{t('verifyEmail')}
+</Link>
+</div>
+<p className="mt-3 text-center text-[11px] leading-5 text-[#B3A4AB]">
+<span className="whitespace-nowrap">{t('agreeContinue')}</span>{' '}
+<span className="whitespace-nowrap">{t('terms')}</span>
+{' · '}
+<span className="whitespace-nowrap">{t('privacy')}</span>{' '}
+<span className="whitespace-nowrap">{t('ofRiki')}</span>
 </p>
-<p className="mt-2">{t('gotCode')}<Link to="/verify-email" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">{t('verifyEmail')}</Link>
-</p>
-<p className="text-[11px] text-charcoal-400 mt-2">{t('registerFooter')}</p>
 </footer>
 </section>
 {/*  END: RightFormColumn  */}

@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 
+import BrandMark from '../BrandMark.jsx';
 import NotificationPopover from '../admin/NotificationPopover.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CMS_NAV, pathMatches } from './navConfig.js';
@@ -54,14 +55,7 @@ export default function CmsShell({
                    border-r border-[#E8DFDC] bg-[#FAF8F7]"
       >
         <div className="flex h-16 shrink-0 items-center gap-2.5 px-4">
-          <span
-            className="flex h-9 w-9 items-center justify-center
-                       rounded-xl bg-[#AD3155] text-white"
-          >
-            <span className="material-symbols-outlined text-[22px]">
-              spa
-            </span>
-          </span>
+          <BrandMark className="h-10 w-14" />
           <span className="min-w-0 leading-tight">
             <span className="block truncate text-[16px] font-medium">
               {CMS_NAV.brand.title}

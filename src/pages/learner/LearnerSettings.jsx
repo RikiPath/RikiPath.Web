@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import { getSession } from '../../auth/session.js';
-import { updateNotificationSettings } from '../../api/profile.js';
+import { setStudyLevel, updateAvatar, updateNotificationSettings, updateProfile } from '../../api/profile.js';
 import {
   displayName,
   learnerKeys,
@@ -112,10 +112,24 @@ export default function LearnerSettings() {
   const queryClient = useQueryClient();
   const notify = useMutation({
     mutationFn: updateNotificationSettings,
-    onSuccess: (next) => {
-      queryClient.setQueryData(learnerKeys.profile, next);
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
   });
+  const saveProfile = useMutation({
+    mutationFn: updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const saveAvatar = useMutation({
+    mutationFn: updateAvatar,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const saveLevel = useMutation({
+    mutationFn: setStudyLevel,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const [studyLevelId, setStudyLevelId] = useState(3);
+  useEffect(() => {
+    if (profileQuery.data?.currentStudyLevelId) setStudyLevelId(profileQuery.data.currentStudyLevelId);
+  }, [profileQuery.data?.currentStudyLevelId]);
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -175,15 +189,19 @@ export default function LearnerSettings() {
                      px-5 py-5"
         >
           <div className="flex min-w-0 items-center gap-4">
-            <div
-              aria-hidden="true"
-              className="flex h-14 w-14 shrink-0 items-center
-                         justify-center rounded-2xl
-                         bg-[#F4D8E4] text-[22px]
-                         font-medium text-[#A84466]"
-            >
-              {initial}
-            </div>
+            {profile?.avatarUrl ? (
+              <img src={profile.avatarUrl} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="flex h-14 w-14 shrink-0 items-center
+                           justify-center rounded-2xl
+                           bg-[#F4D8E4] text-[22px]
+                           font-medium text-[#A84466]"
+              >
+                {initial}
+              </div>
+            )}
 
             <div className="min-w-0">
               <h2 className="break-words text-[19px] font-semibold">
@@ -333,6 +351,47 @@ export default function LearnerSettings() {
                   />
                 </dl>
 
+                <form
+                  className="mt-5 grid gap-3 border-t border-[#F0E7EC] pt-4 sm:grid-cols-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const data = new FormData(event.currentTarget);
+                    saveProfile.mutate({
+                      firstName: String(data.get('firstName') || '').trim(),
+                      lastName: String(data.get('lastName') || '').trim(),
+                    });
+                  }}
+                >
+                  <label className="text-[12px] text-[#967F8A]">
+                    {tr('Họ')}
+                    <input name="lastName" defaultValue={profile?.lastName || ''} className="mt-1 h-10 w-full rounded-lg border border-[#EDE2E7] px-3 text-[13px] text-[#49353F] outline-none focus:border-[#AD3155]" />
+                  </label>
+                  <label className="text-[12px] text-[#967F8A]">
+                    {tr('Tên')}
+                    <input name="firstName" defaultValue={profile?.firstName || ''} className="mt-1 h-10 w-full rounded-lg border border-[#EDE2E7] px-3 text-[13px] text-[#49353F] outline-none focus:border-[#AD3155]" />
+                  </label>
+                  <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+                    <button type="submit" disabled={saveProfile.isPending} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50">
+                      {saveProfile.isPending ? tr('Đang lưu…') : tr('Lưu tên')}
+                    </button>
+                    <label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#E7D7DF] px-3 text-[12px] text-[#9C5671]">
+                      {saveAvatar.isPending ? tr('Đang tải ảnh…') : tr('Đổi ảnh')}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) saveAvatar.mutate(file);
+                        }}
+                      />
+                    </label>
+                    {(saveProfile.isError || saveAvatar.isError) && (
+                      <p className="text-[12px] text-[#A33357]">{(saveProfile.error || saveAvatar.error).message}</p>
+                    )}
+                  </div>
+                </form>
+
                 <div
                   className="mt-5 flex flex-wrap items-center
                              justify-between gap-3
@@ -394,10 +453,35 @@ export default function LearnerSettings() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex justify-end border-t border-[#F0E7EC] pt-4">
-                  <ActionLink to="/onboarding" primary>
-                    {level ? 'Đổi mục tiêu' : 'Chọn mục tiêu'}
-                  </ActionLink>
+                <div className="mt-5 border-t border-[#F0E7EC] pt-4">
+                  <p className="text-[12px] text-[#A08A95]">{tr('Cấp độ đang học trên lộ trình chuẩn')}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[1, 2, 3, 4].map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={studyLevelId === id}
+                        onClick={() => setStudyLevelId(id)}
+                        className={`h-9 rounded-lg border px-3 text-[13px] ${studyLevelId === id ? 'border-[#AD3155] bg-[#FCEAF1] text-[#A84466]' : 'border-[#E7D7DF] text-[#967F8A]'}`}
+                      >
+                        {LEVEL_BY_ID[id]}
+                      </button>
+                    ))}
+                  </div>
+                  {saveLevel.isError && <p className="mt-2 text-[12px] text-[#A33357]">{saveLevel.error.message}</p>}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={saveLevel.isPending}
+                      onClick={() => saveLevel.mutate({ currentStudyLevelId: studyLevelId })}
+                      className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50"
+                    >
+                      {saveLevel.isPending ? tr('Đang lưu…') : tr('Đặt cấp độ đang học')}
+                    </button>
+                    <ActionLink to="/onboarding" primary>
+                      {level ? 'Đổi mục tiêu' : 'Chọn mục tiêu'}
+                    </ActionLink>
+                  </div>
                 </div>
               </>
             )}

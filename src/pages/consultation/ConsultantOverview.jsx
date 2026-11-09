@@ -16,9 +16,11 @@ const focusClass =
 const SHORTCUTS = [
   { to: '/consultation-queue', label: 'Hàng đợi' },
   { to: '/work-schedule', label: 'Lịch làm việc' },
-  { to: '/mentor-availability', label: 'Lịch khả dụng' },
+  { to: '/mentor-shift-schedule', label: 'Ca làm việc' },
   { to: '/consultation-prep', label: 'Chuẩn bị buổi' },
   { to: '/mentor-chat', label: 'Tin nhắn' },
+  { to: '/mentor-reviews', label: 'Đánh giá' },
+  { to: '/mentor-compensation', label: 'Thù lao' },
 ];
 
 function upcoming(bookings) {

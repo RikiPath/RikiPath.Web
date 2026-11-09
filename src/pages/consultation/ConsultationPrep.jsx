@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -32,14 +32,32 @@ function upcoming(bookings) {
     ));
 }
 
+function noteKey(bookingId) {
+  return `rikipath-mentor-prep-note:${bookingId}`;
+}
+
 function SessionNotes({ bookingId }) {
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(() => {
+    try {
+      return window.localStorage.getItem(noteKey(bookingId)) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(noteKey(bookingId), note);
+    } catch {
+      /* Trình duyệt có thể chặn bộ nhớ cục bộ. */
+    }
+  }, [bookingId, note]);
 
   return (
     <section className="mt-4 rounded-2xl border border-[#EADFE5] bg-white p-5">
       <h2 className="text-[14px] font-semibold text-[#705261]">Ghi chú trước buổi</h2>
       <p className="mt-1 text-[12px] leading-6 text-[#A18B97]">
-        Ghi chú chỉ giữ trên trang này, chưa được lưu lên hệ thống.
+        Ghi chú được giữ trên trình duyệt này theo từng buổi. Máy chủ chưa có chỗ lưu ghi chú chuẩn bị.
       </p>
       <textarea
         value={note}

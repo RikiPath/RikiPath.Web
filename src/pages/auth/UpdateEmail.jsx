@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getSession, patchSession, savePendingVerify } from '../../auth/session.js';
+import BrandMark from '../../components/BrandMark.jsx';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
 import { useUpdateEmailMutation } from '../../hooks/useAuth.js';
 import { useLocale } from '../../i18n/locale.js';
@@ -66,9 +67,7 @@ export default function UpdateEmail() {
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full border border-white/[0.07]" />
 
           <Link to="/" className="relative inline-flex w-fit items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
-              <span className="material-symbols-outlined text-[24px]">spa</span>
-            </span>
+            <BrandMark className="h-11 w-16" />
             <span className="text-[21px] font-semibold tracking-tight">RikiPath</span>
           </Link>
 

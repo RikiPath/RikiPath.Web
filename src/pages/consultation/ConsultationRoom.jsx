@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 import { useLocale } from '../../i18n/locale.js';
 import { useWebRtcMeeting } from '../../hooks/useWebRtcMeeting.js';
 import { checkRoomAccess } from '../../api/mentorBookingApi.js';
+import BrandMark from '../../components/BrandMark.jsx';
 
 const ROOM_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import {
@@ -270,9 +271,7 @@ export default function ConsultationRoom() {
     >
       <header className="z-20 flex h-[72px] shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-white shadow-md shadow-[#D94B68]/25">
-            <span className="material-symbols-outlined text-[22px]">local_florist</span>
-          </div>
+          <BrandMark className="h-12 w-[4.25rem]" />
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-bold text-white">{tr("Phòng học nhóm cùng cố vấn · JLPT N3")}</span>

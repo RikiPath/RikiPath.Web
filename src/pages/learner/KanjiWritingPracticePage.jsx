@@ -4,11 +4,9 @@ import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import KanjiWritingCanvas from '../../components/kanji_writer/KanjiWritingCanvas';
 import { useKanjiWritingPractice } from '../../hooks/useKanjiWritingPractice.js';
+import { useKanaWritingPractice } from '../../hooks/useKanaWritingPractice.js';
 
 const panelClass = 'rounded-3xl border border-[#eadfd9] bg-white shadow-sm';
-
-const HIRAGANA = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
-const KATAKANA = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
 
 export default function KanjiWritingPracticePage() {
   const { locale, tr } = useLocale();
@@ -16,8 +14,10 @@ export default function KanjiWritingPracticePage() {
   const [searchParams] = useSearchParams();
   const requestedType = searchParams.get('type');
   const isKana = requestedType === 'hiragana' || requestedType === 'katakana';
+  const kanaType = requestedType === 'katakana' ? 'Katakana' : requestedType === 'hiragana' ? 'Hiragana' : null;
+  const kana = useKanaWritingPractice(kanaType, 12);
+  const [mistakes, setMistakes] = useState(0);
   const kanaLabel = requestedType === 'katakana' ? 'Katakana' : 'Hiragana';
-  const kanaChart = requestedType === 'katakana' ? KATAKANA : HIRAGANA;
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [mode, setMode] = useState('guided');
   const practice = useKanjiWritingPractice(10, { enabled: !isKana });
@@ -51,19 +51,42 @@ export default function KanjiWritingPracticePage() {
 
   let content;
   if (isKana) {
+    const item = kana.currentItem;
     content = (
-      <section className="mx-auto max-w-5xl px-6 py-8">
+      <section className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-3xl font-bold text-[#2D282A]">{locale === 'ja' ? `${kanaLabel}の練習` : `Luyện ${kanaLabel}`}</h1>
-        <p className="mt-2 text-sm text-[#6F6669]">{tr('Chọn từng ký tự để bắt đầu luyện viết bảng chữ cái.')}</p>
-        <div className="mt-6 rounded-3xl border border-[#eadfd9] bg-white p-6 shadow-sm">
-          <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-            {kanaChart.split('').map((character) => (
-              <div key={character} className="flex h-14 items-center justify-center rounded-xl border border-[#eadfd9] bg-[#FAF7F5] text-2xl text-[#2D282A]">
-                {character}
-              </div>
-            ))}
+        <p className="mt-2 text-sm text-[#6F6669]">{tr('Viết ký tự ra giấy, rồi ghi số nét sai để xếp lịch ôn.')}</p>
+        {kana.loading && <p className="mt-6 text-sm text-[#6F6669]">{tr('Đang tải chữ cần ôn…')}</p>}
+        {kana.error && <p className="mt-6 text-sm text-red-600">{kana.error}</p>}
+        {!kana.loading && !kana.error && !item && <p className="mt-6 text-sm text-[#6F6669]">{tr('Chưa có chữ cần ôn.')}</p>}
+        {item && (
+          <div className="mt-6 rounded-3xl border border-[#eadfd9] bg-white p-6 text-center shadow-sm">
+            <p className="text-7xl" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{item.character}</p>
+            <p className="mt-3 text-sm text-[#6F6669]">{item.romaji}</p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button type="button" onClick={() => setMistakes((value) => Math.max(0, value - 1))} className="h-9 w-9 rounded-lg border border-[#eadfd9]">−</button>
+              <span className="min-w-16 text-sm">{mistakes} {tr('lỗi')}</span>
+              <button type="button" onClick={() => setMistakes((value) => value + 1)} className="h-9 w-9 rounded-lg border border-[#eadfd9]">+</button>
+            </div>
+            <button
+              type="button"
+              onClick={async () => { await kana.submitResult(mistakes); setMistakes(0); }}
+              className="mt-4 rounded-full bg-[#B52F55] px-5 py-2.5 text-sm font-bold text-white"
+            >
+              {tr('Ghi nhận')}
+            </button>
+            {kana.lastResult && (
+              <p className="mt-3 text-sm text-[#2F6B45]">
+                {tr('Lần ôn kế')} {new Date(kana.lastResult.nextReviewDate).toLocaleDateString('vi-VN')}
+              </p>
+            )}
+            <div className="mt-4 flex justify-center gap-4 text-sm">
+              <button type="button" disabled={kana.index === 0} onClick={() => kana.selectItem(kana.index - 1)} className="text-[#6F6669] disabled:opacity-40">{tr('Trước')}</button>
+              <span>{kana.index + 1}/{kana.queue.length}</span>
+              <button type="button" disabled={kana.index >= kana.queue.length - 1} onClick={() => kana.selectItem(kana.index + 1)} className="text-[#6F6669] disabled:opacity-40">{tr('Sau')}</button>
+            </div>
           </div>
-        </div>
+        )}
       </section>
     );
   } else if (loading) {

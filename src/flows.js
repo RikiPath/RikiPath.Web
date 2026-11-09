@@ -47,7 +47,8 @@ export const ALL_PAGES = [
   { to: '/consultation-queue', label: 'Hàng đợi', page: 'ConsultationQueue', group: 'consult-sensei' },
   { to: '/consultation-prep', label: 'Prep', page: 'ConsultationPrep', group: 'consult-sensei' },
   { to: '/consultation-request', label: 'Yêu cầu', page: 'ConsultationRequestDetail', group: 'consult-sensei' },
-  { to: '/consultation-reply', label: 'Reply', page: 'TextConsultationReply', group: 'consult-sensei' },
+  { to: '/mentor-reviews', label: 'Đánh giá', page: 'MentorReviews', group: 'consult-sensei' },
+  { to: '/mentor-compensation', label: 'Thù lao', page: 'MentorCompensation', group: 'consult-sensei' },
   { to: '/work-schedule', label: 'Lịch làm việc', page: 'WorkSchedule', group: 'consult-sensei' },
   { to: '/mentor-availability', label: 'Lịch khả dụng', page: 'MentorAvailability', group: 'consult-sensei' },
   // CMS
@@ -155,15 +156,16 @@ export const FLOWS = [
     id: 'consult-sensei',
     stepLabel: 'Luồng 5',
     title: 'Sensei làm việc',
-    description: 'Tổng quan → hàng đợi → chuẩn bị / trả lời → lịch làm việc',
+    description: 'Tổng quan → hàng đợi → chuẩn bị → lịch, đánh giá và thù lao',
     steps: [
       { n: 1, to: '/mentor-overview', label: 'Tổng quan Mentor', page: 'MentorOverview', hint: 'Overview' },
       { n: 2, to: '/consultation-queue', label: 'Hàng đợi', page: 'ConsultationQueue', hint: 'Queue' },
       { n: 3, to: '/consultation-prep', label: 'Chuẩn bị', page: 'ConsultationPrep', hint: 'Prep' },
       { n: 4, to: '/consultation-request', label: 'Chi tiết YC', page: 'ConsultationRequestDetail', hint: 'Request' },
-      { n: 5, to: '/consultation-reply', label: 'Trả lời', page: 'TextConsultationReply', hint: 'Reply' },
+      { n: 5, to: '/mentor-reviews', label: 'Đánh giá', page: 'MentorReviews', hint: 'Reviews' },
       { n: 6, to: '/work-schedule', label: 'Lịch làm việc', page: 'WorkSchedule', hint: 'Schedule' },
       { n: 7, to: '/mentor-availability', label: 'Lịch khả dụng', page: 'MentorAvailability', hint: 'Availability' },
+      { n: 8, to: '/mentor-compensation', label: 'Thù lao', page: 'MentorCompensation', hint: 'Pay' },
     ],
   },
   {

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { loginWithGoogle } from '../../api/auth.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { finishAuthSession } from '../../auth/finishAuthSession.js';
+import BrandMark from '../../components/BrandMark.jsx';
 import GoogleSignInButton from '../../components/GoogleSignInButton.jsx';
 import { useLoginMutation } from '../../hooks/useAuth.js';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
@@ -119,7 +120,7 @@ export default function Auth() {
 {/*  Brand Logo Header  */}
 <div className="flex items-center justify-between pb-6 border-b border-sakura-100" data-purpose="brand-header">
 <a aria-label="RikiPath Home" className="flex items-center gap-2.5 group focus:outline-none" href="#">
-<div className="w-10 h-10 rounded-xl bg-sakura-50 border border-sakura-200 flex items-center justify-center text-xl shadow-xs group-hover:bg-sakura-100 transition-colors">{"🌸\n              "}</div>
+<BrandMark className="h-11 w-16" />
 <div>
 <span className="text-xl font-bold tracking-tight text-slate-900 block leading-tight">RikiPath</span>
 <span className="text-[11px] font-medium tracking-wide text-sakura-500 uppercase">Sakura Learning Hub</span>
@@ -138,7 +139,7 @@ export default function Auth() {
 </div>
 {/*  Welcome Titles  */}
 <div className="mt-6 mb-6">
-<h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">{t('welcome')} <span className="text-2xl animate-pulse">🌸</span>
+<h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">{t('welcome')} <span className="text-2xl">🌸</span>
 </h1>
 <p className="mt-1 text-sm text-slate-500">{t('loginHint')}</p>
 </div>
@@ -183,13 +184,10 @@ export default function Auth() {
 </button>
 </div>
 </div>
-<div className="flex items-center justify-between pt-1">
-<label className="flex items-center gap-2 cursor-pointer select-none">
+<label className="flex items-center gap-2 cursor-pointer select-none pt-1">
 <input checked={remember} className="w-4 h-4 text-sakura-500 border-sakura-300 rounded focus:ring-sakura-500 focus:ring-offset-0 transition-colors" id="remember-me" name="remember" type="checkbox" onChange={(e) => setRemember(e.target.checked)} />
 <span className="text-xs font-medium text-slate-600">{t('remember')}</span>
 </label>
-<Link className="text-xs font-semibold text-[#d94b68] hover:text-sakura-700 hover:underline transition-colors" to="/change-password">{t('changePassword')}</Link>
-</div>
 <div className="pt-2">
 <button className="w-full h-12 flex items-center justify-center gap-2 bg-[#d94b68] hover:bg-sakura-600 text-white font-bold text-sm tracking-wide rounded-[10px] shadow-sakura-soft hover:shadow-lg transition-all duration-200 transform active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-sakura-300/40 disabled:opacity-60" type="submit" disabled={loading}>
 <span className="">{loading ? t('loggingIn') : t('loginNow')}</span>
@@ -210,12 +208,23 @@ export default function Auth() {
 <GoogleSignInButton disabled={loading} onCredential={handleGoogle} onError={setError} />
 </div>
 {/*  Footer Notice & Registration Prompt  */}
-<footer className="mt-8 pt-6 border-t border-slate-100 text-center" data-purpose="auth-footer">
-<p className="text-xs text-slate-600">{t('noAccount')} <Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to="/register">{t('freeRegister')}</Link>
+<footer className="mt-8 border-t border-[#F4EAEE] pt-5" data-purpose="auth-footer">
+<p className="mb-2 text-center text-[12px] text-[#8A7380]">{t('noAccount')}</p>
+<div className="grid grid-cols-2 gap-2">
+<Link to="/register" className="flex h-10 items-center justify-center rounded-lg bg-[#FDF2F5] text-[12px] font-semibold text-[#C43E5C] hover:bg-[#FBE7EE]">
+{t('freeRegister')}
+</Link>
+<Link to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'} className="flex h-10 items-center justify-center rounded-lg border border-[#F0E4E8] text-[12px] font-semibold text-[#7A6570] hover:bg-[#FFF8FA]">
+{t('verifyEmail')}
+</Link>
+</div>
+<p className="mt-3 text-center text-[11px] leading-5 text-[#B3A4AB]">
+<span className="whitespace-nowrap">{t('agreeContinue')}</span>{' '}
+<span className="whitespace-nowrap">{t('terms')}</span>
 {' · '}
-<Link className="font-bold text-[#d94b68] hover:text-sakura-700 hover:underline" to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'}>{t('verifyEmail')}</Link>
+<span className="whitespace-nowrap">{t('privacy')}</span>{' '}
+<span className="whitespace-nowrap">{t('ofRiki')}</span>
 </p>
-<p className="mt-2 text-[11px] text-slate-400">{t('agreeContinue')} <a className="underline hover:text-slate-600" href="#">{t('terms')}</a> & <a className="underline hover:text-slate-600" href="#">{t('privacy')}</a> {t('ofRiki')}</p>
 </footer>
 </section>
 {/*  END: RightAuthFormSection  */}

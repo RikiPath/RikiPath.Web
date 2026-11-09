@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
 import { getSession, patchSession } from '../../auth/session.js';
+import BrandMark from '../../components/BrandMark.jsx';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
 import { useSetJlptGoalMutation } from '../../hooks/useAuth.js';
 import { prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
@@ -144,12 +145,7 @@ export default function OnboardingSurvey() {
                        focus-visible:ring-2
                        focus-visible:ring-white/70"
           >
-            <span
-              className="flex h-10 w-10 items-center justify-center
-                         rounded-xl bg-white/10"
-            >
-              <Icon name="spa" className="text-[25px]" />
-            </span>
+            <BrandMark className="h-11 w-16" />
 
             <span className="text-[21px] font-semibold tracking-tight">
               RikiPath

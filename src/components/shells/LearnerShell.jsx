@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { getSession } from '../../auth/session.js';
+import BrandMark from '../BrandMark.jsx';
 import LanguageSwitch from '../LanguageSwitch.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import { useLocale } from '../../i18n/locale.js';
@@ -42,26 +43,19 @@ const MENU_GROUPS = [
         to: '/lessons',
         label: 'Bài luyện tập',
         icon: 'menu_book',
+        alsoActive: ['/lesson-player', '/lesson-practice'],
       },
       {
-        to: '/exam-n3',
-        label: 'Thi thử ',
-        icon: 'quiz',
-      },
-      {
-        to: '/riki/listening',
-        label: 'Nghe hiểu',
-        icon: 'headphones',
-      },
-      {
-        to: '/riki/reading',
-        label: 'Đọc hiểu',
-        icon: 'auto_stories',
+        to: '/placement',
+        label: 'Đánh giá năng lực',
+        icon: 'rule',
+        prefix: true,
       },
       {
         to: '/riki/essay',
         label: 'Luyện viết',
         icon: 'edit_note',
+        alsoActive: ['/sentence-studio', '/ai-scoring'],
       },
       {
         to: '/speech',
@@ -400,12 +394,7 @@ export default function LearnerShell({
                      focus-visible:ring-2
                      focus-visible:ring-[#AD3155]/30"
         >
-          <span
-            className="flex h-9 w-9 items-center justify-center
-                       rounded-xl bg-[#AD3155] text-white"
-          >
-            <Icon name="spa" className="text-[22px]" />
-          </span>
+          <BrandMark className="h-10 w-14" />
 
           <span className="leading-tight">
             <span

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import BrandMark from '../../components/BrandMark.jsx';
 import { MarketingShell } from '../../components/shells';
 import { useLocation } from 'react-router-dom';
 export default function CourseDetail() {
@@ -20,7 +21,7 @@ export default function CourseDetail() {
 
 <div className="hidden lg:hidden flex flex-col p-4 fixed inset-y-0 left-0 h-full w-64 bg-surface dark:bg-inverse-surface border-r border-border-base z-40 mt-[72px]">
 <div className="mb-space-lg flex items-center gap-2">
-<span className="material-symbols-outlined text-primary">local_florist</span>
+<BrandMark className="h-10 w-14" />
 <div>
 <div className="text-title-sm font-title-sm text-primary">RikiPath</div>
 <div className="text-support-sm font-support-sm text-on-surface-variant">Học tiếng Nhật thông minh</div>

@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import BrandMark from '../BrandMark.jsx';
 import { ADMIN_NAV, pathMatches } from './navConfig.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import NotificationPopover from '../admin/NotificationPopover.jsx';
@@ -69,16 +70,7 @@ export default function AdminShell({
       >
         <div className="shrink-0 px-6 pb-6 pt-7">
           <div className="flex items-center gap-3">
-            <div
-              aria-hidden="true"
-              className="flex h-10 w-10 shrink-0 items-center
-                         justify-center rounded-[14px]
-                         bg-[#AD3155] text-white"
-            >
-              <span className="material-symbols-outlined text-[23px]">
-                admin_panel_settings
-              </span>
-            </div>
+            <BrandMark className="h-11 w-16" />
 
             <div className="min-w-0">
               <div

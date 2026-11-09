@@ -34,6 +34,10 @@ import {
   SpeakingPracticePage,
   StudyPlans,
   StudyPayment,
+  PlacementTest,
+  PlacementExam,
+  PlacementResult,
+  LessonPractice,
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -47,7 +51,6 @@ import {
   ConsultationPrep,
   ConsultationRequestDetail,
   WorkSchedule,
-  TextConsultationReply,
   ConsultationSessionDetail,
   ConsultationReceipt,
   ConsultationRoom,
@@ -56,6 +59,8 @@ import {
   MentorShiftSchedule,
   MentorPublicProfile,
   MentorDisputes,
+  MentorCompensation,
+  MentorReviews,
 } from './pages/consultation';
 
 // —— CMS ——
@@ -70,6 +75,7 @@ import {
   VocabularyEditor,
   KanjiEditor,
   CmsLessonDetail,
+  ContentPlanStudio,
 } from './pages/cms';
 
 import {
@@ -175,13 +181,17 @@ export default function App() {
             <Route path={withSlash('/riki/essay')} element={(<LearnerEssayPage />)} />
             <Route path={withSlash('/lessons')} element={(<LessonList />)} />
             <Route path={withSlash('/lesson-player')} element={(<LessonPlayer />)} />
+            <Route path={withSlash('/lesson-practice')} element={<ProtectedRoute allowedRoles={['Learner']}><LessonPractice /></ProtectedRoute>} />
             <Route path={withSlash('/roadmap')} element={(<RoadmapJLPT />)} />
-            <Route path={withSlash('/sentence-studio')} element={(<SentenceStudio />)} />
+            <Route path={withSlash('/placement')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementTest /></ProtectedRoute>} />
+            <Route path={withSlash('/placement/exam')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementExam /></ProtectedRoute>} />
+            <Route path={withSlash('/placement/result/:attemptId')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementResult /></ProtectedRoute>} />
+            <Route path={withSlash('/sentence-studio')} element={<ProtectedRoute allowedRoles={['Learner']}><SentenceStudio /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-notebook')} element={(<KanjiNotebook />)} />
             <Route path={withSlash('/vocabulary')} element={(<VocabularyNotebook />)} />
             <Route path={withSlash('/daily-srs')} element={(<DailySRS />)} />
             <Route path={withSlash('/ai-counselor')} element={(<AICounselor />)} />
-            <Route path={withSlash('/ai-scoring')} element={(<AIScoringResult />)} />
+            <Route path={withSlash('/ai-scoring')} element={<ProtectedRoute allowedRoles={['Learner']}><AIScoringResult /></ProtectedRoute>} />
             <Route path={withSlash('/exam-n3')} element={(<ExamN3 />)} />
             <Route path={withSlash('/exam-result')} element={(<ExamResult />)} />
             <Route path={withSlash('/vocabulary-detail')} element={(<VocabWordDetail />)} />
@@ -215,7 +225,9 @@ export default function App() {
             <Route path={withSlash('/consultation-prep')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultationPrep /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-request')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultationRequestDetail /></ProtectedRoute>} />
             <Route path={withSlash('/work-schedule')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><WorkSchedule /></ProtectedRoute>} />
-            <Route path={withSlash('/consultation-reply')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><TextConsultationReply /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-reply')} element={<Navigate to={withSlash('/mentor-reviews')} replace />} />
+            <Route path={withSlash('/mentor-reviews')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorReviews /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-compensation')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorCompensation /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-availability')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAvailability /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-profile')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorProfile /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><MentorShiftSchedule /></ProtectedRoute>} />
@@ -232,6 +244,7 @@ export default function App() {
             <Route path={withSlash('/vocabulary-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VocabularyEditor /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><KanjiEditor /></ProtectedRoute>} />
             <Route path={withSlash('/content-studio')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentImportPreviewPage /></ProtectedRoute>} />
+            <Route path={withSlash('/content-plan')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentPlanStudio /></ProtectedRoute>} />
             <Route path={withSlash('/lesson-cms-detail')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CmsLessonDetail /></ProtectedRoute>} />
 
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}

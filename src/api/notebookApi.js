@@ -29,3 +29,8 @@ export async function addNotebookEntry(payload) {
 export function removeNotebookEntry(noteEntryId) {
   return api.delete(`/Notebook/entries/${noteEntryId}`);
 }
+
+export async function bookmarkKanji({ learnerNoteId, kanjiId }) {
+  const data = await api.post('/Notebook/bookmark/kanji', { learnerNoteId, kanjiId });
+  return resultOf(data);
+}
