@@ -1,7 +1,7 @@
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { AdminShell } from '../../components/shells';
-import { getAdminUser, updateAdminUser } from '../../api/admin.js';
+import { getAdminUser, reconcileLearnerCredits, updateAdminUser } from '../../api/admin.js';
 
 const ROLES = [
   ['Learner', 'Người ôn luyện'],
@@ -19,6 +19,7 @@ export default function AdminUserDetail() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [credit, setCredit] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -78,6 +79,34 @@ export default function AdminUserDetail() {
             {user?.isActive === false ? 'Mở khóa' : 'Khóa tài khoản'}
           </button>
         </header>
+        {role === 'Learner' && user && (
+          <section className="mt-4 rounded-xl border border-[#EAE1E6] bg-white p-5">
+            <h2 className="text-[15px] font-semibold">Đối soát lượt tư vấn</h2>
+            <p className="mt-1 text-[12px] leading-5 text-[#82737B]">So số lượt đã cấp với sổ cái của học viên này.</p>
+            <button
+              type="button"
+              className="mt-3 h-9 rounded-lg bg-[#AD3155] px-3 text-[13px] text-white"
+              onClick={async () => {
+                setError('');
+                try {
+                  const data = await reconcileLearnerCredits(id);
+                  setCredit(data?.result ?? data);
+                } catch (err) {
+                  setCredit(null);
+                  setError(err.message || 'Không đối soát được lượt tư vấn.');
+                }
+              }}
+            >
+              Đối soát
+            </button>
+            {credit && (
+              <p className="mt-3 text-[13px] text-[#49353F]">
+                Đã cấp {credit.totalGrantsIssued} · còn {credit.totalGrantsAvailable} · sổ cái {credit.totalEntriesNet}
+                {' · '}{credit.isConsistent ? 'Khớp' : `Lệch ${credit.discrepancy}`}
+              </p>
+            )}
+          </section>
+        )}
 
         {error && (
           <p role="alert" className="mt-4 rounded-[10px] bg-[#FFF0F2] px-4 py-3 text-[13px] text-[#A13950]">{error}</p>

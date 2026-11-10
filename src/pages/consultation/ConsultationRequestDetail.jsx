@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
-import { cancelMentorBooking, getCancellationEligibility, getMentorBooking, getMentorBookings } from '../../api/mentorBookingApi.js';
+import { cancelMentorBooking, getBookingAttendance, getCancellationEligibility, getMentorBooking, getMentorBookings } from '../../api/mentorBookingApi.js';
 import { bookingTime, bookingStatus, bookingExpired, paymentStatusLabel } from '../../utils/mentorBooking.js';
 
 export default function ConsultationRequestDetail() {
@@ -31,6 +31,12 @@ export default function ConsultationRequestDetail() {
   }, [id, list.isSuccess, list.data, navigate]);
 
   const query = useQuery({ queryKey: ['mentor-booking', id], queryFn: () => getMentorBooking(id), enabled: Boolean(id), refetchInterval: 30000 });
+  const attendance = useQuery({
+    queryKey: ['booking-attendance', id],
+    queryFn: () => getBookingAttendance(id),
+    enabled: Boolean(id),
+    retry: false,
+  });
   const booking = query.data;
   const eligibility = useQuery({
     queryKey: ['cancel-eligibility', id],
@@ -55,39 +61,58 @@ export default function ConsultationRequestDetail() {
 
   return (
     <ConsultShell pathname={pathname} breadcrumb="Chi tiết yêu cầu">
-      <div className="mx-auto max-w-5xl p-6 sm:p-8" data-page="ConsultationRequestDetail">
-        <Link to="/consultation-queue/" className="text-sm font-semibold text-[#9E2A4B]">← Hàng đợi yêu cầu</Link>
-        <h1 className="mt-5 text-2xl font-bold">Chi tiết yêu cầu tư vấn</h1>
+      <div className="mx-auto max-w-[1080px] px-4 py-6 text-[#49353F] sm:px-6" data-page="ConsultationRequestDetail">
+        <Link to="/consultation-queue/" className="text-[13px] font-semibold text-[#AD3155]">← Hàng đợi yêu cầu</Link>
+        <header className="mt-4">
+          <p className="text-[11px] font-semibold tracking-[0.16em] text-[#AD3155]">BUỔI TƯ VẤN</p>
+          <h1 className="mt-1 text-[26px] font-semibold tracking-tight">Chi tiết yêu cầu</h1>
+        </header>
         {(query.error || cancelError) && (
-          <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
+          <p role="alert" className="mt-4 rounded-2xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">
             {cancelError || 'Không tải được yêu cầu tư vấn. Vui lòng thử lại.'}
           </p>
         )}
         {!id ? (
-          list.isError ? <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">Không tải được danh sách yêu cầu. Vui lòng thử lại.</p>
-          : list.isSuccess && !(list.data || []).length ? <p className="mt-5 text-[#6F6669]">Chưa có yêu cầu trong hàng đợi.</p>
-          : <p role="status" className="mt-5 text-[#6F6669]">Đang mở yêu cầu…</p>
-        ) : query.isPending ? <p role="status" className="mt-5">Đang tải yêu cầu…</p> : booking && <>
-          <section className="mt-5 rounded-2xl border border-[#eadfd9] bg-white p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold">{booking.learnerName || 'Học viên'}</h2>
-                <p className="mt-2 text-sm text-[#6F6669]">Thông tin buổi tư vấn</p>
-              </div>
-              <span className="rounded-full bg-[#fff0f5] px-4 py-2 text-sm font-semibold text-[#9E2A4B]">{bookingStatus(booking)}</span>
+          list.isError ? <p role="alert" className="mt-4 rounded-2xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">Không tải được danh sách yêu cầu. Vui lòng thử lại.</p>
+          : list.isSuccess && !(list.data || []).length ? <p className="mt-4 text-[13px] text-[#8C7782]">Chưa có yêu cầu trong hàng đợi.</p>
+          : <p role="status" className="mt-4 text-[13px] text-[#8C7782]">Đang mở yêu cầu…</p>
+        ) : query.isPending ? <p role="status" className="mt-4 text-[13px] text-[#8C7782]">Đang tải yêu cầu…</p> : booking && <>
+          <section className="mt-5 rounded-[22px] border border-[#F0E4E9] bg-white p-5 shadow-[0_10px_30px_rgba(90,40,58,0.04)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-[20px] font-semibold tracking-tight">{booking.learnerName || 'Học viên'}</h2>
+              <span className="rounded-full bg-[#FDF2F5] px-3 py-1 text-[12px] font-semibold text-[#AD3155]">{bookingStatus(booking)}</span>
             </div>
-            <dl className="mt-6 grid gap-5 text-sm sm:grid-cols-2">
-              {[['Cố vấn', booking.mentorName], ['Thanh toán', paymentStatusLabel(booking.paymentStatus)], ['Bắt đầu (GMT+7)', bookingTime(booking.scheduledAt)], ['Kết thúc (GMT+7)', bookingTime(booking.endsAt)]].map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-[#8c7f83]">{label}</dt>
-                  <dd className="mt-1 font-semibold">{value || 'Chưa có thông tin'}</dd>
+            <dl className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {[['Cố vấn', booking.mentorName], ['Thanh toán', paymentStatusLabel(booking.paymentStatus)], ['Bắt đầu', bookingTime(booking.scheduledAt)], ['Kết thúc', bookingTime(booking.endsAt)]].map(([label, value]) => (
+                <div key={label} className="min-h-[72px] rounded-2xl bg-[#FDF2F5] px-3 py-3">
+                  <dt className="text-[11px] text-[#967F8A]">{label}</dt>
+                  <dd className="mt-1 text-[14px] font-semibold leading-5">{value || 'Chưa có'}</dd>
                 </div>
               ))}
             </dl>
           </section>
-          <section className="mt-5 rounded-2xl border border-[#eadfd9] bg-white p-6">
-            <h2 className="font-bold">Câu hỏi của học viên</h2>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-[#6F6669]">{booking.question || 'Học viên chưa gửi câu hỏi cho buổi tư vấn này.'}</p>
+          <section className="mt-4 rounded-[22px] border border-[#F0E4E9] bg-white p-5 shadow-[0_10px_30px_rgba(90,40,58,0.04)]">
+            <h2 className="text-[16px] font-semibold">Điểm danh buổi</h2>
+            {attendance.isPending && <p className="mt-3 text-[13px] text-[#8C7782]">Đang tải điểm danh…</p>}
+            {attendance.isError && <p className="mt-3 text-[13px] text-[#A33357]">{attendance.error.message}</p>}
+            {!attendance.isPending && !(attendance.data || []).length && !attendance.isError && (
+              <p className="mt-3 text-[13px] text-[#8C7782]">Chưa có bản ghi điểm danh cho buổi này.</p>
+            )}
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(attendance.data || []).map((row) => (
+                <li key={row.id} className="flex min-h-[64px] items-center justify-between gap-3 rounded-2xl bg-[#FDF2F5] px-3 py-2">
+                  <span className="text-[13px] font-semibold">{row.participantName || row.role}</span>
+                  <span className="text-right text-[12px] text-[#705261]">
+                    {row.isOnline ? 'Đang trong phòng' : 'Đã rời'}
+                    <span className="mt-0.5 block">{Math.round((row.totalDurationSeconds || 0) / 60)} phút</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="mt-4 rounded-[22px] border border-[#F0E4E9] bg-white p-5 shadow-[0_10px_30px_rgba(90,40,58,0.04)]">
+            <h2 className="text-[16px] font-semibold">Câu hỏi của học viên</h2>
+            <p className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-6 text-[#705261]">{booking.question || 'Học viên chưa gửi câu hỏi cho buổi tư vấn này.'}</p>
           </section>
 
           {showCancelPrompt && (
@@ -122,12 +147,12 @@ export default function ConsultationRequestDetail() {
             </section>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link to={`/mentor-chat/?bookingId=${booking.id}`} className="rounded-xl border border-[#eadfd9] bg-white px-5 py-3 text-sm font-semibold">
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link to={`/mentor-chat/?bookingId=${booking.id}`} className="inline-flex h-10 items-center rounded-full border border-[#EADFE5] bg-white px-4 text-[13px] font-semibold">
               Tin nhắn 1–1
             </Link>
             {booking.roomId && !bookingExpired(booking) && ['Assigned', 'Accepted'].includes(booking.status) && (
-              <Link to={`/consultation-room/${booking.roomId}/`} className="rounded-xl border border-[#eadfd9] bg-white px-5 py-3 text-sm font-semibold">
+              <Link to={`/consultation-room/${booking.roomId}/`} className="inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-[13px] font-semibold text-white">
                 Vào phòng họp
               </Link>
             )}
@@ -135,15 +160,15 @@ export default function ConsultationRequestDetail() {
               <button
                 type="button"
                 onClick={() => setShowCancelPrompt(true)}
-                className="rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                className="inline-flex h-10 items-center rounded-full border border-[#F0C9D4] bg-white px-4 text-[13px] font-semibold text-[#A33357]"
               >
                 Hủy lịch hẹn
               </button>
             )}
           </div>
-          {['Assigned', 'Accepted', 'Confirmed'].includes(booking.status) && !bookingExpired(booking) && <p role="status" className="mt-4 text-sm text-emerald-700">Lịch tư vấn đã được xác nhận tự động.</p>}
-          {booking.status === 'Cancelled' && <p role="status" className="mt-4 text-sm text-rose-700">Lịch hẹn này đã bị hủy. Vui lòng xem lịch sử vé tư vấn để biết kết quả hoàn vé.</p>}
-          {bookingExpired(booking) && booking.status !== 'Cancelled' && <p className="mt-4 text-sm text-[#6F6669]">Lịch đã hết hạn, bạn chỉ có thể xem lại thông tin.</p>}
+          {['Assigned', 'Accepted', 'Confirmed'].includes(booking.status) && !bookingExpired(booking) && <p role="status" className="mt-4 text-[13px] text-[#1E5C36]">Lịch tư vấn đã được xác nhận tự động.</p>}
+          {booking.status === 'Cancelled' && <p role="status" className="mt-4 text-[13px] text-[#A33357]">Lịch hẹn này đã bị hủy. Vui lòng xem lịch sử vé tư vấn để biết kết quả hoàn vé.</p>}
+          {bookingExpired(booking) && booking.status !== 'Cancelled' && <p className="mt-4 text-[13px] text-[#8C7782]">Lịch đã hết hạn, bạn chỉ có thể xem lại thông tin.</p>}
         </>}
       </div>
     </ConsultShell>

@@ -18,3 +18,6 @@ export const uploadVerificationDocument = async (file) => {
   });
   return data.result;
 };
+
+export const getMyVerificationDocument = async () =>
+  api.get('/mentor/profile/verification-document/content', { responseType: 'blob' });

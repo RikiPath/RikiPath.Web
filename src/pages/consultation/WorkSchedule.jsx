@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
 import { ConsultShell } from '../../components/shells';
 import { api } from '../../api/client.js';
 import { getMentorBookings } from '../../api/mentorBookingApi.js';
+import { deleteMentorAvailability, requestSlotChange } from '../../api/mentorScheduleApi.js';
 import { bookingDate, bookingTime } from '../../utils/mentorBooking.js';
 
 const focusClass =
@@ -113,7 +114,11 @@ function groupByDay(bookings) {
 
 export default function WorkSchedule() {
   const { pathname } = useLocation();
+  const client = useQueryClient();
   const [weekOffset, setWeekOffset] = useState(0);
+  const [changeId, setChangeId] = useState(null);
+  const [changeReason, setChangeReason] = useState('');
+  const [slotNotice, setSlotNotice] = useState('');
   const query = useQuery({
     queryKey: ['mentor-bookings'],
     queryFn: getMentorBookings,
@@ -121,6 +126,20 @@ export default function WorkSchedule() {
     retry: false,
   });
 
+  const refreshSlots = () => client.invalidateQueries({ queryKey: ['mentor-assigned-slots'] });
+  const removeSlot = useMutation({
+    mutationFn: deleteMentorAvailability,
+    onSuccess: () => { setSlotNotice('Đã xóa khung trống.'); refreshSlots(); },
+  });
+  const askChange = useMutation({
+    mutationFn: () => requestSlotChange(changeId, changeReason.trim()),
+    onSuccess: () => {
+      setSlotNotice('Đã gửi yêu cầu đổi tiết. Quản trị sẽ xử lý.');
+      setChangeId(null);
+      setChangeReason('');
+      refreshSlots();
+    },
+  });
   const bookings = Array.isArray(query.data) ? query.data : [];
   const week = thisWeek(weekOffset);
   const assigned = useQuery({ queryKey: ['mentor-assigned-slots'], queryFn: async () => (await api.get('/mentor/availability')).result || [], refetchInterval: 15000 });
@@ -221,6 +240,13 @@ export default function WorkSchedule() {
             </button>
           </div>
         </div>
+        {slotNotice && <p className="mb-3 rounded-xl bg-[#E7F6EC] px-4 py-3 text-[13px] text-[#1E5C36]">{slotNotice}</p>}
+        {(removeSlot.error || askChange.error) && (
+          <p role="alert" className="mb-3 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">
+            {(removeSlot.error || askChange.error).message}
+          </p>
+        )}
+
         <WeekTimeGrid
           days={week}
           events={calendarEvents}
@@ -230,6 +256,76 @@ export default function WorkSchedule() {
           nowMinutes={now.hour * 60 + now.minute}
           stackOverlaps
         />
+
+        <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
+          <h2 className="border-b border-[#F0E7EC] px-4 py-2.5 text-[13px] font-medium text-[#705261]">
+            Khung giờ trong tuần
+          </h2>
+          {(assigned.data || [])
+            .filter((slot) => weekKeys.has(dayKey(slot.startTime)))
+            .map((slot) => {
+              const started = new Date(slot.startTime).getTime() <= Date.now();
+              return (
+                <div key={slot.id} className="border-b border-[#F0E7EC] px-4 py-3 last:border-b-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[13px] font-medium">
+                        {dayLabel(slot.startTime)} · {slotClock(slot.startTime)}–{slotClock(slot.endTime)}
+                      </p>
+                      <p className="mt-0.5 text-[12px] text-[#A18B97]">
+                        {slot.isBooked ? 'Đã có người đặt' : 'Khung trống'}
+                        {slot.changeRequestedAt ? ' · Đã xin đổi, chờ quản trị' : ''}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {!slot.isBooked && !slot.bookedCount && (
+                        <button
+                          type="button"
+                          disabled={removeSlot.isPending}
+                          onClick={() => { setSlotNotice(''); removeSlot.mutate(slot.id); }}
+                          className={`h-8 rounded-lg border border-[#E7DAE1] px-3 text-[12px] disabled:opacity-50 ${focusClass}`}
+                        >
+                          Xóa
+                        </button>
+                      )}
+                      {!started && !slot.changeRequestedAt && (
+                        <button
+                          type="button"
+                          onClick={() => { setChangeId(slot.id); setChangeReason(''); setSlotNotice(''); }}
+                          className={`h-8 rounded-lg bg-[#AD3155] px-3 text-[12px] text-white ${focusClass}`}
+                        >
+                          Xin đổi
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {changeId === slot.id && (
+                    <form
+                      className="mt-3 flex flex-wrap items-end gap-2"
+                      onSubmit={(event) => { event.preventDefault(); askChange.mutate(); }}
+                    >
+                      <label className="min-w-[220px] flex-1 text-[12px] text-[#6E5360]">
+                        Lý do
+                        <input
+                          required
+                          maxLength={1000}
+                          value={changeReason}
+                          onChange={(event) => setChangeReason(event.target.value)}
+                          className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-3 text-[13px]"
+                        />
+                      </label>
+                      <button type="submit" disabled={askChange.isPending || !changeReason.trim()} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] text-white disabled:opacity-50">
+                        {askChange.isPending ? 'Đang gửi…' : 'Gửi'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              );
+            })}
+          {(assigned.data || []).filter((slot) => weekKeys.has(dayKey(slot.startTime))).length === 0 && (
+            <p className="px-4 py-6 text-[13px] text-[#A18B97]">Tuần này chưa có khung giờ đã mở.</p>
+          )}
+        </section>
 
         {later.length > 0 ? (
           <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">

@@ -94,6 +94,8 @@ export const resolveAdminMentorDispute = (disputeId, data) =>
 export const updateAdminMentorDisputeStatus = (disputeId, data) =>
   api.post(`/admin/mentor-disputes/${disputeId}/status`, data);
 export const getAdminMentorQualityMetrics = (params) => api.get('/admin/mentor-quality/metrics', { params });
+export const getAdminMentorShiftTemplate = (mentorId) => api.get(`/admin/mentors/${mentorId}/schedule`);
+export const reconcileLearnerCredits = (learnerId) => api.post(`/admin/credits/reconcile/${learnerId}`);
 
 export async function reviewContentRequest(requestId, data) {
   // data: { approve: boolean, reviewNote: string }
@@ -141,6 +143,14 @@ export async function getPendingMentorSlots() {
 export async function reviewMentorSlots(ids, approve, rejectionReason) {
   const data = await api.post('/admin/mentor-availabilities/review', ids, {
     params: { approve, rejectionReason: rejectionReason || undefined },
+  });
+  return data?.result ?? data;
+}
+
+export async function reviewMentorSlot(id, approve, reason) {
+  const data = await api.post(`/admin/mentor-availabilities/${id}/review`, {
+    approve,
+    reason: reason || null,
   });
   return data?.result ?? data;
 }

@@ -4,7 +4,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useLocale } from '../../i18n/locale.js';
 import { useWebRtcMeeting } from '../../hooks/useWebRtcMeeting.js';
-import { checkRoomAccess } from '../../api/mentorBookingApi.js';
+import { checkRoomAccess, getRoomAttendance, getRoomPresence } from '../../api/mentorBookingApi.js';
 import BrandMark from '../../components/BrandMark.jsx';
 
 const ROOM_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -159,6 +159,19 @@ export default function ConsultationRoom() {
     retry: false,
   });
   const roomId = accessQuery.data?.canAccess ? roomGuid : '';
+  const presenceQuery = useQuery({
+    queryKey: ['room-presence', roomId],
+    queryFn: () => getRoomPresence(roomId),
+    enabled: Boolean(roomId),
+    refetchInterval: 15000,
+    retry: false,
+  });
+  const attendanceQuery = useQuery({
+    queryKey: ['room-attendance', roomId],
+    queryFn: () => getRoomAttendance(roomId),
+    enabled: Boolean(roomId),
+    retry: false,
+  });
   const accessMessage = !roomGuid
     ? 'Liên kết phòng họp không hợp lệ. Vui lòng mở lại phòng từ lịch hẹn của bạn.'
     : accessQuery.isPending
@@ -645,6 +658,14 @@ export default function ConsultationRoom() {
               <h4 className="text-xs font-bold text-white/90 uppercase tracking-wider mb-2">
                 {tr('Thành viên trong phòng')} ({totalParticipantsCount})
               </h4>
+              <p className="text-[11px] text-white/60">
+                Điểm danh: {presenceQuery.data?.totalOnlineParticipants ?? '—'} người đang online trên hệ thống
+              </p>
+              {(attendanceQuery.data || []).map((row) => (
+                <p key={row.id} className="text-[11px] text-white/70">
+                  {row.participantName || row.role} · {row.isOnline ? 'đang trong phòng' : 'đã rời'} · {Math.round((row.totalDurationSeconds || 0) / 60)} phút
+                </p>
+              ))}
 
               {/* Bản thân */}
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10">

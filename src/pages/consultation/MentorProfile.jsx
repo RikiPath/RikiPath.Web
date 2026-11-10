@@ -7,6 +7,7 @@ import {
   submitMentorVerification,
   updateMyMentorProfile,
   uploadVerificationDocument,
+  getMyVerificationDocument,
 } from '../../api/mentorProfileApi.js';
 
 const JLPT = ['N5', 'N4', 'N3', 'N2', 'N1'];
@@ -161,7 +162,29 @@ export default function MentorProfile() {
               </div>
               <div>
                 <dt className="text-[#967F8A]">Chứng chỉ</dt>
-                <dd className="mt-0.5 font-medium">{profile?.hasVerificationDocument ? 'Đã tải lên' : 'Chưa có'}</dd>
+                <dd className="mt-0.5 font-medium">
+                  {profile?.hasVerificationDocument ? 'Đã tải lên' : 'Chưa có'}
+                  {profile?.hasVerificationDocument && (
+                    <button
+                      type="button"
+                      className={`ml-2 text-[12px] font-medium text-[#AD3155] hover:underline ${focus}`}
+                      onClick={async () => {
+                        setMessage('');
+                        setError('');
+                        try {
+                          const blob = await getMyVerificationDocument();
+                          const url = URL.createObjectURL(blob);
+                          window.open(url, '_blank', 'noopener');
+                          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                        } catch (err) {
+                          setError(err.message || 'Không mở được chứng chỉ.');
+                        }
+                      }}
+                    >
+                      Xem
+                    </button>
+                  )}
+                </dd>
               </div>
               {profile?.phoneNumber && (
                 <div>

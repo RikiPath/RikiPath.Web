@@ -91,6 +91,8 @@ import {
   AdminCertificateSections,
   AdminSlotReview,
   AdminMentorCases,
+  AdminMentorQuality,
+  AdminMentorTemplate,
 } from './pages/admin';
 
 function withSlash(path) {
@@ -257,6 +259,8 @@ export default function App() {
             <Route path={withSlash('/admin/certificate-sections')} element={<ProtectedRoute requireAdmin><AdminCertificateSections /></ProtectedRoute>} />
             <Route path={withSlash('/admin/slot-review')} element={<ProtectedRoute requireAdmin><AdminSlotReview /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-cases')} element={<ProtectedRoute requireAdmin><AdminMentorCases /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-quality')} element={<ProtectedRoute requireAdmin><AdminMentorQuality /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-template')} element={<ProtectedRoute requireAdmin><AdminMentorTemplate /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users/detail')} element={<ProtectedRoute requireAdmin><AdminUserDetail /></ProtectedRoute>} />
             <Route path={withSlash('/admin/roles')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />

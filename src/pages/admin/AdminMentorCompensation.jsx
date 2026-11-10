@@ -47,10 +47,10 @@ import {
 } from '../../api/mentorCompensationApi.js';
 
 const TABS = [
-  { id: 'config', label: '1. Cấu hình thù lao & Trình độ JLPT' },
-  { id: 'banks', label: '2. Tài khoản nhận & Tài khoản chi' },
-  { id: 'payrolls', label: '3. Điểm danh, Bảng kê & Kỳ lương' },
-  { id: 'payouts', label: '4. Chi trả (Thủ công & payOS Payout)' },
+  { id: 'config', label: 'Cấu hình' },
+  { id: 'banks', label: 'Tài khoản' },
+  { id: 'payrolls', label: 'Kỳ lương' },
+  { id: 'payouts', label: 'Chi trả' },
 ];
 
 const inputClass =
@@ -147,14 +147,14 @@ export default function AdminMentorCompensation() {
     hourlyRateVnd: '200000',
     effectiveFromUtc: '',
     effectiveToUtc: '',
-    reason: 'Cấu hình đơn giá giờ cơ bản cho cố vấn',
+    reason: 'Cập nhật đơn giá',
   });
   const [coeffForm, setCoeffForm] = useState({
     jlptLevel: 'N3',
     coefficient: '1.20',
     effectiveFromUtc: '',
     effectiveToUtc: '',
-    reason: 'Cập nhật hệ số trình độ JLPT',
+    reason: 'Cập nhật hệ số',
   });
 
   // Tab 2 states
@@ -559,11 +559,8 @@ export default function AdminMentorCompensation() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[19px] font-semibold tracking-tight text-[#352C31]">
-            Quản trị thù lao, kỳ lương tháng & chi trả cố vấn 1-1
+            Thù lao cố vấn
           </h2>
-          <p className="mt-1 text-[13px] text-[#82737B]">
-            Chỉ hỗ trợ trình độ JLPT N5, N4, N3, N2 (không hỗ trợ N1). Thù lao được chốt cứng theo đơn giá giờ × hệ số JLPT tại thời điểm đặt lịch và đối soát qua hai phương thức: Chuyển khoản thủ công hoặc payOS Payout.
-          </p>
         </div>
 
         <label className="text-[12px] font-medium text-[#6E5360]">
@@ -631,12 +628,7 @@ export default function AdminMentorCompensation() {
           <div className="grid gap-5 lg:grid-cols-2">
             {/* 1A. Grant / Revoke JLPT Qualifications (N5–N2) */}
             <div className={cardClass}>
-              <h3 className="text-[15px] font-semibold text-[#352C31]">
-                Cấp / Thu hồi trình độ JLPT được phép dạy (N5–N2)
-              </h3>
-              <p className="mt-1 text-[12px] text-[#82737B]">
-                Chỉ cho phép cấp quyền dạy N5, N4, N3, N2. Trình độ N1 bị khóa theo chính sách sản phẩm.
-              </p>
+              <h3 className="text-[15px] font-semibold text-[#352C31]">Trình độ được dạy</h3>
 
               <form
                 onSubmit={(e) => {
@@ -647,19 +639,19 @@ export default function AdminMentorCompensation() {
               >
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-[12px] font-medium text-[#6E5360]">
-                    Mã cố vấn (Mentor User ID)
+                    Mã cố vấn
                     <input
                       required
                       type="number"
                       min={1}
                       value={qualForm.mentorUserId || selectedMentorId}
                       onChange={(e) => setQualForm((f) => ({ ...f, mentorUserId: e.target.value }))}
-                      placeholder="Nhập ID cố vấn"
+                      placeholder="ID cố vấn"
                       className={inputClass}
                     />
                   </label>
                   <label className="block text-[12px] font-medium text-[#6E5360]">
-                    Trình độ JLPT (N5–N2)
+                    Trình độ
                     <select
                       value={qualForm.jlptLevel}
                       onChange={(e) => setQualForm((f) => ({ ...f, jlptLevel: e.target.value }))}
@@ -675,11 +667,10 @@ export default function AdminMentorCompensation() {
                 </div>
 
                 <label className="block text-[12px] font-medium text-[#6E5360]">
-                  Ghi chú thẩm định năng lực
+                  Ghi chú
                   <input
                     value={qualForm.notes}
                     onChange={(e) => setQualForm((f) => ({ ...f, notes: e.target.value }))}
-                    placeholder="Ví dụ: Đã xác minh chứng chỉ JLPT N2 và phỏng vấn mẫu"
                     className={inputClass}
                   />
                 </label>
@@ -692,12 +683,12 @@ export default function AdminMentorCompensation() {
               <div className="mt-5 border-t border-[#F2EAEF] pt-4">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h4 className="text-[13px] font-semibold text-[#51434A]">
-                    Danh sách trình độ đã cấp ({(qualificationsQuery.data || []).length})
+                    Đã cấp ({(qualificationsQuery.data || []).length})
                   </h4>
                   <input
                     value={revokeReason}
                     onChange={(e) => setRevokeReason(e.target.value)}
-                    placeholder="Lý do thu hồi (nếu thu hồi)"
+                    placeholder="Lý do thu hồi"
                     className="h-8 rounded-lg border border-[#E7DAE1] px-2.5 text-[12px]"
                   />
                 </div>
@@ -755,12 +746,7 @@ export default function AdminMentorCompensation() {
 
             {/* 1B. Mentor Base Hourly Rate (VND/h) */}
             <div className={cardClass}>
-              <h3 className="text-[15px] font-semibold text-[#352C31]">
-                Đơn giá giờ cơ bản theo cố vấn (VND/giờ)
-              </h3>
-              <p className="mt-1 text-[12px] text-[#82737B]">
-                Lưu lịch sử theo thời gian hiệu lực (EffectiveFromUtc / EffectiveToUtc). Thay đổi đơn giá chỉ áp dụng cho lượt đặt lịch mới.
-              </p>
+              <h3 className="text-[15px] font-semibold text-[#352C31]">Đơn giá giờ</h3>
 
               <form
                 onSubmit={(e) => {
@@ -771,19 +757,19 @@ export default function AdminMentorCompensation() {
               >
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-[12px] font-medium text-[#6E5360]">
-                    Mã cố vấn (Mentor User ID)
+                    Mã cố vấn
                     <input
                       required
                       type="number"
                       min={1}
                       value={rateForm.mentorUserId || selectedMentorId}
                       onChange={(e) => setRateForm((f) => ({ ...f, mentorUserId: e.target.value }))}
-                      placeholder="Nhập ID cố vấn"
+                      placeholder="ID cố vấn"
                       className={inputClass}
                     />
                   </label>
                   <label className="block text-[12px] font-medium text-[#6E5360]">
-                    Đơn giá giờ cơ bản (VND/h)
+                    Đơn giá (VND/giờ)
                     <input
                       required
                       type="number"
@@ -798,7 +784,7 @@ export default function AdminMentorCompensation() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-[12px] font-medium text-[#6E5360]">
-                    Hiệu lực từ (EffectiveFromUtc)
+                    Có hiệu lực từ
                     <input
                       type="datetime-local"
                       value={rateForm.effectiveFromUtc}
@@ -807,7 +793,7 @@ export default function AdminMentorCompensation() {
                     />
                   </label>
                   <label className="block text-[12px] font-medium text-[#6E5360]">
-                    Hiệu lực đến (EffectiveToUtc — tùy chọn)
+                    Hết hiệu lực
                     <input
                       type="datetime-local"
                       value={rateForm.effectiveToUtc}
@@ -818,7 +804,7 @@ export default function AdminMentorCompensation() {
                 </div>
 
                 <label className="block text-[12px] font-medium text-[#6E5360]">
-                  Lý do cấu hình
+                  Lý do
                   <input
                     required
                     value={rateForm.reason}
@@ -834,7 +820,7 @@ export default function AdminMentorCompensation() {
 
               <div className="mt-5 border-t border-[#F2EAEF] pt-4">
                 <h4 className="mb-2 text-[13px] font-semibold text-[#51434A]">
-                  Lịch sử đơn giá giờ ({(hourlyRatesQuery.data || []).length})
+                  Lịch sử ({(hourlyRatesQuery.data || []).length})
                 </h4>
                 <div className="max-h-56 overflow-y-auto">
                   <table className="w-full text-left text-[12px]">
@@ -874,12 +860,7 @@ export default function AdminMentorCompensation() {
 
           {/* 1C. JLPT Level Pay Coefficients (N5–N2) */}
           <div className={cardClass}>
-            <h3 className="text-[15px] font-semibold text-[#352C31]">
-              Hệ số thù lao theo trình độ JLPT (N5–N2) & Lịch sử hiệu lực
-            </h3>
-            <p className="mt-1 text-[12px] text-[#82737B]">
-              Công thức: Thù lao buổi 90 phút = Đơn giá giờ cố vấn × Hệ số trình độ JLPT × (Số phút đủ điều kiện / 60), làm tròn VND chuẩn HalfUp.
-            </p>
+            <h3 className="text-[15px] font-semibold text-[#352C31]">Hệ số theo trình độ</h3>
 
             <form
               onSubmit={(e) => {
@@ -889,7 +870,7 @@ export default function AdminMentorCompensation() {
               className="mt-4 grid gap-3 sm:grid-cols-5"
             >
               <label className="block text-[12px] font-medium text-[#6E5360]">
-                Trình độ JLPT
+                Trình độ
                 <select
                   value={coeffForm.jlptLevel}
                   onChange={(e) => setCoeffForm((f) => ({ ...f, jlptLevel: e.target.value }))}
@@ -903,7 +884,7 @@ export default function AdminMentorCompensation() {
                 </select>
               </label>
               <label className="block text-[12px] font-medium text-[#6E5360]">
-                Hệ số (Coefficient)
+                Hệ số
                 <input
                   required
                   type="number"
@@ -944,10 +925,10 @@ export default function AdminMentorCompensation() {
               <table className="w-full text-left text-[12px]">
                 <thead>
                   <tr className="border-b border-[#F2EAEF] text-[#82737B]">
-                    <th className="py-2">Trình độ JLPT</th>
-                    <th className="py-2">Hệ số thù lao</th>
-                    <th className="py-2">Hiệu lực từ (EffectiveFromUtc)</th>
-                    <th className="py-2">Hiệu lực đến (EffectiveToUtc)</th>
+                    <th className="py-2">Trình độ</th>
+                    <th className="py-2">Hệ số</th>
+                    <th className="py-2">Từ</th>
+                    <th className="py-2">Đến</th>
                     <th className="py-2">Lý do</th>
                     <th className="py-2">Trạng thái</th>
                   </tr>
@@ -981,12 +962,7 @@ export default function AdminMentorCompensation() {
         <div className="space-y-5" data-testid="comp-tab-banks">
           {/* 2A. Mentor Bank Account Verification */}
           <div className={cardClass}>
-            <h3 className="text-[15px] font-semibold text-[#352C31]">
-              Xác minh tài khoản ngân hàng nhận thù lao của cố vấn
-            </h3>
-            <p className="mt-1 text-[12px] text-[#82737B]">
-              Số tài khoản gốc được mã hóa AES-256 ở Backend. Giao diện chỉ hiển thị dạng che số (MaskedAccountNumber ****1234) và phiên bản (AccountVersion). Chỉ tài khoản đã Verified mới được phép chi trả.
-            </p>
+            <h3 className="text-[15px] font-semibold text-[#352C31]">Tài khoản nhận</h3>
 
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-left text-[12px]">
@@ -1069,12 +1045,7 @@ export default function AdminMentorCompensation() {
 
           {/* 2B. Organization Payout Accounts */}
           <div className={cardClass}>
-            <h3 className="text-[15px] font-semibold text-[#352C31]">
-              Cấu hình tài khoản chi trả của tổ chức (Organization Payout Accounts)
-            </h3>
-            <p className="mt-1 text-[12px] text-[#82737B]">
-              Tài khoản nguồn dùng để đối chiếu chuyển khoản thủ công hoặc liên kết kênh chi trả tự động payOS Payout. Không lưu khóa bí mật payOS trên trình duyệt.
-            </p>
+            <h3 className="text-[15px] font-semibold text-[#352C31]">Tài khoản chi</h3>
 
             <form
               onSubmit={(e) => {
@@ -1223,16 +1194,11 @@ export default function AdminMentorCompensation() {
         <div className="space-y-5" data-testid="comp-tab-payrolls">
           {/* 3A. Attendance Evaluation & Manual Admin Review */}
           <div className={cardClass}>
-            <h3 className="text-[15px] font-semibold text-[#352C31]">
-              Đánh giá điểm danh buổi tư vấn & Xét duyệt ngoại lệ
-            </h3>
-            <p className="mt-1 text-[12px] text-[#82737B]">
-              Hệ thống đối chiếu thời lượng hiện diện trong phòng họp (Mentor ≥ 75 phút, Học viên ≥ 60 phút cho buổi 90 phút). Các buổi cũ không đủ log phòng họp được gắn cờ <strong>LegacyIneligible</strong> và không tự sinh thù lao nếu chưa được Admin duyệt tay kèm lý do.
-            </p>
+            <h3 className="text-[15px] font-semibold text-[#352C31]">Điểm danh</h3>
 
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <label className="text-[12px] font-medium text-[#6E5360]">
-                Mã buổi đặt lịch (MentorBookingId)
+                Mã buổi
                 <input
                   type="number"
                   min={1}
@@ -1353,12 +1319,7 @@ export default function AdminMentorCompensation() {
 
           {/* 3B. Immutable Earning Entries Ledger */}
           <div className={cardClass}>
-            <h3 className="text-[15px] font-semibold text-[#352C31]">
-              Bảng kê thù lao từng buổi tư vấn hoàn tất (Earning Ledger — Bất biến)
-            </h3>
-            <p className="mt-1 text-[12px] text-[#82737B]">
-              Mỗi buổi tư vấn đủ điều kiện chỉ sinh tối đa 1 bút toán thù lao theo đơn giá giờ đã chốt (FrozenHourlyRate) và hệ số JLPT đã chốt (FrozenLevelCoefficient).
-            </p>
+            <h3 className="text-[15px] font-semibold text-[#352C31]">Bảng kê từng buổi</h3>
 
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-left text-[12px]">
@@ -1420,7 +1381,7 @@ export default function AdminMentorCompensation() {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
             <div className={cardClass}>
               <h3 className="text-[15px] font-semibold text-[#352C31]">
-                Tổng hợp kỳ lương tháng (Monthly Payroll)
+                Kỳ lương tháng
               </h3>
               <form
                 onSubmit={(e) => {
@@ -1522,11 +1483,11 @@ export default function AdminMentorCompensation() {
             {/* Payroll Detail, Adjustments & Approval */}
             <div className={cardClass}>
               <h3 className="text-[15px] font-semibold text-[#352C31]">
-                Chi tiết kỳ lương & Phê duyệt sang nghĩa vụ chi trả
+                Chi tiết kỳ
               </h3>
               {!activePayroll ? (
                 <p className="mt-4 text-[12px] text-[#82737B]">
-                  Chọn một kỳ lương bên trái để xem chi tiết các buổi tư vấn, điều chỉnh và phê duyệt.
+                  Chọn một kỳ bên trái.
                 </p>
               ) : (
                 <div className="mt-3 space-y-4 text-[12px]">
@@ -1692,21 +1653,18 @@ export default function AdminMentorCompensation() {
           <div className={cardClass}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 className="text-[15px] font-semibold text-[#352C31]">
-                  Điều hành chi trả hai chế độ: Chuyển khoản thủ công & payOS Payout
-                </h3>
+                <h3 className="text-[15px] font-semibold text-[#352C31]">Chi trả</h3>
                 <p className="mt-1 text-[12px] text-[#82737B]">
-                  Số dư tài khoản chi payOS hiện tại:{' '}
+                  Số dư payOS{' '}
                   <strong className="text-[#1E5C36]">
-                    {payOsBalanceQuery.data ? formatVnd(payOsBalanceQuery.data.balanceVnd) : 'Đang tải…'}
-                  </strong>{' '}
-                  {payOsBalanceQuery.data?.isQaSimulated ? '(Chế độ QA Simulator — LivePayoutEnabled = false)' : ''}
+                    {payOsBalanceQuery.data ? formatVnd(payOsBalanceQuery.data.balanceVnd) : '…'}
+                  </strong>
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <label className="text-[12px] font-medium text-[#6E5360]">
-                  Mô phỏng trạng thái payOS (QA):
+                  Thử payOS
                   <select
                     value={payOsSimOutcome}
                     onChange={(e) => setPayOsSimOutcome(e.target.value)}

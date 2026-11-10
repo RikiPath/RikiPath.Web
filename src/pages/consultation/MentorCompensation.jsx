@@ -6,7 +6,9 @@ import { ConsultShell } from '../../components/shells';
 import {
   formatVnd,
   getMentorCompensationOverview,
+  getMentorHourlyRates,
   getMentorPayrollDetail,
+  getMentorPayoutDetail,
   normalizeBankVerificationStatus,
   normalizeEarningStatus,
   normalizePayrollStatus,
@@ -115,10 +117,22 @@ export default function MentorCompensation() {
   const [notice, setNotice] = useState('');
   const [formError, setFormError] = useState('');
   const [openPayrollId, setOpenPayrollId] = useState(null);
+  const [openPayoutId, setOpenPayoutId] = useState(null);
 
   const overviewQuery = useQuery({
     queryKey: ['mentor-compensation-overview'],
     queryFn: async () => asOverview(await getMentorCompensationOverview()),
+    retry: false,
+  });
+  const ratesQuery = useQuery({
+    queryKey: ['mentor-hourly-rates'],
+    queryFn: getMentorHourlyRates,
+    retry: false,
+  });
+  const payoutDetail = useQuery({
+    queryKey: ['mentor-payout', openPayoutId],
+    queryFn: () => getMentorPayoutDetail(openPayoutId),
+    enabled: Boolean(openPayoutId),
     retry: false,
   });
   const payrollDetail = useQuery({
@@ -154,6 +168,7 @@ export default function MentorCompensation() {
   const earnings = overview?.recentEarnings || [];
   const payrolls = overview?.recentPayrolls || [];
   const payouts = overview?.recentPayouts || [];
+  const rates = Array.isArray(ratesQuery.data) ? ratesQuery.data : [];
   const detail = payrollDetail.data && payrollDetail.data.id ? payrollDetail.data : null;
 
   const chooseBank = (value) => {
@@ -389,18 +404,50 @@ export default function MentorCompensation() {
         <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
           <h2 className="border-b border-[#F0E7EC] px-5 py-3 text-[14px] font-semibold text-[#705261]">Chi trả</h2>
           <div className="divide-y divide-[#F0E7EC]">
-            {payouts.map((item) => (
-              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-[13px]">
-                <div>
-                  <p className="font-medium">Kỳ #{item.mentorPayrollPeriodId}</p>
-                  <p className="mt-0.5 text-[12px] text-[#967F8A]">
-                    {labelOf(PAYOUT_LABEL, item.status, normalizePayoutObligationStatus)}
-                    {item.selectedExecutionMethod ? ` · ${labelOf(METHOD_LABEL, item.selectedExecutionMethod, normalizePayoutMethod)}` : ''}
-                    {item.recipientMaskedAccountSnapshot ? ` · ${item.recipientBankShortNameSnapshot} ${item.recipientMaskedAccountSnapshot}` : ''}
+            {rates.length > 0 && (
+              <div className="border-b border-[#F0E7EC] px-5 py-3 text-[12px] text-[#705261]">
+                <p className="mb-1 font-medium text-[#49353F]">Đơn giá theo giờ</p>
+                {rates.map((item) => (
+                  <p key={item.id}>
+                    {formatVnd(item.hourlyRateVnd)}/giờ · từ {when(item.effectiveFromUtc)}
+                    {item.effectiveToUtc ? ` đến ${when(item.effectiveToUtc)}` : ''}
+                    {item.isActive ? ' · đang dùng' : ''}
                   </p>
-                  {item.failureReason && <p className="mt-1 text-[12px] text-[#A33357]">{item.failureReason}</p>}
+                ))}
+              </div>
+            )}
+            {payouts.map((item) => (
+              <div key={item.id} className="px-5 py-3 text-[13px]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Kỳ #{item.mentorPayrollPeriodId}</p>
+                    <p className="mt-0.5 text-[12px] text-[#967F8A]">
+                      {labelOf(PAYOUT_LABEL, item.status, normalizePayoutObligationStatus)}
+                      {item.selectedExecutionMethod ? ` · ${labelOf(METHOD_LABEL, item.selectedExecutionMethod, normalizePayoutMethod)}` : ''}
+                      {item.recipientMaskedAccountSnapshot ? ` · ${item.recipientBankShortNameSnapshot} ${item.recipientMaskedAccountSnapshot}` : ''}
+                    </p>
+                    {item.failureReason && <p className="mt-1 text-[12px] text-[#A33357]">{item.failureReason}</p>}
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-[#A33357]">{formatVnd(item.paidAmountVnd || item.payableAmountVnd)}</p>
+                    <button type="button" onClick={() => setOpenPayoutId(openPayoutId === item.id ? null : item.id)} className="mt-1 text-[12px] text-[#AD3155]">
+                      {openPayoutId === item.id ? 'Ẩn lần chi' : 'Xem lần chi'}
+                    </button>
+                  </div>
                 </div>
-                <p className="font-semibold text-[#A33357]">{formatVnd(item.paidAmountVnd || item.payableAmountVnd)}</p>
+                {openPayoutId === item.id && (
+                  <div className="mt-2 rounded-xl bg-[#FCF7F9] px-3 py-2 text-[12px] text-[#705261]">
+                    {payoutDetail.isFetching && <p>Đang tải…</p>}
+                    {payoutDetail.error && <p className="text-[#A33357]">{payoutDetail.error.message}</p>}
+                    {(payoutDetail.data?.attempts || []).map((attempt) => (
+                      <p key={attempt.id}>
+                        Lần {attempt.attemptNumber} · {formatVnd(attempt.amountVnd)} · {attempt.status}
+                        {attempt.providerErrorMessage ? ` · ${attempt.providerErrorMessage}` : ''}
+                      </p>
+                    ))}
+                    {payoutDetail.data && !payoutDetail.data.attempts?.length && !payoutDetail.isFetching && <p>Chưa có lần chi.</p>}
+                  </div>
+                )}
               </div>
             ))}
             {!payouts.length && <p className="px-5 py-8 text-center text-[13px] text-[#8C7782]">Chưa có khoản chi trả.</p>}

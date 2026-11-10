@@ -61,10 +61,12 @@ export const ADMIN_NAV = {
         },
         { to: '/admin/mentor-verifications', label: 'Xét duyệt', icon: 'verified' },
         { to: '/admin/mentor-schedules', label: 'Lịch tuần', icon: 'calendar_month' },
+        { to: '/admin/mentor-template', label: 'Mẫu ca', icon: 'event_repeat' },
         { to: '/admin/slot-review', label: 'Khung giờ', icon: 'schedule' },
         { to: '/admin/mentor-plans', label: 'Gói tư vấn', icon: 'sell' },
         { to: '/admin/mentor-compensation', label: 'Thù lao & Kỳ lương', icon: 'payments' },
         { to: '/admin/mentor-cases', label: 'Ngoại lệ', icon: 'gavel' },
+        { to: '/admin/mentor-quality', label: 'Chất lượng', icon: 'monitoring' },
       ],
     },
     {

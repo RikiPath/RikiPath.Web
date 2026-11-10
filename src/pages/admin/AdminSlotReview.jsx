@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getAdminMentorAvailabilities, getPendingMentorSlots, reviewMentorSlotCancels, reviewMentorSlots, unwrapApiList } from '../../api/admin.js';
+import { getAdminMentorAvailabilities, getPendingMentorSlots, reviewMentorSlot, reviewMentorSlotCancels, reviewMentorSlots, unwrapApiList } from '../../api/admin.js';
 import { resolveSlotChange } from '../../api/mentorScheduleApi.js';
 import { AdminShell } from '../../components/shells';
 
@@ -41,6 +41,10 @@ export default function AdminSlotReview() {
     queryClient.invalidateQueries({ queryKey: ['admin-pending-slots'] });
     queryClient.invalidateQueries({ queryKey: ['admin-mentor-slots'] });
   };
+  const reviewOne = useMutation({
+    mutationFn: ({ id, approve }) => reviewMentorSlot(id, approve, approve ? undefined : reason.trim()),
+    onSuccess: () => { setNotice('Đã xử lý một khung giờ.'); setReason(''); refresh(); },
+  });
   const review = useMutation({
     mutationFn: ({ ids, approve }) => reviewMentorSlots(ids, approve, approve ? undefined : reason.trim()),
     onSuccess: () => { setNotice('Đã xử lý khung giờ chờ duyệt.'); setReason(''); refresh(); },
@@ -59,8 +63,8 @@ export default function AdminSlotReview() {
   const changeRows = (Array.isArray(all.data) ? all.data : []).filter((row) => row.changeRequestedAt && !row.changeResolution);
   const rows = tab === 'review' ? pendingRows : tab === 'cancel' ? cancelRows : changeRows;
   const counts = { review: pendingRows.length, cancel: cancelRows.length, change: changeRows.length };
-  const busy = review.isPending || cancel.isPending || change.isPending;
-  const error = pending.error || all.error || review.error || cancel.error || change.error;
+  const busy = review.isPending || reviewOne.isPending || cancel.isPending || change.isPending;
+  const error = pending.error || all.error || review.error || reviewOne.error || cancel.error || change.error;
   const toggle = (id) => setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
 
   return (
@@ -107,6 +111,12 @@ export default function AdminSlotReview() {
                   <span className="mt-1 block text-[12px] leading-5 text-[#705261]">{row.cancelReason || row.changeRequestReason}</span>
                 )}
               </span>
+              {tab === 'review' && (
+                <span className="flex shrink-0 gap-2">
+                  <button type="button" disabled={busy} onClick={() => reviewOne.mutate({ id: row.id, approve: true })} className="h-8 rounded-lg bg-[#AD3155] px-3 text-[12px] text-white disabled:opacity-50">Duyệt</button>
+                  <button type="button" disabled={busy || !reason.trim()} onClick={() => reviewOne.mutate({ id: row.id, approve: false })} className="h-8 rounded-lg border border-[#E7DAE1] px-3 text-[12px] disabled:opacity-50">Từ chối</button>
+                </span>
+              )}
               {tab === 'change' && (
                 <span className="flex shrink-0 gap-2">
                   <button type="button" disabled={busy || !reason.trim()} onClick={() => change.mutate({ id: row.id, cancelSlot: false })} className="h-8 rounded-lg bg-[#AD3155] px-3 text-[12px] text-white disabled:opacity-50">Giữ</button>

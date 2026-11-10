@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { LearnerShell, ConsultShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
-import { getChatThreads, getChatThread, getChatMessages } from '../../api/mentorChatApi.js';
+import { getChatThreads, getChatThread, getChatMessages, markChatRead } from '../../api/mentorChatApi.js';
 import { createMentorChatConnection } from '../../services/mentorChatHub.js';
 
 const merge = (old, incoming) => [...new Map([...old, ...incoming].map(m => [m.id, m])).values()].sort((a, b) => a.id - b.id);
@@ -48,7 +48,8 @@ export default function MentorPrivateChat() {
     hubRef.current = hub;
     const readActive = async () => {
       if (activeRef.current && document.visibilityState === 'visible') {
-        await hub.invoke('MarkRead', activeRef.current);
+        await markChatRead(activeRef.current);
+        if (hub.state === 'Connected') await hub.invoke('MarkRead', activeRef.current);
         if (!disposed) setThreads((old) => old.map((item) => item.bookingId === activeRef.current ? { ...item, unreadCount: 0 } : item));
       }
     };
@@ -112,6 +113,10 @@ export default function MentorPrivateChat() {
         }
         setThreads(old => [...old.filter(t => t.bookingId !== selectedId), detail]);
         setMessages(old => merge(old, history)); setHasOlder(history.length === 50);
+        if (document.visibilityState === 'visible') {
+          await markChatRead(selectedId);
+          if (!cancelled) setThreads(old => old.map(t => t.bookingId === selectedId ? { ...t, unreadCount: 0 } : t));
+        }
         const hub = hubRef.current;
         if (hub?.state === 'Connected') {
           await hub.invoke('JoinBookingChat', selectedId);
@@ -120,9 +125,8 @@ export default function MentorPrivateChat() {
           const latest = await getChatMessages(selectedId);
           if (cancelled) return;
           setMessages(old => merge(old, latest));
-          if (document.visibilityState === 'visible') {
+          if (document.visibilityState === 'visible' && hub.state === 'Connected') {
             await hub.invoke('MarkRead', selectedId);
-            if (!cancelled) setThreads(old => old.map(t => t.bookingId === selectedId ? { ...t, unreadCount: 0 } : t));
           }
         }
       } catch (e) { if (!cancelled) setError(e.message); }

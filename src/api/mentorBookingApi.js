@@ -106,6 +106,12 @@ export const getMentorAvailableDates = async (mentorId, startDate, endDate) =>
 
 export const checkRoomAccess = async roomId =>
   (await api.get(`/mentor-meetings/rooms/${roomId}/access`)).result;
+export const getRoomPresence = async (roomId) =>
+  (await api.get(`/mentor-meetings/rooms/${roomId}/presence`)).result;
+export const getRoomAttendance = async (roomId) =>
+  (await api.get(`/mentor-meetings/rooms/${roomId}/attendance`)).result || [];
+export const getBookingAttendance = async (bookingId) =>
+  (await api.get(`/mentor-meetings/bookings/${bookingId}/attendance`)).result || [];
 
 export const getMentorDisputes = async params =>
   (await api.get('/mentor/mentor-disputes', { params })).result;
