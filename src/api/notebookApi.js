@@ -34,3 +34,12 @@ export async function bookmarkKanji({ learnerNoteId, kanjiId }) {
   const data = await api.post('/Notebook/bookmark/kanji', { learnerNoteId, kanjiId });
   return resultOf(data);
 }
+
+export async function bookmarkGrammar(grammarPatternId) {
+  const data = await api.post(`/Notebook/bookmark/grammar/${grammarPatternId}`);
+  return resultOf(data);
+}
+
+export function deleteNotebookList(listId) {
+  return api.delete(`/Notebook/lists/${listId}`);
+}

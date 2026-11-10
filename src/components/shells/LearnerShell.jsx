@@ -15,7 +15,7 @@ import {
 
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
 
-const SIDEBAR_W = 216;
+const SIDEBAR_W = 232;
 const HEADER_H = 64;
 const STORAGE_KEY = 'rikipath.learnerMenuGroups.v2';
 
@@ -210,14 +210,14 @@ function MenuRow({ item, active }) {
       title={label}
       aria-current={active ? 'page' : undefined}
       className={[
-        'group flex min-h-[32px] items-center gap-2',
-        'rounded-lg px-2 text-[13px]',
+        'group flex min-h-9 items-center gap-2.5',
+        'rounded-xl px-2.5 text-[13px]',
         'transition-colors duration-150',
         'focus-visible:outline-none focus-visible:ring-2',
         'focus-visible:ring-[#AD3155]/25',
         active
-          ? 'bg-[#FADDE8] font-medium text-[#A12E50]'
-          : 'text-[#826773] hover:bg-[#FCE7EF] hover:text-[#A24867]',
+          ? 'bg-[#AD3155] font-medium text-white shadow-[0_8px_16px_rgba(173,49,85,0.18)]'
+          : 'text-[#6E5964] hover:bg-white hover:text-[#A12E50]',
       ].join(' ')}
     >
       <span
@@ -225,8 +225,8 @@ function MenuRow({ item, active }) {
         className={[
           'flex h-6 w-6 shrink-0 items-center justify-center',
           active
-            ? 'text-[#AD3155]'
-            : 'text-[#B18B9B] group-hover:text-[#B26582]',
+            ? 'text-white'
+            : 'text-[#B08999] group-hover:text-[#AD3155]',
         ].join(' ')}
       >
         {item.symbol ? (
@@ -245,7 +245,7 @@ function MenuRow({ item, active }) {
       {active && (
         <span
           aria-hidden="true"
-          className="h-1 w-1 shrink-0 rounded-full bg-[#C57792]"
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/80"
         />
       )}
     </NavLink>
@@ -376,7 +376,7 @@ export default function LearnerShell({
   return (
     <div
       data-shell="learner"
-      className="min-h-screen bg-[#FAF8F7]
+      className="min-h-screen bg-[#F4EEF1]
                  font-['Nunito',sans-serif]
                  text-[#3F3038]"
     >
@@ -384,8 +384,8 @@ export default function LearnerShell({
       <header
         style={{ height: HEADER_H }}
         className="fixed inset-x-0 top-0 z-50 flex items-center
-                   justify-between gap-5 border-b border-[#E8DFDC]
-                   bg-[#FAF8F7] px-5"
+                   justify-between gap-5 border-b border-[#EADFE5]
+                   bg-white/90 px-5 backdrop-blur-md"
       >
         <NavLink
           to="/app"
@@ -586,15 +586,15 @@ export default function LearnerShell({
           top: HEADER_H,
         }}
         className="fixed bottom-0 left-0 z-40 flex flex-col
-                   border-r border-[#E8DFDC] bg-[#FAF8F7]"
+                   border-r border-[#EADFE5] bg-[#FBF7F8]"
       >
         <nav
           aria-label={tr('Menu chính')}
-          className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3"
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-4"
         >
           <div
-            className="mb-2 px-2.5 text-[10px] font-medium
-                       tracking-[0.08em] text-[#B18F9E]"
+            className="mb-2 px-2.5 text-[10px] font-semibold
+                       tracking-[0.16em] text-[#C4A8B4]"
           >
             {tr('TỔNG QUAN')}
           </div>
@@ -633,15 +633,15 @@ export default function LearnerShell({
                     aria-controls={`learner-group-${group.id}`}
                     onClick={() => toggleGroup(group.id)}
                     className={[
-                      'flex min-h-[34px] w-full items-center',
-                      'gap-2 rounded-lg px-2 text-left',
-                      'text-[12px] font-normal',
-                      'transition-colors hover:bg-[#FCE7EF]',
+                      'mt-2 flex min-h-9 w-full items-center',
+                      'gap-2 rounded-xl px-2.5 text-left',
+                      'text-[12px] font-medium',
+                      'transition-colors hover:bg-white',
                       'focus-visible:outline-none',
                       'focus-visible:ring-2',
                       'focus-visible:ring-[#AD3155]/25',
                       active
-                        ? 'text-[#A24867]'
+                        ? 'text-[#AD3155]'
                         : 'text-[#8A727E]',
                     ].join(' ')}
                   >
@@ -671,9 +671,8 @@ export default function LearnerShell({
                   {open && (
                     <div
                       id={`learner-group-${group.id}`}
-                      className="mb-1 ml-[18px] mt-0.5
-                                 space-y-0.5 border-l
-                                 border-[#E6D9D4] pl-1.5"
+                      className="mb-1 ml-3 mt-1 space-y-1
+                                 border-l border-[#F0D5DF] pl-2"
                     >
                       {group.items.map((item) => (
                         <MenuRow
@@ -696,8 +695,8 @@ export default function LearnerShell({
 
         {/* Cài đặt cố định ở đáy */}
         <div
-          className="shrink-0 border-t border-[#E8DFDC]
-                     px-2.5 py-2"
+          className="shrink-0 border-t border-[#F0E4EA]
+                     bg-white/70 px-3 py-3"
         >
           <MenuRow
             item={{

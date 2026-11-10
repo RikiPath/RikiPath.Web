@@ -64,18 +64,21 @@ function ActionLink({
   to,
   children,
   primary = false,
+  inverse = false,
   className = '',
 }) {
   const { tr } = useLocale();
   const classes = [
     'inline-flex min-h-10 items-center justify-center gap-2',
-    'rounded-[10px] px-4 py-2 text-[13px] font-medium',
+    'rounded-full px-4 py-2 text-[13px] font-semibold',
     'transition-colors focus-visible:outline-none',
     'focus-visible:ring-2 focus-visible:ring-[#D94B68]/30',
     'focus-visible:ring-offset-2',
-    primary
-      ? 'bg-[#AD3155] text-white hover:bg-[#962A49]'
-      : 'border border-[#E8DDE3] bg-white text-[#826271] hover:bg-[#FCF5F8]',
+    inverse
+      ? 'bg-white text-[#AD3155] hover:bg-[#FFF4F7]'
+      : primary
+        ? 'bg-[#AD3155] text-white hover:bg-[#962A49]'
+        : 'border border-[#E8DDE3] bg-white text-[#826271] hover:bg-[#FCF5F8]',
     className,
   ].join(' ');
 
@@ -110,10 +113,10 @@ function ProgressBar({ value, label }) {
       aria-valuemin={valid ? 0 : undefined}
       aria-valuemax={valid ? 100 : undefined}
       aria-valuenow={valid ? percent : undefined}
-      className="h-1.5 overflow-hidden rounded-full bg-[#F1E9ED]"
+      className="h-2 overflow-hidden rounded-full bg-[#F6E8EE]"
     >
       <div
-        className="h-full rounded-full bg-[#C77B95]
+        className="h-full rounded-full bg-[linear-gradient(90deg,#E7A0B6,#AD3155)]
                    transition-[width] duration-300"
         style={{ width: `${percent}%` }}
       />
@@ -123,21 +126,21 @@ function ProgressBar({ value, label }) {
 
 function Stat({ icon, label, value, unit }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-4">
+    <div className="flex items-center gap-3 rounded-2xl border border-white bg-white px-4 py-4 shadow-[0_10px_24px_rgba(90,40,58,0.04)]">
       <span
-        className="flex h-9 w-9 shrink-0 items-center
-                   justify-center rounded-[10px]
-                   bg-[#FAF1F5] text-[#AD7389]"
+        className="flex h-10 w-10 shrink-0 items-center
+                   justify-center rounded-2xl
+                   bg-[#FDF2F5] text-[#AD3155]"
       >
         <Icon name={icon} className="text-[20px]" />
       </span>
 
       <div>
-        <p className="text-[12px] text-[#95828C]">{label}</p>
-        <p className="mt-0.5 text-[23px] font-medium text-[#49343E]">
+        <p className="text-[12px] text-[#8C7782]">{label}</p>
+        <p className="mt-0.5 text-[24px] font-semibold tracking-tight text-[#3F3038]">
           {value ?? '—'}
           {value != null && (
-            <span className="ml-1.5 text-[12px] font-normal text-[#95828C]">
+            <span className="ml-1.5 text-[12px] font-medium text-[#A08D97]">
               {unit}
             </span>
           )}
@@ -176,30 +179,35 @@ export default function HomeLearner({ data = null }) {
     ? (locale === 'ja' ? `${data.displayName}さん、こんにちは！` : `Chào ${data.displayName}!`)
     : tr('Chào bạn!');
 
+  const examLabel = targetLevel ? `Thi thử ${targetLevel}` : 'Thi thử';
+
   return (
     <LearnerShell pathname={pathname} breadcrumb="Tổng quan">
       <div
         data-page="HomeLearner"
-        className="min-h-screen bg-[#FAF8F7]
+        className="min-h-screen bg-[#F4EEF1]
                    font-['Nunito',sans-serif]
                    text-[#3F3038]"
       >
         <main
-          className="mx-auto w-full max-w-[1320px]
-                     px-5 py-6 lg:px-7"
+          className="mx-auto w-full max-w-[1180px]
+                     px-5 py-7 lg:px-8"
         >
           <header
-            className="mb-5 flex flex-wrap items-center
-                       justify-between gap-3"
+            className="mb-6 flex flex-wrap items-end
+                       justify-between gap-4"
           >
             <div>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-[#AD3155]">
+                {tr('Ôn luyện hôm nay')}
+              </p>
               <h1
-                className="text-[26px] font-medium
-                           leading-tight tracking-normal"
+                className="mt-1 text-[32px] font-semibold
+                           leading-tight tracking-tight"
               >
                 {greeting}
               </h1>
-              <p className="mt-1 text-[13px] text-[#95828C]">
+              <p className="mt-1.5 text-[14px] text-[#8C7782]">
                 {tr('Bạn muốn ôn luyện gì hôm nay?')}
               </p>
             </div>
@@ -207,36 +215,29 @@ export default function HomeLearner({ data = null }) {
             <Link
               to={ROUTES.goal}
               className="inline-flex items-center gap-2
-                         rounded-lg border border-[#EADDE3]
-                         bg-white px-3 py-2 text-[12px]
-                         text-[#8F6879] hover:bg-[#FCF3F7]"
+                         rounded-full border border-white
+                         bg-white px-3.5 py-2 text-[12px]
+                         text-[#8F6879] shadow-[0_8px_20px_rgba(90,40,58,0.05)]
+                         hover:text-[#AD3155]"
             >
-              <Icon name="flag" className="text-[17px]" />
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FCE7EF] text-[#AD3155]">
+                <Icon name="flag" className="text-[15px]" />
+              </span>
               {targetLevel
                 ? (locale === 'ja' ? `JLPT目標 ${targetLevel}` : `Mục tiêu JLPT ${targetLevel}`)
                 : tr('Chọn mục tiêu JLPT')}
-              <Icon name="chevron_right" className="text-[16px]" />
             </Link>
           </header>
 
           <section
             aria-label={tr('Thống kê ôn luyện')}
-            className="mb-5 grid divide-y divide-[#F0E7EC]
-                       overflow-hidden rounded-2xl
-                       border border-[#EADFE5] bg-white
-                       sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+            className="mb-5 grid gap-3 sm:grid-cols-2"
           >
             <Stat
               icon="task_alt"
               label={tr('Bài đã luyện')}
               value={data?.completedExercises}
               unit={tr('bài')}
-            />
-            <Stat
-              icon="schedule"
-              label={tr('Thời gian ôn')}
-              value={data?.practiceMinutes}
-              unit={tr('phút')}
             />
             <Stat
               icon="local_fire_department"
@@ -251,19 +252,16 @@ export default function HomeLearner({ data = null }) {
                        xl:grid-cols-[minmax(0,1fr)_320px]"
           >
             <div className="min-w-0 space-y-5">
-              <section
-                className="rounded-2xl border border-[#EADFE5]
-                           bg-white p-5"
-              >
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-[17px] font-medium">
+              <section className="overflow-hidden rounded-3xl bg-white shadow-[0_16px_40px_rgba(90,40,58,0.06)]">
+                <div className="flex items-center justify-between gap-3 px-5 pt-5">
+                  <h2 className="text-[15px] font-semibold">
                     {tr('Ôn luyện hôm nay')}
                   </h2>
 
                   <Link
                     to={ROUTES.roadmap}
                     className="inline-flex items-center gap-1
-                               text-[12px] text-[#A66B82]
+                               text-[12px] font-medium text-[#A66B82]
                                hover:text-[#AD3155]"
                   >
                     {tr('Lộ trình')}
@@ -271,22 +269,16 @@ export default function HomeLearner({ data = null }) {
                   </Link>
                 </div>
 
-                <div
-                  className="rounded-xl border border-[#F0DCE5]
-                             bg-[#FCF2F6] p-4 sm:p-5"
-                >
-                  <p className="text-[11px] font-medium text-[#AD7389]">
+                <div className="m-3 rounded-2xl bg-[linear-gradient(145deg,#C44768_0%,#AD3155_48%,#7C2340_100%)] p-5 text-white sm:p-6">
+                  <p className="text-[11px] font-semibold tracking-[0.14em] text-white/75">
                     {resume ? tr('TIẾP TỤC ÔN LUYỆN') : tr('BẮT ĐẦU TỪ ĐÂY')}
                   </p>
 
-                  <h3
-                    className="mt-2 text-[20px] font-medium
-                               leading-snug text-[#593B48]"
-                  >
+                  <h3 className="mt-2 max-w-lg text-[26px] font-semibold leading-tight tracking-tight">
                     {resume?.title || tr('Thử sức với một đề thi')}
                   </h3>
 
-                  <p className="mt-2 text-[13px] leading-6 text-[#967A87]">
+                  <p className="mt-2 max-w-md text-[13px] leading-6 text-white/80">
                     {resume
                       ? resume.category || tr('Quay lại nội dung đang luyện.')
                       : tr('Làm đề, xem kết quả và chọn phần cần ôn thêm.')}
@@ -298,7 +290,7 @@ export default function HomeLearner({ data = null }) {
                       <div className="mt-4 max-w-[300px]">
                         <div
                           className="mb-2 flex justify-between
-                                     text-[11px] text-[#A0808E]"
+                                     text-[11px] text-white/75"
                         >
                           <span>{tr('Tiến độ')}</span>
                           <span>
@@ -315,18 +307,18 @@ export default function HomeLearner({ data = null }) {
                       </div>
                     )}
 
-                  <div className="mt-4">
+                  <div className="mt-5">
                     <ActionLink
                       to={resume ? resume.to : ROUTES.exam}
-                      primary
+                      inverse
                     >
-                      {resume ? tr('Tiếp tục luyện') : tr('Thi thử N3')}
+                      {resume ? tr('Tiếp tục luyện') : tr(examLabel)}
                       <Icon name="arrow_forward" className="text-[17px]" />
                     </ActionLink>
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-0 sm:grid-cols-2">
                   {[
                     {
                       title: 'Ôn từ vựng',
@@ -342,10 +334,10 @@ export default function HomeLearner({ data = null }) {
                     },
                   ].map((item) => {
                     const className =
-                      'flex items-center gap-3 rounded-xl border ' +
-                      'border-[#EEE5EA] p-3.5 text-left transition-colors ' +
+                      'mx-3 mb-3 flex items-center gap-3 rounded-2xl border ' +
+                      'border-[#F3E7EC] bg-[#FFFBFC] p-3.5 text-left transition-colors ' +
                       (item.to
-                        ? 'hover:border-[#DDB5C5] hover:bg-[#FFFCFD]'
+                        ? 'hover:border-[#E7C3D0] hover:bg-white'
                         : 'opacity-50');
 
                     const content = (
@@ -395,7 +387,7 @@ export default function HomeLearner({ data = null }) {
               </section>
 
               <section>
-                <h2 className="mb-3 text-[16px] font-medium">
+                <h2 className="mb-3 text-[15px] font-semibold">
                   {tr('Truy cập nhanh')}
                 </h2>
 
@@ -403,10 +395,10 @@ export default function HomeLearner({ data = null }) {
                   {QUICK_LINKS.map((item) => {
                     const to = ROUTES[item.key];
                     const className =
-                      'block rounded-xl border border-[#EADFE5] ' +
-                      'bg-white p-4 text-left transition-colors ' +
+                      'block rounded-2xl border border-white ' +
+                      'bg-white p-4 text-left shadow-[0_10px_24px_rgba(90,40,58,0.04)] transition-colors ' +
                       (to
-                        ? 'hover:border-[#DDB5C5] hover:bg-[#FFFCFD]'
+                        ? 'hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(90,40,58,0.08)]'
                         : 'opacity-50');
 
                     const content = (
@@ -446,11 +438,11 @@ export default function HomeLearner({ data = null }) {
 
             <aside className="min-w-0 space-y-4">
               <section
-                className="rounded-2xl border border-[#EADFE5]
-                           bg-white p-5"
+                className="rounded-3xl border border-white
+                           bg-white p-5 shadow-[0_16px_40px_rgba(90,40,58,0.05)]"
               >
                 <div className="flex items-center justify-between">
-                  <h2 className="text-[15px] font-medium">
+                  <h2 className="text-[15px] font-semibold">
                     {tr('Ôn tập đến hạn')}
                   </h2>
                   <Icon
@@ -459,7 +451,7 @@ export default function HomeLearner({ data = null }) {
                   />
                 </div>
 
-                <p className="mt-4 text-[32px] font-medium text-[#9E4565]">
+                <p className="mt-4 text-[40px] font-semibold tracking-tight text-[#AD3155]">
                   {dueCards ?? '—'}
                   <span className="ml-2 text-[13px] font-normal text-[#A08D97]">
                     {tr('thẻ')}
@@ -487,10 +479,10 @@ export default function HomeLearner({ data = null }) {
               </section>
 
               <section
-                className="rounded-2xl border border-[#EADFE5]
-                           bg-white p-5"
+                className="rounded-3xl border border-white
+                           bg-white p-5 shadow-[0_16px_40px_rgba(90,40,58,0.05)]"
               >
-                <h2 className="text-[15px] font-medium">
+                <h2 className="text-[15px] font-semibold">
                   {tr('Kết quả theo kỹ năng')}
                 </h2>
                 <p className="mt-1 text-[11px] text-[#A08D97]">

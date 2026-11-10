@@ -21,3 +21,11 @@ export async function completeLesson(lessonId) {
   const data = await api.post(`/LessonProgress/lessons/${lessonId}/complete`);
   return data?.result ?? data;
 }
+
+export async function updatePlaybackPosition(lessonId, { positionSeconds, durationSeconds }) {
+  const data = await api.patch(`/LessonProgress/lessons/${lessonId}/playback-position`, {
+    positionSeconds,
+    durationSeconds,
+  });
+  return data?.result ?? data;
+}

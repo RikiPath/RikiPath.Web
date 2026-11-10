@@ -6,6 +6,7 @@ import { useLearnerHome } from '../../hooks/useLearnerHome.js';
 import {
   addNotebookEntry,
   createNotebookList,
+  deleteNotebookList,
   getNotebookEntries,
   getNotebookLists,
   removeNotebookEntry,
@@ -159,6 +160,21 @@ export default function VocabularyNotebook() {
     }
   }
 
+  async function removeList() {
+    if (!listId || saving) return;
+    if (!window.confirm(tr('Xóa sổ này cùng các mục bên trong?'))) return;
+    setSaving(true);
+    setError('');
+    try {
+      await deleteNotebookList(listId);
+      await loadLists(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function addWord(event) {
     event.preventDefault();
     const word = draft.word.trim();
@@ -277,6 +293,14 @@ export default function VocabularyNotebook() {
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F1F3] px-3 text-[13px] text-[#6F5C66]"
               >
                 <Icon name="library_add" className="text-[18px]" />{tr('Tạo sổ')}
+              </button>
+              <button
+                type="button"
+                disabled={!listId || saving}
+                onClick={removeList}
+                className="inline-flex h-9 items-center rounded-full border border-[#E7DAE1] px-4 text-[13px] text-[#8C7782] hover:text-[#AD3155] disabled:opacity-40"
+              >
+                {tr('Xóa sổ')}
               </button>
               <button
                 type="button"

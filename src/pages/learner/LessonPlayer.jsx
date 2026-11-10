@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LearnerShell } from '../../components/shells';
-import { completeLesson, getLessonDetail } from '../../api/lessons.js';
+import { completeLesson, getLessonDetail, updatePlaybackPosition } from '../../api/lessons.js';
+import { bookmarkGrammar } from '../../api/notebookApi.js';
 import { useLocale } from '../../i18n/locale.js';
 
 const focus =
@@ -84,7 +85,7 @@ function quizChoices(items, part, current, cursor) {
   return mixed;
 }
 
-function StudyCard({ part, item, revealed, onReveal }) {
+function StudyCard({ part, item, revealed, onReveal, onBookmark, bookmarkState }) {
   const { tr } = useLocale();
   const face = faceOf(part, item);
   return (
@@ -115,6 +116,18 @@ function StudyCard({ part, item, revealed, onReveal }) {
         )}
       </button>
       {face.audio ? <div className="px-6 pb-5"><audio className="w-full" controls src={face.audio} /></div> : null}
+      {part === 'grammar' && item.grammarPatternId ? (
+        <div className="border-t border-[#F6EEF2] px-6 py-3">
+          <button
+            type="button"
+            disabled={bookmarkState === 'saving' || bookmarkState === 'saved'}
+            onClick={onBookmark}
+            className={`text-[12px] font-medium text-[#AD3155] disabled:text-[#8C7782] ${focus}`}
+          >
+            {bookmarkState === 'saved' ? tr('Đã đưa vào ôn SRS') : bookmarkState === 'saving' ? tr('Đang lưu…') : tr('Đưa ngữ pháp vào ôn SRS')}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -173,6 +186,8 @@ export default function LessonPlayer() {
   const [revealed, setRevealed] = useState(false);
   const [done, setDone] = useState(false);
   const [known, setKnown] = useState({});
+  const [bookmarkState, setBookmarkState] = useState('');
+  const lastSent = useRef(-1);
   const client = useQueryClient();
   const query = useQuery({
     queryKey: ['lesson-detail', lessonId],
@@ -185,6 +200,15 @@ export default function LessonPlayer() {
       client.setQueryData(['lesson-detail', lessonId], data);
       client.invalidateQueries({ queryKey: ['learning-lessons'] });
     },
+  });
+  const playback = useMutation({
+    mutationFn: (body) => updatePlaybackPosition(lessonId, body),
+  });
+  const saveGrammar = useMutation({
+    mutationFn: bookmarkGrammar,
+    onMutate: () => setBookmarkState('saving'),
+    onSuccess: () => setBookmarkState('saved'),
+    onError: () => setBookmarkState('error'),
   });
   const lesson = query.data;
   const items = lesson?.[PARTS.find((item) => item.id === part).key] || [];
@@ -199,7 +223,18 @@ export default function LessonPlayer() {
     setShowList(false);
     setKnown({});
     setPick(null);
+    setBookmarkState('');
+    lastSent.current = -1;
   }, [part, lessonId]);
+
+  const rememberVideo = (video) => {
+    const duration = Math.floor(video.duration || 0);
+    const position = Math.floor(video.currentTime || 0);
+    if (duration <= 0 || position < 1) return;
+    if (lastSent.current >= 0 && position - lastSent.current < 8) return;
+    lastSent.current = position;
+    playback.mutate({ positionSeconds: position, durationSeconds: duration });
+  };
 
   const grade = (remembered) => {
     if (!current) return;
@@ -279,7 +314,25 @@ export default function LessonPlayer() {
                 </button>
                 </div>
               </header>
+              {lesson.videoUrl && (
+                <video
+                  key={lesson.lessonId}
+                  className="mb-4 w-full rounded-2xl bg-black"
+                  controls
+                  src={lesson.videoUrl}
+                  onLoadedMetadata={(event) => {
+                    const resume = lesson.resumePositionSeconds || 0;
+                    if (resume > 0) event.currentTarget.currentTime = resume;
+                  }}
+                  onTimeUpdate={(event) => rememberVideo(event.currentTarget)}
+                  onPause={(event) => {
+                    lastSent.current = -1;
+                    rememberVideo(event.currentTarget);
+                  }}
+                />
+              )}
               {complete.isError && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{complete.error.message}</p>}
+              {saveGrammar.isError && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{saveGrammar.error.message}</p>}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 {PARTS.map((item) => {
@@ -384,7 +437,14 @@ export default function LessonPlayer() {
                     </>
                   ) : current && (
                     <>
-                      <StudyCard part={part} item={current} revealed={revealed} onReveal={() => setRevealed(true)} />
+                      <StudyCard
+                        part={part}
+                        item={current}
+                        revealed={revealed}
+                        onReveal={() => setRevealed(true)}
+                        bookmarkState={bookmarkState}
+                        onBookmark={() => current.grammarPatternId && saveGrammar.mutate(current.grammarPatternId)}
+                      />
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         <button
                           type="button"

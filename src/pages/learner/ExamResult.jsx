@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import { getMonthlySkillAnalytics, getStudyStreak } from '../../api/analytics.js';
+import { getDetailedMockAttempt, getWrongQuestions } from '../../api/mockTestApi.js';
 import { getSession } from '../../auth/session.js';
 
 const RANGES = [
@@ -27,8 +28,22 @@ function Icon({ name, className = '' }) {
 export default function ExamResult() {
   const { locale, tr } = useLocale();
   const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const attemptId = Number(params.get('attemptId')) || null;
   const session = getSession();
   const [range, setRange] = useState('30d');
+  const detailQuery = useQuery({
+    queryKey: ['mock-attempt-detail', attemptId],
+    queryFn: () => getDetailedMockAttempt(attemptId),
+    enabled: Boolean(session?.accessToken && attemptId),
+    retry: false,
+  });
+  const wrongQuery = useQuery({
+    queryKey: ['mock-wrong-questions', detailQuery.data?.mockTestId],
+    queryFn: () => getWrongQuestions(detailQuery.data?.mockTestId),
+    enabled: Boolean(session?.accessToken && detailQuery.data?.mockTestId),
+    retry: false,
+  });
 
   const streakQuery = useQuery({
     queryKey: ['learner', 'study-streak', 'exam-result'],
@@ -132,6 +147,35 @@ export default function ExamResult() {
           </div>
         </section>
 
+        {attemptId && (
+          <section className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-5">
+            <h2 className="text-[16px] font-semibold">{tr('Bài vừa nộp')}</h2>
+            {detailQuery.isPending && <p className="mt-3 text-[13px] text-[#AA8F9B]">{tr('Đang mở kết quả…')}</p>}
+            {detailQuery.isError && <p role="alert" className="mt-3 text-[13px] text-[#A33357]">{detailQuery.error.message}</p>}
+            {detailQuery.data && (
+              <>
+                <p className="mt-2 text-[22px] font-semibold text-[#AD3155]">{Math.round(detailQuery.data.totalScore)} {tr('điểm')}</p>
+                <ul className="mt-4 space-y-3">
+                  {(detailQuery.data.questions || []).map((question) => (
+                    <li key={question.questionId} className="rounded-2xl bg-[#FCFAFB] px-4 py-3">
+                      <p className="text-[14px] leading-6" style={{ fontFamily: '"Yu Gothic", "Segoe UI", sans-serif' }}>{question.questionText}</p>
+                      <p className={`mt-1 text-[12px] ${question.isCorrect ? 'text-[#1E5C36]' : 'text-[#A33357]'}`}>
+                        {question.isCorrect ? tr('Đúng') : tr('Sai')}
+                      </p>
+                      {question.explanation && <p className="mt-1 text-[12px] leading-5 text-[#8C7782]">{question.explanation}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {wrongQuery.data?.length > 0 && (
+              <p className="mt-4 text-[12px] text-[#8A5A10]">
+                {wrongQuery.data.length} {tr('câu trong đề này từng làm sai và đang nằm trong danh sách ôn lại.')}
+              </p>
+            )}
+          </section>
+        )}
+
         {monthly?.skills?.length > 0 ? (
           <section className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-5">
             <h2 className="text-[16px] font-semibold">{monthly.summary || tr('Năng lực theo kỹ năng')}</h2>
@@ -172,7 +216,7 @@ export default function ExamResult() {
             {locale === 'ja'
               ? `模擬試験を終えると、${tr(rangeLabel)}の進み具合が見られます。`
               : `Hoàn thành một bài thi thử để xem tiến độ trong ${rangeLabel?.toLowerCase()}.`}
-            {' '}{tr('Kết quả bài minh họa chưa được lưu vào lịch sử.')}
+            {' '}{tr('Điểm hiện khi bạn đã nộp một đề thi thử.')}
           </p>
 
           <Link
