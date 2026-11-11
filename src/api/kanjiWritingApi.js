@@ -9,8 +9,8 @@ export async function getDueKanjiForWriting(count = 10) {
     return response?.result ?? response;
 }
 
-export async function getAllKanjiForWriting(count = 100) {
-    const response = await api.get('/kanjiwritingpractice/all', { params: { count } });
+export async function getAllKanjiForWriting() {
+    const response = await api.get('/kanjiwritingpractice/all');
     return response?.result ?? response;
 }
 

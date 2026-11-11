@@ -1,8 +1,8 @@
 // src/hooks/useKanjiWritingPractice.js
 import { useCallback, useEffect, useState } from 'react';
-import { getDueKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
+import { getAllKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
 
-export function useKanjiWritingPractice(count = 10, { enabled = true } = {}) {
+export function useKanjiWritingPractice({ enabled = true } = {}) {
     const [queue, setQueue] = useState([]);
     const [index, setIndex] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -14,10 +14,7 @@ export function useKanjiWritingPractice(count = 10, { enabled = true } = {}) {
         setError(null);
         setLastResult(null);
         try {
-            // NOTE: giả định api.get() (client.js) đã tự unwrap và trả thẳng phần "data" trong
-            // ApiResponse<T> của backend - nếu client.js chỉ unwrap response axios (trả nguyên
-            // { success, message, data }), đổi dòng dưới thành: const { data } = await ...
-            const data = await getDueKanjiForWriting(count);
+            const data = await getAllKanjiForWriting();
             // Ignore empty records so a malformed item cannot crash the practice page.
             setQueue(Array.isArray(data) ? data.filter(Boolean) : []);
             setIndex(0);
@@ -26,7 +23,7 @@ export function useKanjiWritingPractice(count = 10, { enabled = true } = {}) {
         } finally {
             setLoading(false);
         }
-    }, [count]);
+    }, []);
 
     useEffect(() => {
         if (!enabled) return undefined;
