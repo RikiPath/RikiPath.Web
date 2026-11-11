@@ -200,7 +200,7 @@ export default function SpeakingPracticePage() {
                   <div role="status">
                     <p className="text-[13px] font-medium">
                       {loading
-                        ? tr("Đang kết nối…")
+                        ? tr("Đang xử lý…")
                         : isListening
                           ? tr("Đang nghe bạn nói")
                           : hasText
@@ -249,7 +249,7 @@ export default function SpeakingPracticePage() {
                   {isListening
                     ? tr("Dừng nói")
                     : loading
-                      ? tr("Đang kết nối…")
+                      ? tr("Đang xử lý…")
                       : tr("Bắt đầu nói")}
                 </button>
               </div>

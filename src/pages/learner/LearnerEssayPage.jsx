@@ -82,8 +82,9 @@ export default function LearnerEssayPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [speechBusy, setSpeechBusy] = useState(false);
 
-  const busy = Boolean(operation);
+  const busy = Boolean(operation) || speechBusy;
   const scanning = operation === 'scan' || operation === 'rescan';
   const previewSrc = file ? previewUrl : selected?.imageUrl;
   const changed = Boolean(
@@ -625,7 +626,8 @@ export default function LearnerEssayPage() {
                   <RomajiJapaneseInput
                     value={text}
                     onChange={setText}
-                    disabled={busy}
+                    disabled={Boolean(operation)}
+                    onSpeechBusyChange={setSpeechBusy}
                   />
                 )}
 
