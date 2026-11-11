@@ -22,3 +22,8 @@ export async function submitKanaWritingResult({ kanaCharacterId, totalMistakes }
   });
   return response?.result ?? response;
 }
+
+export async function getAllKanaForWriting(type) {
+  const response = await api.get('/kana-writing-practice/all', { params: { type } });
+  return response?.result ?? response;
+}

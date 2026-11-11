@@ -15,12 +15,12 @@ export default function KanjiWritingPracticePage() {
   const requestedType = searchParams.get('type');
   const isKana = requestedType === 'hiragana' || requestedType === 'katakana';
   const kanaType = requestedType === 'katakana' ? 'Katakana' : requestedType === 'hiragana' ? 'Hiragana' : null;
-  const kana = useKanaWritingPractice(kanaType, 12);
+  const kana = useKanaWritingPractice(kanaType);
   const [mistakes, setMistakes] = useState(0);
   const kanaLabel = requestedType === 'katakana' ? 'Katakana' : 'Hiragana';
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [mode, setMode] = useState('guided');
-  const practice = useKanjiWritingPractice(10, { enabled: !isKana });
+  const practice = useKanjiWritingPractice({ enabled: !isKana });
   const {
     queue, loading, error, lastResult, submitResult, selectItem, reload,
   } = practice;
@@ -55,10 +55,21 @@ export default function KanjiWritingPracticePage() {
     content = (
       <section className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="text-3xl font-bold text-[#2D282A]">{locale === 'ja' ? `${kanaLabel}の練習` : `Luyện ${kanaLabel}`}</h1>
-        <p className="mt-2 text-sm text-[#6F6669]">{tr('Viết ký tự ra giấy, rồi ghi số nét sai để xếp lịch ôn.')}</p>
+        <p className="mt-2 text-sm text-[#6F6669]">{locale === 'ja' ? `${kanaLabel}のすべての文字とローマ字` : `Toàn bộ ký tự ${kanaLabel} và cách đọc Romaji.`}</p>
         {kana.loading && <p className="mt-6 text-sm text-[#6F6669]">{tr('Đang tải chữ cần ôn…')}</p>}
         {kana.error && <p className="mt-6 text-sm text-red-600">{kana.error}</p>}
         {!kana.loading && !kana.error && !item && <p className="mt-6 text-sm text-[#6F6669]">{tr('Chưa có chữ cần ôn.')}</p>}
+        {!kana.loading && !kana.error && kana.queue.length > 0 && (
+          <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-5">
+            {kana.queue.map((character, index) => (
+              <button key={character.kanaCharacterId} type="button" onClick={() => { kana.selectItem(index); setMistakes(0); }}
+                className={`rounded-2xl border bg-white p-4 text-center transition hover:border-[#B52F55] ${kana.index === index ? 'border-[#B52F55] ring-1 ring-[#B52F55]' : 'border-[#eadfd9]'}`}>
+                <span className="block text-4xl text-[#2D282A]">{character.character}</span>
+                <span className="mt-2 block text-sm text-[#6F6669]">{character.romaji}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {item && (
           <div className="mt-6 rounded-3xl border border-[#eadfd9] bg-white p-6 text-center shadow-sm">
             <p className="text-7xl" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{item.character}</p>
@@ -104,10 +115,10 @@ export default function KanjiWritingPracticePage() {
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#C43D67]">Riki · Kanji</p>
           <h1 className="mt-2 text-3xl font-bold text-[#2D282A]">{tr('Chọn Kanji để luyện viết')}</h1>
-          <p className="mt-2 text-sm text-[#6F6669]">{tr('Danh sách ưu tiên chữ đến hạn ôn, rồi bổ sung chữ mới.')}</p>
+          <p className="mt-2 text-sm text-[#6F6669]">{tr('Tất cả Kanji thuộc cấp độ JLPT mục tiêu của bạn.')}</p>
         </div>
         {queue.length === 0 ? (
-          <div className={`${panelClass} p-8 text-center text-[#6F6669]`}>{tr('Hôm nay chưa có Kanji cần luyện.')}</div>
+          <div className={`${panelClass} p-8 text-center text-[#6F6669]`}>{tr('Chưa có Kanji cho cấp độ mục tiêu. Hãy kiểm tra cấp độ trong cài đặt tài khoản.')}</div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {queue.map((item, index) => (
