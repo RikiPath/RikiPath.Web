@@ -67,9 +67,8 @@ export default function KanjiWritingPracticePage() {
                 key={character.kanaCharacterId}
                 type="button"
                 onClick={() => setPickedId(character.kanaCharacterId)}
-                className="relative rounded-2xl border border-[#E7DAE1] bg-white px-2 py-3 text-center hover:border-[#AD3155]"
+                className="rounded-2xl border border-[#E7DAE1] bg-white px-2 py-3 text-center hover:border-[#AD3155]"
               >
-                {character.isNew ? <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#AD3155]" /> : null}
                 <span className="block text-[32px] leading-none text-[#3C2A33]" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{character.character}</span>
                 <span className="mt-1 block text-[12px] text-[#8C7782]">{character.romaji}</span>
               </button>
