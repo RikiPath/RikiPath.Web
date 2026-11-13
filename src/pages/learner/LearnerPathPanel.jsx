@@ -8,8 +8,8 @@ import {
   cancelLearningPathPreview,
   completeLearningPathDay,
   confirmLearningPathPreview,
+  getActiveLearningPath,
   generateLearningPath,
-  getLatestLearningPath,
   getLearningPathHistory,
   getStandardRoadmap,
   previewLearningPath,
@@ -32,7 +32,7 @@ export default function LearnerPathPanel() {
   });
   const pathQuery = useQuery({
     queryKey: ['learning-path'],
-    queryFn: getLatestLearningPath,
+    queryFn: getActiveLearningPath,
     enabled: signedIn,
   });
   const historyQuery = useQuery({

@@ -10,6 +10,10 @@ export function getLatestLearningPath() {
   return api.get('/LearningPath/latest').then((data) => data?.result ?? null);
 }
 
+export function getActiveLearningPath() {
+  return api.get('/LearningPath/active').then((data) => data?.result ?? null);
+}
+
 export function generateLearningPath({ targetExamDate } = {}) {
   return api.post('/LearningPath/generate', {
     ...(targetExamDate ? { targetExamDate } : {}),

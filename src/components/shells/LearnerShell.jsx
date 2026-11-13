@@ -74,7 +74,12 @@ const MENU_GROUPS = [
         to: '/vocabulary',
         label: 'Từ vựng',
         icon: 'translate',
-        alsoActive: ['/vocabulary-detail'],
+        alsoActive: ['/vocabulary-detail', '/grammar'],
+      },
+      {
+        to: '/grammar',
+        label: 'Ngữ pháp',
+        icon: 'menu_book',
       },
       {
         to: '/kanji-writing?type=kanji',
@@ -134,6 +139,7 @@ const MENU_GROUPS = [
           '/booking-schedule',
 
           '/consultation-center',
+          '/consultation-records',
           '/consultation-session',
 
           '/consultation-room',

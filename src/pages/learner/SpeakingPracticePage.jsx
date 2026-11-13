@@ -80,11 +80,7 @@ export default function SpeakingPracticePage() {
           <p className="mt-1.5 text-[13px] text-[#967F8A]">{tr('Đọc câu mẫu và xem nội dung được nhận dạng.')}</p>
         </header>
 
-        <div
-          className="grid items-start gap-5
-                     xl:grid-cols-[minmax(0,1fr)_260px]"
-        >
-          {/* Khu vực luyện nói */}
+        <div className="max-w-[760px]">
           <section
             aria-labelledby="speaking-exercise-title"
             className="min-w-0 overflow-hidden rounded-2xl
@@ -106,11 +102,6 @@ export default function SpeakingPracticePage() {
                   className="text-[19px] text-[#B67D94]"
                 />{tr('Đọc theo câu mẫu')}</h2>
 
-              <span
-                className="rounded-md bg-[#FAF0F5]
-                           px-2 py-1 text-[11px]
-                           text-[#A47186]"
-              >{tr('Luyện kỹ năng bổ trợ')}</span>
             </header>
 
             {/* Câu cần luyện */}
@@ -350,59 +341,6 @@ export default function SpeakingPracticePage() {
               </div>
             </div>
           </section>
-
-          {/* Hướng dẫn ngắn */}
-          <aside className="space-y-4">
-            <section
-              className="rounded-xl border border-[#EADFE5]
-                         bg-white p-4"
-            >
-              <h2 className="text-[14px] font-medium">{tr('Cách luyện')}</h2>
-
-              <ol className="mt-4 space-y-4">
-                {[
-                  ['1', tr("Đọc câu mẫu"), tr("Xem cách đọc nếu cần.")],
-                  ['2', tr("Nói vào micro"), tr("Đọc trọn câu với tốc độ vừa phải.")],
-                  ['3', tr("Xem lại"), tr("Đối chiếu nội dung nhận dạng với câu mẫu.")],
-                ].map(([number, title, description]) => (
-                  <li key={number} className="flex items-start gap-2.5">
-                    <span
-                      aria-hidden="true"
-                      className="flex h-6 w-6 shrink-0
-                                 items-center justify-center
-                                 rounded-full bg-[#FAEAF1]
-                                 text-[11px] text-[#AD7389]"
-                    >
-                      {number}
-                    </span>
-
-                    <div>
-                      <p className="text-[12px] font-medium">
-                        {title}
-                      </p>
-                      <p className="mt-1 text-[11px] leading-5 text-[#A08A95]">
-                        {description}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            <div
-              className="flex items-start gap-2 rounded-xl
-                         border border-[#EEDFE6]
-                         bg-[#FCF2F6] p-4"
-            >
-              <Icon
-                name="lightbulb"
-                className="mt-0.5 shrink-0 text-[18px] text-[#B77E95]"
-              />
-              <p className="text-[12px] leading-6 text-[#A0808E]">
-                {tr('Luyện từng câu ngắn trong không gian yên tĩnh để dễ theo dõi lời nói được nhận dạng.')}
-              </p>
-            </div>
-          </aside>
         </div>
       </main>
     </LearnerShell>

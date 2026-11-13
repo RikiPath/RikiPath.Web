@@ -39,6 +39,9 @@ export default function ConsultationCenter() {
               {tr('Các buổi đã đặt. Hủy trước giờ bắt đầu ít nhất 24 tiếng thì được trả lại 1 vé tư vấn.')}
             </p>
           </div>
+          <Link to="/consultation-records/" className={`inline-flex h-9 items-center rounded-lg border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focus}`}>
+            {tr('Vé và khiếu nại')}
+          </Link>
           <Link to="/booking-schedule/" className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
             {tr('Đặt lịch')}
           </Link>

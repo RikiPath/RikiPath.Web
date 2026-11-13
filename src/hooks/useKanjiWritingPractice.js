@@ -1,8 +1,8 @@
 // src/hooks/useKanjiWritingPractice.js
 import { useCallback, useEffect, useState } from 'react';
-import { getAllKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
+import { getAllKanjiForWriting, getDueKanjiForWriting, submitKanjiWritingResult } from '../api/kanjiWritingApi';
 
-export function useKanjiWritingPractice({ enabled = true } = {}) {
+export function useKanjiWritingPractice({ enabled = true, scope = 'due' } = {}) {
     const [queue, setQueue] = useState([]);
     const [index, setIndex] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -14,7 +14,7 @@ export function useKanjiWritingPractice({ enabled = true } = {}) {
         setError(null);
         setLastResult(null);
         try {
-            const data = await getAllKanjiForWriting();
+            const data = scope === 'all' ? await getAllKanjiForWriting() : await getDueKanjiForWriting(12);
             // Ignore empty records so a malformed item cannot crash the practice page.
             setQueue(Array.isArray(data) ? data.filter(Boolean) : []);
             setIndex(0);
@@ -23,7 +23,7 @@ export function useKanjiWritingPractice({ enabled = true } = {}) {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [scope]);
 
     useEffect(() => {
         if (!enabled) return undefined;

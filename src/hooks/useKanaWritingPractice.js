@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getAllKanaForWriting, submitKanaWritingResult } from '../api/kanaWritingApi.js';
+import { getAllKanaForWriting, getDueKanaForWriting, submitKanaWritingResult } from '../api/kanaWritingApi.js';
 
-export function useKanaWritingPractice(type) {
+export function useKanaWritingPractice(type, scope = 'due') {
   const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(Boolean(type));
@@ -14,7 +14,9 @@ export function useKanaWritingPractice(type) {
     setError(null);
     setLastResult(null);
     try {
-      const data = await getAllKanaForWriting(type);
+      const data = scope === 'all'
+        ? await getAllKanaForWriting(type)
+        : await getDueKanaForWriting({ count: 20, type });
       setQueue(Array.isArray(data) ? data.filter(Boolean) : []);
       setIndex(0);
     } catch (err) {
@@ -22,7 +24,7 @@ export function useKanaWritingPractice(type) {
     } finally {
       setLoading(false);
     }
-  }, [type]);
+  }, [scope, type]);
 
   useEffect(() => {
     if (type !== 'Hiragana' && type !== 'Katakana') return undefined;

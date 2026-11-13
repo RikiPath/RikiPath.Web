@@ -7,20 +7,39 @@ import HanziWriter from 'hanzi-writer';
  * sau đó luôn chuyển sang chế độ quiz cho learner tự vẽ - HanziWriter tự so khớp từng nét
  * (đúng hình + đúng thứ tự + đúng hướng) với dữ liệu chuẩn, không cần gọi API nào lúc vẽ.
  */
-export default function KanjiWritingCanvas({ character, isNew, mode = 'guided', onComplete, charDataLoader }) {
+export default function KanjiWritingCanvas({
+    character,
+    isNew,
+    mode = 'guided',
+    onComplete,
+    onCorrectStroke,
+    charDataLoader,
+    size = 300,
+    className = '',
+    showCharacter = true,
+    guideFirst = false,
+    demo = false,
+}) {
     const targetRef = useRef(null);
+    const onStrokeRef = useRef(onCorrectStroke);
+    onStrokeRef.current = onCorrectStroke;
 
     useEffect(() => {
         if (!targetRef.current || !character) return undefined;
         const target = targetRef.current;
 
         const writer = HanziWriter.create(target, character, {
-            width: 300,
-            height: 300,
-            padding: 20,
+            width: size,
+            height: size,
+            padding: 24,
+            showCharacter,
             showOutline: mode === 'guided',
-            strokeAnimationSpeed: 1,
-            delayBetweenStrokes: 300,
+            strokeAnimationSpeed: 0.8,
+            delayBetweenStrokes: 280,
+            strokeColor: '#AD3155',
+            outlineColor: '#C9A3B2',
+            highlightColor: '#AD3155',
+            drawingColor: '#3A2C33',
             ...(charDataLoader ? { charDataLoader } : {}),
         });
 
@@ -30,13 +49,18 @@ export default function KanjiWritingCanvas({ character, isNew, mode = 'guided', 
             if (cancelled) return;
             writer.quiz({
                 showHintAfterMisses: 1,
+                onCorrectStroke: (stroke) => {
+                    if (!cancelled) onStrokeRef.current?.(stroke.strokeNum);
+                },
                 onComplete: (summary) => {
                     if (!cancelled) onComplete?.(summary.totalMistakes);
                 },
             });
         };
 
-        if (mode === 'guided' && isNew) {
+        if (demo) {
+            writer.loopCharacterAnimation();
+        } else if (guideFirst || (mode === 'guided' && isNew)) {
             writer.animateCharacter({ onComplete: startQuiz });
         } else {
             startQuiz();
@@ -47,13 +71,13 @@ export default function KanjiWritingCanvas({ character, isNew, mode = 'guided', 
             target.innerHTML = '';
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [character, isNew, mode, charDataLoader]);
+    }, [character, isNew, mode, charDataLoader, size, showCharacter, guideFirst, demo]);
 
     // touch-none: chặn trình duyệt cuộn trang khi learner đang vẽ bằng ngón tay trên mobile.
     return (
         <div
             ref={targetRef}
-            className="touch-none overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+            className={`touch-none overflow-hidden rounded-[28px] border border-[#E7DAE1] bg-white ${className}`}
         />
     );
 }

@@ -14,6 +14,14 @@ export function searchKanji(keyword) {
   return api.post('/SharedBank/kanji/search', { keyword, page: 1, pageSize: 12 }).then(result);
 }
 
+export function searchGrammar(keyword) {
+  return api.post('/SharedBank/grammar/search', { keyword, page: 1, pageSize: 12 }).then(result);
+}
+
+export function getGrammar(id) {
+  return api.get(`/SharedBank/grammar/${id}`).then(result);
+}
+
 export function getKanji(id) {
   return api.get(`/SharedBank/kanji/${id}`).then(result);
 }

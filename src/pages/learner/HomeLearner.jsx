@@ -8,7 +8,7 @@ const ROUTES = {
   exam: '/exam-n3',
   mentor: '/mentor',
   vocabulary: '/vocabulary',
-  grammar: '/lessons',
+  grammar: '/grammar',
   notebook: '/vocabulary',
   review: '/daily-srs',
   results: '/exam-result',

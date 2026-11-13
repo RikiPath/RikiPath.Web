@@ -29,6 +29,8 @@ import {
   ExamResult,
   LearnerSettings,
   KanjiWritingPracticePage,
+  GrammarBank,
+  LearnerRecords,
   LearnerEssayPage,
   RikiSkillPlaceholder,
   SpeakingPracticePage,
@@ -191,6 +193,8 @@ export default function App() {
             <Route path={withSlash('/sentence-studio')} element={<ProtectedRoute allowedRoles={['Learner']}><SentenceStudio /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-notebook')} element={(<KanjiNotebook />)} />
             <Route path={withSlash('/vocabulary')} element={(<VocabularyNotebook />)} />
+            <Route path={withSlash('/grammar')} element={(<GrammarBank />)} />
+            <Route path={withSlash('/consultation-records')} element={<ProtectedRoute allowedRoles={['Learner']}><LearnerRecords /></ProtectedRoute>} />
             <Route path={withSlash('/daily-srs')} element={(<DailySRS />)} />
             <Route path={withSlash('/ai-counselor')} element={(<AICounselor />)} />
             <Route path={withSlash('/ai-scoring')} element={<ProtectedRoute allowedRoles={['Learner']}><AIScoringResult /></ProtectedRoute>} />

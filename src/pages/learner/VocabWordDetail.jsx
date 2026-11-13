@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
+import { getSession } from '../../auth/session.js';
+import { bookmarkVocabulary, createNotebookList, getNotebookLists } from '../../api/notebookApi.js';
 import { getVocabulary, searchVocabulary } from '../../api/sharedBankApi.js';
 
 const focus =
@@ -11,10 +12,25 @@ const focus =
 
 export default function VocabWordDetail() {
   const { tr } = useLocale();
+  const client = useQueryClient();
+  const signedIn = Boolean(getSession()?.accessToken);
   const [params, setParams] = useSearchParams();
   const wordId = Number(params.get('id')) || 0;
   const [keyword, setKeyword] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const lists = await getNotebookLists();
+      const learnerNoteId = lists[0]?.id || (await createNotebookList({ name: 'Từ vựng' }))?.id;
+      return bookmarkVocabulary({ learnerNoteId, vocabularyId: wordId });
+    },
+    onSuccess: () => {
+      setNotice(tr('Đã lưu vào sổ.'));
+      client.invalidateQueries({ queryKey: ['notebook-lists'] });
+    },
+  });
 
   const detailQuery = useQuery({
     queryKey: ['vocabulary', wordId],
@@ -51,10 +67,21 @@ export default function VocabWordDetail() {
           <button type="submit" className={`h-11 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white ${focus}`}>{tr('Tìm')}</button>
         </form>
 
-        {detailQuery.isError && <p role="alert" className="mt-4 text-[13px] text-[#A33357]">{detailQuery.error.message}</p>}
+        {(detailQuery.isError || save.error) && <p role="alert" className="mt-4 text-[13px] text-[#A33357]">{(detailQuery.error || save.error).message}</p>}
+        {notice && <p className="mt-4 text-[13px] text-[#1E5C36]">{notice}</p>}
         {word && (
           <article className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-6 py-6">
-            <p className="text-[13px] text-[#AD3155]">{word.reading}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[13px] text-[#AD3155]">{word.reading}</p>
+              <button
+                type="button"
+                disabled={!signedIn || save.isPending}
+                onClick={() => { setNotice(''); save.mutate(); }}
+                className={`h-8 rounded-full bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-40 ${focus}`}
+              >
+                {tr('Lưu vào sổ')}
+              </button>
+            </div>
             <h1 className="mt-1 text-[42px] font-semibold" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{word.word}</h1>
             <p className="mt-2 text-[16px]">{word.meaning}</p>
             {word.jlptLevelName && <p className="mt-2 text-[12px] text-[#8C7782]">{word.jlptLevelName}</p>}

@@ -93,16 +93,22 @@ export function useNotificationSignalR() {
             connection.invoke('RequestSync').catch(() => {});
         });
 
-        connection
-            .start()
-            .then(() => connection.invoke('RequestSync'))
-            .catch(() => handleRefresh());
+        let disposed = false;
+        const started = connection.start().then(() => {
+            if (disposed) return undefined;
+            return connection.invoke('RequestSync').catch(() => {});
+        }).catch(() => {
+            if (!disposed) handleRefresh();
+        });
 
-        const refreshTimer = window.setInterval(handleRefresh, 60000);
+        const refreshTimer = window.setInterval(() => {
+            if (!disposed) handleRefresh();
+        }, 60000);
 
         return () => {
+            disposed = true;
             window.clearInterval(refreshTimer);
-            connection.stop();
+            started.finally(() => connection.stop());
         };
     }, []);
 }

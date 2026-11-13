@@ -6,8 +6,11 @@ import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import {
   getLessonExercises,
+  getQuizExercises,
   startLessonExercise,
+  startQuizExercise,
   submitLessonExercise,
+  submitQuizExercise,
 } from '../../api/practiceExerciseApi.js';
 
 const focus =
@@ -18,6 +21,7 @@ export default function LessonPractice() {
   const [params] = useSearchParams();
   const lessonId = Number(params.get('lessonId')) || 0;
   const [attempt, setAttempt] = useState(null);
+  const [source, setSource] = useState('lesson');
   const [picks, setPicks] = useState({});
   const [texts, setTexts] = useState({});
   const [result, setResult] = useState(null);
@@ -27,12 +31,28 @@ export default function LessonPractice() {
     queryFn: () => getLessonExercises(lessonId),
     enabled: lessonId > 0,
   });
+  const quizQuery = useQuery({
+    queryKey: ['lesson-quizzes', lessonId],
+    queryFn: () => getQuizExercises(lessonId),
+    enabled: lessonId > 0 && listQuery.isSuccess && !(Array.isArray(listQuery.data) ? listQuery.data : []).length,
+  });
 
   const start = useMutation({
-    mutationFn: startLessonExercise,
-    onSuccess: (data) => {
+    mutationFn: ({ id, kind }) => (kind === 'quiz' ? startQuizExercise(id) : startLessonExercise(id)),
+    onSuccess: (data, variables) => {
+      const questions = (data.questions || []).map((question) => ({
+        ...question,
+        id: question.id ?? question.questionId,
+        questionText: question.questionText,
+        options: (question.options || []).map((option) => ({
+          ...option,
+          id: option.id ?? option.optionId,
+          optionText: option.optionText,
+        })),
+      }));
       const saved = Object.fromEntries((data.savedAnswers || []).map((item) => [item.questionId, item]));
-      setAttempt(data);
+      setSource(variables.kind);
+      setAttempt({ ...data, title: data.title || data.exerciseTitle, questions });
       setResult(null);
       setPicks(Object.fromEntries(Object.entries(saved).filter(([, item]) => item.selectedOptionId).map(([id, item]) => [id, item.selectedOptionId])));
       setTexts(Object.fromEntries(Object.entries(saved).filter(([, item]) => item.textAnswer).map(([id, item]) => [id, item.textAnswer])));
@@ -40,16 +60,23 @@ export default function LessonPractice() {
   });
 
   const submit = useMutation({
-    mutationFn: () => submitLessonExercise(attempt.attemptId, (attempt.questions || []).map((question) => ({
-      questionId: question.id,
-      selectedOptionId: picks[question.id] ?? null,
-      ...(texts[question.id] ? { textAnswer: texts[question.id] } : {}),
-    }))),
+    mutationFn: () => {
+      const answers = (attempt.questions || []).map((question) => ({
+        questionId: question.id,
+        selectedOptionId: picks[question.id] ?? null,
+        ...(texts[question.id] ? { textAnswer: texts[question.id] } : {}),
+      }));
+      return source === 'quiz'
+        ? submitQuizExercise(attempt.attemptId, answers)
+        : submitLessonExercise(attempt.attemptId, answers);
+    },
     onSuccess: setResult,
   });
 
-  const exercises = Array.isArray(listQuery.data) ? listQuery.data : [];
-  const error = listQuery.error || start.error || submit.error;
+  const primary = Array.isArray(listQuery.data) ? listQuery.data : [];
+  const quizzes = Array.isArray(quizQuery.data) ? quizQuery.data : [];
+  const exercises = primary.length ? primary.map((item) => ({ ...item, kind: 'lesson' })) : quizzes.map((item) => ({ ...item, kind: 'quiz' }));
+  const error = listQuery.error || quizQuery.error || start.error || submit.error;
 
   return (
     <LearnerShell pathname="/lesson-practice" breadcrumb={tr('Bài tập')}>
@@ -66,7 +93,7 @@ export default function LessonPractice() {
         {!lessonId && <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Mở bài tập từ một bài học.')}</p>}
         {listQuery.isPending && lessonId > 0 && <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Đang tải bài tập…')}</p>}
 
-        {!attempt && exercises.length === 0 && listQuery.isSuccess && (
+        {!attempt && exercises.length === 0 && listQuery.isSuccess && !quizQuery.isLoading && (
           <p className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-8 text-[14px] text-[#8C7782]">{tr('Bài học này chưa có bài tập.')}</p>
         )}
 
@@ -87,7 +114,7 @@ export default function LessonPractice() {
                   <button
                     type="button"
                     disabled={start.isPending}
-                    onClick={() => start.mutate(exercise.id)}
+                    onClick={() => start.mutate({ id: exercise.id, kind: exercise.kind })}
                     className={`h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50 ${focus}`}
                   >
                     {exercise.latestAttempt && !exercise.latestAttempt.isCompleted ? tr('Làm tiếp') : tr('Bắt đầu')}
@@ -163,7 +190,7 @@ export default function LessonPractice() {
             </ul>
             <button
               type="button"
-              onClick={() => { setAttempt(null); setResult(null); listQuery.refetch(); }}
+              onClick={() => { setAttempt(null); setResult(null); listQuery.refetch(); quizQuery.refetch(); }}
               className={`mt-4 h-9 rounded-lg border border-[#E7DAE1] px-3 text-[12px] ${focus}`}
             >
               {tr('Chọn bài khác')}

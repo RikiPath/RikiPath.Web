@@ -14,6 +14,8 @@ export { default as VocabWordDetail } from './VocabWordDetail.jsx';
 export { default as ExamResult } from './ExamResult.jsx';
 export { default as LearnerSettings } from './LearnerSettings.jsx';
 export { default as KanjiWritingPracticePage } from './KanjiWritingPracticePage.jsx';
+export { default as GrammarBank } from './GrammarBank.jsx';
+export { default as LearnerRecords } from './LearnerRecords.jsx';
 export { default as LearnerEssayPage } from './LearnerEssayPage.jsx';
 export { default as RikiSkillPlaceholder } from './RikiSkillPlaceholder.jsx';
 export { default as SpeakingPracticePage } from './SpeakingPracticePage.jsx';

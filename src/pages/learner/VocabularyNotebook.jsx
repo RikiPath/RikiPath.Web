@@ -7,6 +7,7 @@ import {
   addNotebookEntry,
   createNotebookList,
   deleteNotebookList,
+  updateNotebookList,
   getNotebookEntries,
   getNotebookLists,
   removeNotebookEntry,
@@ -67,6 +68,7 @@ export default function VocabularyNotebook() {
   const [type, setType] = useState('all');
   const [adding, setAdding] = useState(false);
   const [creatingList, setCreatingList] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [listDraft, setListDraft] = useState({ name: '', description: '' });
   const [draft, setDraft] = useState({ word: '', reading: '', meaning: '', note: '' });
 
@@ -153,6 +155,27 @@ export default function VocabularyNotebook() {
       setListDraft({ name: '', description: '' });
       setCreatingList(false);
       await loadLists(created?.id ?? null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function renameList(event) {
+    event.preventDefault();
+    const name = listDraft.name.trim();
+    if (!listId || !name || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await updateNotebookList(listId, {
+        name,
+        description: listDraft.description.trim() || null,
+      });
+      setRenaming(false);
+      setListDraft({ name: '', description: '' });
+      await loadLists(listId);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -296,6 +319,18 @@ export default function VocabularyNotebook() {
               </button>
               <button
                 type="button"
+                disabled={!listId}
+                onClick={() => {
+                  setCreatingList(false);
+                  setRenaming((open) => !open);
+                  setListDraft({ name: selectedList?.name || '', description: selectedList?.description || '' });
+                }}
+                className="inline-flex h-9 items-center rounded-full border border-[#E7DAE1] px-4 text-[13px] text-[#8C7782] hover:text-[#AD3155] disabled:opacity-40"
+              >
+                {tr('Đổi tên')}
+              </button>
+              <button
+                type="button"
                 disabled={!listId || saving}
                 onClick={removeList}
                 className="inline-flex h-9 items-center rounded-full border border-[#E7DAE1] px-4 text-[13px] text-[#8C7782] hover:text-[#AD3155] disabled:opacity-40"
@@ -334,6 +369,13 @@ export default function VocabularyNotebook() {
             </div>
           ) : null}
 
+          {renaming && listId ? (
+            <form onSubmit={renameList} className="mt-4 grid gap-2 rounded-xl bg-[#FFF8FA] p-3 sm:grid-cols-[1fr_1fr_auto]">
+              <input required value={listDraft.name} onChange={(event) => setListDraft({ ...listDraft, name: event.target.value })} placeholder={tr('Tên sổ')} aria-label={tr('Tên sổ')} className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]" />
+              <input value={listDraft.description} onChange={(event) => setListDraft({ ...listDraft, description: event.target.value })} placeholder={tr('Mô tả')} aria-label={tr('Mô tả')} className="h-9 rounded-lg border border-[#EADFE5] bg-white px-3 text-[13px] outline-none focus:border-[#AD3155]" />
+              <button type="submit" disabled={saving} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white disabled:opacity-50">{saving ? tr('Đang lưu…') : tr('Lưu tên')}</button>
+            </form>
+          ) : null}
           {creatingList ? (
             <form onSubmit={createList} className="mt-4 grid gap-2 rounded-xl bg-[#FFF8FA] p-3 sm:grid-cols-[1fr_1fr_auto]">
               <input

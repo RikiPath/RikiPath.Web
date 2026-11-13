@@ -58,7 +58,7 @@ export const getMentorPurchases = async () => list(await api.get('/mentor-meetin
 
 // Số dư vé tư vấn và lịch sử giao dịch.
 export const getCreditBalance = async () => (await api.get('/learner/credits/balance')).result;
-export const getCreditHistory = async () => (await api.get('/learner/credits/history')).result || [];
+export const getCreditHistory = async (params = { page: 1, pageSize: 20 }) => (await api.get('/learner/credits/history', { params })).result || [];
 
 // Đặt lịch tư vấn bằng vé và giải phóng giữ chỗ.
 export const bookMeetingWithCredit = async body => (await api.post('/learner/mentor-bookings', body)).result;

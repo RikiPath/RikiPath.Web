@@ -83,7 +83,8 @@ export function useSpeechToText({ language = 'ja-JP', onTranscript } = {}) {
     active.current = session; setLoading(true); setError(null);
     try {
       if (language !== 'ja-JP') throw new Error('Phiên này chỉ hỗ trợ nhận dạng tiếng Nhật.');
-      if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error('Micro yêu cầu HTTPS hoặc localhost và trình duyệt hỗ trợ AudioWorklet.');
+      if (!window.isSecureContext) throw new Error('Micro bị chặn vì trang đang mở bằng địa chỉ mạng. Trên máy này hãy dùng http://localhost:5173/speech/.');
+      if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error('Trình duyệt này không thu được âm thanh cho bài luyện nói.');
       session.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
       if (generation.current !== current || active.current !== session) { close(session); return; }
       const config = await createSpeechStreamingSession();

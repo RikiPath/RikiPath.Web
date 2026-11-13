@@ -15,6 +15,16 @@ export async function createNotebookList(payload) {
   return resultOf(data);
 }
 
+export async function updateNotebookList(listId, payload) {
+  const data = await api.put(`/Notebook/lists/${listId}`, payload);
+  return resultOf(data);
+}
+
+export async function bookmarkVocabulary({ learnerNoteId, vocabularyId }) {
+  const data = await api.post('/Notebook/bookmark/vocabulary', { learnerNoteId, vocabularyId });
+  return resultOf(data);
+}
+
 export async function getNotebookEntries(listId) {
   const data = await api.get(`/Notebook/lists/${listId}/entries`);
   const result = resultOf(data);
