@@ -14,6 +14,15 @@ export async function getAllKanjiForWriting() {
     return response?.result ?? response;
 }
 
+export async function recognizeDrawnKanji(image) {
+    const body = new FormData();
+    body.append('image', image, 'kanji.png');
+    const response = await api.post('/kanjiwritingpractice/recognize', body, {
+        transformRequest: [(payload, headers) => { delete headers['Content-Type']; return payload; }],
+    });
+    return response?.result ?? response;
+}
+
 /**
  * 2. POST /api/kanjiwritingpractice/submit (Ghi nhận kết quả 1 lượt luyện viết)
  * @param {Object} data - { kanjiId, totalMistakes, score, correctStrokeCount, totalStrokeCount, practiceMode }

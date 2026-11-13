@@ -31,7 +31,7 @@ export default function KanjiWritingCanvas({ character, isNew, mode = 'guided', 
             writer.quiz({
                 showHintAfterMisses: 1,
                 onComplete: (summary) => {
-                    if (!cancelled) onComplete(summary.totalMistakes);
+                    if (!cancelled) onComplete?.(summary.totalMistakes);
                 },
             });
         };
