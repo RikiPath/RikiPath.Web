@@ -1,4 +1,6 @@
 import MentorPayments from './pages/consultation/MentorPayments.jsx';
+import StudyCoursesPage from './pages/StudyCoursesPage.jsx';
+import AdminStudyCatalog from './pages/admin/AdminStudyCatalog.jsx';
 import { useContext, useEffect, useRef } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext, AuthProvider, useAuth } from './auth/AuthContext.jsx';
@@ -260,6 +262,10 @@ export default function App() {
             <Route path={withSlash('/admin/mentor-compensation')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/dashboard" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/dashboard')} element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/study-courses')} element={<ProtectedRoute requireAdmin><StudyCoursesPage role="Admin" /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/study-catalog')} element={<ProtectedRoute requireAdmin><AdminStudyCatalog /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-study-courses')} element={<ProtectedRoute allowedRoles={['Mentor']}><StudyCoursesPage role="Mentor" /></ProtectedRoute>} />
+            <Route path={withSlash('/my-courses')} element={<ProtectedRoute allowedRoles={['Learner']}><StudyCoursesPage /></ProtectedRoute>} />
             <Route path={withSlash('/admin/certificate-sections')} element={<ProtectedRoute requireAdmin><AdminCertificateSections /></ProtectedRoute>} />
             <Route path={withSlash('/admin/slot-review')} element={<ProtectedRoute requireAdmin><AdminSlotReview /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-cases')} element={<ProtectedRoute requireAdmin><AdminMentorCases /></ProtectedRoute>} />
