@@ -20,3 +20,13 @@ export function localTime(iso) {
   if (!iso) return '';
   return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+
+// Older PostgreSQL timestamps represent UTC but arrive without a timezone suffix.
+export function backendUtcDate(value) {
+  if (value instanceof Date) return value;
+  const text = String(value || '');
+  return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(text) || text.length === 10 ? text : text + 'Z');
+}
+export function vietnamInputValue(value) {
+  return backendUtcDate(value).toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).replace(' ', 'T').slice(0, 16);
+}
