@@ -126,15 +126,15 @@ const MENU_GROUPS = [
     icon: 'forum',
     items: [
       { to: '/payments', label: 'Thanh toán', icon: 'payments', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
-      { to: '/my-courses', label: 'Khóa học 1–1', icon: 'school' },
+      { to: '/my-courses', label: 'Gói học & lớp', icon: 'school' },
       {
         to: '/ai-counselor',
         label: 'Trợ lý Haru',
         icon: 'psychology',
       },
       {
-        to: '/mentor',
-        label: 'Tư vấn 1-1',
+        to: '/consultation-center',
+        label: 'Lịch tư vấn trước đây',
         icon: 'support_agent',
         alsoActive: [
           '/booking-schedule',

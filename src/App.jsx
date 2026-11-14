@@ -46,7 +46,6 @@ import {
 
 // —— Tư vấn (Mentor) ——
 import {
-  Consultation,
   ConsultationCenter,
   ConsultationQueue,
   BookingSchedule,
@@ -60,7 +59,6 @@ import {
   ConsultationRoom,
   MentorAvailability,
   MentorProfile,
-  MentorShiftSchedule,
   MentorPublicProfile,
   MentorDisputes,
   MentorCompensation,
@@ -208,7 +206,7 @@ export default function App() {
 
             {/* ========== MENTOR ========== */}
             <Route path={withSlash('/mentor-chat')} element={<ProtectedRoute allowedRoles={['Learner', 'Mentor']}><MentorPrivateChat /></ProtectedRoute>} />
-            <Route path={withSlash('/mentor')} element={<Consultation />} />
+            <Route path={withSlash('/mentor')} element={<ProtectedRoute allowedRoles={['Learner']}><StudyCoursesPage /></ProtectedRoute>} />
             <Route path={withSlash('/consultation')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-hub')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-center')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationCenter /></ProtectedRoute>} />
@@ -238,7 +236,7 @@ export default function App() {
             <Route path={withSlash('/mentor-compensation')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorCompensation /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-availability')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAvailability /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-profile')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorProfile /></ProtectedRoute>} />
-            <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><MentorShiftSchedule /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><Navigate to={withSlash('/mentor-availability')} replace /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-disputes')} element={<ProtectedRoute allowedRoles={['Mentor', 'Admin']}><MentorDisputes /></ProtectedRoute>} />
 
             {/* ========== CMS STUDIO (Tác giả nội dung & Admin) ========== */}
@@ -258,7 +256,7 @@ export default function App() {
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
             <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-verifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><Navigate to={withSlash('/admin/study-courses')} replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-compensation')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/dashboard" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/dashboard')} element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
