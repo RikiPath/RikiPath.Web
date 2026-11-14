@@ -1,5 +1,14 @@
 # React + Vite
 
+## Backend API configuration
+
+For local development, `/api` and `/hubs` are proxied to `VITE_BACKEND_TARGET`
+(default `http://localhost:5265`). For Vercel or another static deployment, set
+`VITE_API_BASE` to the public Backend URL ending in `/api` **before building**;
+SignalR hubs use the same origin unless their own `VITE_*_HUB` override is set.
+See `.env.example` for non-secret placeholders. No live tunnel URL is hard-coded.
+All `VITE_*` values are public in the browser bundle; do not put credentials in them.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
