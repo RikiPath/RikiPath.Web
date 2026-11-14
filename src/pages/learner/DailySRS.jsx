@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import { getDailyReviewQueue, submitReviewResult } from '../../api/reviews.js';
+import { checkTypedReading, getAcceptedReadings } from '../../utils/srsTypedAnswer.js';
 
 function getContentTypeLabel(contentType) {
   const value = String(contentType ?? '').toLowerCase();
@@ -23,6 +24,10 @@ export default function DailySRS() {
   const { pathname } = useLocation();
   const { locale, tr } = useLocale();
   const [queue, setQueue] = useState([]);
+  const [studyMode, setStudyMode] = useState('flip');
+  const [typedAnswer, setTypedAnswer] = useState('');
+  const [typedResult, setTypedResult] = useState(null);
+  const submitting = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -46,14 +51,18 @@ export default function DailySRS() {
   }, [tr]);
 
   useEffect(() => {
-    void loadQueue();
+    const timer = setTimeout(() => { void loadQueue(); }, 0);
+    return () => clearTimeout(timer);
   }, [loadQueue]);
 
   const currentCard = sessionCards[sessionIndex] ?? null;
+  const typingCurrentCard = studyMode === 'type' && getAcceptedReadings(currentCard).length > 0;
   const isSessionComplete = sessionStarted && sessionIndex >= sessionCards.length;
 
   function startSession() {
     if (queue.length === 0) return;
+    setTypedAnswer('');
+    setTypedResult(null);
     setSessionCards([...queue]);
     setSessionIndex(0);
     setSessionStats({ correct: 0, incorrect: 0, attempts: 0 });
@@ -63,7 +72,10 @@ export default function DailySRS() {
   }
 
   async function submitAnswer(quality) {
-    if (!currentCard || !revealed || isSubmitting) return;
+    if (!currentCard || !revealed || submitting.current) return;
+    if (typingCurrentCard && !typedResult) return;
+    submitting.current = true;
+    if (typingCurrentCard) quality = typedResult.correct ? 4 : 1;
 
     setIsSubmitting(true);
     setSubmitError('');
@@ -82,14 +94,27 @@ export default function DailySRS() {
       }));
       setSessionIndex((index) => index + 1);
       setRevealed(false);
+      setTypedAnswer('');
+      setTypedResult(null);
     } catch (error) {
       setSubmitError(error.message || tr('Không lưu được kết quả ôn tập.'));
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   }
 
+  function checkAnswer(event) {
+    event.preventDefault();
+    if (!currentCard || !typingCurrentCard || revealed || !typedAnswer.trim()) return;
+    setTypedResult(checkTypedReading(currentCard, typedAnswer));
+    setRevealed(true);
+  }
+
   async function returnToQueue() {
+    if (submitting.current) return;
+    setTypedAnswer('');
+    setTypedResult(null);
     setSessionStarted(false);
     setSessionCards([]);
     setSessionIndex(0);
@@ -109,7 +134,7 @@ export default function DailySRS() {
               </div>
               <h1 className="mt-1 text-3xl font-bold tracking-tight md:text-4xl">{tr('Ôn tập SRS')}</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-on-surface-variant md:text-base">
-                {tr('Ôn các thẻ đã đến hạn. Xem mặt trước, tự nhớ đáp án rồi lật thẻ để kiểm tra.')}
+                {studyMode === 'type' ? 'Ôn các thẻ đã đến hạn bằng cách nhập cách đọc, kiểm tra rồi tiếp tục.' : tr('Ôn các thẻ đã đến hạn. Xem mặt trước, tự nhớ đáp án rồi lật thẻ để kiểm tra.')}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -131,6 +156,16 @@ export default function DailySRS() {
               )}
             </div>
           </header>
+
+          {!sessionStarted && <section className="rounded-2xl bg-surface-container-lowest p-5 shadow-sm" aria-label="Chọn cách học SRS">
+            <h2 className="text-sm font-semibold">Chọn cách học</h2>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button type="button" onClick={() => setStudyMode('flip')} aria-pressed={studyMode === 'flip'} className={`rounded-xl border px-5 py-3 text-sm font-semibold ${studyMode === 'flip' ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant text-on-surface'}`}>Lật thẻ</button>
+              <button type="button" onClick={() => setStudyMode('type')} aria-pressed={studyMode === 'type'} className={`rounded-xl border px-5 py-3 text-sm font-semibold ${studyMode === 'type' ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant text-on-surface'}`}>Gõ đáp án</button>
+            </div>
+            <p className="mt-3 text-sm text-on-surface-variant">{studyMode === 'type' ? 'Gõ cách đọc bằng Kana hoặc Romaji. Thẻ thiếu cách đọc và thẻ ngữ pháp sẽ dùng lật thẻ, tự đánh giá.' : 'Tự nhớ đáp án rồi lật thẻ và đánh giá mức ghi nhớ.'}</p>
+            <p className="mt-1 text-xs text-on-surface-variant">Hai cách học dùng chung thẻ và lịch ôn SRS.</p>
+          </section>}
 
           {isLoading && !sessionStarted ? (
             <section className="rounded-2xl bg-surface-container-lowest p-10 text-center shadow-sm">
@@ -168,6 +203,7 @@ export default function DailySRS() {
                     <button
                       type="button"
                       onClick={returnToQueue}
+                      disabled={isSubmitting}
                       className="rounded-lg px-3 py-2 text-sm font-medium text-on-surface-variant transition hover:bg-surface-container"
                     >
                       {tr('Kết thúc phiên')}
@@ -194,11 +230,28 @@ export default function DailySRS() {
                         {currentCard?.note && <p className="mt-3 text-sm text-on-surface-variant">{tr('Ghi chú:')} {currentCard.note}</p>}
                       </div>
                     ) : (
-                      <p className="mt-5 text-sm text-on-surface-variant">{tr('Hãy tự nhớ nghĩa trước khi lật thẻ.')}</p>
+                      <p className="mt-5 text-sm text-on-surface-variant">{typingCurrentCard ? 'Nhập cách đọc của thẻ bằng Kana hoặc Romaji.' : tr('Hãy tự nhớ nghĩa trước khi lật thẻ.')}</p>
                     )}
                   </div>
 
-                  {!revealed ? (
+                  {typingCurrentCard ? (
+                    !revealed ? <form onSubmit={checkAnswer} className="mx-auto max-w-xl">
+                      <label htmlFor="srs-typed-answer" className="text-sm font-semibold">Cách đọc của bạn</label>
+                      <input id="srs-typed-answer" value={typedAnswer} onChange={event => setTypedAnswer(event.target.value)}
+                        onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }}
+                        autoComplete="off" autoCapitalize="none" spellCheck={false}
+                        placeholder="Ví dụ: みず hoặc mizu" maxLength={200}
+                        className="mt-2 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-lg outline-none focus:border-primary" />
+                      <button type="submit" disabled={!typedAnswer.trim()} className="mt-4 w-full rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary disabled:opacity-40">Kiểm tra</button>
+                    </form> : <div className="mx-auto max-w-xl">
+                      <div role="status" className={`rounded-xl border p-4 ${typedResult.correct ? 'border-tertiary/30 bg-tertiary/10 text-tertiary' : 'border-error/30 bg-error-container/40 text-error'}`}>
+                        <p className="font-semibold">{typedResult.correct ? 'Đúng rồi!' : 'Chưa đúng. Thẻ sẽ được ôn lại cuối phiên.'}</p>
+                        <p className="mt-1 text-sm">Bạn đã nhập: {typedAnswer}</p>
+                        <p className="mt-1 text-sm">Cách đọc: {currentCard.reading}</p>
+                      </div>
+                      <button type="button" disabled={isSubmitting} onClick={() => submitAnswer(typedResult.correct ? 4 : 1)} className="mt-4 w-full rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary disabled:opacity-40">{isSubmitting ? 'Đang lưu…' : 'Tiếp tục'}</button>
+                    </div>
+                  ) : !revealed ? (
                     <button
                       type="button"
                       onClick={() => setRevealed(true)}
@@ -236,7 +289,7 @@ export default function DailySRS() {
                     </p>
                   )}
                   <p className="mt-5 text-center text-xs leading-5 text-on-surface-variant">
-                    {tr('Thẻ chưa nhớ sẽ được xếp lại sau các thẻ còn lại trong phiên. Lịch ôn tiếp theo vẫn được cập nhật theo SRS.')}
+                    {studyMode === 'type' && !typingCurrentCard ? 'Thẻ này chưa có cách đọc phù hợp để chấm tự động. Hãy lật thẻ và tự đánh giá.' : tr('Thẻ chưa nhớ sẽ được xếp lại sau các thẻ còn lại trong phiên. Lịch ôn tiếp theo vẫn được cập nhật theo SRS.')}
                   </p>
                 </>
               )}
@@ -270,7 +323,7 @@ export default function DailySRS() {
                       ) : tr('Bạn không có thẻ nào đến hạn hôm nay.')}
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-on-surface-variant">
-                      {tr('Phiên ôn hiển thị từng thẻ, cho xem đáp án rồi ghi nhận bạn đã nhớ hay cần ôn lại.')}
+                      {studyMode === 'type' ? 'Nhập cách đọc bằng Kana hoặc Romaji, xem kết quả rồi bấm Tiếp tục để lưu lịch ôn.' : tr('Phiên ôn hiển thị từng thẻ, cho xem đáp án rồi ghi nhận bạn đã nhớ hay cần ôn lại.')}
                     </p>
                     <div className="mt-6 flex flex-wrap gap-3">
                       <div className="rounded-xl bg-surface-container-low px-4 py-3">
@@ -344,10 +397,10 @@ export default function DailySRS() {
                     <h3 className="text-lg font-bold">{tr('Cách phiên ôn hoạt động')}</h3>
                   </div>
                   <ol className="mt-5 space-y-4 text-sm leading-6 text-on-surface-variant">
-                    <li className="flex gap-3"><span className="font-bold text-primary">1.</span><span>{tr('Nhìn từ hoặc cấu trúc và tự nhớ đáp án.')}</span></li>
-                    <li className="flex gap-3"><span className="font-bold text-primary">2.</span><span>{tr('Lật thẻ để xem cách đọc, nghĩa và ghi chú.')}</span></li>
-                    <li className="flex gap-3"><span className="font-bold text-primary">3.</span><span>{tr('Chọn “Đã nhớ” để sang thẻ tiếp theo.')}</span></li>
-                    <li className="flex gap-3"><span className="font-bold text-primary">4.</span><span>{tr('Chọn “Chưa nhớ” để gặp lại thẻ ở cuối phiên.')}</span></li>
+                    <li className="flex gap-3"><span className="font-bold text-primary">1.</span><span>{studyMode === 'type' ? 'Nhìn thẻ và nhập cách đọc bằng Kana hoặc Romaji.' : tr('Nhìn từ hoặc cấu trúc và tự nhớ đáp án.')}</span></li>
+                    <li className="flex gap-3"><span className="font-bold text-primary">2.</span><span>{studyMode === 'type' ? 'Bấm Kiểm tra để xem đúng/sai và đáp án.' : tr('Lật thẻ để xem cách đọc, nghĩa và ghi chú.')}</span></li>
+                    <li className="flex gap-3"><span className="font-bold text-primary">3.</span><span>{studyMode === 'type' ? 'Bấm Tiếp tục để lưu kết quả vào lịch SRS.' : tr('Chọn “Đã nhớ” để sang thẻ tiếp theo.')}</span></li>
+                    <li className="flex gap-3"><span className="font-bold text-primary">4.</span><span>{studyMode === 'type' ? 'Thẻ trả lời sai sẽ xuất hiện lại ở cuối phiên.' : tr('Chọn “Chưa nhớ” để gặp lại thẻ ở cuối phiên.')}</span></li>
                   </ol>
                 </aside>
               </div>

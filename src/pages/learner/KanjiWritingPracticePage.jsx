@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
 import KanjiLesson from '../../components/kanji_writer/KanjiLesson.jsx';
+import KanaStrokeDialog from '../../components/kanji_writer/KanaStrokeDialog.jsx';
+import KanaAudioButton from '../../components/kanji_writer/KanaAudioButton.jsx';
 import { kanaFamily } from '../../components/kanji_writer/kanaFamilies.js';
 import { useKanjiWritingPractice } from '../../hooks/useKanjiWritingPractice.js';
 import { useKanaWritingPractice } from '../../hooks/useKanaWritingPractice.js';
@@ -13,17 +15,29 @@ export default function KanjiWritingPracticePage() {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const [scope, setScope] = useState('due');
+  const [kanaScope, setKanaScope] = useState('all');
   const requestedType = searchParams.get('type');
   const isKana = requestedType === 'hiragana' || requestedType === 'katakana';
   const kanaType = requestedType === 'katakana' ? 'Katakana' : requestedType === 'hiragana' ? 'Hiragana' : null;
-  const kana = useKanaWritingPractice(kanaType, scope);
-  const [pickedId, setPickedId] = useState(null);
+  const kana = useKanaWritingPractice(kanaType, kanaScope);
+  const [pickedKana, setPickedKana] = useState(null);
+  const [openedKana, setOpenedKana] = useState(null);
   const kanaLabel = requestedType === 'katakana' ? 'Katakana' : 'Hiragana';
   const practice = useKanjiWritingPractice({ enabled: !isKana, scope });
 
-  useEffect(() => {
-    setPickedId(null);
-  }, [kana.queue]);
+  const activeScope = isKana ? kanaScope : scope;
+  function changeScope(value) {
+    setPickedKana(null);
+    setOpenedKana(null);
+    if (isKana) setKanaScope(value);
+    else setScope(value);
+  }
+  function openKana(character, index) {
+    kana.selectItem(index);
+    const selection = { id: character.kanaCharacterId, type: kanaType, scope: kanaScope };
+    setPickedKana(selection);
+    setOpenedKana(selection);
+  }
 
   const scopeSwitch = (
     <div className="inline-flex rounded-full bg-white p-1">
@@ -31,8 +45,8 @@ export default function KanjiWritingPracticePage() {
         <button
           key={value}
           type="button"
-          onClick={() => setScope(value)}
-          className={`h-8 rounded-full px-3 text-[12px] ${scope === value ? 'bg-[#AD3155] font-medium text-white' : 'text-[#8C7782]'}`}
+          onClick={() => changeScope(value)}
+          className={`h-8 rounded-full px-3 text-[12px] ${activeScope === value ? 'bg-[#AD3155] font-medium text-white' : 'text-[#8C7782]'}`}
         >
           {label}
         </button>
@@ -42,7 +56,10 @@ export default function KanjiWritingPracticePage() {
 
   let content;
   if (isKana) {
-    const item = kana.queue.find((row) => row.kanaCharacterId === pickedId) || null;
+    const item = pickedKana?.type === kanaType && pickedKana?.scope === kanaScope
+      ? kana.queue.find((row) => row.kanaCharacterId === pickedKana.id) || null : null;
+    const dialogItem = openedKana?.type === kanaType && openedKana?.scope === kanaScope
+      ? kana.queue.find((row) => row.kanaCharacterId === openedKana.id) || null : null;
     const family = item ? kanaFamily(item.character, requestedType === 'katakana' ? 'kata' : 'hira') : null;
     content = (
       <section className={`mx-auto px-5 py-6 sm:px-7 ${item ? 'max-w-5xl' : 'max-w-3xl'}`}>
@@ -53,7 +70,7 @@ export default function KanjiWritingPracticePage() {
           </div>
           <div className="flex items-center gap-3">
             {item ? (
-              <button type="button" onClick={() => setPickedId(null)} className="text-[13px] font-semibold text-[#AD3155]">{tr('Về bảng')}</button>
+              <button type="button" onClick={() => { setPickedKana(null); setOpenedKana(null); }} className="text-[13px] font-semibold text-[#AD3155]">{tr('Về bảng')}</button>
             ) : scopeSwitch}
           </div>
         </div>
@@ -61,17 +78,17 @@ export default function KanjiWritingPracticePage() {
         {kana.error && !kana.queue.length && <p className="mt-8 text-center text-[14px] text-[#A33357]">{kana.error}</p>}
         {!kana.loading && !kana.error && !kana.queue.length && <p className="mt-8 text-center text-[14px] text-[#8C7782]">{tr('Chưa có chữ cần ôn.')}</p>}
         {!kana.loading && !item && kana.queue.length > 0 && (
-          <div className={`mt-6 grid gap-3 ${scope === 'all' ? 'grid-cols-5' : 'grid-cols-3 sm:grid-cols-5'}`}>
-            {kana.queue.map((character) => (
-              <button
-                key={character.kanaCharacterId}
-                type="button"
-                onClick={() => setPickedId(character.kanaCharacterId)}
-                className="rounded-2xl border border-[#E7DAE1] bg-white px-2 py-3 text-center hover:border-[#AD3155]"
-              >
+          <div className={`mt-6 grid gap-3 ${kanaScope === 'all' ? 'grid-cols-5' : 'grid-cols-3 sm:grid-cols-5'}`}>
+            {kana.queue.map((character, index) => (
+              <div key={character.kanaCharacterId} className="rounded-2xl border border-[#E7DAE1] bg-white p-2 text-center hover:border-[#AD3155]">
+                <button type="button" onClick={() => openKana(character, index)}
+                  aria-label={'Xem cách viết ' + character.character + ' (' + character.romaji + ')'}
+                  className="block w-full rounded-xl px-2 py-3 focus-visible:outline-2 focus-visible:outline-[#AD3155]">
                 <span className="block text-[32px] leading-none text-[#3C2A33]" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{character.character}</span>
                 <span className="mt-1 block text-[12px] text-[#8C7782]">{character.romaji}</span>
-              </button>
+                </button>
+                <KanaAudioButton audioUrl={character.audioUrl} character={character.character} compact />
+              </div>
             ))}
           </div>
         )}
@@ -83,6 +100,10 @@ export default function KanjiWritingPracticePage() {
                 <p className="text-[18px] font-semibold text-[#3C2A33]">{item.romaji}</p>
                 <p className="text-[13px] text-[#8C7782]">{family?.name || kanaLabel}</p>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => setOpenedKana(pickedKana)} className="rounded-xl bg-[#AD3155] px-4 py-2 text-sm font-semibold text-white">Xem hướng dẫn từng nét</button>
+              <KanaAudioButton audioUrl={item.audioUrl} character={item.character} />
             </div>
             {(family?.sections || []).map((section) => (
               <section key={section.title}>
@@ -110,6 +131,9 @@ export default function KanjiWritingPracticePage() {
               <p className="text-[13px] text-[#8C7782]">Chữ này không thêm tenten, maru hay âm ghép.</p>
             ) : null}
           </div>
+        )}
+        {dialogItem && (
+          <KanaStrokeDialog key={kanaType + '-' + dialogItem.kanaCharacterId} item={dialogItem} type={kanaLabel} onClose={() => setOpenedKana(null)} />
         )}
       </section>
     );

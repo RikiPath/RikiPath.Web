@@ -64,6 +64,8 @@ export const ADMIN_NAV = {
         { to: '/admin/mentor-template', label: 'Mẫu ca', icon: 'event_repeat' },
         { to: '/admin/slot-review', label: 'Khung giờ', icon: 'schedule' },
         { to: '/admin/mentor-plans', label: 'Gói tư vấn', icon: 'sell' },
+        { to: '/admin/study-courses', label: 'Khóa học & học lại', icon: 'school' },
+        { to: '/admin/study-catalog', label: 'Chứng chỉ & cấp độ', icon: 'category' },
         { to: '/admin/mentor-compensation', label: 'Thù lao & Kỳ lương', icon: 'payments' },
         { to: '/admin/mentor-cases', label: 'Ngoại lệ', icon: 'gavel' },
         { to: '/admin/mentor-quality', label: 'Chất lượng', icon: 'monitoring' },
@@ -145,6 +147,7 @@ export const CONSULT_NAV = {
       label: 'Buổi tư vấn',
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
+        { to: '/mentor-study-courses', label: 'Khóa học 1–1', icon: 'school' },
         {
           to: '/consultation-queue',
           label: 'Hàng đợi',
