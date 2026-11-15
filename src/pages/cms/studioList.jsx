@@ -1,3 +1,4 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -6,8 +7,8 @@ import { CmsShell } from '../../components/shells';
 const fieldClass =
   'h-10 w-full rounded-lg border border-[#E8DFDC] bg-white px-3 text-[13px] text-[#2D282A] outline-none focus:border-[#E7C9D4]';
 
-function blankDraft(fields) {
-  return Object.fromEntries(fields.map((field) => [field.key, field.default ?? '']));
+function blankDraft(fields, level) {
+  return Object.fromEntries(fields.map((field) => [field.key, field.key === 'level' ? level : (field.default ?? '')]));
 }
 
 export default function StudioList({
@@ -24,9 +25,9 @@ export default function StudioList({
 }) {
   const [rows, setRows] = useState(seed);
   const [query, setQuery] = useState('');
-  const [level, setLevel] = useState('all');
+  const [level, setLevel] = useState(AUTHOR_LEVELS[0]);
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(() => blankDraft(fields));
+  const [draft, setDraft] = useState(() => blankDraft(fields, level));
 
   const hasLevel = fields.some((field) => field.key === 'level');
   const hasSample = rows.some((row) => row.sample);
@@ -34,20 +35,20 @@ export default function StudioList({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((row) => {
-      if (level !== 'all' && row.level !== level) return false;
+      if (hasLevel && row.level !== level) return false;
       if (!q) return true;
       return columns.some((column) =>
         String(row[column.key] ?? '').toLowerCase().includes(q),
       );
     });
-  }, [rows, query, level, columns]);
+  }, [rows, query, hasLevel, level, columns]);
 
   function onAdd(event) {
     event.preventDefault();
     const missing = fields.find((field) => field.required && !String(draft[field.key] || '').trim());
     if (missing) return;
     setRows((prev) => [{ id: Date.now(), sample: false, ...draft }, ...prev]);
-    setDraft(blankDraft(fields));
+    if (hasLevel) setLevel(draft.level);
     setOpen(false);
   }
 
@@ -70,7 +71,10 @@ export default function StudioList({
             )}
             <button
               type="button"
-              onClick={() => setOpen((value) => !value)}
+              onClick={() => {
+                if (!open) setDraft(blankDraft(fields, level));
+                setOpen(!open);
+              }}
               className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#AD3155] px-3.5 text-[13px] text-white hover:bg-[#9A2849]"
             >
               <span className="material-symbols-outlined text-[18px]">add</span>
@@ -93,10 +97,11 @@ export default function StudioList({
             className="h-10 w-full max-w-xs rounded-lg border border-[#E8DFDC] bg-white px-3 text-[13px] outline-none focus:border-[#E7C9D4]"
           />
           {hasLevel &&
-            ['all', 'N5', 'N4', 'N3', 'N2', 'N1'].map((item) => (
+            AUTHOR_LEVELS.map((item) => (
               <button
                 key={item}
                 type="button"
+                aria-pressed={level === item}
                 onClick={() => setLevel(item)}
                 className={[
                   'h-8 rounded-full px-3 text-[12px]',
@@ -105,7 +110,7 @@ export default function StudioList({
                     : 'bg-white text-[#826773] ring-1 ring-[#E8DFDC]',
                 ].join(' ')}
               >
-                {item === 'all' ? 'Mọi cấp' : item}
+                {item}
               </button>
             ))}
           <span className="ml-auto text-[12px] text-[#AA8F9B]">{visible.length} dòng</span>

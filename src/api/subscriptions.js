@@ -14,3 +14,8 @@ export async function purchaseStudyPlan(subscriptionPlanId) {
   const data = await api.post('/subscriptions/purchase', { subscriptionPlanId });
   return data.result;
 }
+
+export async function getStudyPurchaseStatus(id) {
+  const data = await api.get(`/subscriptions/purchases/${id}`);
+  return data.result;
+}

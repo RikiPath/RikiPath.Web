@@ -1,38 +1,26 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
+import JlptExamDatePicker from '../../components/JlptExamDatePicker.jsx';
+import { buildLearningGoal, isJlptExamDate } from '../../utils/learningGoal.js';
 import { getSession, patchSession } from '../../auth/session.js';
+import { queryClient } from '../../api/queryClient.js';
+import { getPlacementStatus, placementAssessmentKey, startPlacementAttempt } from '../../api/placementApi.js';
 import { useSetJlptGoalMutation } from '../../hooks/useAuth.js';
-import { prefetchLearnerHome } from '../../hooks/useLearnerHome.js';
+import { useLearnerProfile } from '../../hooks/useLearnerHome.js';
+import {
+  useCertificateTypesQuery,
+  useCertificateLevelsQuery,
+} from '../../hooks/useCertificates.js';
 
-const LEVELS = [
-  {
-    id: 1,
-    name: 'N5',
-    title: 'Ôn luyện nền tảng',
-    desc: 'Từ vựng, chữ Hán và mẫu câu cơ bản.',
-  },
-  {
-    id: 2,
-    name: 'N4',
-    title: 'Củng cố sơ cấp',
-    desc: 'Ôn kiến thức và các tình huống quen thuộc.',
-  },
-  {
-    id: 3,
-    name: 'N3',
-    title: 'Ôn luyện trung cấp',
-    desc: 'Mở rộng từ vựng, luyện đọc và nghe hiểu.',
-  },
-  {
-    id: 4,
-    name: 'N2',
-    title: 'Nâng cao năng lực',
-    desc: 'Luyện hiểu văn bản dài và chủ đề đa dạng.',
-  },
-];
 
-const MINUTES = [15, 30, 45, 60, 90];
+// Fallback mô tả cấp độ nếu DB chưa có mô tả chi tiết
+const LEVEL_FALLBACKS = {
+  N5: { title: 'Ôn luyện nền tảng', desc: 'Từ vựng, chữ Hán và mẫu câu cơ bản.' },
+  N4: { title: 'Củng cố sơ cấp', desc: 'Ôn kiến thức và các tình huống quen thuộc.' },
+  N3: { title: 'Ôn luyện trung cấp', desc: 'Mở rộng từ vựng, luyện đọc và nghe hiểu.' },
+  N2: { title: 'Nâng cao năng lực', desc: 'Luyện hiểu văn bản dài và chủ đề đa dạng.' },
+};
 
 function Icon({ name, className = '' }) {
   return (
@@ -48,51 +36,155 @@ function Icon({ name, className = '' }) {
 export default function OnboardingSurvey() {
   const navigate = useNavigate();
   const session = getSession();
+  const profileQuery = useLearnerProfile();
+  const profile = profileQuery.data;
   const goalMutation = useSetJlptGoalMutation();
 
-  const [levelId, setLevelId] = useState(3);
-  const [minutes, setMinutes] = useState(30);
-  const [error, setError] = useState('');
-  const [redirecting, setRedirecting] = useState(false);
+  // 1. Lấy danh sách chứng chỉ đang hoạt động từ API
+  const {
+    data: certificateTypes = [],
+    isLoading: loadingTypes,
+    error: typesError,
+    refetch: refetchTypes,
+  } = useCertificateTypesQuery();
 
-  const selectedLevel = LEVELS.find((level) => level.id === levelId);
-  const busy = goalMutation.isPending || redirecting;
+  // State chọn chứng chỉ
+  const [selectedCertIdState, setSelectedCertIdState] = useState(null);
+
+  // Xác định certificateTypeId được chọn (ưu tiên state người dùng, nếu chưa có thì lấy phần tử đầu tiên)
+  const activeCertId =
+    (selectedCertIdState ?? profile?.targetCertificateTypeId) && certificateTypes.some((c) => c.id === (selectedCertIdState ?? profile?.targetCertificateTypeId))
+      ? (selectedCertIdState ?? profile?.targetCertificateTypeId)
+      : certificateTypes[0]?.id ?? null;
+
+  const selectedCert = certificateTypes.find((c) => c.id === activeCertId) || null;
+  const isJlpt = selectedCert?.name?.trim().toUpperCase() === 'JLPT';
+
+  // 2. Lấy danh sách cấp độ theo chứng chỉ đã chọn
+  const {
+    data: certificateLevels = [],
+    isLoading: loadingLevels,
+    error: levelsError,
+    refetch: refetchLevels,
+  } = useCertificateLevelsQuery(activeCertId);
+  const levels = selectedCert?.name?.trim().toUpperCase() === 'JLPT'
+    ? certificateLevels.filter((level) => ['N5', 'N4', 'N3', 'N2'].includes(level.code?.trim().toUpperCase()))
+    : certificateLevels;
+
+  // State chọn cấp độ & thời gian
+  const [selectedLevelIdState, setSelectedLevelIdState] = useState(null);
+  const [minutesOverride, setMinutes] = useState(null);
+  const minutes = minutesOverride ?? (profile?.dailyStudyMinutesMin || profile?.dailyStudyMinutes || 30);
+  const [timeModeOverride, setTimeMode] = useState(null);
+  const timeMode = timeModeOverride ?? (profile?.dailyStudyMinutesMin != null && profile?.dailyStudyMinutesMax > profile.dailyStudyMinutesMin ? 'range' : 'fixed');
+  const [maxMinutesOverride, setMaxMinutes] = useState(null);
+  const maxMinutes = maxMinutesOverride ?? (profile?.dailyStudyMinutesMax || profile?.dailyStudyMinutes || 60);
+  const [dateOverride, setExamDate] = useState(null);
+  const examDate = dateOverride ?? (profile?.targetExamDate?.slice(0, 10) || '');
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const [error, setError] = useState('');
+  const [startingAssessment, setStartingAssessment] = useState(false);
+  const submitting = useRef(false);
+
+  // Xác định levelId được chọn (nếu chưa chọn hoặc level đã chọn không thuộc cert mới thì lấy level đầu tiên)
+  const preferredLevelId = selectedLevelIdState ?? profile?.targetJlptLevelId;
+  const activeLevelId = levels.find((level) => level.id === preferredLevelId)?.id ?? levels[0]?.id ?? null;
+
+  const selectedLevel = levels.find((l) => l.id === activeLevelId) || null;
+  const targetCode = selectedLevel?.code?.trim().toUpperCase();
+  const comparisonLevel = { N2: 'N3', N3: 'N4', N4: 'N5' }[targetCode];
+  const heldOptionsByTarget = { N2: ['N5', 'N4', 'N3'], N3: ['N5', 'N4'], N4: ['N5'] };
+  const heldOptions = isJlpt ? (heldOptionsByTarget[targetCode] ?? []) : [];
+  const [heldOverride, setHeldOverride] = useState(null);
+  const savedCertificate = profile?.declaredJlptCertificateCode;
+  const keepSavedCertificate = targetCode === 'N4' && heldOverride === null
+    && ['N4', 'N3', 'N2'].includes(savedCertificate);
+  const declaredCertificate = heldOverride ?? (keepSavedCertificate ? 'NONE' : savedCertificate) ?? 'NONE';
+  const hasCertificate = declaredCertificate !== 'NONE';
+  const heldCode = heldOptions.includes(declaredCertificate) ? declaredCertificate : '';
+  const needsCertificateChoice = heldOptions.length > 0 && hasCertificate && !heldCode;
+
+
+  const busy =
+    goalMutation.isPending ||
+    startingAssessment ||
+    loadingTypes ||
+    loadingLevels ||
+    profileQuery.isLoading ||
+    profileQuery.isError;
+
+  function handleSelectCert(certId) {
+    if (certId === activeCertId) return;
+    setSelectedCertIdState(certId);
+    setSelectedLevelIdState(null); // Reset level để chọn level đầu tiên của cert mới
+    setError('');
+  }
+
+  function handleSelectLevel(lvlId) {
+    setSelectedLevelIdState(lvlId);
+    setError('');
+  }
 
   function skipForNow() {
     if (busy) return;
-
     patchSession({ skipOnboarding: true });
     navigate('/app', { replace: true });
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event, saveOnly = false) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || submitting.current) return;
 
+    let payload;
+    try {
+      if (needsCertificateChoice) throw new Error('Vui lòng chọn chứng chỉ JLPT cao nhất bạn đã có.');
+      if (!saveOnly && !examDate) throw new Error('Vui lòng chọn ngày dự định thi trước khi làm bài đánh giá.');
+      payload = buildLearningGoal({ certificateTypeId: activeCertId, levelId: activeLevelId, minMinutes: minutes, maxMinutes, timeMode, certificateTypeName: selectedCert?.name,
+        examDate: dateOverride ?? (isJlpt && examDate && !isJlptExamDate(examDate) ? examDate : undefined),
+      }, today);
+      if (heldOptions.length && !keepSavedCertificate) {
+        payload.declaredJlptCertificateCode = hasCertificate ? heldCode : 'NONE';
+      }
+    } catch (validationError) {
+      setError(validationError.message);
+      return;
+    }
     setError('');
 
-    goalMutation.mutate(
-      {
-        targetJlptLevelId: levelId,
-        dailyStudyMinutes: minutes,
-      },
-      {
-        onSuccess: () => {
-          setRedirecting(true);
+    submitting.current = true;
+    let goalSaved = false;
+    try {
+      const savedProfile = await goalMutation.mutateAsync(payload);
+      goalSaved = true;
+      patchSession({ skipOnboarding: false });
+      if (saveOnly) {
+        navigate('/app', { replace: true });
+        return;
+      }
 
-          prefetchLearnerHome()
-            .catch(() => {})
-            .finally(() => {
-              navigate('/app', { replace: true });
-            });
-        },
-        onError: (err) => {
-          setError(
-            err?.message || 'Không lưu được mục tiêu. Vui lòng thử lại.',
-          );
-        },
-      },
-    );
+      const status = {
+        targetJlptLevelId: activeLevelId,
+        targetJlptLevelName: savedProfile?.targetJlptLevelName || selectedLevel?.code,
+      };
+      setStartingAssessment(true);
+      const current = await getPlacementStatus();
+      if (current.hasActiveAttempt || current.latestCompletedAttemptId || current.attemptAllowance?.started > 0) {
+        navigate('/app/placement-test/', { replace: true });
+        return;
+      }
+      const attempt = await startPlacementAttempt();
+      queryClient.setQueryData(placementAssessmentKey(session, attempt.attemptId), {
+        attempt,
+        status: { ...current, ...status },
+      });
+      navigate(`/app/placement-test/?attemptId=${attempt.attemptId}`, { replace: true });
+    } catch (err) {
+      const fallback = goalSaved ? 'Vui lòng thử bắt đầu lại.' : 'Không lưu được mục tiêu. Vui lòng thử lại.';
+      setError(`${goalSaved ? 'Mục tiêu đã lưu. ' : ''}${err?.message || fallback}`);
+    } finally {
+      submitting.current = false;
+      setStartingAssessment(false);
+    }
   }
 
   if (!session?.accessToken) {
@@ -113,7 +205,7 @@ export default function OnboardingSurvey() {
                    bg-white shadow-[0_12px_48px_rgba(75,42,55,0.06)]
                    lg:grid-cols-[0.8fr_1.4fr]"
       >
-        {/* Giới thiệu */}
+        {/* Cột giới thiệu bên trái */}
         <aside
           className="relative flex flex-col overflow-hidden
                      bg-[#92344F] px-7 py-7 text-white
@@ -172,16 +264,15 @@ export default function OnboardingSurvey() {
               className="mt-4 max-w-[320px] text-[13px]
                          leading-6 text-[#EDD4DC]"
             >
-              Chọn cấp độ từ N5 đến N2 và thời gian phù hợp
-              để bắt đầu ôn luyện cùng RikiPath.
+              Chọn chứng chỉ, cấp độ và thời lượng phù hợp để bắt đầu lộ trình ôn luyện cá nhân hóa cùng RikiPath.
             </p>
           </div>
 
           <ol className="relative mt-7 hidden space-y-4 lg:block">
             {[
-              ['01', 'Chọn cấp độ', 'Xác định mục tiêu JLPT của bạn.'],
-              ['02', 'Chọn thời gian', 'Dành thời gian ôn luyện mỗi ngày.'],
-              ['03', 'Bắt đầu ôn luyện', 'Luyện tập và xem lại kết quả.'],
+              ['01', 'Chọn chứng chỉ & cấp độ', 'Xác định mục tiêu học tập theo chứng chỉ.'],
+              ['02', 'Chọn thời gian', 'Dành thời gian ôn luyện đều đặn mỗi ngày.'],
+              ['03', 'Bắt đầu ôn luyện', 'Làm bài đánh giá và nhận lộ trình tối ưu.'],
             ].map(([number, title, description]) => (
               <li key={number} className="flex items-start gap-3">
                 <span
@@ -214,135 +305,290 @@ export default function OnboardingSurvey() {
               className="mt-0.5 shrink-0 text-[18px]"
             />
             <p>
-              Chọn thời lượng bạn có thể duy trì đều đặn
-              mỗi ngày.
+              Chọn thời lượng bạn có thể duy trì đều đặn mỗi ngày để đạt hiệu quả cao nhất.
             </p>
           </div>
         </aside>
 
-        {/* Chọn mục tiêu */}
+        {/* Khối chọn mục tiêu bên phải */}
         <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
           <header>
             <p className="text-[12px] font-medium text-[#AD526F]">
-              Mục tiêu của bạn
+              Thiết lập mục tiêu học tập
             </p>
 
             <h2
               className="mt-2 text-[25px] font-semibold
                          leading-tight tracking-tight sm:text-[28px]"
             >
-              Bạn muốn ôn luyện cấp độ nào?
+              Bạn muốn ôn luyện mục tiêu nào?
             </h2>
 
             <p className="mt-2 text-[13px] leading-6 text-[#8A7A82]">
-              Chọn cấp độ JLPT bạn đang hướng đến.
+              Chọn chứng chỉ và cấp độ bạn đang hướng đến.
             </p>
           </header>
 
-          <form onSubmit={handleSubmit} className="mt-5">
-            <fieldset disabled={busy}>
-              <legend className="sr-only">
-                Cấp độ JLPT mục tiêu
-              </legend>
+          {profile?.targetJlptLevelId && <div className="mt-4 rounded-xl bg-[#FFF5F8] p-3 text-[13px] text-[#8F3654]">
+            <Link to="/app/placement-test" className="font-semibold underline">Tiếp tục bài đánh giá hiện tại</Link>
+            <p className="mt-1">Bạn cũng có thể cập nhật mục tiêu bên dưới. Đổi cấp độ sẽ mở đề tương ứng; khi bắt đầu đề mới, lượt cũ sẽ kết thúc và được giữ trong lịch sử.</p>
+          </div>}
+          <form onSubmit={handleSubmit} className="mt-6">
+            {/* BƯỚC 1: Chọn chứng chỉ */}
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-[13px] font-semibold text-[#4A3841]">
+                  1. Chọn chứng chỉ
+                </label>
+                {loadingTypes && (
+                  <span className="flex items-center gap-1.5 text-[11px] text-[#A08E97]">
+                    <Icon name="progress_activity" className="animate-spin text-[14px]" />
+                    Đang tải chứng chỉ…
+                  </span>
+                )}
+              </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {LEVELS.map((level) => {
-                  const selected = levelId === level.id;
-
-                  return (
-                    <label key={level.id} className="relative block">
-                      <input
-                        type="radio"
-                        name="jlpt-goal"
-                        value={level.id}
-                        checked={selected}
-                        onChange={() => {
-                          setLevelId(level.id);
-                          setError('');
-                        }}
-                        aria-describedby={`level-${level.id}-description`}
-                        className="peer sr-only"
-                      />
-
-                      <div
+              {typesError ? (
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
+                  <span>Không tải được danh sách chứng chỉ.</span>
+                  <button
+                    type="button"
+                    onClick={() => refetchTypes()}
+                    className="font-medium underline hover:text-red-900"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              ) : loadingTypes && certificateTypes.length === 0 ? (
+                <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-16 animate-pulse rounded-xl border border-[#EAE2E6] bg-[#FAF7F8]"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                  {certificateTypes.map((cert) => {
+                    const isSelected = cert.id === activeCertId;
+                    return (
+                      <button
+                        key={cert.id}
+                        type="button"
+                        onClick={() => handleSelectCert(cert.id)}
+                        disabled={busy}
                         className={[
-                          'flex h-full cursor-pointer items-start',
-                          'gap-3 rounded-xl border p-4',
-                          'transition-colors duration-150',
-                          'peer-focus-visible:ring-2',
-                          'peer-focus-visible:ring-[#D94B68]/40',
-                          'peer-focus-visible:ring-offset-2',
-                          'peer-disabled:cursor-wait',
-                          selected
-                            ? 'border-[#CD708C] bg-[#FFF5F8]'
+                          'group flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all duration-150',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D94B68]/40',
+                          'disabled:cursor-wait',
+                          isSelected
+                            ? 'border-[#CD708C] bg-[#FFF5F8] shadow-xs'
                             : 'border-[#EAE2E6] bg-white hover:border-[#D8A7B7] hover:bg-[#FFFCFD]',
                         ].join(' ')}
                       >
                         <span
-                          aria-hidden="true"
                           className={[
-                            'flex h-10 w-10 shrink-0 items-center',
-                            'justify-center rounded-[10px]',
-                            'text-[14px] font-semibold',
-                            selected
-                              ? 'bg-[#D94B68] text-white'
-                              : 'bg-[#F5EFF2] text-[#947983]',
+                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[13px] font-bold transition-colors',
+                            isSelected
+                              ? 'bg-[#D94B68] text-white shadow-xs'
+                              : 'bg-[#F5EFF2] text-[#8C6E7A] group-hover:bg-[#F2E5EB]',
                           ].join(' ')}
                         >
-                          {level.name}
+                          {cert.name || 'CC'}
                         </span>
 
                         <div className="min-w-0 flex-1">
-                          <div
-                            className="flex items-center
-                                       justify-between gap-2"
-                          >
-                            <span className="text-[14px] font-semibold">
-                              JLPT {level.name}
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-[14px] font-semibold text-[#352C31]">
+                              {cert.name}
                             </span>
-
                             <span
-                              aria-hidden="true"
                               className={[
-                                'flex h-[18px] w-[18px] shrink-0',
-                                'items-center justify-center rounded-full',
-                                selected
+                                'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full transition-colors',
+                                isSelected
                                   ? 'bg-[#D94B68] text-white'
                                   : 'border border-[#DCD1D6]',
                               ].join(' ')}
                             >
-                              {selected && (
-                                <Icon
-                                  name="check"
-                                  className="text-[13px]"
-                                />
-                              )}
+                              {isSelected && <Icon name="check" className="text-[12px]" />}
                             </span>
                           </div>
-
-                          <p
-                            className="mt-1 text-[12px]
-                                       font-medium text-[#8C6E7A]"
-                          >
-                            {level.title}
-                          </p>
-
-                          <p
-                            id={`level-${level.id}-description`}
-                            className="mt-1 text-[12px] leading-5
-                                       text-[#94858C]"
-                          >
-                            {level.desc}
+                          <p className="mt-0.5 text-[12px] leading-4 text-[#8A7A82] line-clamp-2">
+                            {cert.description || `Luyện thi & đánh giá chứng chỉ ${cert.name}`}
                           </p>
                         </div>
-                      </div>
-                    </label>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* BƯỚC 2: Chọn cấp độ */}
+            <fieldset disabled={busy} className="mt-5 border-t border-[#F0E8EC] pt-5">
+              <div className="flex items-center justify-between">
+                <legend className="text-[13px] font-semibold text-[#4A3841]">
+                  2. Chọn cấp độ mục tiêu
+                  {selectedCert?.name && (
+                    <span className="ml-1 text-[12px] font-normal text-[#94858C]">
+                      (theo chứng chỉ {selectedCert.name})
+                    </span>
+                  )}
+                </legend>
+
+                {loadingLevels && (
+                  <span className="flex items-center gap-1.5 text-[11px] text-[#A08E97]">
+                    <Icon name="progress_activity" className="animate-spin text-[14px]" />
+                    Đang tải cấp độ…
+                  </span>
+                )}
               </div>
+
+              {levelsError ? (
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
+                  <span>Không tải được danh sách cấp độ theo chứng chỉ.</span>
+                  <button
+                    type="button"
+                    onClick={() => refetchLevels()}
+                    className="font-medium underline hover:text-red-900"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              ) : loadingLevels && levels.length === 0 ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="h-24 animate-pulse rounded-xl border border-[#EAE2E6] bg-[#FAF7F8]"
+                    />
+                  ))}
+                </div>
+              ) : levels.length === 0 ? (
+                <div className="mt-3 rounded-xl border border-dashed border-[#EAE2E6] bg-[#FAFAFA] p-6 text-center text-[13px] text-[#8C7681]">
+                  Chưa có danh sách cấp độ cho chứng chỉ này. Vui lòng chọn chứng chỉ khác.
+                </div>
+              ) : (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {levels.map((level) => {
+                    const isSelected = activeLevelId === level.id;
+                    const codeLabel = level.code || level.name || '';
+                    const fallback = LEVEL_FALLBACKS[codeLabel.toUpperCase()] || {};
+                    const title = fallback.title || (level.name && level.name !== codeLabel ? level.name : `Cấp độ ${codeLabel}`);
+                    const description = level.description || fallback.desc || 'Chương trình ôn luyện chuẩn đầu ra.';
+
+                    return (
+                      <label key={level.id} className="relative block">
+                        <input
+                          type="radio"
+                          name="certificate-level"
+                          value={level.id}
+                          checked={isSelected}
+                          onChange={() => handleSelectLevel(level.id)}
+                          aria-describedby={`level-${level.id}-desc`}
+                          className="peer sr-only"
+                        />
+
+                        <div
+                          className={[
+                            'flex h-full cursor-pointer items-start',
+                            'gap-3 rounded-xl border p-4',
+                            'transition-all duration-150',
+                            'peer-focus-visible:ring-2',
+                            'peer-focus-visible:ring-[#D94B68]/40',
+                            'peer-focus-visible:ring-offset-2',
+                            'peer-disabled:cursor-wait',
+                            isSelected
+                              ? 'border-[#CD708C] bg-[#FFF5F8] shadow-xs'
+                              : 'border-[#EAE2E6] bg-white hover:border-[#D8A7B7] hover:bg-[#FFFCFD]',
+                          ].join(' ')}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={[
+                              'flex h-10 w-10 shrink-0 items-center',
+                              'justify-center rounded-[10px]',
+                              'text-[14px] font-semibold transition-colors',
+                              isSelected
+                                ? 'bg-[#D94B68] text-white shadow-xs'
+                                : 'bg-[#F5EFF2] text-[#947983]',
+                            ].join(' ')}
+                          >
+                            {codeLabel}
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[14px] font-semibold text-[#352C31]">
+                                {selectedCert?.name ? `${selectedCert.name} ${codeLabel}` : codeLabel}
+                              </span>
+
+                              <span
+                                aria-hidden="true"
+                                className={[
+                                  'flex h-[18px] w-[18px] shrink-0',
+                                  'items-center justify-center rounded-full transition-colors',
+                                  isSelected
+                                    ? 'bg-[#D94B68] text-white'
+                                    : 'border border-[#DCD1D6]',
+                                ].join(' ')}
+                              >
+                                {isSelected && (
+                                  <Icon
+                                    name="check"
+                                    className="text-[13px]"
+                                  />
+                                )}
+                              </span>
+                            </div>
+
+                            <p className="mt-1 text-[12px] font-medium text-[#8C6E7A]">
+                              {title}
+                            </p>
+
+                            <p
+                              id={`level-${level.id}-desc`}
+                              className="mt-1 text-[12px] leading-5 text-[#94858C]"
+                            >
+                              {description}
+                            </p>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </fieldset>
 
-            {/* Thời gian mỗi ngày */}
+            {heldOptions.length > 0 && (
+              <fieldset className="space-y-3 border-t border-[#EAE2E6] py-5" disabled={busy}>
+                <label className="flex items-center gap-2 text-sm font-semibold text-[#49353F]">
+                  <input type="checkbox" className="accent-[#AD3155]" checked={hasCertificate}
+                    onChange={event => {
+                      setHeldOverride(event.target.checked ? '' : 'NONE');
+                      setError('');
+                    }} />
+                  {targetCode === 'N4' ? 'Bạn đã có chứng chỉ JLPT N5 chưa?' : 'Bạn đã có chứng chỉ JLPT chưa?'}
+                </label>
+                {hasCertificate && <label className="block space-y-1 text-sm">
+                  <span>Bạn đã có chứng chỉ nào? Chọn cấp cao nhất.</span>
+                  <select value={heldCode} required onChange={event => {
+                    setHeldOverride(event.target.value);
+                    setError('');
+                  }} className="w-full rounded-lg border border-[#EAE2E6] bg-white px-3 py-2">
+                    <option value="">Chọn chứng chỉ</option>
+                    {heldOptions.map(code => <option key={code} value={code}>JLPT {code}</option>)}
+                  </select>
+                </label>}
+                <p className="text-xs text-[#826773]">
+                  Bài đánh giá{heldCode ? ' rút gọn' : ''} gồm câu hỏi {comparisonLevel} và {targetCode} cho cả bốn kỹ năng.
+                </p>
+              </fieldset>
+            )}
+
+            {/* BƯỚC 3: Thời gian mỗi ngày */}
             <fieldset
               disabled={busy}
               className="mt-5 border-t border-[#F0E8EC] pt-5"
@@ -351,62 +597,44 @@ export default function OnboardingSurvey() {
                 Thời gian ôn luyện mỗi ngày
               </legend>
 
-              <h3 className="text-[14px] font-medium">
-                Bạn dành bao nhiêu phút ôn luyện mỗi ngày?
+              <h3 className="text-[13px] font-semibold text-[#4A3841]">
+                3. Bạn dành bao nhiêu phút ôn luyện mỗi ngày?
               </h3>
 
-              <div className="mt-3 grid grid-cols-5 gap-2">
-                {MINUTES.map((value) => {
-                  const selected = minutes === value;
-
-                  return (
-                    <label key={value} className="relative">
-                      <input
-                        type="radio"
-                        name="daily-minutes"
-                        value={value}
-                        checked={selected}
-                        onChange={() => {
-                          setMinutes(value);
-                          setError('');
-                        }}
-                        aria-label={`${value} phút mỗi ngày`}
-                        className="peer sr-only"
-                      />
-
-                      <span
-                        className={[
-                          'flex cursor-pointer items-center',
-                          'justify-center rounded-lg border',
-                          'py-2.5 text-[12px] transition-colors',
-                          'peer-focus-visible:ring-2',
-                          'peer-focus-visible:ring-[#D94B68]/40',
-                          'peer-focus-visible:ring-offset-2',
-                          'peer-disabled:cursor-wait',
-                          selected
-                            ? 'border-[#CD708C] bg-[#FBEAF0] font-semibold text-[#AD3155]'
-                            : 'border-[#EAE2E6] text-[#8A7A82] hover:bg-[#FCF7F9]',
-                        ].join(' ')}
-                      >
-                        {value}
-                        <span className="ml-1 hidden sm:inline">
-                          phút
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
+              <div className="mt-3 flex flex-wrap gap-4">
+                <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+                  <input type="radio" name="study-time-mode" value="fixed" checked={timeMode === 'fixed'} onChange={() => setTimeMode('fixed')} className="accent-[#AD3155]" />
+                  Một mốc phút
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+                  <input type="radio" name="study-time-mode" value="range" checked={timeMode === 'range'} onChange={() => setTimeMode('range')} className="accent-[#AD3155]" />
+                  Khoảng từ–đến
+                </label>
               </div>
 
               <p className="mt-2 text-[11px] text-[#A08E97]">
-                Chọn thời gian phù hợp với lịch sinh hoạt của bạn.
+                Chọn thời gian phù hợp với lịch sinh hoạt để ôn luyện bền bỉ mỗi ngày.
               </p>
             </fieldset>
 
+            <fieldset disabled={busy} className="mt-5 border-t border-[#F0E8EC] pt-5">
+              <label htmlFor="study-minutes" className="block text-[13px] font-semibold">{timeMode === 'fixed' ? 'Số phút học mỗi ngày' : 'Từ (phút/ngày)'}</label>
+              <input id="study-minutes" type="number" min="15" max="480" step="1" value={minutes} onChange={(event) => setMinutes(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EAE2E6] p-3 text-sm" />
+              {timeMode === 'range' && <>
+              <label htmlFor="study-minutes-max" className="mt-4 block text-[13px] font-semibold">Đến (phút/ngày)</label>
+              <input id="study-minutes-max" type="number" min="15" max="480" step="1" value={maxMinutes} onChange={(event) => setMaxMinutes(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EAE2E6] p-3 text-sm" />
+              </>}
+              <p className="mt-2 text-[11px] text-[#94858C]">{timeMode === 'fixed' ? 'Tự nhập số phút bạn có thể học mỗi ngày, từ 15 đến 480 phút.' : 'Tự nhập khoảng thời gian từ 15 đến 480 phút. AI dùng mức tối thiểu cho nội dung cốt lõi và phần còn lại cho ôn luyện tùy chọn.'}</p>
+              {isJlpt ? <JlptExamDatePicker value={examDate} today={today} onChange={setExamDate} requiredForAssessment /> : <>
+                <label htmlFor="target-exam-date" className="mt-4 block text-[13px] font-semibold">Ngày dự định thi (không bắt buộc)</label>
+                <input id="target-exam-date" type="date" value={examDate} onChange={event => setExamDate(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EAE2E6] p-3 text-sm" />
+              </>}
+              <p className="mt-2 text-[11px] text-[#94858C]">Ngày thi và thời gian học được lưu để AI lập đề xuất lộ trình tiếp theo. Lộ trình hiện tại chưa tự động thay đổi.</p>
+            </fieldset>
             {/* Tóm tắt */}
             <div
               className="mt-5 flex items-center gap-2.5
-                         rounded-lg bg-[#FAF5F7] px-3 py-2.5"
+                         rounded-lg bg-[#FAF5F7] px-3.5 py-2.5"
             >
               <Icon
                 name="flag"
@@ -415,12 +643,14 @@ export default function OnboardingSurvey() {
 
               <p className="text-[12px] text-[#8C6E7A]">
                 Mục tiêu đã chọn:
-                <strong className="ml-1 font-medium text-[#9E3658]">
-                  JLPT {selectedLevel.name} · {minutes} phút/ngày
+                <strong className="ml-1.5 font-semibold text-[#9E3658]">
+                  {selectedCert?.name || 'Chứng chỉ'}{' '}
+                  {selectedLevel ? (selectedLevel.code || selectedLevel.name) : '…'} · {timeMode === 'fixed' ? minutes : `${minutes}–${maxMinutes}`} phút/ngày
                 </strong>
               </p>
             </div>
 
+            {profileQuery.isError && <p role="alert" className="mt-3 text-sm text-red-700">Không tải được mục tiêu hiện tại. <button type="button" onClick={() => profileQuery.refetch()} className="underline">Thử lại</button></p>}
             {error && (
               <p
                 role="alert"
@@ -434,17 +664,17 @@ export default function OnboardingSurvey() {
 
             <button
               type="submit"
-              disabled={busy}
-              className="mt-4 flex h-11 w-full items-center
+              disabled={busy || !activeLevelId}
+              className="mt-5 flex h-11 w-full items-center
                          justify-center gap-2 rounded-[10px]
                          bg-[#D94B68] px-4 text-[14px]
                          font-semibold text-white
-                         transition-colors hover:bg-[#C43E5C]
+                         transition-all hover:bg-[#C43E5C]
                          focus-visible:outline-none
                          focus-visible:ring-2
                          focus-visible:ring-[#D94B68]/40
                          focus-visible:ring-offset-2
-                         disabled:cursor-wait disabled:opacity-60"
+                         disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy ? (
                 <>
@@ -452,9 +682,7 @@ export default function OnboardingSurvey() {
                     name="progress_activity"
                     className="animate-spin text-[18px]"
                   />
-                  {redirecting
-                    ? 'Đang chuyển trang…'
-                    : 'Đang lưu mục tiêu…'}
+                  {startingAssessment ? 'Đang bắt đầu bài đánh giá…' : 'Đang lưu mục tiêu…'}
                 </>
               ) : (
                 <>
@@ -467,6 +695,7 @@ export default function OnboardingSurvey() {
               )}
             </button>
 
+            <button type="button" onClick={(event) => handleSubmit(event, true)} disabled={busy || !activeLevelId} className="mt-3 h-11 w-full rounded-lg border border-[#EAE2E6] text-[13px] text-[#92344F] disabled:opacity-50">Lưu thay đổi và về trang chủ</button>
             <div className="mt-3 text-center">
               <button
                 type="button"

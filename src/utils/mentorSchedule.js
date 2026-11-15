@@ -1,7 +1,7 @@
 export const PERIODS = [
-  { id: 'Morning', name: 'Sáng', hour: 8 },
-  { id: 'Afternoon', name: 'Chiều', hour: 13 },
-  { id: 'Evening', name: 'Tối', hour: 18 },
+  { id: 'Morning',   name: 'Sáng',  hour: 8,  timeRange: '08:00 – 12:00' },
+  { id: 'Afternoon', name: 'Chiều', hour: 13, timeRange: '13:00 – 17:00' },
+  { id: 'Evening',   name: 'Tối',   hour: 18, timeRange: '18:00 – 21:00' },
 ];
 
 export const REGISTRATION_PERIODS = PERIODS;

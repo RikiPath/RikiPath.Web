@@ -2,13 +2,10 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
+import GradingFeedback from '../../components/GradingFeedback.jsx';
 import { useSpeechToText } from '../../hooks/useSpeechToText.js';
 
-const SENTENCE = {
-  text: '日本語の話し方を練習しています。',
-  reading: 'にほんごの はなしかたを れんしゅうしています。',
-  meaning: 'Tôi đang luyện cách nói tiếng Nhật.',
-};
+import { speakingLessons } from './productionPracticeLessons.js';
 
 function Icon({ name, className = '' }) {
   return (
@@ -24,6 +21,8 @@ function Icon({ name, className = '' }) {
 export default function SpeakingPracticePage() {
   const { pathname } = useLocation();
   const [showReading, setShowReading] = useState(false);
+  const [lessonIndex, setLessonIndex] = useState(0);
+  const lesson = speakingLessons[lessonIndex];
 
   const {
     isListening,
@@ -35,7 +34,10 @@ export default function SpeakingPracticePage() {
     startListening,
     stopListening,
     resetTranscript,
-  } = useSpeechToText({ language: 'ja-JP' });
+    audioFile,
+    grading,
+    gradeRecording,
+  } = useSpeechToText();
 
   const hasText = Boolean(
     fullText || transcript || interimTranscript,
@@ -80,8 +82,19 @@ export default function SpeakingPracticePage() {
           </h1>
 
           <p className="mt-1.5 text-[13px] text-[#967F8A]">
-            Đọc câu mẫu và xem nội dung được nhận dạng.
+            Thu âm câu mẫu để nhận điểm luyện nói riêng. N5–N2 thể hiện độ khó của bài.
           </p>
+          <label className="mt-4 block max-w-md text-sm font-medium">
+            Bài luyện nói
+            <select className="mt-1 w-full rounded-lg border border-[#E7D7DF] bg-white px-3 py-2"
+              value={lessonIndex} disabled={loading || isListening} onChange={event => {
+                resetTranscript();
+                setShowReading(false);
+                setLessonIndex(Number(event.target.value));
+              }}>
+              {speakingLessons.map((item, index) => <option key={item.level} value={index}>{item.level} · {item.title}</option>)}
+            </select>
+          </label>
         </header>
 
         <div
@@ -135,14 +148,14 @@ export default function SpeakingPracticePage() {
                            leading-[1.8] tracking-wide
                            text-[#513B46] sm:text-[29px]"
               >
-                {SENTENCE.text}
+                {lesson.text}
               </p>
 
               <p
                 className="mt-3 text-[13px]
                            leading-6 text-[#967F8A]"
               >
-                {SENTENCE.meaning}
+                {lesson.meaning}
               </p>
 
               <button
@@ -175,7 +188,7 @@ export default function SpeakingPracticePage() {
                     className="font-['Noto_Sans_JP',sans-serif]
                                text-[14px] leading-7 text-[#9B6C80]"
                   >
-                    {SENTENCE.reading}
+                    {lesson.reading}
                   </p>
                 </div>
               )}
@@ -320,8 +333,10 @@ export default function SpeakingPracticePage() {
                 ) : (
                   <p className="text-[12px] leading-6 text-[#AC98A2]">
                     {isListening
-                      ? 'Hãy đọc câu mẫu. Nội dung sẽ xuất hiện tại đây.'
-                      : 'Nhấn “Bắt đầu nói” để thực hiện bài luyện.'}
+                      ? 'Hãy đọc câu mẫu rồi dừng thu âm.'
+                      : audioFile
+                        ? 'Đã thu âm. Chọn chấm bài để xem bản chép lời và nhận xét.'
+                        : 'Nhấn “Bắt đầu nói” để thực hiện bài luyện.'}
                   </p>
                 )}
               </div>
@@ -342,16 +357,23 @@ export default function SpeakingPracticePage() {
                 </p>
               )}
 
+              {audioFile && !grading && <button
+                type="button" disabled={loading || isListening} onClick={() => gradeRecording(lesson.text, lesson.level)}
+                className="mt-4 rounded-lg bg-[#AD3155] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {loading ? 'Đang chấm…' : 'Chấm bài bằng AI · 1 lượt'}
+              </button>}
+              <GradingFeedback grading={grading} skill="nói" />
+
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-[420px] text-[11px] leading-5 text-[#A08A95]">
                   Nội dung nhận dạng có thể khác lời bạn nói.
-                  Đây chưa phải kết quả chấm phát âm.
+                  AI nhận xét nội dung từ bản chép lời.
                 </p>
 
                 <button
                   type="button"
                   onClick={resetTranscript}
-                  disabled={loading || isListening || !hasText}
+                  disabled={loading || isListening || (!hasText && !audioFile)}
                   className="inline-flex h-9 shrink-0
                              items-center gap-1.5 rounded-lg
                              border border-[#E7D7DF]
@@ -381,7 +403,7 @@ export default function SpeakingPracticePage() {
                 {[
                   ['1', 'Đọc câu mẫu', 'Xem cách đọc nếu cần.'],
                   ['2', 'Nói vào micro', 'Đọc trọn câu với tốc độ vừa phải.'],
-                  ['3', 'Xem lại', 'Đối chiếu nội dung nhận dạng với câu mẫu.'],
+                  ['3', 'Chấm bài', 'Xem bản chép lời và nhận xét của AI.'],
                 ].map(([number, title, description]) => (
                   <li key={number} className="flex items-start gap-2.5">
                     <span

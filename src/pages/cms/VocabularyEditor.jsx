@@ -1,8 +1,7 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useLocation } from 'react-router-dom';
 
 import StudioList from './studioList.jsx';
-
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 
 export default function VocabularyEditor() {
   const { pathname } = useLocation();
@@ -25,7 +24,7 @@ export default function VocabularyEditor() {
         { key: 'word', label: 'Từ', required: true },
         { key: 'reading', label: 'Cách đọc' },
         { key: 'meaning', label: 'Nghĩa', required: true, wide: true },
-        { key: 'level', label: 'Cấp', type: 'select', options: LEVELS, default: 'N3' },
+        { key: 'level', label: 'Cấp', type: 'select', options: AUTHOR_LEVELS },
       ]}
       seed={[
         { id: 1, sample: true, word: '経験', reading: 'けいけん', meaning: 'Kinh nghiệm', level: 'N3' },

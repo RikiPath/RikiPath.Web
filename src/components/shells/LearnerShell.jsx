@@ -41,8 +41,14 @@ const MENU_GROUPS = [
         icon: 'menu_book',
       },
       {
-        to: '/exam-n3',
-        label: 'Thi thử ',
+        to: '/app/placement-test',
+        label: 'Đánh giá năng lực',
+        icon: 'assessment',
+        alsoActive: ['/placement-test'],
+      },
+      {
+        to: '/mock-tests',
+        label: 'Thi thử',
         icon: 'quiz',
       },
       {
@@ -114,7 +120,7 @@ const MENU_GROUPS = [
       },
       {
         to: '/exam-result',
-        label: 'Kết quả thi',
+        label: 'Kết quả thi thử',
         icon: 'fact_check',
       },
     ],
@@ -124,6 +130,7 @@ const MENU_GROUPS = [
     label: 'Hỗ trợ',
     icon: 'forum',
     items: [
+      { to: '/plans', label: 'Gói ôn luyện', icon: 'shopping_bag', alsoActive: ['/study-payment'] },
       { to: '/payments', label: 'Thanh toán', icon: 'payments', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
       {
         to: '/ai-counselor',
@@ -144,6 +151,7 @@ const MENU_GROUPS = [
           '/sensei-profile',
         ],
       },
+      { to: '/homework', label: 'Bài tập về nhà', icon: 'assignment' },
       {
         to: '/mentor-chat',
         label: 'Tin nhắn',

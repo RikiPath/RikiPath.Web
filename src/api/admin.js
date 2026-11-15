@@ -83,6 +83,11 @@ export async function reviewContentRequest(requestId, data) {
   return res?.result ?? res;
 }
 
+export async function reviewLessonGroup(requestId, data) {
+  const res = await api.post(`/content-approvals/requests/${requestId}/review-lesson-group`, data);
+  return res?.result ?? res;
+}
+
 // Duyệt / Từ chối hàng loạt
 export async function batchReviewContentRequests(items) {
   // items: Array<{ requestId: number, approve: boolean, reviewNote: string }>

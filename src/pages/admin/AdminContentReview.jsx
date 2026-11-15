@@ -5,6 +5,7 @@ import { AdminShell } from '../../components/shells';
 import {
   getPendingApprovals,
   reviewContentRequest,
+  reviewLessonGroup,
   batchReviewContentRequests,
 } from '../../api/admin.js';
 
@@ -37,7 +38,13 @@ const FIELD_LABELS = {
   sortOrder: 'Thứ tự',
   languageSkillName: 'Kỹ năng',
   timeLimitMinutes: 'Thời gian (phút)',
+  isPlacementAssessment: 'Bài kiểm tra đầu vào',
+  sections: 'Cấu trúc đề thi',
 };
+
+// Các field được render riêng bằng UI chuyên biệt (SectionsViewer / <details> câu hỏi PracticeExercise)
+// nên không hiển thị lại dạng text thô trong danh sách field chung, tránh bị in JSON 2 lần.
+const RAW_DUMP_EXCLUDED_FIELDS = ['lessonTitle', 'questions', 'sections'];
 
 const ACTION_META = {
   New: { label: 'Mới', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
@@ -56,8 +63,163 @@ function ActionBadge({ action }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Sections viewer (Mock Test): Section -> Question -> Option
+// ---------------------------------------------------------------------------
+
+// Parse an toàn: giá trị có thể là string JSON (có thể bị serialize 2 lần) hoặc đã là mảng
+function parseSections(value) {
+  if (!value) return null;
+  if (Array.isArray(value)) return value;
+  try {
+    let parsed = JSON.parse(value);
+    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Backend có thể trả PascalCase (Title) hoặc camelCase (title) -> đọc cả hai
+const pick = (obj, ...keys) => {
+  for (const k of keys) if (obj?.[k] != null) return obj[k];
+  return null;
+};
+
+function OptionLine({ opt, index }) {
+  const text = pick(opt, 'OptionText', 'optionText');
+  const correct = pick(opt, 'IsCorrect', 'isCorrect') === true;
+  return (
+    <li
+      className={[
+        'flex items-start gap-2 rounded-md px-2 py-1 text-[12px]',
+        correct ? 'bg-emerald-100 font-semibold text-emerald-800' : 'text-[#30282B]',
+      ].join(' ')}
+    >
+      <span className="w-4 shrink-0 text-[#A59B9E]">{String.fromCharCode(65 + index)}.</span>
+      <span className="min-w-0 flex-1 break-words">
+        {text}
+        {pick(opt, 'ImageUrl', 'imageUrl') && <img src={pick(opt, 'ImageUrl', 'imageUrl')} alt={`Hình đáp án ${index + 1}`} className="max-h-32 max-w-full rounded-md" />}
+      </span>
+      {correct && <span className="material-symbols-outlined text-[14px]">check_circle</span>}
+    </li>
+  );
+}
+
+function QuestionBlock({ q, index }) {
+  const [open, setOpen] = useState(false);
+  const options = pick(q, 'Options', 'options') ?? [];
+  const explanation = pick(q, 'Explanation', 'explanation');
+  const answerKey = pick(q, 'AnswerKey', 'answerKey');
+  const audio = pick(q, 'AudioUrl', 'audioUrl');
+  const image = pick(q, 'ImageUrl', 'imageUrl');
+
+  return (
+    <div className="rounded-lg border border-[#eadfd9] bg-white p-3">
+      <div className="flex items-start gap-2">
+        <span className="shrink-0 rounded bg-[#D94B68]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#D94B68]">
+          Câu {pick(q, 'SortOrder', 'sortOrder') ?? index + 1}
+        </span>
+        <p className="flex-1 text-[13px] font-medium break-words">{pick(q, 'QuestionText', 'questionText')}</p>
+        <span className="shrink-0 text-[10px] text-[#A59B9E]">{pick(q, 'QuestionType', 'questionType')}</span>
+      </div>
+
+      {image && <img src={image} alt="" className="mt-2 max-h-40 rounded-md border border-[#eadfd9]" />}
+      {audio && <audio controls src={audio} className="mt-2 h-8 w-full" />}
+
+      {options.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {options.map((o, i) => <OptionLine key={i} opt={o} index={i} />)}
+        </ul>
+      )}
+
+      {answerKey && (
+        <p className="mt-2 text-[12px]">
+          <span className="font-semibold text-[#6F6669]">Đáp án: </span>{answerKey}
+        </p>
+      )}
+
+      {explanation && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-[11px] font-semibold text-sky-700 hover:underline"
+          >
+            {open ? 'Ẩn giải thích' : 'Xem giải thích'}
+          </button>
+          {open && <p className="mt-1 rounded-md bg-sky-50 p-2 text-[12px] text-sky-900 break-words">{explanation}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionsViewer({ sections }) {
+  const [openIdx, setOpenIdx] = useState(0); // mở sẵn section đầu
+  const totalQuestions = sections.reduce(
+    (n, s) => n + (pick(s, 'Questions', 'questions')?.length ?? 0), 0
+  );
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-semibold text-[#6F6669]">
+        {sections.length} phần · {totalQuestions} câu hỏi
+      </p>
+      {sections.map((s, i) => {
+        const questions = pick(s, 'Questions', 'questions') ?? [];
+        const isOpen = openIdx === i;
+        return (
+          <div key={i} className="rounded-xl border border-[#eadfd9] bg-[#faf7f5]">
+            <button
+              type="button"
+              onClick={() => setOpenIdx(isOpen ? -1 : i)}
+              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-bold">
+                  {pick(s, 'SortOrder', 'sortOrder') ?? i + 1}. {pick(s, 'Title', 'title')}
+                </p>
+                <p className="text-[11px] text-[#A59B9E]">
+                  {pick(s, 'LanguageSkillName', 'languageSkillName')} · {pick(s, 'CertificateSectionCode', 'certificateSectionCode')} · {questions.length} câu
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-[18px] text-[#A59B9E]">
+                {isOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+            {isOpen && (
+              <div className="space-y-2 px-3 pb-3">
+                {questions.map((q, qi) => <QuestionBlock key={qi} q={q} index={qi} />)}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function FieldRow({ f }) {
   const displayLabel = FIELD_LABELS[f.field] ?? f.label ?? f.field;
+
+  // Field sections: render dạng cây, chiếm trọn chiều rộng
+  if (f.field === 'sections') {
+    const sections = parseSections(f.newValue ?? f.oldValue);
+    if (sections) {
+      return (
+        <tr className="bg-amber-50/40">
+          <td colSpan={3} className="py-3 px-4 align-top">
+            <p className="mb-2 text-[12px] font-semibold text-[#6F6669]">{displayLabel}</p>
+            <SectionsViewer sections={sections} />
+          </td>
+        </tr>
+      );
+    }
+  }
+
   if (f.isChanged) {
     return (
       <tr className="bg-amber-50/70">
@@ -81,6 +243,72 @@ function FieldRow({ f }) {
   );
 }
 
+function LessonRelatedContent({ items = [] }) {
+  if (!items.length) return null;
+  const grouped = items.reduce((result, item) => {
+    (result[item.entityType] ??= []).push(item);
+    return result;
+  }, {});
+  const labels = { Kanji: 'Hán tự', Grammar: 'Ngữ pháp', Vocabulary: 'Từ vựng', PracticeExercise: 'Bài tập luyện tập' };
+  return (
+    <section className="rounded-xl border border-[#eadfd9] bg-[#faf7f5] p-4">
+      <h3 className="mb-3 text-[14px] font-bold text-[#30282B]">Nội dung liên quan trong bài học</h3>
+      <div className="space-y-3">
+        {Object.entries(grouped).map(([type, entries]) => (
+          <div key={type}>
+            <h4 className="mb-1 text-[12px] font-semibold text-[#6F6669]">{labels[type] ?? type} ({entries.length})</h4>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {entries.map((entry, index) => (
+                <article key={`${entry.requestId ?? 'db'}-${entry.rowKey}-${index}`} className="rounded-lg border border-[#eadfd9] bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[13px] font-semibold text-[#30282B]">{entry.rowKey}</p>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${entry.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {entry.status === 'Approved' ? 'Đã có trong bài' : 'Chờ duyệt cùng bài'}
+                    </span>
+                  </div>
+                  {/* Loại bỏ các field đã có UI riêng (lessonTitle/questions/sections) để tránh in JSON thô 2 lần */}
+                  {entry.fields
+                    ?.filter((field) => !RAW_DUMP_EXCLUDED_FIELDS.includes(field.field))
+                    .map((field) => (
+                      <p key={field.field} className="mt-1 whitespace-pre-wrap text-[12px] text-[#6F6669]">
+                        <span className="font-semibold">{field.label || field.field}:</span> {field.newValue ?? field.oldValue ?? '—'}
+                      </p>
+                    ))}
+                  {type === 'PracticeExercise' && (() => {
+                    const raw = entry.fields?.find((field) => field.field?.toLowerCase() === 'questions')?.newValue;
+                    let questions;
+                    try { questions = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { questions = null; }
+                    if (!Array.isArray(questions)) return null;
+                    return (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-[12px] font-semibold text-emerald-700">Xem {questions.length} câu hỏi</summary>
+                        <ol className="mt-2 list-decimal space-y-2 pl-5">
+                          {questions.map((question, questionIndex) => (
+                            <li key={question.sortOrder ?? question.SortOrder ?? questionIndex}>
+                              <p className="whitespace-pre-wrap">{question.questionText ?? question.QuestionText}</p>
+                              <ul className="mt-1 list-disc pl-4">
+                                {(question.options ?? question.Options ?? []).map((option, optionIndex) => (
+                                  <li key={option.sortOrder ?? option.SortOrder ?? optionIndex} className={option.isCorrect ?? option.IsCorrect ? 'font-semibold text-emerald-700' : ''}>
+                                    {option.optionText ?? option.OptionText}
+                                  </li>
+                                ))}
+                              </ul>
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    );
+                  })()}
+                </article>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DetailPanel({ item, onApprove, onReject, submitting }) {
   const [reason, setReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -88,13 +316,13 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
   const changedCount = fields.filter((f) => f.isChanged).length;
 
   const handleApprove = () => {
-    onApprove(item.requestId);
+    onApprove(item);
     setShowRejectForm(false);
   };
 
   const handleReject = () => {
     if (!reason.trim()) return;
-    onReject(item.requestId, reason.trim());
+    onReject(item, reason.trim());
     setReason('');
     setShowRejectForm(false);
   };
@@ -130,6 +358,8 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
           </table>
         </div>
       )}
+
+      {item.entityType === 'Lesson' && <LessonRelatedContent items={item.relatedLessonContent} />}
 
       <div className="flex flex-col gap-2 pt-2 border-t border-[#f0e8e4]">
         {showRejectForm ? (
@@ -330,6 +560,11 @@ export default function AdminContentReview() {
     onSuccess: onMutationSuccess,
   });
 
+  const lessonGroupReviewMutation = useMutation({
+    mutationFn: ({ requestId, approve, reviewNote }) => reviewLessonGroup(requestId, { approve, reviewNote }),
+    onSuccess: onMutationSuccess,
+  });
+
   // Batch review mutation
   const batchReviewMutation = useMutation({
     mutationFn: (batchItems) => batchReviewContentRequests(batchItems),
@@ -353,12 +588,14 @@ export default function AdminContentReview() {
   };
 
   // Handler duyệt đơn lẻ
-  const handleSingleApprove = (id) => {
-    singleReviewMutation.mutate({ requestId: id, approve: true, reviewNote: '' });
+  const handleSingleApprove = (item) => {
+    const mutate = item.entityType === 'Lesson' ? lessonGroupReviewMutation : singleReviewMutation;
+    mutate.mutate({ requestId: item.requestId, approve: true, reviewNote: '' });
   };
 
-  const handleSingleReject = (id, reason) => {
-    singleReviewMutation.mutate({ requestId: id, approve: false, reviewNote: reason });
+  const handleSingleReject = (item, reason) => {
+    const mutate = item.entityType === 'Lesson' ? lessonGroupReviewMutation : singleReviewMutation;
+    mutate.mutate({ requestId: item.requestId, approve: false, reviewNote: reason });
   };
 
   // Handler duyệt hàng loạt (Chấp nhận)
@@ -375,8 +612,8 @@ export default function AdminContentReview() {
     return items.filter((item) => checkedIds.includes(item.requestId));
   }, [items, checkedIds]);
 
-  const isSubmitting = singleReviewMutation.isPending || batchReviewMutation.isPending;
-  const mutationError = singleReviewMutation.error?.message || batchReviewMutation.error?.message;
+  const isSubmitting = singleReviewMutation.isPending || lessonGroupReviewMutation.isPending || batchReviewMutation.isPending;
+  const mutationError = singleReviewMutation.error?.message || lessonGroupReviewMutation.error?.message || batchReviewMutation.error?.message;
 
   return (
     <AdminShell pathname={pathname} breadcrumb="Duyệt nội dung">

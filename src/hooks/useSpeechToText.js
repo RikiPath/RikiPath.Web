@@ -1,128 +1,112 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
-import { getSpeechToken } from '../api/speechApi.js';
+import { useQueryClient } from '@tanstack/react-query';
+import { getPracticeLevelId, gradeSpeaking } from '../api/practiceGrading.js';
 
-export function useSpeechToText({ language = 'ja-JP' } = {}) {
-    const [isListening, setIsListening] = useState(false);
-    const [transcript, setTranscript] = useState('');           // Chữ đã chốt chính thức
-    const [interimTranscript, setInterimTranscript] = useState(''); // Chữ đang nói (chạy tức thì)
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+export function useSpeechToText() {
+  const queryClient = useQueryClient();
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [audioFile, setAudioFile] = useState(null);
+  const [grading, setGrading] = useState(null);
+  const gradingInProgress = useRef(false);
+  const recording = useRef(null);
+  const mounted = useRef(true);
 
-    const recognizerRef = useRef(null);
+  const stopListening = useCallback(() => {
+    const current = recording.current;
+    if (current?.state === 'recording') current.stop();
+  }, []);
 
-    // Hàm dừng thu âm
-    const stopListening = useCallback(async () => {
-        if (recognizerRef.current) {
-            try {
-                await new Promise((resolve) => {
-                    recognizerRef.current.stopContinuousRecognitionAsync(
-                        () => resolve(),
-                        () => resolve()
-                    );
-                });
-                recognizerRef.current.close();
-                recognizerRef.current = null;
-            } catch (err) {
-                console.error('Lỗi khi đóng recognizer:', err);
-            }
-        }
+  const startListening = useCallback(async () => {
+    if (recording.current) return;
+    setLoading(true);
+    setError(null);
+    setTranscript('');
+    setAudioFile(null);
+    setGrading(null);
+    let stream;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)
+        throw new Error('Trình duyệt chưa hỗ trợ thu âm.');
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      const mimeType = ['audio/webm;codecs=opus', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error('Trình duyệt chưa hỗ trợ định dạng thu âm của hệ thống.');
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks = [];
+      recorder.ondataavailable = event => {
+        if (event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        recording.current = null;
+        if (!mounted.current) return;
         setIsListening(false);
-        setInterimTranscript('');
-    }, []);
+        const mime = recorder.mimeType || 'audio/webm';
+        const extension = mime.includes('mp4') ? 'mp4' : 'webm';
+        const file = new File(chunks, `speaking.${extension}`, { type: mime });
+        if (file.size) setAudioFile(file);
+        else setError('Bản thu âm trống. Vui lòng thử lại.');
+      };
+      recording.current = recorder;
+      recorder.start();
+      setIsListening(true);
+    } catch (err) {
+      recording.current = null;
+      stream?.getTracks().forEach(track => track.stop());
+      if (mounted.current) setError(err.message);
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  }, []);
 
-    // Hàm bắt đầu thu âm
-    const startListening = useCallback(async () => {
-        setLoading(true);
-        setError(null);
+  async function gradeRecording(topic, levelCode) {
+    if (!audioFile || gradingInProgress.current) return;
+    gradingInProgress.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const levelId = await getPracticeLevelId(levelCode);
+      const result = await gradeSpeaking(audioFile, levelId, topic);
+      if (!mounted.current) return;
+      setTranscript(result?.transcript ?? '');
+      setGrading(result?.grading ?? null);
+      if (!result?.grading) setError(result?.gradingNote || 'Chưa chấm được bài nói.');
+    } catch (err) {
+      if (mounted.current) setError(err.message);
+    } finally {
+      gradingInProgress.current = false;
+      if (mounted.current) setLoading(false);
+      void queryClient.invalidateQueries({ queryKey: ['study-subscription'] });
+    }
+  }
 
-        try {
-            // 1. Gọi API lấy Token tạm từ Backend
-            const resData = await getSpeechToken();
-            const token = resData?.token;
-            const region = resData?.region || 'eastus';
+  const resetTranscript = useCallback(() => {
+    setTranscript('');
+    setAudioFile(null);
+    setGrading(null);
+    setError(null);
+  }, []);
 
-            if (!token) {
-                throw new Error('Không lấy được Token hợp lệ từ Server.');
-            }
-
-            // 2. Khởi tạo Azure Speech Config
-            const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
-            speechConfig.speechRecognitionLanguage = language;
-
-            const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
-            const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
-
-            // 3. SỰ KIỆN 1: Nói tới đâu chữ nhảy ra ngay tới đó (Interim Result)
-            recognizer.recognizing = (s, e) => {
-                if (e.result.reason === SpeechSDK.ResultReason.RecognizingSpeech) {
-                    setInterimTranscript(e.result.text);
-                }
-            };
-
-            // 4. SỰ KIỆN 2: Ngắt câu -> Chốt chữ chính thức (Final Result)
-            recognizer.recognized = (s, e) => {
-                if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech && e.result.text) {
-                    setTranscript((prev) => (prev ? `${prev} ${e.result.text}` : e.result.text));
-                    setInterimTranscript(''); // Reset chữ tạm thời
-                }
-            };
-
-            // 5. Xử lý khi bị hủy hoặc gặp lỗi
-            recognizer.canceled = (s, e) => {
-                if (e.reason === SpeechSDK.CancellationReason.Error) {
-                    setError(`Lỗi Azure Speech: ${e.errorDetails}`);
-                }
-                stopListening();
-            };
-
-            recognizer.sessionStopped = () => {
-                setIsListening(false);
-            };
-
-            // 6. Bắt đầu thu âm liên tục
-            await new Promise((resolve, reject) => {
-                recognizer.startContinuousRecognitionAsync(
-                    () => resolve(),
-                    (err) => reject(err)
-                );
-            });
-
-            recognizerRef.current = recognizer;
-            setIsListening(true);
-        } catch (err) {
-            setError(err.message ?? 'Không thể khởi động micro hoặc kết nối nhận dạng.');
-            setIsListening(false);
-        } finally {
-            setLoading(false);
-        }
-    }, [language, stopListening]);
-
-    // Reset lại từ đầu
-    const resetTranscript = useCallback(() => {
-        setTranscript('');
-        setInterimTranscript('');
-        setError(null);
-    }, []);
-
-    // Cleanup khi component bị unmount
-    useEffect(() => {
-        return () => {
-            if (recognizerRef.current) {
-                recognizerRef.current.close();
-            }
-        };
-    }, []);
-
-    return {
-        isListening,
-        transcript,
-        interimTranscript,
-        fullText: `${transcript} ${interimTranscript}`.trim(),
-        loading,
-        error,
-        startListening,
-        stopListening,
-        resetTranscript,
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      const recorder = recording.current;
+      if (recorder?.state === 'recording') {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      recorder?.stream.getTracks().forEach(track => track.stop());
+      recording.current = null;
     };
+  }, []);
+
+  return { isListening, transcript, interimTranscript: '', fullText: transcript,
+    loading, error, audioFile, grading, gradeRecording, startListening, stopListening, resetTranscript };
 }

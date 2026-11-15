@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { savePendingVerify } from '../../auth/session.js';
 import { useRegisterMutation } from '../../hooks/useAuth.js';
+import GoogleSignIn from './GoogleSignIn.jsx';
+import { useCompleteSignIn } from './useCompleteSignIn.js';
 
 export default function Register() {
   const navigate = useNavigate();
   const registerMutation = useRegisterMutation();
+  const completeSignIn = useCompleteSignIn();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -14,10 +17,12 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
-  const loading = registerMutation.isPending;
+  const [googlePending, setGooglePending] = useState(false);
+  const loading = registerMutation.isPending || googlePending;
 
   function handleRegister(e) {
     e.preventDefault();
+    if (loading) return;
     setError('');
     if (password !== confirmPassword) {
       setError('Mật khẩu xác nhận không khớp.');
@@ -228,34 +233,9 @@ export default function Register() {
 <span className="text-base group-hover:rotate-12 transition-transform">🌸</span>
 </button>
 </form>
-{/*  Social Separator Divider  */}
-<div className="relative my-5 text-center">
-<div aria-hidden="true" className="absolute inset-0 flex items-center">
-<div className="w-full border-t border-charcoal-200"></div>
-</div>
-<span className="relative bg-white px-3 text-[11px] font-bold text-charcoal-400 uppercase tracking-wider">{"Hoặc đăng ký với\n          "}</span>
-</div>
-{/*  Social Login Buttons  */}
-<div className="grid grid-cols-2 gap-3" data-purpose="social-login-group">
-{/*  Google Button  */}
-<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng ký Google">
-{/*  Google SVG Icon  */}
-<svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-<path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z" fill="#4285F4"></path>
-<path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.35 24 12 24Z" fill="#34A853"></path>
-<path d="M5.28 14.27A7.18 7.18 0 0 1 4.9 12c0-.79.14-1.57.38-2.27V6.58H1.25A11.97 11.97 0 0 0 0 12c0 1.92.46 3.74 1.25 5.42l4.03-3.15Z" fill="#FBBC05"></path>
-<path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z" fill="#EA4335"></path>
-</svg>
-<span className="">Google</span>
-</button>
-{/*  Facebook Button  */}
-<button className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-charcoal-200 text-xs sm:text-sm font-semibold text-charcoal-400 cursor-not-allowed" type="button" disabled title="API chưa hỗ trợ đăng ký Facebook">
-{/*  Facebook SVG Icon  */}
-<svg className="w-4 h-4 shrink-0 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-<path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073Z"></path>
-</svg>
-<span className="">Facebook</span>
-</button>
+<div className="mt-4">
+  <GoogleSignIn mode="register" disabled={registerMutation.isPending}
+    onPendingChange={setGooglePending} onSuccess={data => completeSignIn(data, true)} />
 </div>
 </div>
 {/*  Bottom Footer Navigation Link  */}

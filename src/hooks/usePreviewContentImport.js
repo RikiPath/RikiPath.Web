@@ -11,7 +11,7 @@ export function usePreviewContentImportMutation() {
     });
 }
 
-/** Step 2 - xác nhận import các dòng hợp lệ để backend tạo bản nháp chờ duyệt. */
+/** Step 2 - lưu các dòng hợp lệ thành bản nháp của tác giả. */
 export function useConfirmContentImportMutation() {
     return useMutation({
         mutationFn: (payload) => confirmContentImport(payload),

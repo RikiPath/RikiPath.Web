@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
+import BookingSchedule from './BookingSchedule.jsx';
 import { getMeetingPlans } from '../../api/mentorBookingApi.js';
 import { LearnerShell } from '../../components/shells';
 
@@ -162,6 +163,12 @@ function PlanRow({ plan }) {
 }
 
 export default function Consultation() {
+  const [params] = useSearchParams();
+  const planId = Number(params.get('planId'));
+  return planId > 0 ? <BookingSchedule purchasePlanId={planId} /> : <MentorOverview />;
+}
+
+function MentorOverview() {
   const { pathname } = useLocation();
 
   const plansQuery = useQuery({

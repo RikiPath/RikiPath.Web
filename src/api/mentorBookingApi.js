@@ -1,5 +1,11 @@
 import { api } from './client.js';
 
+export const getMentorRecommendations = async (from, to) =>
+  (await api.get('/mentor-meetings/recommendations', { params: { from, to } })).result || [];
+export const getMentorRating = async bookingId => (await api.get(`/mentor-meetings/bookings/${bookingId}/rating`)).result;
+export const rateMentor = async (bookingId, rating) =>
+  (await api.put(`/mentor-meetings/bookings/${bookingId}/rating`, { rating })).result;
+
 export const getBookingMentors = async () => (await api.get('/mentor-meetings/mentors')).result;
 export const getMentorSlots = async (mentorId, from, to) => (await api.get('/mentor-meetings/availability', {
   params: { mentorId, from, to },

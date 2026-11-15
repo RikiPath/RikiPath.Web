@@ -33,7 +33,8 @@ export const ALL_PAGES = [
   { to: '/kanji-studio', label: 'Kanji AI', page: 'KanjiStudio', group: 'learner' },
   { to: '/ai-counselor', label: 'AI Counselor', page: 'AICounselor', group: 'learner' },
   { to: '/ai-scoring', label: 'AI Score', page: 'AIScoringResult', group: 'learner' },
-  { to: '/exam-n3', label: 'Exam N3', page: 'ExamN3', group: 'learner' },
+  { to: '/app/placement-test', label: 'Đánh giá năng lực', page: 'ExamN3', group: 'learner' },
+  { to: '/mock-tests', label: 'Thi thử JLPT', page: 'MockTestPage', group: 'learner' },
   { to: '/exam-result', label: 'Kết quả thi', page: 'ExamResult', group: 'learner' },
   { to: '/settings', label: 'Cài đặt HV', page: 'LearnerSettings', group: 'learner' },
   // Tư vấn học viên
@@ -136,7 +137,7 @@ export const FLOWS = [
       { n: 11, to: '/kanji-studio', label: 'Kanji AI', page: 'KanjiStudio', hint: 'Kanji' },
       { n: 12, to: '/ai-counselor', label: 'Cố vấn AI', page: 'AICounselor', hint: 'AI' },
       { n: 13, to: '/ai-scoring', label: 'Chấm AI', page: 'AIScoringResult', hint: 'Scoring' },
-      { n: 14, to: '/exam-n3', label: 'Thi N3', page: 'ExamN3', hint: 'Exam' },
+      { n: 14, to: '/mock-tests', label: 'Thi thử JLPT', page: 'MockTestPage', hint: 'Thi thử' },
       { n: 15, to: '/exam-result', label: 'Kết quả thi', page: 'ExamResult', hint: 'Result' },
       { n: 16, to: '/settings', label: 'Cài đặt', page: 'LearnerSettings', hint: 'Settings' },
     ],

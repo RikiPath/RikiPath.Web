@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
+import { getSession } from '../../auth/session.js';
 import { LearnerShell } from '../../components/shells';
 import { getMySubscription, getStudyPlans } from '../../api/subscriptions.js';
 
@@ -14,6 +15,7 @@ function money(value) {
 
 export default function StudyPlans() {
   const { pathname } = useLocation();
+  const session = getSession();
 
   const plansQuery = useQuery({
     queryKey: ['study-plans'],
@@ -22,7 +24,9 @@ export default function StudyPlans() {
   });
 
   const mineQuery = useQuery({
-    queryKey: ['study-subscription'],
+    queryKey: ['study-subscription', session?.userId],
+    enabled: Boolean(session?.accessToken),
+    refetchInterval: (query) => query.state.data?.active ? 60000 : false,
     queryFn: getMySubscription,
     retry: false,
   });
@@ -38,15 +42,35 @@ export default function StudyPlans() {
       >
         <section className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-5 sm:px-6">
           <p className="text-[11px] font-medium tracking-[0.14em] text-[#AD3155]">
-            GÓI TỰ HỌC
+            GÓI ÔN LUYỆN
           </p>
-          <h1 className="mt-2 text-[22px] font-semibold">Chọn gói để vào các trang ôn luyện</h1>
+          <h1 className="mt-2 text-[22px] font-semibold">Mua gói và lượt sử dụng</h1>
           <p className="mt-2 max-w-xl text-[13px] leading-6 text-[#8C7782]">
-            Tài khoản chưa có gói đang hiệu lực sẽ được đưa về trang này khi mở bài học, thi thử, sổ từ và các trang luyện tập.
+            Chọn gói tự học, luyện từng kỹ năng, lượt AI hoặc buổi ôn luyện cùng mentor.
           </p>
+          {current && <div className="mt-4 space-y-2 text-sm">
+            <p>Lượt AI nói hoặc viết: {current.aiGradingUsesRemaining} · Riêng nói: {current.speakingUsesRemaining} · Riêng viết: {current.writingUsesRemaining}</p>
+            <p>Lượt tạo lộ trình AI: {current.learningPathUsesRemaining} · Buổi mentor: {current.mentorSessionsRemaining}</p>
+            {current.purchases?.length > 0 && <details>
+              <summary className="cursor-pointer font-medium">Gói đã mua</summary>
+              <ul className="mt-2 space-y-1">
+                {current.purchases.map((order) => <li key={order.id}>
+                  {order.planName} · {money(order.amountPaid)} · {order.active ? 'Đang hiệu lực' : 'Đã hết hạn'}
+                </li>)}
+              </ul>
+            </details>}
+          </div>}
           {current?.active && (
             <p className="mt-4 rounded-xl bg-[#FCEEF4] px-4 py-3 text-[13px] text-[#9E2A4B]">
               Bạn đang dùng {current.planName || 'một gói'}.
+              {current.selfStudyExpiresAt && (
+                <span className="block mt-1">
+                  Còn {current.selfStudyDaysRemaining} ngày tự học · Hết hạn lúc{' '}
+                  {new Intl.DateTimeFormat('vi-VN', {
+                    dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
+                  }).format(new Date(current.selfStudyExpiresAt))} (giờ Việt Nam)
+                </span>
+              )}
               <Link to="/app" className="ml-2 font-medium underline">
                 Vào trang ôn luyện
               </Link>
@@ -83,7 +107,7 @@ export default function StudyPlans() {
                 )}
               </div>
               <p className="mt-2 text-[22px] font-semibold text-[#AD3155]">{money(plan.price)}</p>
-              <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays} ngày</p>
+              <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays > 0 ? `${plan.durationDays} ngày` : '1 lượt dùng'}{plan.durationDays > 0 && plan.aiUses > 0 ? ` · ${plan.aiUses} lượt AI` : ''}</p>
               {plan.description && (
                 <p className="mt-3 text-[13px] leading-6 text-[#6F5C66]">{plan.description}</p>
               )}
@@ -94,17 +118,13 @@ export default function StudyPlans() {
                   ))}
                 </ul>
               )}
-              {current?.active ? (
-                <button
-                  type="button"
-                  disabled
-                  className="mt-4 h-10 rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white opacity-50"
-                >
-                  Mua gói
-                </button>
+              {plan.kind === "mentor" ? (
+                <Link to={session?.accessToken ? `/mentor/?planId=${plan.id}` : "/auth"} className="mt-4 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-sm font-medium text-white">
+                  Mua buổi mentor
+                </Link>
               ) : (
                 <Link
-                  to={`/study-payment?planId=${plan.id}`}
+                  to={session?.accessToken ? `/study-payment?planId=${plan.id}` : "/auth"}
                   state={{ plan }}
                   className="mt-4 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
                 >

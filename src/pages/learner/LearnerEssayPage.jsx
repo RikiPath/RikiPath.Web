@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../../api/client.js';
 import { LearnerShell } from '../../components/shells';
+import { getPracticeLevelId } from '../../api/practiceGrading.js';
+import { writingLessons } from './productionPracticeLessons.js';
 import RomajiJapaneseInput from '../../components/essay/RomajiJapaneseInput.jsx';
 
 import {
@@ -72,6 +76,31 @@ export default function LearnerEssayPage() {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [text, setText] = useState('');
+  const [lessonLevel, setLessonLevel] = useState('');
+  const lesson = writingLessons.find(item => item.level === lessonLevel);
+  const queryClient = useQueryClient();
+  const [grade, setGrade] = useState(null);
+
+  async function gradeEssay() {
+    if (!text.trim() || operation) return;
+    setOperation('grade');
+    setError('');
+    setGrade(null);
+    try {
+      const levelId = await getPracticeLevelId(lesson?.level);
+      const { result } = await api.post('/PracticeSubmission/submit', {
+        type: 'Writing', textContent: text, certificateLevelId: levelId, gradeWithAi: true,
+        topic: lesson ? lesson.prompt + "\n" + lesson.guide : undefined,
+      });
+      if (result?.grading) setGrade(result.grading);
+      else setError(result?.gradingNote || 'Chưa chấm được bài viết.');
+      await queryClient.invalidateQueries({ queryKey: ['study-subscription'] });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOperation('');
+    }
+  }
 
   const [loading, setLoading] = useState(true);
   const [operation, setOperation] = useState('');
@@ -313,7 +342,7 @@ export default function LearnerEssayPage() {
               Luyện viết tiếng Nhật
             </h1>
             <p className="mt-1.5 text-[13px] text-[#967F8A]">
-              Tải ảnh bài viết, nhận dạng chữ và chỉnh sửa nội dung.
+              Nhập bài viết hoặc nhận dạng chữ từ ảnh để nhận điểm luyện viết riêng.
             </p>
           </div>
 
@@ -327,6 +356,24 @@ export default function LearnerEssayPage() {
             Bài mới
           </button>
         </header>
+
+        <section className="mb-5 space-y-2 rounded-xl border border-[#E7D7DF] bg-white p-4">
+          <label className="block max-w-md text-sm font-medium">
+            Đề luyện viết
+            <select className="mt-1 w-full rounded-lg border border-[#E7D7DF] bg-white px-3 py-2"
+              value={lessonLevel} disabled={busy} onChange={event => {
+                setLessonLevel(event.target.value);
+                setGrade(null);
+              }}>
+              <option value="">Viết tự do</option>
+              {writingLessons.map(item => <option key={item.level} value={item.level}>{item.level} · {item.title}</option>)}
+            </select>
+          </label>
+          {lesson && <>
+            <p lang="ja" className="font-medium">{lesson.prompt}</p>
+            <p className="text-sm">{lesson.guide}</p>
+          </>}
+        </section>
 
         {error && (
           <div
@@ -642,6 +689,17 @@ export default function LearnerEssayPage() {
 
               {/* Nội dung */}
               <div className="min-w-0 p-4 sm:p-5">
+                <button type="button" onClick={gradeEssay} disabled={busy || !text.trim()} className={PRIMARY_CLASS}>
+                  {operation === 'grade' ? 'Đang chấm bài…' : 'Chấm bài bằng AI · 1 lượt'}
+                </button>
+                {grade && <section className="my-3 rounded-lg bg-[#FCF3F7] p-3 text-sm">
+                  <p className="font-semibold">Điểm luyện viết · {grade.overallScore}/100</p>
+                  {grade.criteria?.map((criterion) => <p key={criterion.name}>{criterion.name}: {criterion.score}/10 · {criterion.comment}</p>)}
+                  {grade.improvements?.length > 0 && <ul className="mt-2 list-disc pl-4">
+                    {grade.improvements.map((item, index) => <li key={index}>{item}</li>)}
+                  </ul>}
+                </section>}
+
                 {operation === 'open' ? (
                   <div
                     role="status"

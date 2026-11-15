@@ -1,8 +1,7 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useLocation } from 'react-router-dom';
 
 import StudioList from './studioList.jsx';
-
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 
 export default function ContentLibrary() {
   const { pathname } = useLocation();
@@ -22,7 +21,7 @@ export default function ContentLibrary() {
       ]}
       fields={[
         { key: 'pattern', label: 'Mẫu câu', required: true },
-        { key: 'level', label: 'Cấp', type: 'select', options: LEVELS, default: 'N3' },
+        { key: 'level', label: 'Cấp', type: 'select', options: AUTHOR_LEVELS },
         { key: 'meaning', label: 'Nghĩa', required: true, wide: true },
         { key: 'note', label: 'Ghi chú', wide: true },
       ]}

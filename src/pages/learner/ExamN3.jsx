@@ -1,596 +1,301 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import OrderingAnswer from '../../components/OrderingAnswer.jsx';
+import SkillAssessmentChart from '../../components/SkillAssessmentChart.jsx';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
+import { getSession } from '../../auth/session.js';
+import {
+  getPlacementResultActions,
+  loadAssessment,
+  placementAssessmentKey,
+  getPlacementStatus,
+  savePlacementAnswers,
+  startPlacementAttempt,
+  submitPlacementAttempt,
+} from '../../api/placementApi.js';
 
-const DURATION = 15 * 60;
+const buttonClass = 'inline-flex items-center justify-center rounded-lg bg-[#AD3155] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#982B4B] disabled:opacity-50';
+const cardClass = 'rounded-xl border border-[#EADFE5] bg-white p-5';
+const assessmentUrl = '/app/placement-test';
+const chartLevelsByTarget = {
+  N5: ['N5'],
+  N4: ['N5', 'N4'],
+  N3: ['N4', 'N3'],
+  N2: ['N3', 'N2'],
+};
 
-const QUESTIONS = [
-  {
-    id: 1,
-    title: '本文によると、生け花は何を大切にしていますか。',
-    options: [
-      'できるだけ多くの花を飾ること',
-      '余白を創り出すこと',
-      '同じ色の花だけを使うこと',
-      '大きな花瓶を選ぶこと',
-    ],
-    correct: 1,
-    explanation:
-      'Đoạn đầu cho biết nghệ thuật cắm hoa chú trọng tạo ra “余白” — khoảng trống.',
-  },
-  {
-    id: 2,
-    title: '春の初めに、まだ蕾のある枝を活けるのはなぜですか。',
-    options: [
-      '満開の花より長く保存できるから',
-      '花瓶に入れやすいから',
-      'これから咲く命の力などを感じられるから',
-      '花の色を変えられるから',
-    ],
-    correct: 2,
-    explanation:
-      'Đoạn hai nhắc đến sức sống của nụ hoa sắp nở và cảm xúc trước sự mong manh của hoa.',
-  },
-  {
-    id: 3,
-    title: '筆者が最後の段落で伝えたいことは何ですか。',
-    options: [
-      '現代人は情報をもっと集めるべきだ',
-      '花を飾れば、仕事が早く終わる',
-      '生け花では、花の数が最も重要だ',
-      '何かを減らすことで、大切なものが見えてくる',
-    ],
-    correct: 3,
-    explanation:
-      'Câu cuối nhấn mạnh rằng bớt đi một điều gì đó có thể giúp nhận ra bản chất quan trọng.',
-  },
-];
-
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
+function placementAnswer(questionId, value) {
+  return Array.isArray(value) ? { questionId, response: value } : { questionId, selectedOptionId: value };
 }
 
-function formatTime(seconds) {
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(
-    seconds % 60,
-  ).padStart(2, '0')}`;
-}
-
-const focusClass =
-  'focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-[#AD3155]/40 focus-visible:ring-offset-2';
-
-export default function ExamN3() {
-  const { pathname } = useLocation();
-
-  const [answers, setAnswers] = useState({});
-  const [flagged, setFlagged] = useState([]);
-  const [fontSize, setFontSize] = useState(17);
-  const [remaining, setRemaining] = useState(DURATION);
-  const [started, setStarted] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+function AttemptForm({ attempt, pending, onSubmit, reportError }) {
+  const [answers, setAnswers] = useState(() => Object.fromEntries(attempt.questions
+    .filter(question => question.selectedOptionId != null || Array.isArray(question.response))
+    .map(question => [question.questionId, question.selectedOptionId ?? question.response])));
+  const savedQueue = useRef(Promise.resolve());
+  const [saving, setSaving] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
-
-  const deadlineRef = useRef(null);
-  const questionRefs = useRef({});
-
-  const answeredCount = Object.keys(answers).length;
-  const unansweredCount = QUESTIONS.length - answeredCount;
-  const correctCount = QUESTIONS.filter(
-    (question) => answers[question.id] === question.correct,
-  ).length;
-
-  const expired = submitted && remaining === 0;
-  const canAnswer = started && !submitted;
+  const revision = useRef(0);
+  const autoSubmitted = useRef(false);
+  const deadline = attempt.localDeadline;
+  const [seconds, setSeconds] = useState(() => Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
 
   useEffect(() => {
-    if (!started || submitted) return undefined;
+    const interval = setInterval(() => setSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 250);
+    return () => clearInterval(interval);
+  }, [deadline]);
 
-    function updateTimer() {
-      const seconds = Math.max(
-        0,
-        Math.ceil((deadlineRef.current - Date.now()) / 1000),
-      );
-
-      setRemaining(seconds);
-
-      if (seconds === 0) {
-        setSubmitted(true);
-        setConfirmSubmit(false);
-      }
-    }
-
-    updateTimer();
-    const interval = window.setInterval(updateTimer, 500);
-
-    return () => window.clearInterval(interval);
-  }, [started, submitted]);
-
-  function startExam() {
-    deadlineRef.current = Date.now() + DURATION * 1000;
-    setStarted(true);
+  function choose(questionId, value) {
+    if (pending || seconds === 0) return;
+    setAnswers((current) => ({ ...current, [questionId]: value }));
+    setSaving(true);
+    reportError('');
+    const version = ++revision.current;
+    savedQueue.current = savedQueue.current
+      .then(() => savePlacementAnswers(attempt.attemptId, [placementAnswer(questionId, value)]))
+      .catch(error => {
+        if (error.data?.errorCode !== 'PLACEMENT_ATTEMPT_EXPIRED') reportError(error.message);
+      })
+      .finally(() => { if (revision.current === version) setSaving(false); });
   }
 
-  function toggleFlag(id) {
-    setFlagged((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
-    );
-  }
-
-  function submitExam() {
-    // Đọc lại thời gian thực tại thời điểm nộp bài.
-    const seconds = Math.max(
-      0,
-      Math.ceil((deadlineRef.current - Date.now()) / 1000),
-    );
-
-    setRemaining(seconds);
-    setSubmitted(true);
+  const submit = useCallback(() => {
     setConfirmSubmit(false);
+    onSubmit(attempt.attemptId, savedQueue.current, Object.entries(answers)
+      .map(([questionId, value]) => placementAnswer(Number(questionId), value)));
+  }, [answers, attempt.attemptId, onSubmit]);
+
+  useEffect(() => {
+    if (seconds !== 0 || pending || autoSubmitted.current) return;
+    autoSubmitted.current = true;
+    submit();
+  }, [seconds, pending, submit]);
+
+  const levels = [...new Set(attempt.questions.map((question) => question.jlptLevelName).filter(Boolean))];
+  const minutes = Math.floor(seconds / 60);
+  const clock = `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+  const questions = [...attempt.questions].sort((a, b) => a.order - b.order);
+  function isAnswered(question) {
+    const value = answers[question.questionId];
+    return Array.isArray(value)
+      ? value.length > 0 && value.length === question.interactionData?.tokens?.length
+      : value != null;
   }
+  const answeredCount = questions.filter(isAnswered).length;
 
-  function restartExam() {
-    deadlineRef.current = null;
-    setAnswers({});
-    setFlagged([]);
-    setRemaining(DURATION);
-    setStarted(false);
-    setSubmitted(false);
-    setConfirmSubmit(false);
-  }
-
-  return (
-    <LearnerShell pathname={pathname} breadcrumb="Thi thử">
-      <div
-        data-page="ExamN3"
-        className="min-h-full bg-[#FCF8FA] text-[#49353F]"
-      >
-        <div className="mx-auto max-w-[1360px] px-4 py-5 sm:px-6 lg:px-7">
-          {/* Tiêu đề và thời gian */}
-          <header className="mb-4 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-[26px] font-semibold tracking-tight">
-                Thi thử
-              </h1>
-              <p className="mt-1 text-[13px] text-[#927E89]">
-                Bài đọc minh họa · {QUESTIONS.length} câu · 15 phút
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div
-                role="timer"
-                aria-label={`Thời gian còn lại ${formatTime(remaining)}`}
-                className={[
-                  'flex items-center gap-2 rounded-xl border px-3 py-2',
-                  remaining <= 60 && started && !submitted
-                    ? 'border-[#E9B7C6] bg-[#FFF0F4] text-[#A33357]'
-                    : 'border-[#EADFE5] bg-white text-[#78616E]',
-                ].join(' ')}
-              >
-                <Icon name="timer" className="text-[19px]" />
-                <span className="font-mono text-[19px] font-medium tabular-nums">
-                  {formatTime(remaining)}
-                </span>
-              </div>
-
-              {!started ? (
-                <button
-                  type="button"
-                  onClick={startExam}
-                  className={`h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
-                >
-                  Bắt đầu làm bài
-                </button>
-              ) : submitted ? (
-                <button
-                  type="button"
-                  onClick={restartExam}
-                  className={`h-10 rounded-lg border border-[#E2CBD5] bg-white px-4 text-[13px] font-medium text-[#AD3155] hover:bg-[#FFF4F8] ${focusClass}`}
-                >
-                  Làm lại
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmSubmit(true)}
-                  className={`h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
-                >
-                  Nộp bài
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Kết quả minh họa */}
-          {submitted && (
-            <div
-              role="status"
-              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8D5DE] bg-[#FCEEF4] px-4 py-3"
-            >
-              <div>
-                <p className="text-[14px] font-semibold text-[#A33357]">
-                  {expired ? 'Đã hết thời gian' : 'Đã hoàn thành bài đọc'}
-                </p>
-                <p className="mt-1 text-[13px] text-[#876C7B]">
-                  Đúng {correctCount}/{QUESTIONS.length} câu
-                  {unansweredCount > 0
-                    ? ` · ${unansweredCount} câu chưa trả lời`
-                    : ''}
-                  . Xem giải thích dưới mỗi câu.
-                </p>
-              </div>
-
-              <Link
-                to="/roadmap"
-                className={`rounded text-[13px] font-medium text-[#AD3155] underline-offset-4 hover:underline ${focusClass}`}
-              >
-                Về lộ trình
-              </Link>
-            </div>
-          )}
-
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-            {/* Bài đọc */}
-            <section className="min-w-0 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-              <div className="flex items-center justify-between gap-3 border-b border-[#F0E7EC] px-4 py-3 sm:px-5">
-                <div className="flex items-center gap-2">
-                  <Icon
-                    name="menu_book"
-                    className="text-[19px] text-[#AF7890]"
-                  />
-                  <h2 className="text-[14px] font-medium">Bài đọc</h2>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Giảm cỡ chữ bài đọc"
-                    disabled={fontSize <= 15}
-                    onClick={() =>
-                      setFontSize((current) => Math.max(15, current - 1))
-                    }
-                    className={`flex h-8 w-8 items-center justify-center rounded-md text-[#927B87] hover:bg-[#FCF2F6] disabled:cursor-not-allowed disabled:opacity-30 ${focusClass}`}
-                  >
-                    <Icon name="text_decrease" className="text-[19px]" />
-                  </button>
-
-                  <span className="w-8 text-center text-[11px] tabular-nums text-[#A08B96]">
-                    {fontSize}
+  return <>
+    <section className={cardClass}>
+      <div>
+        <h2 className="font-semibold">
+          {[attempt.isShortenedAssessment ? 'Bài đánh giá rút gọn' : 'Bài đánh giá năng lực', levels.join(' + ')].filter(Boolean).join(' ')}
+        </h2>
+        <p className="mt-1 text-xs text-[#967F8A]">{attempt.totalQuestions} câu · {attempt.timeLimitMinutes} phút · Đã trả lời {answeredCount}/{attempt.totalQuestions}{saving && ' · Đang lưu đáp án…'}</p>
+      </div>
+    </section>
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+      <aside aria-label="Thông tin lượt làm bài" className={`${cardClass} lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto`}>
+        <div className="flex items-center justify-between gap-2 border-b border-[#EADFE5] pb-3">
+          <span className="text-sm font-semibold">Thời gian còn lại</span>
+        <span className="rounded-lg bg-[#FFF0F5] px-3 py-2 font-semibold tabular-nums text-[#AD3155]" aria-label="Thời gian còn lại">{clock}</span>
+        </div>
+        <p className="mt-3 text-sm font-semibold">Danh sách câu hỏi</p>
+        <nav aria-label="Chuyển đến câu hỏi" className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-2">
+          {questions.map((question, index) => (
+            <button key={question.questionId} type="button" aria-label={`Câu ${index + 1}, ${isAnswered(question) ? 'đã trả lời' : 'chưa trả lời'}`}
+              onClick={() => document.getElementById(`placement-question-${question.questionId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+              className={`h-9 min-w-0 rounded-lg border text-sm ${isAnswered(question) ? 'border-[#D28DA4] bg-[#FFF0F5] text-[#AD3155]' : 'border-[#EADFE5]'}`}>{index + 1}</button>
+          ))}
+        </nav>
+      </aside>
+      <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1">
+        {questions.map((question, index) => (
+          <fieldset id={`placement-question-${question.questionId}`} key={question.questionId} disabled={pending || seconds === 0} className={`${cardClass} scroll-mt-36`}>
+            <legend className="px-2 text-xs font-semibold text-[#AD3155]">Câu {index + 1}</legend>
+            <p className="whitespace-pre-wrap text-sm font-medium">{question.content}</p>
+            {question.imageUrl && <img src={question.imageUrl} alt="Hình minh họa câu hỏi" className="mt-3 max-h-80 max-w-full rounded-lg" />}
+            {question.audioUrl && <audio controls preload="none" src={question.audioUrl} className="mt-3 w-full" />}
+            {question.questionType === 'Ordering'
+              ? <OrderingAnswer question={question} value={answers[question.questionId]}
+                  onChange={value => choose(question.questionId, value)} />
+              : <div className="mt-4 grid gap-2">
+              {question.options.map((option, optionIndex) => (
+                <label key={option.optionId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#EADFE5] px-3 py-2.5 text-sm has-checked:border-[#AD3155] has-checked:bg-[#FFF0F5]">
+                  <input type="radio" className="mt-1 accent-[#AD3155]" name={`question-${question.questionId}`} checked={answers[question.questionId] === option.optionId} onChange={() => choose(question.questionId, option.optionId)} />
+                  <span className="min-w-0 whitespace-pre-wrap">
+                    {option.content}
+                    {option.imageUrl && <img src={option.imageUrl} alt={`Hình đáp án ${optionIndex + 1}`} className="max-h-48 max-w-full rounded-md" />}
                   </span>
-
-                  <button
-                    type="button"
-                    aria-label="Tăng cỡ chữ bài đọc"
-                    disabled={fontSize >= 22}
-                    onClick={() =>
-                      setFontSize((current) => Math.min(22, current + 1))
-                    }
-                    className={`flex h-8 w-8 items-center justify-center rounded-md text-[#927B87] hover:bg-[#FCF2F6] disabled:cursor-not-allowed disabled:opacity-30 ${focusClass}`}
-                  >
-                    <Icon name="text_increase" className="text-[19px]" />
-                  </button>
-                </div>
-              </div>
-
-              <article className="px-5 py-5 sm:px-7 sm:py-6">
-                <p className="text-[12px] text-[#AA758D]">
-                  文化と暮らし
-                </p>
-
-                <h3
-                  lang="ja"
-                  className="mt-2 text-[21px] font-medium leading-relaxed text-[#533D49]"
-                >
-                  生け花に見る「余白」の美しさ
-                </h3>
-
-                <div
-                  lang="ja"
-                  style={{
-                    fontSize: `${fontSize}px`,
-                    fontFamily: "'Noto Sans JP', sans-serif",
-                  }}
-                  className="mt-5 space-y-5 break-words leading-[2.1] text-[#594B53] selection:bg-[#F5D5E3]"
-                >
-                  <p>
-                    日本の伝統的な文化である「生け花」は、ただ美しい花を
-                    花瓶に集めて飾ることではない。西洋のフラワーアレンジメントが
-                    空間を花で満たす「足し算の美」であるのに対して、日本の生け花は
-                    不要な枝や葉をあえて切り落とし、「余白」を創り出す
-                    「引き算の美学」に基づいている。
-                  </p>
-
-                  <p>
-                    特に春の初めには、満開の桜ではなく、あえてまだ硬い蕾を
-                    つけた一枝を活けることが多い。そこには、これから咲こうとする
-                    命の力強さや、やがて散りゆく儚さを慈しむ「もののあわれ」
-                    という独特の感性が宿っている。何もない空間、すなわち「間」が
-                    存在することによってこそ、一本の花の凛とした立ち姿や、
-                    風の流れが観る者の心に鮮やかに伝わってくるのである。
-                  </p>
-
-                  <p>
-                    情報が溢れ、絶え間なく時間に追われる現代社会において、
-                    この「余白」を味わう生け花の精神は、現代人にとって
-                    大切な契機となっていると言えよう。あえて何かを引くことで、
-                    本当に大切な本質が静かに浮かび上がってくるからである。
-                  </p>
-                </div>
-              </article>
-            </section>
-
-            {/* Câu hỏi */}
-            <section className="min-w-0 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-              <div className="border-b border-[#F0E7EC] px-4 py-3 sm:px-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-[14px] font-medium">Câu hỏi</h2>
-                  <span className="text-[12px] text-[#98828E]">
-                    Đã chọn {answeredCount}/{QUESTIONS.length}
-                  </span>
-                </div>
-
-                <div
-                  aria-label="Đi đến câu hỏi"
-                  className="mt-3 flex items-center gap-2"
-                >
-                  {QUESTIONS.map((question, index) => {
-                    const answered = answers[question.id] !== undefined;
-                    const marked = flagged.includes(question.id);
-
-                    return (
-                      <button
-                        key={question.id}
-                        type="button"
-                        aria-label={`Câu ${index + 1}${
-                          answered ? ', đã trả lời' : ', chưa trả lời'
-                        }${marked ? ', đã đánh dấu' : ''}`}
-                        onClick={() =>
-                          questionRefs.current[question.id]?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center',
-                          })
-                        }
-                        className={[
-                          'relative flex h-8 w-8 items-center justify-center',
-                          'rounded-lg border text-[12px] transition-colors',
-                          focusClass,
-                          answered
-                            ? 'border-[#E5BCCC] bg-[#FBEAF2] font-medium text-[#A33357]'
-                            : 'border-[#EDE4E9] text-[#9B8591] hover:bg-[#FCF7FA]',
-                        ].join(' ')}
-                      >
-                        {index + 1}
-                        {marked && (
-                          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#B58D52] ring-2 ring-white" />
-                        )}
-                      </button>
-                    );
-                  })}
-
-                  <span className="ml-auto text-[11px] text-[#A08C97]">
-                    {flagged.length} đánh dấu
-                  </span>
-                </div>
-              </div>
-
-              {!started && (
-                <p className="border-b border-[#F0E7EC] bg-[#FFF6F9] px-4 py-3 text-[12px] leading-5 text-[#987584] sm:px-5">
-                  Nhấn “Bắt đầu làm bài” để chọn đáp án và tính giờ.
-                </p>
-              )}
-
-              <div className="divide-y divide-[#F0E7EC]">
-                {QUESTIONS.map((question, questionIndex) => {
-                  const marked = flagged.includes(question.id);
-                  const chosen = answers[question.id];
-
-                  return (
-                    <article
-                      key={question.id}
-                      ref={(element) => {
-                        questionRefs.current[question.id] = element;
-                      }}
-                      className="scroll-mt-24 px-4 py-4 sm:px-5"
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <h3 className="text-[12px] font-semibold text-[#A33357]">
-                          Câu {questionIndex + 1}
-                        </h3>
-
-                        <button
-                          type="button"
-                          aria-label={`Đánh dấu câu ${questionIndex + 1}`}
-                          aria-pressed={marked}
-                          disabled={!canAnswer}
-                          onClick={() => toggleFlag(question.id)}
-                          className={`flex h-8 w-8 items-center justify-center rounded-md hover:bg-[#FCF4F8] disabled:cursor-not-allowed disabled:opacity-40 ${
-                            marked ? 'text-[#A57C40]' : 'text-[#B6A1AC]'
-                          } ${focusClass}`}
-                        >
-                          <Icon
-                            name={marked ? 'bookmark' : 'bookmark_border'}
-                            className="text-[19px]"
-                          />
-                        </button>
-                      </div>
-
-                      <fieldset disabled={!canAnswer}>
-                        <legend
-                          lang="ja"
-                          className="mb-3 text-[14px] font-medium leading-7"
-                        >
-                          {question.title}
-                        </legend>
-
-                        <div className="space-y-2">
-                          {question.options.map((option, index) => {
-                            const active = chosen === index;
-                            const correct =
-                              submitted && question.correct === index;
-                            const incorrect =
-                              submitted &&
-                              active &&
-                              index !== question.correct;
-
-                            return (
-                              <label
-                                key={option}
-                                className={[
-                                  'flex items-start gap-2.5 rounded-lg border',
-                                  'px-3 py-2.5 transition-colors',
-                                  'focus-within:ring-2 focus-within:ring-[#AD3155]/30',
-                                  canAnswer
-                                    ? 'cursor-pointer'
-                                    : 'cursor-default',
-                                  correct
-                                    ? 'border-[#BFD5C6] bg-[#F2F8F4]'
-                                    : incorrect
-                                      ? 'border-[#E8BBC8] bg-[#FFF2F6]'
-                                      : active
-                                        ? 'border-[#E2B7C8] bg-[#FDF0F6]'
-                                        : 'border-[#EEE6EB] bg-white',
-                                ].join(' ')}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`question-${question.id}`}
-                                  value={index}
-                                  checked={active}
-                                  onChange={() =>
-                                    setAnswers((current) => ({
-                                      ...current,
-                                      [question.id]: index,
-                                    }))
-                                  }
-                                  className="mt-1 h-4 w-4 shrink-0 accent-[#AD3155]"
-                                />
-
-                                <span
-                                  lang="ja"
-                                  className="flex-1 text-[13px] leading-6 text-[#74606C]"
-                                >
-                                  <span className="mr-1.5 text-[#A48E9A]">
-                                    {index + 1}.
-                                  </span>
-                                  {option}
-                                </span>
-
-                                {correct && (
-                                  <Icon
-                                    name="check"
-                                    className="mt-0.5 text-[18px] text-[#538063]"
-                                  />
-                                )}
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </fieldset>
-
-                      {submitted && (
-                        <p className="mt-3 text-[12px] leading-6 text-[#8B7581]">
-                          <span className="font-medium text-[#597D65]">
-                            Đáp án {question.correct + 1}.{' '}
-                          </span>
-                          {question.explanation}
-                        </p>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-
-              <div className="border-t border-[#F0E7EC] bg-[#FDFAFC] px-4 py-3 text-[11px] leading-5 text-[#A18B97] sm:px-5">
-                Bài minh họa · Kết quả chưa được lưu vào lịch sử.
-              </div>
-            </section>
-          </div>
-
-          {/* Xác nhận nộp bài */}
-          {confirmSubmit && !submitted && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#34232D]/30 p-4">
-              <section
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="submit-title"
-                aria-describedby="submit-description"
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setConfirmSubmit(false);
-
-                  // Giữ focus trong hai nút của hộp xác nhận.
-                  if (event.key === 'Tab') {
-                    const buttons =
-                      event.currentTarget.querySelectorAll('button');
-                    const first = buttons[0];
-                    const last = buttons[buttons.length - 1];
-
-                    if (
-                      event.shiftKey &&
-                      document.activeElement === first
-                    ) {
-                      event.preventDefault();
-                      last.focus();
-                    } else if (
-                      !event.shiftKey &&
-                      document.activeElement === last
-                    ) {
-                      event.preventDefault();
-                      first.focus();
-                    }
-                  }
-                }}
-                className="w-full max-w-sm rounded-2xl border border-[#EADFE5] bg-white p-5 shadow-lg"
-              >
-                <h2
-                  id="submit-title"
-                  className="text-[18px] font-semibold"
-                >
-                  Nộp bài ngay?
-                </h2>
-
-                <p
-                  id="submit-description"
-                  className="mt-2 text-[13px] leading-6 text-[#927B88]"
-                >
-                  {unansweredCount > 0
-                    ? `Bạn còn ${unansweredCount} câu chưa trả lời.`
-                    : 'Bạn đã trả lời tất cả câu hỏi.'}
-                  {' '}Sau khi nộp, bạn có thể xem đáp án và giải thích.
-                </p>
-
-                <div className="mt-5 flex justify-end gap-2">
-                  <button
-                    autoFocus
-                    type="button"
-                    onClick={() => setConfirmSubmit(false)}
-                    className={`h-10 rounded-lg border border-[#EADFE5] px-4 text-[13px] text-[#856C7B] hover:bg-[#FCF7FA] ${focusClass}`}
-                  >
-                    Làm tiếp
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={submitExam}
-                    className={`h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
-                  >
-                    Nộp bài
-                  </button>
-                </div>
-              </section>
-            </div>
-          )}
+                </label>
+              ))}
+            </div>}
+          </fieldset>
+        ))}
+        <div className="flex items-center justify-end gap-3">
+          {seconds === 0 ? <>
+            <p role="status" className="text-sm text-[#967F8A]">
+              {pending ? 'Đã hết giờ. Đang tự động nộp bài…' : 'Đã hết thời gian làm bài.'}
+            </p>
+            {!pending && <button type="button" className={buttonClass} onClick={submit}>Thử nộp lại</button>}
+          </> : confirmSubmit ? <>
+            <span className="text-sm">Bạn đã trả lời {answeredCount}/{attempt.totalQuestions} câu.</span>
+            <button type="button" onClick={() => setConfirmSubmit(false)} className="text-sm text-[#AD3155] underline">Quay lại</button>
+            <button type="button" className={buttonClass} disabled={pending} onClick={submit}>Xác nhận nộp bài</button>
+          </> : <button type="button" className={buttonClass} disabled={pending} onClick={() => setConfirmSubmit(true)}>{pending ? 'Đang xử lý…' : 'Nộp bài đánh giá'}</button>}
         </div>
       </div>
-    </LearnerShell>
-  );
+    </div>
+  </>;
+}
+
+export default function ExamN3() {
+  const { pathname, search, state } = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const session = getSession();
+  const requestedId = Number(new URLSearchParams(search).get('attemptId')) || null;
+  const keyFor = (id) => placementAssessmentKey(session, id);
+  const query = useQuery({
+    queryKey: keyFor(requestedId),
+    queryFn: () => loadAssessment(requestedId),
+    enabled: Boolean(session?.accessToken),
+    retry: false,
+    staleTime: 10_000,
+  });
+  const { status, attempt, result, active, notice } = query.data ?? {};
+  const [pending, setPending] = useState(false);
+  const inFlight = useRef(false);
+  const [error, setError] = useState('');
+  const visibleError = error || query.error?.message;
+  const target = status?.targetJlptLevelName || 'cấp độ mục tiêu';
+  const { isLatest, matchesTarget, isDifferentGoal, canStartUpdatedAssessment, canRetake } = getPlacementResultActions(status, result);
+  const canSelfStudy = Boolean(result && status?.targetJlptLevelId && isLatest && matchesTarget && !result.isMiniAssessment);
+  const resultTarget = result?.screeningLevelName
+    || result?.levelBreakdowns?.find((level) => level.jlptLevelId === result.assessmentTargetLevelId)?.jlptLevelName
+    || 'cấp độ của bài này';
+  const chartTarget = Object.hasOwn(chartLevelsByTarget, resultTarget)
+    ? resultTarget
+    : Object.keys(chartLevelsByTarget).findLast(level => result?.levelBreakdowns?.some(item => item.jlptLevelName === level))
+      ?? status?.targetJlptLevelName;
+  const showCurrentAssessment = isDifferentGoal || Boolean(active) || Boolean(status && !isLatest);
+  const allowance = status?.attemptAllowance;
+  const studyLevel = result?.skillAssessments?.find(item => item.skillCode === 'listening')?.recommendedStudyLevelCode
+    ?? chartLevelsByTarget[chartTarget]?.[0] ?? chartTarget;
+
+
+  function openAttempt(id, data) {
+    void queryClient.invalidateQueries({ queryKey: keyFor(null), exact: true, refetchType: 'none' });
+    queryClient.setQueryData(keyFor(id), data);
+    navigate(`${assessmentUrl}?attemptId=${id}`, { replace: true });
+  }
+
+  async function run(action) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setPending(true);
+    setError('');
+    try {
+      await action();
+    } catch (err) {
+      setError(err.message || 'Chưa thực hiện được. Vui lòng thử lại.');
+    } finally {
+      inFlight.current = false;
+      setPending(false);
+    }
+  }
+
+  function start(retakeTargetAssessment = false) {
+    return run(async () => {
+      const next = await startPlacementAttempt({ retakeTargetAssessment });
+      openAttempt(next.attemptId, { status, attempt: next });
+    });
+  }
+
+  function returnToCurrentAssessment() {
+    return run(async () => {
+      const current = await loadAssessment(null);
+      queryClient.setQueryData(keyFor(null), current);
+      navigate(assessmentUrl, { replace: true });
+    });
+  }
+
+  function submit(id, saved, answers) {
+    return run(async () => {
+      await saved;
+      const completed = await submitPlacementAttempt(id, answers);
+      openAttempt(completed.attemptId, { result: completed });
+      void queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] });
+      // Refresh eligibility separately so a status failure never loses a submitted result.
+      const latestStatus = await getPlacementStatus();
+      queryClient.setQueryData(keyFor(completed.attemptId), { status: latestStatus, result: completed });
+    });
+  }
+
+  return <LearnerShell pathname={pathname} breadcrumb="Đánh giá năng lực">
+    <main className="min-h-full bg-[#FCF8FA] px-4 py-6 text-[#49353F]">
+      <div className={`mx-auto space-y-4 ${attempt ? 'max-w-6xl' : 'max-w-4xl'}`}>
+        <header className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}>
+          <h1 className="text-xl font-semibold">Đánh giá năng lực JLPT</h1>
+          <Link to="/onboarding" className="text-sm font-semibold text-[#AD3155] underline">Đổi mục tiêu học tập</Link>
+        </header>
+        {!session?.accessToken && <Link to="/auth" className={buttonClass}>Đăng nhập để làm bài</Link>}
+        {visibleError && <div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+          {visibleError}
+          {(query.error || (result && !status)) && <button type="button" disabled={pending || query.isFetching} onClick={() => { setError(''); query.refetch(); }} className="ml-3 font-semibold underline">Thử tải lại</button>}
+        </div>}
+        {state?.placementMessage && <p className={cardClass}>{state.placementMessage}</p>}
+        {notice && <p className={cardClass}>{notice}</p>}
+        {query.isLoading && <p className={cardClass}>Đang tải trạng thái đánh giá…</p>}
+        {attempt && <AttemptForm key={attempt.attemptId} attempt={attempt} pending={pending} onSubmit={submit} reportError={setError} />}
+        {result && <section className={cardClass}>
+          <h2 className="text-lg font-semibold">
+            Kết quả {result.isShortenedAssessment ? 'đánh giá rút gọn' : 'đánh giá năng lực'} {result.levelBreakdowns?.map(level => level.jlptLevelName).filter(Boolean).join(' + ') || result.screeningLevelName}
+          </h2>
+          <p className="mt-2 text-2xl font-bold text-[#AD3155]">{Number(result.totalScore).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%</p>
+          <p className="mt-1 text-sm">{result.correctCount}/{result.totalQuestions} câu đúng</p>
+          {allowance && matchesTarget && <p className="mt-1 text-sm text-[#765E6B]">
+            Còn {allowance.remaining}/{allowance.limit} lượt đánh giá cho mục tiêu {target}
+          </p>}
+          {result.notStudiedCount > 0 && <p className="mt-1 text-sm text-[#765E6B]">
+            Chưa học hoặc không biết · {result.notStudiedCount} câu
+          </p>}
+          <SkillAssessmentChart assessments={result.skillAssessments} targetLevel={chartTarget}
+            visibleLevels={chartLevelsByTarget[chartTarget]} showStudyLevel />
+          {result.sections?.length > 0 && <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            {result.sections.map((section, index) => <li key={section.mockTestSectionId ?? index} className="rounded-lg bg-[#FAF4F7] p-2">{section.sectionTitle || section.sectionName || section.languageSkillName} · {section.correctCount}/{section.totalQuestions ?? section.totalCount} câu</li>)}
+          </ul>}
+          {canStartUpdatedAssessment && <>
+            <p className="mt-3 text-sm">Bạn có thể làm lượt đánh giá mới cho mục tiêu {target}.</p>
+            <button type="button" className={`${buttonClass} mt-4 mr-2`} disabled={pending} onClick={() => start()}>Bắt đầu bài đánh giá {target} mới</button>
+          </>}
+          {result.assessmentMessage && <p className="mt-3 text-sm">{result.assessmentMessage}</p>}
+          {isDifferentGoal && <p className="mt-3 rounded-lg bg-[#FAF4F7] p-3 text-sm">
+            Kết quả này thuộc bài đánh giá trước đó. Hãy quay về bài đánh giá dành cho thiết lập mục tiêu <strong>{target}</strong> hiện tại để tiếp tục.
+          </p>}
+          {!showCurrentAssessment && (canSelfStudy || canRetake) && <div className="mt-4 flex flex-wrap items-center gap-3">
+            {canSelfStudy && <>
+              <Link className={buttonClass} to="/roadmap/#self-study-roadmap-title">Xem lộ trình tự học</Link>
+              <Link className="text-sm font-semibold text-[#AD3155] underline"
+                to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}>Tự ôn với audio</Link>
+              <Link className="text-sm font-semibold text-[#AD3155] underline" to="/booking-schedule/">Tìm mentor phù hợp</Link>
+            </>}
+            {canRetake && <button type="button" className="text-sm font-semibold text-[#AD3155] underline" disabled={pending} onClick={() => start(true)}>
+              Làm lại bài đánh giá {resultTarget}
+            </button>}
+          </div>}
+          {showCurrentAssessment && <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={returnToCurrentAssessment}>{isDifferentGoal && status?.targetJlptLevelName ? `Quay về đánh giá ${target}` : 'Quay về đánh giá hiện tại'}</button>}
+          {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && <Link className="mt-4 inline-block text-sm font-semibold text-[#AD3155] underline" to="/onboarding">Kiểm tra mục tiêu học tập</Link>}
+        </section>}
+        {status && !attempt && !result && <section className={cardClass}>
+          <h2 className="font-semibold">Mục tiêu {target}</h2>
+          <p className="mt-2 text-sm">Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.</p>
+          {allowance && <p className="mt-2 text-sm">Còn {allowance.remaining}/{allowance.limit} lượt đánh giá.</p>}
+          {status.canStartNewAttempt !== false
+            ? <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={() => start()}>Bắt đầu bài đánh giá</button>
+            : allowance?.remaining === 0 ? <p className="mt-2 text-sm">Bạn đã dùng hết lượt cho mục tiêu này.</p>
+              : <Link className={`${buttonClass} mt-4 inline-block`} to="/onboarding">Chọn mục tiêu và ngày thi</Link>}
+        </section>}
+      </div>
+    </main>
+  </LearnerShell>;
 }

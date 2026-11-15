@@ -1,3 +1,4 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -6,7 +7,6 @@ import Pagination from '../../components/Pagination.jsx';
 import { CmsShell } from '../../components/shells';
 import { usePagination } from '../../hooks/usePagination.js';
 
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 const SKILLS = [
   { value: '1', label: '1 · Từ vựng' },
   { value: '2', label: '2 · Hán tự' },
@@ -216,7 +216,9 @@ function issuesFor(row, index, rows) {
   const issues = [];
   if (CERT_TYPES.has(row.type)) {
     if (!String(row.fields.CertificateType || '').trim()) issues.push('Thiếu CertificateType');
-    if (!String(row.fields.CertificateLevel || '').trim()) issues.push('Thiếu CertificateLevel');
+    const level = String(row.fields.CertificateLevel || '').trim().toUpperCase();
+    if (!level) issues.push('Thiếu CertificateLevel');
+    else if (!AUTHOR_LEVELS.includes(level)) issues.push('Cấp độ phải từ N5 đến N2.');
   }
   meta.fields.forEach(([key, label, required, kind]) => {
     const value = String(row.fields[key] ?? '').trim();
@@ -575,7 +577,7 @@ export default function BulkImport() {
                     onChange={(event) => setDraftField('CertificateLevel', event.target.value)}
                     className={inputClass}
                   >
-                    {LEVELS.map((level) => (
+                    {AUTHOR_LEVELS.map((level) => (
                       <option key={level}>{level}</option>
                     ))}
                   </select>

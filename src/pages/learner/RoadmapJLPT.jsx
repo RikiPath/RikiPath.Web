@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
+import { useLearnerProfile } from '../../hooks/useLearnerHome.js';
+import StandardAssessmentRoadmap from './StandardAssessmentRoadmap.jsx';
 
 const LEVELS = {
   N5: {
@@ -96,37 +98,20 @@ function getStages(level) {
       japanese: '模擬試験',
       title: 'Luyện đề thi thử',
       description: 'Làm đề và rèn cách phân bổ thời gian.',
-      tasks:
-        level === 'N3'
-          ? [
-              {
-                icon: 'quiz',
-                title: 'Thi thử JLPT N3',
-                description: 'Thử sức với đề N3 và xem kết quả bài làm.',
-                to: '/exam-n3',
-              },
-              {
-                icon: 'fact_check',
-                title: 'Xem kết quả',
-                description: 'Đối chiếu kết quả qua các lần làm đề.',
-                to: '/exam-result',
-              },
-            ]
-          : [
-              {
-                icon: 'quiz',
-                title: `Thi thử JLPT ${level}`,
-                description:
-                  'Chưa cấu hình đường dẫn danh sách đề cho cấp độ này.',
-                to: null,
-              },
-              {
-                icon: 'fact_check',
-                title: 'Xem kết quả',
-                description: 'Xem lại các bài thi đã thực hiện.',
-                to: '/exam-result',
-              },
-            ],
+      tasks: [
+        {
+          icon: 'quiz',
+          title: `Thi thử JLPT ${level}`,
+          description: 'Chọn đề và làm bài có giới hạn thời gian.',
+          to: '/mock-tests/?level=' + level,
+        },
+        {
+          icon: 'fact_check',
+          title: 'Xem kết quả thi thử',
+          description: 'Xem lại các lượt thi đã thực hiện.',
+          to: '/exam-result/',
+        },
+      ],
     },
     {
       id: 'review',
@@ -217,10 +202,19 @@ function TaskRow({ task }) {
 }
 
 export default function RoadmapJLPT() {
-  const { pathname } = useLocation();
-
-  const [level, setLevel] = useState('N3');
+  const location = useLocation();
+  const { pathname } = location;
+  const { data: profile } = useLearnerProfile();
+  const [selectedLevel, setLevel] = useState(null);
+  const preferredLevel = profile?.targetJlptLevelName;
+  const level = selectedLevel ?? (Object.hasOwn(LEVELS, preferredLevel) ? preferredLevel : 'N3');
   const [openStage, setOpenStage] = useState('knowledge');
+
+  useEffect(() => {
+    if (location.hash === '#self-study-roadmap-title' || location.hash === '#ai-roadmap-title') {
+      document.getElementById('self-study-roadmap-title')?.scrollIntoView({ block: 'start' });
+    }
+  }, [location.hash]);
 
   const stages = getStages(level);
   const currentIndex = stages.findIndex(
@@ -283,9 +277,11 @@ export default function RoadmapJLPT() {
           </Link>
         </header>
 
+        <StandardAssessmentRoadmap targetLevelId={profile?.targetJlptLevelId} />
+
         {/* Chọn cấp độ */}
         <section
-          aria-label="Chọn cấp độ xem lộ trình"
+          aria-label="Chọn cấp độ tài nguyên ôn luyện"
           className="mb-5 rounded-xl border border-[#EADFE5]
                      bg-white px-4 py-3.5"
         >
@@ -339,7 +335,7 @@ export default function RoadmapJLPT() {
                 id="roadmap-stages-title"
                 className="text-[16px] font-semibold"
               >
-                Các chặng ôn luyện
+                Tài nguyên ôn luyện
               </h2>
               <span className="text-[11px] text-[#AA8D9B]">
                 4 chặng · JLPT {level}
@@ -512,8 +508,7 @@ export default function RoadmapJLPT() {
                     : 'Chọn một chặng để xem nội dung.'}
                 </p>
                 <p className="mt-2 text-[11px] leading-5 text-[#AE95A1]">
-                  Đây là thứ tự ôn tập gợi ý. Bạn có thể mở
-                  bất kỳ chặng nào.
+                  Chọn chặng để mở tài nguyên theo cấp độ.
                 </p>
               </div>
             </section>

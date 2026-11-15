@@ -7,9 +7,10 @@ import { getMeetingPlans, purchaseMeeting } from '../../api/mentorBookingApi.js'
 const money = value => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
 export default function ConsultationPayment() {
   const { pathname } = useLocation(); const navigate = useNavigate(); const { user } = useAuth();
-  const [planId, setPlanId] = useState(null);
+  const [params] = useSearchParams();
+  const [planId, setPlanId] = useState(() => Number(params.get("planId")) || null);
   const query = useQuery({ queryKey: ['meeting-plans'], queryFn: getMeetingPlans });
-  const plans = query.data || []; const plan = plans.find(p => p.id === (planId ?? plans[0]?.id));
+  const plans = query.data || []; const plan = plans.find(p => p.id === planId) ?? plans[0];
   const purchase = useMutation({ mutationFn: () => purchaseMeeting({ subscriptionPlanId: plan.id }), onSuccess: result => {
     sessionStorage.setItem(`mentor-checkout:${user.userId}:${result.subscriptionId}`, result.checkoutUrl);
     navigate(`/consultation-receipt/?subscriptionId=${result.subscriptionId}`);

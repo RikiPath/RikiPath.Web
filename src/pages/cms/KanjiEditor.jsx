@@ -1,8 +1,7 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useLocation } from 'react-router-dom';
 
 import StudioList from './studioList.jsx';
-
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 
 export default function KanjiEditor() {
   const { pathname } = useLocation();
@@ -27,7 +26,7 @@ export default function KanjiEditor() {
         { key: 'reading', label: 'Âm' },
         { key: 'meaning', label: 'Nghĩa', required: true },
         { key: 'strokes', label: 'Số nét' },
-        { key: 'level', label: 'Cấp', type: 'select', options: LEVELS, default: 'N3', wide: true },
+        { key: 'level', label: 'Cấp', type: 'select', options: AUTHOR_LEVELS, wide: true },
       ]}
       seed={[
         { id: 1, sample: true, char: '咲', reading: 'さく', meaning: 'Nở', strokes: '9', level: 'N3' },
