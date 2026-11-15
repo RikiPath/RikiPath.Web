@@ -71,6 +71,11 @@
 .av-until > span { white-space: nowrap; }
 .availability-page .av-until input { height: 36px; max-width: 196px; flex: 1; }
 .av-repeat-off { font-size: 12px; color: var(--av-muted); margin-top: 14px !important; }
+.av-preview { margin: 4px 0 16px; padding: 12px 14px; border: 1px solid #f0e4ea; border-radius: 10px; background: #faf6f8; }
+.av-preview strong { display: block; font-size: 13px; font-weight: 650; }
+.av-preview.is-error { background: #fff4f5; border-color: #efc9d0; color: #a23a50; }
+.av-preview-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.av-preview-dates span { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: white; border: 1px solid #eadde3; color: #6d5564; }
 .av-form-footer { border-top: 1px solid #f0e7ec; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; gap: 15px; }
 .av-form-footer > span { font-size: 11px; color: #99818f; display: flex; align-items: center; gap: 7px; }
 .av-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; border: 1px solid #e5d9e0; background: #fff; border-radius: 9px; padding: 8px 13px; color: #795767; font-size: 12px !important; font-weight: 550; white-space: nowrap; }
@@ -125,6 +130,10 @@
 .availability-page .course-box { margin: 0; border-color: var(--av-line); }
 .availability-page .course-box h2 { margin-bottom: 8px; }.availability-page .course-box p { color: var(--av-muted); font-size: 12px; margin: 6px 0; }
 .availability-page .course-box .course-buttons { margin: 12px 0; }.availability-page .course-box button { border: 1px solid #e5d9e0; border-radius: 8px; background: #fff; color: #98617a; padding: 8px 12px; font-size: 12px; }
+.availability-page .av-split-bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.availability-page .av-split-bar label { display: flex; flex-direction: column; gap: 6px; }
+.availability-page .av-split-bar input { width: 120px; }
+.availability-page .course-box button.is-primary { background: var(--av-rose); border-color: var(--av-rose); color: white; }
 .availability-page .course-box label { font-size: 12px; }.availability-page input[type=checkbox] { accent-color: var(--av-rose); }
 .availability-page .course-box .course-row { display: block; padding: 12px 0; }.availability-page .course-box .course-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }.availability-page .course-box .course-form > p { flex-basis: 100%; }
 .av-spinning { animation: av-spin 1s linear infinite; }@keyframes av-spin { to { transform: rotate(360deg); } }

@@ -1,5 +1,5 @@
-import { backendUtcDate } from '../../utils/mentorSchedule';
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { backendUtcDate, planMentorAvailability } from '../../utils/mentorSchedule';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminShell, ConsultShell } from '../shells';
 import { api } from '../../api/client';
 import WeekTimeGrid from './WeekTimeGrid';
@@ -20,6 +20,9 @@ export default function AvailabilityPlanner({ admin = false, embedded = false })
   const [week, setWeek] = useState(monday), [days, setDays] = useState([1, 3, 5]);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [repeating, setRepeating] = useState(true), [reason, setReason] = useState('');
+  const [draft, setDraft] = useState({ date: '', from: '', to: '', until: '' });
+  const [splitMinutes, setSplitMinutes] = useState('90');
+  const setField = (name, value) => setDraft((current) => ({ ...current, [name]: value }));
   const load = useCallback(async () => {
     const response = await api.get(admin ? '/admin/mentor-availabilities' : '/mentor/availability');
     setSlots(response.result || []); setSelected([]);
@@ -40,6 +43,11 @@ export default function AvailabilityPlanner({ admin = false, embedded = false })
     try { await work(); await load(); setNotice(message); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
+  const plan = useMemo(() => planMentorAvailability({ ...draft, repeating, days, slots, now: new Date() }), [draft, repeating, days, slots]);
+  const sessionMinutes = Number(splitMinutes);
+  const sessionMinutesOk = Number.isInteger(sessionMinutes) && sessionMinutes >= 15 && sessionMinutes <= 240;
+  const canSplit = slot => sessionMinutesOk && slot.isApproved && !slot.rejectedAt && !slot.changeRequestedAt && slot.bookedCount === 0 && slot.maxLearners === 1 && backendUtcDate(slot.startTime) > new Date() && (backendUtcDate(slot.endTime) - backendUtcDate(slot.startTime)) / 60000 > sessionMinutes;
+  const splittable = slots.filter(canSplit);
   const pending = slots.filter(s => !s.isApproved && !s.rejectedAt && backendUtcDate(s.startTime) > new Date());
   const visible = slots.filter(s => dayKey(s.startTime) >= week && dayKey(s.startTime) <= dayKey(addDays(week, 6)));
   const calendarDays = Array.from({ length: 7 }, (_, i) => { const key = dayKey(addDays(week, i)); return { key, name: labels[(i + 1) % 7], date: Number(key.slice(-2)), today: key === dayKey(new Date()) }; });
@@ -51,6 +59,24 @@ export default function AvailabilityPlanner({ admin = false, embedded = false })
       tone: s.rejectedAt ? 'ghost' : (s.bookedCount > 0 || s.maxLearners > 1) ? 'booked' : s.isApproved ? 'open' : 'pending' };
   });
   const review = (approve, ids) => action(async () => { for (let i = 0; i < ids.length; i += 50) await api.post(`/admin/mentor-availabilities/review?approve=${approve}${approve ? '' : `&rejectionReason=${encodeURIComponent(reason)}`}`, ids.slice(i, i + 50)); });
+  async function splitAll() {
+    if (busy || !sessionMinutesOk || !splittable.length) return;
+    const targets = splittable;
+    setBusy(true); setError(''); setNotice('');
+    let done = 0;
+    try {
+      for (const slot of targets) {
+        await api.post(`/admin/mentor-availabilities/${slot.id}/split`, { sessionMinutes });
+        done += 1;
+      }
+      setNotice(`Đã chia ${done} khung thành các buổi ${sessionMinutes} phút.`);
+    } catch (e) {
+      setError(done ? `Đã chia ${done}/${targets.length} khung rồi dừng: ${e.message}` : e.message);
+    } finally {
+      try { await load(); } catch (e) { setError(current => current || e.message); }
+      setBusy(false);
+    }
+  }
   const weekEnd = dayKey(addDays(week, 6));
   const shortDate = key => key.split('-').reverse().slice(0, 2).join('/');
   const monthTitle = addDays(week, 0).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
@@ -71,18 +97,19 @@ export default function AvailabilityPlanner({ admin = false, embedded = false })
     </header>
     {error && <div className="av-alert av-alert-error" role="alert"><AlertCircle size={18} /><span>{error}</span></div>}
     {notice && <div className="av-alert av-alert-success" role="status"><Info size={18} /><span>{notice}</span></div>}
-    {!admin && <form className="av-card av-register" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget);
-      action(() => api.post('/mentor/availability', { startTime: new Date(`${f.get('date')}T${f.get('from')}:00+07:00`).toISOString(),
-        endTime: new Date(`${f.get('date')}T${f.get('to')}:00+07:00`).toISOString(), repeatUntil: repeating ? f.get('until') : null, weekdays: repeating ? days : null }), 'Đã gửi đăng ký. Vui lòng chờ Admin duyệt.'); }}>
+    {!admin && <form className="av-card av-register" onSubmit={e => { e.preventDefault(); if (!plan.ready) return;
+      action(async () => { await api.post('/mentor/availability', { startTime: new Date(`${draft.date}T${draft.from}:00+07:00`).toISOString(),
+        endTime: new Date(`${draft.date}T${draft.to}:00+07:00`).toISOString(), repeatUntil: repeating ? draft.until : null, weekdays: repeating ? days : null });
+      setDraft({ date: '', from: '', to: '', until: '' }); }, `Đã gửi ${plan.rows.length} buổi. Vui lòng chờ Admin duyệt.`); }}>
       <div className="av-card-heading"><span className="av-icon"><CalendarDays size={21} /></span><div><h2>Đăng ký lịch rảnh</h2><p>Chọn một khung giờ hoặc đăng ký lặp lại trong nhiều tuần.</p></div></div>
       <fieldset disabled={busy} className="av-register-fields">
         <div className="av-register-grid">
           <div className="av-time-block">
             <h3>Thời gian rảnh</h3>
             <div className="av-date-time-grid">
-              <label className="av-field"><span>Ngày bắt đầu</span><input name="date" type="date" min={dayKey(new Date())} required /></label>
-              <label className="av-field"><span>Từ giờ</span><input name="from" type="time" required /></label>
-              <label className="av-field"><span>Đến giờ</span><input name="to" type="time" required /></label>
+              <label className="av-field"><span>Ngày bắt đầu</span><input name="date" type="date" min={dayKey(new Date())} required value={draft.date} onChange={e => setField('date', e.target.value)} /></label>
+              <label className="av-field"><span>Từ giờ</span><input name="from" type="time" required value={draft.from} onChange={e => setField('from', e.target.value)} /></label>
+              <label className="av-field"><span>Đến giờ</span><input name="to" type="time" required value={draft.to} onChange={e => setField('to', e.target.value)} /></label>
             </div>
             <div className="av-inline-tip"><Info size={15} /><p>Khung giờ chỉ mở đặt lịch sau khi được Admin duyệt.</p></div>
           </div>
@@ -91,11 +118,16 @@ export default function AvailabilityPlanner({ admin = false, embedded = false })
             {repeating ? <div className="av-repeat-options">
               <div className="av-presets"><span>Chọn nhanh</span>{[[1, 3, 5], [2, 4, 6]].map((preset, i) => <button type="button" key={i} className={days.length === 3 && preset.every(d => days.includes(d)) ? 'is-selected' : ''} aria-pressed={days.length === 3 && preset.every(d => days.includes(d))} onClick={() => setDays(preset)}>{i === 0 ? 'T2 · T4 · T6' : 'T3 · T5 · T7'}</button>)}</div>
               <div className="av-weekdays" role="group" aria-label="Các thứ lặp lại">{[1, 2, 3, 4, 5, 6, 0].map(d => <label key={d} className={days.includes(d) ? 'is-selected' : ''}><input type="checkbox" checked={days.includes(d)} onChange={e => setDays(e.target.checked ? [...days, d] : days.filter(x => x !== d))} /><span>{labels[d]}</span></label>)}</div>
-              <label className="av-field av-until"><span>Lặp đến ngày</span><input type="date" name="until" required /></label>
+              <label className="av-field av-until"><span>Lặp đến ngày</span><input type="date" name="until" required min={draft.date || dayKey(new Date())} value={draft.until} onChange={e => setField('until', e.target.value)} /></label>
             </div> : <p className="av-repeat-off">Chỉ đăng ký khung giờ trong ngày đã chọn.</p>}
           </div>
         </div>
-        <div className="av-form-footer"><span><span className="av-dot av-dot-pending" /> Đăng ký mới sẽ ở trạng thái chờ duyệt</span><button className="av-button av-button-primary" disabled={busy || (repeating && days.length === 0)}><Send size={16} />{busy ? 'Đang gửi…' : 'Gửi đăng ký'}</button></div>
+        <div className={`av-preview${plan.error ? ' is-error' : ''}`} aria-live="polite">
+          <strong>{plan.error || (plan.ready ? `Sẽ tạo ${plan.rows.length} buổi chờ duyệt` : 'Chọn ngày và giờ để xem các buổi sẽ được tạo.')}</strong>
+          {plan.rows.length > 0 && <div className="av-preview-dates">{(plan.overlapping.length ? plan.overlapping : plan.rows).slice(0, 12).map(day => <span key={day}>{labels[new Date(`${day}T12:00:00+07:00`).getUTCDay()]} {shortDate(day)}</span>)}
+            {(plan.overlapping.length ? plan.overlapping : plan.rows).length > 12 && <span>+{(plan.overlapping.length ? plan.overlapping : plan.rows).length - 12} buổi</span>}</div>}
+        </div>
+        <div className="av-form-footer"><span><span className="av-dot av-dot-pending" /> {plan.ready ? `${plan.rows.length} buổi sẽ chờ Admin duyệt` : 'Đăng ký mới sẽ ở trạng thái chờ duyệt'}</span><button className="av-button av-button-primary" disabled={busy || !plan.ready}><Send size={16} />{busy ? 'Đang gửi…' : 'Gửi đăng ký'}</button></div>
       </fieldset>
     </form>}
     <section className="av-card av-calendar" aria-label="Lịch theo tuần">
@@ -116,9 +148,11 @@ export default function AvailabilityPlanner({ admin = false, embedded = false })
         <button disabled={busy || !pending.length} onClick={() => action(async () => { for (let i = 0; i < pending.length; i += 50) await api.post('/admin/mentor-availabilities/review?approve=true', pending.slice(i, i + 50).map(s => s.id)); })}>Duyệt tất cả ({pending.length})</button></div>
       {pending.map(s => <label className="course-row" key={s.id}><input type="checkbox" checked={selected.includes(s.id)} onChange={e => setSelected(e.target.checked ? [...selected, s.id] : selected.filter(x => x !== s.id))} /> {s.mentorName || `Mentor #${s.mentorId}`} · {dayKey(s.startTime)} · {clock(s.startTime)}–{clock(s.endTime)}</label>)}
     </section>}
-    {admin && <section className="course-box"><h2>Chia khung rảnh theo thời lượng gói</h2><p>Ví dụ khung 08:00–12:00 chia thành các buổi 60 phút. Chỉ chia khung đã duyệt và chưa đặt/gán lớp; phần lẻ được giữ lại.</p>
-      {visible.filter(s => s.isApproved && !s.rejectedAt && s.bookedCount === 0 && s.maxLearners === 1 && backendUtcDate(s.startTime) > new Date()).map(s => <form className="course-row course-form" key={s.id} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); action(() => api.post('/admin/mentor-availabilities/' + s.id + '/split', { sessionMinutes: Number(f.get('minutes')) })); }}>
-        <p>#{s.id} · {s.mentorName} · {dayKey(s.startTime)} · {clock(s.startTime)}–{clock(s.endTime)}</p><label>Phút/buổi theo gói <input name="minutes" type="number" required min="15" max="240" /></label><button disabled={busy}>Chia khung rảnh</button>
+    {admin && <section className="course-box"><h2>Chia khung rảnh theo thời lượng gói</h2><p>Mỗi buổi 90 phút. Ví dụ khung 08:00–12:30 thành ba buổi. Chia tất cả áp dụng mọi khung đã duyệt, chưa đặt, chưa có yêu cầu điều chỉnh, còn ở tương lai và dài hơn 90 phút. Phần lẻ được giữ lại.</p>
+      <div className="course-buttons av-split-bar"><label>Phút/buổi <input type="number" required min="15" max="240" value={splitMinutes} onChange={e => setSplitMinutes(e.target.value)} /></label>
+        <button type="button" className="is-primary" disabled={busy || !sessionMinutesOk || !splittable.length} onClick={splitAll}>Chia tất cả ({splittable.length})</button></div>
+      {visible.filter(canSplit).map(s => <form className="course-row course-form" key={s.id} onSubmit={e => { e.preventDefault(); action(() => api.post('/admin/mentor-availabilities/' + s.id + '/split', { sessionMinutes })); }}>
+        <p>#{s.id} · {s.mentorName} · {dayKey(s.startTime)} · {clock(s.startTime)}–{clock(s.endTime)}</p><button disabled={busy || !sessionMinutesOk}>Chia khung này</button>
       </form>)}
     </section>}
     {!admin && <section className="av-card av-registrations"><div className="av-section-title"><div><h2>Đăng ký trong tuần</h2><p>Theo dõi trạng thái và gửi yêu cầu điều chỉnh khi cần.</p></div><span className="av-count">{visible.length}</span></div>
