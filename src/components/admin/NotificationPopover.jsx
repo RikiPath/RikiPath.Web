@@ -10,6 +10,7 @@ import {
 
 export default function NotificationPopover() {
     const [isOpen, setIsOpen] = useState(false);
+    const [mentorToast, setMentorToast] = useState('');
     const popoverRef = useRef(null);
     const navigate = useNavigate();
 
@@ -38,13 +39,21 @@ export default function NotificationPopover() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        const onMentorVerification = () => setMentorToast('Có cập nhật hồ sơ cố vấn cần xem xét.');
+        window.addEventListener('rikipath:mentor-verification', onMentorVerification);
+        return () => window.removeEventListener('rikipath:mentor-verification', onMentorVerification);
+    }, []);
+
     const handleItemClick = (item) => {
         if (!item.isRead) {
             markAsReadMutation.mutate(item.id);
         }
         setIsOpen(false);
-        if (item.linkUrl) {
+        if (item.type === 'MentorVerification' && /^\/admin\/mentor-verifications(?:\?mentorId=\d+)?$/.test(item.linkUrl || '')) {
             navigate(item.linkUrl);
+        } else if (item.linkUrl?.startsWith('/admin/content-review')) {
+            navigate('/admin/content-review');
         } else if (item.type === 'CONTENT_APPROVAL_PENDING' || item.type === 'ApprovalRequest') {
             navigate('/admin/content-review');
         }
@@ -52,6 +61,7 @@ export default function NotificationPopover() {
 
     return (
         <div className="relative" ref={popoverRef}>
+            {mentorToast && <button type="button" role="status" onClick={() => { setMentorToast(''); navigate('/admin/mentor-verifications'); }} className="absolute right-0 top-12 z-50 w-72 rounded-xl border border-[#dfbfc1] bg-white p-3 text-left text-sm shadow-lg">{mentorToast} Mở hồ sơ</button>}
             {/* Nút bấm hình quả chuông khớp style AdminShell */}
             <button
                 type="button"
@@ -147,11 +157,11 @@ export default function NotificationPopover() {
                             type="button"
                             onClick={() => {
                                 setIsOpen(false);
-                                navigate('/admin/content-review');
+                                navigate('/admin/mentor-verifications');
                             }}
                             className="w-full rounded-xl py-2 text-[12px] font-bold text-[#D94B68] hover:bg-[#fff0f5] transition-colors"
                         >
-                            Xem tất cả yêu cầu duyệt nội dung
+                            Xem hồ sơ cố vấn chờ duyệt
                         </button>
                     </div>
                 </div>

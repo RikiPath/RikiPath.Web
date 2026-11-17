@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getSession } from '../../auth/session.js';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { getMySubscription, getStudyPlans } from '../../api/subscriptions.js';
 
 function money(value) {
@@ -14,6 +15,7 @@ function money(value) {
 }
 
 export default function StudyPlans() {
+  const { tr } = useLocale();
   const { pathname } = useLocation();
   const session = getSession();
 
@@ -72,14 +74,14 @@ export default function StudyPlans() {
                 </span>
               )}
               <Link to="/app" className="ml-2 font-medium underline">
-                Vào trang ôn luyện
+                {tr('Vào trang ôn luyện')}
               </Link>
             </p>
           )}
         </section>
 
         {plansQuery.isPending && (
-          <p className="mt-4 text-[13px] text-[#8C7782]">Đang tải các gói…</p>
+          <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Đang tải các gói…')}</p>
         )}
         {plansQuery.isError && (
           <p className="mt-4 text-[13px] text-[#9E2A4B]" role="alert">
@@ -87,7 +89,7 @@ export default function StudyPlans() {
           </p>
         )}
         {!plansQuery.isPending && !plansQuery.isError && plans.length === 0 && (
-          <p className="mt-4 text-[13px] text-[#8C7782]">Chưa có gói tự học đang mở.</p>
+          <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Chưa có gói tự học đang mở.')}</p>
         )}
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -102,7 +104,7 @@ export default function StudyPlans() {
                 <h2 className="text-[16px] font-semibold">{plan.name}</h2>
                 {plan.isPopular && (
                   <span className="rounded-full bg-[#FCEEF4] px-2 py-0.5 text-[11px] font-medium text-[#AD3155]">
-                    Phổ biến
+                    {tr('Phổ biến')}
                   </span>
                 )}
               </div>
@@ -128,7 +130,7 @@ export default function StudyPlans() {
                   state={{ plan }}
                   className="mt-4 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
                 >
-                  Mua gói
+                  {tr('Mua gói')}
                 </Link>
               )}
             </article>

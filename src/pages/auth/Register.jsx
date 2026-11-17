@@ -1,12 +1,16 @@
+import LanguageSwitch from '../../components/LanguageSwitch.jsx';
+import { useLocale } from '../../i18n/locale.js';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { savePendingVerify } from '../../auth/session.js';
+import BrandMark from '../../components/BrandMark.jsx';
 import { useRegisterMutation } from '../../hooks/useAuth.js';
 import GoogleSignIn from './GoogleSignIn.jsx';
 import { useCompleteSignIn } from './useCompleteSignIn.js';
 
 export default function Register() {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const registerMutation = useRegisterMutation();
   const completeSignIn = useCompleteSignIn();
   const [firstName, setFirstName] = useState('');
@@ -25,11 +29,11 @@ export default function Register() {
     if (loading) return;
     setError('');
     if (password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp.');
+      setError(t('passwordMismatch'));
       return;
     }
     if (password.length < 6) {
-      setError('Mật khẩu tối thiểu 6 ký tự.');
+      setError(t('passwordShort'));
       return;
     }
     const payload = {
@@ -46,7 +50,7 @@ export default function Register() {
         goToVerify(result.email || registeredEmail, result.userId);
       },
       onError: (err) => {
-        const msg = err.message || 'Đăng ký thất bại.';
+        const msg = err.message || t('registerFailed');
         if (msg.includes('Tạo tài khoản thành công')) {
           goToVerify(registeredEmail, resultUserIdFromError(err), msg);
           return;
@@ -72,6 +76,10 @@ export default function Register() {
       state: notice ? { notice } : undefined,
     });
   }
+
+  const verifyHref = email.trim()
+    ? `/verify-email?email=${encodeURIComponent(email.trim())}`
+    : '/verify-email';
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 md:p-8 lg:p-12 text-charcoal-900 antialiased selection:bg-sakura-200 selection:text-sakura-800" style={{ backgroundColor: "rgb(250, 247, 242)", position: "relative" }} data-page="Register">
@@ -110,7 +118,7 @@ export default function Register() {
 <div className="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
 <span className="text-xl">⛩️</span>
 <div className="text-left">
-<p className="text-[11px] font-medium text-slate-500">Mỗi ngày một bước tiến</p>
+<p className="text-[11px] font-medium text-slate-500">{t('dailyStep')}</p>
 <p className="text-xs font-bold text-sakura-700 font-serif tracking-wider">一期一会 (Ichigo Ichie)</p>
 </div>
 </div>
@@ -120,8 +128,8 @@ export default function Register() {
 <footer className="relative z-10 text-center lg:text-left mt-4">
 {/*  Floating petal decorative accent  */}
 <div className="w-2.5 h-2.5 bg-sakura-300 rotate-45 mb-4 mx-auto lg:mx-0 opacity-80"></div>
-<h2 className="text-2xl xl:text-3xl font-extrabold text-charcoal-900 tracking-tight leading-snug">{"Cùng "}<span className="text-sakura-600">RikiPath</span>{" khởi đầu hành trình tiếng Nhật trong sắc hoa anh đào\n        "}</h2>
-<p className="mt-3 text-sm text-charcoal-500 leading-relaxed max-w-lg mx-auto lg:mx-0">{"Lộ trình cá nhân hóa JLPT N5 — N1 chuẩn mực, trợ giảng AI 24/7 và cộng đồng du học sinh & người học năng động nhất.\n        "}</p>
+<h2 className="text-2xl xl:text-3xl font-extrabold text-charcoal-900 tracking-tight leading-snug">{t('registerHeadlineBefore')}<span className="text-sakura-600">RikiPath</span>{t('registerHeadlineAfter')}</h2>
+<p className="mt-3 text-sm text-charcoal-500 leading-relaxed max-w-lg mx-auto lg:mx-0">{t('registerLead')}</p>
 </footer>
 </section>
 {/*  END: LeftShowcaseColumn  */}
@@ -133,39 +141,33 @@ export default function Register() {
 {/*  Top App Bar: Brand Logo & Language Switcher  */}
 <header className="flex items-center justify-between gap-4 pb-6">
 {/*  Logo & Brand identity  */}
-<div className="flex items-center gap-3" data-purpose="brand-logo">
-<div className="w-11 h-11 rounded-xl bg-sakura-50 border border-sakura-200 flex items-center justify-center text-xl shadow-sm">{"🌸\n            "}</div>
+<Link to="/" aria-label="Về trang chủ" className="flex items-center gap-3" data-purpose="brand-logo">
+<BrandMark className="h-12 w-[4.5rem]" />
 <div>
-<h1 className="text-xl font-extrabold text-charcoal-900 tracking-tight leading-none">RikiPath</h1>
+<span className="block text-xl font-extrabold text-charcoal-900 tracking-tight leading-none">RikiPath</span>
 <p className="text-[10px] tracking-widest font-bold text-sakura-600 mt-1 uppercase">Sakura Learning Hub</p>
 </div>
-</div>
+</Link>
 {/*  Language Selector  */}
-<div data-purpose="language-selector">
-<button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-charcoal-200 bg-white text-xs font-semibold text-charcoal-700 hover:bg-sakura-50/50 hover:border-sakura-200 transition-colors" type="button">
-<span className="">🇻🇳</span>
-<span className="">VN</span>
-<i className="ph ph-caret-down text-xs text-charcoal-400"></i>
-</button>
-</div>
+<LanguageSwitch className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-charcoal-200 bg-white text-xs font-semibold text-charcoal-700 hover:bg-sakura-50/50 hover:border-sakura-200 transition-colors" />
 </header>
 {/*  Segmented Tab Switcher (Sign in / Sign up)  */}
 <nav className="grid grid-cols-2 p-1 bg-charcoal-100/80 rounded-xl mb-7" data-purpose="auth-tabs">
 {/*  Inactive Login Tab  */}
-<Link to="/auth" className="py-2.5 text-center text-sm font-semibold text-charcoal-500 rounded-lg hover:text-sakura-600 transition-colors">Đăng nhập</Link>
+<Link to="/auth" className="py-2.5 text-center text-sm font-semibold text-charcoal-500 rounded-lg hover:text-sakura-600 transition-colors">{t('login')}</Link>
 {/*  Active Register Tab  */}
 <a className="py-2.5 text-center text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm flex items-center justify-center gap-1.5 border border-sakura-100" href="#">
-<span className="">Đăng ký</span>
+<span className="">{t('register')}</span>
 <span className="w-1.5 h-1.5 rounded-full bg-sakura-600"></span>
 </a>
 </nav>
 {/*  Form Title & Welcoming Introduction  */}
 <div className="mb-6">
 <div className="flex items-center gap-2">
-<h2 className="text-2xl sm:text-[26px] font-extrabold text-charcoal-900 tracking-tight">Tạo tài khoản mới!</h2>
-<span className="text-xl">🌸</span>
+<h2 className="text-2xl sm:text-[26px] font-extrabold text-charcoal-900 tracking-tight">{t('createTitle')}</h2>
+<span className="text-xl" aria-hidden="true">🌸</span>
 </div>
-<p className="mt-1.5 text-sm text-charcoal-500">Gia nhập cộng đồng học tiếng Nhật thông minh cùng RikiPath.</p>
+<p className="mt-1.5 text-sm text-charcoal-500">{t('join')}</p>
 </div>
 {/*  Registration Form Elements  */}
 <form className="space-y-4" data-purpose="signup-form" onSubmit={handleRegister}>
@@ -173,51 +175,63 @@ export default function Register() {
   <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">
     <p>{error}</p>
     {error.toLowerCase().includes('đã được đăng ký') ? (
-      <Link className="mt-1 inline-block font-bold text-sakura-600 underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>Đi tới xác thực email</Link>
+      <Link className="mt-1 inline-block font-bold text-sakura-600 underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>{t('goVerify')}</Link>
     ) : null}
   </div>
 ) : null}
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">Họ</label>
-<input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">{t('lastName')}</label>
+<input className="h-11 w-full px-4 rounded-xl border border-[#f2dfe3] bg-white text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
 </div>
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">Tên</label>
-<input className="w-full px-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">{t('firstName')}</label>
+<input className="h-11 w-full px-4 rounded-xl border border-[#f2dfe3] bg-white text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
 </div>
 </div>
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{"Địa chỉ email\n            "}</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{t('emailShort')}</label>
 <div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-envelope-simple"></i>
+<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </div>
-<input className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-4 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 </div>
 </div>
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{"Mật khẩu\n              "}</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{t('password')}</label>
 <div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-lock"></i>
+<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="password" name="password" placeholder="Tối thiểu 6 ký tự" required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-<button aria-label="Hiện mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowPassword((v) => !v)}>
-<i className="ph ph-eye text-base"></i>
+<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-11 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="password" name="password" placeholder={t('passwordMin')} required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+<button aria-label={t('showPassword')} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-sakura-600" type="button" onClick={() => setShowPassword((v) => !v)}>
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </button>
 </div>
 </div>
 <div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{"Xác nhận mật khẩu\n              "}</label>
+<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{t('confirmPassword')}</label>
 <div className="relative">
-<div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-charcoal-400 text-lg">
-<i className="ph ph-shield-check"></i>
+<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </div>
-<input className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-charcoal-200 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-100 transition-all" id="confirm-password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-<button aria-label="Hiện xác nhận mật khẩu" className="absolute inset-y-0 right-0 pr-3 flex items-center text-charcoal-400 hover:text-charcoal-700" type="button" onClick={() => setShowConfirm((v) => !v)}>
-<i className="ph ph-eye text-base"></i>
+<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-11 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="confirm-password" name="confirmPassword" placeholder={t('confirmPlaceholder')} required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+<button aria-label={t('showConfirm')} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-sakura-600" type="button" onClick={() => setShowConfirm((v) => !v)}>
+<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
+</svg>
 </button>
 </div>
 </div>
@@ -225,11 +239,17 @@ export default function Register() {
 {/*  Terms Agreement Checkbox  */}
 <div className="flex items-start gap-2.5 pt-1">
 <input className="mt-1 w-4 h-4 rounded border-charcoal-300 text-sakura-600 focus:ring-sakura-500 cursor-pointer" id="terms" name="terms" required type="checkbox" />
-<label className="text-xs text-charcoal-600 leading-snug cursor-pointer select-none" htmlFor="terms">{"Tôi đồng ý với "}<a className="text-sakura-600 hover:underline font-semibold" href="#">Điều khoản dịch vụ</a>{" và "}<a className="text-sakura-600 hover:underline font-semibold" href="#">Chính sách bảo mật</a>{" của RikiPath.\n            "}</label>
+<label className="cursor-pointer select-none text-xs leading-5 text-charcoal-600" htmlFor="terms">
+<span className="whitespace-nowrap">{t('agreeTerms')}</span>{' '}
+<span className="whitespace-nowrap font-semibold text-sakura-600">{t('serviceTerms')}</span>{' '}
+<span className="whitespace-nowrap">{t('and')}</span>{' '}
+<span className="whitespace-nowrap font-semibold text-sakura-600">{t('privacy')}</span>{' '}
+<span className="whitespace-nowrap">{t('ofRiki')}</span>
+</label>
 </div>
 {/*  Primary Submit CTA Button  */}
 <button className="w-full py-3 px-6 mt-3 bg-sakura-600 hover:bg-sakura-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-xl shadow-sakura-btn hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60" data-purpose="submit-button" type="submit" disabled={loading}>
-<span className="">{loading ? 'Đang tạo tài khoản...' : 'Đăng ký tài khoản ngay'}</span>
+<span className="">{loading ? t('creating') : t('registerNow')}</span>
 <span className="text-base group-hover:rotate-12 transition-transform">🌸</span>
 </button>
 </form>
@@ -239,12 +259,23 @@ export default function Register() {
 </div>
 </div>
 {/*  Bottom Footer Navigation Link  */}
-<footer className="mt-8 pt-4 border-t border-charcoal-100 text-center text-xs text-charcoal-500">
-<p className="">{"Đã có tài khoản?"}<Link to="/auth" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">Đăng nhập ngay</Link>
+<footer className="mt-8 border-t border-[#F4EAEE] pt-5">
+<p className="mb-2 text-center text-[12px] text-[#8A7380]">{t('hasAccount')}</p>
+<div className="grid grid-cols-2 gap-2">
+<Link to="/auth" className="flex h-10 items-center justify-center rounded-lg bg-[#FDF2F5] text-[12px] font-semibold text-[#C43E5C] hover:bg-[#FBE7EE]">
+{t('loginNow')}
+</Link>
+<Link to={verifyHref} className="flex h-10 items-center justify-center rounded-lg border border-[#F0E4E8] text-[12px] font-semibold text-[#7A6570] hover:bg-[#FFF8FA]">
+{t('verifyEmail')}
+</Link>
+</div>
+<p className="mt-3 text-center text-[11px] leading-5 text-[#B3A4AB]">
+<span className="whitespace-nowrap">{t('agreeContinue')}</span>{' '}
+<span className="whitespace-nowrap">{t('terms')}</span>
+{' · '}
+<span className="whitespace-nowrap">{t('privacy')}</span>{' '}
+<span className="whitespace-nowrap">{t('ofRiki')}</span>
 </p>
-<p className="mt-2">{"Đã nhận mã?"}<Link to="/verify-email" className="font-bold text-sakura-600 hover:text-sakura-700 hover:underline ml-1">Xác thực email</Link>
-</p>
-<p className="text-[11px] text-charcoal-400 mt-2">{"Bằng việc tiếp tục, bạn đồng ý nhận thông tin cập nhật học tập từ RikiPath.\n        "}</p>
 </footer>
 </section>
 {/*  END: RightFormColumn  */}

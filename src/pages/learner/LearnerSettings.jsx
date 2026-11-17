@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 import { getSession } from '../../auth/session.js';
+import { setStudyLevel, updateAvatar, updateNotificationSettings, updateProfile } from '../../api/profile.js';
 import {
   displayName,
+  learnerKeys,
   useLearnerProfile,
 } from '../../hooks/useLearnerHome.js';
 
@@ -102,13 +106,35 @@ function SectionHeading({ title, description }) {
 
 export default function LearnerSettings() {
   const { pathname } = useLocation();
+  const { tr } = useLocale();
   const session = getSession();
   const profileQuery = useLearnerProfile();
+  const queryClient = useQueryClient();
+  const notify = useMutation({
+    mutationFn: updateNotificationSettings,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const saveProfile = useMutation({
+    mutationFn: updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const saveAvatar = useMutation({
+    mutationFn: updateAvatar,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const saveLevel = useMutation({
+    mutationFn: setStudyLevel,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+  });
+  const [studyLevelId, setStudyLevelId] = useState(3);
+  useEffect(() => {
+    if (profileQuery.data?.currentStudyLevelId) setStudyLevelId(profileQuery.data.currentStudyLevelId);
+  }, [profileQuery.data?.currentStudyLevelId]);
 
   const [activeTab, setActiveTab] = useState('profile');
 
   const profile = profileQuery.data;
-  const name = displayName(profile, session) || 'Người dùng';
+  const name = displayName(profile, session) || tr('Người dùng');
   const email = profile?.email || session?.email || '';
   const phone = profile?.phoneNumber || profile?.phone || '';
   const initial = name.trim().charAt(0).toUpperCase() || 'R';
@@ -147,10 +173,10 @@ export default function LearnerSettings() {
             className="text-[25px] font-semibold
                        leading-tight tracking-tight"
           >
-            Hồ sơ & cài đặt
+            {tr('Hồ sơ & cài đặt')}
           </h1>
           <p className="mt-1 text-[13px] text-[#967F8A]">
-            Quản lý tài khoản và mục tiêu ôn luyện của bạn.
+            {tr('Quản lý tài khoản và mục tiêu ôn luyện của bạn.')}
           </p>
         </header>
 
@@ -163,15 +189,19 @@ export default function LearnerSettings() {
                      px-5 py-5"
         >
           <div className="flex min-w-0 items-center gap-4">
-            <div
-              aria-hidden="true"
-              className="flex h-14 w-14 shrink-0 items-center
-                         justify-center rounded-2xl
-                         bg-[#F4D8E4] text-[22px]
-                         font-medium text-[#A84466]"
-            >
-              {initial}
-            </div>
+            {profile?.avatarUrl ? (
+              <img src={profile.avatarUrl} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="flex h-14 w-14 shrink-0 items-center
+                           justify-center rounded-2xl
+                           bg-[#F4D8E4] text-[22px]
+                           font-medium text-[#A84466]"
+              >
+                {initial}
+              </div>
+            )}
 
             <div className="min-w-0">
               <h2 className="break-words text-[19px] font-semibold">
@@ -196,8 +226,8 @@ export default function LearnerSettings() {
                     className="text-[14px]"
                   />
                   {verification
-                    ? 'Email đã xác thực'
-                    : 'Email chưa xác thực'}
+                    ? tr('Email đã xác thực')
+                    : tr('Email chưa xác thực')}
                 </span>
               )}
             </div>
@@ -206,10 +236,10 @@ export default function LearnerSettings() {
           <div className="flex items-center gap-5">
             <div>
               <p className="text-[11px] text-[#A0808E]">
-                Mục tiêu JLPT
+                {tr('Mục tiêu JLPT')}
               </p>
               <p className="mt-1 text-[15px] font-medium text-[#A84466]">
-                {level || 'Chưa chọn'}
+                {level || tr('Chưa chọn')}
               </p>
             </div>
 
@@ -217,10 +247,10 @@ export default function LearnerSettings() {
 
             <div>
               <p className="text-[11px] text-[#A0808E]">
-                Mỗi ngày
+                {tr('Mỗi ngày')}
               </p>
               <p className="mt-1 text-[15px] font-medium text-[#A84466]">
-                {minutes ? `${minutes} phút` : 'Chưa đặt'}
+                {minutes ? `${minutes} ${tr('phút')}` : tr('Chưa đặt')}
               </p>
             </div>
           </div>
@@ -279,7 +309,7 @@ export default function LearnerSettings() {
                     ].join(' ')}
                   >
                     <Icon name={tab.icon} className="text-[19px]" />
-                    {tab.label}
+                    {tr(tab.label)}
                   </button>
                 );
               })}
@@ -298,8 +328,8 @@ export default function LearnerSettings() {
             {activeTab === 'profile' && (
               <>
                 <SectionHeading
-                  title="Thông tin tài khoản"
-                  description="Thông tin hiện có trên tài khoản RikiPath."
+                  title={tr('Thông tin tài khoản')}
+                  description={tr('Thông tin hiện có trên tài khoản RikiPath.')}
                 />
 
                 {profileQuery.isPending && (
@@ -307,19 +337,60 @@ export default function LearnerSettings() {
                     role="status"
                     className="mb-4 text-[12px] text-[#A08A95]"
                   >
-                    Đang tải hồ sơ…
+                    {tr('Đang tải hồ sơ…')}
                   </p>
                 )}
 
                 <dl className="grid gap-4 sm:grid-cols-2">
-                  <InfoField label="Tên hiển thị" value={name} />
+                  <InfoField label={tr('Tên hiển thị')} value={name} />
                   <InfoField label="Email" value={email} />
-                  <InfoField label="Số điện thoại" value={phone} />
+                  <InfoField label={tr('Số điện thoại')} value={phone} />
                   <InfoField
-                    label="Nội dung ôn luyện"
-                    value="Tiếng Nhật · JLPT N5–N2"
+                    label={tr('Nội dung ôn luyện')}
+                    value={tr('Tiếng Nhật · JLPT N5–N2')}
                   />
                 </dl>
+
+                <form
+                  className="mt-5 grid gap-3 border-t border-[#F0E7EC] pt-4 sm:grid-cols-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const data = new FormData(event.currentTarget);
+                    saveProfile.mutate({
+                      firstName: String(data.get('firstName') || '').trim(),
+                      lastName: String(data.get('lastName') || '').trim(),
+                    });
+                  }}
+                >
+                  <label className="text-[12px] text-[#967F8A]">
+                    {tr('Họ')}
+                    <input name="lastName" defaultValue={profile?.lastName || ''} className="mt-1 h-10 w-full rounded-lg border border-[#EDE2E7] px-3 text-[13px] text-[#49353F] outline-none focus:border-[#AD3155]" />
+                  </label>
+                  <label className="text-[12px] text-[#967F8A]">
+                    {tr('Tên')}
+                    <input name="firstName" defaultValue={profile?.firstName || ''} className="mt-1 h-10 w-full rounded-lg border border-[#EDE2E7] px-3 text-[13px] text-[#49353F] outline-none focus:border-[#AD3155]" />
+                  </label>
+                  <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+                    <button type="submit" disabled={saveProfile.isPending} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50">
+                      {saveProfile.isPending ? tr('Đang lưu…') : tr('Lưu tên')}
+                    </button>
+                    <label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#E7D7DF] px-3 text-[12px] text-[#9C5671]">
+                      {saveAvatar.isPending ? tr('Đang tải ảnh…') : tr('Đổi ảnh')}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) saveAvatar.mutate(file);
+                        }}
+                      />
+                    </label>
+                    {(saveProfile.isError || saveAvatar.isError) && (
+                      <p className="text-[12px] text-[#A33357]">{(saveProfile.error || saveAvatar.error).message}</p>
+                    )}
+                  </div>
+                </form>
 
                 <div
                   className="mt-5 flex flex-wrap items-center
@@ -327,10 +398,10 @@ export default function LearnerSettings() {
                              border-t border-[#F0E7EC] pt-4"
                 >
                   <p className="text-[12px] text-[#A08A95]">
-                    Bạn có thể thay đổi email tại mục bảo mật.
+                    {tr('Bạn có thể thay đổi email tại mục bảo mật.')}
                   </p>
                   <ActionLink to="/update-email">
-                    Đổi email
+                    {tr('Đổi email')}
                   </ActionLink>
                 </div>
               </>
@@ -339,8 +410,8 @@ export default function LearnerSettings() {
             {activeTab === 'goal' && (
               <>
                 <SectionHeading
-                  title="Mục tiêu ôn luyện"
-                  description="Chọn cấp độ và thời gian phù hợp với bạn."
+                  title={tr('Mục tiêu ôn luyện')}
+                  description={tr('Chọn cấp độ và thời gian phù hợp với bạn.')}
                 />
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -353,10 +424,10 @@ export default function LearnerSettings() {
                       className="text-[23px] text-[#BA859B]"
                     />
                     <p className="mt-3 text-[12px] text-[#A08A95]">
-                      Cấp độ mục tiêu
+                      {tr('Cấp độ mục tiêu')}
                     </p>
                     <p className="mt-1 text-[24px] font-semibold text-[#A84466]">
-                      {level ? `JLPT ${level}` : 'Chưa chọn'}
+                      {level ? `JLPT ${level}` : tr('Chưa chọn')}
                     </p>
                   </div>
 
@@ -369,23 +440,48 @@ export default function LearnerSettings() {
                       className="text-[23px] text-[#BA859B]"
                     />
                     <p className="mt-3 text-[12px] text-[#A08A95]">
-                      Thời gian mỗi ngày
+                      {tr('Thời gian mỗi ngày')}
                     </p>
                     <p className="mt-1 text-[24px] font-semibold text-[#A84466]">
                       {minutes || '—'}
                       {minutes && (
                         <span className="ml-1 text-[13px] font-normal">
-                          phút
+                          {tr('phút')}
                         </span>
                       )}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-5 flex justify-end border-t border-[#F0E7EC] pt-4">
-                  <ActionLink to="/onboarding" primary>
-                    {level ? 'Đổi mục tiêu' : 'Chọn mục tiêu'}
-                  </ActionLink>
+                <div className="mt-5 border-t border-[#F0E7EC] pt-4">
+                  <p className="text-[12px] text-[#A08A95]">{tr('Cấp độ đang học trên lộ trình chuẩn')}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[1, 2, 3, 4].map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={studyLevelId === id}
+                        onClick={() => setStudyLevelId(id)}
+                        className={`h-9 rounded-lg border px-3 text-[13px] ${studyLevelId === id ? 'border-[#AD3155] bg-[#FCEAF1] text-[#A84466]' : 'border-[#E7D7DF] text-[#967F8A]'}`}
+                      >
+                        {LEVEL_BY_ID[id]}
+                      </button>
+                    ))}
+                  </div>
+                  {saveLevel.isError && <p className="mt-2 text-[12px] text-[#A33357]">{saveLevel.error.message}</p>}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={saveLevel.isPending}
+                      onClick={() => saveLevel.mutate({ currentStudyLevelId: studyLevelId })}
+                      className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50"
+                    >
+                      {saveLevel.isPending ? tr('Đang lưu…') : tr('Đặt cấp độ đang học')}
+                    </button>
+                    <ActionLink to="/onboarding" primary>
+                      {level ? 'Đổi mục tiêu' : 'Chọn mục tiêu'}
+                    </ActionLink>
+                  </div>
                 </div>
               </>
             )}
@@ -393,22 +489,22 @@ export default function LearnerSettings() {
             {activeTab === 'security' && (
               <>
                 <SectionHeading
-                  title="Email & mật khẩu"
-                  description="Quản lý thông tin đăng nhập tài khoản."
+                  title={tr('Email & mật khẩu')}
+                  description={tr('Quản lý thông tin đăng nhập tài khoản.')}
                 />
 
                 <div className="divide-y divide-[#F0E7EC]">
                   <div className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <h3 className="text-[13px] font-medium">
-                        Email đăng nhập
+                        {tr('Email đăng nhập')}
                       </h3>
                       <p className="mt-1 break-all text-[12px] text-[#A08A95]">
                         {email || 'Chưa có email'}
                       </p>
                     </div>
                     <ActionLink to="/update-email">
-                      Đổi email
+                      {tr('Đổi email')}
                     </ActionLink>
                   </div>
 
@@ -418,11 +514,11 @@ export default function LearnerSettings() {
                         Mật khẩu
                       </h3>
                       <p className="mt-1 text-[12px] text-[#A08A95]">
-                        Thay đổi mật khẩu đăng nhập.
+                        {tr('Thay đổi mật khẩu đăng nhập.')}
                       </p>
                     </div>
                     <ActionLink to="/change-password">
-                      Đổi mật khẩu
+                      {tr('Đổi mật khẩu')}
                     </ActionLink>
                   </div>
                 </div>
@@ -436,8 +532,7 @@ export default function LearnerSettings() {
                     name="lock"
                     className="mt-0.5 shrink-0 text-[16px]"
                   />
-                  Không chia sẻ mật khẩu hoặc mã xác thực
-                  với người khác.
+                  {tr('Không chia sẻ mật khẩu hoặc mã xác thực với người khác.')}
                 </p>
               </>
             )}
@@ -445,60 +540,53 @@ export default function LearnerSettings() {
             {activeTab === 'notifications' && (
               <>
                 <SectionHeading
-                  title="Thông báo"
-                  description="Các hình thức nhắc ôn tập và lịch tư vấn."
+                  title={tr('Thông báo')}
+                  description={tr('Các hình thức nhắc ôn tập và lịch tư vấn.')}
                 />
 
                 <div className="divide-y divide-[#F0E7EC]">
                   {[
                     {
-                      icon: 'history',
-                      title: 'Nhắc ôn tập đến hạn',
-                      description: 'Nhắc ôn từ vựng và Hán tự đã lưu.',
+                      key: 'emailNotificationsEnabled',
+                      icon: 'mail',
+                      title: tr('Thông báo qua email'),
+                      description: tr('Gửi nhắc học và lịch tư vấn tới email của bạn.'),
                     },
                     {
-                      icon: 'event',
-                      title: 'Nhắc lịch tư vấn',
-                      description: 'Thông báo trước buổi tư vấn với Mentor.',
+                      key: 'systemNotificationsEnabled',
+                      icon: 'notifications',
+                      title: tr('Thông báo trong ứng dụng'),
+                      description: tr('Hiện nhắc ôn tập và lịch tư vấn ngay trên RikiPath.'),
                     },
-                  ].map((item) => (
-                    <div
-                      key={item.title}
-                      className="flex items-start gap-3 py-4"
-                    >
-                      <span
-                        className="flex h-9 w-9 shrink-0
-                                   items-center justify-center
-                                   rounded-lg bg-[#FBEEF4]
-                                   text-[#B77E95]"
-                      >
-                        <Icon name={item.icon} className="text-[20px]" />
-                      </span>
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-[13px] font-medium">
-                          {item.title}
-                        </h3>
-                        <p className="mt-1 text-[12px] leading-5 text-[#A08A95]">
-                          {item.description}
-                        </p>
+                  ].map((item) => {
+                    const enabled = Boolean(profile?.[item.key]);
+                    return (
+                      <div key={item.key} className="flex items-start gap-3 py-4">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBEEF4] text-[#B77E95]">
+                          <Icon name={item.icon} className="text-[20px]" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-[13px] font-medium">{item.title}</h3>
+                          <p className="mt-1 text-[12px] leading-5 text-[#A08A95]">{item.description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={enabled}
+                          disabled={!profile || notify.isPending}
+                          onClick={() => notify.mutate({
+                            emailNotificationsEnabled: item.key === 'emailNotificationsEnabled' ? !enabled : Boolean(profile.emailNotificationsEnabled),
+                            systemNotificationsEnabled: item.key === 'systemNotificationsEnabled' ? !enabled : Boolean(profile.systemNotificationsEnabled),
+                          })}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-[#AD3155]' : 'bg-[#E7D7DF]'}`}
+                        >
+                          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${enabled ? 'left-5' : 'left-0.5'}`} />
+                        </button>
                       </div>
-
-                      <span
-                        className="shrink-0 rounded-md
-                                   bg-[#F6F1F4] px-2 py-1
-                                   text-[10px] text-[#A08A95]"
-                      >
-                        Chưa kết nối
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-
-                <p className="mt-4 text-[12px] leading-5 text-[#A08A95]">
-                  Tùy chọn thông báo cần được kết nối với hệ thống
-                  trước khi có thể bật hoặc tắt.
-                </p>
+                {notify.isError && <p role="alert" className="mt-3 text-[12px] text-[#A33357]">{notify.error.message}</p>}
               </>
             )}
           </section>

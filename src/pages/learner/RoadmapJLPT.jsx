@@ -1,3 +1,4 @@
+import { useLocale } from '../../i18n/locale.js';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -66,7 +67,7 @@ function getStages(level) {
         {
           icon: 'menu_book',
           title: 'Bài luyện tập',
-          description: content.grammar,
+          description: 'Một bài đã duyệt gồm từ vựng, Kanji và ngữ pháp.',
           to: '/lessons',
         },
       ],
@@ -134,7 +135,7 @@ function getStages(level) {
         },
         {
           icon: 'support_agent',
-          title: 'Tư vấn Mentor',
+    title: 'Tư vấn 1-1',
           description: 'Trao đổi khi cần điều chỉnh kế hoạch ôn luyện.',
           to: '/mentor',
         },
@@ -155,6 +156,10 @@ function Icon({ name, className = '' }) {
 }
 
 function TaskRow({ task }) {
+  const { locale, tr } = useLocale();
+  const title = task.title.startsWith('Thi thử JLPT ')
+    ? (locale === 'ja' ? `JLPT ${task.title.slice('Thi thử JLPT '.length)} 模擬試験` : task.title)
+    : tr(task.title);
   const content = (
     <>
       <span
@@ -167,11 +172,11 @@ function TaskRow({ task }) {
 
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-medium text-[#62505A]">
-          {task.title}
+          {title}
         </span>
 
         <span className="mt-1 block text-[12px] leading-5 text-[#967F8A]">
-          {task.description}
+          {tr(task.description)}
         </span>
       </span>
 
@@ -202,6 +207,7 @@ function TaskRow({ task }) {
 }
 
 export default function RoadmapJLPT() {
+  const { locale, tr } = useLocale();
   const location = useLocation();
   const { pathname } = location;
   const { data: profile } = useLearnerProfile();
@@ -249,7 +255,7 @@ export default function RoadmapJLPT() {
                 道
               </span>
               <span className="text-[11px] text-[#AA8D9B]">
-                Từng bước ôn luyện
+                {tr('Từng bước ôn luyện')}
               </span>
             </div>
 
@@ -257,11 +263,11 @@ export default function RoadmapJLPT() {
               className="mt-2 text-[26px] font-semibold
                          leading-tight tracking-tight"
             >
-              Lộ trình ôn thi JLPT
+              {tr('Lộ trình ôn thi JLPT')}
             </h1>
 
             <p className="mt-2 text-[13px] text-[#967F8A]">
-              Ôn kiến thức, luyện kỹ năng và xem lại kết quả.
+              {tr('Ôn kiến thức, luyện kỹ năng và xem lại kết quả.')}
             </p>
           </div>
 
@@ -273,7 +279,7 @@ export default function RoadmapJLPT() {
                        hover:bg-[#FFF3F7]"
           >
             <Icon name="flag" className="text-[16px]" />
-            Đổi mục tiêu
+            {tr('Đổi mục tiêu')}
           </Link>
         </header>
 
@@ -287,7 +293,7 @@ export default function RoadmapJLPT() {
         >
           <div className="flex flex-wrap items-center gap-4">
             <span className="text-[12px] text-[#A08A95]">
-              Cấp độ
+              {tr('Cấp độ')}
             </span>
 
             <div className="flex flex-wrap gap-2">
@@ -312,7 +318,7 @@ export default function RoadmapJLPT() {
                     ].join(' ')}
                   >
                     <span className="font-semibold">{key}</span>
-                    <span className="hidden sm:inline">{value.label}</span>
+                    <span className="hidden sm:inline">{tr(value.label)}</span>
                   </button>
                 );
               })}
@@ -320,7 +326,7 @@ export default function RoadmapJLPT() {
           </div>
 
           <p className="mt-3 text-[12px] leading-5 text-[#A08A95]">
-            {LEVELS[level].description}
+            {tr(LEVELS[level].description)}
           </p>
         </section>
 
@@ -338,7 +344,7 @@ export default function RoadmapJLPT() {
                 Tài nguyên ôn luyện
               </h2>
               <span className="text-[11px] text-[#AA8D9B]">
-                4 chặng · JLPT {level}
+                {locale === 'ja' ? `4ステップ · JLPT ${level}` : `4 chặng · JLPT ${level}`}
               </span>
             </div>
 
@@ -410,7 +416,7 @@ export default function RoadmapJLPT() {
                               className="mt-1 block text-[15px]
                                          font-medium text-[#62505A]"
                             >
-                              {stage.title}
+                              {tr(stage.title)}
                             </span>
 
                             {!open && (
@@ -418,7 +424,7 @@ export default function RoadmapJLPT() {
                                 className="mt-1 block text-[12px]
                                            leading-5 text-[#A08A95]"
                               >
-                                {stage.description}
+                                {tr(stage.description)}
                               </span>
                             )}
                           </span>
@@ -436,7 +442,7 @@ export default function RoadmapJLPT() {
                       {open && (
                         <div id={`stage-${stage.id}`} className="px-3 pb-3">
                           <p className="px-1 pb-2 pt-3 text-[12px] text-[#A08A95]">
-                            {stage.description}
+                            {tr(stage.description)}
                           </p>
 
                           <div className="divide-y divide-[#F3EBEF]">
@@ -459,7 +465,7 @@ export default function RoadmapJLPT() {
                                            rounded px-2 py-1 text-[12px]
                                            text-[#AE6C87] hover:text-[#AD3155]"
                               >
-                                Xem chặng tiếp
+                                {tr('Xem chặng tiếp')}
                                 <Icon name="arrow_forward" className="text-[15px]" />
                               </button>
                             </div>
@@ -480,7 +486,7 @@ export default function RoadmapJLPT() {
                          bg-white p-4"
             >
               <h2 className="text-[14px] font-medium">
-                Đang xem
+                {tr('Đang xem')}
               </h2>
 
               <div className="mt-4 flex items-center gap-3">
@@ -496,7 +502,7 @@ export default function RoadmapJLPT() {
                     JLPT {level}
                   </p>
                   <p className="mt-1 text-[11px] text-[#A08A95]">
-                    {LEVELS[level].label}
+                    {tr(LEVELS[level].label)}
                   </p>
                 </div>
               </div>
@@ -504,8 +510,10 @@ export default function RoadmapJLPT() {
               <div className="mt-4 border-t border-[#F0E7EC] pt-3">
                 <p className="text-[12px] text-[#947584]">
                   {currentIndex >= 0
-                    ? `Chặng ${currentIndex + 1}: ${stages[currentIndex].title}`
-                    : 'Chọn một chặng để xem nội dung.'}
+                    ? (locale === 'ja'
+                      ? `ステップ ${currentIndex + 1}: ${tr(stages[currentIndex].title)}`
+                      : `Chặng ${currentIndex + 1}: ${stages[currentIndex].title}`)
+                    : tr('Chọn một chặng để xem nội dung.')}
                 </p>
                 <p className="mt-2 text-[11px] leading-5 text-[#AE95A1]">
                   Chọn chặng để mở tài nguyên theo cấp độ.
@@ -523,13 +531,12 @@ export default function RoadmapJLPT() {
                   className="text-[19px] text-[#B77E95]"
                 />
                 <h2 className="text-[13px] font-medium">
-                  Duy trì ôn tập
+                  {tr('Duy trì ôn tập')}
                 </h2>
               </div>
 
               <p className="mt-2 text-[12px] leading-6 text-[#A0808E]">
-                Xen kẽ luyện đề với ôn lại nội dung đã lưu
-                để việc ôn tập có trọng tâm.
+                {tr('Xen kẽ luyện đề với ôn lại nội dung đã lưu để việc ôn tập có trọng tâm.')}
               </p>
 
               <Link
@@ -537,7 +544,7 @@ export default function RoadmapJLPT() {
                 className="mt-3 inline-flex items-center gap-1
                            text-[12px] font-medium text-[#A84466]"
               >
-                Ôn tập đến hạn
+                {tr('Ôn tập đến hạn')}
                 <Icon name="arrow_forward" className="text-[15px]" />
               </Link>
             </section>
@@ -554,10 +561,10 @@ export default function RoadmapJLPT() {
               />
               <span className="flex-1">
                 <span className="block text-[13px] font-medium">
-                  Cần hướng dẫn thêm?
+                  {tr('Cần hướng dẫn thêm?')}
                 </span>
                 <span className="mt-1 block text-[11px] text-[#A08A95]">
-                  Trao đổi cùng Mentor
+                  {tr('Trao đổi cùng cố vấn')}
                 </span>
               </span>
               <Icon

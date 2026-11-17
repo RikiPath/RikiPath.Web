@@ -50,3 +50,16 @@ export async function getMockTestHistory() {
   const { result } = await api.get(endpoint + '/history');
   return result ?? [];
 }
+
+export { getMockTestAttempt as getMockAttempt, submitMockTestAttempt as submitMockTest };
+
+const result = (data) => data?.result ?? null;
+
+export function getDetailedMockAttempt(attemptId) {
+  return api.get(`/MockTest/attempts/${attemptId}/detailed`).then(result);
+}
+
+export function getWrongQuestions(practiceTestId) {
+  const params = practiceTestId ? { practiceTestId } : {};
+  return api.get('/MockTest/wrong-questions', { params }).then((data) => result(data) ?? []);
+}

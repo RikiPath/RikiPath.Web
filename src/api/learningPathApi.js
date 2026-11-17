@@ -35,7 +35,7 @@ export async function getLatestLearningPath() {
   return response?.result ?? null;
 }
 
-export async function generateLearningPath(options) {
+export async function generateLearningPath(options = {}) {
   const response = await api.post('/LearningPath/generate', options);
   return response?.result ?? response;
 }
@@ -96,4 +96,20 @@ export async function submitPracticeExerciseAttempt(attemptId, answers) {
 export async function getLessonCatalog(certificateLevelId) {
   const response = await api.get('/LessonProgress/lessons', { params: { certificateLevelId } });
   return response?.result ?? response;
+}
+
+export function getStandardRoadmap() {
+  return api.get('/StandardRoadmap').then((data) => data?.result);
+}
+
+export function getActiveLearningPath() {
+  return api.get('/LearningPath/active').then((data) => data?.result ?? null);
+}
+
+export function getLearningPathHistory() {
+  return api.get('/LearningPath/history').then((data) => data?.result);
+}
+
+export function cancelLearningPathPreview(previewId) {
+  return api.delete('/LearningPath/previews/' + previewId).then((data) => data?.result);
 }

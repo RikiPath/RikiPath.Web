@@ -1,487 +1,237 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
+import { getSession } from '../../auth/session.js';
+import { bookmarkKanji, createNotebookList, getNotebookEntries, getNotebookLists } from '../../api/notebookApi.js';
+import { searchKanji } from '../../api/sharedBankApi.js';
 
-/*
- * Dữ liệu mẫu lấy từ giao diện cũ.
- * Thay bằng dữ liệu API sổ tay khi tích hợp.
- */
-const SAMPLE_KANJI = [
-  {
-    id: 'saku',
-    character: '咲',
-    meaning: 'Nở hoa',
-    onyomi: 'ショウ',
-    kunyomi: 'さ.く',
-    strokes: 9,
-    radical: '口',
-    words: [
-      {
-        word: '咲く',
-        reading: 'さく',
-        meaning: 'Nở hoa',
-      },
-      {
-        word: '咲き乱れる',
-        reading: 'さきみだれる',
-        meaning: 'Nở rộ khắp nơi',
-      },
-      {
-        word: '返り咲き',
-        reading: 'かえりざき',
-        meaning: 'Nở lại; trở lại vị trí trước đây',
-      },
-    ],
-  },
-];
+const focus =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
+const SAMPLES = ['日', '水', '学', '人', '月'];
+
+function listIdOf(list) {
+  return list?.id || list?.learnerNoteId;
 }
 
-function ReadingBlock({ label, value }) {
-  return (
-    <div className="rounded-lg bg-[#FCF7F9] px-3 py-3">
-      <p className="text-[11px] text-[#A08A95]">
-        {label}
-      </p>
-      <p
-        lang="ja"
-        className="mt-2 font-['Noto_Sans_JP',sans-serif]
-                   text-[20px] text-[#795563]"
-      >
-        {value || '—'}
-      </p>
-    </div>
-  );
+function readings(item) {
+  return [
+    item.onYomi ? { label: 'On', value: item.onYomi } : null,
+    item.kunYomi ? { label: 'Kun', value: item.kunYomi } : null,
+    item.sinoVietnamese ? { label: 'HV', value: item.sinoVietnamese } : null,
+    item.reading ? { label: '', value: item.reading } : null,
+  ].filter(Boolean);
 }
 
 export default function KanjiNotebook() {
-  const { pathname } = useLocation();
+  const { tr } = useLocale();
+  const signedIn = Boolean(getSession()?.accessToken);
+  const [keyword, setKeyword] = useState('');
+  const [submitted, setSubmitted] = useState('');
+  const [notice, setNotice] = useState('');
+  const client = useQueryClient();
 
-  const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState(SAMPLE_KANJI[0].id);
-  const [notes, setNotes] = useState({});
-  const [showMeaning, setShowMeaning] = useState(true);
-
-  const keyword = search.trim().toLocaleLowerCase('vi-VN');
-
-  const visibleItems = SAMPLE_KANJI.filter((item) => {
-    const searchable = [
-      item.character,
-      item.meaning,
-      item.onyomi,
-      item.kunyomi,
-      ...item.words.flatMap((word) => [
-        word.word,
-        word.reading,
-        word.meaning,
-      ]),
-    ]
-      .join(' ')
-      .toLocaleLowerCase('vi-VN');
-
-    return searchable.includes(keyword);
+  const listsQuery = useQuery({
+    queryKey: ['notebook-lists'],
+    queryFn: getNotebookLists,
+    enabled: signedIn,
+  });
+  const savedQuery = useQuery({
+    queryKey: ['kanji-saved', (listsQuery.data || []).map(listIdOf).join(',')],
+    enabled: signedIn && listsQuery.isSuccess,
+    queryFn: async () => {
+      const groups = await Promise.all((listsQuery.data || []).map(async (list) => {
+        const rows = await getNotebookEntries(listIdOf(list));
+        return rows.filter((row) => row.contentType === 'kanji' || row.kanjiId);
+      }));
+      const seen = new Set();
+      return groups.flat().filter((row) => {
+        const key = row.kanjiId || row.term;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    },
+  });
+  const searchQuery = useQuery({
+    queryKey: ['kanji-search', submitted],
+    queryFn: () => searchKanji(submitted),
+    enabled: submitted.length > 0,
   });
 
-  const selected = SAMPLE_KANJI.find(
-    (item) => item.id === selectedId,
-  );
+  const ensureList = useMutation({
+    mutationFn: async () => {
+      const lists = listsQuery.data || [];
+      if (listIdOf(lists[0])) return listIdOf(lists[0]);
+      const created = await createNotebookList({ name: 'Kanji' });
+      return created?.id || created?.learnerNoteId;
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: ['notebook-lists'] }),
+  });
 
-  function selectKanji(id) {
-    setSelectedId(id);
-    setShowMeaning(true);
+  const save = useMutation({
+    mutationFn: async (kanjiId) => {
+      const learnerNoteId = await ensureList.mutateAsync();
+      return bookmarkKanji({ learnerNoteId, kanjiId });
+    },
+    onSuccess: () => {
+      setNotice(tr('Đã lưu vào sổ.'));
+      client.invalidateQueries({ queryKey: ['kanji-saved'] });
+    },
+  });
+
+  const items = searchQuery.data?.items || [];
+  const saved = savedQuery.data || [];
+  const savedIds = new Set(saved.map((row) => row.kanjiId).filter(Boolean));
+  const error = searchQuery.error || save.error;
+
+  function runSearch(value) {
+    const next = value.trim();
+    setKeyword(next);
+    setNotice('');
+    setSubmitted(next);
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Sổ tay Hán tự">
-      <main
-        data-page="KanjiNotebook"
-        className="mx-auto max-w-[1240px] px-5 py-6
-                   font-['Be_Vietnam_Pro',sans-serif]
-                   text-[#49353F] lg:px-7"
-      >
-        {/* Tiêu đề */}
-        <header
-          className="mb-5 flex flex-wrap items-start
-                     justify-between gap-3"
-        >
-          <div>
-            <div className="flex items-center gap-2">
-              <span
-                lang="ja"
-                className="font-['Noto_Serif_JP',serif]
-                           text-[14px] text-[#B88A9E]"
-              >
-                漢字
-              </span>
-              <span className="text-[11px] text-[#AA8D9B]">
-                Ôn lại từng chữ
-              </span>
+    <LearnerShell pathname="/kanji-notebook" breadcrumb={tr('Sổ kanji')}>
+      <main className="mx-auto max-w-[1040px] px-5 py-6 font-['Be_Vietnam_Pro',sans-serif] text-[#49353F] lg:px-7">
+        <section className="overflow-hidden rounded-[24px] border border-[#F0E4E9] bg-white px-5 py-5 shadow-[0_10px_30px_rgba(90,40,58,0.04)] sm:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-[#AD3155]">{tr('SỔ KANJI')}</p>
+              <h1 className="mt-1 text-[28px] font-semibold tracking-tight">{tr('Tra và lưu kanji')}</h1>
             </div>
-
-            <h1
-              className="mt-2 text-[25px] font-semibold
-                         leading-tight tracking-tight"
-            >
-              Sổ tay Hán tự
-            </h1>
-
-            <p className="mt-1.5 text-[13px] text-[#967F8A]">
-              Xem cách đọc, từ vựng và ghi chú của bạn.
-            </p>
+            <div className="min-w-[108px] rounded-2xl bg-[#FDF2F5] px-4 py-3">
+              <p className="text-[11px] text-[#967F8A]">{tr('Đã lưu')}</p>
+              <p className="mt-1 text-[24px] font-semibold leading-none">{savedQuery.isSuccess ? saved.length : '—'}</p>
+            </div>
           </div>
 
-          <Link
-            to="/daily-srs"
-            className="inline-flex min-h-9 items-center gap-2
-                       rounded-lg border border-[#E7D7DF]
-                       bg-white px-3 text-[12px] text-[#A47186]
-                       hover:bg-[#FFF3F7]"
+          <form
+            className="mt-5 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              runSearch(keyword);
+            }}
           >
-            <Icon name="history" className="text-[17px]" />
-            Ôn tập đến hạn
-          </Link>
-        </header>
+            <label className="relative min-w-0 flex-1">
+              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-[#C4A8B4]">search</span>
+              <input
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder={tr('Gõ chữ, âm đọc hoặc nghĩa')}
+                className="h-12 w-full rounded-2xl border border-[#EADFE5] bg-[#FFFBFC] pl-10 pr-3 text-[14px] outline-none focus:border-[#AD3155]"
+              />
+            </label>
+            <button type="submit" className={`h-12 shrink-0 rounded-2xl bg-[#AD3155] px-5 text-[13px] font-semibold text-white hover:bg-[#982B4B] ${focus}`}>
+              {tr('Tìm')}
+            </button>
+          </form>
 
-        <div
-          className="mb-4 flex items-start gap-2 rounded-lg
-                     bg-[#F7EFF3] px-3 py-2.5
-                     text-[11px] leading-5 text-[#A0808E]"
-        >
-          <Icon
-            name="info"
-            className="mt-0.5 shrink-0 text-[16px]"
-          />
-          <p>
-            Nội dung minh họa. Ghi chú chưa được lưu vào tài khoản.
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-[12px] text-[#A08B96]">{tr('Thử')}</span>
+            {SAMPLES.map((sample) => (
+              <button
+                key={sample}
+                type="button"
+                onClick={() => runSearch(sample)}
+                className={`h-8 rounded-full bg-[#FDF2F5] px-3 text-[14px] text-[#AD3155] hover:bg-[#F8E3EB] ${focus}`}
+              >
+                {sample}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {(error || notice) && (
+          <p role={error ? 'alert' : 'status'} className={`mt-4 rounded-2xl px-4 py-3 text-[13px] ${error ? 'bg-[#FCF4F8] text-[#A33357]' : 'bg-[#E7F6EC] text-[#1E5C36]'}`}>
+            {error?.message || notice}
           </p>
-        </div>
+        )}
+        {!signedIn && <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Đăng nhập để lưu chữ vào sổ.')}</p>}
 
-        <div
-          className="grid items-start gap-4
-                     lg:grid-cols-[230px_minmax(0,1fr)]"
-        >
-          {/* Danh sách */}
-          <aside
-            aria-label="Danh sách Hán tự"
-            className="overflow-hidden rounded-xl border
-                       border-[#EADFE5] bg-white
-                       lg:sticky lg:top-[84px]"
-          >
-            <div className="border-b border-[#F0E7EC] p-3">
-              <div className="mb-3 flex items-center justify-between px-1">
-                <h2 className="text-[13px] font-medium">
-                  Danh sách chữ
-                </h2>
-                <span className="text-[11px] text-[#B08E9E]">
-                  {visibleItems.length}
-                </span>
-              </div>
-
-              <div className="relative">
-                <Icon
-                  name="search"
-                  className="pointer-events-none absolute
-                             left-2.5 top-1/2 -translate-y-1/2
-                             text-[17px] text-[#B29DA7]"
-                />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Tìm chữ hoặc nghĩa..."
-                  aria-label="Tìm Hán tự"
-                  className="h-9 w-full rounded-lg border
-                             border-[#EADFE5] bg-[#FDFBFC]
-                             pl-8 pr-2 text-[12px] outline-none
-                             focus:border-[#D6A2B5]
-                             focus:ring-2
-                             focus:ring-[#AD3155]/10"
-                />
-              </div>
+        {submitted && (
+          <section className="mt-5">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="text-[16px] font-semibold">{tr('Kết quả')}</h2>
+              {searchQuery.isSuccess && <span className="text-[12px] text-[#8C7782]">{items.length}</span>}
             </div>
-
-            <div className="max-h-[60vh] overflow-y-auto p-2">
-              {visibleItems.length ? (
-                visibleItems.map((item) => {
-                  const active = item.id === selectedId;
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => selectKanji(item.id)}
-                      aria-pressed={active}
-                      className={[
-                        'flex w-full items-center gap-3',
-                        'rounded-lg px-3 py-3 text-left',
-                        'transition-colors',
-                        active
-                          ? 'bg-[#FCEAF2]'
-                          : 'hover:bg-[#FFFAFC]',
-                      ].join(' ')}
-                    >
-                      <span
-                        lang="ja"
-                        className="font-['Noto_Serif_JP',serif]
-                                   text-[30px] text-[#A45B78]"
-                      >
-                        {item.character}
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium">
-                          {item.meaning}
-                        </span>
-                        <span
-                          lang="ja"
-                          className="mt-1 block text-[12px]
-                                     text-[#AE95A1]"
-                        >
-                          {item.kunyomi}
-                        </span>
-                      </span>
-
-                      <Icon
-                        name="chevron_right"
-                        className="text-[17px] text-[#BE98A8]"
-                      />
-                    </button>
-                  );
-                })
-              ) : (
-                <p className="px-3 py-6 text-[12px] text-[#A08A95]">
-                  Không tìm thấy chữ phù hợp.
-                </p>
-              )}
-            </div>
-          </aside>
-
-          {/* Chi tiết */}
-          {selected && (
-            <div className="min-w-0 space-y-4">
-              <section
-                aria-label={`Chi tiết chữ ${selected.character}`}
-                className="overflow-hidden rounded-2xl border
-                           border-[#EADFE5] bg-white"
-              >
-                <header
-                  className="flex flex-wrap items-center
-                             justify-between gap-2
-                             border-b border-[#F0E7EC]
-                             px-5 py-3.5"
-                >
-                  <h2 className="text-[14px] font-medium">
-                    Chữ và cách đọc
-                  </h2>
-
-                  <span className="text-[11px] text-[#AA8D9B]">
-                    {selected.strokes} nét · Bộ {selected.radical}
-                  </span>
-                </header>
-
-                <div
-                  className="grid items-center gap-6 p-5
-                             sm:grid-cols-[220px_minmax(0,1fr)]
-                             sm:p-6"
-                >
-                  {/* Ô chữ Nhật làm điểm nhấn */}
-                  <div
-                    className="relative mx-auto flex aspect-square
-                               w-full max-w-[220px] items-center
-                               justify-center overflow-hidden
-                               rounded-xl border border-[#ECD8E2]
-                               bg-[#FFFAFC]"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 220 220"
-                      className="pointer-events-none absolute inset-0
-                                 h-full w-full text-[#EBD7E0]"
-                      fill="none"
-                      stroke="currentColor"
-                    >
-                      <path
-                        d="M110 0V220 M0 110H220"
-                        strokeDasharray="4 5"
-                      />
-                      <path
-                        d="M0 0L220 220 M220 0L0 220"
-                        strokeDasharray="3 6"
-                        opacity="0.6"
-                      />
-                    </svg>
-
-                    <span
-                      lang="ja"
-                      className="relative select-none
-                                 font-['Noto_Serif_JP',serif]
-                                 text-[140px] leading-none
-                                 text-[#A95173]"
-                    >
-                      {selected.character}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-[#AE95A1]">
-                      Nghĩa
-                    </p>
-
-                    <h3
-                      className="mt-2 min-h-[34px]
-                                 text-[25px] font-semibold
-                                 text-[#795563]"
-                    >
-                      {showMeaning ? selected.meaning : '•••'}
-                    </h3>
-
-                    <button
-                      type="button"
-                      aria-pressed={!showMeaning}
-                      onClick={() => setShowMeaning((current) => !current)}
-                      className="mt-2 inline-flex items-center gap-1
-                                 text-[11px] text-[#AE7C92]
-                                 hover:text-[#AD3155]"
-                    >
-                      <Icon
-                        name={showMeaning ? 'visibility_off' : 'visibility'}
-                        className="text-[15px]"
-                      />
-                      {showMeaning ? 'Ẩn nghĩa để tự ôn' : 'Hiện nghĩa'}
-                    </button>
-
-                    <div className="mt-5 grid grid-cols-2 gap-2">
-                      <ReadingBlock
-                        label="Âm On"
-                        value={selected.onyomi}
-                      />
-                      <ReadingBlock
-                        label="Âm Kun"
-                        value={selected.kunyomi}
-                      />
+            {searchQuery.isPending && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((slot) => (
+                  <div key={slot} className="h-[132px] animate-pulse rounded-[22px] bg-white" />
+                ))}
+              </div>
+            )}
+            {searchQuery.isSuccess && items.length === 0 && (
+              <p className="rounded-[22px] border border-dashed border-[#E7C9D6] bg-white px-4 py-10 text-center text-[13px] text-[#A08B96]">
+                {tr('Không có kanji khớp.')}
+              </p>
+            )}
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {items.map((item) => {
+                const stored = savedIds.has(item.id);
+                return (
+                  <li key={item.id} className="flex gap-4 rounded-[22px] border border-[#F0E4E9] bg-white p-4 shadow-[0_10px_30px_rgba(90,40,58,0.04)]">
+                    <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-[#FDF2F5]">
+                      <span className="text-[46px] leading-none text-[#49353F]" style={{ fontFamily: '"Yu Gothic", "Hiragino Sans", sans-serif' }}>{item.character}</span>
                     </div>
-
-                    <Link
-                      to="/kanji-writing?type=kanji"
-                      className="mt-4 inline-flex min-h-9
-                                 items-center gap-1.5 rounded-lg
-                                 bg-[#AD3155] px-3.5 py-2
-                                 text-[12px] font-medium text-white
-                                 hover:bg-[#982B4B]"
-                    >
-                      <Icon name="draw" className="text-[17px]" />
-                      Mở trang luyện viết Hán tự
-                    </Link>
-                  </div>
-                </div>
-              </section>
-
-              {/* Từ vựng */}
-              <section
-                className="overflow-hidden rounded-xl
-                           border border-[#EADFE5] bg-white"
-              >
-                <header
-                  className="border-b border-[#F0E7EC]
-                             px-5 py-3.5"
-                >
-                  <h2 className="text-[14px] font-medium">
-                    Từ vựng đi kèm
-                  </h2>
-                </header>
-
-                <div className="divide-y divide-[#F3EBEF]">
-                  {selected.words.map((word) => (
-                    <div
-                      key={word.word}
-                      className="grid gap-2 px-5 py-3.5
-                                 sm:grid-cols-[1fr_1fr]"
-                    >
-                      <div>
-                        <p
-                          lang="ja"
-                          className="font-['Noto_Sans_JP',sans-serif]
-                                     text-[18px] text-[#795563]"
-                        >
-                          {word.word}
-                        </p>
-                        <p
-                          lang="ja"
-                          className="mt-1 text-[12px] text-[#AE95A1]"
-                        >
-                          {word.reading}
-                        </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[16px] font-semibold leading-6">{item.meaning}</p>
+                        {item.jlptLevelName && (
+                          <span className="shrink-0 rounded-full bg-[#FDF2F5] px-2 py-0.5 text-[11px] font-medium text-[#AD3155]">{item.jlptLevelName}</span>
+                        )}
                       </div>
-
-                      <p
-                        className="self-center text-[13px]
-                                   leading-6 text-[#967F8A]"
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {readings(item).map((part) => (
+                          <span key={`${part.label}-${part.value}`} className="rounded-full bg-[#F7F2F4] px-2 py-0.5 text-[12px] text-[#705261]">
+                            {part.label ? `${part.label} ${part.value}` : part.value}
+                          </span>
+                        ))}
+                        {item.strokeCount > 0 && (
+                          <span className="rounded-full bg-[#F7F2F4] px-2 py-0.5 text-[12px] text-[#705261]">{item.strokeCount} {tr('nét')}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!signedIn || save.isPending || stored}
+                        onClick={() => { setNotice(''); save.mutate(item.id); }}
+                        className={`mt-3 h-8 rounded-full px-3 text-[12px] font-medium disabled:opacity-50 ${stored ? 'bg-[#E7F6EC] text-[#1E5C36]' : `border border-[#E7C3D0] text-[#AD3155] hover:bg-[#FDF2F5]`} ${focus}`}
                       >
-                        {word.meaning}
-                      </p>
+                        {stored ? tr('Đã lưu') : tr('Lưu vào sổ')}
+                      </button>
                     </div>
-                  ))}
-                </div>
-              </section>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
-              {/* Ghi chú */}
-              <section
-                className="rounded-xl border border-[#EADFE5]
-                           bg-white p-5"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label
-                    htmlFor="kanji-note"
-                    className="text-[14px] font-medium"
-                  >
-                    Ghi chú của bạn
-                  </label>
-
-                  <span className="text-[10px] text-[#B39AA5]">
-                    Chưa lưu vào tài khoản
-                  </span>
-                </div>
-
-                <textarea
-                  id="kanji-note"
-                  rows={3}
-                  maxLength={2000}
-                  value={notes[selected.id] || ''}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setNotes((current) => ({
-                      ...current,
-                      [selected.id]: value,
-                    }));
-                  }}
-                  placeholder="Ghi cách nhớ hoặc đặt một câu ví dụ..."
-                  className="mt-3 block w-full resize-y
-                             rounded-lg border border-[#EBDDE5]
-                             bg-[#FFFCFD] px-3 py-3
-                             text-[13px] leading-6
-                             text-[#795D6B] outline-none
-                             placeholder:text-[#B7A1AC]
-                             focus:border-[#D6A2B5]
-                             focus:ring-2 focus:ring-[#AD3155]/10"
-                />
-
-                <p className="mt-2 text-[11px] text-[#AE95A1]">
-                  Ghi chú sẽ mất khi tải lại hoặc rời trang.
-                </p>
-              </section>
+        <section className="mt-5">
+          <h2 className="mb-3 text-[16px] font-semibold">{tr('Trong sổ')}</h2>
+          {savedQuery.isLoading && <p className="text-[13px] text-[#A08B96]">{tr('Đang tải sổ…')}</p>}
+          {!saved.length && !savedQuery.isLoading && (
+            <div className="rounded-[22px] border border-dashed border-[#E7C9D6] bg-white px-5 py-10 text-center">
+              <p className="text-[42px] leading-none tracking-[0.2em] text-[#F3D5E0]" style={{ fontFamily: '"Yu Gothic", "Hiragino Sans", sans-serif' }}>漢字</p>
+              <p className="mt-3 text-[13px] text-[#8C7782]">{tr('Sổ còn trống. Chọn một chữ phía trên để bắt đầu.')}</p>
             </div>
           )}
-        </div>
+          {saved.length > 0 && (
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {saved.map((row) => (
+                <li key={row.noteEntryId || row.kanjiId} className="rounded-[22px] border border-[#F0E4E9] bg-white px-4 py-4 text-center shadow-[0_10px_30px_rgba(90,40,58,0.04)]">
+                  <p className="text-[40px] leading-none" style={{ fontFamily: '"Yu Gothic", "Hiragino Sans", sans-serif' }}>{row.term}</p>
+                  <p className="mt-3 truncate text-[13px] font-medium">{row.meaning}</p>
+                  {row.reading && <p className="mt-1 truncate text-[12px] text-[#8C7782]">{row.reading}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
     </LearnerShell>
   );

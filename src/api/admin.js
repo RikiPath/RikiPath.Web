@@ -1,32 +1,36 @@
 import { api } from './client.js';
 
-// Admin user management
+const missingApi = (name) => () => Promise.reject(new Error(`Backend không có API ${name}.`));
+
 export const getAdminUsers = (params) => api.get('/admin/users', { params });
 export const createAdminUser = (data) => api.post('/admin/users', data);
 export const getAdminUser = (id) => api.get(`/admin/users/${id}`);
 export const updateAdminUser = (id, data) => api.put(`/admin/users/${id}`, data);
 export const disableAdminUser = (id) => api.delete(`/admin/users/${id}`);
 
-// Subscription plans and features
-export const getAdminPlans = () => api.get('/admin/plans');
-export const createAdminPlan = (data) => api.post('/admin/plans', data);
-export const getAdminPlan = (id) => api.get(`/admin/plans/${id}`);
-export const updateAdminPlan = (id, data) => api.put(`/admin/plans/${id}`, data);
-export const disableAdminPlan = (id) => api.delete(`/admin/plans/${id}`);
-export const getAdminFeatures = () => api.get('/admin/features');
-export const createAdminFeature = (data) => api.post('/admin/features', data);
-export const getAdminFeature = (id) => api.get(`/admin/features/${id}`);
-export const updateAdminFeature = (id, data) => api.put(`/admin/features/${id}`, data);
-export const disableAdminFeature = (id) => api.delete(`/admin/features/${id}`);
+// Subscription plan and feature CRUD was removed. Meeting plans use /admin/mentor-plans.
+export const getAdminPlans = missingApi('gói đăng ký tổng');
+export const createAdminPlan = missingApi('gói đăng ký tổng');
+export const getAdminPlan = missingApi('gói đăng ký tổng');
+export const updateAdminPlan = missingApi('gói đăng ký tổng');
+export const disableAdminPlan = missingApi('gói đăng ký tổng');
+export const getAdminFeatures = missingApi('feature');
+export const createAdminFeature = missingApi('feature');
+export const getAdminFeature = missingApi('feature');
+export const updateAdminFeature = missingApi('feature');
+export const disableAdminFeature = missingApi('feature');
 
-// Mentor scheduling and bookings
-export const getAdminMentorBookings = (params) => api.get('/admin/mentor-bookings', { params });
-export const updateAdminMentorBooking = (id, data) => api.put(`/admin/mentor-bookings/${id}`, data);
-export const getAdminMentorAvailabilities = (params) => api.get('/admin/mentor-availabilities', { params });
-export const getAdminMentorSchedule = async (mentorId, from, to) => (await api.get(`/admin/mentor-availabilities/mentor/${mentorId}/schedule`, { params: { from, to } })).result || [];
-export const createAdminMentorAvailability = (data) => api.post('/admin/mentor-availabilities', data);
-export const updateAdminMentorAvailability = (id, data) => api.put(`/admin/mentor-availabilities/${id}`, data);
-export const deleteAdminMentorAvailability = (id) => api.delete(`/admin/mentor-availabilities/${id}`);
+export const getAdminMentorBookings = missingApi('booking admin');
+export const updateAdminMentorBooking = missingApi('booking admin');
+export const getAdminMentorAvailabilities = () => api.get('/admin/mentor-availabilities');
+
+export async function getAdminMentorSchedule(mentorId, from, to) {
+  const data = await api.get(`/admin/mentor-availabilities/mentor/${mentorId}/schedule`, { params: { from, to } });
+  return data?.result || [];
+}
+export const createAdminMentorAvailability = missingApi('tạo khung giờ admin');
+export const updateAdminMentorAvailability = missingApi('sửa khung giờ admin');
+export const deleteAdminMentorAvailability = missingApi('xóa khung giờ admin');
 
 // Mentors and overview
 export const createAdminMentor = (data) => api.post('/admin/mentors', data);
@@ -36,7 +40,7 @@ export const getAdminDashboard = () => api.get('/admin/dashboard');
 
 // Content moderation (legacy)
 // export const getAdminPendingContent = (entityType, params) => api.get(`/content-management/admin/pending/${entityType}`, { params });
-export const getAdminContentDetails = (entityType, entityId) => api.get(`/content-management/admin/details/${entityType}/${entityId}`);
+export const getAdminContentDetails = () => Promise.reject(new Error('Backend không có API chi tiết nội dung quản trị.'));
 
 export const getAdminPendingContent = (entityType, params) => api.get('/content-approvals/pending', {
   params: { ...params, ...(entityType ? { entityType: entityType === 'GrammarPattern' ? 'Grammar' : entityType } : {}) },
@@ -49,19 +53,16 @@ export async function getPendingApprovals(params = {}) {
   return res?.result ?? res;
 }
 
-export async function getApprovalDetail(approvalId) {
-  const res = await api.get(`/content-approvals/${approvalId}`);
-  return res?.result ?? res;
+export function getApprovalDetail() {
+  return Promise.reject(new Error('Backend không có API chi tiết một yêu cầu duyệt.'));
 }
 
-export async function approveContent(approvalId) {
-  const res = await api.post(`/content-approvals/${approvalId}/approve`);
-  return res?.result ?? res;
+export function approveContent() {
+  return Promise.reject(new Error('Dùng review với approve = true.'));
 }
 
-export async function rejectContent(approvalId, body) {
-  const res = await api.post(`/content-approvals/${approvalId}/reject`, body);
-  return res?.result ?? res;
+export function rejectContent() {
+  return Promise.reject(new Error('Dùng review với approve = false.'));
 }
 
 export function unwrapApiResult(response) {
@@ -71,11 +72,30 @@ export function unwrapApiResult(response) {
 export function unwrapApiList(response) {
   const value = unwrapApiResult(response);
   if (Array.isArray(value)) return value;
-  for (const key of ['items', 'data', 'results', 'users', 'plans', 'features', 'mentors', 'bookings', 'availabilities', 'contents']) {
+  for (const key of ['items', 'data', 'results', 'users', 'plans', 'features', 'mentors', 'bookings', 'availabilities', 'contents', 'disputes', 'reviews', 'metrics', 'profiles', 'verifications']) {
     if (Array.isArray(value?.[key])) return value[key];
   }
   return [];
 }
+
+// Quan ly xac minh ho so, tranh chap, danh gia va chat luong Mentor 1-1
+export const getAdminMentorVerifications = (params) => api.get('/admin/mentors/verifications', { params });
+export const getAdminMentorProfile = (mentorId) => api.get(`/admin/mentors/${mentorId}/profile`);
+export const getAdminMentorVerificationDocument = (mentorId) =>
+  api.get(`/admin/mentors/${mentorId}/verification-document/content`, { responseType: 'blob' });
+export const verifyAdminMentor = (mentorId, data) => api.post(`/admin/mentors/${mentorId}/verify`, data);
+export const reviewAdminCancellationException = (bookingId, data) =>
+  api.post(`/admin/mentor-bookings/${bookingId}/review-cancellation`, data);
+export const moderateAdminMentorReview = (reviewId, data) =>
+  api.post(`/admin/mentor-reviews/${reviewId}/moderate`, data);
+export const getAdminMentorDisputesQueue = (params) => api.get('/admin/mentor-disputes/queue', { params });
+export const resolveAdminMentorDispute = (disputeId, data) =>
+  api.post(`/admin/mentor-disputes/${disputeId}/resolve`, data);
+export const updateAdminMentorDisputeStatus = (disputeId, data) =>
+  api.post(`/admin/mentor-disputes/${disputeId}/status`, data);
+export const getAdminMentorQualityMetrics = (params) => api.get('/admin/mentor-quality/metrics', { params });
+export const getAdminMentorShiftTemplate = (mentorId) => api.get(`/admin/mentors/${mentorId}/schedule`);
+export const reconcileLearnerCredits = (learnerId) => api.post(`/admin/credits/reconcile/${learnerId}`);
 
 export async function reviewContentRequest(requestId, data) {
   // data: { approve: boolean, reviewNote: string }
@@ -93,4 +113,56 @@ export async function batchReviewContentRequests(items) {
   // items: Array<{ requestId: number, approve: boolean, reviewNote: string }>
   const res = await api.post('/content-approvals/requests/batch-review', { items });
   return res?.result ?? res;
+}
+
+export async function getCertificateSections(params) {
+  const data = await api.get('/admin/certificate-sections', { params });
+  return data?.result ?? data ?? [];
+}
+
+export async function createCertificateSection(body) {
+  const data = await api.post('/admin/certificate-sections', body);
+  return data?.result ?? data;
+}
+
+export async function updateCertificateSection(id, body) {
+  const data = await api.put(`/admin/certificate-sections/${id}`, body);
+  return data?.result ?? data;
+}
+
+export async function archiveCertificateSection(id) {
+  const data = await api.delete(`/admin/certificate-sections/${id}`);
+  return data?.result ?? data;
+}
+
+export async function getPendingMentorSlots() {
+  const data = await api.get('/admin/mentor-availabilities/pending');
+  return data?.result ?? data ?? [];
+}
+
+export async function reviewMentorSlots(ids, approve, rejectionReason) {
+  const data = await api.post('/admin/mentor-availabilities/review', ids, {
+    params: { approve, rejectionReason: rejectionReason || undefined },
+  });
+  return data?.result ?? data;
+}
+
+export async function reviewMentorSlot(id, approve, reason) {
+  const data = await api.post(`/admin/mentor-availabilities/${id}/review`, {
+    approve,
+    reason: reason || null,
+  });
+  return data?.result ?? data;
+}
+
+export async function reviewMentorSlotCancels(ids, approve, rejectionReason) {
+  const data = await api.post('/admin/mentor-availabilities/review-cancel', ids, {
+    params: { approve, rejectionReason: rejectionReason || undefined },
+  });
+  return data?.result ?? data;
+}
+
+export async function completeQaPayment(subscriptionId) {
+  const data = await api.post(`/admin/qa-payments/${subscriptionId}/complete`);
+  return data?.result ?? data;
 }

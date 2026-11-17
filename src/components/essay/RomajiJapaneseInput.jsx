@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { addPersonalDictionaryEntry, searchJapaneseDictionary } from '../../api/japaneseDictionaryApi.js';
 import { isRomajiKey, romajiToHiragana } from '../../utils/romaji.js';
+import { useSpeechToText } from '../../hooks/useSpeechToText.js';
 
-export default function RomajiJapaneseInput({ value, onChange, disabled = false }) {
+export default function RomajiJapaneseInput({ value, onChange, disabled = false, onSpeechBusyChange }) {
   const textareaRef = useRef(null);
   const [mode, setMode] = useState('romaji');
   const [romaji, setRomaji] = useState('');
@@ -12,15 +13,16 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
   const [personalForm, setPersonalForm] = useState(null);
   const [error, setError] = useState('');
   const bufferRange = useRef(null);
-  const recognitionRef = useRef(null);
-  const [listening, setListening] = useState(false);
+  const speech = useSpeechToText({ language: 'ja-JP', onTranscript: replaceBuffer });
+  const listening = speech.isListening;
+  const speechBusy = listening || speech.loading;
+  useEffect(() => { onSpeechBusyChange?.(speechBusy); }, [onSpeechBusyChange, speechBusy]);
 
   function replaceBuffer(text) {
     const textarea = textareaRef.current;
     const start = bufferRange.current?.start ?? textarea?.selectionStart ?? value.length;
     const end = bufferRange.current?.end ?? textarea?.selectionEnd ?? value.length;
-    const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
-    onChange(next);
+    onChange(previous => `${previous.slice(0, start)}${text}${previous.slice(end)}`);
     bufferRange.current = { start, end: start + text.length };
     requestAnimationFrame(() => {
       textarea?.focus();
@@ -29,32 +31,14 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
   }
 
   function startSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Trình duyệt này chưa hỗ trợ nhập bằng giọng nói. Hãy dùng Chrome hoặc Edge.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'ja-JP';
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.onstart = () => setListening(true);
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      replaceBuffer(transcript);
-    };
-    recognition.onerror = (event) => setError(`Không thể nhận diện giọng nói: ${event.error}`);
-    recognition.onend = () => {
-      setListening(false);
-      recognitionRef.current = null;
-    };
-    recognitionRef.current = recognition;
-    recognition.start();
+    setRomaji(''); setCandidates([]); setError('');
+    bufferRange.current = { start: textareaRef.current?.selectionStart ?? value.length, end: textareaRef.current?.selectionEnd ?? value.length };
+    speech.resetTranscript();
+    void speech.startListening();
   }
 
   function stopSpeechRecognition() {
-    recognitionRef.current?.stop();
+    void speech.stopListening();
   }
 
   async function showCandidates(kana = romajiToHiragana(romaji)) {
@@ -162,9 +146,9 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="font-label-md font-semibold">Nội dung bài viết</span>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={listening ? stopSpeechRecognition : startSpeechRecognition} disabled={disabled} className="inline-flex items-center gap-1 rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm text-primary disabled:opacity-50">
+          <button type="button" onClick={listening ? stopSpeechRecognition : startSpeechRecognition} disabled={disabled || speech.loading} className="inline-flex items-center gap-1 rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm text-primary disabled:opacity-50">
             <span className="material-symbols-outlined text-[17px]">{listening ? 'mic_off' : 'mic'}</span>
-            {listening ? 'Dừng ghi' : 'Nói tiếng Nhật'}
+            {speech.loading ? 'Đang xử lý…' : listening ? 'Dừng ghi' : 'Nhập bằng giọng nói'}
           </button>
           <select value={mode} onChange={(event) => { setMode(event.target.value); setRomaji(''); setCandidates([]); setActiveCandidateIndex(0); }} className="max-w-full rounded-full border border-[#eadfd9] bg-white px-3 py-1.5 text-label-sm">
             <option value="romaji">Gõ Romaji</option>
@@ -177,7 +161,7 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        disabled={disabled}
+        disabled={disabled || speechBusy}
         className="min-h-[280px] w-full rounded-2xl border border-[#eadfd9] bg-surface-container-low p-4 text-body-md leading-8 outline-none focus:border-primary"
         placeholder={mode === 'romaji' ? 'Gõ watashi wa rồi nhấn Space để chọn 私は...' : 'Nhập tiếng Nhật bằng IME hệ điều hành...'}
       />
@@ -209,7 +193,7 @@ export default function RomajiJapaneseInput({ value, onChange, disabled = false 
           <button type="submit" className="mt-2 rounded-lg bg-primary px-3 py-2 text-label-sm text-on-primary">Lưu từ cá nhân</button>
         </form>
       )}
-      {error && <p className="mt-2 text-label-sm text-error">{error}</p>}
+      {(error || speech.error) && <p role="alert" className="mt-2 text-label-sm text-error">{error || speech.error}</p>}
     </div>
   );
 }

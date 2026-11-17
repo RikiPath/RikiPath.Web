@@ -244,7 +244,7 @@ function FieldRow({ f }) {
 }
 
 function LessonRelatedContent({ items = [] }) {
-  if (!items.length) return null;
+  if (!Array.isArray(items) || !items.length) return null;
   const grouped = items.reduce((result, item) => {
     (result[item.entityType] ??= []).push(item);
     return result;
@@ -309,7 +309,7 @@ function LessonRelatedContent({ items = [] }) {
   );
 }
 
-function DetailPanel({ item, onApprove, onReject, submitting }) {
+function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup, submitting }) {
   const [reason, setReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const fields = Array.isArray(item.fields) ? item.fields : [];
@@ -391,6 +391,16 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
               >
                 {submitting ? 'Đang xử lý…' : 'Xác nhận từ chối'}
               </button>
+              {item.entityType === 'Lesson' && (
+                <button
+                  type="button"
+                  disabled={!reason.trim() || submitting}
+                  onClick={() => onRejectGroup(item.requestId, reason.trim())}
+                  className="rounded-xl border border-rose-300 px-4 py-2 text-[13px] font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  Từ chối cả nhóm
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -403,6 +413,16 @@ function DetailPanel({ item, onApprove, onReject, submitting }) {
             >
               <span className="material-symbols-outlined align-middle text-[16px] mr-1">close</span>Từ chối
             </button>
+            {item.entityType === 'Lesson' && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => onApproveGroup(item.requestId)}
+                className="rounded-xl border border-[#E7DAE1] px-4 py-2 text-[13px] font-semibold text-[#AD3155] hover:bg-[#FFF6FA] disabled:opacity-50"
+              >
+                Duyệt cả nhóm bài
+              </button>
+            )}
             <button
               type="button"
               onClick={handleApprove}
@@ -560,12 +580,10 @@ export default function AdminContentReview() {
     onSuccess: onMutationSuccess,
   });
 
-  const lessonGroupReviewMutation = useMutation({
+  const groupReviewMutation = useMutation({
     mutationFn: ({ requestId, approve, reviewNote }) => reviewLessonGroup(requestId, { approve, reviewNote }),
     onSuccess: onMutationSuccess,
   });
-
-  // Batch review mutation
   const batchReviewMutation = useMutation({
     mutationFn: (batchItems) => batchReviewContentRequests(batchItems),
     onSuccess: onMutationSuccess,
@@ -589,13 +607,11 @@ export default function AdminContentReview() {
 
   // Handler duyệt đơn lẻ
   const handleSingleApprove = (item) => {
-    const mutate = item.entityType === 'Lesson' ? lessonGroupReviewMutation : singleReviewMutation;
-    mutate.mutate({ requestId: item.requestId, approve: true, reviewNote: '' });
+    singleReviewMutation.mutate({ requestId: item.requestId, approve: true, reviewNote: '' });
   };
 
   const handleSingleReject = (item, reason) => {
-    const mutate = item.entityType === 'Lesson' ? lessonGroupReviewMutation : singleReviewMutation;
-    mutate.mutate({ requestId: item.requestId, approve: false, reviewNote: reason });
+    singleReviewMutation.mutate({ requestId: item.requestId, approve: false, reviewNote: reason });
   };
 
   // Handler duyệt hàng loạt (Chấp nhận)
@@ -612,8 +628,8 @@ export default function AdminContentReview() {
     return items.filter((item) => checkedIds.includes(item.requestId));
   }, [items, checkedIds]);
 
-  const isSubmitting = singleReviewMutation.isPending || lessonGroupReviewMutation.isPending || batchReviewMutation.isPending;
-  const mutationError = singleReviewMutation.error?.message || lessonGroupReviewMutation.error?.message || batchReviewMutation.error?.message;
+  const isSubmitting = singleReviewMutation.isPending || batchReviewMutation.isPending || groupReviewMutation.isPending;
+  const mutationError = singleReviewMutation.error?.message || batchReviewMutation.error?.message || groupReviewMutation.error?.message;
 
   return (
     <AdminShell pathname={pathname} breadcrumb="Duyệt nội dung">
@@ -803,6 +819,8 @@ export default function AdminContentReview() {
                 item={selectedItem}
                 onApprove={handleSingleApprove}
                 onReject={handleSingleReject}
+                onApproveGroup={(id) => groupReviewMutation.mutate({ requestId: id, approve: true, reviewNote: '' })}
+                onRejectGroup={(id, reviewNote) => groupReviewMutation.mutate({ requestId: id, approve: false, reviewNote })}
                 submitting={isSubmitting}
               />
             )}

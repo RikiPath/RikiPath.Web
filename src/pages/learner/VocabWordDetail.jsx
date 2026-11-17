@@ -1,76 +1,118 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
+import { getSession } from '../../auth/session.js';
+import { bookmarkVocabulary, createNotebookList, getNotebookLists } from '../../api/notebookApi.js';
+import { getVocabulary, searchVocabulary } from '../../api/sharedBankApi.js';
 
-const EXAMPLES = [
-  { jp: '仕事の経験が大切です。', vi: 'Kinh nghiệm làm việc rất quan trọng.' },
-  { jp: '留学の経験を生かしたい。', vi: 'Tôi muốn tận dụng kinh nghiệm du học.' },
-];
+const focus =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
 export default function VocabWordDetail() {
-  const { pathname } = useLocation();
+  const { tr } = useLocale();
+  const client = useQueryClient();
+  const signedIn = Boolean(getSession()?.accessToken);
+  const [params, setParams] = useSearchParams();
+  const wordId = Number(params.get('id')) || 0;
+  const [keyword, setKeyword] = useState('');
+  const [submitted, setSubmitted] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const lists = await getNotebookLists();
+      const learnerNoteId = lists[0]?.id || (await createNotebookList({ name: 'Từ vựng' }))?.id;
+      return bookmarkVocabulary({ learnerNoteId, vocabularyId: wordId });
+    },
+    onSuccess: () => {
+      setNotice(tr('Đã lưu vào sổ.'));
+      client.invalidateQueries({ queryKey: ['notebook-lists'] });
+    },
+  });
+
+  const detailQuery = useQuery({
+    queryKey: ['vocabulary', wordId],
+    queryFn: () => getVocabulary(wordId),
+    enabled: wordId > 0,
+  });
+  const searchQuery = useQuery({
+    queryKey: ['vocabulary-search', submitted],
+    queryFn: () => searchVocabulary(submitted),
+    enabled: submitted.length > 0 && wordId === 0,
+  });
+
+  const word = detailQuery.data;
+  const items = searchQuery.data?.items || [];
+
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Chi tiết từ">
-      <div className="mx-auto max-w-4xl px-6 py-8 text-on-surface" data-page="VocabWordDetail">
-        <Link to="/vocabulary" className="mb-6 inline-flex items-center gap-1.5 text-sm text-[#6F6669] hover:text-[#D94B68]">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Sổ từ
-        </Link>
+    <LearnerShell pathname="/vocabulary-detail" breadcrumb={tr('Chi tiết từ')}>
+      <main className="mx-auto max-w-[820px] px-5 py-6 font-['Be_Vietnam_Pro',sans-serif] text-[#49353F] lg:px-7">
+        <Link to="/vocabulary/" className={`text-[13px] font-medium text-[#AD3155] ${focus}`}>{tr('Về sổ từ')}</Link>
+        <form
+          className="mt-4 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setParams({});
+            setSubmitted(keyword.trim());
+          }}
+        >
+          <input
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            placeholder={tr('Tìm từ đã duyệt')}
+            className="h-11 min-w-0 flex-1 rounded-xl border border-[#EADFE5] px-3 text-[14px] outline-none focus:border-[#AD3155]"
+          />
+          <button type="submit" className={`h-11 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white ${focus}`}>{tr('Tìm')}</button>
+        </form>
 
-        <article className="rounded-3xl border border-[#eadfd9] bg-white p-8 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold tracking-wide text-[#D94B68]">けいけん</p>
-              <h1 className="mt-1 font-serif text-5xl font-bold tracking-tight">経験</h1>
-              <p className="mt-2 text-xs font-bold uppercase tracking-wider text-[#A59B9E]">Kinh nghiệm</p>
-              <p className="mt-2 max-w-md text-sm text-[#6F6669]">
-                Kinh nghiệm làm việc thực tế, trải nghiệm đã tích lũy qua thời gian.
+        {(detailQuery.isError || save.error) && <p role="alert" className="mt-4 text-[13px] text-[#A33357]">{(detailQuery.error || save.error).message}</p>}
+        {notice && <p className="mt-4 text-[13px] text-[#1E5C36]">{notice}</p>}
+        {word && (
+          <article className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-6 py-6">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[13px] text-[#AD3155]">{word.reading}</p>
+              <button
+                type="button"
+                disabled={!signedIn || save.isPending}
+                onClick={() => { setNotice(''); save.mutate(); }}
+                className={`h-8 rounded-full bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-40 ${focus}`}
+              >
+                {tr('Lưu vào sổ')}
+              </button>
+            </div>
+            <h1 className="mt-1 text-[42px] font-semibold" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{word.word}</h1>
+            <p className="mt-2 text-[16px]">{word.meaning}</p>
+            {word.jlptLevelName && <p className="mt-2 text-[12px] text-[#8C7782]">{word.jlptLevelName}</p>}
+            {word.exampleSentence && (
+              <p className="mt-4 rounded-xl bg-[#FCF7F9] px-4 py-3 text-[15px] leading-7" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>
+                {word.exampleSentence}
               </p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <span className="rounded-full bg-[#fde8ec] px-3 py-1 text-[11px] font-bold text-[#9E2A4B]">JLPT N3 · Công việc</span>
-              <span className="text-xs font-semibold text-[#6F6669]">SRS vòng 3 · Ôn lại sau 2 ngày</span>
-            </div>
-          </div>
+            )}
+          </article>
+        )}
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {[
-              ['音読み', 'ケイ'],
-              ['訓読み', 'けいけん'],
-              ['Hán Việt', 'Kinh nghiệm'],
-            ].map(([k, v]) => (
-              <div key={k} className="rounded-xl bg-[#FFF8F8] px-4 py-3">
-                <p className="text-[11px] font-bold uppercase text-[#A59B9E]">{k}</p>
-                <p className="mt-1 text-lg font-bold">{v}</p>
-              </div>
-            ))}
-          </div>
-
-          <h2 className="mt-8 text-lg font-bold">Ví dụ</h2>
-          <ul className="mt-3 space-y-3">
-            {EXAMPLES.map((ex) => (
-              <li key={ex.jp} className="rounded-xl border border-[#eadfd9] px-4 py-3">
-                <p className="font-medium">{ex.jp}</p>
-                <p className="mt-1 text-sm text-[#6F6669]">{ex.vi}</p>
+        {items.length > 0 && wordId === 0 && (
+          <ul className="mt-4 space-y-2">
+            {items.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => setParams({ id: String(item.id) })}
+                  className={`flex w-full items-center justify-between rounded-xl border border-[#EADFE5] bg-white px-4 py-3 text-left hover:bg-[#FCF5F8] ${focus}`}
+                >
+                  <span>
+                    <span className="text-[16px] font-medium" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{item.word}</span>
+                    <span className="ml-2 text-[13px] text-[#8C7782]">{item.reading}</span>
+                  </span>
+                  <span className="text-[13px] text-[#6F5C66]">{item.meaning}</span>
+                </button>
               </li>
             ))}
           </ul>
-
-          <div className="mt-8 flex flex-wrap gap-2">
-            <Link
-              to="/daily-srs"
-              className="rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] px-5 py-2.5 text-sm font-bold text-white"
-            >
-              Ôn thẻ này trong SRS
-            </Link>
-            <Link
-              to="/sentence-studio"
-              className="rounded-full border border-[#f2d7de] bg-[#FFF0F5] px-5 py-2.5 text-sm font-bold text-[#9E2A4B]"
-            >
-              Viết câu với 経験
-            </Link>
-          </div>
-        </article>
-      </div>
+        )}
+      </main>
     </LearnerShell>
   );
 }

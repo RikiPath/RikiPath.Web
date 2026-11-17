@@ -1,18 +1,18 @@
 import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useLocation } from 'react-router-dom';
 
-import StudioList from './studioList.jsx';
+import ApprovedBankPage from './ApprovedBankPage.jsx';
 
 export default function VocabularyEditor() {
   const { pathname } = useLocation();
   return (
-    <StudioList
+    <ApprovedBankPage
       pathname={pathname}
       page="VocabularyEditor"
       breadcrumb="Từ vựng"
       title="Từ vựng"
-      hint="Từ soạn trên trang này. Hán tự nằm ở mục riêng."
-      addLabel="Thêm từ"
+      hint="Từ vựng đã được duyệt cùng bài học."
+      endpoint="/SharedBank/vocabulary/search"
       detail={{ to: '/kanji-editor', label: 'Hán tự' }}
       columns={[
         { key: 'word', label: 'Từ' },

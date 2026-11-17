@@ -18,6 +18,11 @@ import {
   createAdminMentorAvailability,
   updateAdminMentorAvailability,
   deleteAdminMentorAvailability,
+  getAdminMentorVerifications,
+  verifyAdminMentor,
+  getAdminMentorDisputesQueue,
+  resolveAdminMentorDispute,
+  getAdminMentorQualityMetrics,
   unwrapApiList,
 } from '../../api/admin.js';
 
@@ -48,20 +53,43 @@ const RESOURCES = {
     label: 'Lịch tư vấn',
     singular: 'lịch tư vấn',
     icon: 'event',
-    description: 'Tra cứu và cập nhật lịch tư vấn với Mentor.',
+    description: 'Tra cứu và cập nhật lịch tư vấn với cố vấn.',
     list: getAdminMentorBookings,
     update: updateAdminMentorBooking,
   },
   availabilities: {
-    label: 'Khung giờ Mentor',
+    label: 'Khung giờ cố vấn',
     singular: 'khung giờ',
     icon: 'schedule',
-    description: 'Quản lý các khung giờ tư vấn của Mentor.',
+    description: 'Quản lý các khung giờ tư vấn của cố vấn.',
     list: getAdminMentorAvailabilities,
     create: createAdminMentorAvailability,
     update: updateAdminMentorAvailability,
     remove: deleteAdminMentorAvailability,
     removeLabel: 'Xóa khung giờ',
+  },
+  verifications: {
+    label: 'Xét duyệt cố vấn',
+    singular: 'hồ sơ cố vấn',
+    icon: 'verified_user',
+    description: 'Xét duyệt hồ sơ đăng ký và chứng chỉ chuyên môn của cố vấn.',
+    list: getAdminMentorVerifications,
+    update: verifyAdminMentor,
+  },
+  disputes: {
+    label: 'Khiếu nại buổi tư vấn',
+    singular: 'khiếu nại',
+    icon: 'gavel',
+    description: 'Xử lý tranh chấp và khiếu nại buổi tư vấn 1-1.',
+    list: getAdminMentorDisputesQueue,
+    update: resolveAdminMentorDispute,
+  },
+  quality: {
+    label: 'Chỉ số chất lượng',
+    singular: 'chỉ số chất lượng',
+    icon: 'monitoring',
+    description: 'Xem tổng quan số buổi hoàn thành, tỷ lệ hủy và khiếu nại của cố vấn.',
+    list: getAdminMentorQualityMetrics,
   },
 };
 
@@ -74,7 +102,10 @@ function idOf(row) {
     row?.featureId ??
     row?.bookingId ??
     row?.availabilityId ??
-    row?.mentorBookingId
+    row?.mentorBookingId ??
+    row?.disputeId ??
+    row?.mentorId ??
+    row?.reviewId
   );
 }
 
@@ -83,7 +114,11 @@ function titleOf(row, resource) {
     row.name ||
     row.title ||
     row.mentorName ||
+    row.learnerName ||
     row.userName ||
+    (row.disputeId ? 'Khiếu nại chưa có tên' : null) ||
+    (row.bookingId ? 'Lịch tư vấn chưa có tên' : null) ||
+    (row.mentorId ? 'Cố vấn chưa cập nhật tên' : null) ||
     `${resource.label} chưa có tên`
   );
 }
@@ -358,7 +393,7 @@ export default function AdminOperations() {
               Gói & lịch tư vấn
             </h1>
             <p className="mt-1.5 text-[14px] text-[#82737B]">
-              Quản lý gói đăng ký, tính năng và lịch Mentor.
+              Quản lý gói và lịch tư vấn với cố vấn.
             </p>
           </div>
 
@@ -762,7 +797,7 @@ export default function AdminOperations() {
                       className="mt-2 text-[11px]
                                  leading-5 text-[#95858D]"
                     >
-                      Chỉ gửi các trường được API hỗ trợ.
+                      Chỉ cập nhật những thông tin được phép thay đổi.
                       Mã bản ghi được dùng từ mục đã chọn.
                     </p>
                   </div>
@@ -806,25 +841,27 @@ export default function AdminOperations() {
                     Đóng
                   </button>
 
-                  <button
-                    type="submit"
-                    disabled={
-                      saving ||
-                      (editor.mode === 'edit' &&
-                        (!canIdentify || !bodyChanged))
-                    }
-                    className="h-9 rounded-lg bg-[#AD3155]
-                               px-4 text-[13px] font-medium
-                               text-white hover:bg-[#982B4B]
-                               disabled:cursor-not-allowed
-                               disabled:opacity-40"
-                  >
-                    {saving
-                      ? 'Đang xử lý…'
-                      : editor.mode === 'create'
-                        ? 'Thêm mới'
-                        : 'Lưu thay đổi'}
-                  </button>
+                  {((editor.mode === 'create' && resource.create) || (editor.mode === 'edit' && resource.update)) && (
+                    <button
+                      type="submit"
+                      disabled={
+                        saving ||
+                        (editor.mode === 'edit' &&
+                          (!canIdentify || !bodyChanged))
+                      }
+                      className="h-9 rounded-lg bg-[#AD3155]
+                                 px-4 text-[13px] font-medium
+                                 text-white hover:bg-[#982B4B]
+                                 disabled:cursor-not-allowed
+                                 disabled:opacity-40"
+                    >
+                      {saving
+                        ? 'Đang xử lý…'
+                        : editor.mode === 'create'
+                          ? 'Thêm mới'
+                          : 'Lưu thay đổi'}
+                    </button>
+                  )}
                 </div>
 
                 {editor.mode === 'edit' && resource.remove && (

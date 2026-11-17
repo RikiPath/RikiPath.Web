@@ -1,5 +1,6 @@
+import { useLocale } from '../../i18n/locale.js';
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { LearnerShell } from '../../components/shells';
@@ -18,6 +19,7 @@ const percent = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
 const date = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' });
 
 export default function ExamResult() {
+  const { locale, tr } = useLocale();
   const { pathname } = useLocation();
   const { user, isAuthenticated } = useAuth();
   const [days, setDays] = useState(7);

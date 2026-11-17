@@ -1,3 +1,4 @@
+import { useLocale } from '../../i18n/locale.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -14,7 +15,7 @@ import {
   getLearnerEssays,
   rescanLearnerEssay,
   scanLearnerEssay,
-  updateLearnerEssay,
+  saveLearnerEssayDraft,
 } from '../../api/learnerEssayApi.js';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -68,6 +69,7 @@ function validateFile(file) {
 }
 
 export default function LearnerEssayPage() {
+  const { tr } = useLocale();
   const { pathname } = useLocation();
   const inputRef = useRef(null);
 
@@ -76,6 +78,7 @@ export default function LearnerEssayPage() {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [text, setText] = useState('');
+  const [originalOcrText, setOriginalOcrText] = useState('');
   const [lessonLevel, setLessonLevel] = useState('');
   const lesson = writingLessons.find(item => item.level === lessonLevel);
   const queryClient = useQueryClient();
@@ -108,12 +111,13 @@ export default function LearnerEssayPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [speechBusy, setSpeechBusy] = useState(false);
 
-  const busy = Boolean(operation);
+  const busy = Boolean(operation) || speechBusy;
   const scanning = operation === 'scan' || operation === 'rescan';
   const previewSrc = file ? previewUrl : selected?.imageUrl;
   const changed = Boolean(
-    selected && text !== (selected.contentText || ''),
+    file || (selected ? text !== (selected.contentText || '') : text.trim()),
   );
 
   const loadEssays = useCallback(async () => {
@@ -124,19 +128,20 @@ export default function LearnerEssayPage() {
       const result = await getLearnerEssays();
 
       if (!Array.isArray(result)) {
-        throw new Error('Danh sách bài viết chưa đúng định dạng.');
+        throw new Error(tr("Danh sách bài viết chưa đúng định dạng."));
       }
 
       setEssays(result);
     } catch (err) {
-      setListError(err.message || 'Không tải được danh sách.');
+      setListError(err.message || tr("Không tải được danh sách."));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
-    loadEssays();
+    const timer = window.setTimeout(() => { void loadEssays(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadEssays]);
 
   useEffect(() => {
@@ -147,6 +152,16 @@ export default function LearnerEssayPage() {
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    if (!changed) return;
+    const warnBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [changed]);
+
   function clearMessages() {
     setError('');
     setNotice('');
@@ -155,7 +170,7 @@ export default function LearnerEssayPage() {
   function confirmDiscard() {
     return (
       !changed ||
-      window.confirm('Bài viết có thay đổi chưa lưu. Bạn muốn tiếp tục?')
+      window.confirm(tr("Bài viết có thay đổi chưa lưu. Bạn muốn tiếp tục?"))
     );
   }
 
@@ -166,6 +181,7 @@ export default function LearnerEssayPage() {
     setFile(null);
     setPreviewUrl('');
     setText('');
+    setOriginalOcrText('');
     clearMessages();
 
     if (inputRef.current) inputRef.current.value = '';
@@ -176,12 +192,13 @@ export default function LearnerEssayPage() {
 
     const validationError = validateFile(nextFile);
     if (validationError) {
-      setError(validationError);
+      setError(tr(validationError));
       return;
     }
 
     clearMessages();
     setFile(nextFile);
+    setOriginalOcrText('');
     setPreviewUrl(URL.createObjectURL(nextFile));
   }
 
@@ -203,10 +220,11 @@ export default function LearnerEssayPage() {
 
       setSelected(result);
       setText(result.contentText || '');
+      setOriginalOcrText(result.originalOcrText || '');
       setFile(null);
       setPreviewUrl('');
     } catch (err) {
-      setError(err.message || 'Không mở được bài viết.');
+      setError(err.message || tr("Không mở được bài viết."));
     } finally {
       setOperation('');
     }
@@ -217,13 +235,13 @@ export default function LearnerEssayPage() {
 
     const validationError = validateFile(file);
     if (validationError) {
-      setError(validationError);
+      setError(tr(validationError));
       return;
     }
 
     if (
-      (changed || (!selected && text.trim())) &&
-      !window.confirm('Nhận dạng ảnh sẽ thay thế nội dung đang nhập. Tiếp tục?')
+      text.trim() &&
+      !window.confirm(tr("Nhận dạng ảnh sẽ thay thế nội dung đang nhập. Tiếp tục?"))
     ) {
       return;
     }
@@ -232,63 +250,44 @@ export default function LearnerEssayPage() {
     setOperation(selected ? 'rescan' : 'scan');
 
     try {
-      if (selected) {
-        const result = await rescanLearnerEssay(selected.id, file);
-
-        setSelected(result);
-        setText(result.contentText ?? result.text ?? '');
-        setFile(null);
-        setPreviewUrl('');
-        setNotice('Đã nhận dạng lại. Bạn hãy kiểm tra nội dung.');
-      } else {
-        const result = await scanLearnerEssay(file);
-        const content = result.contentText ?? result.text ?? '';
-
-        setText(content);
-
-        // Chỉ coi là bản ghi có thể cập nhật khi API trả về ID.
-        if (result.id != null) {
-          setSelected({
-            ...result,
-            contentText: content,
-          });
-
-          if (result.imageUrl) {
-            setFile(null);
-            setPreviewUrl('');
-          }
-
-          setNotice('Đã nhận dạng văn bản. Bạn có thể chỉnh sửa nội dung.');
-        } else {
-          setNotice(
-            'Đã nhận dạng văn bản. API chưa trả mã bài viết để lưu chỉnh sửa.',
-          );
-        }
-      }
-
-      await loadEssays();
+      const result = selected
+        ? await rescanLearnerEssay(selected.id, file)
+        : await scanLearnerEssay(file);
+      const content = result.text ?? '';
+      setText(content);
+      setOriginalOcrText(content);
+      setNotice(tr('Đã nhận dạng. Kiểm tra nội dung rồi bấm Lưu; bài đã lưu chưa thay đổi.'));
     } catch (err) {
-      setError(err.message || 'Không thể nhận dạng văn bản.');
+      setError(err.message || tr("Không thể nhận dạng văn bản."));
     } finally {
       setOperation('');
     }
   }
 
   async function saveText() {
-    if (busy || !selected || !text.trim() || !changed) return;
+    if (busy || !text.trim() || !changed) return;
 
     setOperation('save');
     clearMessages();
 
     try {
-      const result = await updateLearnerEssay(selected.id, text);
+      const result = await saveLearnerEssayDraft({
+        id: selected?.id,
+        file,
+        contentText: text,
+        originalOcrText,
+      });
 
       setSelected(result);
       setText(result.contentText ?? text);
-      setNotice('Đã lưu thay đổi.');
+      setOriginalOcrText(result.originalOcrText || '');
+      setFile(null);
+      setPreviewUrl('');
+      if (inputRef.current) inputRef.current.value = '';
+      setNotice(tr("Đã lưu thay đổi."));
       await loadEssays();
     } catch (err) {
-      setError(err.message || 'Không lưu được bài viết.');
+      setError(err.message || tr("Không lưu được bài viết."));
     } finally {
       setOperation('');
     }
@@ -311,21 +310,22 @@ export default function LearnerEssayPage() {
       if (selected?.id === essay.id) {
         setSelected(null);
         setText('');
+        setOriginalOcrText('');
         setFile(null);
         setPreviewUrl('');
       }
 
-      setNotice('Đã xóa bài viết.');
+      setNotice(tr("Đã xóa bài viết."));
       await loadEssays();
     } catch (err) {
-      setError(err.message || 'Không xóa được bài viết.');
+      setError(err.message || tr("Không xóa được bài viết."));
     } finally {
       setOperation('');
     }
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Luyện viết">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Luyện viết")}>
       <main
         className="mx-auto max-w-[1320px] px-5 py-6
                    text-[#49353F] lg:px-7"
@@ -352,9 +352,7 @@ export default function LearnerEssayPage() {
             disabled={busy}
             className={BUTTON_CLASS}
           >
-            <Icon name="add" className="text-[18px]" />
-            Bài mới
-          </button>
+            <Icon name="add" className="text-[18px]" />{tr('Bài mới')}</button>
         </header>
 
         <section className="mb-5 space-y-2 rounded-xl border border-[#E7D7DF] bg-white p-4">
@@ -401,7 +399,7 @@ export default function LearnerEssayPage() {
             <button
               type="button"
               onClick={() => setNotice('')}
-              aria-label="Đóng thông báo"
+              aria-label={tr("Đóng thông báo")}
             >
               <Icon name="close" className="text-[16px]" />
             </button>
@@ -434,9 +432,7 @@ export default function LearnerEssayPage() {
               className="flex items-center justify-between
                          border-b border-[#F0E7EC] px-4 py-3"
             >
-              <h2 className="text-[13px] font-medium">
-                Bài viết của tôi
-                <span className="ml-2 text-[11px] text-[#B08E9E]">
+              <h2 className="text-[13px] font-medium">{tr('Bài viết của tôi')}<span className="ml-2 text-[11px] text-[#B08E9E]">
                   {loading ? '…' : essays.length}
                 </span>
               </h2>
@@ -445,7 +441,7 @@ export default function LearnerEssayPage() {
                 type="button"
                 onClick={loadEssays}
                 disabled={loading || busy}
-                aria-label="Tải lại danh sách"
+                aria-label={tr("Tải lại danh sách")}
                 className="rounded p-1 text-[#B08E9E]
                            hover:bg-[#FCF2F6] disabled:opacity-40"
               >
@@ -459,9 +455,7 @@ export default function LearnerEssayPage() {
             </header>
 
             {loading ? (
-              <p className="px-4 py-6 text-[12px] text-[#A08A95]">
-                Đang tải…
-              </p>
+              <p className="px-4 py-6 text-[12px] text-[#A08A95]">{tr("Đang tải…")}</p>
             ) : listError ? (
               <div className="px-4 py-5">
                 <p role="alert" className="text-[12px] leading-5 text-[#A15A70]">
@@ -472,9 +466,7 @@ export default function LearnerEssayPage() {
                   onClick={loadEssays}
                   disabled={busy}
                   className="mt-2 text-[12px] text-[#AD3155] underline"
-                >
-                  Thử lại
-                </button>
+                >{tr("Thử lại")}</button>
               </div>
             ) : essays.length === 0 ? (
               <div className="px-4 py-6">
@@ -482,12 +474,8 @@ export default function LearnerEssayPage() {
                   name="description"
                   className="text-[25px] text-[#CBB2BE]"
                 />
-                <p className="mt-2 text-[12px] text-[#967F8A]">
-                  Chưa có bài viết.
-                </p>
-                <p className="mt-1 text-[11px] leading-5 text-[#B09AA5]">
-                  Bắt đầu bằng cách tải ảnh bài viết của bạn.
-                </p>
+                <p className="mt-2 text-[12px] text-[#967F8A]">{tr('Chưa có bài viết.')}</p>
+                <p className="mt-1 text-[11px] leading-5 text-[#B09AA5]">{tr('Bắt đầu bằng cách tải ảnh bài viết của bạn.')}</p>
               </div>
             ) : (
               <ul className="max-h-[65vh] divide-y divide-[#F5EDF1] overflow-y-auto">
@@ -507,7 +495,7 @@ export default function LearnerEssayPage() {
                       className="min-w-0 flex-1 text-left disabled:opacity-50"
                     >
                       <span className="block truncate text-[12px] font-medium">
-                        {essay.title || 'Bài viết tiếng Nhật'}
+                        {essay.title || tr("Bài viết tiếng Nhật")}
                       </span>
                       <span className="mt-1 block text-[10px] text-[#AD95A1]">
                         {formatDate(essay.scannedAt)}
@@ -534,7 +522,7 @@ export default function LearnerEssayPage() {
 
           {/* Không gian làm bài */}
           <section
-            aria-label="Biên tập bài viết"
+            aria-label={tr("Biên tập bài viết")}
             className="min-w-0 overflow-hidden rounded-2xl
                        border border-[#EADFE5] bg-white"
           >
@@ -543,10 +531,10 @@ export default function LearnerEssayPage() {
                          gap-2 border-b border-[#F0E7EC] px-5 py-3.5"
             >
               <h2 className="min-w-0 break-words text-[14px] font-medium">
-                {selected?.title || 'Bài viết mới'}
+                {selected?.title || tr("Bài viết mới")}
               </h2>
               <span className="text-[11px] text-[#AE95A1]">
-                {changed ? 'Có thay đổi chưa lưu' : 'Ảnh → Văn bản → Chỉnh sửa'}
+                {changed ? tr("Có thay đổi chưa lưu") : tr("Ảnh → Văn bản → Chỉnh sửa")}
               </span>
             </header>
 
@@ -561,9 +549,7 @@ export default function LearnerEssayPage() {
                            xl:border-b-0 xl:border-r"
               >
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-[12px] font-medium text-[#947584]">
-                    Ảnh bài viết
-                  </h3>
+                  <h3 className="text-[12px] font-medium text-[#947584]">{tr('Ảnh bài viết')}</h3>
                   {previewSrc && (
                     <button
                       type="button"
@@ -571,9 +557,7 @@ export default function LearnerEssayPage() {
                       onClick={() => inputRef.current?.click()}
                       className="text-[11px] text-[#B2748D]
                                  hover:text-[#AD3155] disabled:opacity-40"
-                    >
-                      Đổi ảnh
-                    </button>
+                    >{tr('Đổi ảnh')}</button>
                   )}
                 </div>
 
@@ -599,7 +583,7 @@ export default function LearnerEssayPage() {
                     <div className="relative p-2">
                       <img
                         src={previewSrc}
-                        alt="Ảnh gốc của bài viết tiếng Nhật"
+                        alt={tr("Ảnh gốc của bài viết tiếng Nhật")}
                         className="max-h-[350px] w-full object-contain"
                       />
 
@@ -616,9 +600,7 @@ export default function LearnerEssayPage() {
                             <Icon
                               name="progress_activity"
                               className="animate-spin text-[19px]"
-                            />
-                            Đang nhận dạng…
-                          </span>
+                            />{tr('Đang nhận dạng…')}</span>
                         </div>
                       )}
                     </div>
@@ -639,19 +621,13 @@ export default function LearnerEssayPage() {
                       >
                         <Icon name="add_photo_alternate" className="text-[25px]" />
                       </span>
-                      <span className="mt-3 text-[13px] font-medium">
-                        Chọn ảnh bài viết
-                      </span>
-                      <span className="mt-1 text-[11px] text-[#AE95A1]">
-                        hoặc kéo ảnh vào đây
-                      </span>
+                      <span className="mt-3 text-[13px] font-medium">{tr('Chọn ảnh bài viết')}</span>
+                      <span className="mt-1 text-[11px] text-[#AE95A1]">{tr('hoặc kéo ảnh vào đây')}</span>
                     </button>
                   )}
                 </div>
 
-                <p className="mt-2 text-[10px] leading-5 text-[#AF98A3]">
-                  JPG, PNG, WEBP · Tối đa 10MB
-                </p>
+                <p className="mt-2 text-[10px] leading-5 text-[#AF98A3]">{tr('JPG, PNG, WEBP · Tối đa 10MB')}</p>
 
                 {file && (
                   <>
@@ -674,17 +650,15 @@ export default function LearnerEssayPage() {
                         }`}
                       />
                       {scanning
-                        ? 'Đang nhận dạng…'
+                        ? tr("Đang nhận dạng…")
                         : selected
-                          ? 'Nhận dạng lại'
-                          : 'Nhận dạng chữ'}
+                          ? tr("Nhận dạng lại")
+                          : tr("Nhận dạng chữ")}
                     </button>
                   </>
                 )}
 
-                <p className="mt-4 text-[11px] leading-5 text-[#AE95A1]">
-                  Chụp rõ chữ, đủ sáng và giữ ảnh ngay ngắn.
-                </p>
+                <p className="mt-4 text-[11px] leading-5 text-[#AE95A1]">{tr('Chụp rõ chữ, đủ sáng và giữ ảnh ngay ngắn.')}</p>
               </div>
 
               {/* Nội dung */}
@@ -709,14 +683,13 @@ export default function LearnerEssayPage() {
                     <Icon
                       name="progress_activity"
                       className="animate-spin text-[19px]"
-                    />
-                    Đang mở bài viết…
-                  </div>
+                    />{tr('Đang mở bài viết…')}</div>
                 ) : (
                   <RomajiJapaneseInput
                     value={text}
                     onChange={setText}
-                    disabled={busy}
+                    disabled={Boolean(operation)}
+                    onSpeechBusyChange={setSpeechBusy}
                   />
                 )}
 
@@ -724,14 +697,12 @@ export default function LearnerEssayPage() {
                   className="mt-4 flex flex-wrap items-center justify-between
                              gap-3 border-t border-[#F0E7EC] pt-4"
                 >
-                  <p className="text-[11px] leading-5 text-[#AE95A1]">
-                    Kiểm tra lại chữ được nhận dạng trước khi lưu.
-                  </p>
+                  <p className="text-[11px] leading-5 text-[#AE95A1]">{tr('Kiểm tra lại chữ được nhận dạng trước khi lưu.')}</p>
 
                   <button
                     type="button"
                     onClick={saveText}
-                    disabled={busy || !selected || !text.trim() || !changed}
+                    disabled={busy || !text.trim() || !changed}
                     className={PRIMARY_CLASS}
                   >
                     <Icon
@@ -740,14 +711,13 @@ export default function LearnerEssayPage() {
                         operation === 'save' ? 'animate-spin' : ''
                       }`}
                     />
-                    {operation === 'save' ? 'Đang lưu…' : 'Lưu thay đổi'}
+                    {operation === 'save' ? tr("Đang lưu…") : selected ? tr("Lưu thay đổi") : tr('Lưu bài viết')}
                   </button>
                 </div>
 
                 {!selected && text.trim() && (
                   <p className="mt-3 text-[11px] leading-5 text-[#AA8495]">
-                    Chưa có mã bài viết để lưu. Nếu bài đã xuất hiện
-                    trong lịch sử, hãy mở bài đó để chỉnh sửa.
+                    {tr('Bản nháp chưa lưu. Bấm Lưu bài viết để thêm vào danh sách của bạn.')}
                   </p>
                 )}
               </div>

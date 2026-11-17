@@ -53,6 +53,10 @@ export async function previewContentImport(file, entityType) {
       'Content-Type': 'multipart/form-data',
     },
     timeout: 60000,
+    transformRequest: [(payload, headers) => {
+      delete headers['Content-Type'];
+      return payload;
+    }],
   });
   return response?.result ?? response;
 }

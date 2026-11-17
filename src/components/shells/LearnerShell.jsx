@@ -3,6 +3,10 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { getSession } from '../../auth/session.js';
+import BrandMark from '../BrandMark.jsx';
+import LanguageSwitch from '../LanguageSwitch.jsx';
+import NotificationBell from './NotificationBell.jsx';
+import { useLocale } from '../../i18n/locale.js';
 import {
   displayName,
   learnerRoleLabel,
@@ -11,7 +15,7 @@ import {
 
 import { LEARNER_NAV, pathMatches } from './navConfig.js';
 
-const SIDEBAR_W = 216;
+const SIDEBAR_W = 232;
 const HEADER_H = 64;
 const STORAGE_KEY = 'rikipath.learnerMenuGroups.v2';
 
@@ -39,32 +43,19 @@ const MENU_GROUPS = [
         to: '/lessons',
         label: 'Bài luyện tập',
         icon: 'menu_book',
+        alsoActive: ['/lesson-player', '/lesson-practice'],
       },
       {
-        to: '/app/placement-test',
+        to: '/placement',
         label: 'Đánh giá năng lực',
-        icon: 'assessment',
-        alsoActive: ['/placement-test'],
-      },
-      {
-        to: '/mock-tests',
-        label: 'Thi thử',
-        icon: 'quiz',
-      },
-      {
-        to: '/riki/listening',
-        label: 'Nghe hiểu',
-        icon: 'headphones',
-      },
-      {
-        to: '/riki/reading',
-        label: 'Đọc hiểu',
-        icon: 'auto_stories',
+        icon: 'rule',
+        prefix: true,
       },
       {
         to: '/riki/essay',
         label: 'Luyện viết',
         icon: 'edit_note',
+        alsoActive: ['/sentence-studio', '/ai-scoring'],
       },
       {
         to: '/speech',
@@ -83,7 +74,12 @@ const MENU_GROUPS = [
         to: '/vocabulary',
         label: 'Từ vựng',
         icon: 'translate',
-        alsoActive: ['/vocabulary-detail'],
+        alsoActive: ['/vocabulary-detail', '/grammar'],
+      },
+      {
+        to: '/grammar',
+        label: 'Ngữ pháp',
+        icon: 'menu_book',
       },
       {
         to: '/kanji-writing?type=kanji',
@@ -116,7 +112,6 @@ const MENU_GROUPS = [
         to: '/kanji-notebook',
         label: 'Sổ tay cá nhân',
         icon: 'bookmarks',
-        alsoActive: ['/kanji-studio'],
       },
       {
         to: '/exam-result',
@@ -132,23 +127,24 @@ const MENU_GROUPS = [
     items: [
       { to: '/plans', label: 'Gói ôn luyện', icon: 'shopping_bag', alsoActive: ['/study-payment'] },
       { to: '/payments', label: 'Thanh toán', icon: 'payments', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
+      { to: '/my-courses', label: 'Gói học & lớp', icon: 'school' },
       {
         to: '/ai-counselor',
         label: 'Trợ lý Haru',
         icon: 'psychology',
       },
       {
-        to: '/mentor',
-        label: 'Tư vấn Mentor',
+        to: '/consultation-center',
+        label: 'Lịch tư vấn trước đây',
         icon: 'support_agent',
         alsoActive: [
           '/booking-schedule',
 
           '/consultation-center',
+          '/consultation-records',
           '/consultation-session',
 
           '/consultation-room',
-          '/sensei-profile',
         ],
       },
       { to: '/homework', label: 'Bài tập về nhà', icon: 'assignment' },
@@ -214,21 +210,23 @@ function groupForPath(pathname, search) {
 }
 
 function MenuRow({ item, active }) {
+  const { tr } = useLocale();
+  const label = tr(item.label);
   return (
     <NavLink
       to={item.to}
       end={item.end}
-      title={item.label}
+      title={label}
       aria-current={active ? 'page' : undefined}
       className={[
-        'group flex min-h-[32px] items-center gap-2',
-        'rounded-lg px-2 text-[13px]',
+        'group flex min-h-9 items-center gap-2.5',
+        'rounded-xl px-2.5 text-[13px]',
         'transition-colors duration-150',
         'focus-visible:outline-none focus-visible:ring-2',
         'focus-visible:ring-[#AD3155]/25',
         active
-          ? 'bg-[#FADDE8] font-medium text-[#A12E50]'
-          : 'text-[#826773] hover:bg-[#FCE7EF] hover:text-[#A24867]',
+          ? 'bg-[#AD3155] font-medium text-white shadow-[0_8px_16px_rgba(173,49,85,0.18)]'
+          : 'text-[#6E5964] hover:bg-white hover:text-[#A12E50]',
       ].join(' ')}
     >
       <span
@@ -236,8 +234,8 @@ function MenuRow({ item, active }) {
         className={[
           'flex h-6 w-6 shrink-0 items-center justify-center',
           active
-            ? 'text-[#AD3155]'
-            : 'text-[#B18B9B] group-hover:text-[#B26582]',
+            ? 'text-white'
+            : 'text-[#B08999] group-hover:text-[#AD3155]',
         ].join(' ')}
       >
         {item.symbol ? (
@@ -250,13 +248,13 @@ function MenuRow({ item, active }) {
       </span>
 
       <span className="min-w-0 flex-1 truncate">
-        {item.label}
+        {label}
       </span>
 
       {active && (
         <span
           aria-hidden="true"
-          className="h-1 w-1 shrink-0 rounded-full bg-[#C57792]"
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/80"
         />
       )}
     </NavLink>
@@ -275,13 +273,15 @@ export default function LearnerShell({
   const currentPath = pathname || location.pathname;
 
   const { logout } = useAuth();
+  const { locale, tr } = useLocale();
   const session = getSession();
   const profileQuery = useLearnerProfile();
 
   const userName =
-    displayName(profileQuery.data, session) || 'Người dùng';
+    displayName(profileQuery.data, session) || tr('Người dùng');
 
-  const userRole = learnerRoleLabel(profileQuery.data, session);
+  const rawRole = learnerRoleLabel(profileQuery.data, session);
+  const userRole = locale === 'ja' ? rawRole.replace(/^Học viên/, tr('Học viên')) : rawRole;
   const initial = userName.trim().charAt(0).toUpperCase() || 'R';
 
   const accountRef = useRef(null);
@@ -385,7 +385,7 @@ export default function LearnerShell({
   return (
     <div
       data-shell="learner"
-      className="min-h-screen bg-[#FAF8F7]
+      className="min-h-screen bg-[#F4EEF1]
                  font-['Nunito',sans-serif]
                  text-[#3F3038]"
     >
@@ -393,8 +393,8 @@ export default function LearnerShell({
       <header
         style={{ height: HEADER_H }}
         className="fixed inset-x-0 top-0 z-50 flex items-center
-                   justify-between gap-5 border-b border-[#E8DFDC]
-                   bg-[#FAF8F7] px-5"
+                   justify-between gap-5 border-b border-[#EADFE5]
+                   bg-white/90 px-5 backdrop-blur-md"
       >
         <NavLink
           to="/app"
@@ -403,12 +403,7 @@ export default function LearnerShell({
                      focus-visible:ring-2
                      focus-visible:ring-[#AD3155]/30"
         >
-          <span
-            className="flex h-9 w-9 items-center justify-center
-                       rounded-xl bg-[#AD3155] text-white"
-          >
-            <Icon name="spa" className="text-[22px]" />
-          </span>
+          <BrandMark className="h-10 w-14" />
 
           <span className="leading-tight">
             <span
@@ -422,7 +417,7 @@ export default function LearnerShell({
               className="mt-0.5 block text-[10px]
                          text-[#AA8F9B]"
             >
-              Ôn luyện tiếng Nhật
+              {tr('Ôn luyện tiếng Nhật')}
             </span>
           </span>
         </NavLink>
@@ -432,7 +427,7 @@ export default function LearnerShell({
                      gap-2 md:flex"
         >
           <span className="text-[12px] text-[#AA98A1]">
-            Ôn luyện
+            {tr('Ôn luyện')}
           </span>
 
           <Icon
@@ -441,14 +436,14 @@ export default function LearnerShell({
           />
 
           <span className="truncate text-[12px] text-[#826A76]">
-            {breadcrumb}
+            {tr(breadcrumb)}
           </span>
         </div>
 
         {typeof onSearchChange === 'function' && (
           <label className="relative hidden w-[280px] lg:block">
             <span className="sr-only">
-              {searchPlaceholder}
+              {tr(searchPlaceholder)}
             </span>
 
             <Icon
@@ -460,7 +455,7 @@ export default function LearnerShell({
 
             <input
               type="search"
-              placeholder={searchPlaceholder}
+              placeholder={tr(searchPlaceholder)}
               value={searchValue ?? ''}
               onChange={(event) =>
                 onSearchChange(event.target.value)
@@ -475,6 +470,8 @@ export default function LearnerShell({
           </label>
         )}
 
+        <NotificationBell />
+        <LanguageSwitch className="inline-flex items-center gap-1 rounded-lg border border-[#EEDCE5] bg-white px-2.5 py-1 text-[12px] font-medium text-[#826A76] hover:bg-[#FCE7EF]" />
         {/* Tài khoản */}
         <div ref={accountRef} className="relative shrink-0">
           <button
@@ -482,7 +479,7 @@ export default function LearnerShell({
             type="button"
             aria-expanded={accountOpen}
             aria-controls="learner-account-panel"
-            aria-label={`Tài khoản ${userName}`}
+            aria-label={`${tr('Tài khoản')} ${userName}`}
             onClick={() =>
               setAccountOpen((current) => !current)
             }
@@ -545,7 +542,7 @@ export default function LearnerShell({
               </div>
 
               <nav
-                aria-label="Tài khoản"
+                aria-label={tr('Tài khoản')}
                 className="space-y-0.5 p-2"
               >
                 {ACCOUNT_ITEMS.map((item) => (
@@ -562,7 +559,7 @@ export default function LearnerShell({
                       name={item.icon}
                       className="text-[18px] text-[#AC8E9B]"
                     />
-                    {item.label}
+                    {tr(item.label)}
                   </NavLink>
                 ))}
               </nav>
@@ -583,7 +580,7 @@ export default function LearnerShell({
                     name="logout"
                     className="text-[18px]"
                   />
-                  Đăng xuất
+                  {tr('Đăng xuất')}
                 </button>
               </div>
             </div>
@@ -592,23 +589,23 @@ export default function LearnerShell({
       </header>
 
       <aside
-        aria-label="Điều hướng ôn luyện"
+        aria-label={tr('Điều hướng ôn luyện')}
         style={{
           width: SIDEBAR_W,
           top: HEADER_H,
         }}
         className="fixed bottom-0 left-0 z-40 flex flex-col
-                   border-r border-[#E8DFDC] bg-[#FAF8F7]"
+                   border-r border-[#EADFE5] bg-[#FBF7F8]"
       >
         <nav
-          aria-label="Menu chính"
-          className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3"
+          aria-label={tr('Menu chính')}
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-4"
         >
           <div
-            className="mb-2 px-2.5 text-[10px] font-medium
-                       tracking-[0.08em] text-[#B18F9E]"
+            className="mb-2 px-2.5 text-[10px] font-semibold
+                       tracking-[0.16em] text-[#C4A8B4]"
           >
-            TỔNG QUAN
+            {tr('TỔNG QUAN')}
           </div>
 
           <div className="space-y-1">
@@ -645,15 +642,15 @@ export default function LearnerShell({
                     aria-controls={`learner-group-${group.id}`}
                     onClick={() => toggleGroup(group.id)}
                     className={[
-                      'flex min-h-[34px] w-full items-center',
-                      'gap-2 rounded-lg px-2 text-left',
-                      'text-[12px] font-normal',
-                      'transition-colors hover:bg-[#FCE7EF]',
+                      'mt-2 flex min-h-9 w-full items-center',
+                      'gap-2 rounded-xl px-2.5 text-left',
+                      'text-[12px] font-medium',
+                      'transition-colors hover:bg-white',
                       'focus-visible:outline-none',
                       'focus-visible:ring-2',
                       'focus-visible:ring-[#AD3155]/25',
                       active
-                        ? 'text-[#A24867]'
+                        ? 'text-[#AD3155]'
                         : 'text-[#8A727E]',
                     ].join(' ')}
                   >
@@ -667,7 +664,7 @@ export default function LearnerShell({
                     />
 
                     <span className="flex-1">
-                      {group.label}
+                      {tr(group.label)}
                     </span>
 
                     <Icon
@@ -683,9 +680,8 @@ export default function LearnerShell({
                   {open && (
                     <div
                       id={`learner-group-${group.id}`}
-                      className="mb-1 ml-[18px] mt-0.5
-                                 space-y-0.5 border-l
-                                 border-[#E6D9D4] pl-1.5"
+                      className="mb-1 ml-3 mt-1 space-y-1
+                                 border-l border-[#F0D5DF] pl-2"
                     >
                       {group.items.map((item) => (
                         <MenuRow
@@ -708,8 +704,8 @@ export default function LearnerShell({
 
         {/* Cài đặt cố định ở đáy */}
         <div
-          className="shrink-0 border-t border-[#E8DFDC]
-                     px-2.5 py-2"
+          className="shrink-0 border-t border-[#F0E4EA]
+                     bg-white/70 px-3 py-3"
         >
           <MenuRow
             item={{

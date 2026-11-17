@@ -8,12 +8,20 @@ export function loginAccount(payload) {
   return api.post('/Auth/login', payload);
 }
 
+export function loginWithGoogle(payload) {
+  return api.post('/Auth/google', payload);
+}
+
 export function continueWithGoogle(credential, currentPassword) {
   return api.post('/Auth/google', { credential, currentPassword });
 }
 
 export function verifyEmail(payload) {
   return api.post('/Auth/verify-email', payload);
+}
+
+export function resendVerificationEmail(email) {
+  return api.post('/Auth/resend-verification-email', { email });
 }
 
 export function updateEmail(userId, payload) {

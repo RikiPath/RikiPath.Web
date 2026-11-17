@@ -6,3 +6,4 @@ export const getChatThread = async (id) => (await api.get(`${root}/${id}`)).resu
 export const getChatMessages = async (id, beforeMessageId) => (await api.get(`${root}/${id}/messages`, {
   params: { pageSize: 50, beforeMessageId },
 })).result;
+export const markChatRead = async (id) => (await api.post(`${root}/${id}/read`)).result;

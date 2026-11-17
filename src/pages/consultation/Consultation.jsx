@@ -4,6 +4,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import BookingSchedule from './BookingSchedule.jsx';
 import { getMeetingPlans } from '../../api/mentorBookingApi.js';
 import { LearnerShell } from '../../components/shells';
+import { useLocale } from '../../i18n/locale.js';
 
 function money(value) {
   if (
@@ -83,80 +84,54 @@ const focusClass =
   'focus-visible:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
 
-function PlanRow({ plan }) {
-  const name = readText(plan.name) || 'Gói tư vấn';
+function PlanCard({ plan }) {
+  const { locale, tr } = useLocale();
+  const name = readText(plan.name) || tr('Gói tư vấn');
   const description = readText(plan.description).trim();
+  const sessions = Number(plan.meetingSessionCount) || 0;
+  const price = Number(plan.price);
+  const perSession = sessions > 1 && Number.isFinite(price) ? price / sessions : null;
+  const features = (Array.isArray(plan.features) ? plan.features : [])
+    .map((feature) => readText(feature?.name).trim())
+    .filter(Boolean);
 
   return (
-    <article className="px-4 py-5 sm:px-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FAEDF3] text-[#AF6C88]">
-            <Icon name="forum" className="text-[21px]" />
-          </span>
-
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold leading-6 text-[#5A3E4C]">
-              {name}
-            </h3>
-
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[#947B88]">
-              {plan.meetingSessionCount != null && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Icon
-                    name="chat_bubble_outline"
-                    className="text-[16px] text-[#B393A3]"
-                  />
-                  {plan.meetingSessionCount} buổi tư vấn
-                </span>
-              )}
-
-              {plan.durationDays != null && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Icon
-                    name="calendar_today"
-                    className="text-[15px] text-[#B393A3]"
-                  />
-                  Thời hạn {plan.durationDays} ngày
-                </span>
-              )}
-            </div>
-
-            {description && (
-              <details className="group mt-3">
-                <summary
-                  className={[
-                    'inline-flex cursor-pointer list-none items-center',
-                    'gap-1 rounded text-[12px] text-[#A36680]',
-                    'hover:text-[#AD3155]',
-                    '[&::-webkit-details-marker]:hidden',
-                    focusClass,
-                  ].join(' ')}
-                >
-                  Xem quyền lợi
-                  <Icon
-                    name="expand_more"
-                    className="text-[17px] transition-transform group-open:rotate-180"
-                  />
-                </summary>
-
-                <p className="mt-2 max-w-xl whitespace-pre-line break-words text-[13px] leading-6 text-[#8D7481]">
-                  {description}
-                </p>
-              </details>
-            )}
-          </div>
-        </div>
-
-        <div className="pl-[52px] sm:shrink-0 sm:pl-0 sm:pt-0.5 sm:text-right">
-          <p className="text-[22px] font-semibold tracking-tight text-[#A33357]">
-            {money(plan.price)}
-          </p>
-
-          <p className="mt-1 text-[11px] text-[#A48D99]">
-            Giá trọn gói
+    <article className="flex h-full flex-col rounded-2xl border border-[#EADFE5] bg-white p-5">
+      <h3 className="text-[16px] font-semibold leading-6 text-[#5A3E4C]">{name}</h3>
+      <div className="mt-3 flex flex-wrap gap-2 text-[12px] text-[#7A6170]">
+        {sessions > 0 && (
+          <span className="rounded-full bg-[#FAEDF3] px-2.5 py-1">{sessions} {locale === 'ja' ? '回' : 'buổi'}</span>
+        )}
+        {plan.durationDays != null && (
+          <span className="rounded-full bg-[#FAEDF3] px-2.5 py-1">{plan.durationDays} {tr('ngày')}</span>
+        )}
+      </div>
+      {description && (
+        <p className="mt-3 whitespace-pre-line break-words text-[13px] leading-6 text-[#8D7481]">{description}</p>
+      )}
+      {features.length > 0 && (
+        <ul className="mt-3 space-y-1.5 text-[13px] leading-5 text-[#705261]">
+          {features.map((feature) => (
+            <li key={feature} className="flex gap-2">
+              <Icon name="check" className="mt-0.5 text-[16px] text-[#AD3155]" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-5 flex items-end justify-between gap-3 border-t border-[#F3E8ED] pt-4">
+        <div>
+          <p className="text-[22px] font-semibold tracking-tight text-[#A33357]">{money(plan.price)}</p>
+          <p className="mt-0.5 text-[12px] text-[#A48D99]">
+            {perSession != null ? `${money(perSession)} / ${locale === 'ja' ? '回' : 'buổi'}` : tr('Giá trọn gói')}
           </p>
         </div>
+        <Link
+          to={`/mentor/?planId=${plan.id}`}
+          className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
+        >
+          {tr('Mua gói này')}
+        </Link>
       </div>
     </article>
   );
@@ -170,6 +145,7 @@ export default function Consultation() {
 
 function MentorOverview() {
   const { pathname } = useLocation();
+  const { tr } = useLocale();
 
   const plansQuery = useQuery({
     queryKey: ['meeting-plans'],
@@ -177,9 +153,10 @@ function MentorOverview() {
     retry: false,
   });
 
-  const plans = Array.isArray(plansQuery.data)
-    ? plansQuery.data
-    : [];
+  const plans = (Array.isArray(plansQuery.data) ? plansQuery.data : [])
+    .slice()
+    .sort((a, b) => (Number(a.meetingSessionCount) || 0) - (Number(b.meetingSessionCount) || 0)
+      || (Number(a.price) || 0) - (Number(b.price) || 0));
 
   return (
     <LearnerShell pathname={pathname} breadcrumb="Tư vấn 1-1">
@@ -187,96 +164,49 @@ function MentorOverview() {
         data-page="Consultation"
         className="mx-auto w-full max-w-[1120px] px-4 py-6 text-[#49353F] sm:px-6 lg:px-8"
       >
-        <header className="mb-5">
-          <h1 className="text-[25px] font-semibold tracking-tight text-[#49353F]">
-            Tư vấn cùng Mentor
-          </h1>
-
-          <p className="mt-1.5 text-[13px] leading-6 text-[#927B88]">
-            Trao đổi những phần còn vướng trong quá trình ôn luyện.
-          </p>
-        </header>
-
-        <section
-          aria-labelledby="booking-title"
-          className="mb-6 rounded-2xl border border-[#ECD9E2] bg-[#FCEDF4] px-5 py-5 sm:px-6"
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#ECD3DF] bg-white/80 text-[#AD3155]">
-                <Icon name="event_available" className="text-[24px]" />
-              </span>
-
-              <div>
-                <h2
-                  id="booking-title"
-                  className="text-[16px] font-semibold text-[#75465B]"
-                >
-                  Tìm một lịch hẹn phù hợp
-                </h2>
-
-                <p className="mt-1 text-[13px] leading-6 text-[#9A7587]">
-                  Mua gói 1 hoặc 3 buổi để cộng lượt vào tài khoản.
-                  Sau đó chọn lịch với mentor và sử dụng 1 lượt cho mỗi tiết.
-                </p>
-              </div>
-            </div>
-
-            <Link
-              to="/booking-schedule"
-              className={[
-                'inline-flex min-h-10 shrink-0 items-center',
-                'justify-center gap-2 self-start rounded-lg',
-                'bg-[#AD3155] px-4 py-2 text-[13px]',
-                'font-medium text-white sm:self-auto',
-                'transition-colors hover:bg-[#982B4B]',
-                focusClass,
-              ].join(' ')}
-            >
-              Chọn lịch hẹn
-              <Icon name="arrow_forward" className="text-[18px]" />
-            </Link>
-          </div>
-        </section>
-
-        <Link to="/consultation-payment/" className="mb-5 inline-block rounded-lg bg-[#AD3155] px-4 py-3 text-sm font-semibold text-white">Mua lượt tư vấn</Link>
-        <section aria-labelledby="plans-title">
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 px-1">
-            <h2
-              id="plans-title"
-              className="text-[15px] font-semibold text-[#705261]"
-            >
-              Gói tư vấn
-            </h2>
-
-            <p className="text-[12px] text-[#A28B98]">
-              Tham khảo trước khi đặt lịch
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-[25px] font-semibold tracking-tight text-[#49353F]">
+              {tr('Tư vấn 1-1 với cố vấn')}
+            </h1>
+            <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-[#927B88]">
+              {tr('Chọn mentor và khung giờ trước khi thanh toán. Mỗi buổi dùng 1 lượt.')}
             </p>
           </div>
-
-          <div
-            aria-busy={plansQuery.isFetching}
-            className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white"
+          <Link
+            to="/booking-schedule/"
+            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#E7DAE1] bg-white px-3 text-[13px] font-medium text-[#705261] hover:bg-[#FFF6FA] ${focusClass}`}
           >
+            {tr('Đã có lượt, chọn lịch')}
+            <Icon name="arrow_forward" className="text-[16px]" />
+          </Link>
+        </header>
+
+        <section aria-labelledby="plans-title">
+          <h2 id="plans-title" className="mb-3 text-[15px] font-semibold text-[#705261]">
+            {tr('Chọn gói')}
+          </h2>
+
+          <div aria-busy={plansQuery.isFetching}>
             {plansQuery.isPending ? (
               <div
                 role="status"
-                className="flex items-center justify-center gap-2 px-5 py-10 text-[13px] text-[#9A8390]"
+                className="flex items-center justify-center gap-2 rounded-2xl border border-[#EADFE5] bg-white px-5 py-10 text-[13px] text-[#9A8390]"
               >
                 <span
                   aria-hidden="true"
                   className="h-4 w-4 animate-spin rounded-full border-2 border-[#EBD9E2] border-t-[#AD3155] motion-reduce:animate-none"
                 />
-                Đang tải gói tư vấn…
+                {tr('Đang tải gói tư vấn…')}
               </div>
             ) : plansQuery.isError ? (
-              <div className="px-5 py-6">
+              <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-6">
                 <p
                   role="alert"
                   className="text-[13px] leading-6 text-[#A33357]"
                 >
                   {plansQuery.error?.message ||
-                    'Không tải được gói tư vấn.'}
+                    tr('Không tải được gói tư vấn.')}
                 </p>
 
                 <button
@@ -291,11 +221,11 @@ function MentorOverview() {
                   ].join(' ')}
                 >
                   <Icon name="refresh" className="text-[17px]" />
-                  {plansQuery.isFetching ? 'Đang tải…' : 'Thử lại'}
+                  {plansQuery.isFetching ? tr('Đang tải…') : tr('Thử lại')}
                 </button>
               </div>
             ) : plans.length === 0 ? (
-              <div className="flex items-start gap-3 px-5 py-6">
+              <div className="flex items-start gap-3 rounded-2xl border border-[#EADFE5] bg-white px-5 py-6">
                 <Icon
                   name="inventory_2"
                   className="mt-0.5 text-[22px] text-[#B499A7]"
@@ -303,31 +233,26 @@ function MentorOverview() {
 
                 <div>
                   <p className="text-[14px] font-medium text-[#806371]">
-                    Chưa có gói tư vấn đang mở
+                    {tr('Chưa có gói tư vấn đang mở')}
                   </p>
 
                   <p className="mt-1 text-[12px] leading-6 text-[#A18B97]">
-                    Bạn có thể quay lại kiểm tra sau.
+                    {tr('Bạn có thể quay lại kiểm tra sau.')}
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-[#F0E7EC]">
+              <div className="grid gap-3 md:grid-cols-2">
                 {plans.map((plan) => (
-                  <PlanRow key={plan.id} plan={plan} />
+                  <PlanCard key={plan.id} plan={plan} />
                 ))}
               </div>
             )}
           </div>
         </section>
 
-        <p className="mt-4 flex items-start gap-2 px-1 text-[12px] leading-6 text-[#A18A97]">
-          <Icon
-            name="info"
-            className="mt-0.5 shrink-0 text-[16px] text-[#B395A5]"
-          />
-          Xem kỹ số buổi, thời hạn và quyền lợi của gói trước khi
-          thanh toán.
+        <p className="mt-4 px-1 text-[12px] leading-6 text-[#A18A97]">
+          {tr('Lượt có hạn kể từ lúc thanh toán. Gói hết hạn sớm được dùng trước khi đặt lịch.')}
         </p>
       </div>
     </LearnerShell>

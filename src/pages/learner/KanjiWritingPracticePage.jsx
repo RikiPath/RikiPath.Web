@@ -1,152 +1,154 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import KanjiWritingCanvas from '../../components/kanji_writer/KanjiWritingCanvas';
+import { useLocale } from '../../i18n/locale.js';
+import KanjiLesson from '../../components/kanji_writer/KanjiLesson.jsx';
+import KanaStrokeDialog from '../../components/kanji_writer/KanaStrokeDialog.jsx';
+import KanaAudioButton from '../../components/kanji_writer/KanaAudioButton.jsx';
+import { kanaFamily } from '../../components/kanji_writer/kanaFamilies.js';
 import { useKanjiWritingPractice } from '../../hooks/useKanjiWritingPractice.js';
+import { useKanaWritingPractice } from '../../hooks/useKanaWritingPractice.js';
 
-const panelClass = 'rounded-3xl border border-[#eadfd9] bg-white shadow-sm';
-
-const HIRAGANA = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
-const KATAKANA = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
 
 export default function KanjiWritingPracticePage() {
+  const { locale, tr } = useLocale();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
+  const [scope, setScope] = useState('due');
+  const [kanaScope, setKanaScope] = useState('all');
   const requestedType = searchParams.get('type');
   const isKana = requestedType === 'hiragana' || requestedType === 'katakana';
+  const kanaType = requestedType === 'katakana' ? 'Katakana' : requestedType === 'hiragana' ? 'Hiragana' : null;
+  const kana = useKanaWritingPractice(kanaType, kanaScope);
+  const [pickedKana, setPickedKana] = useState(null);
+  const [openedKana, setOpenedKana] = useState(null);
   const kanaLabel = requestedType === 'katakana' ? 'Katakana' : 'Hiragana';
-  const kanaChart = requestedType === 'katakana' ? KATAKANA : HIRAGANA;
-  const [selectedIndex, setSelectedIndex] = useState(null);
-  const [mode, setMode] = useState('guided');
-  const practice = useKanjiWritingPractice(10, { enabled: !isKana });
-  const {
-    queue, loading, error, lastResult, submitResult, selectItem, reload,
-  } = practice;
+  const practice = useKanjiWritingPractice({ enabled: !isKana, scope });
 
-  const selectedItem = selectedIndex === null ? null : queue[selectedIndex];
-  const activeItem = selectedItem;
+  const activeScope = isKana ? kanaScope : scope;
+  function changeScope(value) {
+    setPickedKana(null);
+    setOpenedKana(null);
+    if (isKana) setKanaScope(value);
+    else setScope(value);
+  }
+  function openKana(character, index) {
+    kana.selectItem(index);
+    const selection = { id: character.kanaCharacterId, type: kanaType, scope: kanaScope };
+    setPickedKana(selection);
+    setOpenedKana(selection);
+  }
 
-  useEffect(() => {
-    setSelectedIndex(null);
-    setMode('guided');
-  }, [requestedType]);
-
-  const chooseItem = (index) => {
-    setSelectedIndex(index);
-    selectItem(index);
-    setMode('guided');
-  };
-
-  const handleComplete = (totalMistakes) => {
-    const strokeCount = activeItem?.strokeCount || 1;
-    const score = Math.max(0, Math.round(100 - (totalMistakes / strokeCount) * 40));
-    submitResult({
-      totalMistakes,
-      score,
-      practiceMode: mode,
-    });
-  };
+  const scopeSwitch = (
+    <div className="inline-flex rounded-full bg-white p-1">
+      {[['due', tr('Cần ôn')], ['all', tr('Cả bảng')]].map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => changeScope(value)}
+          className={`h-8 rounded-full px-3 text-[12px] ${activeScope === value ? 'bg-[#AD3155] font-medium text-white' : 'text-[#8C7782]'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   let content;
   if (isKana) {
+    const item = pickedKana?.type === kanaType && pickedKana?.scope === kanaScope
+      ? kana.queue.find((row) => row.kanaCharacterId === pickedKana.id) || null : null;
+    const dialogItem = openedKana?.type === kanaType && openedKana?.scope === kanaScope
+      ? kana.queue.find((row) => row.kanaCharacterId === openedKana.id) || null : null;
+    const family = item ? kanaFamily(item.character, requestedType === 'katakana' ? 'kata' : 'hira') : null;
     content = (
-      <section className="mx-auto max-w-5xl px-6 py-8">
-        <h1 className="text-3xl font-bold text-[#2D282A]">Luyện {kanaLabel}</h1>
-        <p className="mt-2 text-sm text-[#6F6669]">Chọn từng ký tự để bắt đầu luyện viết bảng chữ cái.</p>
-        <div className="mt-6 rounded-3xl border border-[#eadfd9] bg-white p-6 shadow-sm">
-          <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-            {kanaChart.split('').map((character) => (
-              <div key={character} className="flex h-14 items-center justify-center rounded-xl border border-[#eadfd9] bg-[#FAF7F5] text-2xl text-[#2D282A]">
-                {character}
+      <section className={`mx-auto px-5 py-6 sm:px-7 ${item ? 'max-w-5xl' : 'max-w-3xl'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-[26px] font-bold text-[#3C2A33]">{locale === 'ja' ? `${kanaLabel}の練習` : `Luyện ${kanaLabel}`}</h1>
+            <p className="mt-1 text-[14px] text-[#8C7782]">{item ? (family?.name || item.romaji) : tr('Chọn một chữ trên bảng để xem tenten, maru và âm ghép.')}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {item ? (
+              <button type="button" onClick={() => { setPickedKana(null); setOpenedKana(null); }} className="text-[13px] font-semibold text-[#AD3155]">{tr('Về bảng')}</button>
+            ) : scopeSwitch}
+          </div>
+        </div>
+        {kana.loading && <p className="mt-8 text-center text-[14px] text-[#8C7782]">{tr('Đang tải chữ cần ôn…')}</p>}
+        {kana.error && !kana.queue.length && <p className="mt-8 text-center text-[14px] text-[#A33357]">{kana.error}</p>}
+        {!kana.loading && !kana.error && !kana.queue.length && <p className="mt-8 text-center text-[14px] text-[#8C7782]">{tr('Chưa có chữ cần ôn.')}</p>}
+        {!kana.loading && !item && kana.queue.length > 0 && (
+          <div className={`mt-6 grid gap-3 ${kanaScope === 'all' ? 'grid-cols-5' : 'grid-cols-3 sm:grid-cols-5'}`}>
+            {kana.queue.map((character, index) => (
+              <div key={character.kanaCharacterId} className="rounded-2xl border border-[#E7DAE1] bg-white p-2 text-center hover:border-[#AD3155]">
+                <button type="button" onClick={() => openKana(character, index)}
+                  aria-label={'Xem cách viết ' + character.character + ' (' + character.romaji + ')'}
+                  className="block w-full rounded-xl px-2 py-3 focus-visible:outline-2 focus-visible:outline-[#AD3155]">
+                <span className="block text-[32px] leading-none text-[#3C2A33]" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{character.character}</span>
+                <span className="mt-1 block text-[12px] text-[#8C7782]">{character.romaji}</span>
+                </button>
+                <KanaAudioButton audioUrl={character.audioUrl} character={character.character} compact />
               </div>
             ))}
           </div>
-        </div>
-      </section>
-    );
-  } else if (loading) {
-    content = <div className="mx-auto max-w-3xl px-6 py-16 text-center text-[#6F6669]">Đang tải Kanji cần luyện hôm nay...</div>;
-  } else if (error) {
-    content = (
-      <div className="mx-auto max-w-md px-6 py-16 text-center">
-        <p className="text-red-600">{error}</p>
-        <button type="button" onClick={reload} className="mt-4 rounded-full bg-[#B52F55] px-5 py-2.5 text-sm font-bold text-white">Thử lại</button>
-      </div>
-    );
-  } else if (!activeItem) {
-    content = (
-      <section className="mx-auto max-w-6xl px-6 py-8">
-        <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#C43D67]">Riki · Kanji</p>
-          <h1 className="mt-2 text-3xl font-bold text-[#2D282A]">Chọn Kanji để luyện viết</h1>
-          <p className="mt-2 text-sm text-[#6F6669]">Danh sách ưu tiên chữ đến hạn ôn, rồi bổ sung chữ mới.</p>
-        </div>
-        {queue.length === 0 ? (
-          <div className={`${panelClass} p-8 text-center text-[#6F6669]`}>Hôm nay chưa có Kanji cần luyện.</div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {queue.map((item, index) => (
-              <button key={item.kanjiId} type="button" onClick={() => chooseItem(index)} className={`${panelClass} group p-5 text-left transition hover:-translate-y-1 hover:border-[#e5a5b8] hover:shadow-md`}>
-                <div className="flex items-start justify-between">
-                  <span className="text-5xl font-light text-[#2D282A]">{item.character}</span>
-                  <span className="material-symbols-outlined text-[#C43D67] opacity-60 group-hover:opacity-100">edit</span>
+        )}
+        {item && (
+          <div className="mt-6 space-y-5">
+            <div className="flex items-center gap-4">
+              <p className="text-[72px] leading-none text-[#3C2A33]" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{item.character}</p>
+              <div>
+                <p className="text-[18px] font-semibold text-[#3C2A33]">{item.romaji}</p>
+                <p className="text-[13px] text-[#8C7782]">{family?.name || kanaLabel}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => setOpenedKana(pickedKana)} className="rounded-xl bg-[#AD3155] px-4 py-2 text-sm font-semibold text-white">Xem hướng dẫn từng nét</button>
+              <KanaAudioButton audioUrl={item.audioUrl} character={item.character} />
+            </div>
+            {(family?.sections || []).map((section) => (
+              <section key={section.title}>
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-[15px] font-semibold text-[#3C2A33]">{section.title}</h2>
+                  {section.hint ? <p className="text-[12px] text-[#8C7782]">{section.hint}</p> : null}
                 </div>
-                <p className="mt-4 line-clamp-2 text-sm font-semibold text-[#2D282A]">{item.meaning || 'Chưa có nghĩa'}</p>
-                <p className="mt-2 text-xs text-[#8A6570]">{item.strokeCount || '?'} nét · {item.writingScore == null ? 'Chưa luyện' : `Điểm gần nhất: ${item.writingScore}/100`}</p>
-              </button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {section.items.map((tile) => {
+                    const current = tile.kana === item.character;
+                    return (
+                      <div
+                        key={`${section.title}-${tile.kana}`}
+                        className={`grid h-[76px] w-[76px] place-items-center rounded-2xl border ${current ? 'border-[#AD3155] bg-[#AD3155] text-white' : 'border-[#E7DAE1] bg-white text-[#3C2A33]'}`}
+                      >
+                        <span className="text-[28px] leading-none" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{tile.kana}</span>
+                        <span className={`text-[11px] ${current ? 'text-white/80' : 'text-[#8C7782]'}`}>{tile.romaji}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
             ))}
+            {family && family.sections.length === 1 ? (
+              <p className="text-[13px] text-[#8C7782]">Chữ này không thêm tenten, maru hay âm ghép.</p>
+            ) : null}
           </div>
+        )}
+        {dialogItem && (
+          <KanaStrokeDialog key={kanaType + '-' + dialogItem.kanaCharacterId} item={dialogItem} type={kanaLabel} onClose={() => setOpenedKana(null)} />
         )}
       </section>
     );
   } else {
     content = (
-      <section className="mx-auto max-w-6xl px-6 py-8">
-        <button type="button" onClick={() => setSelectedIndex(null)} className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[#8A6570] hover:text-[#C43D67]">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span> Danh sách Kanji
-        </button>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className={`${panelClass} p-6`}>
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#f0e5e1] pb-5">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C43D67]">Riki · Luyện viết</p>
-                <h1 className="mt-2 text-3xl font-bold text-[#2D282A]">{activeItem.character}</h1>
-                <p className="mt-1 text-sm text-[#6F6669]">{activeItem.meaning || 'Chưa có nghĩa'} · {activeItem.strokeCount || '?'} nét</p>
-                {activeItem.writingScore != null && <p className="mt-1 text-xs font-semibold text-[#C43D67]">Điểm gần nhất: {activeItem.writingScore}/100</p>}
-              </div>
-              <div className="flex rounded-xl bg-[#FAF7F5] p-1">
-                <button type="button" onClick={() => setMode('guided')} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === 'guided' ? 'bg-white text-[#C43D67] shadow-sm' : 'text-[#8A6570]'}`}>Vẽ theo dấu</button>
-                <button type="button" onClick={() => setMode('free')} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === 'free' ? 'bg-white text-[#C43D67] shadow-sm' : 'text-[#8A6570]'}`}>Tự viết</button>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-center rounded-2xl bg-[#FAF7F5] p-4">
-              <KanjiWritingCanvas key={`${activeItem.kanjiId}-${mode}`} character={activeItem.character} isNew={mode === 'guided'} mode={mode} onComplete={handleComplete} />
-            </div>
-            <p className="mt-4 text-center text-xs text-[#8A6570]">
-              {mode === 'guided' ? 'Nét mờ và animation mẫu đang bật. Hãy vẽ theo từng nét.' : 'Mẫu đã ẩn. Hãy tự viết theo đúng thứ tự và hướng nét.'}
-            </p>
-            {lastResult && (
-              <div className="mt-5 rounded-2xl border border-[#b7e3ce] bg-[#effaf3] p-4 text-center">
-                <p className="text-sm font-bold text-[#167346]">Đã lưu điểm lần gần nhất: {lastResult.score ?? 0}/100</p>
-                <p className="mt-1 text-xs text-[#4b7560]">Điểm mới sẽ ghi đè điểm cũ của Kanji này.</p>
-              </div>
-            )}
-          </div>
-          <aside className={`${panelClass} h-fit p-5`}>
-            <h2 className="flex items-center gap-2 font-bold text-[#2D282A]"><span className="material-symbols-outlined text-[#C43D67]">translate</span>Thông tin ngôn ngữ</h2>
-            <div className="mt-5 space-y-4 text-sm">
-              <div><p className="text-xs uppercase tracking-wider text-[#8A6570]">Âm On</p><p className="mt-1 font-semibold text-[#2D282A]">{activeItem.onYomi || 'Chưa cập nhật'}</p></div>
-              <div><p className="text-xs uppercase tracking-wider text-[#8A6570]">Âm Kun</p><p className="mt-1 font-semibold text-[#2D282A]">{activeItem.kunYomi || 'Chưa cập nhật'}</p></div>
-              <div className="rounded-2xl bg-[#FAF7F5] p-4"><p className="text-xs leading-5 text-[#6F6669]">Điểm được tính dựa trên độ lệch khi vẽ qua cơ chế kiểm tra nét của HanziWriter. Phiên bản này chưa dùng AI.</p></div>
-            </div>
-          </aside>
-        </div>
-      </section>
+      <KanjiLesson
+        practice={practice}
+        scope={scope}
+        onScope={setScope}
+      />
     );
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Riki - Viết">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Riki - Viết")}>
       <div className="min-h-[calc(100vh-4rem)] bg-[#FAF7F5]">{content}</div>
     </LearnerShell>
   );

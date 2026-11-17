@@ -11,11 +11,11 @@ export async function getUnreadNotificationCount() {
 }
 
 export async function markNotificationAsRead(id) {
-    const res = await api.put(`/Notification/${id}/read`);
+    const res = await api.patch(`/Notification/${id}/read`);
     return res?.result ?? res;
 }
 
 export async function markAllNotificationsAsRead() {
-    const res = await api.put('/Notification/read-all');
+    const res = await api.patch('/Notification/mark-all-read');
     return res?.result ?? res;
 }

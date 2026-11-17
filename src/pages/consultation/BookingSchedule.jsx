@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { getMentorRecommendations, getMentorPurchases, bookMentorWithCredit, getMeetingPlans, purchaseMeeting } from '../../api/mentorBookingApi.js';
+import { getMentorRecommendations, getMentorPurchases, bookMeetingWithCredit, getMeetingPlans, purchaseMeeting } from '../../api/mentorBookingApi.js';
 
+import { useLearnerProfile } from '../../hooks/useLearnerHome.js';
+
+const JLPT_LEVELS = ['N5', 'N4', 'N3', 'N2'];
 const GOALS = ['Đánh giá Dokkai & lộ trình học', 'Chữa phát âm & Kaiwa phỏng vấn', 'Chiến thuật thi JLPT', 'Chỉnh luận văn / CV tiếng Nhật'];
 const ZONE = 'Asia/Ho_Chi_Minh';
 const asDate = value => new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`);
@@ -14,9 +17,15 @@ const panel = 'rounded-[22px] border border-[#eadfd9] bg-white p-5 shadow-sm';
 
 export default function BookingSchedule({ purchasePlanId } = {}) {
   const { pathname } = useLocation(); const navigate = useNavigate(); const cache = useQueryClient();
+  const [params] = useSearchParams();
+  const presetMentorId = Number(params.get('mentorId')) || null;
+  const { data: profile } = useLearnerProfile();
+  const [selectedLevel, setSelectedLevel] = useState('');
+  const profileLevel = profile?.targetJlptLevelName;
   const [selectedPlanId, setPlanId] = useState(null);
   const planQuery = useQuery({ queryKey: ['meeting-plans'], queryFn: getMeetingPlans });
   const plan = planQuery.data?.find(item => item.id === (purchasePlanId ?? selectedPlanId));
+  const jlptLevel = plan?.jlptLevel || selectedLevel || (JLPT_LEVELS.includes(profileLevel) ? profileLevel : '');
   const wallet = useQuery({ queryKey: ['mentor-purchases'], queryFn: getMentorPurchases, refetchInterval: 15000 });
   const [selectedMentorId, setMentorId] = useState(null);
   const [selectedDayId, setDayId] = useState('');
@@ -47,7 +56,7 @@ export default function BookingSchedule({ purchasePlanId } = {}) {
     retry: false,
   });
   const mentors = mentorQuery.data ?? [];
-  const mentor = mentors.find(item => item.id === selectedMentorId);
+  const mentor = mentors.find(item => item.id === (selectedMentorId ?? presetMentorId));
   const mentorId = mentor?.id;
   const availableSlots = (mentor?.slots ?? [])
     .filter(item => !item.isBooked && asDate(item.startTime).getTime() > now)
@@ -57,9 +66,9 @@ export default function BookingSchedule({ purchasePlanId } = {}) {
   const slots = availableSlots.filter(item => item.day === dayId);
   const slot = slots.find(item => item.id === slotId);
   const ready = Boolean(mentor && slot && !mentorQuery.isFetching && !mentorQuery.isError);
-  const eligible = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && p.meetingSessionsUsed < p.meetingSessionsIncluded && (!p.endDate || asDate(p.endDate) >= (slot ? asDate(slot.endTime) : new Date(now))));
+  const eligible = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && (!p.jlptLevel || p.jlptLevel === jlptLevel) && p.meetingSessionsUsed < p.meetingSessionsIncluded && (!p.endDate || asDate(p.endDate) >= (slot ? asDate(slot.endTime) : new Date(now))));
   const balance = (wallet.data || []).filter(p => p.paymentStatus === 'Paid' && (!p.endDate || asDate(p.endDate).getTime() > now)).reduce((n,p) => n + Math.max(0,p.meetingSessionsIncluded-p.meetingSessionsUsed),0);
-  const book = useMutation({ mutationFn: () => bookMentorWithCredit({ mentorAvailabilityId: slot.id, question: [goal,note].filter(Boolean).join('\n') }), onSuccess: async () => {
+  const book = useMutation({ mutationFn: () => bookMeetingWithCredit({ mentorAvailabilityId: slot.id, jlptLevel, question: [goal,note].filter(Boolean).join('\n') }), onSuccess: async () => {
     await Promise.all([cache.invalidateQueries({ queryKey: ['mentor-purchases'] }), cache.invalidateQueries({ queryKey: ['learner-mentor-bookings'] }), cache.invalidateQueries({ queryKey: ['booking-mentors'] })]);
     navigate('/consultation-center/');
   }, onError: () => { wallet.refetch(); mentorQuery.refetch(); } });
@@ -67,6 +76,8 @@ export default function BookingSchedule({ purchasePlanId } = {}) {
     mutationFn: () => purchaseMeeting({
       subscriptionPlanId: plan.id,
       mentorAvailabilityId: slot.id,
+      jlptLevel,
+      frontendOrigin: window.location.origin,
       question: [goal, note].filter(Boolean).join('\n'),
     }),
     onSuccess: result => {
@@ -75,7 +86,7 @@ export default function BookingSchedule({ purchasePlanId } = {}) {
     },
     onError: () => { mentorQuery.refetch(); },
   });
-  const canPay = ready && Boolean(plan) && asDate(slot.endTime) <= new Date(now + plan.durationDays * 86400000);
+  const canPay = ready && Boolean(plan && jlptLevel) && asDate(slot.endTime) <= new Date(now + plan.durationDays * 86400000);
   const error = mentorQuery.error || wallet.error || planQuery.error || book.error || purchase.error;
   const initial = name => (name || '?').slice(0, 1).toUpperCase();
 
@@ -143,8 +154,16 @@ export default function BookingSchedule({ purchasePlanId } = {}) {
               <h2 className="text-sm font-bold">Tóm tắt lịch hẹn</h2>
               <div className="mt-4 flex items-center gap-3 rounded-2xl bg-[#FAF7F5] p-3"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-lg font-bold text-[#D94B68]">{initial(mentor?.name)}</span><div><p className="text-sm font-bold">{mentor?.name || 'Chưa chọn mentor'}</p><p className="text-xs text-[#6F6669]">Mentor</p></div></div>
               <dl className="mt-4 space-y-3 text-sm"><div className="flex justify-between gap-3"><dt className="text-[#A59B9E]">Thời gian</dt><dd className="text-right font-semibold">{slot ? `${dayTitle(dayId)} · ${slot.label}` : 'Chưa chọn khung giờ'}</dd></div><div className="flex justify-between gap-3"><dt className="text-[#A59B9E]">Nền tảng</dt><dd className="text-right font-semibold">Phòng họp RikiPath</dd></div><div className="flex justify-between gap-3"><dt className="text-[#A59B9E]">Mục tiêu</dt><dd className="text-right font-semibold">{goal}</dd></div></dl>
+              <label className="mt-4 block text-sm font-semibold">
+                Cấp độ JLPT
+                <select value={jlptLevel} disabled={Boolean(plan?.jlptLevel)} onChange={event => setSelectedLevel(event.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-[#eadfd9] px-3 py-2 font-normal">
+                  <option value="">Chọn cấp độ</option>
+                  {JLPT_LEVELS.map(level => <option key={level}>{level}</option>)}
+                </select>
+              </label>
               <p className="mt-4 text-sm font-semibold">Lượt còn hạn trong tài khoản: {wallet.isPending ? 'Đang tải…' : balance}</p>
-              <button disabled={!ready || !eligible.length || wallet.isFetching || book.isPending || purchase.isPending} onClick={() => book.mutate()} className="mt-5 w-full rounded-full bg-[#9E2A4B] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{book.isPending ? 'Đang đặt lịch…' : 'Xác nhận đặt lịch · Trừ 1 lượt'}</button>
+              <button disabled={!ready || !jlptLevel || !eligible.length || wallet.isFetching || book.isPending || purchase.isPending} onClick={() => book.mutate()} className="mt-5 w-full rounded-full bg-[#9E2A4B] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{book.isPending ? 'Đang đặt lịch…' : 'Xác nhận đặt lịch · Trừ 1 lượt'}</button>
               {(purchasePlanId || (ready && wallet.isSuccess && !eligible.length)) && <div className="mt-4 space-y-2 border-t border-[#eadfd9] pt-4">
                 {!purchasePlanId && <label className="block text-sm font-semibold">Gói để đặt lịch này
                   <select value={selectedPlanId ?? ''} onChange={event => setPlanId(Number(event.target.value) || null)}

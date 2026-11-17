@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { LearnerShell } from '../../components/shells';
 import GradingFeedback from '../../components/GradingFeedback.jsx';
-import { useSpeechToText } from '../../hooks/useSpeechToText.js';
+import { useSpeakingGrading } from '../../hooks/useSpeechToText.js';
+import { useLocale } from '../../i18n/locale.js';
 
 import { speakingLessons } from './productionPracticeLessons.js';
 
@@ -19,6 +20,7 @@ function Icon({ name, className = '' }) {
 }
 
 export default function SpeakingPracticePage() {
+  const { tr } = useLocale();
   const { pathname } = useLocation();
   const [showReading, setShowReading] = useState(false);
   const [lessonIndex, setLessonIndex] = useState(0);
@@ -37,7 +39,7 @@ export default function SpeakingPracticePage() {
     audioFile,
     grading,
     gradeRecording,
-  } = useSpeechToText();
+  } = useSpeakingGrading();
 
   const hasText = Boolean(
     fullText || transcript || interimTranscript,
@@ -52,7 +54,7 @@ export default function SpeakingPracticePage() {
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Luyện nói">
+    <LearnerShell pathname={pathname} breadcrumb={tr("Luyện nói")}>
       <main
         data-page="SpeakingPracticePage"
         className="mx-auto max-w-[1180px] px-5 py-6
@@ -70,16 +72,12 @@ export default function SpeakingPracticePage() {
             <Icon
               name="arrow_back"
               className="text-[15px]"
-            />
-            Lộ trình ôn luyện
-          </Link>
+            />{tr("Lộ trình ôn luyện")}</Link>
 
           <h1
             className="mt-3 text-[26px] font-semibold
                        leading-tight tracking-tight"
-          >
-            Luyện nói tiếng Nhật
-          </h1>
+          >{tr('Luyện nói tiếng Nhật')}</h1>
 
           <p className="mt-1.5 text-[13px] text-[#967F8A]">
             Thu âm câu mẫu để nhận điểm luyện nói riêng. N5–N2 thể hiện độ khó của bài.
@@ -97,11 +95,7 @@ export default function SpeakingPracticePage() {
           </label>
         </header>
 
-        <div
-          className="grid items-start gap-5
-                     xl:grid-cols-[minmax(0,1fr)_260px]"
-        >
-          {/* Khu vực luyện nói */}
+        <div className="max-w-[760px]">
           <section
             aria-labelledby="speaking-exercise-title"
             className="min-w-0 overflow-hidden rounded-2xl
@@ -121,24 +115,13 @@ export default function SpeakingPracticePage() {
                 <Icon
                   name="record_voice_over"
                   className="text-[19px] text-[#B67D94]"
-                />
-                Đọc theo câu mẫu
-              </h2>
+                />{tr('Đọc theo câu mẫu')}</h2>
 
-              <span
-                className="rounded-md bg-[#FAF0F5]
-                           px-2 py-1 text-[11px]
-                           text-[#A47186]"
-              >
-                Luyện kỹ năng bổ trợ
-              </span>
             </header>
 
             {/* Câu cần luyện */}
             <div className="px-5 py-6 sm:px-6">
-              <p className="text-[12px] text-[#A08A95]">
-                Câu cần đọc
-              </p>
+              <p className="text-[12px] text-[#A08A95]">{tr('Câu cần đọc')}</p>
 
               <p
                 lang="ja"
@@ -170,7 +153,7 @@ export default function SpeakingPracticePage() {
                            focus-visible:ring-2
                            focus-visible:ring-[#AD3155]/25"
               >
-                {showReading ? 'Ẩn cách đọc' : 'Hiện cách đọc'}
+                {showReading ? tr("Ẩn cách đọc") : tr("Hiện cách đọc")}
                 <Icon
                   name={showReading ? 'expand_less' : 'expand_more'}
                   className="text-[17px]"
@@ -223,18 +206,18 @@ export default function SpeakingPracticePage() {
                   <div role="status">
                     <p className="text-[13px] font-medium">
                       {loading
-                        ? 'Đang kết nối…'
+                        ? tr("Đang xử lý…")
                         : isListening
-                          ? 'Đang nghe bạn nói'
+                          ? tr("Đang nghe bạn nói")
                           : hasText
-                            ? 'Bạn có thể nói thêm hoặc luyện lại'
-                            : 'Sẵn sàng luyện nói'}
+                            ? tr("Bạn có thể nói thêm hoặc luyện lại")
+                            : tr("Sẵn sàng luyện nói")}
                     </p>
 
                     <p className="mt-1 text-[11px] text-[#A08A95]">
                       {isListening
-                        ? 'Đọc rõ ràng, với tốc độ tự nhiên.'
-                        : 'Cho phép sử dụng micro khi được hỏi.'}
+                        ? tr("Đọc rõ ràng, với tốc độ tự nhiên.")
+                        : tr("Cho phép sử dụng micro khi được hỏi.")}
                     </p>
                   </div>
                 </div>
@@ -270,10 +253,10 @@ export default function SpeakingPracticePage() {
                   />
 
                   {isListening
-                    ? 'Dừng nói'
+                    ? tr("Dừng nói")
                     : loading
-                      ? 'Đang kết nối…'
-                      : 'Bắt đầu nói'}
+                      ? tr("Đang xử lý…")
+                      : tr("Bắt đầu nói")}
                 </button>
               </div>
             </div>
@@ -284,9 +267,7 @@ export default function SpeakingPracticePage() {
                 className="mb-3 flex items-center
                            justify-between gap-3"
               >
-                <h3 className="text-[13px] font-medium">
-                  Nội dung nhận dạng
-                </h3>
+                <h3 className="text-[13px] font-medium">{tr('Nội dung nhận dạng')}</h3>
 
                 {isListening && (
                   <span
@@ -297,9 +278,7 @@ export default function SpeakingPracticePage() {
                       aria-hidden="true"
                       className="h-1.5 w-1.5 rounded-full
                                  bg-[#C46E8D]"
-                    />
-                    Đang nghe
-                  </span>
+                    />{tr("Đang nghe")}</span>
                 )}
               </div>
 
@@ -382,9 +361,7 @@ export default function SpeakingPracticePage() {
                              disabled:cursor-not-allowed
                              disabled:opacity-40"
                 >
-                  <Icon name="refresh" className="text-[17px]" />
-                  Xóa và luyện lại
-                </button>
+                  <Icon name="refresh" className="text-[17px]" />{tr('Xóa và luyện lại')}</button>
               </div>
             </div>
           </section>

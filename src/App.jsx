@@ -2,9 +2,9 @@ import ManualContentPage from './pages/content-author/ManualContentPage.jsx';
 import MentorGrading from './pages/consultation/MentorGrading.jsx';
 import HomeworkPage from './pages/learner/HomeworkPage.jsx';
 import MentorPayments from './pages/consultation/MentorPayments.jsx';
-import { useContext, useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { AuthContext, AuthProvider } from './auth/AuthContext.jsx';
+import { useContext, useEffect, useRef } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { AuthContext, AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import PaymentReturn from './components/PaymentReturn.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RequireStudyPlan from './components/RequireStudyPlan.jsx';
@@ -22,10 +22,8 @@ import {
   Dashboard,
   LessonList,
   LessonPlayer,
-  LessonComplete,
   RoadmapJLPT,
   SentenceStudio,
-  KanjiStudio,
   KanjiNotebook,
   VocabularyNotebook,
   DailySRS,
@@ -37,10 +35,16 @@ import {
   ExamResult,
   LearnerSettings,
   KanjiWritingPracticePage,
+  GrammarBank,
+  LearnerRecords,
   LearnerEssayPage,
   SpeakingPracticePage,
   StudyPlans,
   StudyPayment,
+  PlacementTest,
+  PlacementExam,
+  PlacementResult,
+  LessonPractice,
 } from './pages/learner';
 
 // —— Tư vấn (Mentor) ——
@@ -54,12 +58,15 @@ import {
   ConsultationPrep,
   ConsultationRequestDetail,
   WorkSchedule,
-  TextConsultationReply,
-  SenseiProfile,
   ConsultationSessionDetail,
   ConsultationReceipt,
   ConsultationRoom,
   MentorAvailability,
+  MentorProfile,
+  MentorPublicProfile,
+  MentorDisputes,
+  MentorCompensation,
+  MentorReviews,
 } from './pages/consultation';
 
 // —— CMS ——
@@ -70,10 +77,10 @@ import {
   QuestionBank,
   ContentLibrary,
   LessonCMS,
-  BulkImport,
   VocabularyEditor,
   KanjiEditor,
   CmsLessonDetail,
+  ContentPlanStudio,
 } from './pages/cms';
 
 import {
@@ -86,6 +93,12 @@ import {
   AdminContentReview,
   AdminUserDetail,
   AdminOperations,
+  AdminDashboard,
+  AdminCertificateSections,
+  AdminSlotReview,
+  AdminMentorCases,
+  AdminMentorQuality,
+  AdminMentorTemplate,
 } from './pages/admin';
 
 function study(element, feature) {
@@ -109,6 +122,26 @@ function NormalizePath() {
   return null;
 }
 
+function PaymentReturnToReceipt() {
+  const { search } = useLocation();
+  return <Navigate to={`/consultation-receipt/${search}`} replace />;
+}
+
+function LogoutRedirect() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const wasAuthenticated = useRef(isAuthenticated);
+
+  useEffect(() => {
+    if (wasAuthenticated.current && !isAuthenticated) {
+      navigate('/auth/', { replace: true });
+    }
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, navigate]);
+
+  return null;
+}
+
 function PreviewSessionSync() {
   const location = useLocation();
   const refreshSession = useContext(AuthContext)?.refreshSession;
@@ -129,6 +162,7 @@ export default function App() {
       <BrowserRouter>
         <div className="rikipath-shell min-h-screen bg-[#FAF7F5]">
           <NormalizePath />
+          <LogoutRedirect />
           <PreviewSessionSync />
           <PersistentContentImport />
           <Routes>
@@ -164,10 +198,10 @@ export default function App() {
             <Route path={withSlash('/riki/essay')} element={study(<LearnerEssayPage />, "writing")} />
             <Route path={withSlash('/lessons')} element={study(<LessonList />)} />
             <Route path={withSlash('/lesson-player')} element={study(<LessonPlayer />)} />
-            <Route path={withSlash('/lesson-complete')} element={(<LessonComplete />)} />
+            <Route path={withSlash('/lesson-complete')} element={(<Navigate to={withSlash('/lessons')} replace />)} />
             <Route path={withSlash('/roadmap')} element={(<RoadmapJLPT />)} />
             <Route path={withSlash('/sentence-studio')} element={(<SentenceStudio />)} />
-            <Route path={withSlash('/kanji-studio')} element={(<KanjiStudio />)} />
+            <Route path={withSlash('/kanji-studio')} element={(<Navigate to={withSlash('/kanji-writing')} replace />)} />
             <Route path={withSlash('/kanji-notebook')} element={study(<KanjiNotebook />)} />
             <Route path={withSlash('/vocabulary')} element={study(<VocabularyNotebook />)} />
             <Route path={withSlash('/daily-srs')} element={study(<DailySRS />)} />
@@ -185,17 +219,18 @@ export default function App() {
 
             {/* ========== MENTOR ========== */}
             <Route path={withSlash('/mentor-chat')} element={<ProtectedRoute allowedRoles={['Learner', 'Mentor']}><MentorPrivateChat /></ProtectedRoute>} />
-            <Route path={withSlash('/mentor')} element={<Consultation />} />
+            <Route path={withSlash('/mentor')} element={<ProtectedRoute allowedRoles={['Learner']}><Consultation /></ProtectedRoute>} />
             <Route path={withSlash('/consultation')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-hub')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-center')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationCenter /></ProtectedRoute>} />
             <Route path={withSlash('/booking-schedule')} element={<ProtectedRoute allowedRoles={['Learner']}><BookingSchedule /></ProtectedRoute>} />
+            <Route path={withSlash('/mentors/:mentorId')} element={<ProtectedRoute allowedRoles={['Learner']}><MentorPublicProfile /></ProtectedRoute>} />
             <Route path={withSlash('/payments')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
             <Route path={withSlash('/payments/history')} element={<ProtectedRoute allowedRoles={['Learner']}><MentorPayments /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-payment')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationPayment /></ProtectedRoute>} />
             <Route path={withSlash('/payment/success')} element={<Navigate to={withSlash('/app')} replace />} />
             <Route path={withSlash('/payment/cancel')} element={<PaymentReturn><ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute></PaymentReturn>} />
-            <Route path={withSlash('/sensei-profile')} element={<SenseiProfile />} />
+            <Route path={withSlash('/sensei-profile')} element={<Navigate to={withSlash('/mentor')} replace />} />
             <Route path={withSlash('/consultation-session')} element={<ProtectedRoute allowedRoles={['Learner']}><ConsultationSessionDetail /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-receipt')} element={<PaymentReturn><ProtectedRoute allowedRoles={['Learner']}><ConsultationReceipt /></ProtectedRoute></PaymentReturn>} />
             <Route path={withSlash('/consultation-room')} element={<ConsultationRoom />} />
@@ -212,8 +247,11 @@ export default function App() {
             <Route path={withSlash('/consultation-request')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><ConsultationRequestDetail /></ProtectedRoute>} />
             <Route path={withSlash('/work-schedule')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><WorkSchedule /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-homework')} element={<ProtectedRoute allowedRoles={['Mentor']}><HomeworkPage mentor /></ProtectedRoute>} />
-            <Route path={withSlash('/consultation-reply')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><TextConsultationReply /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-reply')} element={<Navigate to={withSlash('/mentor-reviews')} replace />} />
             <Route path={withSlash('/mentor-availability')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAvailability /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-profile')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorProfile /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><Navigate to={withSlash('/mentor-availability')} replace /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-disputes')} element={<ProtectedRoute allowedRoles={['Mentor', 'Admin']}><MentorDisputes /></ProtectedRoute>} />
 
             {/* ========== CMS STUDIO (Tác giả nội dung & Admin) ========== */}
             <Route path={withSlash('/cms-studio')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CMSStudio /></ProtectedRoute>} />
@@ -227,13 +265,14 @@ export default function App() {
             <Route path={withSlash('/vocabulary-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><VocabularyEditor /></ProtectedRoute>} />
             <Route path={withSlash('/kanji-editor')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><KanjiEditor /></ProtectedRoute>} />
             <Route path={withSlash('/content-studio')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentImportPreviewPage /></ProtectedRoute>} />
+            <Route path={withSlash('/content-plan')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><ContentPlanStudio /></ProtectedRoute>} />
             <Route path={withSlash('/lesson-cms-detail')} element={<ProtectedRoute allowedRoles={['ContentAuthor', 'Admin']}><CmsLessonDetail /></ProtectedRoute>} />
 
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
             <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-homework')} element={<ProtectedRoute requireAdmin><HomeworkPage admin /></ProtectedRoute>} />
-            <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />
+            <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/dashboard" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users/detail')} element={<ProtectedRoute requireAdmin><AdminUserDetail /></ProtectedRoute>} />
             <Route path={withSlash('/admin/roles')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />
@@ -243,6 +282,26 @@ export default function App() {
             <Route path={withSlash('/admin/packages')} element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
             <Route path={withSlash('/admin/operations')} element={<ProtectedRoute requireAdmin><AdminOperations /></ProtectedRoute>} />
             <Route path={withSlash('/admin/approval-content')} element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />
+            <Route path={withSlash('/lesson-practice')} element={<ProtectedRoute allowedRoles={['Learner']}><LessonPractice /></ProtectedRoute>} />
+            <Route path={withSlash('/placement')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementTest /></ProtectedRoute>} />
+            <Route path={withSlash('/placement/exam')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementExam /></ProtectedRoute>} />
+            <Route path={withSlash('/placement/result/:attemptId')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementResult /></ProtectedRoute>} />
+            <Route path={withSlash('/grammar')} element={(<GrammarBank />)} />
+            <Route path={withSlash('/consultation-records')} element={<ProtectedRoute allowedRoles={['Learner']}><LearnerRecords /></ProtectedRoute>} />
+            <Route path={withSlash('/consultation-reply')} element={<Navigate to={withSlash('/mentor-reviews')} replace />} />
+            <Route path={withSlash('/mentor-compensation')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorCompensation /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/dashboard')} element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-verifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-compensation')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/certificate-sections')} element={<ProtectedRoute requireAdmin><AdminCertificateSections /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/slot-review')} element={<ProtectedRoute requireAdmin><AdminSlotReview /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-cases')} element={<ProtectedRoute requireAdmin><AdminMentorCases /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-quality')} element={<ProtectedRoute requireAdmin><AdminMentorQuality /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-template')} element={<ProtectedRoute requireAdmin><AdminMentorTemplate /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/study-courses')} element={<Navigate to={withSlash('/admin/mentor-plans')} replace />} />
+            <Route path={withSlash('/admin/study-catalog')} element={<Navigate to={withSlash('/admin/certificate-sections')} replace />} />
+            <Route path={withSlash('/mentor-study-courses')} element={<Navigate to={withSlash('/work-schedule')} replace />} />
+            <Route path={withSlash('/my-courses')} element={<Navigate to={withSlash('/plans')} replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

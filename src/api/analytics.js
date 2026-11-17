@@ -14,3 +14,8 @@ export async function getSkillBreakdown() {
   const data = await api.get('/Analytics/skill-breakdown');
   return data.result ?? [];
 }
+
+export async function getMonthlySkillAnalytics(months = 12) {
+  const data = await api.get('/Analytics/skill-monthly', { params: { months } });
+  return data.result;
+}

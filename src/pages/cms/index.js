@@ -8,3 +8,4 @@ export { default as BulkImport } from './BulkImport.jsx';
 export { default as VocabularyEditor } from './VocabularyEditor.jsx';
 export { default as KanjiEditor } from './KanjiEditor.jsx';
 export { default as CmsLessonDetail } from './CmsLessonDetail.jsx';
+export { default as ContentPlanStudio } from './ContentPlanStudio.jsx';

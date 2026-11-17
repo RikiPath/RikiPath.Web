@@ -1,0 +1,7 @@
+Kana stroke paths adapted from KanjiVG, copyright Ulrich Apel.
+Source: https://github.com/KanjiVG/kanjivg/tree/610091ce618cf757ed1357a8954cd65283e015d6/kanji
+Project: https://kanjivg.tagaini.net/
+License: Creative Commons Attribution-ShareAlike 3.0 Unported
+https://creativecommons.org/licenses/by-sa/3.0/
+Modification: extracted ordered SVG path geometry into kanaStrokes.json; geometry unchanged.
+The derived stroke dataset remains available under CC BY-SA 3.0.

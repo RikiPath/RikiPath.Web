@@ -9,8 +9,17 @@ export async function getDueKanjiForWriting(count = 10) {
     return response?.result ?? response;
 }
 
-export async function getAllKanjiForWriting(count = 100) {
-    const response = await api.get('/kanjiwritingpractice/all', { params: { count } });
+export async function getAllKanjiForWriting() {
+    const response = await api.get('/kanjiwritingpractice/all');
+    return response?.result ?? response;
+}
+
+export async function recognizeDrawnKanji(image) {
+    const body = new FormData();
+    body.append('image', image, 'kanji.png');
+    const response = await api.post('/kanjiwritingpractice/recognize', body, {
+        transformRequest: [(payload, headers) => { delete headers['Content-Type']; return payload; }],
+    });
     return response?.result ?? response;
 }
 

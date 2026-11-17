@@ -1,5 +1,7 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 
+import BrandMark from '../BrandMark.jsx';
+import NotificationPopover from '../admin/NotificationPopover.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { CMS_NAV, pathMatches } from './navConfig.js';
 
@@ -52,15 +54,14 @@ export default function CmsShell({
         className="fixed inset-y-0 left-0 z-50 flex flex-col
                    border-r border-[#E8DFDC] bg-[#FAF8F7]"
       >
-        <div className="flex h-16 shrink-0 items-center gap-2.5 px-4">
-          <span
-            className="flex h-9 w-9 items-center justify-center
-                       rounded-xl bg-[#AD3155] text-white"
-          >
-            <span className="material-symbols-outlined text-[22px]">
-              spa
-            </span>
-          </span>
+        <Link
+          to="/"
+          aria-label="Về trang chủ"
+          className="flex h-16 shrink-0 items-center gap-2.5 px-4 rounded-lg
+                     focus-visible:outline-none focus-visible:ring-2
+                     focus-visible:ring-[#AD3155]/30"
+        >
+          <BrandMark className="h-10 w-14" />
           <span className="min-w-0 leading-tight">
             <span className="block truncate text-[16px] font-medium">
               {CMS_NAV.brand.title}
@@ -69,7 +70,7 @@ export default function CmsShell({
               Studio nội dung
             </span>
           </span>
-        </div>
+        </Link>
 
         <nav
           aria-label="Menu chính"
@@ -170,13 +171,14 @@ export default function CmsShell({
             className="fixed right-0 top-0 z-40 flex items-center
                        border-b border-[#E8DFDC] bg-[#FAF8F7] px-6"
           >
-            <div className="flex min-w-0 items-center gap-2 text-[12px] text-[#AA98A1]">
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-[12px] text-[#AA98A1]">
               <span>Studio</span>
               <span className="material-symbols-outlined text-[16px] text-[#C9B8C0]">
                 chevron_right
               </span>
               <span className="truncate text-[#826A76]">{breadcrumb}</span>
             </div>
+            <NotificationPopover />
           </header>
         )}
         <main className={hideHeader ? 'min-h-screen' : 'min-h-screen'} style={hideHeader ? undefined : { paddingTop: HEADER_H }}>

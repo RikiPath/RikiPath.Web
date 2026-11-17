@@ -1,3 +1,6 @@
+import BrandMark from '../../components/BrandMark.jsx';
+import LanguageSwitch from '../../components/LanguageSwitch.jsx';
+import { useLocale } from '../../i18n/locale.js';
 import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
@@ -34,6 +37,7 @@ function Icon({ name, className = '' }) {
 }
 
 export default function OnboardingSurvey() {
+  const { locale, tr } = useLocale();
   const navigate = useNavigate();
   const session = getSession();
   const profileQuery = useLearnerProfile();
@@ -233,12 +237,7 @@ export default function OnboardingSurvey() {
                        focus-visible:ring-2
                        focus-visible:ring-white/70"
           >
-            <span
-              className="flex h-10 w-10 items-center justify-center
-                         rounded-xl bg-white/10"
-            >
-              <Icon name="spa" className="text-[25px]" />
-            </span>
+            <BrandMark className="h-11 w-16" />
 
             <span className="text-[21px] font-semibold tracking-tight">
               RikiPath
@@ -247,7 +246,7 @@ export default function OnboardingSurvey() {
 
           <div className="relative mt-7 lg:mt-10">
             <p className="text-[12px] font-medium text-[#EBC7D2]">
-              Thiết lập mục tiêu ôn luyện
+              {tr('Thiết lập mục tiêu ôn luyện')}
             </p>
 
             <h1
@@ -255,9 +254,9 @@ export default function OnboardingSurvey() {
                          font-semibold leading-[1.25]
                          tracking-tight lg:text-[34px]"
             >
-              Bắt đầu từ
+              {tr('Bắt đầu từ')}
               <br />
-              mục tiêu của bạn.
+              {tr('mục tiêu của bạn.')}
             </h1>
 
             <p
@@ -312,6 +311,9 @@ export default function OnboardingSurvey() {
 
         {/* Khối chọn mục tiêu bên phải */}
         <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
+          <div className="mb-4 flex justify-end">
+            <LanguageSwitch className="inline-flex items-center gap-1 rounded-lg border border-[#EAE2E6] bg-[#FCF7F9] px-2.5 py-1 text-xs font-semibold text-[#6F5C66]" />
+          </div>
           <header>
             <p className="text-[12px] font-medium text-[#AD526F]">
               Thiết lập mục tiêu học tập
@@ -594,7 +596,7 @@ export default function OnboardingSurvey() {
               className="mt-5 border-t border-[#F0E8EC] pt-5"
             >
               <legend className="sr-only">
-                Thời gian ôn luyện mỗi ngày
+                {tr('Thời gian ôn luyện mỗi ngày')}
               </legend>
 
               <h3 className="text-[13px] font-semibold text-[#4A3841]">
@@ -686,7 +688,7 @@ export default function OnboardingSurvey() {
                 </>
               ) : (
                 <>
-                  Lưu mục tiêu và tiếp tục
+                  {tr('Lưu mục tiêu và tiếp tục')}
                   <Icon
                     name="arrow_forward"
                     className="text-[18px]"
@@ -708,7 +710,7 @@ export default function OnboardingSurvey() {
                            focus-visible:ring-[#D94B68]/30
                            disabled:opacity-40"
               >
-                Để sau, vào trang chủ
+                {tr('Để sau, vào trang chủ')}
               </button>
             </div>
           </form>
