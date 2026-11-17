@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { LearnerShell } from '../../components/shells';
 import { getMockTestHistory } from '../../api/mockTestApi.js';
+import MockTestProgress from '../../components/MockTestProgress.jsx';
 
 const ranges = [
   { days: 7, label: '7 ngày' },
@@ -24,7 +25,7 @@ export default function ExamResult() {
     queryKey: ['mock-test-history', user?.userId],
     queryFn: getMockTestHistory, enabled: isAuthenticated, retry: false,
   });
-  const cutoff = Date.now() - days * 86_400_000;
+  const cutoff = history.dataUpdatedAt - days * 86_400_000;
   const attempts = (history.data ?? []).filter(attempt => !days || Date.parse(attempt.submittedAt) >= cutoff);
   const average = attempts.length ? attempts.reduce((sum, attempt) => sum + attempt.totalScore, 0) / attempts.length : null;
 
@@ -40,6 +41,7 @@ export default function ExamResult() {
         <Link className={button} to="/mock-tests/">Chọn đề thi thử</Link>
       </header>
       {!isAuthenticated && <Link className={button} to="/auth/">Đăng nhập để xem lịch sử</Link>}
+      {isAuthenticated && history.isSuccess && <MockTestProgress key={user?.userId} attempts={history.data} userId={user?.userId} />}
       {isAuthenticated && <div className="flex flex-wrap gap-2" role="group" aria-label="Khoảng thời gian">
         {ranges.map(range => <button key={range.days} type="button" aria-pressed={days === range.days}
           onClick={() => setDays(range.days)}

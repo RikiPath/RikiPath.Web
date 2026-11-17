@@ -36,8 +36,8 @@ export async function submitMockTestAttempt(attemptId, answers) {
   return data.result ?? data;
 }
 
-export async function getMockTestAttempt(attemptId) {
-  const data = await api.get(endpoint + '/attempts/' + attemptId);
+export async function getMockTestAttempt(attemptId, config) {
+  const data = await api.get(endpoint + '/attempts/' + attemptId, config);
   return data.result ?? data;
 }
 

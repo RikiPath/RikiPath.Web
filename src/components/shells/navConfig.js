@@ -54,11 +54,12 @@ export const ADMIN_NAV = {
           label: 'Mentor',
           hint: 'Hồ sơ và xếp lịch tuần',
           icon: 'support_agent',
-          alsoActive: ['/admin/mentor-schedules', '/admin/mentor-plans', '/admin/consultants'],
+          alsoActive: ['/admin/mentor-schedules', '/admin/mentor-plans', '/admin/mentor-homework', '/admin/consultants'],
           children: [
             { to: '/admin/mentors', label: 'Hồ sơ', alsoActive: ['/admin/consultants'] },
             { to: '/admin/mentor-schedules', label: 'Xếp lịch tuần' },
             { to: '/admin/mentor-plans', label: 'Gói tư vấn' },
+            { to: '/admin/mentor-homework', label: 'Bài tập và khiếu nại' },
           ],
         },
         { to: '/admin/operations', label: 'Gói & lịch', hint: 'Feature, booking', icon: 'tune' },

@@ -259,8 +259,8 @@ export default function ExamN3() {
           {result.notStudiedCount > 0 && <p className="mt-1 text-sm text-[#765E6B]">
             Chưa học hoặc không biết · {result.notStudiedCount} câu
           </p>}
-          <SkillAssessmentChart assessments={result.skillAssessments} targetLevel={chartTarget}
-            visibleLevels={chartLevelsByTarget[chartTarget]} showStudyLevel />
+          <SkillAssessmentChart key={result.attemptId} result={result} targetLevel={chartTarget}
+            visibleLevels={chartLevelsByTarget[chartTarget]} />
           {result.sections?.length > 0 && <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
             {result.sections.map((section, index) => <li key={section.mockTestSectionId ?? index} className="rounded-lg bg-[#FAF4F7] p-2">{section.sectionTitle || section.sectionName || section.languageSkillName} · {section.correctCount}/{section.totalQuestions ?? section.totalCount} câu</li>)}
           </ul>}

@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
-import { ConsultShell, LearnerShell } from '../../components/shells';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { AdminShell, ConsultShell, LearnerShell } from '../../components/shells';
 import PracticeQuestionFields from '../../components/PracticeQuestionFields.jsx';
 import LessonStudyMaterial from '../../components/LessonStudyMaterial.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import {
-  createHomework, getHomework, getHomeworkCatalog, getHomeworkLearners, getHomeworkLesson, getHomeworkReport,
-  startHomeworkExercise, submitHomework, submitHomeworkExercise,
+  createGroupHomework, createHomework, getHomework, getHomeworkBookings, getHomeworkCatalog, getHomeworkLearners, getHomeworkLesson, getHomeworkReport,
+  startHomeworkExercise, submitHomework, submitHomeworkAudio, submitHomeworkExercise, submitHomeworkScan,
 } from '../../api/homeworkApi.js';
+import { BookingHomeworkPanel, HomeworkBatchGrading, HomeworkCorrectionList, HomeworkGrading, HomeworkScan } from './MentorHomeworkPanel.jsx';
 
 const card = 'rounded-2xl border border-card-border bg-white p-4 sm:p-5';
 const field = 'w-full rounded-xl border border-card-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none';
@@ -20,6 +21,7 @@ const skillNames = {
   Listening: 'Nghe hiểu', Writing: 'Luyện viết', Speaking: 'Luyện nói',
 };
 const levels = ['N5', 'N4', 'N3', 'N2'];
+const homeworkTypes = { Writing: 'Luyện viết', MultipleChoice: 'Trắc nghiệm', Speaking: 'Luyện nói' };
 const localDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
 });
@@ -99,10 +101,102 @@ function PeriodReport({ mentor, learners, userId }) {
   </section>;
 }
 
-function AssignForm({ learners, userId, onCreated }) {
-  const [bookingId, setBookingId] = useState('');
+function QuestionEditor({ questions, onChange }) {
+  function update(index, changes) {
+    onChange(questions.map((question, position) => position === index ? { ...question, ...changes } : question));
+  }
+
+  return <section className="space-y-3">
+    <h3 className="font-semibold">Câu hỏi do mentor soạn</h3>
+    {questions.map((row, index) => <fieldset key={index} className="space-y-2 rounded-xl border border-card-border p-3">
+      <legend className="px-1 font-medium">Câu {index + 1}</legend>
+      <label className="block text-sm">Nội dung câu hỏi
+        <textarea required maxLength={1000} className={field} rows={2} value={row.question}
+          onChange={event => update(index, { question: event.target.value })} />
+      </label>
+      {row.options.map((option, optionIndex) => <div key={optionIndex} className="grid grid-cols-[1fr_auto] items-end gap-2">
+        <label className="block text-sm">Lựa chọn {optionIndex + 1}
+          <input required maxLength={300} className={field} value={option} onChange={event => update(index, {
+            options: row.options.map((value, i) => i === optionIndex ? event.target.value : value),
+          })} />
+        </label>
+        <label className="flex items-center gap-1 pb-2 text-sm">
+          <input type="radio" required name={`correct-${index}`} checked={row.correctOptionIndex === optionIndex}
+            onChange={() => update(index, { correctOptionIndex: optionIndex })} />
+          Đúng
+        </label>
+      </div>)}
+      <div className="flex flex-wrap gap-2">
+        {row.options.length < 4 && <button type="button" className={outline}
+          onClick={() => update(index, { options: [...row.options, ''] })}>Thêm lựa chọn</button>}
+        {row.options.length > 2 && <button type="button" className={outline} onClick={() => update(index, {
+          options: row.options.slice(0, -1),
+          correctOptionIndex: row.correctOptionIndex === row.options.length - 1 ? null : row.correctOptionIndex,
+        })}>Bỏ lựa chọn cuối</button>}
+        <button type="button" className={outline} onClick={() => onChange(questions.filter((_, i) => i !== index))}>Bỏ câu này</button>
+      </div>
+      <label className="block text-sm">Giải thích đáp án (dùng khi chấm)
+        <textarea maxLength={800} className={field} rows={2} value={row.explanation}
+          onChange={event => update(index, { explanation: event.target.value })} />
+      </label>
+    </fieldset>)}
+    <button type="button" className={outline} disabled={questions.length >= 20} onClick={() => onChange([...questions,
+      { question: '', options: ['', '', '', ''], correctOptionIndex: null, explanation: '' }])}>Thêm câu hỏi</button>
+  </section>;
+}
+
+function GroupRecipients({ learners, anchorBookingId, selected, onChange }) {
+  const byLearner = new Map();
+  for (const booking of learners) {
+    const matches = byLearner.get(booking.learnerId) ?? [];
+    matches.push(booking);
+    byLearner.set(booking.learnerId, matches);
+  }
+
+  const anchor = learners.find(booking => booking.bookingId === Number(anchorBookingId));
+  const sameSession = anchor?.availabilityId == null ? [] : learners.filter(booking => booking.availabilityId === anchor.availabilityId);
+  const sessionRecipients = Object.fromEntries(sameSession.map(booking => [booking.learnerId, booking.bookingId]));
+  function toggle(learnerId, defaultBooking) {
+    const next = { ...selected };
+    if (next[learnerId]) delete next[learnerId];
+    else next[learnerId] = defaultBooking;
+    onChange(next);
+  }
+
+  return <fieldset className="space-y-2">
+    <legend className="text-sm font-semibold">Học viên nhận đề chung ({Object.keys(selected).length} đã chọn)</legend>
+    {Object.keys(sessionRecipients).length > 1 && <button type="button" className={outline}
+      onClick={() => onChange(sessionRecipients)}>Chọn cả nhóm cùng buổi đã chọn</button>}
+    <div className="max-h-60 space-y-2 overflow-auto rounded-lg border border-card-border p-2">
+      {Array.from(byLearner, ([learnerId, bookings]) => {
+        const first = bookings[0];
+        const chosen = selected[learnerId];
+        const preferred = bookings.find(booking => booking.bookingId === anchor?.bookingId) ?? first;
+        return <div key={learnerId} className="grid items-center gap-2 rounded-md p-1 text-sm sm:grid-cols-2">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" className="accent-primary" checked={Boolean(chosen)}
+              onChange={() => toggle(learnerId, preferred.bookingId)} />
+            <span className="break-words">{first.learnerName}</span>
+          </label>
+          {chosen && <select className={field} aria-label={`Lịch ôn luyện của ${first.learnerName}`} value={chosen}
+            onChange={event => onChange({ ...selected, [learnerId]: Number(event.target.value) })}>
+            {bookings.map(booking => <option key={booking.bookingId} value={booking.bookingId}>{dateLabel(booking.sessionAt)}</option>)}
+          </select>}
+        </div>;
+      })}
+    </div>
+  </fieldset>;
+}
+
+function AssignForm({ learners, userId, onCreated, defaultBookingId }) {
+  const [bookingId, setBookingId] = useState(defaultBookingId ?? '');
+  const [recipientMode, setRecipientMode] = useState('individual');
+  const [groupRecipients, setGroupRecipients] = useState({});
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [assignmentType, setAssignmentType] = useState('Writing');
+  const [assignmentLevel, setAssignmentLevel] = useState('N5');
+  const [questions, setQuestions] = useState([]);
   const [dueAt, setDueAt] = useState('');
   const [level, setLevel] = useState('N5');
   const [search, setSearch] = useState('');
@@ -113,18 +207,30 @@ function AssignForm({ learners, userId, onCreated }) {
     queryFn: () => getHomeworkCatalog(filter),
     retry: false,
   });
+  const group = recipientMode === 'group';
+  const groupBookingIds = Object.values(groupRecipients);
+  const canAssign = Boolean(title.trim()) && (group ? groupBookingIds.length >= 2 : Boolean(bookingId)) &&
+    (assignmentType === 'MultipleChoice' ? questions.length > 0 : Boolean(instructions.trim()));
   const save = useMutation({
-    mutationFn: () => createHomework({
-      bookingId: Number(bookingId), title: title.trim(), instructions: instructions.trim() || null,
-      dueAt: dueAt ? dueAt + ':00+07:00' : null,
-      lessonIds: Object.values(selected).map(item => item.lesson.id),
-      practiceExerciseIds: Object.values(selected).flatMap(item => item.exercises.map(exercise => exercise.id)),
-    }),
+    mutationFn: () => {
+      const homework = {
+        title: title.trim(), instructions: instructions.trim() || null,
+        dueAt: dueAt ? dueAt + ':00+07:00' : null,
+        assignmentType, jlptLevel: assignmentLevel, questions: assignmentType === 'MultipleChoice' ? questions : null,
+        lessonIds: Object.values(selected).map(item => item.lesson.id),
+        practiceExerciseIds: Object.values(selected).flatMap(item => item.exercises.map(exercise => exercise.id)),
+      };
+      return group
+        ? createGroupHomework({ bookingIds: groupBookingIds, homework })
+        : createHomework({ bookingId: Number(bookingId), ...homework });
+    },
     onSuccess: async () => {
       setTitle('');
       setInstructions('');
+      setQuestions([]);
       setDueAt('');
       setSelected({});
+      setGroupRecipients({});
       await onCreated();
     },
   });
@@ -151,30 +257,57 @@ function AssignForm({ learners, userId, onCreated }) {
   return <section className={card + ' space-y-4'}>
     <h2 className="text-lg font-semibold">Giao bài tập</h2>
     {learners.length === 0 ? <p className={muted}>Bạn cần có lịch ôn luyện đã xác nhận với người học để giao bài.</p> : <>
-      <form id="assign-homework" className="space-y-3" onSubmit={event => { event.preventDefault(); save.mutate(); }}>
+      <form id="assign-homework" className="space-y-3" onSubmit={event => {
+        event.preventDefault();
+        if (canAssign && !save.isPending) save.mutate();
+      }}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-sm font-medium">Người học
-            <select required className={field + ' mt-1'} value={bookingId} onChange={event => setBookingId(event.target.value)}>
-              <option value="">Chọn người học</option>
-              {learners.map(item => <option key={item.bookingId} value={item.bookingId}>
-                {item.learnerName} · {dateLabel(item.sessionAt)}
-              </option>)}
+          <label className="block text-sm font-medium">Giao cho
+            <select className={field + ' mt-1'} value={recipientMode} disabled={save.isPending} onChange={event => {
+              setRecipientMode(event.target.value);
+              save.reset();
+            }}>
+              <option value="individual">Một học viên</option>
+              <option value="group">Nhóm học viên</option>
             </select>
           </label>
           <label className="block text-sm font-medium">Hạn nộp (giờ Việt Nam)
             <input type="datetime-local" className={field + ' mt-1'} value={dueAt} onChange={event => setDueAt(event.target.value)} />
           </label>
         </div>
+        {group
+          ? <GroupRecipients learners={learners} anchorBookingId={bookingId} selected={groupRecipients} onChange={setGroupRecipients} />
+          : <label className="block text-sm font-medium">Học viên và lịch ôn luyện
+            <select required className={field + ' mt-1'} value={bookingId} onChange={event => setBookingId(event.target.value)}>
+              <option value="">Chọn học viên</option>
+              {learners.map(item => <option key={item.bookingId} value={item.bookingId}>
+                {item.learnerName} · {dateLabel(item.sessionAt)}
+              </option>)}
+            </select>
+          </label>}
         <label className="block text-sm font-medium">Tiêu đề
           <input required maxLength={300} className={field + ' mt-1'} value={title} onChange={event => setTitle(event.target.value)} />
         </label>
-        <label className="block text-sm font-medium">Yêu cầu làm bài
-          <textarea rows={4} maxLength={10000} className={field + ' mt-1'} value={instructions}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm font-medium">Dạng bài tập
+            <select className={field} value={assignmentType} onChange={event => setAssignmentType(event.target.value)}>
+              {Object.entries(homeworkTypes).map(([type, name]) => <option key={type} value={type}>{name}</option>)}
+            </select>
+          </label>
+          <label className="block text-sm font-medium">Cấp JLPT của bài tập
+            <select className={field} value={assignmentLevel} onChange={event => setAssignmentLevel(event.target.value)}>
+              {levels.map(code => <option key={code}>{code}</option>)}
+            </select>
+          </label>
+        </div>
+        <label className="block text-sm font-medium">Đề bài và yêu cầu làm bài
+          <textarea rows={4} maxLength={10000} required={assignmentType !== 'MultipleChoice'} className={field + ' mt-1'} value={instructions}
             onChange={event => setInstructions(event.target.value)} />
         </label>
+        {assignmentType === 'MultipleChoice' && <QuestionEditor questions={questions} onChange={setQuestions} />}
       </form>
-      <div className="space-y-3 rounded-xl border border-card-border p-3">
-        <h3 className="font-semibold">Đính kèm bài học và bài luyện tập</h3>
+      <details className="space-y-3 rounded-xl border border-card-border p-3">
+        <summary className="cursor-pointer font-semibold">Đính kèm học liệu ôn tập</summary>
         <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
           event.preventDefault();
           setFilter({ level, search: search.trim(), page: 1 });
@@ -217,7 +350,7 @@ function AssignForm({ learners, userId, onCreated }) {
           <button type="button" className={outline} disabled={catalog.isFetching || catalog.data?.length !== 20}
             onClick={() => setFilter(value => ({ ...value, page: value.page + 1 }))}>Sau</button>
         </div>}
-      </div>
+      </details>
       {Object.keys(selected).length > 0 && <ul aria-label="Nội dung đã chọn" className="flex flex-wrap gap-2">
         {Object.values(selected).map(({ lesson, exercises }) => <li key={lesson.id}>
           <button type="button" aria-label={'Bỏ chọn ' + lesson.title}
@@ -227,9 +360,12 @@ function AssignForm({ learners, userId, onCreated }) {
         </li>)}
       </ul>}
       <ErrorMessage error={save.error} />
-      {save.isSuccess && <p role="status" className="text-sm font-medium text-emerald-800">Đã giao bài cho người học.</p>}
-      <button form="assign-homework" className={button} disabled={save.isPending || !title.trim() || !bookingId ||
-        (!instructions.trim() && !Object.keys(selected).length)}>{save.isPending ? 'Đang giao…' : 'Giao bài'}</button>
+      {save.isSuccess && <p role="status" className="text-sm font-medium text-emerald-800">
+        {Array.isArray(save.data) ? `Đã giao đề chung cho ${save.data.length} học viên.` : 'Đã giao bài cho học viên.'}
+      </p>}
+      <button form="assign-homework" className={button} disabled={save.isPending || !canAssign}>
+        {save.isPending ? 'Đang giao…' : group ? 'Giao đề chung' : 'Giao bài'}
+      </button>
     </>}
   </section>;
 }
@@ -301,29 +437,63 @@ function ExercisePlayer({ assignmentId, exercise, onCompleted }) {
   </li>;
 }
 
-function HomeworkCard({ item, mentor, userId, refresh }) {
+function AuthoredQuestions({ id, questions, responses, onAnswer }) {
+  return <div className="space-y-3">
+    {questions.map((question, index) => <fieldset key={index} className="space-y-2 rounded-lg border border-card-border p-3">
+      <legend className="whitespace-pre-wrap break-words px-1 text-sm font-semibold">{index + 1}. {question.question}</legend>
+      {question.options.map((option, optionIndex) => <label key={optionIndex} className="flex items-start gap-2 text-sm">
+        <input className="mt-1 accent-primary" type="radio" name={`homework-${id}-${index}`}
+          checked={responses[index] === optionIndex} disabled={!onAnswer} required={Boolean(onAnswer)}
+          onChange={() => onAnswer?.(index, optionIndex)} />
+        <span className="break-words">{option}{question.correctOptionIndex === optionIndex && ' · Đáp án đúng'}</span>
+      </label>)}
+      {question.explanation && <p className={muted + ' whitespace-pre-wrap break-words'}>{question.explanation}</p>}
+    </fieldset>)}
+  </div>;
+}
+
+function HomeworkCard({ item, mentor, admin, userId, refresh, grading }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
-  const [link, setLink] = useState('');
+  const [mode, setMode] = useState('text');
+  const [file, setFile] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [now] = useState(() => Date.now());
+  const isQuiz = item.assignmentType === 'MultipleChoice';
+  const isSpeaking = item.assignmentType === 'Speaking';
+  const questions = item.questions ?? [];
+  const quizReady = questions.length > 0 && questions.every((_, index) => Number.isInteger(answers[index]));
   const submit = useMutation({
-    mutationFn: () => submitHomework(item.id, { textContent: text.trim() || null, fileUrl: link.trim() || null }),
+    mutationFn: () => {
+      if (isQuiz) return submitHomework(item.id, { selectedOptions: questions.map((_, index) => answers[index]) });
+      if (isSpeaking) return submitHomeworkAudio(item.id, file);
+      if (mode === 'scan') return submitHomeworkScan(item.id, file);
+      return submitHomework(item.id, { textContent: text.trim() || null });
+    },
     onSuccess: refresh,
   });
   const submission = item.submission ?? submit.data;
   const due = item.dueAt && asUtc(item.dueAt);
-  const late = due && (submission ? asUtc(submission.submittedAt) : new Date()) > due;
-  const canSubmit = !mentor && !submission && item.status === 'Assigned';
+  const late = due && (submission ? asUtc(submission.submittedAt).getTime() : now) > due.getTime();
+  const canSubmit = !mentor && !admin && !submission && item.status === 'Assigned';
   const completed = item.exercises.filter(exercise => exercise.scorePercent != null).length;
-  const status = submission ? (late ? 'Đã nộp muộn' : 'Đã nộp')
+  const status = submission?.grade ? 'Đã chấm' : submission ? (late ? 'Đã nộp muộn' : 'Chờ chấm')
     : item.status !== 'Assigned' ? 'Đã đóng' : late ? 'Quá hạn' : 'Chưa nộp';
   const attachment = submission?.fileUrl && /^https:\/\//i.test(submission.fileUrl) ? submission.fileUrl : null;
+  const gradeDraft = grading?.draft?.submissionId === submission?.id ? grading?.draft : null;
+  let answerReady = Boolean(text.trim()) || (item.assignmentType !== 'Writing' && completed > 0);
+  if (isQuiz) answerReady = quizReady;
+  else if (isSpeaking || mode === 'scan') answerReady = Boolean(file) && file.size <= (isSpeaking ? 5 : 10) * 1024 * 1024;
 
   return <li className={card}>
     <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}
       className="flex w-full items-start justify-between gap-3 text-left">
       <span className="min-w-0">
         <span className="block break-words font-semibold">{item.title}</span>
-        <span className={muted}>{mentor ? item.learnerName : item.mentorName}{due ? ' · Hạn ' + dateLabel(item.dueAt) : ''}</span>
+        <span className={muted}>{mentor || admin ? item.learnerName : item.mentorName}
+          {item.assignmentType && ` · ${homeworkTypes[item.assignmentType]} · ${item.jlptLevel}`}
+          {due ? ' · Hạn ' + dateLabel(item.dueAt) : ''}
+          {gradeDraft && ' · Có bản nháp AI'}</span>
       </span>
       <span className={'shrink-0 rounded-full px-3 py-1 text-xs font-semibold ' +
         (late ? 'bg-amber-100 text-amber-800' : submission ? 'bg-emerald-50 text-emerald-800' : 'bg-primary-light text-primary')}>
@@ -332,10 +502,11 @@ function HomeworkCard({ item, mentor, userId, refresh }) {
     </button>
     {open && <div className="mt-4 space-y-4 border-t border-card-border pt-4">
       {item.instructions && <p className="whitespace-pre-wrap break-words text-sm">{item.instructions}</p>}
+      {isQuiz && !canSubmit && <AuthoredQuestions id={item.id} questions={questions} responses={submission?.selectedOptions ?? []} />}
       {item.lessons.length > 0 && <section>
         <h3 className="mb-2 font-semibold">Bài học được giao</h3>
         <ul className="space-y-2">
-          {item.lessons.map(lesson => mentor
+          {item.lessons.map(lesson => mentor || admin
             ? <li className={muted} key={lesson.id}>{lesson.title} · {lesson.level}</li>
             : <AssignedLesson key={lesson.id} lesson={lesson} assignmentId={item.id} userId={userId} />)}
         </ul>
@@ -354,35 +525,66 @@ function HomeworkCard({ item, mentor, userId, refresh }) {
         <p className={muted}>Đã nộp lúc {dateLabel(submission.submittedAt)}</p>
         {submission.textContent && <p className="whitespace-pre-wrap break-words text-sm">{submission.textContent}</p>}
         {attachment && <a href={attachment} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary underline">Mở liên kết bài nộp</a>}
+        {submission.hasScan && <HomeworkScan id={item.id} />}
+        {submission.hasAudio && <HomeworkScan id={item.id} audio />}
       </section>}
+      {submission?.grade && <section className="space-y-2 rounded-xl bg-primary-light p-3">
+        <h3 className="font-semibold">Điểm mentor gửi · {percentage.format(submission.grade.score)}/100</h3>
+        <p className="whitespace-pre-wrap break-words text-sm">{submission.grade.feedback}</p>
+        <HomeworkCorrectionList corrections={submission.grade.corrections} />
+      </section>}
+      {mentor && submission && <HomeworkGrading key={`${submission.id}-${gradeDraft ? grading.run : 0}`}
+        id={item.id} submission={submission} refresh={refresh} draft={gradeDraft} />}
       {canSubmit && <form className="space-y-3 rounded-xl bg-primary-light p-3" onSubmit={event => {
         event.preventDefault();
         submit.mutate();
       }}>
-        <label className="block text-sm font-medium">Nội dung bài nộp
-          <textarea rows={3} maxLength={20000} className={field + ' mt-1'} value={text} onChange={event => setText(event.target.value)} />
+        {isQuiz && <AuthoredQuestions id={item.id} questions={questions} responses={answers}
+          onAnswer={(index, option) => setAnswers(current => ({ ...current, [index]: option }))} />}
+        {isSpeaking && <label className="block text-sm font-medium">Bản thu âm WAV, MP3, M4A hoặc WEBM tối đa 5 MB
+          <input type="file" accept=".wav,.mp3,.m4a,.mp4,.webm,audio/*" required className={field + ' mt-1'}
+            onChange={event => setFile(event.target.files[0] ?? null)} />
+        </label>}
+        {!isQuiz && !isSpeaking && <><label className="block text-sm font-medium">Hình thức nộp
+          <select className={field + ' mt-1'} value={mode} onChange={event => { setMode(event.target.value); setFile(null); }}>
+            <option value="text">Viết trên hệ thống</option><option value="scan">Ảnh bài làm trên giấy</option>
+          </select>
         </label>
-        <label className="block text-sm font-medium">Đường dẫn bài nộp (HTTPS)
-          <input type="url" pattern="https://.+" maxLength={2000} className={field + ' mt-1'} value={link}
-            onChange={event => setLink(event.target.value)} />
-        </label>
+          {mode === 'text' ? <label className="block text-sm font-medium">Nội dung bài nộp
+            <textarea rows={3} maxLength={20000} className={field + ' mt-1'} value={text} onChange={event => setText(event.target.value)} />
+          </label> : <label className="block text-sm font-medium">Chọn ảnh JPG/PNG tối đa 10 MB
+            <input type="file" accept="image/jpeg,image/png" required className={field + ' mt-1'} onChange={event => setFile(event.target.files[0] ?? null)} />
+          </label>}
+        </>}
         {completed < item.exercises.length && <p className={muted}>Hãy hoàn thành tất cả bài luyện tập trước khi nộp bài về nhà.</p>}
         <ErrorMessage error={submit.error} />
-        <button className={button} disabled={submit.isPending || completed < item.exercises.length ||
-          (completed === 0 && !text.trim() && !link.trim())}>{submit.isPending ? 'Đang nộp…' : 'Nộp bài về nhà'}</button>
+        <button className={button} disabled={submit.isPending || completed < item.exercises.length || !answerReady}>
+          {submit.isPending ? 'Đang nộp…' : 'Nộp bài về nhà'}
+        </button>
       </form>}
     </div>}
   </li>;
 }
 
-export default function HomeworkPage({ mentor = false }) {
+export default function HomeworkPage({ mentor = false, admin = false }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const userId = user?.userId;
   const queryClient = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const [filter, setFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [drafts, setDrafts] = useState({});
+  const bookings = useQuery({ queryKey: ['homework', userId, 'bookings'], queryFn: getHomeworkBookings, retry: false });
+  const list = (bookings.data ?? []).filter(booking =>
+    (filter === '' || (filter === 'moved' ? booking.wasRescheduled : booking.status === filter)) &&
+    `${booking.learnerName} ${booking.mentorName} ${booking.bookingId}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const selected = list.find(booking => booking.bookingId === Number(params.get('bookingId'))) ?? (admin ? list[0] : null);
+  const bookingId = selected?.bookingId;
   const assignments = useQuery({
-    queryKey: ['homework', userId, 'assignments'],
-    queryFn: () => getHomework(),
+    queryKey: ['homework', userId, 'assignments', bookingId],
+    queryFn: () => getHomework(undefined, bookingId),
+    enabled: !admin || Boolean(bookingId),
     retry: false,
   });
   const learners = useQuery({
@@ -396,28 +598,58 @@ export default function HomeworkPage({ mentor = false }) {
     ...(learners.data ?? []).map(item => [item.learnerId, item]),
   ]).values()).sort((left, right) => left.learnerName.localeCompare(right.learnerName, 'vi'));
   const refresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['homework', userId, 'assignments'] }),
-      queryClient.invalidateQueries({ queryKey: ['homework', userId, 'report'] }),
-    ]);
+    await queryClient.invalidateQueries({ queryKey: ['homework', userId] });
   };
-  const Shell = mentor ? ConsultShell : LearnerShell;
+  function saveDrafts(results) {
+    const run = Date.now();
+    setDrafts(previous => ({
+      ...previous,
+      ...Object.fromEntries(results.filter(item => item.draft).map(item => [item.assignmentId, { draft: item.draft, run }])),
+    }));
+  }
+  const Shell = admin ? AdminShell : mentor ? ConsultShell : LearnerShell;
   return <Shell pathname={pathname} breadcrumb="Bài tập về nhà">
     <main data-page={mentor ? 'MentorHomework' : 'LearnerHomework'} className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 text-[#49353F] sm:px-6">
-      <header className={card}><h1 className="text-2xl font-bold">Bài tập về nhà</h1></header>
+      <header className={card}><h1 className="text-2xl font-bold">{admin ? 'Theo dõi ôn luyện với mentor' : 'Bài tập về nhà'}</h1></header>
+      <section className={card + ' space-y-3'}>
+        <h2 className="text-lg font-semibold">Lịch ôn luyện</h2>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="text-sm">Tìm theo tên hoặc mã lịch<input type="search" className={field} value={search}
+            onChange={event => { setSearch(event.target.value); setParams({}); }} /></label>
+          <label className="text-sm">Trạng thái lịch<select className={field} value={filter}
+            onChange={event => { setFilter(event.target.value); setParams({}); }}>
+            <option value="">Tất cả</option><option value="Assigned">Đã phân công</option><option value="Accepted">Đã xác nhận</option>
+            <option value="Completed">Đã hoàn thành</option><option value="moved">Đã chuyển lịch</option><option value="Cancelled">Đã hủy</option>
+          </select></label>
+          <label className="text-sm">Chọn lịch<select className={field} value={bookingId ?? ''}
+            onChange={event => setParams(event.target.value ? { bookingId: event.target.value } : {})}>
+            <option value="">{admin ? 'Chọn lịch ôn luyện' : 'Tất cả bài đã giao'}</option>
+            {list.map(item => <option key={item.bookingId} value={item.bookingId}>
+              #{item.bookingId} · {admin || mentor ? item.learnerName : item.mentorName} · {dateLabel(item.startsAt)}
+            </option>)}
+          </select></label>
+        </div>
+        {bookings.isPending && <p role="status" className={muted}>Đang tải lịch ôn luyện…</p>}
+        <ErrorMessage error={bookings.error} retry={bookings.refetch} />
+        {bookings.isSuccess && list.length === 0 && <p className={muted}>Chưa có lịch phù hợp.</p>}
+      </section>
+      {selected && <BookingHomeworkPanel key={selected.bookingId} booking={selected} userId={userId} role={admin ? 'admin' : mentor ? 'mentor' : 'learner'} refresh={refresh} />}
       {mentor && learners.isPending && <p role="status" className={muted}>Đang tải danh sách người học…</p>}
       {mentor && <ErrorMessage error={learners.error} retry={learners.refetch} />}
-      {mentor && learners.data && <AssignForm learners={learners.data} userId={userId} onCreated={refresh} />}
+      {mentor && learners.data && <AssignForm key={bookingId ?? 'all'} learners={learners.data} userId={userId} onCreated={refresh}
+        defaultBookingId={learners.data.some(item => item.bookingId === bookingId) ? String(bookingId) : ''} />}
+      {mentor && assignments.data && <HomeworkBatchGrading items={assignments.data} onDrafts={saveDrafts} />}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">{mentor ? 'Bài đã giao' : 'Bài mentor đã giao'}</h2>
-        {assignments.isPending && <p role="status" className={muted}>Đang tải bài tập…</p>}
+        {assignments.isFetching && <p role="status" className={muted}>Đang tải bài tập…</p>}
         <ErrorMessage error={assignments.error} retry={assignments.refetch} />
         {assignments.data?.length === 0 && <p className={card + ' ' + muted}>Chưa có bài tập về nhà.</p>}
         {assignments.data?.length > 0 && <ul className="space-y-3">
-          {assignments.data.map(item => <HomeworkCard key={item.id} item={item} mentor={mentor} userId={userId} refresh={refresh} />)}
+          {assignments.data.map(item => <HomeworkCard key={item.id} item={item} mentor={mentor} admin={admin}
+            userId={userId} refresh={refresh} grading={drafts[item.id]} />)}
         </ul>}
       </section>
-      <PeriodReport mentor={mentor} learners={reportLearners} userId={userId} />
+      {!admin && <PeriodReport mentor={mentor} learners={reportLearners} userId={userId} />}
     </main>
   </Shell>;
 }

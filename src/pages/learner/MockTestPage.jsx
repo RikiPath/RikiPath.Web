@@ -196,7 +196,7 @@ function MockResult({ result, userId, returnToList }) {
       </ul>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button className={button} type="button" onClick={() => setShowReview(value => !value)}>{showReview ? 'Ẩn câu sai' : 'Xem câu sai'}</button>
-        <Link className={linkClass} to="/exam-result/">Lịch sử thi thử</Link>
+        <Link className={linkClass} to="/exam-result/">Lịch sử và so sánh</Link>
         <button className={linkClass} type="button" onClick={returnToList}>Chọn đề khác</button>
       </div>
     </section>
