@@ -1,19 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { api } from '../../api/client.js';
-import { getWeeklyAvailability, saveWeeklyAvailability } from '../../api/mentorScheduleApi.js';
 import { getSession } from '../../auth/session.js';
 import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
 import { ConsultShell } from '../../components/shells';
 
 const TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-const PERIODS = [
-  { id: 'morning', api: 'Morning', label: 'Sáng', startHour: 8, endHour: 12, from: 5, to: 12 },
-  { id: 'afternoon', api: 'Afternoon', label: 'Chiều', startHour: 13, endHour: 17, from: 12, to: 17 },
-  { id: 'evening', api: 'Evening', label: 'Tối', startHour: 18, endHour: 22, from: 17, to: 24 },
-];
-const periodIdFromApi = (period) => PERIODS.find((item) => item.api === period)?.id || String(period || '').toLowerCase();
 
 const asDate = (iso) => new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`);
 
@@ -41,11 +34,6 @@ function clockParts(iso) {
 
 function hourInZone(iso) {
   return clockParts(iso).hour;
-}
-
-function periodOf(slot) {
-  const hour = hourInZone(slot.startTime);
-  return PERIODS.find((period) => hour >= period.from && hour < period.to)?.id || null;
 }
 
 function formatTime(iso) {
@@ -138,11 +126,8 @@ export default function MentorAvailability() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [weekOffset, setWeekOffset] = useState(1);
-  const [picks, setPicks] = useState({});
-  const [savedKeys, setSavedKeys] = useState([]);
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,48 +155,6 @@ export default function MentorAvailability() {
   const booked = weekSlots.filter(isBooked).length;
   const open = weekSlots.filter((slot) => slotStatus(slot) === 'Đang mở').length;
 
-  const saved = new Set(savedKeys);
-  const checked = (dayKey, periodId) => {
-    const key = `${dayKey}:${periodId}`;
-    if (Object.prototype.hasOwnProperty.call(picks, key)) return picks[key];
-    if (saved.has(key)) return true;
-    return (grouped[dayKey] || []).some((slot) => periodOf(slot) === periodId);
-  };
-
-  const selectedCount = week.reduce(
-    (count, day) => count + PERIODS.filter((period) => checked(day.key, period.id)).length,
-    0,
-  );
-
-  const toggle = (day, periodId) => {
-    if (day.past) return;
-    const existing = (grouped[day.key] || []).filter((slot) => periodOf(slot) === periodId);
-    if (existing.some(isBooked)) return;
-    const key = `${day.key}:${periodId}`;
-    setPicks((prev) => ({ ...prev, [key]: !checked(day.key, periodId) }));
-  };
-
-  const createSlot = async (dayKey, period) => {
-    const start = new Date(`${dayKey}T${String(period.startHour).padStart(2, '0')}:00:00+07:00`);
-    const end = new Date(`${dayKey}T${String(period.startHour).padStart(2, '0')}:50:00+07:00`);
-    if (preview) {
-      setSlots((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          isBooked: false,
-        },
-      ]);
-      return;
-    }
-    await api.post('/mentor/availability', {
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
-    });
-  };
-
   const removeSlot = async (slot) => {
     if (isBooked(slot)) return;
     if (preview) {
@@ -221,97 +164,10 @@ export default function MentorAvailability() {
     await api.post('/mentor/availability/request-cancel', { ids: [slot.id] });
   };
 
-  useEffect(() => {
-    if (preview) {
-      setSavedKeys([]);
-      return undefined;
-    }
-    let cancel = false;
-    getWeeklyAvailability(week[0].key)
-      .then((rows) => {
-        if (!cancel) {
-          setSavedKeys((rows || []).map((row) => `${String(row.date).slice(0, 10)}:${periodIdFromApi(row.period)}`));
-        }
-      })
-      .catch(() => {
-        if (!cancel) setSavedKeys([]);
-      });
-    return () => {
-      cancel = true;
-    };
-  }, [preview, week]);
-
-  const saveWeek = async () => {
-    setSaving(true);
-    setNotice('');
-    try {
-      if (preview) {
-        for (const day of week) {
-          if (day.past) continue;
-          for (const period of PERIODS) {
-            const existing = (grouped[day.key] || []).filter((slot) => periodOf(slot) === period.id);
-            const on = checked(day.key, period.id);
-            if (on && existing.length === 0) await createSlot(day.key, period);
-            if (!on) {
-              for (const slot of existing) await removeSlot(slot);
-            }
-          }
-        }
-        setPicks({});
-        setNotice('Đã lưu buổi rảnh của tuần này.');
-        return;
-      }
-      const nextWeek = weekDays(1);
-      if (week[0].key !== nextWeek[0].key) {
-        setNotice(`Chỉ đăng ký tuần sau (${rangeLabel(nextWeek)}), trước 18:00 thứ Sáu.`);
-        return;
-      }
-      const periods = week.flatMap((day) => (
-        day.past ? [] : PERIODS.filter((period) => checked(day.key, period.id)).map((period) => ({
-          date: day.key,
-          period: period.api,
-        }))
-      ));
-      if (periods.length < 3) {
-        setNotice('Chọn ít nhất 3 buổi trong tuần sau, rồi lưu.');
-        return;
-      }
-      await saveWeeklyAvailability({ weekStart: week[0].key, periods });
-      setPicks({});
-      await load();
-      const rows = await getWeeklyAvailability(week[0].key);
-      setSavedKeys((rows || []).map((row) => `${String(row.date).slice(0, 10)}:${periodIdFromApi(row.period)}`));
-      setNotice('Đã đăng ký buổi rảnh. Admin sẽ xếp các tiết 50 phút.');
-    } catch (err) {
-      setNotice(err.message || 'Không lưu được buổi rảnh.');
-      if (!preview) await load();
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const nowParts = clockParts(new Date().toISOString());
   const calendarEvents = week.flatMap((day) => {
     const daySlots = grouped[day.key] || [];
-    const periods = PERIODS.flatMap((period) => {
-      const slotsInPeriod = daySlots.filter((slot) => periodOf(slot) === period.id);
-      if (slotsInPeriod.length) return [];
-      const on = checked(day.key, period.id);
-      const locked = day.past || slotsInPeriod.some(isBooked);
-      return [{
-        id: `period-${day.key}-${period.id}`,
-        dayKey: day.key,
-        startHour: period.startHour,
-        endHour: period.startHour + (on ? 1 : 0),
-        endMinute: on ? 0 : 40,
-        title: on ? `${period.label} · đã chọn` : period.label,
-        tone: on ? 'selected' : 'ghost',
-        onClick: () => toggle(day, period.id),
-        disabled: locked || saving,
-        z: 1,
-      }];
-    });
-    const placed = daySlots.map((slot) => {
+    return daySlots.map((slot) => {
       const start = clockParts(slot.startTime);
       const end = clockParts(slot.endTime);
       return {
@@ -329,7 +185,6 @@ export default function MentorAvailability() {
         z: 3,
       };
     });
-    return [...periods, ...placed];
   });
 
   const closeSlot = async (slot) => {
@@ -338,7 +193,7 @@ export default function MentorAvailability() {
     try {
       await removeSlot(slot);
       if (!preview) await load();
-      setNotice('Đã đóng khung giờ trống.');
+      setNotice('Đã gửi yêu cầu đóng khung giờ trống.');
     } catch (err) {
       setNotice(err.message || 'Không đóng được khung giờ.');
     } finally {
@@ -376,14 +231,14 @@ export default function MentorAvailability() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => { setWeekOffset((value) => value - 1); setPicks({}); }}
+              onClick={() => setWeekOffset((value) => value - 1)}
               className={`h-9 rounded-full border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focusClass}`}
             >
               ← Tuần trước
             </button>
             <button
               type="button"
-              onClick={() => { setWeekOffset(0); setPicks({}); }}
+              onClick={() => setWeekOffset(0)}
               className={`h-9 rounded-full px-3 text-[12px] ${focusClass} ${
                 weekOffset === 0 ? 'bg-[#AD3155] text-white' : 'border border-[#E7DAE1] bg-white text-[#866777]'
               }`}
@@ -392,7 +247,7 @@ export default function MentorAvailability() {
             </button>
             <button
               type="button"
-              onClick={() => { setWeekOffset((value) => value + 1); setPicks({}); }}
+              onClick={() => setWeekOffset((value) => value + 1)}
               className={`h-9 rounded-full border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focusClass}`}
             >
               Tuần tới →
@@ -405,20 +260,17 @@ export default function MentorAvailability() {
             <span className="material-symbols-outlined text-[20px]">event_available</span>
           </span>
           <div className="min-w-[180px] flex-1">
-            <h2 className="text-[14px] font-semibold text-[#79465D]">Đăng ký buổi rảnh</h2>
+            <h2 className="text-[14px] font-semibold text-[#79465D]">Đăng ký ca dạy lặp theo chính sách Admin</h2>
             <p className="text-[12px] leading-5 text-[#A0788B]">
-              Bấm khung Sáng 8–12, Chiều 13–17 hoặc Tối 18–22. Chọn ít nhất 3 buổi của tuần sau, trước 18:00 thứ Sáu.
+              Hệ thống tạo khung giờ giảng dạy từ lịch ca lặp tuần và gửi Admin duyệt trên nguồn lịch chuẩn duy nhất.
             </p>
           </div>
-          <p className="text-[12px] text-[#8C6070]">Đã chọn {selectedCount} buổi</p>
-          <button
-            type="button"
-            onClick={saveWeek}
-            disabled={saving || loading}
-            className={`h-10 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50 ${focusClass}`}
+          <Link
+            to="/mentor-shift-schedule"
+            className={`inline-flex h-10 items-center rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
           >
-            {saving ? 'Đang lưu…' : 'Lưu đăng ký tuần'}
-          </button>
+            Mở ca làm việc
+          </Link>
         </section>
 
         {notice ? (

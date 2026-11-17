@@ -14,7 +14,11 @@ import {
   resolveAdminMentorDispute,
   updateAdminMentorDisputeStatus,
   getAdminMentorQualityMetrics,
+  getCurrentMentorGroupPolicy,
+  getMentorGroupPolicyHistory,
+  createMentorGroupPolicyVersion,
 } from '../src/api/admin.js';
+import * as mentorScheduleApi from '../src/api/mentorScheduleApi.js';
 
 import {
   getCreditBalance,
@@ -328,6 +332,27 @@ describe('Web Admin Operations API contract endpoints', () => {
     assert.equal(lastRequest.method, 'get');
     assert.equal(lastRequest.url, '/admin/mentor-quality/metrics');
     assert.deepEqual(lastRequest.params, { page: 1 });
+  });
+
+  it('calls canonical Admin Group Policy endpoints and omits retired 50-minute weekly write APIs', async () => {
+    await getCurrentMentorGroupPolicy();
+    assert.equal(lastRequest.method, 'get');
+    assert.equal(lastRequest.url, '/admin/mentor-group-policies/current');
+
+    await getMentorGroupPolicyHistory();
+    assert.equal(lastRequest.method, 'get');
+    assert.equal(lastRequest.url, '/admin/mentor-group-policies');
+
+    const payload = { expectedCurrentVersion: 1, maxLearners: 4, sessionMinutes: 90, restMinutes: 15 };
+    await createMentorGroupPolicyVersion(payload);
+    assert.equal(lastRequest.method, 'post');
+    assert.equal(lastRequest.url, '/admin/mentor-group-policies');
+    assert.deepEqual(lastRequest.data, payload);
+
+    assert.equal(mentorScheduleApi.saveWeeklyAvailability, undefined);
+    assert.equal(mentorScheduleApi.assignWeeklySlots, undefined);
+    assert.equal(mentorScheduleApi.publishWeeklySchedule, undefined);
+    assert.equal(typeof mentorScheduleApi.getWeeklyAvailability, 'function');
   });
 });
 

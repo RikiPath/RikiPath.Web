@@ -1,18 +1,13 @@
 import { useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdminShell } from '../../components/shells';
 import { api } from '../../api/client.js';
+import { getPendingMentorSlots, reviewMentorSlot, reviewMentorSlotCancels, reviewMentorSlots } from '../../api/admin.js';
 import WeekTimeGrid from '../../components/consultation/WeekTimeGrid.jsx';
-import { assignWeeklySlots, getWeeklyAvailability, publishWeeklySchedule } from '../../api/mentorScheduleApi.js';
+import { getWeeklyAvailability } from '../../api/mentorScheduleApi.js';
 
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
-const PERIODS = {
-  Morning: { label: 'Sáng', hour: 8 },
-  Afternoon: { label: 'Chiều', hour: 13 },
-  Evening: { label: 'Tối', hour: 18 },
-};
-const PERIOD_ORDER = ['Morning', 'Afternoon', 'Evening'];
 const DAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const MENTOR_COLORS = [
   'border-l-4 border-[#AD3155] bg-[#FCE8F0] text-[#8B2344]',
@@ -83,39 +78,30 @@ function pretty(key) {
   return `${day}/${month}/${year}`;
 }
 
-function slotHour(hour) {
-  return `${String(hour).padStart(2, '0')}:00`;
-}
-
-function dayName(key) {
-  const [year, month, day] = String(key).slice(0, 10).split('-').map(Number);
-  const noon = new Date(Date.UTC(year, month - 1, day, 12));
-  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short' }).format(noon);
-  return { Mon: 'T2', Tue: 'T3', Wed: 'T4', Thu: 'T5', Fri: 'T6', Sat: 'T7', Sun: 'CN' }[weekday] || '';
-}
-
-function byDate(periods) {
-  const map = new Map();
-  periods.forEach((row) => {
-    const key = String(row.date).slice(0, 10);
-    map.set(key, [...(map.get(key) || []), row]);
-  });
-  return [...map.entries()];
+function formatRange(startIso, endIso) {
+  const start = vnClock(startIso);
+  const end = vnClock(endIso);
+  return `${pretty(vnDayKey(startIso))} · ${String(start.hour).padStart(2, '0')}:${String(start.minute).padStart(2, '0')}–${String(end.hour).padStart(2, '0')}:${String(end.minute).padStart(2, '0')}`;
 }
 
 export default function AdminMentorSchedules({ embedded = false }) {
   const { pathname } = useLocation();
   const client = useQueryClient();
-  const [weekOffset, setWeekOffset] = useState(1);
+  const [weekOffset, setWeekOffset] = useState(0);
   const [mentorId, setMentorId] = useState('');
-  const [picks, setPicks] = useState({});
+  const [picked, setPicked] = useState([]);
+  const [rejectReason, setRejectReason] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const weekStart = mondayKey(weekOffset);
   const weekEnd = addDays(weekStart, 6);
-  const registrations = useQuery({
+  const historicalWeekly = useQuery({
     queryKey: ['admin-weekly-availability', weekStart],
     queryFn: () => getWeeklyAvailability(weekStart),
+  });
+  const pendingSlotsQuery = useQuery({
+    queryKey: ['admin-pending-slots'],
+    queryFn: getPendingMentorSlots,
   });
   const slots = useQuery({
     queryKey: ['admin-mentor-availabilities'],
@@ -125,203 +111,174 @@ export default function AdminMentorSchedules({ embedded = false }) {
     const day = vnDayKey(slot.startTime);
     return day >= weekStart && day <= weekEnd && (!mentorId || String(slot.mentorId) === String(mentorId));
   }), [slots.data, weekStart, weekEnd, mentorId]);
-  const visibleRegistrations = (registrations.data || []).filter((row) => !mentorId || String(row.mentorId) === String(mentorId));
-  const groups = useMemo(() => {
+  const pendingSlots = useMemo(() => (Array.isArray(pendingSlotsQuery.data) ? pendingSlotsQuery.data : [])
+    .filter((slot) => !mentorId || String(slot.mentorId) === String(mentorId)), [pendingSlotsQuery.data, mentorId]);
+  const cancelRequests = useMemo(() => (slots.data || [])
+    .filter((slot) => slot.cancelRequestedAt && !slot.cancelRejectedAt && (!mentorId || String(slot.mentorId) === String(mentorId))),
+  [slots.data, mentorId]);
+  const mentorOptions = useMemo(() => {
     const map = new Map();
-    for (const row of visibleRegistrations) {
-      const list = map.get(row.mentorId) || [];
-      list.push(row);
-      map.set(row.mentorId, list);
-    }
-    return [...map.entries()].map(([id, periods]) => ({
-      id,
-      name: periods[0]?.mentorName || 'Cố vấn chưa cập nhật tên',
-      periods: periods.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period)),
-    }));
-  }, [visibleRegistrations]);
-  const assignedCount = (mentor) => weekSlots.filter((slot) => String(slot.mentorId) === String(mentor)).length;
-  const assignedIndexes = (row) => {
-    const hour = PERIODS[row.period]?.hour;
-    if (hour == null) return new Set();
-    return new Set(weekSlots
-      .filter((slot) => slot.mentorWeeklyAvailabilityId === row.id || (String(slot.mentorId) === String(row.mentorId) && vnDayKey(slot.startTime) === String(row.date).slice(0, 10)))
-      .map((slot) => vnHour(slot.startTime) - hour)
-      .filter((index) => index >= 0 && index <= 3));
-  };
+    [...(slots.data || []), ...(Array.isArray(pendingSlotsQuery.data) ? pendingSlotsQuery.data : [])].forEach((row) => {
+      if (row.mentorId && !map.has(String(row.mentorId))) {
+        map.set(String(row.mentorId), row.mentorName || `Cố vấn #${row.mentorId}`);
+      }
+    });
+    return [...map.entries()].map(([id, name]) => ({ id, name }));
+  }, [slots.data, pendingSlotsQuery.data]);
   const refresh = async () => {
+    setPicked([]);
     await Promise.all([
-      client.invalidateQueries({ queryKey: ['admin-weekly-availability', weekStart] }),
+      client.invalidateQueries({ queryKey: ['admin-pending-slots'] }),
       client.invalidateQueries({ queryKey: ['admin-mentor-availabilities'] }),
     ]);
   };
-  const assign = useMutation({
-    mutationFn: async (jobs) => {
-      for (const job of jobs) {
-        await assignWeeklySlots({ weeklyAvailabilityId: job.id, slotIndexes: job.slotIndexes });
-      }
-    },
-    onSuccess: async (_, jobs) => {
-      setPicks((current) => {
-        const next = { ...current };
-        jobs.forEach((job) => { next[job.id] = []; });
-        return next;
-      });
-      setError('');
-      setNotice('Đã xếp tiết. Tiết đang ở trạng thái nháp cho đến khi công bố tuần.');
-      await refresh();
-    },
-    onError: async (err) => {
-      setError(err.message || 'Không xếp được tiết.');
-      await refresh();
-    },
-  });
-  const publish = useMutation({
-    mutationFn: () => publishWeeklySchedule(weekStart),
+  const reviewOne = useMutation({
+    mutationFn: ({ id, approve }) => reviewMentorSlot(id, approve, approve ? undefined : rejectReason.trim()),
     onSuccess: async () => {
       setError('');
-      setNotice('Đã công bố lịch tuần. Cố vấn có thể xem các khung giờ đã mở.');
+      setNotice('Đã cập nhật trạng thái duyệt khung giờ.');
+      setRejectReason('');
       await refresh();
     },
-    onError: (err) => setError(err.message || 'Không công bố được lịch.'),
+    onError: (err) => setError(err.message || 'Không duyệt được khung giờ.'),
   });
-  const toggle = (id, index, locked) => {
-    if (locked) return;
-    setPicks((current) => {
-      const selected = new Set(current[id] || []);
-      if (selected.has(index)) selected.delete(index);
-      else selected.add(index);
-      return { ...current, [id]: [...selected] };
-    });
-  };
+  const reviewBulk = useMutation({
+    mutationFn: ({ ids, approve }) => reviewMentorSlots(ids, approve, approve ? undefined : rejectReason.trim()),
+    onSuccess: async () => {
+      setError('');
+      setNotice('Đã xử lý hàng loạt khung giờ chờ duyệt.');
+      setRejectReason('');
+      await refresh();
+    },
+    onError: (err) => setError(err.message || 'Không xử lý được khung giờ.'),
+  });
+  const reviewCancel = useMutation({
+    mutationFn: ({ ids, approve }) => reviewMentorSlotCancels(ids, approve, approve ? undefined : rejectReason.trim()),
+    onSuccess: async () => {
+      setError('');
+      setNotice('Đã xử lý yêu cầu hủy khung giờ.');
+      setRejectReason('');
+      await refresh();
+    },
+    onError: (err) => setError(err.message || 'Không xử lý được yêu cầu hủy.'),
+  });
+  const togglePick = (id) => setPicked((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
+  const busy = reviewOne.isPending || reviewBulk.isPending || reviewCancel.isPending;
 
   const body = (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold">Xếp lịch cho cố vấn</h1>
+          <h1 className="text-[22px] font-semibold">Duyệt & theo dõi lịch cố vấn</h1>
           <p className="mt-1 max-w-2xl text-[13px] leading-6 text-[#82737B]">
-            Cố vấn đăng ký thời gian rảnh. Tại đây chọn các khung giờ của lịch hiện có rồi công bố tuần. Giờ Việt Nam.
+            Cố vấn thiết lập ca dạy lặp theo chính sách Admin và gửi khung giờ chờ duyệt tại nguồn lịch chuẩn duy nhất.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={publish.isPending || registrations.isPending}
-          onClick={() => { setNotice(''); setError(''); publish.mutate(); }}
-          className={`h-10 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50 ${focus}`}
+        <Link
+          to="/admin/slot-review"
+          className={`inline-flex h-10 items-center rounded-xl border border-[#E7DAE1] bg-white px-4 text-[13px] font-medium text-[#705261] hover:bg-[#FFF6FA] ${focus}`}
         >
-          {publish.isPending ? 'Đang công bố…' : 'Công bố lịch tuần'}
-        </button>
+          Mở hàng chờ xử lý ({pendingSlots.length})
+        </Link>
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[14px] font-medium text-[#6E5360]">{pretty(weekStart)} – {pretty(weekEnd)}</p>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => { setWeekOffset((value) => value - 1); setPicks({}); }} className={`h-9 rounded-full border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focus}`}>← Tuần trước</button>
-          <button type="button" onClick={() => { setWeekOffset(1); setPicks({}); }} className={`h-9 rounded-full px-3 text-[12px] ${focus} ${weekOffset === 1 ? 'bg-[#AD3155] text-white' : 'border border-[#E7DAE1] bg-white text-[#866777]'}`}>Tuần sau</button>
-          <button type="button" onClick={() => { setWeekOffset((value) => value + 1); setPicks({}); }} className={`h-9 rounded-full border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focus}`}>Tuần tới →</button>
+          <button type="button" onClick={() => setWeekOffset((value) => value - 1)} className={`h-9 rounded-full border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focus}`}>← Tuần trước</button>
+          <button type="button" onClick={() => setWeekOffset(0)} className={`h-9 rounded-full px-3 text-[12px] ${focus} ${weekOffset === 0 ? 'bg-[#AD3155] text-white' : 'border border-[#E7DAE1] bg-white text-[#866777]'}`}>Tuần này</button>
+          <button type="button" onClick={() => setWeekOffset((value) => value + 1)} className={`h-9 rounded-full border border-[#E7DAE1] bg-white px-3 text-[12px] text-[#866777] ${focus}`}>Tuần tới →</button>
         </div>
       </div>
 
       <label className="block max-w-xs text-[12px] text-[#8C7782]">
-        Mentor
+        Cố vấn
         <select value={mentorId} onChange={(event) => setMentorId(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-[#E7DAE1] bg-white px-3 text-[13px]">
           <option value="">Tất cả</option>
-          {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          {mentorOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
         </select>
       </label>
 
-      {(error || registrations.error || slots.error) && (
-        <p role="alert" className="rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">{error || registrations.error?.message || slots.error?.message}</p>
+      {(error || pendingSlotsQuery.error || slots.error) && (
+        <p role="alert" className="rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">
+          {error || pendingSlotsQuery.error?.message || slots.error?.message}
+        </p>
       )}
-      {notice && <p className="rounded-xl bg-white px-4 py-3 text-[13px] text-[#2F6B45]">{notice}</p>}
+      {notice && <p className="rounded-xl bg-[#E7F6EC] px-4 py-3 text-[13px] text-[#1E5C36]">{notice}</p>}
 
-      <section>
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+      <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F0E7EC] px-4 py-3">
           <div>
-            <h2 className="text-[15px] font-semibold">Chọn tiết trong buổi rảnh</h2>
-            <p className="mt-1 text-[12px] text-[#82737B]">Bấm ô giờ để chọn. Lịch này dùng các khung 50 phút; công bố khi mỗi cố vấn có ít nhất 5 khung giờ.</p>
+            <h2 className="text-[15px] font-semibold">Khung giờ chờ Admin duyệt</h2>
+            <p className="mt-0.5 text-[12px] text-[#82737B]">Duyệt khung giờ theo chính sách Admin trước khi dùng cho tư vấn 1-1 hoặc lớp nhóm.</p>
           </div>
-          <div className="flex flex-wrap gap-2 text-[11px] text-[#8C7782]">
-            <span className="rounded-lg border border-[#E7DAE1] bg-white px-2 py-1">Trống</span>
-            <span className="rounded-lg bg-[#AD3155] px-2 py-1 text-white">Sẽ xếp</span>
-            <span className="rounded-lg bg-[#F3E4EA] px-2 py-1 text-[#8B2344]">Đã xếp</span>
-          </div>
+          {picked.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={busy} onClick={() => reviewBulk.mutate({ ids: picked, approve: true })} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50">
+                Duyệt {picked.length} khung
+              </button>
+              <button type="button" disabled={busy || !rejectReason.trim()} onClick={() => reviewBulk.mutate({ ids: picked, approve: false })} className="h-9 rounded-lg border border-[#E7DAE1] px-3 text-[12px] disabled:opacity-50">
+                Từ chối {picked.length} khung
+              </button>
+            </div>
+          )}
         </div>
-        {registrations.isPending && <p className="text-[13px] text-[#82737B]">Đang tải buổi rảnh…</p>}
-        {!registrations.isPending && !groups.length && (
-          <p className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-6 text-[13px] text-[#82737B]">Chưa có cố vấn đăng ký thời gian rảnh trong tuần này.</p>
+        {pendingSlotsQuery.isPending && <p className="px-4 py-4 text-[13px] text-[#82737B]">Đang tải khung giờ chờ duyệt…</p>}
+        {!pendingSlotsQuery.isPending && pendingSlots.length === 0 && (
+          <p className="px-4 py-6 text-[13px] text-[#82737B]">Không có khung giờ chờ duyệt.</p>
         )}
-        <div className="space-y-4">
-          {groups.map((group) => {
-            const placed = assignedCount(group.id);
-            const pending = group.periods.reduce((sum, row) => sum + (picks[row.id]?.length || 0), 0);
-            const jobs = group.periods
-              .map((row) => ({ id: row.id, slotIndexes: picks[row.id] || [] }))
-              .filter((job) => job.slotIndexes.length);
-            const saving = assign.isPending && assign.variables?.some((job) => jobs.some((item) => item.id === job.id));
-            return (
-              <article key={group.id} className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0E7EC] px-4 py-3">
-                  <div>
-                    <h3 className="text-[16px] font-semibold">{group.name}</h3>
-                    <p className={`mt-0.5 text-[12px] ${placed >= 5 ? 'text-[#2F6B45]' : 'text-[#8A5A10]'}`}>
-                      {placed} tiết đã xếp{placed >= 5 ? ' · đủ để công bố' : ` · còn thiếu ${5 - placed}`}
-                      {pending ? ` · đang chọn ${pending}` : ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={assign.isPending || !jobs.length}
-                    onClick={() => { setNotice(''); setError(''); assign.mutate(jobs); }}
-                    className={`h-10 rounded-xl px-4 text-[13px] font-medium ${focus} ${jobs.length ? 'bg-[#AD3155] text-white hover:bg-[#982B4B]' : 'bg-[#F6F1F3] text-[#B09AA4]'}`}
-                  >
-                    {saving ? 'Đang xếp…' : pending ? `Xếp ${pending} tiết` : 'Chưa chọn tiết'}
-                  </button>
-                </div>
-                <div className="divide-y divide-[#F3EDF0]">
-                  {byDate(group.periods).map(([date, rows]) => (
-                    <div key={date} className="grid gap-3 px-4 py-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:items-start">
-                      <div>
-                        <p className="text-[13px] font-semibold">{dayName(date)} {pretty(date).slice(0, 5)}</p>
-                      </div>
-                      <div className="space-y-3">
-                        {rows.map((row) => {
-                          const period = PERIODS[row.period] || { label: row.period, hour: 8 };
-                          const taken = assignedIndexes(row);
-                          const selected = picks[row.id] || [];
-                          return (
-                            <div key={row.id} className="grid grid-cols-[52px_minmax(0,1fr)] items-center gap-2">
-                              <p className="text-[12px] text-[#8C7782]">{period.label}</p>
-                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                {[0, 1, 2, 3].map((index) => {
-                                  const locked = taken.has(index);
-                                  const on = selected.includes(index);
-                                  return (
-                                    <button
-                                      key={index}
-                                      type="button"
-                                      disabled={locked || assign.isPending}
-                                      aria-pressed={locked || on}
-                                      onClick={() => toggle(row.id, index, locked)}
-                                      className={`h-10 rounded-lg text-[13px] font-medium ${focus} ${locked ? 'bg-[#F3E4EA] text-[#8B2344]' : on ? 'bg-[#AD3155] text-white' : 'border border-[#E7DAE1] bg-white text-[#49353F] hover:border-[#AD3155]'}`}
-                                    >
-                                      {slotHour(period.hour + index)}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        {pendingSlots.map((slot) => (
+          <div key={slot.id} className="flex flex-wrap items-center gap-3 border-b border-[#F3EDF0] px-4 py-3 last:border-b-0">
+            <input type="checkbox" checked={picked.includes(slot.id)} onChange={() => togglePick(slot.id)} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold">{slot.mentorName || `Cố vấn #${slot.mentorId}`}</p>
+              <p className="text-[12px] text-[#82737B]">{formatRange(slot.startTime, slot.endTime)} · Sức chứa tối đa {slot.maxLearners ?? 1}</p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" disabled={busy} onClick={() => reviewOne.mutate({ id: slot.id, approve: true })} className="h-8 rounded-lg bg-[#AD3155] px-3 text-[12px] text-white disabled:opacity-50">Duyệt</button>
+              <button type="button" disabled={busy || !rejectReason.trim()} onClick={() => reviewOne.mutate({ id: slot.id, approve: false })} className="h-8 rounded-lg border border-[#E7DAE1] px-3 text-[12px] disabled:opacity-50">Từ chối</button>
+            </div>
+          </div>
+        ))}
+        {pendingSlots.length > 0 && (
+          <div className="border-t border-[#F0E7EC] bg-[#FFF8FB] px-4 py-3">
+            <label className="block text-[12px] text-[#6E5360]">
+              Lý do từ chối (nếu từ chối)
+              <input value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} maxLength={1000} placeholder="Nhập lý do từ chối..." className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] bg-white px-3 text-[13px]" />
+            </label>
+          </div>
+        )}
       </section>
+
+      <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
+        <div className="border-b border-[#F0E7EC] px-4 py-3">
+          <h2 className="text-[15px] font-semibold">Yêu cầu hủy khung giờ chờ Admin duyệt ({cancelRequests.length})</h2>
+          <p className="mt-0.5 text-[12px] text-[#82737B]">Mentor chỉ gửi yêu cầu hủy đối với lịch đang mở chưa gắn lớp nhóm hoặc học viên.</p>
+        </div>
+        {cancelRequests.length === 0 ? (
+          <p className="px-4 py-5 text-[13px] text-[#82737B]">Không có yêu cầu hủy khung giờ nào đang chờ duyệt.</p>
+        ) : (
+          cancelRequests.map((slot) => (
+            <div key={slot.id} className="flex flex-wrap items-center gap-3 border-b border-[#F3EDF0] px-4 py-3 last:border-b-0">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold">{slot.mentorName || `Cố vấn #${slot.mentorId}`}</p>
+                <p className="text-[12px] text-[#82737B]">{formatRange(slot.startTime, slot.endTime)}{slot.cancelReason ? ` · Lý do: ${slot.cancelReason}` : ''}</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" disabled={busy} onClick={() => reviewCancel.mutate({ ids: [slot.id], approve: true })} className="h-8 rounded-lg bg-[#AD3155] px-3 text-[12px] text-white disabled:opacity-50">Duyệt hủy</button>
+                <button type="button" disabled={busy || !rejectReason.trim()} onClick={() => reviewCancel.mutate({ ids: [slot.id], approve: false })} className="h-8 rounded-lg border border-[#E7DAE1] px-3 text-[12px] disabled:opacity-50">Từ chối hủy</button>
+              </div>
+            </div>
+          ))
+        )}
+      </section>
+
+      {Array.isArray(historicalWeekly.data) && historicalWeekly.data.length > 0 && (
+        <section className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-3">
+          <h2 className="text-[14px] font-semibold text-[#6E5360]">Dữ liệu lịch tuần lịch sử (chỉ đọc)</h2>
+          <p className="mt-0.5 text-[12px] text-[#82737B]">{historicalWeekly.data.length} bản ghi lịch tuần cũ được giữ nguyên để đối chiếu; không tạo ca 50 phút mới.</p>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-2 text-[15px] font-semibold">Tiết đã xếp trong tuần</h2>
@@ -350,7 +307,15 @@ export default function AdminMentorSchedules({ embedded = false }) {
                     endHour: end.hour,
                     endMinute: end.minute,
                     title: slot.mentorName || 'Cố vấn chưa cập nhật tên',
-                    detail: slot.isBooked ? 'Đã có buổi' : slot.isApproved ? 'Đang mở' : 'Nháp',
+                    detail: slot.isInCohort
+                      ? `Lớp #${slot.cohortId}`
+                      : slot.cancelRequestedAt && !slot.cancelRejectedAt
+                        ? 'Xin hủy'
+                        : slot.isBooked
+                          ? 'Đã có buổi'
+                          : slot.isApproved
+                            ? 'Đang mở'
+                            : 'Nháp',
                     className: MENTOR_COLORS[Math.max(mentors.indexOf(slot.mentorId), 0) % MENTOR_COLORS.length],
                   };
                 });

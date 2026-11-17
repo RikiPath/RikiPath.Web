@@ -166,3 +166,18 @@ export async function completeQaPayment(subscriptionId) {
   const data = await api.post(`/admin/qa-payments/${subscriptionId}/complete`);
   return data?.result ?? data;
 }
+
+export async function getCurrentMentorGroupPolicy() {
+  const data = await api.get('/admin/mentor-group-policies/current');
+  return data?.result ?? data;
+}
+
+export async function getMentorGroupPolicyHistory() {
+  const data = await api.get('/admin/mentor-group-policies');
+  return unwrapApiList(data);
+}
+
+export async function createMentorGroupPolicyVersion(payload) {
+  const data = await api.post('/admin/mentor-group-policies', payload);
+  return data?.result ?? data;
+}

@@ -8,7 +8,7 @@ import {
   isSupportedJlptLevel,
   normalizeJlptLevel,
   updateAdminMentorPlan,
-} from '../../api/mentorCompensationApi.js';
+} from '../../api/mentorGovernanceApi.js';
 
 const empty = {
   name: '',

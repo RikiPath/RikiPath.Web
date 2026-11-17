@@ -63,7 +63,7 @@ import {
   MentorShiftSchedule,
   MentorPublicProfile,
   MentorDisputes,
-  MentorCompensation,
+  MentorAttendanceKpi,
   MentorReviews,
 } from './pages/consultation';
 
@@ -235,7 +235,8 @@ export default function App() {
             <Route path={withSlash('/work-schedule')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><WorkSchedule /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-reply')} element={<Navigate to={withSlash('/mentor-reviews')} replace />} />
             <Route path={withSlash('/mentor-reviews')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorReviews /></ProtectedRoute>} />
-            <Route path={withSlash('/mentor-compensation')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorCompensation /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-attendance-kpi')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAttendanceKpi /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-compensation')} element={<Navigate to="/mentor-attendance-kpi" replace />} />
             <Route path={withSlash('/mentor-availability')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAvailability /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-profile')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorProfile /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><MentorShiftSchedule /></ProtectedRoute>} />
@@ -259,7 +260,9 @@ export default function App() {
             <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-verifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/mentor-compensation')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-qualifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-group-policy')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-compensation')} element={<Navigate to="/admin/mentor-quality" replace />} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/dashboard" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/dashboard')} element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path={withSlash('/admin/study-courses')} element={<ProtectedRoute requireAdmin><StudyCoursesPage role="Admin" /></ProtectedRoute>} />

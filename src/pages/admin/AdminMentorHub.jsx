@@ -4,7 +4,8 @@ import AdminConsultants from './AdminConsultants.jsx';
 import AdminMentorSchedules from './AdminMentorSchedules.jsx';
 import AdminMentorPlans from './AdminMentorPlans.jsx';
 import AdminMentorVerifications from './AdminMentorVerifications.jsx';
-import AdminMentorCompensation from './AdminMentorCompensation.jsx';
+import AdminMentorQualifications from './AdminMentorQualifications.jsx';
+import AdminMentorGroupPolicy from './AdminMentorGroupPolicy.jsx';
 
 const SECTIONS = [
   {
@@ -22,7 +23,7 @@ const SECTIONS = [
   {
     to: '/admin/mentor-schedules',
     label: 'Lịch tư vấn',
-    note: 'Xem lịch tư vấn đã công bố.',
+    note: 'Duyệt & theo dõi lịch cố vấn.',
     paths: ['/admin/mentor-schedules'],
   },
   {
@@ -32,10 +33,16 @@ const SECTIONS = [
     paths: ['/admin/mentor-plans'],
   },
   {
-    to: '/admin/mentor-compensation',
-    label: 'Thù lao & Kỳ lương',
-    note: 'Đơn giá giờ, hệ số JLPT, bảng kê và chi trả.',
-    paths: ['/admin/mentor-compensation'],
+    to: '/admin/mentor-qualifications',
+    label: 'Phân quyền JLPT',
+    note: 'Cấp hoặc thu hồi trình độ JLPT N5–N2 cho Cố vấn.',
+    paths: ['/admin/mentor-qualifications'],
+  },
+  {
+    to: '/admin/mentor-group-policy',
+    label: 'Chính sách lớp nhóm',
+    note: 'Sĩ số tối đa, cutoff, BTVN học lại & Placement.',
+    paths: ['/admin/mentor-group-policy'],
   },
 ];
 
@@ -48,7 +55,8 @@ export default function AdminMentorHub() {
   const current = cleanPath(pathname);
   const schedules = current === '/admin/mentor-schedules';
   const verifications = current === '/admin/mentor-verifications';
-  const compensation = current === '/admin/mentor-compensation';
+  const qualifications = current === '/admin/mentor-qualifications';
+  const groupPolicy = current === '/admin/mentor-group-policy';
 
   return (
     <AdminShell pathname={pathname} breadcrumb="Quản lý cố vấn">
@@ -61,7 +69,7 @@ export default function AdminMentorHub() {
             Quản lý cố vấn
           </h1>
           <p className="mt-1 text-[13px] text-[#82737B]">
-            Hồ sơ xét duyệt, lịch tư vấn, gói tư vấn theo JLPT N5–N2, kỳ lương và chi trả thù lao.
+            Hồ sơ xét duyệt, lịch tư vấn, gói tư vấn theo JLPT N5–N2 và phân quyền giảng dạy.
           </p>
         </header>
 
@@ -102,8 +110,10 @@ export default function AdminMentorHub() {
           <AdminMentorVerifications />
         ) : current === '/admin/mentor-plans' ? (
           <AdminMentorPlans />
-        ) : compensation ? (
-          <AdminMentorCompensation />
+        ) : qualifications ? (
+          <AdminMentorQualifications />
+        ) : groupPolicy ? (
+          <AdminMentorGroupPolicy />
         ) : schedules ? (
           <AdminMentorSchedules embedded />
         ) : (
