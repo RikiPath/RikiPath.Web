@@ -2,8 +2,11 @@ import axios from 'axios';
 import { getSession } from '../auth/session.js';
 import { apiBase } from '../config/backend.js';
 
+export const API_TIMEOUT_MS = 20000;
+
 export const api = axios.create({
   baseURL: apiBase,
+  timeout: API_TIMEOUT_MS,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
@@ -27,8 +30,17 @@ function flattenErrors(errors) {
   return String(errors);
 }
 
-function toApiError(data, status, isNetwork) {
-  const payload = data && typeof data === 'object' ? data : null;
+function readCorrelationId(headers) {
+  if (!headers) return null;
+  if (typeof headers.get === 'function') {
+    const value = headers.get('x-correlation-id');
+    if (value) return String(value);
+  }
+  return headers['x-correlation-id'] || headers['X-Correlation-Id'] || null;
+}
+
+function toApiError(data, status, isNetwork, extra = {}) {
+  const payload = data && typeof data === 'object' && !(typeof Blob !== 'undefined' && data instanceof Blob) ? data : null;
   const message =
     payload?.errorMessage ||
     (typeof payload?.error === 'string' ? payload.error : '') ||
@@ -38,9 +50,14 @@ function toApiError(data, status, isNetwork) {
       ? 'Không kết nối được API. Kiểm tra backend đang chạy tại cổng 5265.'
       : `Không gọi được API (${status || 'lỗi'})`);
   const err = new Error(message);
-  err.status = status;
+  err.status = status ?? payload?.statusCode ?? undefined;
+  err.errorCode = payload?.errorCode || null;
   err.errors = payload?.errors;
   err.data = data;
+  err.correlationId = extra.correlationId || null;
+  err.isNetwork = Boolean(isNetwork);
+  err.isTimeout = Boolean(extra.isTimeout);
+  if (extra.code) err.code = extra.code;
   return err;
 }
 
@@ -48,9 +65,16 @@ api.interceptors.response.use(
   (response) => {
     const data = response.data;
     if (data?.isSuccess === false) {
-      throw toApiError(data, response.status, false);
+      throw toApiError(data, response.status, false, { correlationId: readCorrelationId(response.headers) });
     }
     return data;
   },
-  (error) => Promise.reject(toApiError(error.response?.data, error.response?.status, !error.response)),
+  (error) =>
+    Promise.reject(
+      toApiError(error.response?.data, error.response?.status, !error.response, {
+        correlationId: readCorrelationId(error.response?.headers),
+        isTimeout: error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT',
+        code: error.code,
+      }),
+    ),
 );

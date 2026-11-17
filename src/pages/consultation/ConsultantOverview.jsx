@@ -20,7 +20,7 @@ const SHORTCUTS = [
   { to: '/consultation-prep', label: 'Chuẩn bị buổi' },
   { to: '/mentor-chat', label: 'Tin nhắn' },
   { to: '/mentor-reviews', label: 'Đánh giá' },
-  { to: '/mentor-compensation', label: 'Thù lao' },
+  { to: '/mentor-attendance-kpi', label: 'Chấm công & KPI' },
 ];
 
 function upcoming(bookings) {

@@ -127,7 +127,7 @@ const MENU_GROUPS = [
     items: [
       { to: '/plans', label: 'Gói ôn luyện', icon: 'shopping_bag', alsoActive: ['/study-payment'] },
       { to: '/payments', label: 'Thanh toán', icon: 'payments', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
-      { to: '/my-courses', label: 'Gói học & lớp', icon: 'school' },
+      { to: '/my-courses', label: 'Lớp học & Khóa JLPT', icon: 'school' },
       {
         to: '/ai-counselor',
         label: 'Trợ lý Haru',

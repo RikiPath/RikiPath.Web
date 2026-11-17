@@ -1,6 +1,8 @@
 import ManualContentPage from './pages/content-author/ManualContentPage.jsx';
 import MentorGrading from './pages/consultation/MentorGrading.jsx';
 import HomeworkPage from './pages/learner/HomeworkPage.jsx';
+import StudyCoursesPage from './pages/StudyCoursesPage.jsx';
+import AdminStudyCatalog from './pages/admin/AdminStudyCatalog.jsx';
 import MentorPayments from './pages/consultation/MentorPayments.jsx';
 import { useContext, useEffect, useRef } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -65,8 +67,9 @@ import {
   MentorProfile,
   MentorPublicProfile,
   MentorDisputes,
-  MentorCompensation,
+  MentorAttendanceKpi,
   MentorReviews,
+  MentorShiftSchedule,
 } from './pages/consultation';
 
 // —— CMS ——
@@ -248,9 +251,12 @@ export default function App() {
             <Route path={withSlash('/work-schedule')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><WorkSchedule /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-homework')} element={<ProtectedRoute allowedRoles={['Mentor']}><HomeworkPage mentor /></ProtectedRoute>} />
             <Route path={withSlash('/consultation-reply')} element={<Navigate to={withSlash('/mentor-reviews')} replace />} />
+            <Route path={withSlash('/mentor-reviews')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorReviews /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-attendance-kpi')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAttendanceKpi /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-compensation')} element={<Navigate to="/mentor-attendance-kpi" replace />} />
             <Route path={withSlash('/mentor-availability')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorAvailability /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-profile')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorProfile /></ProtectedRoute>} />
-            <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><Navigate to={withSlash('/mentor-availability')} replace /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-shift-schedule')} element={<ProtectedRoute allowedRoles={['Mentor']}><MentorShiftSchedule /></ProtectedRoute>} />
             <Route path={withSlash('/mentor-disputes')} element={<ProtectedRoute allowedRoles={['Mentor', 'Admin']}><MentorDisputes /></ProtectedRoute>} />
 
             {/* ========== CMS STUDIO (Tác giả nội dung & Admin) ========== */}
@@ -271,6 +277,9 @@ export default function App() {
             {/* ========== ADMIN (Quản trị hệ thống) ========== */}
             <Route path={withSlash('/admin/mentor-schedules')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-plans')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-qualifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-group-policy')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/mentor-compensation')} element={<Navigate to="/admin/mentor-quality" replace />} />
             <Route path={withSlash('/admin/mentor-homework')} element={<ProtectedRoute requireAdmin><HomeworkPage admin /></ProtectedRoute>} />
             <Route path={withSlash('/admin')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/dashboard" replace /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
@@ -288,20 +297,18 @@ export default function App() {
             <Route path={withSlash('/placement/result/:attemptId')} element={<ProtectedRoute allowedRoles={['Learner']}><PlacementResult /></ProtectedRoute>} />
             <Route path={withSlash('/grammar')} element={(<GrammarBank />)} />
             <Route path={withSlash('/consultation-records')} element={<ProtectedRoute allowedRoles={['Learner']}><LearnerRecords /></ProtectedRoute>} />
-            <Route path={withSlash('/consultation-reply')} element={<Navigate to={withSlash('/mentor-reviews')} replace />} />
-            <Route path={withSlash('/mentor-compensation')} element={<ProtectedRoute allowedRoles={['Mentor', 'Consultant', 'Admin']}><MentorCompensation /></ProtectedRoute>} />
             <Route path={withSlash('/admin/dashboard')} element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-verifications')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/mentor-compensation')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/certificate-sections')} element={<ProtectedRoute requireAdmin><AdminCertificateSections /></ProtectedRoute>} />
             <Route path={withSlash('/admin/slot-review')} element={<ProtectedRoute requireAdmin><AdminSlotReview /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-cases')} element={<ProtectedRoute requireAdmin><AdminMentorCases /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-quality')} element={<ProtectedRoute requireAdmin><AdminMentorQuality /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentor-template')} element={<ProtectedRoute requireAdmin><AdminMentorTemplate /></ProtectedRoute>} />
-            <Route path={withSlash('/admin/study-courses')} element={<Navigate to={withSlash('/admin/mentor-plans')} replace />} />
-            <Route path={withSlash('/admin/study-catalog')} element={<Navigate to={withSlash('/admin/certificate-sections')} replace />} />
-            <Route path={withSlash('/mentor-study-courses')} element={<Navigate to={withSlash('/work-schedule')} replace />} />
-            <Route path={withSlash('/my-courses')} element={<Navigate to={withSlash('/plans')} replace />} />
+            {/* Group Learning (Task 05) — Cohort/khóa trọn gói vẫn là luồng chính */}
+            <Route path={withSlash('/admin/study-courses')} element={<ProtectedRoute requireAdmin><StudyCoursesPage role="Admin" /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/study-catalog')} element={<ProtectedRoute requireAdmin><AdminStudyCatalog /></ProtectedRoute>} />
+            <Route path={withSlash('/mentor-study-courses')} element={<ProtectedRoute allowedRoles={['Mentor']}><StudyCoursesPage role="Mentor" /></ProtectedRoute>} />
+            <Route path={withSlash('/my-courses')} element={<ProtectedRoute allowedRoles={['Learner']}><StudyCoursesPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

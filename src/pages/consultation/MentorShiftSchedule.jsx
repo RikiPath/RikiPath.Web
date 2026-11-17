@@ -3,13 +3,33 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { ConsultShell } from '../../components/shells';
 import {
-  disableMentorSlot,
+  deleteMyAvailabilitySlot,
+  getMyAvailabilitySlots,
   getMyMentorSchedule,
   previewMentorSlots,
+  previewTeachingConflicts,
   publishMentorSlots,
+  requestCancelAvailabilitySlots,
   updateMyMentorSchedule,
 } from '../../api/mentorScheduleManageApi.js';
+import { describeApiError } from '../../api/apiErrors.js';
+import ScheduleConflictList from '../../components/studyCourses/ScheduleConflictList.jsx';
 import { vietnamDate } from '../../utils/vietnamDate.js';
+
+const CONFLICT_DEBOUNCE_MS = 400;
+const errText = (err) => describeApiError(err).message;
+
+/** Khung giờ Việt Nam (UTC+7, không DST) → ISO UTC. */
+function vnLocalToUtc(localDate, localTime) {
+  const value = new Date(`${localDate}T${String(localTime).slice(0, 5)}:00+07:00`);
+  return Number.isNaN(value.getTime()) ? null : value.toISOString();
+}
+
+function slotInterval(slot) {
+  const startUtc = slot.startUtc || slot.startTime || vnLocalToUtc(slot.localDate, slot.localStart);
+  const endUtc = slot.endUtc || slot.endTime || vnLocalToUtc(slot.localDate, slot.localEnd);
+  return startUtc && endUtc ? { startUtc, endUtc } : null;
+}
 
 const WEEKDAYS = [
   { id: 1, short: 'T2', label: 'Thứ hai' },
@@ -69,12 +89,18 @@ export default function MentorShiftSchedule() {
   const [published, setPublished] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [disableReason, setDisableReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [activeSlotId, setActiveSlotId] = useState(null);
 
   const query = useQuery({
     queryKey: ['my-mentor-schedule'],
     queryFn: getMyMentorSchedule,
+    retry: false,
+  });
+
+  const availabilityQuery = useQuery({
+    queryKey: ['my-availability-slots'],
+    queryFn: getMyAvailabilitySlots,
     retry: false,
   });
 
@@ -127,13 +153,13 @@ export default function MentorShiftSchedule() {
       setError('');
       setMessage('Đã lưu ca làm việc lặp theo tuần.');
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(errText(err)),
   });
 
   const previewMutation = useMutation({
     mutationFn: () => previewMentorSlots({ startDate: weekStart, endDate: weekEnd }),
     onSuccess: (data) => { setPreview(data); setError(''); setMessage('Đã xem trước khung 90 phút của tuần này.'); },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(errText(err)),
   });
 
   const publish = useMutation({
@@ -141,16 +167,70 @@ export default function MentorShiftSchedule() {
     onSuccess: (data) => {
       setPublished(data);
       setError('');
-      setMessage(`Đã công bố ${data.createdCount} khung giờ. Bỏ qua ${data.skippedExistingCount} khung đã có.`);
+      setMessage(`Đã gửi ${data.createdCount} khung giờ chờ Admin duyệt. Bỏ qua ${data.skippedExistingCount} khung đã có.`);
+      client.invalidateQueries({ queryKey: ['my-availability-slots'] });
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(errText(err)),
   });
 
-  const disable = useMutation({
-    mutationFn: (slotId) => disableMentorSlot(slotId, { reason: disableReason || null }),
-    onSuccess: () => { setError(''); setActiveSlotId(null); setMessage('Đã đóng khung giờ.'); },
-    onError: (err) => setError(err.message),
+  const removeSlot = useMutation({
+    mutationFn: (slotId) => deleteMyAvailabilitySlot(slotId),
+    onSuccess: () => {
+      setError('');
+      setActiveSlotId(null);
+      setCancelReason('');
+      setMessage('Đã xóa khung giờ chưa duyệt.');
+      client.invalidateQueries({ queryKey: ['my-availability-slots'] });
+    },
+    onError: (err) => setError(errText(err)),
   });
+
+  const requestCancel = useMutation({
+    mutationFn: ({ slotId, reason }) => requestCancelAvailabilitySlots([slotId], reason),
+    onSuccess: () => {
+      setError('');
+      setActiveSlotId(null);
+      setCancelReason('');
+      setMessage('Đã gửi yêu cầu hủy khung giờ lên Admin.');
+      client.invalidateQueries({ queryKey: ['my-availability-slots'] });
+    },
+    onError: (err) => setError(errText(err)),
+  });
+
+  // Khung mới dự kiến công bố (chưa tồn tại) → kiểm tra xung đột với lịch dạy hiện có (debounce).
+  const proposedIntervals = useMemo(
+    () => (preview?.slots || []).filter((slot) => !slot.isExisting).map(slotInterval).filter(Boolean),
+    [preview]
+  );
+  const intervalsKey = useMemo(() => JSON.stringify(proposedIntervals), [proposedIntervals]);
+  const [conflictReport, setConflictReport] = useState(null);
+
+  useEffect(() => {
+    if (proposedIntervals.length === 0) return undefined;
+    let alive = true;
+    const timer = setTimeout(() => {
+      previewTeachingConflicts(proposedIntervals)
+        .then((report) => {
+          if (alive) setConflictReport({ key: intervalsKey, conflicts: report?.conflicts || [], isValid: report?.isValid !== false, error: '' });
+        })
+        .catch((err) => {
+          if (alive) setConflictReport({ key: intervalsKey, conflicts: [], isValid: true, error: errText(err) });
+        });
+    }, CONFLICT_DEBOUNCE_MS);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [intervalsKey, proposedIntervals]);
+
+  const activeReport = proposedIntervals.length > 0 && conflictReport?.key === intervalsKey ? conflictReport : null;
+  const teachingConflicts = useMemo(() => activeReport?.conflicts || [], [activeReport]);
+  const checkingConflicts = proposedIntervals.length > 0 && !activeReport;
+  const hasTeachingConflict = teachingConflicts.length > 0 || activeReport?.isValid === false;
+  const conflictStarts = useMemo(
+    () => new Set(teachingConflicts.map((c) => new Date(c.proposedStartUtc).getTime()).filter((t) => !Number.isNaN(t))),
+    [teachingConflicts]
+  );
 
   const previewByDay = useMemo(() => {
     const map = new Map();
@@ -170,7 +250,44 @@ export default function MentorShiftSchedule() {
     return map;
   }, [published]);
 
-  const activeSlot = (published?.publishedSlots || []).find((slot) => slot.availabilityId === activeSlotId);
+  const slotById = useMemo(() => {
+    const map = new Map();
+    (availabilityQuery.data || []).forEach((s) => map.set(s.id, s));
+    return map;
+  }, [availabilityQuery.data]);
+
+  const activePublished = (published?.publishedSlots || []).find((slot) => slot.availabilityId === activeSlotId);
+  const activeSlot = slotById.get(activeSlotId) || (activePublished
+    ? {
+        id: activePublished.availabilityId,
+        startTime: null,
+        endTime: null,
+        localLabel: `${activePublished.localDate} · ${clock(activePublished.localStart)}–${clock(activePublished.localEnd)}`,
+        isApproved: false,
+        rejectedAt: null,
+        isBooked: false,
+        bookedCount: 0,
+        isInCohort: false,
+        cohortId: null,
+        cancelRequestedAt: null,
+      }
+    : null);
+  const canDeleteActive = Boolean(
+    activeSlot &&
+    !activeSlot.isApproved &&
+    !activeSlot.rejectedAt &&
+    !activeSlot.isBooked &&
+    (activeSlot.bookedCount ?? 0) === 0 &&
+    !activeSlot.isInCohort
+  );
+  const canRequestCancelActive = Boolean(
+    activeSlot &&
+    activeSlot.isApproved &&
+    !activeSlot.isBooked &&
+    (activeSlot.bookedCount ?? 0) === 0 &&
+    !activeSlot.isInCohort &&
+    !activeSlot.cancelRequestedAt
+  );
   const missing = query.error?.status === 404;
   const hours = Array.from({ length: END_HOUR - START_HOUR }, (_, index) => START_HOUR + index);
   const gridHeight = hours.length * HOUR_HEIGHT;
@@ -192,8 +309,13 @@ export default function MentorShiftSchedule() {
             <button type="button" disabled={previewMutation.isPending} onClick={() => { setMessage(''); setError(''); previewMutation.mutate(); }} className={buttonClass}>
               {previewMutation.isPending ? 'Đang xem…' : 'Xem trước'}
             </button>
-            <button type="button" disabled={publish.isPending} onClick={() => { setMessage(''); setError(''); publish.mutate(); }} className="inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35">
-              {publish.isPending ? 'Đang công bố…' : 'Công bố tuần này'}
+            <button
+              type="button"
+              disabled={publish.isPending || hasTeachingConflict}
+              title={hasTeachingConflict ? 'Còn xung đột lịch dạy – vui lòng điều chỉnh ca trước khi gửi duyệt.' : undefined}
+              onClick={() => { if (hasTeachingConflict) return; setMessage(''); setError(''); publish.mutate(); }}
+              className="inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35">
+              {publish.isPending ? 'Đang gửi duyệt…' : 'Gửi Admin duyệt tuần này'}
             </button>
           </div>
         </div>
@@ -210,20 +332,77 @@ export default function MentorShiftSchedule() {
           {missing && <span>Chưa có mẫu lịch.</span>}
           {preview && <span>{preview.newSlotsCount} khung mới · {preview.conflictSlotsCount} xung đột</span>}
         </div>
-        {query.error && !missing && <p role="alert" className="mb-2 rounded-xl bg-[#FCF4F8] px-4 py-2 text-[13px] text-[#A33357]">{query.error.message}</p>}
+        {query.error && !missing && <p role="alert" className="mb-2 rounded-xl bg-[#FCF4F8] px-4 py-2 text-[13px] text-[#A33357]">{errText(query.error)}</p>}
         {(message || error) && (
           <p role={error ? 'alert' : 'status'} className={`mb-2 rounded-xl px-4 py-2 text-[13px] ${error ? 'bg-[#FCF4F8] text-[#A33357]' : 'bg-[#E7F6EC] text-[#1E5C36]'}`}>
             {error || message}
           </p>
         )}
+        {checkingConflicts && (
+          <p role="status" className="mb-2 text-[12px] text-[#927B88]">Đang kiểm tra xung đột với lịch dạy hiện có…</p>
+        )}
+        {activeReport?.error && (
+          <p role="status" className="mb-2 rounded-xl bg-[#FFF6E8] px-4 py-2 text-[13px] text-[#8A5A10]">
+            Chưa kiểm tra được xung đột lịch dạy: {activeReport.error} Máy chủ vẫn kiểm tra lại khi bạn gửi duyệt.
+          </p>
+        )}
+        {teachingConflicts.length > 0 && (
+          <div className="mb-2">
+            <ScheduleConflictList
+              conflicts={teachingConflicts}
+              title={`Có ${teachingConflicts.length} khung giờ xung đột với lịch dạy hiện có – nút gửi duyệt tạm khóa`}
+              cohortLink={(cohortId) => `/mentor-study-courses?cohortId=${cohortId}`}
+            />
+          </div>
+        )}
 
         {activeSlot && (
-          <div className="mb-3 w-full max-w-sm rounded-2xl border border-[#EADFE5] bg-white p-3">
-            <p className="text-[13px] font-medium">{activeSlot.localDate} · {clock(activeSlot.localStart)}–{clock(activeSlot.localEnd)}</p>
-            <input value={disableReason} onChange={(event) => setDisableReason(event.target.value)} maxLength={500} placeholder="Lý do đóng khung" className="mt-2 w-full rounded-lg border border-[#E7DAE1] px-2 py-1.5 text-[13px] outline-none focus:ring-2 focus:ring-[#AD3155]/35" />
-            <div className="mt-2 flex gap-2">
-              <button type="button" disabled={disable.isPending} onClick={() => disable.mutate(activeSlot.availabilityId)} className="rounded-lg bg-[#AD3155] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50">Đóng khung</button>
-              <button type="button" onClick={() => setActiveSlotId(null)} className={buttonClass}>Hủy</button>
+          <div className="mb-3 w-full max-w-md rounded-2xl border border-[#EADFE5] bg-white p-3">
+            <p className="text-[13px] font-medium">
+              {activeSlot.localLabel || (activeSlot.startTime ? `${vietnamDate(0, new Date(activeSlot.startTime))} · ${new Date(activeSlot.startTime).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}–${new Date(activeSlot.endTime).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}` : `Khung #${activeSlot.id}`)}
+            </p>
+            <p className="mt-1 text-[12px] text-[#82737B]">
+              {activeSlot.isInCohort
+                ? `Khung giờ thuộc lớp nhóm #${activeSlot.cohortId}; điều chỉnh thông qua yêu cầu khóa học.`
+                : activeSlot.isBooked || (activeSlot.bookedCount ?? 0) > 0
+                  ? `Khung giờ đã có ${activeSlot.bookedCount || 1} học viên đặt; không thể xóa trực tiếp.`
+                  : activeSlot.cancelRequestedAt && !activeSlot.cancelRejectedAt
+                    ? 'Đang chờ Admin duyệt yêu cầu hủy.'
+                    : activeSlot.isApproved
+                      ? 'Khung giờ đã duyệt đang mở: bạn có thể gửi yêu cầu hủy lên Admin (cách giờ bắt đầu tối thiểu theo chính sách).'
+                      : 'Khung giờ đang chờ Admin duyệt: bạn có thể xóa trực tiếp trước khi duyệt.'}
+            </p>
+            {canRequestCancelActive && (
+              <input
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+                maxLength={1000}
+                placeholder="Lý do xin hủy khung giờ đã duyệt"
+                className="mt-2 w-full rounded-lg border border-[#E7DAE1] px-2 py-1.5 text-[13px] outline-none focus:ring-2 focus:ring-[#AD3155]/35"
+              />
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {canDeleteActive && (
+                <button
+                  type="button"
+                  disabled={removeSlot.isPending}
+                  onClick={() => removeSlot.mutate(activeSlot.id)}
+                  className="rounded-lg bg-[#AD3155] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50"
+                >
+                  Xóa khung giờ
+                </button>
+              )}
+              {canRequestCancelActive && (
+                <button
+                  type="button"
+                  disabled={requestCancel.isPending}
+                  onClick={() => requestCancel.mutate({ slotId: activeSlot.id, reason: cancelReason.trim() })}
+                  className="rounded-lg bg-[#AD3155] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50"
+                >
+                  Gửi yêu cầu hủy
+                </button>
+              )}
+              <button type="button" onClick={() => { setActiveSlotId(null); setCancelReason(''); }} className={buttonClass}>Đóng</button>
             </div>
           </div>
         )}
@@ -277,7 +456,9 @@ export default function MentorShiftSchedule() {
                     const publishedSlot = publishedByKey.get(`${slot.localDate}-${clock(slot.localStart)}`);
                     const top = ((minutesOf(slot.localStart) - START_HOUR * 60) / 60) * HOUR_HEIGHT;
                     const height = Math.max(((minutesOf(slot.localEnd) - minutesOf(slot.localStart)) / 60) * HOUR_HEIGHT - 2, 18);
-                    const conflict = slot.hasConflict;
+                    const interval = slotInterval(slot);
+                    const teachingConflict = Boolean(interval && conflictStarts.has(new Date(interval.startUtc).getTime()));
+                    const conflict = slot.hasConflict || teachingConflict;
                     const tone = DAYPARTS.find((part) => part.code === slot.daypartCode)?.tone || DAYPARTS[0].tone;
                     return (
                       <button
@@ -288,7 +469,7 @@ export default function MentorShiftSchedule() {
                         style={{ top: top + 2, height }}
                       >
                         <span className="block truncate text-[11px] font-semibold">{clock(slot.localStart)}–{clock(slot.localEnd)}</span>
-                        {height > 28 && <span className="block truncate text-[10px] opacity-80">{conflict ? (slot.conflictReason || 'Xung đột') : slot.isExisting ? 'Đã có' : 'Khung 90 phút'}</span>}
+                        {height > 28 && <span className="block truncate text-[10px] opacity-80">{conflict ? (slot.conflictReason || (teachingConflict ? 'Trùng lịch dạy' : 'Xung đột')) : slot.isExisting ? 'Đã có' : 'Khung 90 phút'}</span>}
                       </button>
                     );
                   })}
