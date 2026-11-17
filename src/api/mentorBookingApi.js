@@ -30,7 +30,7 @@ function list(data) {
   return [];
 }
 
-export const getMeetingPlans = async (params) => list(await api.get('/mentor-meetings/plans', params ? { params } : undefined)).map((plan) => ({
+export const getMeetingPlans = async ({ jlptLevel } = {}) => list(await api.get('/mentor-meetings/plans', jlptLevel ? { params: { jlptLevel } } : undefined)).map((plan) => ({
   ...plan,
   name: readText(plan.name),
   description: readText(plan.description),
@@ -44,8 +44,7 @@ export const getMentorSlots = async (mentorId, from, to) => {
 
 export const getBookingMentors = async () => list(await api.get('/mentor-meetings/mentors'));
 
-export const purchaseMeeting = ({ subscriptionPlanId, frontendOrigin, jlptLevel }) =>
-  api.post('/mentor-meetings/purchase', { subscriptionPlanId, frontendOrigin, ...(jlptLevel ? { jlptLevel } : {}) }).then((data) => data.result);
+export const purchaseMeeting = async body => (await api.post('/mentor-meetings/purchase', body)).result;
 
 export const getPurchaseStatus = async (id) => (await api.get(`/mentor-meetings/purchases/${id}`)).result;
 
@@ -119,3 +118,9 @@ export const getMentorDisputes = async params =>
 // Mentor booking reads share this client with booking lifecycle operations.
 export const getMentorBookings = async () => (await api.get('/mentor-bookings')).result || [];
 export const getMentorBooking = async id => (await api.get(`/mentor-bookings/${id}`)).result;
+
+export const getMentorRecommendations = async (from, to) =>
+  (await api.get('/mentor-meetings/recommendations', { params: { from, to } })).result || [];
+export const getMentorRating = async bookingId => (await api.get(`/mentor-meetings/bookings/${bookingId}/rating`)).result;
+export const rateMentor = async (bookingId, rating) =>
+  (await api.put(`/mentor-meetings/bookings/${bookingId}/rating`, { rating })).result;

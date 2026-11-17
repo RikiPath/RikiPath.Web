@@ -12,6 +12,10 @@ export function loginWithGoogle(payload) {
   return api.post('/Auth/google', payload);
 }
 
+export function continueWithGoogle(credential, currentPassword) {
+  return api.post('/Auth/google', { credential, currentPassword });
+}
+
 export function verifyEmail(payload) {
   return api.post('/Auth/verify-email', payload);
 }

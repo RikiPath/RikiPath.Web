@@ -1,196 +1,132 @@
+import LessonContent from './LessonContent.jsx';
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
-import { getJlptLevels, getLearningLessons } from '../../api/lessons.js';
-import { useLearnerProfile } from '../../hooks/useLearnerHome.js';
-import { useLocale } from '../../i18n/locale.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
+import { getCertificateTypes, getLevelsByCertificate } from '../../api/certificateApi.js';
+import { getLessonCatalog } from '../../api/learningPathApi.js';
 
-const focus =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
+const levels = ['N5', 'N4', 'N3', 'N2'];
+const sections = {
+  lessons: { title: 'Bài luyện tập' },
+  listening: { title: 'Nghe hiểu', skill: 'Listening' },
+  reading: { title: 'Đọc hiểu', skill: 'Reading' },
+};
+const skillLabels = {
+  Vocabulary: 'Từ vựng', Grammar: 'Ngữ pháp', Kanji: 'Hán tự',
+  Reading: 'Đọc hiểu', Listening: 'Nghe hiểu',
+};
 
-const FILTERS = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'open', label: 'Chưa xong' },
-  { id: 'done', label: 'Đã hoàn thành' },
-];
-
-function matches(lesson, filter) {
-  if (filter === 'done') return lesson.isCompleted;
-  if (filter === 'open') return !lesson.isCompleted;
-  return true;
+async function loadJlptLevels() {
+  const types = await getCertificateTypes();
+  const jlpt = types.find(type => type.name?.trim().toUpperCase() === 'JLPT');
+  return jlpt ? getLevelsByCertificate(jlpt.id) : [];
 }
 
-function lessonKey(lesson) {
-  const title = String(lesson.title || '').trim().toLocaleLowerCase('vi');
-  return title || `id:${lesson.lessonId}`;
+function LoadError({ message, retry }) {
+  return <div role="alert" className="rounded-xl border border-rose-200 bg-white p-4 text-sm">
+    <p>{message}</p>
+    <button type="button" onClick={retry} className="mt-2 font-semibold text-primary underline">
+      Thử lại
+    </button>
+  </div>;
 }
 
-function pickLesson(current, next) {
-  if (Boolean(next.isCompleted) !== Boolean(current.isCompleted)) return next.isCompleted ? next : current;
-  if ((next.progressPercent || 0) !== (current.progressPercent || 0)) {
-    return (next.progressPercent || 0) > (current.progressPercent || 0) ? next : current;
-  }
-  return next.lessonId < current.lessonId ? next : current;
-}
-
-function uniqueLessons(lessons) {
-  const chosen = new Map();
-  for (const lesson of lessons) {
-    const key = lessonKey(lesson);
-    const current = chosen.get(key);
-    chosen.set(key, current ? pickLesson(current, lesson) : lesson);
-  }
-  return [...chosen.values()].sort(
-    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.lessonId - b.lessonId,
-  );
-}
-
-export default function LessonList() {
-  const { pathname } = useLocation();
-  const { tr } = useLocale();
-  const [filter, setFilter] = useState('all');
-  const [pickedLevelId, setPickedLevelId] = useState(null);
-  const profile = useLearnerProfile();
-  const levelsQuery = useQuery({
-    queryKey: ['jlpt-levels'],
-    queryFn: getJlptLevels,
+function Catalog({ section, userId, requestedLevel }) {
+  const { title, skill } = sections[section];
+  const queryClient = useQueryClient();
+  const preferenceKey = ['rikipath', 'study-level', userId ?? 'guest', section].join(':');
+  const [level, setLevel] = useState(() => {
+    if (levels.includes(requestedLevel)) return requestedLevel;
+    try {
+      const saved = localStorage.getItem(preferenceKey);
+      return levels.includes(saved) ? saved : 'N5';
+    } catch {
+      return 'N5';
+    }
   });
-  const levels = (Array.isArray(levelsQuery.data) ? levelsQuery.data : [])
-    .filter((level) => String(level.code || '').toUpperCase() !== 'N1');
-  const preferred = pickedLevelId || profile.data?.targetJlptLevelId;
-  const levelId = levels.some((level) => level.id === preferred) ? preferred : levels[0]?.id;
-  const lessonsQuery = useQuery({
-    queryKey: ['learning-lessons', levelId],
-    queryFn: () => getLearningLessons(levelId),
+  const [openLessonId, setOpenLessonId] = useState(null);
+
+  function chooseLevel(nextLevel) {
+    setLevel(nextLevel);
+    setOpenLessonId(null);
+    try {
+      localStorage.setItem(preferenceKey, nextLevel);
+    } catch {
+      // Selection still works when browser storage is unavailable.
+    }
+  }
+
+  const levelQuery = useQuery({
+    queryKey: ['self-study-jlpt-levels'],
+    queryFn: loadJlptLevels,
+    retry: false,
+  });
+  const levelId = levelQuery.data?.find(item => item.code?.trim().toUpperCase() === level)?.id;
+  const catalog = useQuery({
+    queryKey: ['self-study-catalog', userId, levelId],
+    queryFn: () => getLessonCatalog(levelId),
     enabled: Boolean(levelId),
+    retry: false,
   });
-  const catalog = lessonsQuery.data;
-  const allLessons = uniqueLessons(catalog?.lessons || []);
-  const completedCount = allLessons.filter((lesson) => lesson.isCompleted).length;
-  const lessons = allLessons.filter((lesson) => matches(lesson, filter));
+  const lessons = (catalog.data?.lessons ?? []).filter(lesson => !skill || lesson.languageSkillName === skill);
+  const firstIncomplete = lessons.findIndex(lesson => !lesson.practicePassed &&
+    (lesson.hasPracticeExercise || !lesson.isCompleted));
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['self-study-catalog', userId] }),
+    queryClient.invalidateQueries({ queryKey: ['assessment-roadmap', userId] }),
+  ]);
 
-  return (
-    <LearnerShell pathname={pathname} breadcrumb="Bài luyện tập">
-      <div className="min-h-screen bg-[#FAF8F7] font-['Nunito',sans-serif] text-[#3F3038]">
-        <main className="mx-auto w-full max-w-[1120px] px-5 py-6 lg:px-7">
-          <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="text-[26px] font-medium leading-tight">{tr('Bài luyện tập')}</h1>
-              <p className="mt-1 max-w-xl text-[13px] leading-6 text-[#95828C]">
-                {tr('Mỗi bài đã được duyệt gồm từ vựng, Kanji và ngữ pháp của cùng một bài học.')}
-              </p>
-            </div>
-            {catalog && (
-              <div className="rounded-2xl border border-[#EADFE5] bg-white px-4 py-3">
-                <p className="text-[12px] text-[#95828C]">{catalog.levelCode || 'JLPT'}</p>
-                <p className="mt-1 text-[15px] font-medium text-[#AD3155]">
-                  {completedCount}/{allLessons.length} {tr('bài đã hoàn thành')}
-                </p>
-              </div>
-            )}
-          </header>
-
-          {levelsQuery.isError && (
-            <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{levelsQuery.error.message}</p>
-          )}
-          {levels.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {levels.map((level) => {
-                const active = level.id === levelId;
-                return (
-                  <button
-                    key={level.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setPickedLevelId(level.id)}
-                    className={`rounded-lg px-3 py-1.5 text-[12px] font-medium ${active ? 'bg-[#AD3155] text-white' : 'border border-[#EADFE5] bg-white text-[#826271] hover:bg-[#FCF3F7]'} ${focus}`}
-                  >
-                    {level.code}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {profile.isPending && !levels.length && <p className="text-[13px] text-[#9A8390]">{tr('Đang tải cấp độ…')}</p>}
-          {!levelsQuery.isPending && !levels.length && !levelId && (
-            <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
-              <p className="text-[15px] font-medium text-[#806371]">{tr('Chưa có cấp độ JLPT')}</p>
-              <Link to="/onboarding" className={`mt-4 inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
-                {tr('Chọn mục tiêu')}
-              </Link>
-            </div>
-          )}
-          {lessonsQuery.isError && (
-            <p role="alert" className="rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{lessonsQuery.error.message}</p>
-          )}
-          {lessonsQuery.isPending && levelId && <p className="text-[13px] text-[#9A8390]">{tr('Đang tải bài học…')}</p>}
-
-          {catalog && (
-            <>
-              <div className="mb-4 flex gap-2">
-                {FILTERS.map((item) => {
-                  const active = filter === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setFilter(item.id)}
-                      className={`rounded-lg px-3 py-1.5 text-[12px] font-medium ${active ? 'bg-[#AD3155] text-white' : 'border border-[#EADFE5] bg-white text-[#826271] hover:bg-[#FCF3F7]'} ${focus}`}
-                    >
-                      {tr(item.label)}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {lessons.map((lesson) => (
-                  <article key={lesson.lessonId} className={`flex flex-col rounded-2xl border bg-white p-5 ${!lesson.isCompleted && lesson.progressPercent > 0 ? 'border-[#AD3155]' : 'border-[#EADFE5]'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex flex-wrap gap-1.5 text-[11px]">
-                        <span className="rounded-md bg-[#FCFAFB] px-2 py-0.5 text-[#705261]">{catalog.levelCode}</span>
-                        <span className="rounded-md bg-[#FCEEF3] px-2 py-0.5 text-[#AD3155]">{tr('Từ vựng · Kanji · Ngữ pháp')}</span>
-                      </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${lesson.isCompleted ? 'bg-[#F3F8F4] text-[#2F6B45]' : 'bg-[#FCEEF3] text-[#AD3155]'}`}>
-                        {lesson.isCompleted ? tr('Đã hoàn thành') : lesson.progressPercent > 0 ? tr('Đang học') : tr('Chưa học')}
-                      </span>
-                    </div>
-                    <h2 className="mt-3 text-[16px] font-medium leading-snug text-[#593B48]">{lesson.title}</h2>
-                    {lesson.description && <p className="mt-1.5 line-clamp-2 text-[13px] leading-6 text-[#95828C]">{lesson.description}</p>}
-                    <div className="mt-4 border-t border-[#F0E7EC] pt-4">
-                      <div className="mb-3 flex justify-between text-[12px] text-[#95828C]">
-                        <span>{tr('Tiến độ bài')}</span>
-                        <span className="font-medium text-[#AD3155]">{lesson.progressPercent}%</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-[#F6EEF2]">
-                        <div className="h-full rounded-full bg-[#AD3155]" style={{ width: `${Math.max(0, Math.min(100, lesson.progressPercent))}%` }} />
-                      </div>
-                      <Link
-                        to={`/lesson-player/?lessonId=${lesson.lessonId}`}
-                        className={`mt-3 flex h-9 w-full items-center justify-center rounded-lg text-[12px] font-medium ${lesson.isCompleted ? 'border border-[#E7DAE1] bg-white text-[#866777] hover:bg-[#FFF6FA]' : 'bg-[#AD3155] text-white hover:bg-[#982B4B]'} ${focus}`}
-                      >
-                        {lesson.isCompleted ? tr('Xem lại bài') : lesson.progressPercent > 0 ? tr('Tiếp tục bài') : tr('Bắt đầu bài')}
-                      </Link>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              {!lessons.length && !lessonsQuery.isPending && (
-                <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
-                  <p className="text-[15px] font-medium text-[#806371]">
-                    {allLessons.length ? tr('Không có bài trong nhóm này') : tr('Chưa có bài đã duyệt cho cấp độ này')}
-                  </p>
-                  <p className="mt-1 text-[12px] leading-6 text-[#A18B97]">
-                    {tr('Bài sẽ hiện sau khi admin duyệt bài gồm từ vựng, Kanji và ngữ pháp.')}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </main>
+  return <main className="mx-auto max-w-5xl space-y-5 px-5 py-6 text-text-main sm:px-8">
+    <header className="rounded-2xl border border-card-border bg-white p-5 sm:p-6">
+      <h1 className="text-2xl font-bold">{title}</h1>
+      <div role="group" aria-label="Cấp độ ôn luyện" className="mt-4 flex flex-wrap gap-2">
+        {levels.map(code => <button key={code} type="button" aria-pressed={level === code}
+          onClick={() => chooseLevel(code)}
+          className={level === code
+            ? 'rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white'
+            : 'rounded-xl border border-card-border px-5 py-2 text-sm font-semibold hover:bg-primary-light'}>
+          {code}
+        </button>)}
       </div>
-    </LearnerShell>
-  );
+    </header>
+
+    {(levelQuery.isPending || (levelId && catalog.isPending)) && <p role="status">Đang tải bài học {level}…</p>}
+    {levelQuery.isError && <LoadError message="Chưa tải được cấp độ JLPT." retry={levelQuery.refetch} />}
+    {catalog.isError && <LoadError message={catalog.error?.message || 'Chưa tải được danh sách bài học.'} retry={catalog.refetch} />}
+    {((levelQuery.isSuccess && !levelId) || (catalog.isSuccess && lessons.length === 0))
+      && <p role="status">Chưa có bài học {level} trong mục này.</p>}
+
+    <ul className="space-y-3">
+      {lessons.map((lesson, index) => {
+        const locked = firstIncomplete >= 0 && index > firstIncomplete && !lesson.practicePassed;
+        const open = !locked && openLessonId === lesson.lessonId;
+        return <li key={lesson.lessonId} className="rounded-2xl border border-card-border bg-white">
+          <button type="button" aria-expanded={open} disabled={locked} onClick={() => setOpenLessonId(open ? null : lesson.lessonId)}
+            className="flex w-full items-center justify-between gap-4 rounded-2xl p-5 text-left hover:bg-primary-light/30">
+            <span>
+              <span className="block text-xs font-semibold text-primary">{skillLabels[lesson.languageSkillName] ?? lesson.languageSkillName}</span>
+              <span className="mt-1 block font-semibold">{lesson.title}</span>
+              {lesson.hasAudio && <span className="block text-xs text-primary">Có audio</span>}
+            </span>
+            <span className="shrink-0 text-sm font-semibold text-primary">{locked ? 'Chờ hoàn thành bài trước' : open ? 'Thu gọn' : 'Mở bài'}</span>
+          </button>
+          {open && <div className="border-t border-card-border p-5">
+            <LessonContent lesson={lesson} userId={userId} skill={skill} refresh={refresh} />
+          </div>}
+        </li>;
+      })}
+    </ul>
+  </main>;
+}
+
+export default function LessonList({ section = 'lessons' }) {
+  const { pathname, search } = useLocation();
+  const requestedLevel = new URLSearchParams(search).get('level');
+  const { user } = useAuth();
+  const userId = user?.userId;
+  return <LearnerShell pathname={pathname} breadcrumb={sections[section].title}>
+    <Catalog key={JSON.stringify([section, userId, requestedLevel])} section={section} userId={userId} requestedLevel={requestedLevel} />
+  </LearnerShell>;
 }

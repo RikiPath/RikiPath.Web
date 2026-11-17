@@ -3,8 +3,8 @@ import { useLocation } from 'react-router-dom';
 
 import { uploadBulkImportFile } from '../../api/cmsBulkImportApi.js';
 import { CmsShell } from '../../components/shells';
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 const SKILLS = ['Vocabulary', 'Kanji', 'Grammar', 'Listening', 'Reading'];
 
 const inputClass = 'h-10 w-full rounded-lg border border-[#E8DFDC] bg-white px-3 text-[13px] text-[#2D282A] outline-none focus:border-[#E7C9D4]';
@@ -40,6 +40,7 @@ function sampleLessons() {
 function issuesFor(lesson) {
   const issues = [];
   if (!lesson.title.trim()) issues.push('Thiếu tên bài');
+  if (!AUTHOR_LEVELS.includes(lesson.level)) issues.push('Cấp độ phải từ N5 đến N2.');
   lesson.vocabulary.forEach((item, index) => {
     if (!item.word.trim() || !item.reading.trim() || !item.meaning.trim()) issues.push(`Từ vựng ${index + 1} thiếu từ, cách đọc hoặc nghĩa`);
   });
@@ -75,7 +76,7 @@ function lessonsFromWorkbook(book, XLSX) {
     const lessons = lessonRows.map((row, index) => ({
       id: Date.now() + index,
       title: cell(row, 'LessonTitle', 'Title'),
-      level: cell(row, 'Certificate Level Code', 'CertificateLevel') || 'N5',
+      level: cell(row, 'Certificate Level Code', 'CertificateLevel').toUpperCase() || 'N5',
       skill: cell(row, 'Language Skill Name', 'LanguageSkill') || 'Vocabulary',
       description: cell(row, 'Description'),
       sortOrder: cell(row, 'Sort Order', 'SortOrder'),
@@ -83,7 +84,7 @@ function lessonsFromWorkbook(book, XLSX) {
       kanji: [],
       grammar: [],
     }));
-    const findLesson = (title, level) => lessons.find((lesson) => lesson.title === title && (!level || lesson.level === level)) || lessons[0];
+    const findLesson = (title, level) => lessons.find((lesson) => lesson.title === title && (!level || lesson.level === level.toUpperCase())) || lessons[0];
     vocabRows.forEach((row, index) => {
       const lesson = findLesson(cell(row, 'Lesson Title', 'LessonTitle'), cell(row, 'CertificateLevelCode', 'Certificate Level Code'));
       if (!lesson) return;
@@ -349,7 +350,14 @@ export default function BulkImport() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label><span className="mb-1 block text-[12px] text-[#967F8A]">Tên bài</span><input value={lesson.title} onChange={(event) => updateLesson(lesson.id, { title: event.target.value })} className={inputClass} /></label>
                     <label><span className="mb-1 block text-[12px] text-[#967F8A]">Cấp</span>
-                      <select value={lesson.level} onChange={(event) => updateLesson(lesson.id, { level: event.target.value })} className={inputClass}>{LEVELS.map((level) => <option key={level}>{level}</option>)}</select>
+                      <select
+                        value={AUTHOR_LEVELS.includes(lesson.level) ? lesson.level : ''}
+                        onChange={(event) => updateLesson(lesson.id, { level: event.target.value })}
+                        className={inputClass}
+                      >
+                        <option value="" disabled>Chọn cấp độ</option>
+                        {AUTHOR_LEVELS.map((level) => <option key={level}>{level}</option>)}
+                      </select>
                     </label>
                     <label><span className="mb-1 block text-[12px] text-[#967F8A]">Kỹ năng của bài</span>
                       <select value={lesson.skill} onChange={(event) => updateLesson(lesson.id, { skill: event.target.value })} className={inputClass}>{SKILLS.map((skill) => <option key={skill}>{skill}</option>)}</select>

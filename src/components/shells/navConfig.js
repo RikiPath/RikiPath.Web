@@ -133,6 +133,7 @@ export const LEARNER_NAV = {
         '/mentors',
       ],
     },
+    { to: '/plans', label: 'Gói ôn luyện', icon: 'shopping_bag', group: 'support', alsoActive: ['/study-payment'] },
     { to: '/payments', label: 'Thanh toán', icon: 'payments', group: 'support', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
     { to: '/settings', label: 'Cài đặt', hint: 'Tài khoản & mục tiêu', icon: 'settings', group: 'support' },
   ],

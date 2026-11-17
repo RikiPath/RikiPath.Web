@@ -1,27 +1,59 @@
 import { api } from './client.js';
 
+const endpoint = '/MockTest';
+
+function withDeadline(attempt) {
+  const remaining = attempt.expiresAt ? Date.parse(attempt.expiresAt) - Date.parse(attempt.serverNow) : NaN;
+  return { ...attempt, localDeadline: Number.isFinite(remaining) ? Date.now() + Math.max(0, remaining) : null };
+}
+
+export async function getMockTestLevels() {
+  const { result } = await api.get('/CertificateLevel/jlpt');
+  return (result ?? []).filter(level => ['N5', 'N4', 'N3', 'N2'].includes(level.code));
+}
+
+export async function getMockTestsByLevel(levelId) {
+  const { result } = await api.get(endpoint + '/by-level/' + levelId);
+  return result ?? [];
+}
+
+export async function startMockTest(mockTestId) {
+  const data = await api.post(endpoint + '/' + mockTestId + '/start');
+  return withDeadline(data.result ?? data);
+}
+
+export async function getMockTestQuestions(attemptId) {
+  const { result } = await api.get(endpoint + '/attempts/' + attemptId + '/questions');
+  return withDeadline(result);
+}
+
+export async function saveMockTestAnswers(attemptId, answers) {
+  await api.put(endpoint + '/attempts/' + attemptId + '/answers', { answers });
+}
+
+export async function submitMockTestAttempt(attemptId, answers) {
+  const data = await api.post(endpoint + '/attempts/' + attemptId + '/submit', { answers });
+  return data.result ?? data;
+}
+
+export async function getMockTestAttempt(attemptId, config) {
+  const data = await api.get(endpoint + '/attempts/' + attemptId, config);
+  return data.result ?? data;
+}
+
+export async function getMockTestReview(attemptId) {
+  const { result } = await api.get(endpoint + '/attempts/' + attemptId + '/review');
+  return result;
+}
+
+export async function getMockTestHistory() {
+  const { result } = await api.get(endpoint + '/history');
+  return result ?? [];
+}
+
+export { getMockTestAttempt as getMockAttempt, submitMockTestAttempt as submitMockTest };
+
 const result = (data) => data?.result ?? null;
-
-export function getMockTestsByLevel(jlptLevelId) {
-  return api.get(`/MockTest/level/${jlptLevelId}/tests`).then((data) => result(data) ?? []);
-}
-
-export function startMockTest(mockTestId) {
-  return api.post(`/MockTest/${mockTestId}/start`).then(result);
-}
-
-export function submitMockTest(attemptId, answers) {
-  return api.post(`/MockTest/attempts/${attemptId}/submit`, {
-    answers: answers.map((item) => ({
-      questionId: item.questionId,
-      selectedOptionId: item.selectedOptionId ?? null,
-    })),
-  }).then(result);
-}
-
-export function getMockAttempt(attemptId) {
-  return api.get(`/MockTest/attempts/${attemptId}`).then(result);
-}
 
 export function getDetailedMockAttempt(attemptId) {
   return api.get(`/MockTest/attempts/${attemptId}/detailed`).then(result);

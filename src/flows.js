@@ -31,7 +31,8 @@ export const ALL_PAGES = [
   { to: '/sentence-studio', label: 'Sentence', page: 'SentenceStudio', group: 'learner' },
   { to: '/ai-counselor', label: 'AI Counselor', page: 'AICounselor', group: 'learner' },
   { to: '/ai-scoring', label: 'AI Score', page: 'AIScoringResult', group: 'learner' },
-  { to: '/exam-n3', label: 'Exam N3', page: 'ExamN3', group: 'learner' },
+  { to: '/app/placement-test', label: 'Đánh giá năng lực', page: 'ExamN3', group: 'learner' },
+  { to: '/mock-tests', label: 'Thi thử JLPT', page: 'MockTestPage', group: 'learner' },
   { to: '/exam-result', label: 'Kết quả thi', page: 'ExamResult', group: 'learner' },
   { to: '/settings', label: 'Cài đặt HV', page: 'LearnerSettings', group: 'learner' },
   // Tư vấn học viên

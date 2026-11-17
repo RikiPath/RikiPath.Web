@@ -1,3 +1,4 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -71,7 +72,7 @@ export default function CmsLessonDetail() {
               onChange={(event) => setField('level', event.target.value)}
               className={fieldClass}
             >
-              {['N5', 'N4', 'N3', 'N2', 'N1'].map((level) => (
+              {AUTHOR_LEVELS.map((level) => (
                 <option key={level}>{level}</option>
               ))}
             </select>

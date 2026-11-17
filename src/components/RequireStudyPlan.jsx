@@ -5,14 +5,14 @@ import { getMySubscription } from '../api/subscriptions.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getSession } from '../auth/session.js';
 
-export default function RequireStudyPlan({ children }) {
+export default function RequireStudyPlan({ children, feature = "active" }) {
   const location = useLocation();
   const session = getSession();
   const { isAuthenticated, isLearner } = useAuth();
   const path = location.pathname.replace(/\/$/, '') || '/';
 
   const subscriptionQuery = useQuery({
-    queryKey: ['study-subscription'],
+    queryKey: ['study-subscription', session?.userId],
     queryFn: getMySubscription,
     enabled: Boolean(isAuthenticated && isLearner && !session?.isPreview),
     retry: false,
@@ -50,7 +50,7 @@ export default function RequireStudyPlan({ children }) {
     );
   }
 
-  if (!subscriptionQuery.data?.active) {
+  if (!subscriptionQuery.data?.[feature]) {
     return <Navigate to="/plans" state={{ from: location }} replace />;
   }
 

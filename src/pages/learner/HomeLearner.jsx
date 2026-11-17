@@ -5,7 +5,7 @@ import { useLocale } from '../../i18n/locale.js';
 const ROUTES = {
   goal: '/onboarding',
   roadmap: '/roadmap',
-  exam: '/exam-n3',
+  exam: '/mock-tests/',
   mentor: '/mentor',
   vocabulary: '/vocabulary',
   grammar: '/grammar',
@@ -229,6 +229,14 @@ export default function HomeLearner({ data = null }) {
             </Link>
           </header>
 
+          <section aria-label="Mục tiêu và đánh giá đầu vào" className="mb-5 rounded-xl border border-[#EADFE5] bg-white p-4">
+            <h2 className="text-[15px] font-semibold">Mục tiêu và bài đánh giá của bạn</h2>
+            <p className="mt-1 text-[13px] text-[#95828C]">Tiếp tục bài đánh giá còn thời gian, hoặc cập nhật chứng chỉ, cấp độ, ngày thi và thời gian học mỗi ngày.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionLink to="/app/placement-test" primary>Tiếp tục / làm bài đánh giá</ActionLink>
+              <ActionLink to="/onboarding">Đổi mục tiêu và thời gian học</ActionLink>
+            </div>
+          </section>
           <section
             aria-label={tr('Thống kê ôn luyện')}
             className="mb-5 grid gap-3 sm:grid-cols-2"
@@ -312,7 +320,7 @@ export default function HomeLearner({ data = null }) {
                       to={resume ? resume.to : ROUTES.exam}
                       inverse
                     >
-                      {resume ? tr('Tiếp tục luyện') : tr(examLabel)}
+                      {resume ? 'Tiếp tục luyện' : 'Thi thử JLPT'}
                       <Icon name="arrow_forward" className="text-[17px]" />
                     </ActionLink>
                   </div>

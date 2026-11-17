@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
+import BookingSchedule from './BookingSchedule.jsx';
 import { getMeetingPlans } from '../../api/mentorBookingApi.js';
 import { LearnerShell } from '../../components/shells';
 import { useLocale } from '../../i18n/locale.js';
@@ -126,7 +127,7 @@ function PlanCard({ plan }) {
           </p>
         </div>
         <Link
-          to={`/consultation-payment/?planId=${plan.id}`}
+          to={`/mentor/?planId=${plan.id}`}
           className={`inline-flex h-9 items-center rounded-lg bg-[#AD3155] px-3 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focusClass}`}
         >
           {tr('Mua gói này')}
@@ -137,6 +138,12 @@ function PlanCard({ plan }) {
 }
 
 export default function Consultation() {
+  const [params] = useSearchParams();
+  const planId = Number(params.get('planId'));
+  return planId > 0 ? <BookingSchedule purchasePlanId={planId} /> : <MentorOverview />;
+}
+
+function MentorOverview() {
   const { pathname } = useLocation();
   const { tr } = useLocale();
 
@@ -163,7 +170,7 @@ export default function Consultation() {
               {tr('Tư vấn 1-1 với cố vấn')}
             </h1>
             <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-[#927B88]">
-              {tr('Mua gói để cộng lượt, rồi chọn lịch. Mỗi tiết dùng 1 lượt.')}
+              {tr('Chọn mentor và khung giờ trước khi thanh toán. Mỗi buổi dùng 1 lượt.')}
             </p>
           </div>
           <Link
