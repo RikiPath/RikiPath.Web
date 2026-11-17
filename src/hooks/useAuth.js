@@ -35,10 +35,12 @@ export function useChangePasswordMutation() {
 
 export function useSetJlptGoalMutation() {
   return useMutation({
-    mutationFn: ({ targetJlptLevelId, dailyStudyMinutes }) =>
-      setJlptGoal({ targetJlptLevelId, dailyStudyMinutes }),
+    mutationFn: (payload) => setJlptGoal(payload),
     onSuccess: (profile) => {
-      queryClient.setQueryData(learnerKeys.profile, profile);
+      queryClient.setQueryData([...learnerKeys.profile, 'live'], profile);
+      queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      queryClient.removeQueries({ queryKey: ['placement-assessment'], type: 'inactive' });
+      void queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] });
     },
   });
 }

@@ -1,1 +1,1 @@
-export { default as ContentImportPreviewPage } from './ContentImportPreviewPage.jsx';   
+export { default as ContentImportPreviewPage, PersistentContentImport } from './ContentImportPreviewPage.jsx';   

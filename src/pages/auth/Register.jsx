@@ -1,20 +1,18 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { loginWithGoogle } from '../../api/auth.js';
-import { useAuth } from '../../auth/AuthContext.jsx';
-import { finishAuthSession } from '../../auth/finishAuthSession.js';
-import { savePendingVerify } from '../../auth/session.js';
-import BrandMark from '../../components/BrandMark.jsx';
-import GoogleSignInButton from '../../components/GoogleSignInButton.jsx';
-import { useRegisterMutation } from '../../hooks/useAuth.js';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
 import { useLocale } from '../../i18n/locale.js';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { savePendingVerify } from '../../auth/session.js';
+import BrandMark from '../../components/BrandMark.jsx';
+import { useRegisterMutation } from '../../hooks/useAuth.js';
+import GoogleSignIn from './GoogleSignIn.jsx';
+import { useCompleteSignIn } from './useCompleteSignIn.js';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const registerMutation = useRegisterMutation();
   const { t } = useLocale();
+  const registerMutation = useRegisterMutation();
+  const completeSignIn = useCompleteSignIn();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,25 +21,12 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const loading = registerMutation.isPending || googleLoading;
-
-  async function handleGoogle(idToken) {
-    setError('');
-    setGoogleLoading(true);
-    try {
-      const data = await loginWithGoogle({ idToken });
-      const ok = finishAuthSession({ data, remember: true, login, navigate });
-      if (!ok) setError(t('googleFailed'));
-    } catch (err) {
-      setError(err.message || t('googleFailed'));
-    } finally {
-      setGoogleLoading(false);
-    }
-  }
+  const [googlePending, setGooglePending] = useState(false);
+  const loading = registerMutation.isPending || googlePending;
 
   function handleRegister(e) {
     e.preventDefault();
+    if (loading) return;
     setError('');
     if (password !== confirmPassword) {
       setError(t('passwordMismatch'));
@@ -268,15 +253,10 @@ export default function Register() {
 <span className="text-base group-hover:rotate-12 transition-transform">🌸</span>
 </button>
 </form>
-{/*  Social Separator Divider  */}
-<div className="relative my-5 text-center">
-<div aria-hidden="true" className="absolute inset-0 flex items-center">
-<div className="w-full border-t border-charcoal-200"></div>
+<div className="mt-4">
+  <GoogleSignIn mode="register" disabled={registerMutation.isPending}
+    onPendingChange={setGooglePending} onSuccess={data => completeSignIn(data, true)} />
 </div>
-<span className="relative bg-white px-3 text-[11px] font-bold text-charcoal-400 uppercase tracking-wider">{t('orRegister')}</span>
-</div>
-{/*  Social Login Buttons  */}
-<GoogleSignInButton disabled={loading} onCredential={handleGoogle} onError={setError} />
 </div>
 {/*  Bottom Footer Navigation Link  */}
 <footer className="mt-8 border-t border-[#F4EAEE] pt-5">

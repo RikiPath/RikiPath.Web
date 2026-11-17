@@ -11,6 +11,8 @@ import {
   updateAdminMentorDisputeStatus,
 } from '../../api/admin.js';
 import { AdminShell } from '../../components/shells';
+import CourseChangeRequests from '../../components/consultation/CourseChangeRequests';
+import '../studyCourses.css';
 
 const DISPUTE_STATUS = {
   Submitted: 'Mới gửi',
@@ -96,6 +98,7 @@ export default function AdminMentorCases() {
             Hàng đợi khiếu nại lấy từ hệ thống. Hai biểu mẫu bên dưới luôn cùng chiều: hoàn buổi và kiểm duyệt đánh giá.
           </p>
         </header>
+        <CourseChangeRequests admin />
         {notice && <p className="mt-4 rounded-xl bg-[#E7F6EC] px-4 py-3 text-[13px] text-[#1E5C36]">{notice}</p>}
 
         <section className="overflow-hidden rounded-[22px] border border-[#F0E4E9] bg-white shadow-[0_10px_30px_rgba(90,40,58,0.04)]">

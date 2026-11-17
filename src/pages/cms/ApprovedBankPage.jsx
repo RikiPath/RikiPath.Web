@@ -14,6 +14,8 @@ async function searchBank(path) {
   };
 }
 
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
+
 export default function ApprovedBankPage({
   pathname,
   breadcrumb,
@@ -27,7 +29,7 @@ export default function ApprovedBankPage({
   const location = useLocation();
   const currentPath = pathname || location.pathname;
   const [queryText, setQueryText] = useState('');
-  const [level, setLevel] = useState('all');
+  const [level, setLevel] = useState(AUTHOR_LEVELS[0]);
   const query = useQuery({
     queryKey: ['approved-bank', endpoint],
     queryFn: () => searchBank(endpoint),
@@ -37,7 +39,7 @@ export default function ApprovedBankPage({
     const text = queryText.trim().toLowerCase();
     return items.filter((row) => {
       const rowLevel = row.jlptLevelName || row.level || '';
-      if (level !== 'all' && !String(rowLevel).includes(level)) return false;
+      if (!String(rowLevel).includes(level)) return false;
       if (!text) return true;
       return columns.some((column) => String(row[column.key] ?? '').toLowerCase().includes(text));
     });
@@ -60,9 +62,9 @@ export default function ApprovedBankPage({
 
         <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-[#EADFE5] bg-white p-3">
           <input value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="Tìm trong kho đã duyệt" className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#EADFE5] bg-[#FCFAFB] px-3 text-[13px] outline-none focus:border-[#E7C9D4]" />
-          {['all', 'N5', 'N4', 'N3', 'N2', 'N1'].map((item) => (
+          {AUTHOR_LEVELS.map((item) => (
             <button key={item} type="button" onClick={() => setLevel(item)} className={`h-8 rounded-full px-3 text-[12px] ${level === item ? 'bg-[#AD3155] text-white' : 'bg-[#FCFAFB] text-[#826773]'}`}>
-              {item === 'all' ? 'Mọi cấp' : item}
+              {item}
             </button>
           ))}
           <span className="px-1 text-[12px] text-[#AA8F9B]">{query.isPending ? 'Đang tải…' : `${visible.length} mục`}</span>

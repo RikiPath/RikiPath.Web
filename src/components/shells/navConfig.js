@@ -60,7 +60,7 @@ export const ADMIN_NAV = {
           alsoActive: ['/admin/consultants'],
         },
         { to: '/admin/mentor-verifications', label: 'Xét duyệt', icon: 'verified' },
-        { to: '/admin/mentor-schedules', label: 'Lịch tuần', icon: 'calendar_month' },
+        { to: '/admin/mentor-schedules', label: 'Duyệt lịch Mentor', icon: 'calendar_month' },
         { to: '/admin/mentor-template', label: 'Mẫu ca', icon: 'event_repeat' },
         { to: '/admin/slot-review', label: 'Khung giờ', icon: 'schedule' },
         { to: '/admin/mentor-plans', label: 'Gói tư vấn', icon: 'sell' },
@@ -134,6 +134,7 @@ export const LEARNER_NAV = {
         '/mentors',
       ],
     },
+    { to: '/plans', label: 'Gói ôn luyện', icon: 'shopping_bag', group: 'support', alsoActive: ['/study-payment'] },
     { to: '/payments', label: 'Thanh toán', icon: 'payments', group: 'support', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
     { to: '/settings', label: 'Cài đặt', hint: 'Tài khoản & mục tiêu', icon: 'settings', group: 'support' },
   ],
@@ -163,8 +164,7 @@ export const CONSULT_NAV = {
     {
       label: 'Lịch',
       items: [
-        { to: '/work-schedule', label: 'Lịch làm việc', hint: 'Tuần của bạn', icon: 'calendar_month' },
-        { to: '/mentor-shift-schedule', label: 'Ca làm việc', hint: 'Khung 90 phút', icon: 'event_available', alsoActive: ['/mentor-availability'] },
+        { to: '/mentor-availability', label: 'Lịch Mentor', hint: 'Ngày/giờ rảnh và lịch dạy', icon: 'calendar_month', alsoActive: ['/work-schedule', '/mentor-shift-schedule'] },
       ],
     },
     {

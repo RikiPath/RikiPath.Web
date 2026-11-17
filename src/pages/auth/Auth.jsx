@@ -1,19 +1,16 @@
-import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { loginWithGoogle } from '../../api/auth.js';
-import { useAuth } from '../../auth/AuthContext.jsx';
-import { finishAuthSession } from '../../auth/finishAuthSession.js';
 import BrandMark from '../../components/BrandMark.jsx';
-import GoogleSignInButton from '../../components/GoogleSignInButton.jsx';
-import { useLoginMutation } from '../../hooks/useAuth.js';
 import LanguageSwitch from '../../components/LanguageSwitch.jsx';
 import { useLocale } from '../../i18n/locale.js';
+import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useLoginMutation } from '../../hooks/useAuth.js';
+import GoogleSignIn from './GoogleSignIn.jsx';
+import { useCompleteSignIn } from './useCompleteSignIn.js';
 
 export default function Auth() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
   const { t } = useLocale();
+  const completeSignIn = useCompleteSignIn();
   const loginMutation = useLoginMutation();
   const [email, setEmail] = useState(() => location.state?.email || '');
   const [password, setPassword] = useState('');
@@ -21,35 +18,24 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const loading = loginMutation.isPending || googleLoading;
-
-  function acceptSession(data) {
-    const ok = finishAuthSession({ data, remember, login, navigate });
-    if (!ok) setError(t('loginFailed'));
-  }
-
-  async function handleGoogle(idToken) {
-    setError('');
-    setNotice('');
-    setGoogleLoading(true);
-    try {
-      acceptSession(await loginWithGoogle({ idToken }));
-    } catch (err) {
-      setError(err.message || t('googleFailed'));
-    } finally {
-      setGoogleLoading(false);
-    }
-  }
+  const [googlePending, setGooglePending] = useState(false);
+  const loading = loginMutation.isPending || googlePending;
 
   function handleLogin(e) {
     e.preventDefault();
+    if (loading) return;
     setError('');
     setNotice('');
     loginMutation.mutate(
       { email: email.trim(), password },
       {
-        onSuccess: acceptSession,
+        onSuccess: async (data) => {
+          try {
+            await completeSignIn(data, remember);
+          } catch (signInError) {
+            setError(signInError.message);
+          }
+        },
         onError: (err) => {
           setError(err.message || t('loginFailed'));
         },
@@ -195,17 +181,10 @@ export default function Auth() {
 </button>
 </div>
 </form>
-{/*  Divider  */}
-<div className="relative my-6 text-center" data-purpose="divider">
-<div className="absolute inset-0 flex items-center">
-<div className="w-full border-t border-slate-200/80"></div>
+<div className="mt-4">
+  <GoogleSignIn mode="login" disabled={loginMutation.isPending}
+    onPendingChange={setGooglePending} onSuccess={data => completeSignIn(data, remember)} />
 </div>
-<div className="relative flex justify-center text-xs">
-<span className="px-3 bg-white text-slate-400 uppercase font-medium tracking-wider">{t('orContinue')}</span>
-</div>
-</div>
-{/*  Social Login Buttons  */}
-<GoogleSignInButton disabled={loading} onCredential={handleGoogle} onError={setError} />
 </div>
 {/*  Footer Notice & Registration Prompt  */}
 <footer className="mt-8 border-t border-[#F4EAEE] pt-5" data-purpose="auth-footer">

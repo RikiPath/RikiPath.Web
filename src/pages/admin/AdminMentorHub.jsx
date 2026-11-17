@@ -27,9 +27,9 @@ const SECTIONS = [
     paths: ['/admin/mentor-schedules'],
   },
   {
-    to: '/admin/mentor-plans',
-    label: 'Gói tư vấn (N5–N2)',
-    note: 'Cấu hình giá gói 1 và 3 buổi theo JLPT.',
+    to: '/admin/study-courses',
+    label: 'Gói học và lớp',
+    note: 'Cấu hình lịch thi, thời lượng, giá và sĩ số.',
     paths: ['/admin/mentor-plans'],
   },
   {

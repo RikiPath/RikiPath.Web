@@ -1,8 +1,8 @@
+import { AUTHOR_LEVELS } from '../content-author/authorLevels.js';
 import { useLocation } from 'react-router-dom';
 
 import StudioList from './studioList.jsx';
 
-const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 const SKILLS = ['Từ vựng', 'Ngữ pháp', 'Đọc', 'Nghe'];
 
 export default function QuestionBank() {
@@ -24,7 +24,7 @@ export default function QuestionBank() {
       fields={[
         { key: 'prompt', label: 'Câu hỏi', required: true, wide: true },
         { key: 'skill', label: 'Kỹ năng', type: 'select', options: SKILLS, default: 'Ngữ pháp' },
-        { key: 'level', label: 'Cấp', type: 'select', options: LEVELS, default: 'N3' },
+        { key: 'level', label: 'Cấp', type: 'select', options: AUTHOR_LEVELS },
         { key: 'answer', label: 'Đáp án', wide: true },
       ]}
       seed={[

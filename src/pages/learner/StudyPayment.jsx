@@ -87,7 +87,7 @@ export default function StudyPayment() {
             </p>
             <h2 className="mt-2 text-[18px] font-semibold">{plan.name}</h2>
             <p className="mt-2 text-[26px] font-semibold text-[#AD3155]">{money(plan.price)}</p>
-            <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays} {tr('ngày')}</p>
+            <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays > 0 ? `${plan.durationDays} ngày` : '1 lượt dùng'}</p>
             {plan.description && (
               <p className="mt-3 text-[13px] leading-6 text-[#6F5C66]">{plan.description}</p>
             )}

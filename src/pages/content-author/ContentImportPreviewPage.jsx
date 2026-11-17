@@ -1,8 +1,14 @@
 import { useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../auth/AuthContext.jsx';
+import AuthorImportHistory from './AuthorImportHistory.jsx';
+import WorkbookPreview, { workbookEditKey } from './WorkbookPreview.jsx';
 
 import { CmsShell } from '../../components/shells';
-import { CONTENT_IMPORT_TYPES } from '../../api/contentImportApi.js';
+import {
+    CONTENT_IMPORT_TYPES, editExcelWorkbook, previewExcelWorkbook, submitAuthorImportBatch, uploadListeningAudio,
+} from '../../api/contentImportApi.js';
 import {
     usePreviewContentImportMutation,
     useConfirmContentImportMutation,
@@ -14,7 +20,7 @@ const ACTION_META = {
     New: { label: 'Mới', countKey: 'newCount', badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200', num: 'text-emerald-600' },
     Modified: { label: 'Thay đổi', countKey: 'modifiedCount', badge: 'bg-amber-50 text-amber-800 ring-amber-200', num: 'text-amber-600' },
     Unchanged: { label: 'Không đổi', countKey: 'unchangedCount', badge: 'bg-slate-100 text-slate-600 ring-slate-200', num: 'text-slate-500' },
-    Error: { label: 'Đã có', countKey: 'errorCount', badge: 'bg-rose-50 text-rose-700 ring-rose-200', num: 'text-rose-600' },
+    Error: { label: 'Lỗi dữ liệu', countKey: 'errorCount', badge: 'bg-rose-50 text-rose-700 ring-rose-200', num: 'text-rose-600' },
 };
 
 const ENTITY_LABELS = {
@@ -355,7 +361,9 @@ function DiffModal({ row, entityType, onClose }) {
                                                                             <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${opt.IsCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                                                                                 {String.fromCharCode(65 + oIdx)}
                                                                             </span>
-                                                                            <span>{opt.OptionText}</span>
+                                                                            <span>{opt.OptionText}
+                                                                                {(opt.ImageUrl ?? opt.imageUrl) && <img src={opt.ImageUrl ?? opt.imageUrl} alt="Hình đáp án" className="max-h-32 max-w-full rounded-md" />}
+                                                                            </span>
                                                                         </div>
                                                                         {opt.IsCorrect && (
                                                                             <span className="text-[10px] text-emerald-600 font-bold uppercase">
@@ -525,8 +533,57 @@ function SummaryCard({ action, value, active, onClick }) {
     );
 }
 
-export default function ContentImportPreviewPage() {
+function ListeningAudioUpload() {
+    const [uploading, setUploading] = useState(false);
+    const [files, setFiles] = useState([]);
+
+    async function uploadSelected(event) {
+        const selected = Array.from(event.target.files ?? []);
+        event.target.value = '';
+        if (!selected.length || uploading) return;
+        setUploading(true);
+        try {
+            for (const file of selected) {
+                try {
+                    const { url } = await uploadListeningAudio(file);
+                    setFiles((current) => [...current, { name: file.name, url }]);
+                } catch (error) {
+                    setFiles((current) => [...current, { name: file.name, error: getErrorMessage(error) }]);
+                }
+            }
+        } finally {
+            setUploading(false);
+        }
+    }
+
+    return <section className="rounded-xl border border-[#E8DFDC] bg-white p-5">
+        <h2 className="font-semibold text-[#2D282A]">Audio Nghe hiểu cho đề JLPT N5–N2</h2>
+        <p className="mt-1 text-sm text-slate-600">
+            Đề cần đủ Từ vựng, Ngữ pháp, Đọc hiểu và Nghe hiểu. Tải MP3 lên rồi dán đường dẫn của từng câu nghe vào cột AudioUrl trong sheet Mock Test. Dùng ImageUrl cho ảnh câu hỏi và Option1ImageUrl đến Option4ImageUrl cho ảnh đáp án.
+        </p>
+        <label className="mt-3 block text-sm font-medium text-slate-700">
+            Chọn file MP3
+            <input type="file" accept=".mp3,audio/mpeg" multiple disabled={uploading}
+                onChange={uploadSelected} className="ml-3 max-w-full text-sm" />
+        </label>
+        {uploading && <p role="status" className="mt-2 text-sm text-slate-600">Đang tải audio…</p>}
+        {files.length > 0 && <ul className="mt-3 space-y-2 text-sm">
+            {files.map((file, index) => <li key={index} className="rounded-lg bg-[#FBF8F7] p-2">
+                <span className="font-medium">{file.name}</span>
+                {file.error
+                    ? <p role="alert" className="mt-1 text-rose-700">{file.error}</p>
+                    : <input readOnly aria-label={'AudioUrl của ' + file.name} value={file.url}
+                        onFocus={(event) => event.target.select()} className="mt-1 w-full rounded border border-slate-300 bg-white p-2" />}
+            </li>)}
+        </ul>}
+    </section>;
+}
+
+function ContentImportPreviewPage() {
     const { pathname } = useLocation();
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+    const [batchId, setBatchId] = useState(null);
     const inputRef = useRef(null);
     const [file, setFile] = useState(null);
     const [entityType, setEntityType] = useState(''); // '' = Bulk (mọi sheet)
@@ -538,28 +595,95 @@ export default function ContentImportPreviewPage() {
 
     const preview = usePreviewContentImportMutation();
     const confirmImport = useConfirmContentImportMutation();
+    const workbookPreview = useMutation({ mutationFn: previewExcelWorkbook });
+    const [showWorkbook, setShowWorkbook] = useState(false);
+    const [changes, setChanges] = useState({});
+    const [hasEditedFile, setHasEditedFile] = useState(false);
     const [confirmResult, setConfirmResult] = useState(null);
     const [confirmError, setConfirmError] = useState('');
 
-    function handleConfirmImport() {
-        if (!result || !file || confirmableRows.length === 0 || confirmImport.isPending) return;
-        const ok = window.confirm(
-            `Xác nhận gửi ${confirmableRows.length} dòng hợp lệ để tạo bản nháp chờ Admin duyệt? Các dòng “Đã có”/lỗi và “Không đổi” sẽ không được gửi.`
-        );
-        if (!ok) return;
+    function refreshAuthorContent(savedBatchId) {
+        void queryClient.invalidateQueries({ queryKey: ['author-import-batches', user?.userId] });
+        void queryClient.invalidateQueries({ queryKey: ['author-import-batch', user?.userId, savedBatchId] });
+        void queryClient.invalidateQueries({ queryKey: ['manual-content-items', user?.userId] });
+    }
+
+    const submitReview = useMutation({
+        mutationFn: submitAuthorImportBatch,
+        onSuccess: (_, savedBatchId) => refreshAuthorContent(savedBatchId),
+    });
+    const applyWorkbook = useMutation({
+        mutationFn: () => editExcelWorkbook(file, Object.values(changes)),
+        onSuccess: (edited) => {
+            setFile(edited);
+            setHasEditedFile(true);
+            setChanges({});
+            setBatchId(null);
+            setConfirmResult(null);
+            setConfirmError('');
+            setSelectedDiffRow(null);
+            preview.reset();
+            confirmImport.reset();
+            submitReview.reset();
+            workbookPreview.mutate(edited);
+        },
+    });
+    const hasChanges = Object.keys(changes).length > 0;
+    const busy = preview.isPending || confirmImport.isPending || submitReview.isPending ||
+        workbookPreview.isPending || applyWorkbook.isPending;
+
+    function changeCell(edit, original) {
+        applyWorkbook.reset();
+        const key = workbookEditKey(edit.sheetName, edit.row, edit.column);
+        setChanges(previous => {
+            const next = { ...previous };
+            if (edit.value === original) delete next[key];
+            else next[key] = edit;
+            return next;
+        });
+    }
+
+    function downloadEditedFile() {
+        const url = URL.createObjectURL(file);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = file.name.replace(/\.xlsx$/i, '-da-sua.xlsx');
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function openWorkbook() {
+        if (!file || busy) return;
+        setShowWorkbook(true);
+        if (!workbookPreview.data) workbookPreview.mutate(file);
+    }
+
+    function saveDraft(sendForReview = false) {
+        if (!canSaveDraft) return;
 
         setConfirmError('');
-        setConfirmResult(null);
         confirmImport.mutate(
             {
+                batchId,
                 sourceFileName: result.fileName || file.name,
                 rows: confirmableRows,
             },
             {
-                onSuccess: (data) => setConfirmResult(data?.result ?? data),
+                onSuccess: (data) => {
+                    const saved = data?.result ?? data;
+                    setConfirmResult(saved);
+                    refreshAuthorContent(saved.batchId);
+                    if (sendForReview) submitReview.mutate(saved.batchId);
+                },
                 onError: (err) => setConfirmError(getErrorMessage(err)),
             }
         );
+    }
+
+    function sendForReview() {
+        if (!canSendForReview) return;
+        if (confirmResult?.batchId) submitReview.mutate(confirmResult.batchId);
+        else saveDraft(true);
     }
 
     // Unwrap response an toàn: hỗ trợ cả { isSuccess, result } lẫn trực tiếp result
@@ -592,9 +716,22 @@ export default function ContentImportPreviewPage() {
             }))
     );
 
+    const canSaveDraft = !busy && !hasChanges && Boolean(batchId && file && !confirmResult) && confirmableRows.length > 0;
+    const canSendForReview = !busy && !hasChanges && !submitReview.isSuccess &&
+        (Boolean(confirmResult?.batchId) || canSaveDraft);
+
     function pickFile(f) {
+        if (busy) return;
+        if (hasChanges && !window.confirm('Đổi file sẽ bỏ các ô chưa áp dụng. Tiếp tục?')) return;
+        setChanges({});
+        setHasEditedFile(false);
+        applyWorkbook.reset();
+        workbookPreview.reset();
+        setShowWorkbook(false);
         preview.reset();
         confirmImport.reset();
+        submitReview.reset();
+        setBatchId(null);
         setConfirmResult(null);
         setConfirmError('');
         setFileError('');
@@ -608,11 +745,17 @@ export default function ContentImportPreviewPage() {
 
     function handleSubmit(e) {
         e.preventDefault();
-        if (!file) return;
+        if (!file || busy || hasChanges) return;
+        setShowWorkbook(false);
+        setBatchId(null);
+        setConfirmResult(null);
+        setConfirmError('');
+        submitReview.reset();
         preview.mutate(
             { file, entityType },
             {
                 onSuccess: () => {
+                    setBatchId(crypto.randomUUID());
                     setActiveSheet(0);
                     setActionFilter('All');
                 },
@@ -624,11 +767,15 @@ export default function ContentImportPreviewPage() {
         <CmsShell pathname={pathname} breadcrumb="Xem trước import">
         <div className="mx-auto max-w-6xl space-y-6 px-6 py-7 sm:px-8">
             <header>
-                <h1 className="text-[22px] font-medium tracking-tight text-[#2D282A]">Xem trước import</h1>
-                <p className="mt-1 text-[13px] text-[#967F8A]">
-                    Tải file .xlsx để đối chiếu. Bước này chưa ghi vào kho.
-                </p>
+                <h1 className="text-[22px] font-medium tracking-tight text-[#2D282A]">Nhập Excel</h1>
+                <p className="mt-1 text-[13px] text-[#967F8A]">Tải file .xlsx để kiểm tra, lưu bản nháp hoặc gửi admin duyệt.</p>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold text-[#AD3155] underline">
+                    <Link to="?view=history">Lô Excel đã lưu</Link>
+                    <Link to="/content-manual/">Tạo và sửa học liệu trực tiếp</Link>
+                </div>
             </header>
+
+            {(!entityType || entityType === 'MockTest') && <ListeningAudioUpload />}
 
             {/* ---- Upload Card ---- */}
             <form onSubmit={handleSubmit} className="rounded-xl border border-[#E8DFDC] bg-white p-5">
@@ -688,6 +835,7 @@ export default function ContentImportPreviewPage() {
                         <label className="text-sm">
                             <span className="mb-1 block font-medium text-slate-700">Loại nội dung</span>
                             <select
+                                disabled={busy}
                                 value={entityType}
                                 onChange={(e) => {
                                     setEntityType(e.target.value);
@@ -705,11 +853,21 @@ export default function ContentImportPreviewPage() {
                         </label>
                         <button
                             type="submit"
-                            disabled={!file || preview.isPending}
+                            disabled={!file || busy || hasChanges}
                             className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300 shadow-sm"
                         >
                             {preview.isPending ? 'Đang kiểm tra & so sánh…' : 'Xem trước & So sánh'}
                         </button>
+                        <button type="button" disabled={!file || busy} aria-expanded={showWorkbook}
+                            onClick={() => showWorkbook ? setShowWorkbook(false) : openWorkbook()}
+                            className="w-full rounded-xl border border-[#E7D7DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#9E2A4B] disabled:opacity-50">
+                            {showWorkbook ? 'Ẩn nội dung Excel' : 'Xem nội dung Excel'}
+                        </button>
+                        {hasEditedFile && <button type="button" disabled={hasChanges || busy} onClick={downloadEditedFile}
+                            className="w-full rounded-xl border border-[#E7D7DF] px-4 py-2 text-sm font-semibold text-[#9E2A4B] disabled:opacity-50">
+                            Tải file đã sửa
+                        </button>}
+                        {hasChanges && !showWorkbook && <p className="text-sm text-amber-800">Mở nội dung Excel để áp dụng các ô đã sửa.</p>}
                     </div>
                 </div>
 
@@ -719,6 +877,17 @@ export default function ContentImportPreviewPage() {
                     </div>
                 )}
             </form>
+
+            <div hidden={!showWorkbook}>
+                {workbookPreview.isPending && <p role="status" className="text-sm text-slate-600">Đang đọc các sheet…</p>}
+                {workbookPreview.isError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+                    {getErrorMessage(workbookPreview.error)}
+                    <button type="button" onClick={openWorkbook} className="ml-2 font-semibold underline">Thử lại</button>
+                </div>}
+                {workbookPreview.data && <WorkbookPreview workbook={workbookPreview.data} changes={changes} onCellChange={changeCell}
+                    busy={busy} applyError={applyWorkbook.error} onApply={() => applyWorkbook.mutate()}
+                    onDiscard={() => { setChanges({}); applyWorkbook.reset(); }} />}
+            </div>
 
             {/* ---- Kết quả & So sánh ---- */}
             {result && (
@@ -737,7 +906,7 @@ export default function ContentImportPreviewPage() {
                             </p>
                         </div>
                         <span className="inline-flex items-center rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                            Chưa lưu vào DB
+                            {submitReview.isSuccess ? 'Đã gửi duyệt' : confirmResult ? 'Đã lưu bản nháp' : 'Chưa lưu bản nháp'}
                         </span>
                     </div>
 
@@ -754,38 +923,58 @@ export default function ContentImportPreviewPage() {
                         ))}
                     </div>
 
-                    {/* Xác nhận gửi các dòng mới/thay đổi hợp lệ đến API confirm */}
+                    {/* Lưu bản nháp và gửi lô cho admin */}
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-sm font-bold text-slate-900">Xác nhận import</h3>
+                                <h3 className="text-sm font-bold text-slate-900">Lưu vào học liệu của tôi</h3>
                                 <p className="mt-1 text-xs text-slate-500">
-                                    {confirmableRows.length} dòng Mới/Thay đổi có payload hợp lệ sẽ được gửi tạo bản nháp.
-                                    Các dòng Đã có/lỗi và Không đổi được bỏ qua.
+                                    {confirmableRows.length} dòng mới hoặc thay đổi đủ điều kiện lưu bản nháp.
+                                    Các dòng lỗi và không đổi được bỏ qua.
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleConfirmImport}
-                                disabled={confirmableRows.length === 0 || confirmImport.isPending || !file}
-                                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                            >
-                                {confirmImport.isPending ? 'Đang xác nhận…' : 'Xác nhận & tạo bản nháp'}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                                {!confirmResult && <button
+                                    type="button"
+                                    onClick={() => saveDraft()}
+                                    disabled={!canSaveDraft}
+                                    className="rounded-xl border border-[#E7D7DF] px-4 py-2.5 text-sm font-semibold text-[#9E2A4B] hover:bg-[#FFF7F9] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {confirmImport.isPending ? 'Đang lưu…' : 'Lưu bản nháp'}
+                                </button>}
+                                {!submitReview.isSuccess && <button
+                                    type="button"
+                                    onClick={sendForReview}
+                                    disabled={!canSendForReview}
+                                    className="rounded-xl bg-[#AD3155] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#932844] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {submitReview.isPending ? 'Đang gửi duyệt…' : 'Gửi admin duyệt'}
+                                </button>}
+                            </div>
                         </div>
                         {confirmError && (
                             <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                                 {confirmError}
                             </div>
                         )}
+                        {submitReview.isError && (
+                            <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                Đã lưu bản nháp. Gửi duyệt chưa thành công. {getErrorMessage(submitReview.error)}
+                            </div>
+                        )}
                         {confirmResult && (
                             <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-                                <p className="font-semibold">Đã gửi yêu cầu xác nhận import thành công.</p>
-                                <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs">
-                                    <span>Mã batch: <code>{confirmResult.batchId ?? '—'}</code></span>
-                                    <span>Bản nháp tạo: <strong>{confirmResult.draftsCreatedCount ?? 0}</strong></span>
-                                    <span>Bỏ qua: <strong>{confirmResult.skippedCount ?? 0}</strong></span>
-                                </div>
+                                <p className="font-semibold">
+                                    {submitReview.isSuccess
+                                        ? submitReview.data > 0
+                                            ? 'Đã gửi ' + submitReview.data + ' nội dung cho admin duyệt.'
+                                            : 'Lô này đã được gửi duyệt.'
+                                        : 'Đã lưu ' + (confirmResult.draftsCreatedCount ?? 0) + ' bản nháp.'}
+                                    {confirmResult.skippedCount > 0 && ' Đã bỏ qua ' + confirmResult.skippedCount + ' dòng khi lưu.'}
+                                </p>
+                                <Link to={'?view=history&batchId=' + confirmResult.batchId} className="mt-2 inline-block font-semibold underline">
+                                    Mở lô và xem trạng thái
+                                </Link>
                             </div>
                         )}
                     </div>
@@ -814,7 +1003,7 @@ export default function ContentImportPreviewPage() {
                                     </span>
                                     {s.errorCount > 0 && (
                                         <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700">
-                                            {s.errorCount} đã có
+                                            {s.errorCount} lỗi
                                         </span>
                                     )}
                                     {s.modifiedCount > 0 && (
@@ -944,4 +1133,29 @@ export default function ContentImportPreviewPage() {
         </div>
         </CmsShell>
     );
+}
+
+function ImportWorkspace({ visible }) {
+    const [opened, setOpened] = useState(visible);
+    if (visible && !opened) setOpened(true);
+    if (!visible && !opened) return null;
+
+    // Keep the file, edits, and pending requests mounted when the author switches pages.
+    return <div hidden={!visible}><ContentImportPreviewPage /></div>;
+}
+
+export function PersistentContentImport() {
+    const { isAuthenticated, user, hasAnyRole } = useAuth();
+    const bulkImport = useMatch('/bulk-import');
+    const contentStudio = useMatch('/content-studio');
+    const [params] = useSearchParams();
+    if (!isAuthenticated || !hasAnyRole(['ContentAuthor', 'Admin'])) return null;
+
+    const visible = Boolean(bulkImport || contentStudio) && params.get('view') !== 'history';
+    return <ImportWorkspace key={user?.userId} visible={visible} />;
+}
+
+export default function ContentImportPage() {
+    const [params] = useSearchParams();
+    return params.get('view') === 'history' ? <AuthorImportHistory /> : null;
 }

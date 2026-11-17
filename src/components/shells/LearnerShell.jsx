@@ -115,7 +115,7 @@ const MENU_GROUPS = [
       },
       {
         to: '/exam-result',
-        label: 'Kết quả thi',
+        label: 'Kết quả thi thử',
         icon: 'fact_check',
       },
     ],
@@ -125,6 +125,7 @@ const MENU_GROUPS = [
     label: 'Hỗ trợ',
     icon: 'forum',
     items: [
+      { to: '/plans', label: 'Gói ôn luyện', icon: 'shopping_bag', alsoActive: ['/study-payment'] },
       { to: '/payments', label: 'Thanh toán', icon: 'payments', alsoActive: ['/payments/history', '/consultation-payment', '/consultation-receipt', '/payment/success', '/payment/cancel'] },
       { to: '/my-courses', label: 'Lớp học & Khóa JLPT', icon: 'school' },
       {
@@ -133,8 +134,8 @@ const MENU_GROUPS = [
         icon: 'psychology',
       },
       {
-        to: '/mentor',
-        label: 'Tư vấn 1-1',
+        to: '/consultation-center',
+        label: 'Lịch tư vấn trước đây',
         icon: 'support_agent',
         alsoActive: [
           '/booking-schedule',
@@ -146,6 +147,7 @@ const MENU_GROUPS = [
           '/consultation-room',
         ],
       },
+      { to: '/homework', label: 'Bài tập về nhà', icon: 'assignment' },
       {
         to: '/mentor-chat',
         label: 'Tin nhắn',

@@ -1,45 +1,22 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import BrandMark from '../../components/BrandMark.jsx';
 
-export default function ForgotPassword() {
-  useEffect(() => {
-    const orig = document.addEventListener.bind(document);
-    document.addEventListener = (type, fn, opts) => {
-      if (type === 'DOMContentLoaded') {
-        try { fn(); } catch (err) { console.warn(err); }
-        return;
-      }
-      return orig(type, fn, opts);
-    };
-    try {
-      function showStep(stepNumber) {
-            document.querySelectorAll('.step-container').forEach(el => {
-              el.classList.remove('active');
-            });
-            const target = document.getElementById(`step-${stepNumber}`);
-            if (target) {
-              target.classList.add('active');
-            }
-          }
-      
-          function togglePassword(inputId, triggerBtn) {
-            const input = document.getElementById(inputId);
-            const icon = triggerBtn.querySelector('.material-symbols-outlined') || triggerBtn;
-            if (input.type === 'password') {
-              input.type = 'text';
-              icon.textContent = 'visibility';
-            } else {
-              input.type = 'password';
-              icon.textContent = 'visibility_off';
-            }
-          }
-    } catch (err) {
-      console.warn('Stitch script:', err);
-    }
-    document.addEventListener = orig;
-  }, []);
+function showStep(stepNumber) {
+  document.querySelectorAll('.step-container').forEach((step) => {
+    step.classList.toggle('active', step.id === 'step-' + stepNumber);
+  });
+}
 
+function togglePassword(inputId, button) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const visible = input.type === 'password';
+  input.type = visible ? 'text' : 'password';
+  const icon = button.querySelector('.material-symbols-outlined');
+  if (icon) icon.textContent = visible ? 'visibility_off' : 'visibility';
+}
+
+export default function ForgotPassword() {
   return (
     <div className="bg-[#FAF7F2] text-[#1F1A1D] min-h-screen flex flex-col relative overflow-x-hidden selection:bg-pink-200 selection:text-[#ab2848]" data-page="ForgotPassword">
 

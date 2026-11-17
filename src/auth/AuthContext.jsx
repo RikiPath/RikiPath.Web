@@ -91,6 +91,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     clearSession();
     setSessionState(null);
+    // Reload the app so cached account data is discarded before another sign-in.
+    window.location.replace('/auth/');
   }, []);
 
   const updateSession = useCallback((partial) => {

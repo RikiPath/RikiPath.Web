@@ -1,4 +1,4 @@
-import { getPreviewSession } from '../mocks/preview.js';
+import { getPreviewSession, PREVIEW_FLAG, PREVIEW_ROLE } from '../mocks/preview.js';
 
 const KEY = 'rikipath.auth';
 const PENDING_KEY = 'rikipath.pendingVerify';
@@ -61,6 +61,8 @@ export function patchSession(partial) {
 export function clearSession() {
   localStorage.removeItem(KEY);
   sessionStorage.removeItem(KEY);
+  localStorage.removeItem(PREVIEW_FLAG);
+  localStorage.removeItem(PREVIEW_ROLE);
 }
 
 export function savePendingVerify(payload) {
