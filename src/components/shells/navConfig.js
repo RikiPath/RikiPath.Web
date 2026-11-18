@@ -63,11 +63,12 @@ export const ADMIN_NAV = {
         { to: '/admin/mentor-schedules', label: 'Duyệt lịch Mentor', icon: 'calendar_month' },
         { to: '/admin/mentor-template', label: 'Mẫu ca', icon: 'event_repeat' },
         { to: '/admin/slot-review', label: 'Khung giờ', icon: 'schedule' },
-        { to: '/admin/study-courses', label: 'Gói học, lớp & học lại', icon: 'school' },
+        { to: '/admin/mentor-plans', label: 'Gói tư vấn', icon: 'sell' },
+        { to: '/admin/study-courses', label: 'Lớp học, Quyền & Học lại', icon: 'school' },
         { to: '/admin/study-catalog', label: 'Chứng chỉ & cấp độ', icon: 'category' },
-        { to: '/admin/mentor-compensation', label: 'Thù lao & Kỳ lương', icon: 'payments' },
+        { to: '/admin/mentor-qualifications', label: 'Phân quyền JLPT', icon: 'verified' },
         { to: '/admin/mentor-cases', label: 'Ngoại lệ', icon: 'gavel' },
-        { to: '/admin/mentor-quality', label: 'Chất lượng', icon: 'monitoring' },
+        { to: '/admin/mentor-quality', label: 'Chấm công & KPI', icon: 'monitoring' },
       ],
     },
     {
@@ -148,7 +149,7 @@ export const CONSULT_NAV = {
       label: 'Buổi tư vấn',
       items: [
         { to: '/mentor-overview', label: 'Tổng quan', hint: 'Lịch và số liệu', icon: 'dashboard' },
-        { to: '/mentor-study-courses', label: 'Lớp học phụ trách', icon: 'school' },
+        { to: '/mentor-study-courses', label: 'Lớp học & BTVN', icon: 'school' },
         {
           to: '/consultation-queue',
           label: 'Hàng đợi',
@@ -171,7 +172,7 @@ export const CONSULT_NAV = {
       label: 'Hồ sơ',
       items: [
         { to: '/mentor-profile', label: 'Hồ sơ chuyên gia', hint: 'Xác minh và chuyên môn', icon: 'badge' },
-        { to: '/mentor-compensation', label: 'Thù lao', hint: 'Bảng kê và tài khoản nhận', icon: 'payments' },
+        { to: '/mentor-attendance-kpi', label: 'Chấm công & KPI', hint: 'Lịch dạy, điểm danh và phản hồi', icon: 'monitoring' },
         { to: '/mentor-disputes', label: 'Khiếu nại', hint: 'Giải trình của học viên', icon: 'gavel' },
       ],
     },

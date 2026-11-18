@@ -49,7 +49,7 @@ export const ALL_PAGES = [
   { to: '/consultation-prep', label: 'Prep', page: 'ConsultationPrep', group: 'consult-sensei' },
   { to: '/consultation-request', label: 'Yêu cầu', page: 'ConsultationRequestDetail', group: 'consult-sensei' },
   { to: '/mentor-reviews', label: 'Đánh giá', page: 'MentorReviews', group: 'consult-sensei' },
-  { to: '/mentor-compensation', label: 'Thù lao', page: 'MentorCompensation', group: 'consult-sensei' },
+  { to: '/mentor-attendance-kpi', label: 'Chấm công & KPI', page: 'MentorAttendanceKpi', group: 'consult-sensei' },
   { to: '/work-schedule', label: 'Lịch làm việc', page: 'WorkSchedule', group: 'consult-sensei' },
   { to: '/mentor-availability', label: 'Lịch khả dụng', page: 'MentorAvailability', group: 'consult-sensei' },
   // CMS
@@ -157,7 +157,7 @@ export const FLOWS = [
     id: 'consult-sensei',
     stepLabel: 'Luồng 5',
     title: 'Sensei làm việc',
-    description: 'Tổng quan → hàng đợi → chuẩn bị → lịch, đánh giá và thù lao',
+    description: 'Tổng quan → hàng đợi → chuẩn bị → lịch, đánh giá và chấm công & KPI',
     steps: [
       { n: 1, to: '/mentor-overview', label: 'Tổng quan Mentor', page: 'MentorOverview', hint: 'Overview' },
       { n: 2, to: '/consultation-queue', label: 'Hàng đợi', page: 'ConsultationQueue', hint: 'Queue' },
@@ -166,7 +166,7 @@ export const FLOWS = [
       { n: 5, to: '/mentor-reviews', label: 'Đánh giá', page: 'MentorReviews', hint: 'Reviews' },
       { n: 6, to: '/work-schedule', label: 'Lịch làm việc', page: 'WorkSchedule', hint: 'Schedule' },
       { n: 7, to: '/mentor-availability', label: 'Lịch khả dụng', page: 'MentorAvailability', hint: 'Availability' },
-      { n: 8, to: '/mentor-compensation', label: 'Thù lao', page: 'MentorCompensation', hint: 'Pay' },
+      { n: 8, to: '/mentor-attendance-kpi', label: 'Chấm công & KPI', page: 'MentorAttendanceKpi', hint: 'KPI' },
     ],
   },
   {

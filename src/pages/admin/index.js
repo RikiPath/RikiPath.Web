@@ -8,6 +8,7 @@ export { default as AdminCertificateSections } from './AdminCertificateSections.
 export { default as AdminSlotReview } from './AdminSlotReview.jsx';
 export { default as AdminMentorCases } from './AdminMentorCases.jsx';
 export { default as AdminMentorQuality } from './AdminMentorQuality.jsx';
+export { default as AdminMentorQualifications } from './AdminMentorQualifications.jsx';
 export { default as AdminMentorTemplate } from './AdminMentorTemplate.jsx';
 
 

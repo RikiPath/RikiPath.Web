@@ -3,6 +3,9 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { LearnerShell } from '../../components/shells';
 import { getMentorAvailableSlots, getMentorRatingSummary, getPublicMentorProfile } from '../../api/mentorBookingApi.js';
 import { vietnamDate } from '../../utils/vietnamDate.js';
+import { getCohorts } from '../../api/studyCourses';
+import CohortSummaryCard from '../../components/studyCourses/CohortSummaryCard';
+import '../studyCourses.css';
 
 export default function MentorPublicProfile() {
   const { pathname } = useLocation();
@@ -27,7 +30,14 @@ export default function MentorPublicProfile() {
     enabled: Number.isInteger(id) && id > 0,
   });
 
+  const cohortQuery = useQuery({
+    queryKey: ['public-mentor-cohorts', id],
+    queryFn: () => getCohorts({ mentorId: id }),
+    enabled: Number.isInteger(id) && id > 0,
+  });
+
   const profile = profileQuery.data;
+  const cohorts = (cohortQuery.data || []).filter((c) => c.mentorId === id);
   const days = slotQuery.data?.dailySlots || [];
 
   return (
@@ -68,6 +78,25 @@ export default function MentorPublicProfile() {
               </li>
             ))}
           </ul>
+        </section>
+        <section className="course-page mt-4" style={{ padding: 0 }} aria-labelledby="mentor-cohorts">
+          <div className="course-box">
+            <h2 id="mentor-cohorts">Lớp nhóm đang mở của Mentor</h2>
+            {cohortQuery.isPending && <p className="course-meta">Đang tải lớp…</p>}
+            {cohortQuery.error && <p role="alert" className="course-error">{cohortQuery.error.message}</p>}
+            {!cohortQuery.isPending && !cohortQuery.error && cohorts.length === 0 && (
+              <p className="course-meta">Mentor chưa có lớp nhóm đang mở đăng ký.</p>
+            )}
+            <div className="course-grid">
+              {cohorts.map((cohort) => (
+                <CohortSummaryCard key={cohort.id} cohort={cohort}>
+                  <Link className="course-pill-link" to={`/my-courses?mentorId=${id}`} style={{ marginTop: 10 }}>
+                    Xem & đăng ký lớp
+                  </Link>
+                </CohortSummaryCard>
+              ))}
+            </div>
+          </div>
         </section>
       </main>
     </LearnerShell>

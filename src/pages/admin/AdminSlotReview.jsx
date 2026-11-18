@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getAdminMentorAvailabilities, getPendingMentorSlots, reviewMentorSlot, reviewMentorSlotCancels, reviewMentorSlots, unwrapApiList } from '../../api/admin.js';
@@ -57,10 +57,10 @@ export default function AdminSlotReview() {
     mutationFn: ({ id, cancelSlot }) => resolveSlotChange(id, { cancelSlot, reason: reason.trim() }),
     onSuccess: () => { setNotice('Đã xử lý yêu cầu đổi tiết.'); setReason(''); refresh(); },
   });
-  const pendingRows = (Array.isArray(pending.data) ? pending.data : []).filter((row) => !row.mentorWeeklyAvailabilityId);
-  const weeklyCount = (Array.isArray(pending.data) ? pending.data : []).filter((row) => row.mentorWeeklyAvailabilityId).length;
-  const cancelRows = (Array.isArray(pending.data) ? pending.data : []).filter((row) => row.cancelRequestedAt && !row.cancelRejectedAt);
-  const changeRows = (Array.isArray(all.data) ? all.data : []).filter((row) => row.changeRequestedAt && !row.changeResolution);
+  const pendingRows = Array.isArray(pending.data) ? pending.data : [];
+  const allRows = Array.isArray(all.data) ? all.data : [];
+  const cancelRows = allRows.filter((row) => row.cancelRequestedAt && !row.cancelRejectedAt);
+  const changeRows = allRows.filter((row) => row.changeRequestedAt && !row.changeResolution);
   const rows = tab === 'review' ? pendingRows : tab === 'cancel' ? cancelRows : changeRows;
   const counts = { review: pendingRows.length, cancel: cancelRows.length, change: changeRows.length };
   const busy = review.isPending || reviewOne.isPending || cancel.isPending || change.isPending;
@@ -71,7 +71,7 @@ export default function AdminSlotReview() {
     <AdminShell pathname={pathname} breadcrumb="Duyệt khung giờ">
       <main className="mx-auto max-w-[860px] px-4 py-6 text-[#352C31] sm:px-6">
         <h1 className="text-[25px] font-semibold tracking-tight">Duyệt khung giờ</h1>
-        <p className="mt-1 text-[13px] text-[#82737B]">Khung lẻ của cố vấn. Lịch tuần được công bố ở trang xếp lịch.</p>
+        <p className="mt-1 text-[13px] text-[#82737B]">Khung giờ giảng dạy theo chính sách Admin chờ phê duyệt hoặc điều chỉnh.</p>
 
         <div className="mt-4 flex gap-2">
           {TABS.map((item) => (
@@ -89,12 +89,6 @@ export default function AdminSlotReview() {
 
         {error && <p role="alert" className="mt-4 rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">{error.message}</p>}
         {notice && <p className="mt-4 rounded-xl bg-[#E7F6EC] px-4 py-3 text-[13px] text-[#1E5C36]">{notice}</p>}
-        {tab === 'review' && weeklyCount > 0 && (
-          <p className="mt-4 rounded-xl border border-[#EADFE5] bg-white px-4 py-3 text-[13px] text-[#705261]">
-            {weeklyCount} khung thuộc lịch tuần.{' '}
-            <Link to="/admin/mentor-schedules" className="font-medium text-[#AD3155]">Mở xếp lịch tuần</Link>
-          </p>
-        )}
 
         <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
           {(pending.isLoading || all.isLoading) && <p className="px-5 py-6 text-[13px] text-[#A08B96]">Đang tải…</p>}

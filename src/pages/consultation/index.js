@@ -7,7 +7,7 @@ export { default as ConsultantOverview } from './ConsultantOverview.jsx';
 export { default as ConsultationPrep } from './ConsultationPrep.jsx';
 export { default as ConsultationRequestDetail } from './ConsultationRequestDetail.jsx';
 export { default as WorkSchedule } from './WorkSchedule.jsx';
-export { default as MentorCompensation } from './MentorCompensation.jsx';
+export { default as MentorAttendanceKpi } from './MentorAttendanceKpi.jsx';
 export { default as MentorReviews } from './MentorReviews.jsx';
 export { default as ConsultationSessionDetail } from './ConsultationSessionDetail.jsx';
 export { default as ConsultationReceipt } from './ConsultationReceipt.jsx';
