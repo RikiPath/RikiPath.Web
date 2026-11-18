@@ -122,7 +122,7 @@ export default function BookingSchedule({ purchasePlanId } = {}) {
                 {mentors.map(item => <button key={item.id} type="button" aria-pressed={item.id === mentorId} onClick={() => { setMentorId(item.id); setDayId(''); setSlotId(null); }} className={`rounded-2xl border p-4 text-left ${item.id === mentorId ? 'border-[#D94B68] bg-[#fff8f8]' : 'border-[#eadfd9] bg-[#FAF7F5]'}`}>
                   <div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white font-bold text-[#D94B68]">{item.avatarUrl ? <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" /> : initial(item.name)}</span><div><p className="text-sm font-bold">{item.name || `Mentor #${item.id}`}</p><p className="mt-1 text-xs text-[#D94B68]">Mentor</p></div></div>
                   <p className="mt-3 text-xs leading-relaxed text-[#6F6669]">
-                    {item.averageRating == null ? 'Chưa có đánh giá' : `${item.averageRating.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}/5 sao · ${item.reviewCount} đánh giá`}
+                    {item.averageRating == null ? 'Chưa có đánh giá' : `${item.averageRating.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}/5 sao`}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-[#9E2A4B]">{item.isRecommended ? 'Đề xuất · ' : ''}{item.slots.length} khung giờ trống</p>
                 </button>)}

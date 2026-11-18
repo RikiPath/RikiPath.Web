@@ -113,6 +113,7 @@ function QuestionBlock({ q, index }) {
   const answerKey = pick(q, 'AnswerKey', 'answerKey');
   const audio = pick(q, 'AudioUrl', 'audioUrl');
   const image = pick(q, 'ImageUrl', 'imageUrl');
+  const interaction = pick(q, 'InteractionData', 'interactionData');
 
   return (
     <div className="rounded-lg border border-[#eadfd9] bg-white p-3">
@@ -121,9 +122,13 @@ function QuestionBlock({ q, index }) {
           Câu {pick(q, 'SortOrder', 'sortOrder') ?? index + 1}
         </span>
         <p className="flex-1 text-[13px] font-medium break-words">{pick(q, 'QuestionText', 'questionText')}</p>
-        <span className="shrink-0 text-[10px] text-[#A59B9E]">{pick(q, 'QuestionType', 'questionType')}</span>
+        <span className="shrink-0 text-[10px] text-[#A59B9E]">{interaction?.jlptItemType || pick(q, 'QuestionType', 'questionType')}</span>
       </div>
 
+      {interaction?.passage && <p className="mt-2 whitespace-pre-wrap text-[13px]">{interaction.passage}</p>}
+      {interaction?.secondPassage && <p className="mt-2 whitespace-pre-wrap text-[13px]">{interaction.secondPassage}</p>}
+      {interaction?.starPosition && <p className="mt-2 text-[12px]">Vị trí dấu ★ · {interaction.starPosition}</p>}
+      {interaction?.optionsInAudio && <p className="mt-2 text-[12px]">Lựa chọn phát trong audio</p>}
       {image && <img src={image} alt="" className="mt-2 max-h-40 rounded-md border border-[#eadfd9]" />}
       {audio && <audio controls src={audio} className="mt-2 h-8 w-full" />}
 

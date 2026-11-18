@@ -1,14 +1,16 @@
+import LearnerFeedbackPanel from './LearnerFeedbackPanel.jsx';
+
 export default function LessonStudyMaterial({ detail }) {
   const { content, vocabularies = [], kanjis = [], grammars = [] } = detail;
   const groups = [
-    { title: 'Từ vựng', items: vocabularies.map(item => ({
+    { type: 'vocabulary', title: 'Từ vựng', items: vocabularies.map(item => ({
       id: item.vocabularyId,
       label: [item.word, item.reading, item.meaning].filter(Boolean).join(' · '),
       example: item.exampleSentence,
       translation: item.exampleSentenceMeaning,
       audioUrl: item.audioUrl,
     })) },
-    { title: 'Hán tự', items: kanjis.map(item => ({
+    { type: 'kanji', title: 'Hán tự', items: kanjis.map(item => ({
       id: item.kanjiId,
       label: [item.character, item.meaning].filter(Boolean).join(' · '),
       notes: [
@@ -20,7 +22,7 @@ export default function LessonStudyMaterial({ detail }) {
       imageUrl: item.strokeOrderImageUrl,
       audioUrl: item.audioUrl,
     })) },
-    { title: 'Ngữ pháp', items: grammars.map(item => ({
+    { type: 'grammar', title: 'Ngữ pháp', items: grammars.map(item => ({
       id: item.grammarPatternId,
       label: [item.title, item.structure].filter(Boolean).join(' · '),
       notes: item.usageNotes,
@@ -48,6 +50,7 @@ export default function LessonStudyMaterial({ detail }) {
             alt={'Thứ tự nét ' + item.label} loading="lazy" />}
           {item.audioUrl && <audio className="mt-1 max-w-full" controls preload="none"
             aria-label={'Nghe ' + item.label} src={item.audioUrl} />}
+          <LearnerFeedbackPanel type={group.type} id={item.id} label="Phản hồi về mục này" />
         </li>)}
       </ul>
     </section>)}

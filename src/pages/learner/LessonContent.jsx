@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -113,6 +114,7 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
     {result && <p role="status">{result.scorePercent}% · {result.correctCount}/{result.totalQuestions} câu đúng · {result.passed
       ? 'Đã đạt bài luyện tập.'
       : 'Chưa đạt. Bạn có thể làm lại.'}</p>}
+    {result && <LearnerFeedbackPanel type="exercise" id={result.practiceExerciseId} label="Phản hồi về bài luyện tập" />}
     {error && <p role="alert" className="text-rose-700">{error.message}</p>}
     {exercises.isError && <button type="button" className={button} onClick={() => exercises.refetch()}>Tải lại bài luyện tập</button>}
   </section>;
@@ -146,6 +148,7 @@ export default function LessonContent({ lesson, userId, skill, refresh, fromAsse
   const studied = detail.data.isCompleted || lesson.practicePassed;
   return <div className="space-y-4 text-sm leading-relaxed">
     <LessonStudyMaterial detail={detail.data} />
+    <LearnerFeedbackPanel type="lesson" id={lessonId} label="Phản hồi về bài học" />
     <LessonPractice lesson={lesson} userId={userId} studied={studied} skill={skill} refresh={refresh}
       fromAssessmentRoadmap={fromAssessmentRoadmap}
       onStudied={async updated => {

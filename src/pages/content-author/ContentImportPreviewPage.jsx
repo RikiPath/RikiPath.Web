@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../../api/client.js';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import AuthorImportHistory from './AuthorImportHistory.jsx';
 import WorkbookPreview, { workbookEditKey } from './WorkbookPreview.jsx';
@@ -347,6 +348,11 @@ function DiffModal({ row, entityType, onClose }) {
                                                             )}
                                                         </div>
 
+                                                        {q.InteractionData?.jlptItemType && <p className="font-medium text-sky-700">{q.InteractionData.jlptItemType}</p>}
+                                                        {q.InteractionData?.passage && <p className="whitespace-pre-wrap">{q.InteractionData.passage}</p>}
+                                                        {q.InteractionData?.secondPassage && <p className="whitespace-pre-wrap">{q.InteractionData.secondPassage}</p>}
+                                                        {q.InteractionData?.starPosition && <p>Vị trí ★ · {q.InteractionData.starPosition}</p>}
+                                                        {q.ImageUrl && <img src={q.ImageUrl} alt="Ảnh câu hỏi" className="max-h-40 max-w-full rounded-md object-contain" />}
                                                         {Array.isArray(q.Options) && q.Options.length > 0 && (
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
                                                                 {q.Options.map((opt, oIdx) => (
@@ -534,6 +540,12 @@ function SummaryCard({ action, value, active, onClick }) {
 }
 
 function ListeningAudioUpload() {
+    const [showFormats, setShowFormats] = useState(false);
+    const formatLookup = useQuery({
+        queryKey: ['manual-content-lookups'],
+        queryFn: () => api.get('/content-author/manual/lookups'),
+        enabled: showFormats,
+    });
     const [uploading, setUploading] = useState(false);
     const [files, setFiles] = useState([]);
 
@@ -557,10 +569,25 @@ function ListeningAudioUpload() {
     }
 
     return <section className="rounded-xl border border-[#E8DFDC] bg-white p-5">
-        <h2 className="font-semibold text-[#2D282A]">Audio Nghe hiểu cho đề JLPT N5–N2</h2>
+        <h2 className="font-semibold text-[#2D282A]">Định dạng đề JLPT N5–N2</h2>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+            <li>Gắn mã dạng câu ở JlptItemType. Ví dụ ReadingShort kèm nội dung ở Passage, hoặc ReadingIntegrated kèm thêm SecondPassage.</li>
+            <li>Với SentenceComposition, nhập bốn cụm đúng thứ tự vào OrderingParts, ngăn bằng |, rồi điền vị trí ★ từ 1 đến 4 vào StarPosition.</li>
+            <li>Với lựa chọn phát qua audio, đặt OptionsInAudio thành true, điền số vào Option1 đến Option4 và đánh dấu đáp án bằng CorrectOptionNumber.</li>
+        </ul>
         <p className="mt-1 text-sm text-slate-600">
-            Đề cần đủ Từ vựng, Ngữ pháp, Đọc hiểu và Nghe hiểu. Tải MP3 lên rồi dán đường dẫn của từng câu nghe vào cột AudioUrl trong sheet Mock Test. Dùng ImageUrl cho ảnh câu hỏi và Option1ImageUrl đến Option4ImageUrl cho ảnh đáp án.
+            Trong sheet Mock Test, dùng AudioUrl cho MP3, ImageUrl cho ảnh câu hỏi và Option1ImageUrl đến Option4ImageUrl cho ảnh đáp án.
         </p>
+        <details className="mt-3 text-sm" onToggle={event => setShowFormats(event.currentTarget.open)}>
+            <summary className="cursor-pointer font-medium text-[#AD3155]">Mã JlptItemType theo cấp độ</summary>
+            {showFormats && formatLookup.isPending && <p className="mt-2">Đang tải mã dạng câu…</p>}
+            {formatLookup.isError && <p className="mt-2 text-rose-700">{formatLookup.error.message}</p>}
+            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                {(formatLookup.data?.jlptQuestionFormats ?? []).map(format => <li key={format.code}>
+                    <code className="font-semibold">{format.code}</code> · {format.label} · {format.levels.join(', ')}
+                </li>)}
+            </ul>
+        </details>
         <label className="mt-3 block text-sm font-medium text-slate-700">
             Chọn file MP3
             <input type="file" accept=".mp3,audio/mpeg" multiple disabled={uploading}

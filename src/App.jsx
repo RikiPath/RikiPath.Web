@@ -1,3 +1,4 @@
+import LearnerFeedbackPage from './pages/learner/LearnerFeedbackPage.jsx';
 import ManualContentPage from './pages/content-author/ManualContentPage.jsx';
 import MentorGrading from './pages/consultation/MentorGrading.jsx';
 import HomeworkPage from './pages/learner/HomeworkPage.jsx';
@@ -208,6 +209,7 @@ export default function App() {
             <Route path={withSlash('/ai-counselor')} element={(<AICounselor />)} />
             <Route path={withSlash('/ai-scoring')} element={(<AIScoringResult />)} />
             <Route path={withSlash('/mock-tests')} element={<ProtectedRoute allowedRoles={['Learner']}><MockTestPage /></ProtectedRoute>} />
+            <Route path={withSlash('/my-feedback')} element={<ProtectedRoute allowedRoles={['Learner']}><LearnerFeedbackPage /></ProtectedRoute>} />
             <Route path={withSlash('/homework')} element={<ProtectedRoute allowedRoles={['Learner']}><HomeworkPage /></ProtectedRoute>} />
             <Route path={withSlash('/exam-n3')} element={<Navigate to="/mock-tests/?level=N3" replace />} />
             <Route path={withSlash('/app/placement-test')} element={(<ExamN3 />)} />
@@ -276,6 +278,7 @@ export default function App() {
             <Route path={withSlash('/admin/users')} element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
             <Route path={withSlash('/admin/users/detail')} element={<ProtectedRoute requireAdmin><AdminUserDetail /></ProtectedRoute>} />
             <Route path={withSlash('/admin/roles')} element={<ProtectedRoute requireAdmin><Navigate to="/admin/users" replace /></ProtectedRoute>} />
+            <Route path={withSlash('/admin/learner-feedback')} element={<ProtectedRoute requireAdmin><LearnerFeedbackPage admin /></ProtectedRoute>} />
             <Route path={withSlash('/admin/content-review')} element={<ProtectedRoute requireAdmin><AdminContentReview /></ProtectedRoute>} />
             <Route path={withSlash('/admin/consultants')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />
             <Route path={withSlash('/admin/mentors')} element={<ProtectedRoute requireAdmin><AdminMentorHub /></ProtectedRoute>} />

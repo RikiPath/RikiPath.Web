@@ -73,6 +73,7 @@ export const ADMIN_NAV = {
     {
       label: 'Nội dung',
       items: [
+        { to: '/admin/learner-feedback', label: 'Phản hồi học viên', icon: 'rate_review' },
         { to: '/admin/content-review', label: 'Duyệt nội dung', icon: 'fact_check' },
         { to: '/admin/certificate-sections', label: 'Phần thi', icon: 'view_agenda' },
       ],
@@ -157,7 +158,7 @@ export const CONSULT_NAV = {
         },
         { to: '/consultation-prep', label: 'Chuẩn bị buổi', hint: 'Ghi chú trước giờ', icon: 'fact_check' },
         { to: '/mentor-chat', label: 'Tin nhắn 1–1', hint: 'Trao đổi riêng với học viên', icon: 'forum' },
-        { to: '/mentor-reviews', label: 'Đánh giá', hint: 'Phản hồi học viên', icon: 'reviews' },
+        { to: '/mentor-reviews', label: 'Đánh giá', hint: 'Điểm trung bình', icon: 'reviews' },
       ],
     },
     {

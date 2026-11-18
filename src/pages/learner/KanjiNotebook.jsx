@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -203,6 +204,7 @@ export default function KanjiNotebook() {
                       >
                         {stored ? tr('Đã lưu') : tr('Lưu vào sổ')}
                       </button>
+                      <LearnerFeedbackPanel type="kanji" id={item.id} label="Phản hồi về Hán tự" />
                     </div>
                   </li>
                 );

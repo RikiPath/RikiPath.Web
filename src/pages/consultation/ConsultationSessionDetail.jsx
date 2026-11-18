@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { useLocale } from '../../i18n/locale.js';
 import {
   cancelMentorBooking,
   createMentorDispute,
-  createMentorReview,
   getCancellationEligibility,
   getLearnerBookings,
   getMentorAvailableSlots,
@@ -33,8 +33,6 @@ export default function ConsultationSessionDetail() {
   const [params] = useSearchParams();
   const id = Number(params.get('bookingId'));
   const client = useQueryClient();
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
   const [category, setCategory] = useState('Other');
   const [reason, setReason] = useState('');
   const [evidenceUrls, setEvidenceUrls] = useState('');
@@ -58,11 +56,6 @@ export default function ConsultationSessionDetail() {
     client.invalidateQueries({ queryKey: ['learner-mentor-bookings'] });
     client.invalidateQueries({ queryKey: ['cancel-eligibility', id] });
   };
-  const review = useMutation({
-    mutationFn: () => createMentorReview({ mentorBookingId: id, rating: Number(rating), comment: comment || null }),
-    onSuccess: () => { setActionError(''); setActionMessage('Đã gửi đánh giá.'); },
-    onError: (err) => setActionError(err.message),
-  });
   const dispute = useMutation({
     mutationFn: () => createMentorDispute({
       mentorBookingId: id,
@@ -127,14 +120,9 @@ export default function ConsultationSessionDetail() {
               <p role={actionError ? 'alert' : 'status'} className={`mt-3 rounded-xl px-3 py-2 text-[13px] ${actionError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>{actionError || actionMessage}</p>
             )}
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <form className="rounded-xl border border-[#EADFE5] p-4" onSubmit={(event) => { event.preventDefault(); review.mutate(); }}>
-                <h3 className="text-[14px] font-semibold">Đánh giá buổi học</h3>
-                <label className="mt-2 block text-[12px] text-[#8C7782]">Số sao (1–5)
-                  <input type="number" min="1" max="5" value={rating} onChange={(event) => setRating(event.target.value)} className="mt-1 w-full rounded-lg border border-[#EADFE5] px-3 py-2" />
-                </label>
-                <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={3} placeholder="Nhận xét" className="mt-2 w-full rounded-lg border border-[#EADFE5] px-3 py-2 text-[13px]" />
-                <button type="submit" disabled={review.isPending} className={`mt-2 h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50 ${focus}`}>Gửi đánh giá</button>
-              </form>
+              {booking.paymentStatus === 'Paid' && (booking.status === 'Completed' ||
+                (booking.attendedAt && bookingExpired(booking))) &&
+                <LearnerFeedbackPanel type="mentor" id={id} label="Đánh giá buổi học với mentor" />}
               <form className="rounded-xl border border-[#EADFE5] p-4" onSubmit={(event) => { event.preventDefault(); if (reason.trim()) dispute.mutate(); }}>
                 <h3 className="text-[14px] font-semibold">Khiếu nại</h3>
                 <select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EADFE5] px-3 py-2 text-[13px]">

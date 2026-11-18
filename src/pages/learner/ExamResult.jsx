@@ -1,6 +1,6 @@
 import { useLocale } from '../../i18n/locale.js';
 import { useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { LearnerShell } from '../../components/shells';
@@ -19,10 +19,10 @@ const percent = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
 const date = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' });
 
 export default function ExamResult() {
-  const { locale, tr } = useLocale();
+  const { tr } = useLocale();
   const { pathname } = useLocation();
   const { user, isAuthenticated } = useAuth();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(0);
   const history = useQuery({
     queryKey: ['mock-test-history', user?.userId],
     queryFn: getMockTestHistory, enabled: isAuthenticated, retry: false,
@@ -31,16 +31,16 @@ export default function ExamResult() {
   const attempts = (history.data ?? []).filter(attempt => !days || Date.parse(attempt.submittedAt) >= cutoff);
   const average = attempts.length ? attempts.reduce((sum, attempt) => sum + attempt.totalScore, 0) / attempts.length : null;
 
-  return <LearnerShell pathname={pathname} breadcrumb="Kết quả thi thử">
+  return <LearnerShell pathname={pathname} breadcrumb="Lịch sử điểm thi">
     <main data-page="ExamResult" className="mx-auto max-w-4xl space-y-4 px-4 py-6 text-[#49353F]">
       <header className={card + ' flex flex-wrap items-center justify-between gap-3'}>
         <div>
-          <h1 className="text-xl font-bold">Lịch sử thi thử</h1>
+          <h1 className="text-xl font-bold">{tr('Lịch sử điểm thi')}</h1>
           {history.isSuccess && <p className="mt-1 text-sm text-[#765E6B]">
             {attempts.length} lượt thi{average != null && ' · Trung bình ' + percent.format(average) + '%'}
           </p>}
         </div>
-        <Link className={button} to="/mock-tests/">Chọn đề thi thử</Link>
+        <Link className={button} to="/mock-tests/?view=unfinished">{tr('Đề thi chưa làm')}</Link>
       </header>
       {!isAuthenticated && <Link className={button} to="/auth/">Đăng nhập để xem lịch sử</Link>}
       {isAuthenticated && history.isSuccess && <MockTestProgress key={user?.userId} attempts={history.data} userId={user?.userId} />}

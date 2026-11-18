@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -469,6 +470,7 @@ export default function LessonPlayer() {
               )}
             </>
           )}
+          {lesson && <LearnerFeedbackPanel type="lesson" id={lessonId} label="Phản hồi về bài học" />}
         </main>
       </div>
     </LearnerShell>

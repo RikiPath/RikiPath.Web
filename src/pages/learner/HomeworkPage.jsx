@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useSearchParams } from 'react-router-dom';
@@ -384,7 +385,10 @@ function AssignedLesson({ lesson, assignmentId, userId }) {
     {open && <div className="space-y-2 border-t border-card-border p-3">
       {detail.isPending && <p role="status" className={muted}>Đang tải nội dung…</p>}
       <ErrorMessage error={detail.error} retry={detail.refetch} />
-      {detail.data && <LessonStudyMaterial detail={detail.data} />}
+      {detail.data && <>
+        <LessonStudyMaterial detail={detail.data} />
+        <LearnerFeedbackPanel type="lesson" id={lesson.id} label="Phản hồi về bài học" />
+      </>}
     </div>}
   </li>;
 }
@@ -433,6 +437,8 @@ function ExercisePlayer({ assignmentId, exercise, onCompleted }) {
         attempt.questions.some(question => !answers[question.questionId])}
         onClick={() => grade.mutate()}>{grade.isPending ? 'Đang chấm…' : 'Nộp bài luyện tập'}</button>
     </div>}
+    {exercise.scorePercent != null &&
+      <LearnerFeedbackPanel type="exercise" id={exercise.id} label="Phản hồi về bài luyện tập" />}
     <ErrorMessage error={exercise.scorePercent == null ? (start.error || grade.error) : null} />
   </li>;
 }
@@ -535,6 +541,7 @@ function HomeworkCard({ item, mentor, admin, userId, refresh, grading }) {
       </section>}
       {mentor && submission && <HomeworkGrading key={`${submission.id}-${gradeDraft ? grading.run : 0}`}
         id={item.id} submission={submission} refresh={refresh} draft={gradeDraft} />}
+      {!mentor && !admin && <LearnerFeedbackPanel type="homework" id={item.id} label="Phản hồi về bài tập về nhà" />}
       {canSubmit && <form className="space-y-3 rounded-xl bg-primary-light p-3" onSubmit={event => {
         event.preventDefault();
         submit.mutate();

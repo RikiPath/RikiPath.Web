@@ -152,6 +152,8 @@ const ui = {
     'Bài luyện tập': '練習',
     'Thi thử ': '模擬試験',
     'Thi thử': '模擬試験',
+    'Đề thi chưa làm': '未完了の模擬試験',
+    'Lịch sử điểm thi': '模擬試験の成績履歴',
     'Nghe hiểu': '聴解',
     'Đọc hiểu': '読解',
     'Luyện viết': '作文',

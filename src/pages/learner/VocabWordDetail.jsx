@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -112,6 +113,7 @@ export default function VocabWordDetail() {
             ))}
           </ul>
         )}
+        {word && <LearnerFeedbackPanel type="vocabulary" id={wordId} label="Phản hồi về từ vựng" />}
       </main>
     </LearnerShell>
   );

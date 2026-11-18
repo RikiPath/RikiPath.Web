@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -422,6 +423,7 @@ export default function SpeakingPracticePage() {
             </div>
           </aside>
         </div>
+        <LearnerFeedbackPanel type="speaking" label="Phản hồi về luyện nói" />
       </main>
     </LearnerShell>
   );

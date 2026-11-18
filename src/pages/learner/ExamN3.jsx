@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import OrderingAnswer from '../../components/OrderingAnswer.jsx';
 import SkillAssessmentChart from '../../components/SkillAssessmentChart.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -286,6 +287,7 @@ export default function ExamN3() {
           {showCurrentAssessment && <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={returnToCurrentAssessment}>{isDifferentGoal && status?.targetJlptLevelName ? `Quay về đánh giá ${target}` : 'Quay về đánh giá hiện tại'}</button>}
           {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && <Link className="mt-4 inline-block text-sm font-semibold text-[#AD3155] underline" to="/onboarding">Kiểm tra mục tiêu học tập</Link>}
         </section>}
+        {result && <LearnerFeedbackPanel type="placement" id={result.attemptId} label="Phản hồi về bài đánh giá năng lực" />}
         {status && !attempt && !result && <section className={cardClass}>
           <h2 className="font-semibold">Mục tiêu {target}</h2>
           <p className="mt-2 text-sm">Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.</p>

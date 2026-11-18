@@ -34,10 +34,10 @@ export const statuses = {
 const orderingType = 'Ordering';
 const emptyOrderingParts = [{ uiId: 'first', text: '' }, { uiId: 'second', text: '' }];
 const questionTypes = {
-  SingleChoice: 'Một đáp án', MultipleChoice: 'Nhiều đáp án', Listening: 'Nghe hiểu', Reading: 'Đọc hiểu',
+  SingleChoice: 'Một đáp án', MultipleChoice: 'Nhiều đáp án', Listening: 'Nghe hiểu', Reading: 'Đọc hiểu', VisualMultipleChoice: 'Trắc nghiệm hình ảnh',
   [orderingType]: 'Sắp xếp câu', FillBlank: 'Điền chỗ trống', Matching: 'Ghép cặp', ShortAnswer: 'Trả lời ngắn',
 };
-const optionTypes = new Set(['SingleChoice', 'MultipleChoice', 'Listening', 'Reading']);
+const optionTypes = new Set(['SingleChoice', 'MultipleChoice', 'Listening', 'Reading', 'VisualMultipleChoice']);
 
 export function normalizeKeys(value) {
   if (Array.isArray(value)) return value.map(withRowId);
@@ -157,16 +157,74 @@ function OrderingFields({ parts, change }) {
   </fieldset>;
 }
 
-function Questions({ rows, onChange, mock }) {
+function QuestionFormat({ question, change, formats }) {
+  const data = question.interactionData && typeof question.interactionData === 'object' ? question.interactionData : {};
+  const format = formats.find(item => item.code === data.jlptItemType);
+  const composition = data.jlptItemType === 'SentenceComposition';
+  const hasPassage = format?.skill === 'Reading' || format?.code === 'TextGrammar' || question.questionType === 'Reading';
+  const listening = format?.skill === 'Listening' || question.questionType === 'Listening';
+
+  function selectFormat(code) {
+    const selected = formats.find(item => item.code === code);
+    const next = { ...data };
+    if (selected) next.jlptItemType = selected.code;
+    else delete next.jlptItemType;
+    if (selected?.code === 'SentenceComposition') {
+      next.starPosition ??= 2;
+      change('questionType', orderingType);
+      if ((question.orderingParts?.length ?? 0) < 4) {
+        change('orderingParts', Array.from({ length: 4 }, (_, index) =>
+          question.orderingParts?.[index] ?? { uiId: crypto.randomUUID(), text: '' }));
+      }
+    } else if (selected) {
+      delete next.starPosition;
+      change('questionType', question.questionType === 'VisualMultipleChoice' ? 'VisualMultipleChoice'
+        : selected.skill === 'Listening' ? 'Listening' : selected.skill === 'Reading' ? 'Reading' : 'SingleChoice');
+    }
+    if (selected && selected.skill !== 'Listening') delete next.optionsInAudio;
+    change('interactionData', next);
+  }
+
+  function changeData(key, value) {
+    change('interactionData', { ...data, [key]: value });
+  }
+
+  return <fieldset className="space-y-2">
+    <label className="block space-y-1 text-sm font-medium">
+      <span>Dạng bài JLPT trong phần này</span>
+      <select className={inputClass} value={data.jlptItemType ?? ''} onChange={event => selectFormat(event.target.value)}>
+        <option value="">Chưa phân loại theo JLPT</option>
+        {data.jlptItemType && !format && <option value={data.jlptItemType}>{data.jlptItemType} · kiểm tra cấp độ hoặc kỹ năng</option>}
+        {formats.map(item => <option key={item.code} value={item.code}>{item.label}</option>)}
+      </select>
+    </label>
+    {composition && <Field definition={field('starPosition', 'Vị trí dấu ★ (1–4)', 'number', true)}
+      data={data} change={changeData} />}
+    {hasPassage && <Field definition={field('passage', 'Đoạn văn hoặc ngữ liệu', 'textarea')}
+      data={data} change={changeData} />}
+    {format?.code === 'ReadingIntegrated' && <Field definition={field('secondPassage', 'Văn bản thứ hai', 'textarea')}
+      data={data} change={changeData} />}
+    {listening && <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={Boolean(data.optionsInAudio)} onChange={event => {
+        if (event.target.checked) change('questionType', 'Listening');
+        changeData('optionsInAudio', event.target.checked);
+      }} />
+      Phát lựa chọn trong audio, chỉ hiển thị số
+    </label>}
+  </fieldset>;
+}
+
+function Questions({ rows, onChange, mock, formats = [] }) {
   return <Rows rows={rows} onChange={onChange} name="Câu hỏi" create={newQuestion}
     render={(question, change) => <>
+      {mock && <QuestionFormat question={question} change={change} formats={formats} />}
       {mock && <Select label="Dạng câu" value={question.questionType || 'SingleChoice'}
         change={value => {
           change('questionType', value);
           if (value === orderingType && !question.orderingParts) change('orderingParts', emptyOrderingParts);
         }}
         items={Object.entries(questionTypes).map(([value, label]) => ({ value, label }))} />}
-      <Field definition={field('questionText', 'Nội dung câu hỏi', 'textarea', true)} data={question} change={change} />
+      <Field definition={field('questionText', 'Nội dung câu hỏi', 'textarea', !mock || !question.imageUrl)} data={question} change={change} />
       {mock && question.questionType === orderingType
         ? <OrderingFields parts={question.orderingParts ?? []} change={change} />
         : mock && !optionTypes.has(question.questionType || 'SingleChoice')
@@ -177,9 +235,11 @@ function Questions({ rows, onChange, mock }) {
         : <Rows rows={question.options ?? []} onChange={value => change('options', value)} name="Lựa chọn"
             create={() => ({ isCorrect: false })}
             render={(option, update) => <>
-              <Field definition={field('optionText', 'Nội dung lựa chọn', 'text', !mock || !option.imageUrl)} data={option} change={update} />
-              {mock && option.imageUrl && <img loading="lazy" alt="Hình đáp án" className="max-h-28 max-w-full object-contain" src={option.imageUrl} />}
-              {mock && <Field definition={field('imageUrl', 'URL ảnh đáp án', 'url')} data={option} change={update} />}
+              {!question.interactionData?.optionsInAudio && <>
+                <Field definition={field('optionText', 'Nội dung lựa chọn', 'text', !mock || !option.imageUrl)} data={option} change={update} />
+                {mock && option.imageUrl && <img loading="lazy" alt="Hình đáp án" className="max-h-28 max-w-full object-contain" src={option.imageUrl} />}
+                {mock && <Field definition={field('imageUrl', 'URL ảnh đáp án', 'url')} data={option} change={update} />}
+              </>}
               <label className="flex gap-2 text-sm">
                 {question.questionType === 'MultipleChoice'
                   ? <input type="checkbox" checked={Boolean(option.isCorrect)}
@@ -230,14 +290,22 @@ function serializeForm(type, data) {
       questions: (section.questions ?? []).map(({ orderingParts, ...question }) => {
         if (question.questionType === orderingType) {
           const answerKey = orderingParts.map(part => part.text.trim());
-          const existing = question.interactionData?.tokens ? question.interactionData : null;
+          const existing = question.interactionData;
           return {
             ...question, options: [], answerKey,
             interactionData: { ...existing, tokens: orderingTokens(answerKey, existing?.tokens) },
           };
         }
-        if (optionTypes.has(question.questionType || 'SingleChoice'))
-          return { ...question, interactionData: null, answerKey: null };
+        if (optionTypes.has(question.questionType || 'SingleChoice')) {
+          const metadata = question.interactionData;
+          const interactionData = metadata && typeof metadata === 'object'
+            ? Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'tokens' && key !== 'starPosition'))
+            : null;
+          const options = interactionData?.optionsInAudio
+            ? question.options.map((option, index) => ({ ...option, optionText: String(index + 1), imageUrl: null }))
+            : question.options;
+          return { ...question, options, interactionData, answerKey: null };
+        }
         return {
           ...question, options: [],
           interactionData: typeof question.interactionData === 'string' ? JSON.parse(question.interactionData) : question.interactionData,
@@ -282,6 +350,11 @@ export function ContentForm({ type, initial, record, lookups, save, close, viewO
   const change = (key, value) => setData(previous => updateField(previous, key, value));
   const skills = lookups.skills.map(skill => ({ value: skill.id, label: skill.name }));
   const exercise = type === 'PracticeExercise';
+  const levelCode = lookups.levels.find(level => level.id === data.certificateLevelId)?.code;
+  const formats = (lookups.jlptQuestionFormats ?? []).filter(format => format.levels.includes(levelCode));
+  const usedFormats = new Set((data.sections ?? []).flatMap(section =>
+    (section.questions ?? []).map(question => question.interactionData?.jlptItemType)));
+  const missingFormats = formats.filter(format => !usedFormats.has(format.code));
   const lessons = useQuery({
     queryKey: ['manual-content-lessons', data.certificateLevelId],
     queryFn: () => api.get(endpoint + '/lessons/' + data.certificateLevelId),
@@ -340,6 +413,14 @@ export function ContentForm({ type, initial, record, lookups, save, close, viewO
         {lessons.isError && <p role="alert" className="text-sm text-rose-700">Chưa tải được bài học đã xuất bản.</p>}
         <Questions rows={data.questions ?? []} onChange={value => change('questions', value)} />
       </>}
+      {type === 'MockTest' && formats.length > 0 && <details className="rounded-lg border border-[#EADFE5] p-3 text-sm">
+        <summary className="cursor-pointer font-medium">
+          {formats.length - missingFormats.length}/{formats.length} dạng JLPT {levelCode} đã được gắn nhãn
+        </summary>
+        {missingFormats.length > 0 && <ul className="mt-2 grid list-disc gap-1 pl-5 sm:grid-cols-2">
+          {missingFormats.map(format => <li key={format.code}>{format.label}</li>)}
+        </ul>}
+      </details>}
       {type === 'MockTest' && <Rows rows={data.sections ?? []} onChange={value => change('sections', value)}
         name="Phần thi" create={newMockSection} render={(section, update) => <>
           <Field definition={field('title', 'Tên phần thi', 'text', true)} data={section} change={update} />
@@ -349,7 +430,9 @@ export function ContentForm({ type, initial, record, lookups, save, close, viewO
           <Select label="Kỹ năng" value={section.languageSkillId} change={value => update('languageSkillId', Number(value))} items={skills} />
           <section aria-label="Câu hỏi và đáp án" className="space-y-2">
             <h3 className="font-semibold text-[#49353F]">Câu hỏi và đáp án</h3>
-            <Questions rows={section.questions ?? []} onChange={value => update('questions', value)} mock />
+            <Questions rows={section.questions ?? []} onChange={value => update('questions', value)} mock
+              formats={formats.filter(format => format.skill.toLowerCase() ===
+                lookups.skills.find(skill => skill.id === section.languageSkillId)?.name?.trim().toLowerCase())} />
           </section>
         </>} />}
       {!readOnly && <button className="rounded-lg bg-[#AD3155] px-4 py-2 text-sm font-semibold text-white" type="submit">

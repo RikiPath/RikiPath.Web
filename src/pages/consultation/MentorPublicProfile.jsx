@@ -42,7 +42,9 @@ export default function MentorPublicProfile() {
             <p className="mt-1 text-sm text-[#6F6669]">{profile.expertise || 'Chưa cập nhật chuyên môn'} · JLPT {profile.jlptLevel || '—'}</p>
             <p className="mt-1 text-sm text-[#6F6669]">{profile.workplace || 'Chưa cập nhật nơi công tác'} · {profile.yearsOfExperience ?? '—'} năm kinh nghiệm</p>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{profile.bio || 'Chưa có giới thiệu.'}</p>
-            <p className="mt-3 text-sm">Điểm trung bình: {ratingQuery.data ? `${ratingQuery.data.averageRating} / 5 (${ratingQuery.data.totalReviews} đánh giá)` : 'Đang tải đánh giá…'}</p>
+            <p className="mt-3 text-sm">{ratingQuery.isPending ? 'Đang tải điểm đánh giá…' : ratingQuery.isError ? 'Chưa tải được điểm đánh giá.'
+              : ratingQuery.data?.averageRating == null ? 'Chưa có điểm đánh giá.'
+                : 'Điểm trung bình ' + ratingQuery.data.averageRating.toLocaleString('vi-VN') + '/5 sao'}</p>
             <p className="mt-1 text-sm">{profile.isBookable ? 'Đang nhận lịch.' : 'Hiện chưa mở nhận lịch.'}</p>
             <Link to={`/booking-schedule/?mentorId=${profile.mentorId}`} className="mt-4 inline-flex rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] px-4 py-2 text-sm font-semibold text-white">Chọn khung giờ</Link>
           </header>

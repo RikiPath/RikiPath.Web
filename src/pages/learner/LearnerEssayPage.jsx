@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useLocale } from '../../i18n/locale.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -724,6 +725,7 @@ export default function LearnerEssayPage() {
             </div>
           </section>
         </div>
+        <LearnerFeedbackPanel type="writing" label="Phản hồi về luyện viết" />
       </main>
     </LearnerShell>
   );

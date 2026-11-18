@@ -52,6 +52,16 @@ const MENU_GROUPS = [
         prefix: true,
       },
       {
+        to: '/mock-tests/?view=unfinished',
+        label: 'Đề thi chưa làm',
+        icon: 'quiz',
+      },
+      {
+        to: '/exam-result',
+        label: 'Lịch sử điểm thi',
+        icon: 'fact_check',
+      },
+      {
         to: '/riki/essay',
         label: 'Luyện viết',
         icon: 'edit_note',
@@ -113,11 +123,6 @@ const MENU_GROUPS = [
         label: 'Sổ tay cá nhân',
         icon: 'bookmarks',
       },
-      {
-        to: '/exam-result',
-        label: 'Kết quả thi thử',
-        icon: 'fact_check',
-      },
     ],
   },
   {
@@ -147,6 +152,7 @@ const MENU_GROUPS = [
           '/consultation-room',
         ],
       },
+      { to: '/my-feedback', label: 'Phản hồi của tôi', icon: 'rate_review' },
       { to: '/homework', label: 'Bài tập về nhà', icon: 'assignment' },
       {
         to: '/mentor-chat',

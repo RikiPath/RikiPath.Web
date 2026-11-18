@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -58,6 +59,7 @@ export default function PlacementResult() {
               </Link>
             </section>
 
+            <LearnerFeedbackPanel type="placement" id={Number(attemptId)} label="Phản hồi về bài đánh giá năng lực" />
             {result.levelBreakdowns?.length > 0 && (
               <section className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-4">
                 <h2 className="text-[15px] font-semibold">{tr('Theo cấp độ')}</h2>

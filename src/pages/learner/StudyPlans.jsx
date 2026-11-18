@@ -51,7 +51,7 @@ export default function StudyPlans() {
             Chọn gói tự học, luyện từng kỹ năng, lượt AI hoặc buổi ôn luyện cùng mentor.
           </p>
           {current && <div className="mt-4 space-y-2 text-sm">
-            <p>Lượt AI nói hoặc viết: {current.aiGradingUsesRemaining} · Riêng nói: {current.speakingUsesRemaining} · Riêng viết: {current.writingUsesRemaining}</p>
+            <p>Lượt AI dùng chung: {current.aiGradingUsesRemaining} · Riêng nói: {current.speakingUsesRemaining} · Riêng viết: {current.writingUsesRemaining}</p>
             <p>Lượt tạo lộ trình AI: {current.learningPathUsesRemaining} · Buổi mentor: {current.mentorSessionsRemaining}</p>
             {current.purchases?.length > 0 && <details>
               <summary className="cursor-pointer font-medium">Gói đã mua</summary>

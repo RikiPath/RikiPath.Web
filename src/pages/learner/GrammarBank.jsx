@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
@@ -114,6 +115,7 @@ export default function GrammarBank() {
                   {pattern.exampleSentence}
                 </p>
               )}
+              <LearnerFeedbackPanel type="grammar" id={selectedId} label="Phản hồi về mẫu ngữ pháp" />
             </article>
           )}
         </div>

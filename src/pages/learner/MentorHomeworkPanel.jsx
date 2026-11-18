@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -6,7 +7,7 @@ import { summarizeSkills } from '../../utils/examSkillScores.js';
 import {
   answerHomeworkDispute, closeHomeworkDispute, createHomeworkDispute, draftHomeworkGrades, evaluateHomeworkBooking,
   getHomeworkDisputes, getMentorPracticeProgress, loadHomeworkAudio, loadHomeworkScan, publishHomeworkGrade, recordMentorPractice,
-  saveHomeworkMentorReview, saveMentorReviewPlan,
+  saveMentorReviewPlan,
 } from '../../api/homeworkApi.js';
 
 const card = 'space-y-3 rounded-xl border border-card-border bg-white p-4';
@@ -320,16 +321,8 @@ export function BookingHomeworkPanel({ booking, userId, role, refresh }) {
         <Field label="Điểm buổi học"><input name="score" type="number" className={field} min="0" max="100" required defaultValue={booking.practiceScore ?? ''} /></Field>
         <Field label="Nhận xét của mentor"><textarea name="feedback" className={field} maxLength={2000} rows={3} required defaultValue={booking.practiceFeedback ?? ''} /></Field>
       </SaveForm>}
-      {booking.review && <p className="whitespace-pre-wrap text-sm">Học viên đánh giá <strong>{booking.review.rating}/5 sao</strong> · {booking.review.comment}</p>}
-      {role === 'learner' && (ended || booking.review) && <details className="space-y-2"><summary className="cursor-pointer text-sm font-semibold text-primary">Đánh giá mentor</summary>
-        <SaveForm label="Lưu đánh giá mentor" onSaved={refresh} save={form => saveHomeworkMentorReview(booking, {
-          rating: Number(form.get('rating')), comment: form.get('comment'),
-        })}>
-          <Field label="Số sao"><select name="rating" className={field} defaultValue={booking.review?.rating ?? 5}>
-            {[5, 4, 3, 2, 1].map(stars => <option key={stars}>{stars}</option>)}</select></Field>
-          <Field label="Nhận xét"><textarea name="comment" className={field} rows={3} maxLength={1000} defaultValue={booking.review?.comment ?? ''} /></Field>
-        </SaveForm>
-      </details>}
+      {role === 'learner' && (booking.status === 'Completed' || (ended && booking.attended) || booking.review) &&
+        <LearnerFeedbackPanel type="mentor" id={booking.bookingId} label="Đánh giá mentor" />}
       <BookingDisputes booking={booking} userId={userId} role={role} refresh={refresh} />
     </section>
     <PracticeProgress booking={booking} userId={userId} role={role} refresh={refresh} />
