@@ -63,14 +63,14 @@ export default function MentorShiftSchedule() {
 
   if (scheduleQuery.data !== syncedSchedule) {
     setSyncedSchedule(scheduleQuery.data);
-    const today = vietnamDate(0);
-    const active = (scheduleQuery.data?.rules || []).filter((r) => !r.effectiveTo || r.effectiveTo >= today);
+    const curDay = vietnamDate();
+    const active = (scheduleQuery.data?.rules || []).filter((r) => !r.effectiveTo || r.effectiveTo >= curDay);
     setSelectedRules(new Set(active.map((r) => keyOf(r.weekday, r.daypartCode))));
   }
 
   const weekStart = mondayOfDateKey(anchorKey);
   const weekEnd = shiftDateKey(weekStart, 6);
-  const today = vietnamDate(0);
+  const today = vietnamDate();
 
   const rulePayload = useMemo(() => {
     const dayparts = policy?.dayparts || [];

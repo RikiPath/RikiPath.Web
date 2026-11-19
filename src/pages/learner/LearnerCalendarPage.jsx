@@ -284,7 +284,7 @@ export default function LearnerCalendarPage() {
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0 space-y-2.5">
-              {(filter !== 'all' || selectedCohortFilter !== 'all') && filteredEvents.length === 0 && (
+              {selectedCohortFilter !== 'ALL' && filteredEvents.length === 0 && (
                 <div
                   data-testid="learner-calendar-empty-filter-hint"
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-[#FCFAFB] px-3.5 py-2 text-[12px]"
@@ -295,10 +295,9 @@ export default function LearnerCalendarPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setFilter('all');
-                      setSelectedCohortFilter('all');
+                      setSelectedCohortFilter('ALL');
                     }}
-                    className="font-semibold text-rp-brand-strong hover:underline"
+                    className="rp-underline font-semibold text-rp-brand-strong"
                   >
                     {tr('Xóa bộ lọc')}
                   </button>

@@ -53,11 +53,6 @@ export const ROLE_NAV = {
         items: [
           { to: '/app', label: 'Bảng học tập', icon: LayoutDashboard, tone: 'haru', end: true },
           { to: '/placement', label: 'Đánh giá năng lực', icon: ClipboardCheck, tone: 'mock', prefix: true },
-        ],
-      },
-      {
-        label: 'Học cùng Giáo viên',
-        items: [
           {
             id: 'group-learning',
             to: '/group-learning',

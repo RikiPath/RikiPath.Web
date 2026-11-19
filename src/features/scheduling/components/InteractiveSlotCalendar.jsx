@@ -42,6 +42,7 @@ import {
   getToneMeta,
   getViewDateRange,
   minutesOfEvent,
+  mondayOfDateKey,
   packDayEvents,
   shiftDateKey,
   stepAnchorKey,
@@ -2798,7 +2799,7 @@ export default function InteractiveSlotCalendar({
             const s = cancelingEvent.slot;
             const isApprovedSlot = Boolean(s?.isApproved);
             const cancelDaysLeadOk = s
-              ? ((backendUtcDate(s.startTime)?.getTime() || 0) - Date.now()) >= 7 * 86400_000
+              ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= 7 * 86400_000
               : true;
 
             return (
@@ -2972,11 +2973,11 @@ export default function InteractiveSlotCalendar({
           {(() => {
             const meta = getToneMeta(selectedEvent.tone);
             const s = selectedEvent.slot;
-            const isFuture = s ? (backendUtcDate(s.startTime)?.getTime() || 0) > Date.now() : true;
+            const isFuture = s ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs : true;
             const canDeletePending = Boolean(s && !s.isApproved && !s.rejectedAt && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot);
             const canRequestChange = Boolean(s && s.isApproved && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot);
             const canRequestCancel = Boolean(s && s.isApproved && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot);
-            const cancelDaysLeadOk = s ? ((backendUtcDate(s.startTime)?.getTime() || 0) - Date.now()) >= 7 * 86400_000 : false;
+            const cancelDaysLeadOk = s ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= 7 * 86400_000 : false;
 
             return (
               <div className="space-y-4">

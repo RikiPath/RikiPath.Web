@@ -340,11 +340,11 @@
 /* The sky stays inside the header and only softens its bottom edge into the paper; nothing tints the body or sidebar. */
 .rp-paper-bg[data-sky='on'] .rp-sky-header { border-bottom-color: transparent; }
 /* Sky stays solid down to the header's bottom edge (no paper gap above the sidebar/content), then overhangs by
-   a short 12px feather so the join is soft rather than a hard line. */
+   a subtle 6px feather so the join is soft without shading the sidebar label or top cards. */
 .rp-paper-bg[data-sky='on'] .rp-sky-header .rp-sky {
-  bottom: -12px;
-  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 12px), rgba(0, 0, 0, 0.35) calc(100% - 5px), transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 12px), rgba(0, 0, 0, 0.35) calc(100% - 5px), transparent 100%);
+  bottom: -6px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 6px), rgba(0, 0, 0, 0.16) calc(100% - 2.5px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 6px), rgba(0, 0, 0, 0.16) calc(100% - 2.5px), transparent 100%);
 }
 
 /* Brand as a frosted pill on the sky (desktop header). */
