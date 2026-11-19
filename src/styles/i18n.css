@@ -1,0 +1,25 @@
+/*
+ * Locale typography (VI ↔ JA). Applied through html[lang], set by useLocale(); switching language never
+ * changes layout metrics (heights/line-heights come from the same utilities in both languages).
+ */
+@layer base {
+  /* Japanese UI: Noto Sans JP first so kana/kanji never fall back to a Vietnamese font's CJK glyphs. */
+  html:lang(ja) body {
+    font-family: "Noto Sans JP", "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+    font-synthesis: none;
+    /* Japanese has no spaces: break between characters, never inside 「」、。 pairs, but never overflow. */
+    line-break: strict;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    text-autospace: normal;
+  }
+  html:lang(vi) body { overflow-wrap: break-word; }
+}
+
+/* Negative tracking tuned for Latin display type squeezes kana/kanji together; neutralise it in Japanese. */
+html:lang(ja) :is(h1, h2, h3, h4, [class*='tracking-[-']) { letter-spacing: 0.01em; }
+/* Uppercase eyebrow labels have no case in Japanese; their wide tracking reads as broken spacing. */
+html:lang(ja) :is(.uppercase) { letter-spacing: 0.04em; }
+
+/* Labels and buttons may grow in Japanese: let them wrap instead of clipping essential text. */
+html:lang(ja) :is(button, [role='tab'], label) { overflow-wrap: anywhere; }

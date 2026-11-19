@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { continueWithGoogle } from '../../api/auth.js';
+import { SakuraLoader } from '@/components/ui';
+import { continueWithGoogle } from '@/features/auth/api/authApi.js';
+import { useLocale } from '@/locales/locale.js';
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
 const scriptUrl = 'https://accounts.google.com/gsi/client';
@@ -31,6 +33,7 @@ function loadGoogleIdentity() {
 }
 
 export default function GoogleSignIn({ mode, disabled, onPendingChange, onSuccess }) {
+  const { tr } = useLocale();
   const host = useRef(null);
   const pending = useRef(false);
   const callbacks = useRef(null);
@@ -41,6 +44,7 @@ export default function GoogleSignIn({ mode, disabled, onPendingChange, onSucces
   const [loadError, setLoadError] = useState(false);
   const [ready, setReady] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [backendOff, setBackendOff] = useState(false);
 
   useEffect(() => {
     callbacks.current = { disabled, onPendingChange, onSuccess };
@@ -109,6 +113,12 @@ export default function GoogleSignIn({ mode, disabled, onPendingChange, onSucces
       await callbacks.current.onSuccess(data);
     } catch (requestError) {
       const code = requestError.data?.errorCode;
+      // Backend answers 503 when Google sign-in is not configured server-side: hide the option.
+      if (requestError.status === 503 && /cấu hình/i.test(requestError.message || '')) {
+        setBackendOff(true);
+        setCredential('');
+        return;
+      }
       setCredential(
         code === 'GOOGLE_LINK_PASSWORD_REQUIRED' || code === 'GOOGLE_LINK_PASSWORD_INVALID' ||
         (currentPassword && (!requestError.status || requestError.status >= 500)) ? token : '',
@@ -122,18 +132,10 @@ export default function GoogleSignIn({ mode, disabled, onPendingChange, onSucces
     }
   }
 
-  if (!clientId) {
-    return (
-      <div className="mx-auto w-full max-w-[400px] space-y-2">
-        <button type="button" disabled aria-describedby="google-sign-in-unavailable"
-          className="min-h-10 w-full cursor-not-allowed rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500">
-          {mode === 'register' ? 'Đăng ký bằng Google' : 'Đăng nhập bằng Google'}
-        </button>
-        <p id="google-sign-in-unavailable" className="text-center text-xs text-slate-500">
-          Xác thực bằng Google chưa được bật.
-        </p>
-      </div>
-    );
+  // Hidden entirely when the Web build has no Google client id.
+  if (!clientId) return null;
+  if (backendOff) {
+    return <p role="status" className="text-center text-xs text-rp-text-muted">{tr('Đăng nhập bằng Google hiện chưa được bật. Vui lòng dùng email và mật khẩu.')}</p>;
   }
 
   return (
@@ -141,31 +143,35 @@ export default function GoogleSignIn({ mode, disabled, onPendingChange, onSucces
       <div hidden={Boolean(credential)} className={disabled || busy ? 'opacity-60' : undefined}
         inert={disabled || busy}>
         <div ref={host} className="min-h-10 w-full" />
-        {!ready && !loadError && <p role="status" className="text-center text-xs text-slate-500">Đang tải nút Google…</p>}
+        {!ready && !loadError && (
+          <SakuraLoader variant="inline" size={16} context="auth" label={tr('Đang tải nút Google…')} className="justify-center" delay={160} />
+        )}
       </div>
       {loadError && (
         <p role="alert" className="text-center text-sm text-slate-600">
-          Không tải được đăng nhập Google.{' '}
-          <button type="button" disabled={disabled} className="font-semibold text-[#AD3155] underline"
-            onClick={() => { setLoadError(false); setLoadAttempt(value => value + 1); }}>Thử lại</button>
+          {tr('Không tải được đăng nhập Google.')}{' '}
+          <button type="button" disabled={disabled} className="rp-focus rp-link rounded-sm"
+            onClick={() => { setLoadError(false); setLoadAttempt(value => value + 1); }}>{tr('Thử lại')}</button>
         </p>
       )}
-      {busy && <p role="status" className="text-center text-sm text-slate-600">Đang xác thực với Google…</p>}
+      {busy && (
+        <SakuraLoader variant="inline" size={18} context="auth" label={tr('Đang xác thực với Google…')} className="justify-center" />
+      )}
       {error && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {credential && (
         <form className="space-y-2 rounded-xl border border-slate-200 p-3" onSubmit={event => {
           event.preventDefault();
           if (password) void authenticate(credential, password);
         }}>
-          <label htmlFor="google-link-password" className="block text-sm font-semibold text-slate-700">Mật khẩu RikiPath hiện tại</label>
+          <label htmlFor="google-link-password" className="block text-sm font-semibold text-slate-700">{tr('Mật khẩu RikiPath hiện tại')}</label>
           <input id="google-link-password" type="password" autoComplete="current-password" required
             value={password} onChange={event => setPassword(event.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <button type="submit" disabled={busy || disabled || !password}
-              className="rounded-lg bg-[#AD3155] px-3 py-2 font-semibold text-white disabled:opacity-50">Liên kết Google</button>
+              className="rounded-lg bg-rp-brand-strong px-3 py-2 font-semibold text-white disabled:opacity-50 rp-press">{tr('Liên kết Google')}</button>
             <button type="button" disabled={busy} className="font-semibold text-slate-600 underline"
-              onClick={() => { setCredential(''); setPassword(''); setError(''); }}>Hủy</button>
+              onClick={() => { setCredential(''); setPassword(''); setError(''); }}>{tr('Hủy')}</button>
           </div>
         </form>
       )}

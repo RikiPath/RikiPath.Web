@@ -1,114 +1,131 @@
-import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, BadgeCheck, CalendarCheck, CreditCard, GraduationCap, Layers, School, ShieldCheck, UserCog, UsersRound } from 'lucide-react';
+import { getAdminDashboard } from '@/features/admin/api/adminApi.js';
+import { getSession } from '@/app/auth/session.js';
+import { AdminShell } from '@/layouts';
+import { Card, CardHeader, ErrorState, PageHeader, RefreshingIndicator, SakuraLoader } from '@/components/ui';
+import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
-import { completeQaPayment, getAdminDashboard } from '../../api/admin.js';
-import { AdminShell } from '../../components/shells';
-
+// Figures come only from GET /admin/dashboard (AdminDashboardResponse). No payout, revenue
+// or invented trend data. The legacy 1-1 booking count is intentionally not shown.
 const ATTENTION = [
-  { key: 'pendingContent', label: 'Nội dung chờ duyệt', hint: 'Bài và câu hỏi mới', to: '/admin/content-review' },
-  { key: 'pendingMentorSchedules', label: 'Khung giờ chờ duyệt', hint: 'Lịch cố vấn chưa mở', to: '/admin/slot-review' },
+  { key: 'pendingContent', label: 'Nội dung chờ duyệt', hint: 'Bài học, từ vựng, câu hỏi đã gửi', to: '/admin/content-review/', icon: ShieldCheck },
+  { key: 'pendingMentorSchedules', label: 'Khung giờ dạy chờ duyệt', hint: 'Mentor đăng ký lịch dạy lớp nhóm', to: '/admin/mentor-schedules/', icon: CalendarCheck },
 ];
 
 const FIGURES = [
-  { key: 'totalUsers', label: 'Người dùng', to: '/admin/users' },
-  { key: 'learners', label: 'Học viên', to: '/admin/users' },
-  { key: 'mentors', label: 'Cố vấn', to: '/admin/mentors' },
-  { key: 'mentorBookings', label: 'Buổi tư vấn', to: '/admin/mentor-schedules' },
-  { key: 'activePlans', label: 'Gói đang bán', to: '/admin/mentor-plans' },
-  { key: 'paidSubscriptions', label: 'Gói đã thanh toán', to: '/admin/mentor-plans' },
+  { key: 'totalUsers', label: 'Tài khoản hoạt động', to: '/admin/users/', icon: UserCog, tone: 'bg-tone-reading-bg text-tone-reading' },
+  { key: 'learners', label: 'Học viên', to: '/admin/users/', icon: GraduationCap, tone: 'bg-tone-vocab-bg text-tone-vocab' },
+  { key: 'mentors', label: 'Mentor', to: '/admin/mentors/', icon: UsersRound, tone: 'bg-tone-mentor-bg text-tone-mentor' },
+  { key: 'activePlans', label: 'Gói tự học mở bán', to: '/admin/study-courses/', icon: Layers, tone: 'bg-tone-grammar-bg text-tone-grammar' },
+  { key: 'paidSubscriptions', label: 'Lượt mua đã thanh toán', to: '/admin/study-courses/', icon: CreditCard, tone: 'bg-rp-brand-tint text-rp-brand-strong' },
 ];
 
+const SHORTCUTS = [
+  { to: '/admin/study-courses/', label: 'Gói học, lớp & ghi danh', icon: School },
+  { to: '/admin/mentor-verifications/', label: 'Xét duyệt hồ sơ Mentor', icon: BadgeCheck },
+  { to: '/admin/slot-review/', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarCheck },
+];
+
+function fmt(n) {
+  return Number.isFinite(n) ? n.toLocaleString(currentIntlTag()) : '—';
+}
+
 export default function AdminDashboard() {
-  const { pathname } = useLocation();
-  const [subscriptionId, setSubscriptionId] = useState('');
-  const [notice, setNotice] = useState('');
+  const { tr } = useLocale();
+  const session = getSession();
+  const uid = session?.userId ?? 'anon';
   const query = useQuery({
-    queryKey: ['admin-dashboard'],
+    queryKey: ['admin-dashboard', uid, session?.isPreview ? 'preview' : 'live'],
     queryFn: async () => {
+      if (session?.isPreview) {
+        return {
+          totalUsers: 0,
+          learners: 0,
+          mentors: 0,
+          activePlans: 0,
+          paidSubscriptions: 0,
+          pendingContent: 0,
+          pendingMentorSchedules: 0,
+        };
+      }
       const data = await getAdminDashboard();
       return data?.result ?? data;
     },
   });
-  const qa = useMutation({
-    mutationFn: () => completeQaPayment(Number(subscriptionId)),
-    onSuccess: () => {
-      setNotice('Đã xác nhận thanh toán mô phỏng.');
-      setSubscriptionId('');
-      query.refetch();
-    },
-  });
   const stats = query.data || {};
-  const number = (key) => (query.isLoading ? '…' : stats[key] ?? 0);
+  const value = (key) => (typeof stats[key] === 'number' ? stats[key] : null);
 
   return (
-    <AdminShell pathname={pathname} breadcrumb="Tổng quan">
-      <main className="mx-auto max-w-[1080px] px-4 py-6 text-[#352C31] sm:px-6">
-        <h1 className="text-[25px] font-semibold tracking-tight">Tổng quan</h1>
-        <p className="mt-1 text-[13px] text-[#82737B]">Việc cần xử lý và số liệu hiện tại của hệ thống.</p>
-        {query.isError && <p role="alert" className="mt-4 rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">{query.error.message}</p>}
+    <AdminShell breadcrumb={tr('Tổng quan')}>
+      <div className="rp-container rp-cq py-[var(--rp-space-page-y)]">
+        <PageHeader
+          title={tr('Tổng quan hệ thống')}
+          description={tr('Việc cần xử lý và số liệu hiện tại lấy trực tiếp từ máy chủ.')}
+          actions={<RefreshingIndicator active={query.isFetching && !query.isPending} />}
+        />
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {ATTENTION.map((card) => {
-            const count = Number(stats[card.key] || 0);
-            return (
-              <Link key={card.key} to={card.to} className="flex items-center justify-between rounded-2xl border border-[#EADFE5] bg-white px-5 py-4 hover:border-[#E7C9D6]">
-                <span>
-                  <span className="block text-[14px] font-medium">{card.label}</span>
-                  <span className="mt-1 block text-[12px] text-[#A08B96]">{card.hint}</span>
-                </span>
-                <span className={`flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-[18px] font-semibold ${count > 0 ? 'bg-[#FCE8F0] text-[#AD3155]' : 'bg-[#F6F1F4] text-[#A08B96]'}`}>
-                  {number(card.key)}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
+        {query.isPending ? (
+          <SakuraLoader variant="section" context="dashboard" label={tr('Đang tải tổng quan hệ thống')} delay={160} />
+        ) : query.isError ? (
+          <Card><ErrorState error={query.error} title={tr('Chưa tải được số liệu')} onRetry={() => query.refetch()} retrying={query.isFetching} /></Card>
+        ) : (
+          <>
+            <section aria-label={tr('Việc cần xử lý')} style={{ '--rp-grid-min': '18rem' }} className="rp-fluid-grid">
+              {ATTENTION.map((card) => {
+                const n = value(card.key);
+                return (
+                  <Link key={card.key} to={card.to} className="rp-focus rp-card-hover rp-interactive group flex min-w-0 items-center gap-4 rounded-rp-card border border-rp-line bg-rp-surface p-[var(--rp-space-card-pad)] transition-colors hover:border-rp-brand-border">
+                    <span aria-hidden="true" className="rp-icon-tilt flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-rp-brand-strong"><card.icon className="h-5 w-5" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block rp-type-card text-rp-text">{tr(card.label)}</span>
+                      <span className="block rp-type-caption text-rp-text-muted">{tr(card.hint)}</span>
+                    </span>
+                    <span className={`rp-type-kpi ${n > 0 ? 'text-rp-brand-strong' : 'text-rp-text-muted'}`}>{fmt(n)}</span>
+                    <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-text-muted transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                );
+              })}
+            </section>
 
-        <section className="mt-4 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-          <h2 className="border-b border-[#F3EDF0] px-5 py-3 text-[14px] font-semibold">Số liệu</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-            {FIGURES.map((card) => (
-              <Link key={card.key} to={card.to} className="border-b border-r border-[#F6F0F3] px-5 py-4 hover:bg-[#FFF8FB]">
-                <span className="block text-[12px] text-[#A08B96]">{card.label}</span>
-                <span className="mt-1 block text-[22px] font-semibold">{number(card.key)}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <form
-          className="mt-4 rounded-2xl border border-[#EADFE5] bg-white px-5 py-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setNotice('');
-            qa.mutate();
-          }}
-        >
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[220px] flex-1">
-              <h2 className="text-[14px] font-semibold">Thanh toán mô phỏng</h2>
-              <p className="mt-1 text-[12px] leading-5 text-[#A08B96]">Nhập mã gói đã mua. Máy chủ chỉ nhận khi môi trường thử đang bật.</p>
-              <label className="mt-3 block text-[12px] font-medium text-[#6E5360]">
-                Mã gói
-                <input
-                  required
-                  min="1"
-                  type="number"
-                  value={subscriptionId}
-                  onChange={(event) => setSubscriptionId(event.target.value)}
-                  className="mt-1.5 h-10 w-full max-w-xs rounded-lg border border-[#E7DAE1] px-3 text-[13px] outline-none focus:border-[#AD3155] focus:ring-2 focus:ring-[#AD3155]/20"
-                />
-              </label>
+            <div className="mt-[var(--rp-space-section)] rp-cq-two-col">
+              <Card>
+                <CardHeader title={tr('Số liệu')} description={tr('Tổng hợp tại thời điểm tải trang')} />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {FIGURES.map((f) => (
+                    <Link
+                      key={f.key}
+                      to={f.to}
+                      className="rp-focus rp-card-hover rp-interactive group flex flex-col justify-between rounded-rp-input border border-rp-line bg-rp-surface p-4 transition-all hover:border-rp-brand-border"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="rp-type-caption font-medium text-rp-text-muted">{tr(f.label)}</span>
+                        <span aria-hidden="true" className={`rp-icon-tilt flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${f.tone}`}>
+                          <f.icon className="h-4 w-4" />
+                        </span>
+                      </div>
+                      <p className="mt-3 rp-type-kpi text-rp-text">{fmt(value(f.key))}</p>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+              <Card>
+                <CardHeader title={tr('Lối tắt')} />
+                <ul className="space-y-1">
+                  {SHORTCUTS.map((s) => (
+                    <li key={s.to}>
+                      <Link to={s.to} className="rp-focus flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-rp-text-2 hover:bg-rp-muted hover:text-rp-text">
+                        <s.icon aria-hidden="true" className="h-4 w-4" /> {tr(s.label)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             </div>
-            <button type="submit" disabled={qa.isPending} className="h-10 rounded-lg bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50">
-              {qa.isPending ? 'Đang gửi…' : 'Xác nhận'}
-            </button>
-          </div>
-          {qa.isError && <p role="alert" className="mt-3 text-[12px] text-[#A33357]">{qa.error.message}</p>}
-          {notice && <p className="mt-3 text-[12px] text-[#1E5C36]">{notice}</p>}
-        </form>
-      </main>
+          </>
+        )}
+      </div>
     </AdminShell>
   );
 }

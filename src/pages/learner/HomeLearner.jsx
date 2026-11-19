@@ -1,583 +1,527 @@
-import { Link, useLocation } from 'react-router-dom';
-import { LearnerShell } from '../../components/shells';
-import { useLocale } from '../../i18n/locale.js';
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardCheck,
+  Flame,
+  RefreshCw,
+  Route,
+  School,
+  Target,
+  UsersRound,
+} from 'lucide-react';
+import { LearnerShell } from '@/layouts';
+import { FeatureLink } from '@/features/entitlements/components/StudyUnlock.jsx';
+import { useLocale } from '@/locales/locale.js';
+import { courseGet } from '@/features/cohorts/api/cohortApi';
+import { getSession } from '@/app/auth/session.js';
+import { splitSrsQueue, weekBloomStates } from '@/features/dashboard/hooks/useLearnerHome.js';
+import { JapanScene, sceneForHour } from '@/assets/illustrations';
+import {
+  Badge,
+  Card,
+  CardHeader,
+  ContextualEmptyState,
+  ContextualErrorState,
+  FeatureIcon,
+  HaruMascot,
+  OptionalDashboardWidget,
+  ProgressBar,
+  RefreshingIndicator,
+  SakuraLoader,
+  SrsLoopIcon,
+  cx,
+} from '@/components/ui';
 
-const ROUTES = {
-  goal: '/onboarding',
-  roadmap: '/roadmap',
-  exam: '/mock-tests/',
-  mentor: '/mentor',
-  vocabulary: '/vocabulary',
-  grammar: '/grammar',
-  notebook: '/vocabulary',
-  review: '/daily-srs',
-  results: '/exam-result',
-  haru: '/ai-counselor',
-};
-
-const QUICK_LINKS = [
-  {
-    key: 'vocabulary',
-    title: 'Từ vựng',
-    description: 'Ôn theo chủ đề',
-    icon: 'translate',
-  },
-  {
-    key: 'grammar',
-    title: 'Bài luyện tập',
-    description: 'Từ vựng, Kanji và ngữ pháp',
-    icon: 'edit_note',
-  },
-  {
-    key: 'notebook',
-    title: 'Sổ tay',
-    description: 'Nội dung đã lưu',
-    icon: 'bookmarks',
-  },
-  {
-    key: 'mentor',
-    title: 'Tư vấn 1-1',
-    description: 'Trao đổi kế hoạch ôn',
-    icon: 'forum',
-  },
+const PRACTICE = [
+  { feature: 'vocabulary', to: '/vocabulary', title: 'Từ vựng', note: 'Sổ từ theo chủ đề' },
+  { feature: 'grammar', to: '/grammar', title: 'Ngữ pháp', note: 'Mẫu câu & ví dụ' },
+  { feature: 'kanji', to: '/kanji-writing?type=kanji', title: 'Hán tự', note: 'Luyện viết nét' },
+  { feature: 'kana', to: '/kanji-writing?type=hiragana', title: 'Kana', note: 'Bảng chữ & âm ghép' },
+  { feature: 'listening', to: '/riki/listening', title: 'Nghe hiểu', note: 'Bài nghe có audio' },
+  { feature: 'reading', to: '/riki/reading', title: 'Đọc hiểu', note: 'Đoạn văn JLPT' },
+  { feature: 'writing', to: '/riki/essay', title: 'Luyện viết', note: 'Chấm bởi Haru AI' },
+  { feature: 'speaking', to: '/speech', title: 'Luyện nói', note: 'Phát âm & phản xạ' },
 ];
 
 const SKILLS = [
-  { key: 'vocabulary', label: 'Từ vựng' },
-  { key: 'grammar', label: 'Ngữ pháp' },
-  { key: 'reading', label: 'Đọc hiểu' },
-  { key: 'listening', label: 'Nghe hiểu' },
+  { key: 'vocabulary', label: 'Từ vựng', feature: 'vocabulary' },
+  { key: 'grammar', label: 'Ngữ pháp', feature: 'grammar' },
+  { key: 'reading', label: 'Đọc hiểu', feature: 'reading' },
+  { key: 'listening', label: 'Nghe hiểu', feature: 'listening' },
 ];
 
-function Icon({ name, className = '' }) {
+const WEEK_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+const COURSE_STATUS = {
+  Active: { tone: 'success', label: 'Đang học' },
+  Ready: { tone: 'info', label: 'Sắp khai giảng' },
+  PendingPayment: { tone: 'warning', label: 'Chờ thanh toán' },
+  Completed: { tone: 'neutral', label: 'Đã hoàn thành' },
+  Transferred: { tone: 'neutral', label: 'Đã chuyển lớp' },
+};
+
+const SCENE_COPY = {
+  dawn: { hello: 'Chào buổi sáng', jp: 'おはようございます' },
+  day: { hello: 'Chúc một ngày học tốt', jp: 'こんにちは' },
+  dusk: { hello: 'Chào buổi chiều tối', jp: 'こんばんは' },
+  night: { hello: 'Học nhẹ nhàng tối nay', jp: 'こんばんは' },
+};
+
+function isNum(v) {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function StatTile({ icon: Icon, tone, label, value, unit, loading, error, onRetry, tr, children }) {
+  const hasValue = value !== undefined && value !== null;
+  const hardError = Boolean(error) && !hasValue;
   return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
+    <Card className="rp-card-hover rp-interactive group flex flex-col gap-3 p-4">
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className={cx('rp-icon-tilt flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-black/[0.04]', tone)}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium text-rp-text-muted">{tr(label)}</p>
+          {loading ? (
+            <div className="mt-1 flex min-h-[2rem] items-center">
+              <SakuraLoader variant="inline" size={18} context="data" delay={160} />
+            </div>
+          ) : hardError ? (
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-rp-text-muted">{tr('Tạm chưa cập nhật được')}</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="rp-focus inline-flex items-center gap-1 rounded text-xs font-semibold rp-link"
+                >
+                  <RefreshCw aria-hidden="true" className="h-3 w-3" /> {tr('Thử lại')}
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="text-2xl font-bold tabular-nums leading-tight text-rp-text">
+              {value ?? '—'}
+              {value != null && unit && <span className="ml-1 text-xs font-semibold text-rp-text-muted">{tr(unit)}</span>}
+            </p>
+          )}
+        </div>
+      </div>
+      {!error && !loading && children}
+      {error && hasValue && children}
+    </Card>
   );
 }
 
-function ActionLink({
-  to,
-  children,
-  primary = false,
-  inverse = false,
-  className = '',
-}) {
+function StreakWeek({ days, activeToday }) {
   const { tr } = useLocale();
-  const classes = [
-    'inline-flex min-h-10 items-center justify-center gap-2',
-    'rounded-full px-4 py-2 text-[13px] font-semibold',
-    'transition-colors focus-visible:outline-none',
-    'focus-visible:ring-2 focus-visible:ring-[#D94B68]/30',
-    'focus-visible:ring-offset-2',
-    inverse
-      ? 'bg-white text-[#AD3155] hover:bg-[#FFF4F7]'
-      : primary
-        ? 'bg-[#AD3155] text-white hover:bg-[#962A49]'
-        : 'border border-[#E8DDE3] bg-white text-[#826271] hover:bg-[#FCF5F8]',
-    className,
-  ].join(' ');
+  const states = weekBloomStates(days || 0, activeToday);
+  return (
+    <ol aria-label={tr('Chuỗi ngày học tuần này')} className="grid grid-cols-7 gap-1">
+      {states.map((state, i) => (
+        <li key={WEEK_LABELS[i]} className="flex min-w-0 flex-col items-center gap-1">
+          <span
+            className={cx(
+              'flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-transform sm:h-6 sm:w-6',
+              state === 'done' || state === 'today' ? 'bg-rp-streak text-white shadow-rp-xs' : state === 'pending' ? 'border-2 border-dashed border-rp-streak/50' : 'bg-rp-muted',
+            )}
+          >
+            {(state === 'done' || state === 'today') && <Flame aria-hidden="true" className="h-3 w-3" />}
+            <span className="sr-only">{state === 'done' || state === 'today' ? tr('Đã học') : state === 'pending' ? tr('Hôm nay chưa học') : state === 'future' ? tr('Chưa tới') : tr('Chưa học')}</span>
+          </span>
+          <span className="text-[10px] font-medium text-rp-text-muted">{WEEK_LABELS[i]}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
-  if (!to) {
+function GroupLearningWidget() {
+  const { tr } = useLocale();
+  const session = getSession();
+  const query = useQuery({
+    queryKey: ['learner-courses-summary', session?.userId],
+    queryFn: () => courseGet(),
+    enabled: Boolean(session?.accessToken && !session?.isPreview),
+    staleTime: 60_000,
+  });
+
+  if (session?.isPreview) {
     return (
-      <button
-        type="button"
-        disabled
-        title={tr('Chưa cấu hình đường dẫn')}
-        className={`${classes} cursor-not-allowed opacity-40`}
-      >
-        {children}
-      </button>
+      <Card>
+        <CardHeader
+          icon={<FeatureIcon feature="group" size="sm" />}
+          title={tr('Học nhóm cùng Mentor')}
+          description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
+        />
+        <ContextualEmptyState compact icon={School} title={tr('Chế độ xem trước')} description={tr('Lớp học nhóm chỉ hiển thị với dữ liệu thật.')} />
+      </Card>
     );
   }
 
-  return (
-    <Link to={to} className={classes}>
-      {children}
-    </Link>
-  );
-}
+  const cohortCoursesOf = (rows) =>
+    (Array.isArray(rows) ? rows : []).filter((c) => c.cohortId && c.status !== 'Cancelled');
 
-function ProgressBar({ value, label }) {
-  const valid = typeof value === 'number' && Number.isFinite(value);
-  const percent = valid ? Math.max(0, Math.min(100, value)) : 0;
+  const courses = cohortCoursesOf(query.data);
 
   return (
-    <div
-      role={valid ? 'progressbar' : undefined}
-      aria-label={label}
-      aria-valuemin={valid ? 0 : undefined}
-      aria-valuemax={valid ? 100 : undefined}
-      aria-valuenow={valid ? percent : undefined}
-      className="h-2 overflow-hidden rounded-full bg-[#F6E8EE]"
+    <OptionalDashboardWidget
+      name="HomeLearner.GroupLearningWidget"
+      query={query}
+      isAuthenticated={Boolean(session?.accessToken)}
+      isEmpty={(rows) => cohortCoursesOf(rows).length === 0}
+      emptyPolicy="cta"
+      errorPolicy="hide"
+      loadingContext="cohort"
+      empty={
+        <ContextualEmptyState
+          compact
+          context="groupLearning"
+          art="calendar"
+          action={
+            <Link to="/mentors/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press">
+              <UsersRound aria-hidden="true" className="h-4 w-4" /> {tr('Tìm Mentor')}
+            </Link>
+          }
+        />
+      }
+      wrap={(content) => (
+        <Card>
+          <CardHeader
+            icon={<FeatureIcon feature="group" size="sm" />}
+            title={tr('Học nhóm cùng Mentor')}
+            description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
+            actions={
+              <div className="flex items-center gap-2">
+                <RefreshingIndicator active={query.isFetching && !query.isPending} />
+                {courses.length > 0 && <Link to="/my-courses/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Xem tất cả')}</Link>}
+              </div>
+            }
+          />
+          {content}
+        </Card>
+      )}
     >
-      <div
-        className="h-full rounded-full bg-[linear-gradient(90deg,#E7A0B6,#AD3155)]
-                   transition-[width] duration-300"
-        style={{ width: `${percent}%` }}
-      />
-    </div>
-  );
-}
-
-function Stat({ icon, label, value, unit }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white bg-white px-4 py-4 shadow-[0_10px_24px_rgba(90,40,58,0.04)]">
-      <span
-        className="flex h-10 w-10 shrink-0 items-center
-                   justify-center rounded-2xl
-                   bg-[#FDF2F5] text-[#AD3155]"
-      >
-        <Icon name={icon} className="text-[20px]" />
-      </span>
-
-      <div>
-        <p className="text-[12px] text-[#8C7782]">{label}</p>
-        <p className="mt-0.5 text-[24px] font-semibold tracking-tight text-[#3F3038]">
-          {value ?? '—'}
-          {value != null && (
-            <span className="ml-1.5 text-[12px] font-medium text-[#A08D97]">
-              {unit}
-            </span>
-          )}
-        </p>
-      </div>
-    </div>
+      {() => (
+        <ul className="space-y-2">
+          {courses.slice(0, 3).map((c) => {
+            const s = COURSE_STATUS[c.status] || { tone: 'neutral', label: c.status };
+            return (
+              <li key={c.id}>
+                <Link to="/my-courses/" className="rp-focus rp-card-hover flex items-center gap-3 rounded-rp-input border border-rp-line px-3 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold text-rp-text">{c.cohortName || c.name}</span>
+                    <span className="block text-xs text-rp-text-muted">{c.level || 'JLPT'}{c.mentorName ? ` · ${c.mentorName}` : ''}</span>
+                  </span>
+                  <Badge tone={s.tone} size="sm">{tr(s.label)}</Badge>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </OptionalDashboardWidget>
   );
 }
 
 export default function HomeLearner({ data = null }) {
-  const { pathname } = useLocation();
   const { locale, tr } = useLocale();
+  const scene = useMemo(() => sceneForHour(), []);
+  const copy = SCENE_COPY[scene];
+  const lightText = scene === 'dusk' || scene === 'night';
 
-  const targetLevel = ['N5', 'N4', 'N3', 'N2'].includes(
-    data?.targetLevel,
-  )
-    ? data.targetLevel
-    : null;
-
-  const dueCards =
-    typeof data?.dueCards === 'number' &&
-    Number.isFinite(data.dueCards)
-      ? Math.max(0, data.dueCards)
-      : null;
-
-  const resume = data?.resume;
+  const targetLevel = ['N5', 'N4', 'N3', 'N2', 'N1'].includes(data?.targetLevel) ? data.targetLevel : null;
+  const dueCards = isNum(data?.dueCards) ? Math.max(0, data.dueCards) : null;
+  const streak = isNum(data?.streakDays) ? data.streakDays : null;
+  const completed = isNum(data?.completedExercises) ? data.completedExercises : null;
   const skillScores = data?.skillScores ?? {};
+  const hasSkillData = SKILLS.some(({ key }) => isNum(skillScores[key]));
+  const srsItems = Array.isArray(data?.srsItems) ? data.srsItems : [];
+  const srsBreakdown = splitSrsQueue(srsItems);
+  const loading = data?.loading ?? {};
+  const errors = data?.errors ?? {};
+  const queries = data?.queries ?? {};
+  const fetching = data?.fetching ?? {};
+  const onRetry = data?.onRetry ?? {};
+  const name = data?.displayName;
 
-  const hasSkillData = SKILLS.some(
-    ({ key }) =>
-      typeof skillScores[key] === 'number' &&
-      Number.isFinite(skillScores[key]),
-  );
-
-  const greeting = data?.displayName
-    ? (locale === 'ja' ? `${data.displayName}さん、こんにちは！` : `Chào ${data.displayName}!`)
-    : tr('Chào bạn!');
-
-  const examLabel = targetLevel ? `Thi thử ${targetLevel}` : 'Thi thử';
+  const skillsWidgetQuery = queries.skills || {
+    data: hasSkillData ? skillScores : errors.skills ? undefined : [],
+    isPending: Boolean(loading.skills),
+    isLoading: Boolean(loading.skills),
+    isFetching: Boolean(fetching.skills),
+    isError: Boolean(errors.skills),
+    error: errors.skills,
+    refetch: onRetry.skills,
+  };
+  const srsWidgetQuery = queries.srs || {
+    data: dueCards != null ? { dueCards, items: srsItems } : undefined,
+    isPending: Boolean(loading.srs),
+    isLoading: Boolean(loading.srs),
+    isFetching: Boolean(fetching.srs),
+    isError: Boolean(errors.srs),
+    error: errors.srs,
+    refetch: onRetry.srs,
+  };
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Tổng quan">
-      <div
-        data-page="HomeLearner"
-        className="min-h-screen bg-[#F4EEF1]
-                   font-['Nunito',sans-serif]
-                   text-[#3F3038]"
-      >
-        <main
-          className="mx-auto w-full max-w-[1180px]
-                     px-5 py-7 lg:px-8"
-        >
-          <header
-            className="mb-6 flex flex-wrap items-end
-                       justify-between gap-4"
-          >
-            <div>
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-[#AD3155]">
-                {tr('Ôn luyện hôm nay')}
-              </p>
-              <h1
-                className="mt-1 text-[32px] font-semibold
-                           leading-tight tracking-tight"
-              >
-                {greeting}
-              </h1>
-              <p className="mt-1.5 text-[14px] text-[#8C7782]">
-                {tr('Bạn muốn ôn luyện gì hôm nay?')}
-              </p>
-            </div>
-
-            <Link
-              to={ROUTES.goal}
-              className="inline-flex items-center gap-2
-                         rounded-full border border-white
-                         bg-white px-3.5 py-2 text-[12px]
-                         text-[#8F6879] shadow-[0_8px_20px_rgba(90,40,58,0.05)]
-                         hover:text-[#AD3155]"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FCE7EF] text-[#AD3155]">
-                <Icon name="flag" className="text-[15px]" />
-              </span>
-              {targetLevel
-                ? (locale === 'ja' ? `JLPT目標 ${targetLevel}` : `Mục tiêu JLPT ${targetLevel}`)
-                : tr('Chọn mục tiêu JLPT')}
-            </Link>
-          </header>
-
-          <section aria-label="Mục tiêu và đánh giá đầu vào" className="mb-5 rounded-xl border border-[#EADFE5] bg-white p-4">
-            <h2 className="text-[15px] font-semibold">Mục tiêu và bài đánh giá của bạn</h2>
-            <p className="mt-1 text-[13px] text-[#95828C]">Tiếp tục bài đánh giá còn thời gian, hoặc cập nhật chứng chỉ, cấp độ, ngày thi và thời gian học mỗi ngày.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <ActionLink to="/app/placement-test" primary>Tiếp tục / làm bài đánh giá</ActionLink>
-              <ActionLink to="/onboarding">Đổi mục tiêu và thời gian học</ActionLink>
-            </div>
-          </section>
-          <section
-            aria-label={tr('Thống kê ôn luyện')}
-            className="mb-5 grid gap-3 sm:grid-cols-2"
-          >
-            <Stat
-              icon="task_alt"
-              label={tr('Bài đã luyện')}
-              value={data?.completedExercises}
-              unit={tr('bài')}
-            />
-            <Stat
-              icon="local_fire_department"
-              label={tr('Ôn liên tiếp')}
-              value={data?.streakDays}
-              unit={tr('ngày')}
-            />
-          </section>
-
+    <LearnerShell breadcrumb={tr('Bảng học tập')}>
+      <div data-page="HomeLearner" className="rp-container rp-cq py-[var(--rp-space-page-y)]">
+        {/* Welcome banner — landscape art + real HTML text */}
+        <section aria-labelledby="welcome-title" className="relative isolate overflow-hidden rounded-rp-card-lg border border-rp-line shadow-rp-xs">
+          <JapanScene time={scene} className="absolute inset-0 -z-10 h-full w-full" />
           <div
-            className="grid items-start gap-5
-                       xl:grid-cols-[minmax(0,1fr)_320px]"
-          >
-            <div className="min-w-0 space-y-5">
-              <section className="overflow-hidden rounded-3xl bg-white shadow-[0_16px_40px_rgba(90,40,58,0.06)]">
-                <div className="flex items-center justify-between gap-3 px-5 pt-5">
-                  <h2 className="text-[15px] font-semibold">
-                    {tr('Ôn luyện hôm nay')}
-                  </h2>
-
-                  <Link
-                    to={ROUTES.roadmap}
-                    className="inline-flex items-center gap-1
-                               text-[12px] font-medium text-[#A66B82]
-                               hover:text-[#AD3155]"
-                  >
-                    {tr('Lộ trình')}
-                    <Icon name="arrow_forward" className="text-[15px]" />
-                  </Link>
-                </div>
-
-                <div className="m-3 rounded-2xl bg-[linear-gradient(145deg,#C44768_0%,#AD3155_48%,#7C2340_100%)] p-5 text-white sm:p-6">
-                  <p className="text-[11px] font-semibold tracking-[0.14em] text-white/75">
-                    {resume ? tr('TIẾP TỤC ÔN LUYỆN') : tr('BẮT ĐẦU TỪ ĐÂY')}
-                  </p>
-
-                  <h3 className="mt-2 max-w-lg text-[26px] font-semibold leading-tight tracking-tight">
-                    {resume?.title || tr('Thử sức với một đề thi')}
-                  </h3>
-
-                  <p className="mt-2 max-w-md text-[13px] leading-6 text-white/80">
-                    {resume
-                      ? resume.category || tr('Quay lại nội dung đang luyện.')
-                      : tr('Làm đề, xem kết quả và chọn phần cần ôn thêm.')}
-                  </p>
-
-                  {resume &&
-                    typeof resume.progress === 'number' &&
-                    Number.isFinite(resume.progress) && (
-                      <div className="mt-4 max-w-[300px]">
-                        <div
-                          className="mb-2 flex justify-between
-                                     text-[11px] text-white/75"
-                        >
-                          <span>{tr('Tiến độ')}</span>
-                          <span>
-                            {Math.round(
-                              Math.max(0, Math.min(100, resume.progress)),
-                            )}
-                            %
-                          </span>
-                        </div>
-                        <ProgressBar
-                          value={resume.progress}
-                          label={tr('Tiến độ bài đang luyện')}
-                        />
-                      </div>
-                    )}
-
-                  <div className="mt-5">
-                    <ActionLink
-                      to={resume ? resume.to : ROUTES.exam}
-                      inverse
-                    >
-                      {resume ? 'Tiếp tục luyện' : 'Thi thử JLPT'}
-                      <Icon name="arrow_forward" className="text-[17px]" />
-                    </ActionLink>
-                  </div>
-                </div>
-
-                <div className="grid gap-0 sm:grid-cols-2">
-                  {[
-                    {
-                      title: 'Ôn từ vựng',
-                      text: 'Củng cố từ theo chủ đề.',
-                      icon: 'translate',
-                      to: ROUTES.vocabulary,
-                    },
-                    {
-                      title: 'Luyện ngữ pháp',
-                      text: 'Ôn mẫu câu và cách dùng.',
-                      icon: 'edit_note',
-                      to: ROUTES.grammar,
-                    },
-                  ].map((item) => {
-                    const className =
-                      'mx-3 mb-3 flex items-center gap-3 rounded-2xl border ' +
-                      'border-[#F3E7EC] bg-[#FFFBFC] p-3.5 text-left transition-colors ' +
-                      (item.to
-                        ? 'hover:border-[#E7C3D0] hover:bg-white'
-                        : 'opacity-50');
-
-                    const content = (
-                      <>
-                        <span
-                          className="flex h-9 w-9 shrink-0
-                                     items-center justify-center
-                                     rounded-lg bg-[#F8F2F5]
-                                     text-[#AF8295]"
-                        >
-                          <Icon name={item.icon} className="text-[20px]" />
-                        </span>
-
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[13px] font-medium">
-                            {tr(item.title)}
-                          </span>
-                          <span className="mt-1 block text-[12px] text-[#A08D97]">
-                            {tr(item.text)}
-                          </span>
-                        </span>
-
-                        <Icon
-                          name="chevron_right"
-                          className="shrink-0 text-[18px] text-[#B8A3AD]"
-                        />
-                      </>
-                    );
-
-                    return item.to ? (
-                      <Link key={item.title} to={item.to} className={className}>
-                        {content}
-                      </Link>
-                    ) : (
-                      <button
-                        key={item.title}
-                        type="button"
-                        disabled
-                        title={tr('Chưa cấu hình đường dẫn')}
-                        className={className}
-                      >
-                        {content}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section>
-                <h2 className="mb-3 text-[15px] font-semibold">
-                  {tr('Truy cập nhanh')}
-                </h2>
-
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {QUICK_LINKS.map((item) => {
-                    const to = ROUTES[item.key];
-                    const className =
-                      'block rounded-2xl border border-white ' +
-                      'bg-white p-4 text-left shadow-[0_10px_24px_rgba(90,40,58,0.04)] transition-colors ' +
-                      (to
-                        ? 'hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(90,40,58,0.08)]'
-                        : 'opacity-50');
-
-                    const content = (
-                      <>
-                        <Icon
-                          name={item.icon}
-                          className="text-[22px] text-[#B2778D]"
-                        />
-                        <span className="mt-3 block text-[13px] font-medium">
-                          {tr(item.title)}
-                        </span>
-                        <span className="mt-1 block text-[11px] text-[#A08D97]">
-                          {tr(item.description)}
-                        </span>
-                      </>
-                    );
-
-                    return to ? (
-                      <Link key={item.key} to={to} className={className}>
-                        {content}
-                      </Link>
-                    ) : (
-                      <button
-                        key={item.key}
-                        type="button"
-                        disabled
-                        title={tr('Chưa cấu hình đường dẫn')}
-                        className={className}
-                      >
-                        {content}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
-
-            <aside className="min-w-0 space-y-4">
-              <section
-                className="rounded-3xl border border-white
-                           bg-white p-5 shadow-[0_16px_40px_rgba(90,40,58,0.05)]"
-              >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-[15px] font-semibold">
-                    {tr('Ôn tập đến hạn')}
-                  </h2>
-                  <Icon
-                    name="history"
-                    className="text-[20px] text-[#B2778D]"
-                  />
-                </div>
-
-                <p className="mt-4 text-[40px] font-semibold tracking-tight text-[#AD3155]">
-                  {dueCards ?? '—'}
-                  <span className="ml-2 text-[13px] font-normal text-[#A08D97]">
-                    {tr('thẻ')}
-                  </span>
-                </p>
-
-                <p className="mt-1 text-[12px] leading-5 text-[#95828C]">
-                  {dueCards === null
-                    ? tr('Chưa có dữ liệu ôn tập.')
-                    : dueCards === 0
-                      ? tr('Bạn chưa có thẻ đến hạn.')
-                      : tr('Ôn lại nội dung đã lưu trong sổ tay.')}
-                </p>
-
-                <div className="mt-4">
-                  <ActionLink
-                    to={dueCards > 0 ? ROUTES.review : ROUTES.notebook}
-                    className="w-full"
-                    primary={dueCards > 0}
-                  >
-                    {dueCards > 0 ? tr('Bắt đầu ôn tập') : tr('Mở sổ tay')}
-                    <Icon name="arrow_forward" className="text-[16px]" />
-                  </ActionLink>
-                </div>
-              </section>
-
-              <section
-                className="rounded-3xl border border-white
-                           bg-white p-5 shadow-[0_16px_40px_rgba(90,40,58,0.05)]"
-              >
-                <h2 className="text-[15px] font-semibold">
-                  {tr('Kết quả theo kỹ năng')}
-                </h2>
-                <p className="mt-1 text-[11px] text-[#A08D97]">
-                  {tr('Dựa trên các bài luyện đã hoàn thành.')}
-                </p>
-
-                <div className="mt-5 space-y-4">
-                  {SKILLS.map((skill) => {
-                    const value = skillScores[skill.key];
-                    const valid =
-                      typeof value === 'number' &&
-                      Number.isFinite(value);
-
-                    const percent = valid
-                      ? Math.round(Math.max(0, Math.min(100, value)))
-                      : null;
-
-                    return (
-                      <div key={skill.key}>
-                        <div
-                          className="mb-2 flex justify-between
-                                     text-[12px] text-[#8C7480]"
-                        >
-                          <span>{tr(skill.label)}</span>
-                          <span>{percent === null ? '—' : `${percent}%`}</span>
-                        </div>
-                        <ProgressBar value={value} label={tr(skill.label)} />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {!hasSkillData && (
-                  <p
-                    className="mt-4 border-t border-[#F0E7EC]
-                               pt-3 text-[12px] leading-5 text-[#A08D97]"
-                  >
-                    {tr('Hoàn thành một bài thi thử để có thêm kết quả.')}
+            aria-hidden="true"
+            className={cx('absolute inset-0 -z-10', lightText ? 'bg-gradient-to-r from-[rgba(30,20,40,0.62)] via-[rgba(30,20,40,0.3)] to-transparent' : 'bg-gradient-to-r from-white/88 via-white/60 to-transparent')}
+          />
+          <div className="flex min-h-[clamp(180px,22vw,224px)] items-center justify-between gap-6 p-[clamp(1.25rem,2.6vw,2.5rem)]">
+            <div className="min-w-0 max-w-2xl">
+              <p lang="ja" className={cx('rp-type-secondary font-medium', lightText ? 'text-white/80' : 'text-rp-brand-strong')}>{copy.jp}</p>
+              <h1 id="welcome-title" className={cx('mt-1 rp-type-page-title', lightText ? 'text-white' : 'text-rp-text')}>
+                {name ? (locale === 'ja' ? `${name}さん、${copy.jp}` : `${tr(copy.hello)}, ${name}!`) : tr(copy.hello)}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                {loading.profile ? (
+                  <SakuraLoader variant="inline" context="dashboard" label={tr('Đang tải bảng học tập')} tone={lightText ? 'light' : 'brand'} />
+                ) : (
+                  <p className={cx('text-sm leading-6', lightText ? 'text-white/90' : 'text-rp-text-2')}>
+                    {targetLevel
+                      ? tr(`Mục tiêu của bạn: JLPT ${targetLevel}. Mỗi buổi học ngắn đều đưa bạn gần hơn tới kỳ thi.`)
+                      : tr('Đặt mục tiêu JLPT để RikiPath gợi ý lộ trình và bài luyện phù hợp với trình độ.')}
                   </p>
                 )}
-
-                {hasSkillData && ROUTES.results && (
-                  <Link
-                    to={ROUTES.results}
-                    className="mt-4 inline-flex items-center gap-1
-                               text-[12px] text-[#AD7389]"
-                  >
-                    {tr('Xem kết quả')}
-                    <Icon name="arrow_forward" className="text-[15px]" />
-                  </Link>
-                )}
-              </section>
-
-              {data?.haruSuggestion && (
-                <section
-                  className="rounded-xl border border-[#EEDDE5]
-                             bg-[#FCF4F7] p-4"
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon
-                      name="chat_bubble_outline"
-                      className="text-[18px] text-[#B2778D]"
-                    />
-                    <h2 className="text-[13px] font-medium">
-                      {tr('Gợi ý từ Haru')}
-                    </h2>
-                  </div>
-
-                  <p className="mt-2 text-[12px] leading-6 text-[#967A87]">
-                    {data.haruSuggestion}
-                  </p>
-
-                  {ROUTES.haru && (
-                    <Link
-                      to={ROUTES.haru}
-                      className="mt-2 inline-flex items-center gap-1
-                                 text-[12px] font-medium text-[#AD3155]"
-                    >
-                      {tr('Xem thêm')}
-                      <Icon name="arrow_forward" className="text-[15px]" />
+                <RefreshingIndicator active={Boolean(data?.refreshing)} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {loading.profile ? null : !targetLevel ? (
+                  <>
+                    <Link to="/onboarding/" className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand transition-transform hover:-translate-y-0.5 hover:bg-rp-brand-strong rp-press">
+                      <Target aria-hidden="true" className="h-4 w-4" /> {tr('Đặt mục tiêu JLPT')}
                     </Link>
-                  )}
-                </section>
-              )}
-            </aside>
+                    <Link
+                      to="/placement/"
+                      className={cx('rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border px-4 text-sm font-semibold backdrop-blur', lightText ? 'border-white/40 bg-white/15 text-white hover:bg-white/25' : 'border-rp-line bg-white/85 text-rp-text hover:border-rp-brand-border')}
+                    >
+                      <ClipboardCheck aria-hidden="true" className="h-4 w-4" /> {tr('Đánh giá năng lực')}
+                    </Link>
+                  </>
+                ) : completed > 0 ? (
+                  <FeatureLink to="/lessons/" label="Bài học" showLock={false} className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand transition-transform hover:-translate-y-0.5 hover:bg-rp-brand-strong rp-press">
+                    {tr('Tiếp tục học')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </FeatureLink>
+                ) : (
+                  <Link to="/roadmap/" className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand transition-transform hover:-translate-y-0.5 hover:bg-rp-brand-strong rp-press">
+                    <Route aria-hidden="true" className="h-4 w-4" /> {tr('Bắt đầu lộ trình')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Link>
+                )}
+                <Link
+                  to="/daily-srs/"
+                  className={cx('rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border px-4 text-sm font-semibold backdrop-blur transition-colors', lightText ? 'border-white/40 bg-white/15 text-white hover:bg-white/25' : 'border-rp-line bg-white/85 text-rp-text hover:border-rp-brand-border')}
+                >
+                  <SrsLoopIcon className="h-4 w-4" />
+                  {dueCards ? `${tr('Ôn')} ${dueCards} ${tr('thẻ đến hạn')}` : tr('Ôn tập SRS')}
+                </Link>
+              </div>
+            </div>
+            <HaruMascot pose="studying" size={148} className="rp-float hidden shrink-0 drop-shadow-sm lg:block" />
           </div>
-        </main>
+        </section>
+
+        {/* Stats — real values only, explicit error + retry if a tile query fails */}
+        <div className="mt-[var(--rp-space-section)] rp-cq-kpis">
+          <StatTile
+            icon={Flame}
+            tone="bg-rp-streak-bg text-rp-streak"
+            label={tr('Chuỗi ngày học')}
+            value={streak}
+            unit={tr('ngày')}
+            loading={loading.streak}
+            error={errors.streak}
+            onRetry={onRetry.streak}
+            tr={tr}
+          >
+            <StreakWeek days={streak} activeToday={data?.activeToday} />
+          </StatTile>
+          <StatTile
+            icon={CheckCircle2}
+            tone="bg-rp-success-bg text-rp-success"
+            label={tr('Bài đã hoàn thành')}
+            value={completed}
+            unit={tr('bài')}
+            loading={loading.completion}
+            error={errors.completion}
+            onRetry={onRetry.completion}
+            tr={tr}
+          />
+          <StatTile
+            icon={SrsLoopIcon}
+            tone="bg-tone-vocab-bg text-tone-vocab"
+            label={tr('Thẻ cần ôn hôm nay')}
+            value={dueCards}
+            unit={tr('thẻ')}
+            loading={loading.srs}
+            error={errors.srs}
+            onRetry={onRetry.srs}
+            tr={tr}
+          />
+          <StatTile
+            icon={Target}
+            tone="bg-rp-brand-tint text-rp-brand-strong"
+            label={tr('Mục tiêu JLPT')}
+            value={targetLevel}
+            loading={loading.profile}
+            error={errors.profile}
+            onRetry={onRetry.profile}
+            tr={tr}
+          />
+        </div>
+
+        <div className="mt-[var(--rp-space-section)] rp-cq-two-col">
+          <div className="min-w-0 space-y-[var(--rp-space-section)]">
+            <Card>
+              <CardHeader
+                title={tr('Luyện tập nhanh')}
+                description={tr('Chọn kỹ năng bạn muốn ôn ngay hôm nay')}
+                actions={<Link to="/mock-tests/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Thi thử JLPT')}</Link>}
+              />
+              <ul className="rp-cq-practice">
+                {PRACTICE.map((p) => (
+                  <li key={p.feature}>
+                    <FeatureLink to={p.to} label={p.title} className="rp-focus rp-card-hover rp-interactive group flex h-full w-full flex-col gap-2 rounded-rp-input border border-rp-line p-3.5">
+                      <FeatureIcon feature={p.feature} />
+                      <span className="text-[13.5px] font-semibold text-rp-text transition-colors group-hover:text-rp-brand-strong">{tr(p.title)}</span>
+                      <span className="text-xs leading-5 text-rp-text-muted">{tr(p.note)}</span>
+                    </FeatureLink>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title={tr('Năng lực theo kỹ năng')}
+                description={tr('Điểm trung bình từ các bài bạn đã làm')}
+                actions={<Link to="/exam-result/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch sử & kết quả')}</Link>}
+              />
+              <OptionalDashboardWidget
+                name="HomeLearner.SkillMastery"
+                query={skillsWidgetQuery}
+                isEmpty={() => !hasSkillData}
+                emptyPolicy="cta"
+                errorPolicy="compact"
+                loading={<SakuraLoader variant="section" context="dashboard" label={tr('Đang tải năng lực theo kỹ năng')} className="min-h-[120px] py-4" />}
+                empty={
+                  <ContextualEmptyState
+                    compact
+                    mascot="thinking"
+                    title={tr('Chưa có dữ liệu kỹ năng')}
+                    description={tr('Làm bài đánh giá năng lực để biết điểm mạnh, điểm cần cải thiện và nhận lộ trình gợi ý.')}
+                    action={<Link to="/placement/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press"><ClipboardCheck aria-hidden="true" className="h-4 w-4" /> {tr('Làm bài đánh giá')}</Link>}
+                  />
+                }
+                errorFallback={(err, retry, q) => (
+                  <ContextualErrorState
+                    variant="inline"
+                    error={err}
+                    title={tr('Tạm chưa tải được năng lực theo kỹ năng')}
+                    onRetry={retry}
+                    retrying={Boolean(q?.isFetching)}
+                  />
+                )}
+              >
+                {() => (
+                  <ul className="grid gap-4 sm:grid-cols-2">
+                    {SKILLS.map(({ key, label, feature }) => {
+                      const v = skillScores[key];
+                      return (
+                        <li key={key} className="rounded-rp-input border border-rp-line/70 bg-rp-bg-2/50 p-3.5">
+                          <div className="mb-2 flex items-center justify-between gap-2 text-[13px]">
+                            <span className="flex items-center gap-2 font-semibold text-rp-text">
+                              <FeatureIcon feature={feature} size="sm" interactive={false} />
+                              {tr(label)}
+                            </span>
+                            <span className="tabular-nums font-semibold text-rp-text-2">{isNum(v) ? `${Math.round(v)}/100` : tr('Chưa có dữ liệu')}</span>
+                          </div>
+                          <ProgressBar value={isNum(v) ? v : 0} label={tr(label)} />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </OptionalDashboardWidget>
+            </Card>
+          </div>
+
+          <aside className="space-y-5" aria-label={tr('Học nhóm và trợ lý')}>
+            <GroupLearningWidget />
+
+            <Card>
+              <CardHeader
+                icon={<FeatureIcon feature="srs" size="sm" />}
+                title={tr('Hàng đợi ôn tập SRS')}
+                description={tr('Nhắc lại ngắt quãng theo lịch ghi nhớ')}
+                actions={<Link to="/daily-srs/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Mở SRS')}</Link>}
+              />
+              <OptionalDashboardWidget
+                name="HomeLearner.SrsSummary"
+                query={srsWidgetQuery}
+                isEmpty={() => !dueCards}
+                emptyPolicy="cta"
+                errorPolicy="compact"
+                loadingContext="srs"
+                empty={
+                  <ContextualEmptyState
+                    compact
+                    context="srs"
+                    icon={SrsLoopIcon}
+                    action={<FeatureLink to="/vocabulary/" label="Từ vựng" showLock={false} className="rp-focus rp-link rounded text-[13px] font-semibold">{tr('Mở sổ từ vựng')}</FeatureLink>}
+                  />
+                }
+                errorFallback={(err, retry, q) => (
+                  <ContextualErrorState
+                    variant="inline"
+                    error={err}
+                    title={tr('Tạm chưa cập nhật được hàng đợi SRS')}
+                    onRetry={retry}
+                    retrying={Boolean(q?.isFetching)}
+                  />
+                )}
+              >
+                {() => (
+                  <dl className="grid grid-cols-1 gap-2 text-center min-[340px]:grid-cols-3">
+                    <div className="rounded-rp-input border border-rp-line bg-rp-brand-tint/50 p-2.5">
+                      <dt className="text-[11px] font-medium text-rp-text-muted">{tr('Ôn gấp')}</dt>
+                      <dd className="mt-0.5 text-lg font-bold tabular-nums text-rp-brand-strong">{srsBreakdown.urgent}</dd>
+                    </div>
+                    <div className="rounded-rp-input border border-rp-line bg-rp-bg-2 p-2.5">
+                      <dt className="text-[11px] font-medium text-rp-text-muted">{tr('Đang nhớ')}</dt>
+                      <dd className="mt-0.5 text-lg font-bold tabular-nums text-rp-text">{srsBreakdown.due}</dd>
+                    </div>
+                    <div className="rounded-rp-input border border-rp-line bg-rp-bg-2 p-2.5">
+                      <dt className="text-[11px] font-medium text-rp-text-muted">{tr('Dài hạn')}</dt>
+                      <dd className="mt-0.5 text-lg font-bold tabular-nums text-rp-success">{srsBreakdown.longTerm}</dd>
+                    </div>
+                  </dl>
+                )}
+              </OptionalDashboardWidget>
+            </Card>
+
+            <Card className="rp-card-hover relative overflow-hidden">
+              <div className="flex items-start gap-3">
+                <HaruMascot pose="guiding" size={72} className="-ml-1 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[15px] font-bold text-rp-text">Haru AI</p>
+                  <p className="mt-1 text-[13px] leading-5 text-rp-text-2">{tr('Haru gợi ý cách ôn từng kỹ năng, chấm bài viết và góp ý bài nói của bạn.')}</p>
+                  <Link to="/ai-counselor/" className="rp-focus mt-3 inline-flex items-center gap-1.5 rounded text-[13px] font-semibold rp-link">
+                    {tr('Xem gợi ý của Haru')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          </aside>
+        </div>
       </div>
     </LearnerShell>
   );

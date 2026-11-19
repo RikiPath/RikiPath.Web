@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 /**
  * Custom hook to handle array slicing, pagination calculations, and page state.
@@ -10,18 +10,14 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
  * @returns {Object} Pagination state and controller functions
  */
 export function usePagination(items = [], { initialPage = 1, initialPageSize = 10 } = {}) {
-  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [requestedPage, setCurrentPage] = useState(initialPage);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
   const totalItems = items?.length || 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-  // Auto adjust page if items shrink
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  // When items shrink, the visible page is clamped (derived, no extra render pass).
+  const currentPage = Math.min(Math.max(1, requestedPage), totalPages);
 
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);

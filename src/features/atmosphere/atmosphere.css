@@ -1,0 +1,361 @@
+/* RikiPath atmosphere — Japanese paper background + dynamic header sky.
+ * Rules: animate transform/opacity only; no backdrop-filter on large areas; everything decorative is aria-hidden;
+ * animations pause when the tab is hidden (data-paused) and stop under prefers-reduced-motion. */
+
+/* ======================================================= Paper background (behind the whole app shell) */
+.rp-paper-bg {
+  position: relative;
+  isolation: isolate;
+  /* Deeper washi tone + clearer dot grain (matches the IeltsWithHarry paper weight). */
+  background-color: #f5f3ee;
+}
+/* Fixed, composited layers: no repaint while scrolling, no layout, never above cards (z-index -1 inside isolate). */
+.rp-paper-bg::before,
+.rp-paper-bg::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.rp-paper-bg::before {
+  /* Plain washi paper: warm dot grain only — no pink/peach colour wash. */
+  background-image: radial-gradient(circle, rgba(96, 84, 74, 0.2) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  background-position: 11px 11px;
+}
+/* Very faint seigaiha waves (bottom-right) and two sakura blossoms (top-right), tinted in the paper's own warm
+   beige so they read as an embossed watermark, not a pink accent — only on wide screens. */
+.rp-paper-bg::after {
+  display: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='150' viewBox='0 0 300 150' fill='none' stroke='%23d8cbbd' stroke-width='1'%3E%3Cg opacity='.6'%3E%3Cpath d='M0 150a50 50 0 0 1 100 0M10 150a40 40 0 0 1 80 0M20 150a30 30 0 0 1 60 0M100 150a50 50 0 0 1 100 0M110 150a40 40 0 0 1 80 0M120 150a30 30 0 0 1 60 0M200 150a50 50 0 0 1 100 0M210 150a40 40 0 0 1 80 0M220 150a30 30 0 0 1 60 0M50 125a50 50 0 0 1 100 0M60 125a40 40 0 0 1 80 0M150 125a50 50 0 0 1 100 0M160 125a40 40 0 0 1 80 0M100 100a50 50 0 0 1 100 0M110 100a40 40 0 0 1 80 0M200 100a50 50 0 0 1 100 0'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90' viewBox='0 0 120 90'%3E%3Cg fill='%23e6dbcf' opacity='.75'%3E%3Cg transform='translate(30 30)'%3E%3Cellipse rx='5' ry='9' transform='translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(72) translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(144) translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(216) translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(288) translate(0 -8)'/%3E%3C/g%3E%3Cg transform='translate(86 60) scale(.62)'%3E%3Cellipse rx='5' ry='9' transform='translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(72) translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(144) translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(216) translate(0 -8)'/%3E%3Cellipse rx='5' ry='9' transform='rotate(288) translate(0 -8)'/%3E%3C/g%3E%3C/g%3E%3Cg fill='%23f7f2ea'%3E%3Ccircle cx='30' cy='30' r='2.2'/%3E%3Ccircle cx='86' cy='60' r='1.5'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 24px bottom 0, right 40px top 96px;
+  background-size: 300px 150px, 120px 90px;
+}
+@media (min-width: 1280px) {
+  .rp-paper-bg::after { display: block; }
+}
+/* Workspaces (Mentor / Admin / Content Author): lighter, neutral, no motifs. */
+.rp-paper-bg[data-paper='quiet']::before {
+  background-image: radial-gradient(circle, rgba(110, 100, 92, 0.13) 0.9px, transparent 1.3px);
+  background-size: 24px 24px;
+}
+.rp-paper-bg[data-paper='quiet']::after { display: none; }
+
+/* ======================================================= Header sky */
+.rp-sky-header { overflow: visible; }
+.rp-sky-header[data-sky='on'] {
+  background-color: transparent;
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Controls sit above the sky without changing layout. */
+.rp-sky-header[data-sky='on'] > :not(.rp-sky) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Adaptive contrast: light skies darken muted text; dark skies switch the header palette (popovers reset below). */
+.rp-sky-header[data-sky='on'][data-sky-tone='light'] {
+  --color-rp-text-muted: #5f5559;
+  --color-rp-line: rgba(95, 85, 89, 0.22);
+}
+.rp-sky-header[data-sky='on'][data-sky-tone='dark'] {
+  --color-rp-text: #f6f3fb;
+  --color-rp-text-2: #e3ddef;
+  --color-rp-text-muted: #cdc6de;
+  --color-rp-text-disabled: #a29cb6;
+  --color-rp-surface: #27315a;
+  --color-rp-bg-2: #222b50;
+  --color-rp-muted: rgba(255, 255, 255, 0.14);
+  --color-rp-line: rgba(255, 255, 255, 0.22);
+  --color-rp-brand-strong: #ffc6d4;
+  --color-rp-brand-tint: rgba(255, 198, 212, 0.18);
+  --color-rp-brand-border: rgba(255, 198, 212, 0.5);
+}
+.rp-sky-header[data-sky='on'] :is([role='dialog'], [role='menu'], [role='listbox']) {
+  --color-rp-text: #2d282a;
+  --color-rp-text-2: #5f5559;
+  --color-rp-text-muted: #776c70;
+  --color-rp-text-disabled: #9e9397;
+  --color-rp-surface: #ffffff;
+  --color-rp-bg-2: #fbfaf9;
+  --color-rp-muted: #f4f2f3;
+  --color-rp-line: #e5e0e2;
+  --color-rp-brand-strong: #a1334e;
+  --color-rp-brand-tint: #fff0f3;
+  --color-rp-brand-border: #f8bbd0;
+  color: var(--color-rp-text);
+}
+
+.rp-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  --rp-drift-amp: 28px;
+}
+.rp-sky[data-intensity='medium'] { --rp-drift-amp: 44px; }
+.rp-sky[data-intensity='high'] { --rp-drift-amp: 64px; }
+
+.rp-sky-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #a9d5f7 0%, #cbe6fb 58%, #eaf5fd 100%);
+}
+.rp-sky-layer[data-state='in'] { animation: rp-sky-fade-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes rp-sky-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.rp-sky-layer[data-period='morning'] {
+  background:
+    radial-gradient(420px 120px at 30% 120%, rgba(255, 214, 196, 0.75), transparent 70%),
+    linear-gradient(180deg, #c9e4f9 0%, #e5f0fb 58%, #fbe7e1 100%);
+}
+.rp-sky-layer[data-period='afternoon'] {
+  background: linear-gradient(180deg, #a6d3f6 0%, #c8e4fa 58%, #e8f4fd 100%);
+}
+.rp-sky-layer[data-period='evening'] {
+  background:
+    radial-gradient(520px 140px at 38% 115%, rgba(255, 196, 140, 0.85), transparent 72%),
+    linear-gradient(180deg, #cdbde9 0%, #f0bccd 55%, #f9d3b8 100%);
+}
+.rp-sky-layer[data-period='night'] {
+  background:
+    radial-gradient(380px 120px at 40% 0%, rgba(120, 132, 196, 0.35), transparent 70%),
+    radial-gradient(300px 90px at 70% 130%, rgba(240, 160, 190, 0.18), transparent 70%),
+    linear-gradient(180deg, #0f1a3c 0%, #1b2a57 60%, #2a3767 100%);
+}
+/* Weather veils over the period gradient. */
+.rp-sky-layer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.rp-sky-layer[data-condition='partly']::before { opacity: 1; background: rgba(226, 232, 240, 0.18); }
+.rp-sky-layer[data-condition='cloudy']::before { opacity: 1; background: linear-gradient(180deg, rgba(178, 188, 204, 0.6), rgba(214, 220, 230, 0.45)); }
+.rp-sky-layer[data-condition='rain']::before { opacity: 1; background: linear-gradient(180deg, rgba(140, 156, 180, 0.62), rgba(186, 198, 214, 0.5)); }
+.rp-sky-layer[data-condition='snow']::before { opacity: 1; background: linear-gradient(180deg, rgba(222, 230, 242, 0.55), rgba(245, 248, 252, 0.45)); }
+.rp-sky-layer[data-condition='fog']::before { opacity: 1; background: rgba(232, 234, 239, 0.62); }
+.rp-sky-layer[data-condition='thunder']::before { opacity: 1; background: linear-gradient(180deg, #2c3248 0%, #464e6a 100%); }
+.rp-sky-layer[data-period='night']:is([data-condition='cloudy'], [data-condition='rain'], [data-condition='fog'], [data-condition='snow'])::before {
+  background: rgba(46, 56, 88, 0.55);
+}
+.rp-sky-layer[data-period='evening']:is([data-condition='rain'], [data-condition='cloudy'])::before {
+  background: linear-gradient(180deg, rgba(70, 62, 98, 0.78), rgba(120, 96, 128, 0.62));
+}
+
+/* Readability scrim behind the right-hand controls. */
+.rp-sky-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 52%, rgba(255, 255, 255, 0.3) 100%);
+}
+.rp-sky-header[data-sky-tone='dark'] .rp-sky-scrim { background: linear-gradient(90deg, rgba(8, 12, 30, 0.12), transparent 30%, transparent 55%, rgba(8, 12, 30, 0.28)); }
+
+/* Sun / moon / stars — positioned cleanly in the open center-right sky band away from breadcrumbs. */
+.rp-sky-sun {
+  position: absolute;
+  left: 46%;
+  top: -42px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 249, 222, 0.98) 0 18%, rgba(255, 229, 168, 0.55) 36%, transparent 68%);
+  animation: rp-sky-glow 9s ease-in-out infinite alternate;
+}
+.rp-sky-sun[data-low='true'] {
+  top: 34%;
+  background: radial-gradient(circle, rgba(255, 228, 190, 0.98) 0 16%, rgba(255, 170, 120, 0.55) 36%, transparent 68%);
+}
+.rp-sky-moon {
+  position: absolute;
+  left: 47%;
+  top: 11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: 7px -3px 0 0 #f6efd4;
+  filter: drop-shadow(4px -2px 10px rgba(246, 239, 212, 0.55));
+  animation: rp-sky-glow 10s ease-in-out infinite alternate;
+}
+@keyframes rp-sky-glow {
+  from { opacity: 0.88; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.06); }
+}
+.rp-sky-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.2px 1.2px at 6% 30%, #fff, transparent),
+    radial-gradient(1px 1px at 18% 70%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 27% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 47% 58%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 58% 18%, #fff, transparent),
+    radial-gradient(1px 1px at 66% 74%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 79% 36%, #fff, transparent),
+    radial-gradient(1px 1px at 92% 64%, #fff, transparent);
+  animation: rp-sky-twinkle 4.5s ease-in-out infinite alternate;
+  animation-delay: var(--rp-twinkle-delay, 0s);
+  opacity: 0.85;
+}
+.rp-sky-stars[data-set='1'] { transform: translate(37px, 9px); }
+.rp-sky-stars[data-set='2'] { transform: translate(-61px, -7px) scaleX(-1); }
+@keyframes rp-sky-twinkle { from { opacity: 0.35; } to { opacity: 0.95; } }
+
+/* Clouds */
+.rp-sky-cloud {
+  position: absolute;
+  height: auto;
+  fill: rgba(255, 255, 255, 0.86);
+  animation: rp-sky-drift var(--rp-drift-dur, 80s) ease-in-out infinite alternate;
+  animation-delay: var(--rp-drift-delay, 0s);
+  will-change: transform;
+}
+.rp-sky-cloud[data-night='true'] { fill: rgba(196, 206, 238, 0.16); }
+.rp-sky-layer:is([data-condition='rain'], [data-condition='thunder']) .rp-sky-cloud { fill: rgba(232, 236, 244, 0.6); }
+.rp-sky-layer[data-condition='thunder'] .rp-sky-cloud { fill: rgba(120, 128, 156, 0.6); }
+@keyframes rp-sky-drift {
+  from { transform: translate3d(calc(var(--rp-drift-amp) * -1), 0, 0); }
+  to { transform: translate3d(var(--rp-drift-amp), 0, 0); }
+}
+
+/* Fuji / torii silhouette in the empty centre band */
+.rp-sky-fuji {
+  position: absolute;
+  left: 44%;
+  bottom: 0;
+  width: 300px;
+  height: 54px;
+  display: none;
+}
+@media (min-width: 900px) { .rp-sky-fuji { display: block; } }
+.rp-sky-fuji-body { fill: rgba(118, 146, 186, 0.16); }
+.rp-sky-fuji-snow { fill: rgba(255, 255, 255, 0.5); }
+.rp-sky-torii { fill: rgba(178, 70, 86, 0); }
+.rp-sky-fuji[data-period='evening'] .rp-sky-fuji-body { fill: rgba(112, 72, 120, 0.32); }
+.rp-sky-fuji[data-period='evening'] .rp-sky-torii { fill: rgba(150, 46, 66, 0.4); }
+.rp-sky-fuji[data-period='night'] .rp-sky-fuji-body { fill: rgba(6, 12, 34, 0.5); }
+.rp-sky-fuji[data-period='night'] .rp-sky-fuji-snow { fill: rgba(214, 222, 246, 0.22); }
+.rp-sky[data-decoration='minimal'] .rp-sky-torii { display: none; }
+
+/* Rain: two composited stripe layers, skewed, translated vertically (seamless loop). */
+.rp-sky-rain {
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: -54px;
+  bottom: 0;
+  background-image: repeating-linear-gradient(90deg, transparent 0 28px, rgba(232, 240, 255, 0.55) 28px 29.2px);
+  -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 11px, transparent 11px 27px);
+  mask-image: repeating-linear-gradient(180deg, #000 0 11px, transparent 11px 27px);
+  animation: rp-sky-rain 0.9s linear infinite;
+  opacity: 0.8;
+}
+.rp-sky-rain[data-layer='1'] {
+  background-image: repeating-linear-gradient(90deg, transparent 0 41px, rgba(232, 240, 255, 0.4) 41px 42px);
+  animation-duration: 1.25s;
+  opacity: 0.6;
+}
+@keyframes rp-sky-rain {
+  from { transform: skewX(-14deg) translate3d(0, 0, 0); }
+  to { transform: skewX(-14deg) translate3d(0, 54px, 0); }
+}
+.rp-sky-lightning {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  animation: rp-sky-flash 13s linear infinite;
+}
+@keyframes rp-sky-flash {
+  0%, 90%, 92.5%, 100% { opacity: 0; }
+  91% { opacity: 0.55; }
+  91.8% { opacity: 0.15; }
+}
+
+/* Snow / petals */
+.rp-sky-flake {
+  position: absolute;
+  top: -8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  animation: rp-sky-fall var(--rp-flake-dur, 8s) linear infinite;
+  animation-delay: var(--rp-flake-delay, 0s);
+}
+.rp-sky-petal {
+  position: absolute;
+  top: -14px;
+  width: 9px;
+  height: 11px;
+  fill: #f6b3c6;
+  opacity: 0.85;
+  animation: rp-sky-petal var(--rp-petal-dur, 12s) ease-in-out infinite;
+  animation-delay: var(--rp-petal-delay, 0s);
+}
+@keyframes rp-sky-fall {
+  from { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(6px, 40px, 0); }
+  to { transform: translate3d(-4px, 84px, 0); }
+}
+@keyframes rp-sky-petal {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.85; }
+  85% { opacity: 0.85; }
+  100% { transform: translate3d(var(--rp-petal-sway, 20px), 86px, 0) rotate(250deg); opacity: 0; }
+}
+
+/* Fog: soft bands, no blur filter */
+.rp-sky-mist {
+  position: absolute;
+  left: -30%;
+  width: 160%;
+  top: 30%;
+  height: 46%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(255, 255, 255, 0.6), transparent 70%);
+  animation: rp-sky-drift 38s ease-in-out infinite alternate;
+}
+.rp-sky-mist[data-second='true'] { top: -10%; animation-duration: 52s; animation-direction: alternate-reverse; opacity: 0.7; }
+
+/* Pause when the tab is hidden; stop motion entirely for reduced-motion users (the static scene stays). */
+.rp-sky[data-paused='true'] *,
+.rp-sky[data-paused='true'] *::before { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .rp-sky *,
+  .rp-sky *::before { animation: none !important; }
+  .rp-sky .rp-sky-layer[data-state='in'] { animation: rp-sky-fade-in 400ms ease both !important; }
+}
+
+
+/* ======================================================= Sky header edge (sky on) */
+/* The sky stays inside the header and only softens its bottom edge into the paper; nothing tints the body or sidebar. */
+.rp-paper-bg[data-sky='on'] .rp-sky-header { border-bottom-color: transparent; }
+/* Sky stays solid down to the header's bottom edge (no paper gap above the sidebar/content), then overhangs by
+   a short 12px feather so the join is soft rather than a hard line. */
+.rp-paper-bg[data-sky='on'] .rp-sky-header .rp-sky {
+  bottom: -12px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 12px), rgba(0, 0, 0, 0.35) calc(100% - 5px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 12px), rgba(0, 0, 0, 0.35) calc(100% - 5px), transparent 100%);
+}
+
+/* Brand as a frosted pill on the sky (desktop header). */
+.rp-header-brand {
+  border-radius: 999px;
+  padding: 3px 12px 3px 4px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 2px 10px rgba(28, 39, 67, 0.07);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+/* Collapsed sidebar → icon-only brand (Brand marks itself data-collapsed). */
+.rp-header-brand:has(> a[data-collapsed='true']) { padding: 3px; }
+.rp-paper-bg[data-sky='off'] .rp-header-brand { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }

@@ -38,8 +38,7 @@ export const PREVIEW_SESSIONS = {
 };
 
 export const MOCK_PROFILE = {
-  firstName: 'Minh',
-  lastName: 'Anh',
+  fullName: 'Minh Anh',
   email: 'minh.anh@rikipath.preview',
   avatarUrl: null,
   role: 'Learner',
@@ -79,8 +78,30 @@ export const MOCK_SRS = {
   ],
 };
 
+/** Mock-data preview is a development/demo aid only: off in production unless VITE_ENABLE_PREVIEW=true. */
+export function previewAllowed() {
+  const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
+  return Boolean(env.DEV || env.VITE_ENABLE_PREVIEW === 'true');
+}
+
 export function isPreviewEnabled() {
+  try {
+    return readPreviewFlag();
+  } catch {
+    return false; // storage blocked → preview simply off
+  }
+}
+
+function readPreviewFlag() {
   if (typeof window === 'undefined') return false;
+  if (!previewAllowed()) {
+    try {
+      localStorage.removeItem(PREVIEW_FLAG);
+    } catch {
+      // ignore
+    }
+    return false;
+  }
   const params = new URLSearchParams(window.location.search);
   const q = params.get('preview');
   if (q === '0') {
@@ -98,6 +119,11 @@ export function isPreviewEnabled() {
 
 export function getPreviewSession() {
   if (!isPreviewEnabled()) return null;
-  const role = localStorage.getItem(PREVIEW_ROLE) || 'Learner';
+  let role = 'Learner';
+  try {
+    role = localStorage.getItem(PREVIEW_ROLE) || 'Learner';
+  } catch {
+    // keep default role
+  }
   return PREVIEW_SESSIONS[role] || PREVIEW_SESSIONS.Learner;
 }

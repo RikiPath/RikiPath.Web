@@ -1,0 +1,667 @@
+/*
+ * RikiPath design tokens — single source of truth for the Web app.
+ * Mirrors RikiPath.Mobile `lib/app/theme/*` (AppColors, AppFeatureTones,
+ * AppSpacing, AppRadius, AppMotion). Sakura is an ACCENT on white / neutral
+ * surfaces: large areas stay neutral, Sakura marks primary actions,
+ * selection and progress.
+ *
+ * Status colours are never used on their own: every status surface in
+ * `src/ui` pairs the colour with a text label and an icon.
+ */
+
+@theme {
+  /* Brand */
+  --color-rp-brand: #E05A7A;
+  --color-rp-brand-pressed: #C24362;
+  --color-rp-brand-strong: #A1334E;
+  --color-rp-brand-deep: #8C2340;
+  --color-rp-brand-tint: #FFF0F3;
+  --color-rp-brand-soft: #FCE7EB;
+  --color-rp-brand-border: #F8BBD0;
+  --color-rp-mentor: #BD385E;
+
+  /* Neutral foundations */
+  --color-rp-bg: #F7F6F7;
+  --color-rp-bg-2: #FBFAFA;
+  --color-rp-surface: #FFFFFF;
+  --color-rp-muted: #F4F2F3;
+  --color-rp-muted-strong: #EDE9EA;
+  --color-rp-line: #E5E0E2;
+  --color-rp-line-strong: #DDBFC3;
+
+  /* Text — muted is darkened from Mobile #9E9397 to reach WCAG AA (4.5:1) on white */
+  --color-rp-text: #2D282A;
+  --color-rp-text-2: #5F5559;
+  --color-rp-text-muted: #776C70;
+  --color-rp-text-disabled: #9E9397;
+
+  /* Status (fg / bg / border) */
+  --color-rp-success: #0A7A3A;
+  --color-rp-success-bg: #E7F6EC;
+  --color-rp-success-line: #C3E7CB;
+  --color-rp-warning: #8A4B0B;
+  --color-rp-warning-bg: #FFF8E6;
+  --color-rp-warning-line: #FDE68A;
+  --color-rp-danger: #C62828;
+  --color-rp-danger-bg: #FDEDED;
+  --color-rp-danger-line: #F5C2C2;
+  --color-rp-info: #1B5FA8;
+  --color-rp-info-bg: #EAF2FD;
+  --color-rp-info-line: #D8E7FA;
+  --color-rp-streak: #E64A19;
+  --color-rp-streak-bg: #FFF0EC;
+
+  /* Pastel feature tones (Mobile AppColors.pastel* / feature*) */
+  --color-tone-vocab: #1E824C;
+  --color-tone-vocab-bg: #E8F7EE;
+  --color-tone-grammar: #B65A06;
+  --color-tone-grammar-bg: #FFF2E6;
+  --color-tone-kanji: #74558A;
+  --color-tone-kanji-bg: #F4EFF7;
+  --color-tone-listening: #7E2FD0;
+  --color-tone-listening-bg: #F6F0FD;
+  --color-tone-reading: #1F64B5;
+  --color-tone-reading-bg: #EAF2FD;
+  --color-tone-writing: #8A5A16;
+  --color-tone-writing-bg: #FFF5E7;
+  --color-tone-speaking: #2E7872;
+  --color-tone-speaking-bg: #EDF7F5;
+  --color-tone-mock: #4F628C;
+  --color-tone-mock-bg: #EFF1F7;
+  --color-tone-mentor: #BD385E;
+  --color-tone-mentor-bg: #FFF0F3;
+  --color-tone-calendar: #C2410C;
+  --color-tone-calendar-bg: #FFF0EC;
+  --color-tone-haru: #C24362;
+  --color-tone-haru-bg: #FFF5F7;
+  --color-tone-neutral: #5F5559;
+  --color-tone-neutral-bg: #F4F2F3;
+
+  /* Typography: Vietnamese-first sans, Japanese fallback, serif for kanji display */
+  --font-rp: "Be Vietnam Pro", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+  --font-rp-jp: "Noto Sans JP", "Be Vietnam Pro", sans-serif;
+  --font-rp-kanji: "Noto Serif JP", "Noto Sans JP", serif;
+
+  /* Radius (Mobile AppRadius) */
+  --radius-rp-tag: 6px;
+  --radius-rp-sm: 8px;
+  --radius-rp-input: 12px;
+  --radius-rp-card: 16px;
+  --radius-rp-card-lg: 20px;
+
+  /* Elevation */
+  --shadow-rp-xs: 0 1px 2px rgba(45, 40, 42, 0.05);
+  --shadow-rp-card: 0 1px 2px rgba(45, 40, 42, 0.04), 0 8px 24px -12px rgba(45, 40, 42, 0.12);
+  --shadow-rp-pop: 0 16px 40px -12px rgba(45, 40, 42, 0.22);
+  --shadow-rp-brand: 0 8px 20px -6px rgba(224, 90, 122, 0.4);
+
+  /* Layout (adaptive across viewports and zoom) */
+  --spacing-rp-sidebar: clamp(228px, 16.5vw, 272px);
+  --spacing-rp-sidebar-collapsed: 76px;
+  --spacing-rp-topbar: clamp(3.5rem, 3.25rem + 0.6vw, 4rem);
+}
+
+:root {
+  --rp-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --rp-fast: 110ms;
+  --rp-medium: 200ms;
+  --rp-relaxed: 300ms;
+  --rp-focus: 0 0 0 3px rgba(224, 90, 122, 0.35);
+
+  /* Fluid Typography Scale (rem + clamp for browser zoom & font-scaling compliance) */
+  --rp-text-display: clamp(2rem, 1.3rem + 2.4vw, 3.25rem);
+  --rp-text-page-title: clamp(1.375rem, 1.15rem + 0.85vw, 1.875rem);
+  --rp-text-section: clamp(1.0625rem, 0.98rem + 0.35vw, 1.25rem);
+  --rp-text-card-title: clamp(0.9375rem, 0.9rem + 0.16vw, 1.0625rem);
+  --rp-text-body: clamp(0.875rem, 0.855rem + 0.12vw, 0.9375rem);
+  --rp-text-secondary: clamp(0.8125rem, 0.795rem + 0.1vw, 0.875rem);
+  --rp-text-caption: clamp(0.75rem, 0.73rem + 0.08vw, 0.8125rem);
+  --rp-text-label: clamp(0.8125rem, 0.795rem + 0.08vw, 0.875rem);
+  --rp-text-button: clamp(0.8125rem, 0.8rem + 0.08vw, 0.875rem);
+  --rp-text-kpi: clamp(1.375rem, 1.12rem + 1vw, 1.875rem);
+  --rp-text-nav: clamp(0.8125rem, 0.795rem + 0.08vw, 0.875rem);
+
+  /* Fluid Spacing & Adaptive Content Density defaults (comfortable) */
+  --rp-space-page-x: clamp(0.875rem, 1.2vw + 0.25rem, 1.75rem); /* tighter gutters, closer to IeltsWithHarry */
+  --rp-space-page-y: clamp(0.75rem, 0.8vw + 0.25rem, 1.25rem);
+  --rp-space-section: clamp(1.125rem, 1.5vw + 0.45rem, 1.875rem);
+  --rp-space-grid: clamp(0.75rem, 1.15vw + 0.25rem, 1.25rem);
+  --rp-space-card-pad: clamp(0.9375rem, 0.95rem + 0.4vw, 1.375rem);
+  --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 1rem);
+
+  /* Semantic Component Sizing */
+  --rp-control-h-sm: clamp(2rem, 1.95rem + 0.15vw, 2.125rem);
+  --rp-control-h-md: clamp(2.375rem, 2.32rem + 0.2vw, 2.625rem);
+  --rp-control-h-lg: clamp(2.75rem, 2.68rem + 0.25vw, 3rem);
+  --rp-tap-min: 40px;
+  --rp-icon-badge: clamp(2rem, 1.9rem + 0.28vw, 2.375rem);
+  --rp-table-cell-x: clamp(0.75rem, 0.7rem + 0.35vw, 1rem);
+  --rp-table-cell-y: clamp(0.625rem, 0.55rem + 0.25vw, 0.8125rem);
+}
+
+@media (pointer: coarse) {
+  :root {
+    --rp-tap-min: 44px;
+  }
+}
+
+[data-density='compact'] {
+  --rp-space-section: clamp(0.875rem, 1vw + 0.35rem, 1.375rem);
+  --rp-space-grid: clamp(0.625rem, 0.85vw + 0.15rem, 0.9375rem);
+  --rp-space-card-pad: clamp(0.75rem, 0.72rem + 0.25vw, 1rem);
+  --rp-space-stack: clamp(0.5rem, 0.55vw + 0.15rem, 0.75rem);
+  --rp-table-cell-x: clamp(0.625rem, 0.58rem + 0.25vw, 0.875rem);
+  --rp-table-cell-y: clamp(0.45rem, 0.42rem + 0.18vw, 0.625rem);
+}
+
+[data-density='comfortable'] {
+  --rp-space-section: clamp(1.125rem, 1.5vw + 0.45rem, 1.875rem);
+  --rp-space-grid: clamp(0.75rem, 1.15vw + 0.25rem, 1.25rem);
+  --rp-space-card-pad: clamp(0.9375rem, 0.95rem + 0.4vw, 1.375rem);
+  --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 1rem);
+}
+
+[data-density='spacious'] {
+  --rp-space-section: clamp(1.5rem, 1.9vw + 0.55rem, 2.375rem);
+  --rp-space-grid: clamp(1rem, 1.35vw + 0.3rem, 1.5rem);
+  --rp-space-card-pad: clamp(1.25rem, 1.2rem + 0.55vw, 1.75rem);
+  --rp-space-stack: clamp(0.875rem, 0.95vw + 0.3rem, 1.25rem);
+  --rp-table-cell-x: clamp(0.9375rem, 0.88rem + 0.4vw, 1.25rem);
+  --rp-table-cell-y: clamp(0.75rem, 0.7rem + 0.3vw, 1rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --rp-fast: 0ms;
+    --rp-medium: 0ms;
+    --rp-relaxed: 0ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .rp-bloom,
+  .rp-bloom .rp-petal,
+  .rp-sakura-dot {
+    animation: none !important;
+    transform: none !important;
+  }
+  .rp-sakura-dot {
+    opacity: 0.78 !important;
+  }
+}
+
+/* Sakura loader — 5-petal breathing sway + staggered petal pulse + bouncing Sakura Pink dots. */
+.rp-bloom {
+  animation: rp-bloom-sway 2.2s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+.rp-bloom .rp-petal {
+  animation: rp-petal-wave 1.8s ease-in-out infinite both;
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+}
+@keyframes rp-bloom-sway {
+  0%, 100% { transform: scale(0.96) rotate(-3.5deg); }
+  50% { transform: scale(1.04) rotate(3.5deg); }
+}
+@keyframes rp-petal-wave {
+  0%, 100% { opacity: 0.72; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.rp-sakura-dot {
+  animation: rp-sakura-dot-bounce 1.2s ease-in-out infinite both;
+}
+@keyframes rp-sakura-dot-bounce {
+  0%, 80%, 100% { opacity: 0.35; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-4px); }
+}
+
+.rp-skeleton {
+  background: linear-gradient(90deg, #F1EEEF 0%, #F8F6F7 40%, #F1EEEF 80%);
+  background-size: 200% 100%;
+  animation: rp-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes rp-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+@keyframes rp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rp-pop-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes rp-slide-in-right { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes rp-slide-in-left { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes rp-toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.rp-anim-fade { animation: rp-fade-in var(--rp-medium) var(--rp-ease); }
+.rp-anim-pop { animation: rp-pop-in var(--rp-medium) var(--rp-ease); }
+@keyframes rp-sheet-in { from { opacity: 0.6; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+/* Modal: bottom sheet on phones, centred pop from sm up. */
+.rp-anim-modal { animation: rp-sheet-in var(--rp-medium) var(--rp-ease); }
+@media (min-width: 640px) { .rp-anim-modal { animation-name: rp-pop-in; } }
+.rp-switch-track { transition: background-color var(--rp-fast) ease, border-color var(--rp-fast) ease; }
+.rp-switch-thumb { transition: transform var(--rp-fast) var(--rp-ease); }
+.rp-switch:checked + .rp-switch-track { background-color: #E05A7A; border-color: #E05A7A; }
+.rp-switch:checked ~ .rp-switch-thumb { transform: translateX(16px); }
+.rp-switch:focus-visible + .rp-switch-track { box-shadow: 0 0 0 3px rgba(224, 90, 122, 0.28); }
+.rp-anim-right { animation: rp-slide-in-right var(--rp-relaxed) var(--rp-ease); }
+.rp-anim-left { animation: rp-slide-in-left var(--rp-relaxed) var(--rp-ease); }
+.rp-anim-toast { animation: rp-toast-in var(--rp-medium) var(--rp-ease); }
+
+.rp-focus:focus-visible { outline: none; box-shadow: var(--rp-focus); }
+
+/* Japanese text gets slightly more line-height and no faux-bold. */
+/* Only explicitly marked Japanese text gets the reading line-height; the UI locale (html[lang=ja]) must not
+   override layout utilities, otherwise switching VI ↔ JA shifts every component (see styles/i18n.css). */
+.rp-jp, :not(html)[lang='ja'] { font-family: var(--font-rp-jp); line-height: 1.7; font-synthesis: none; }
+.rp-kanji { font-family: var(--font-rp-kanji); font-synthesis: none; }
+
+/* ------------------------------------------------------------------ Web art direction */
+/* Seigaiha (青海波) wave pattern — subtle decorative background for hero/auth panels. */
+.rp-pattern-seigaiha {
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='24' viewBox='0 0 48 24'%3E%3Cg fill='none' stroke='%23E05A7A' stroke-opacity='0.09' stroke-width='1.2'%3E%3Cpath d='M0 24a24 24 0 0 1 48 0M8 24a16 16 0 0 1 32 0M16 24a8 8 0 0 1 16 0'/%3E%3Cpath d='M-24 12a24 24 0 0 1 48 0M24 12a24 24 0 0 1 48 0'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 48px 24px;
+}
+/* Asanoha-inspired dot grid for professional (Mentor/Author/Admin) surfaces: quieter than seigaiha. */
+.rp-pattern-dots {
+  background-image: radial-gradient(rgba(45, 40, 42, 0.07) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.rp-scene-petals ellipse { animation: rp-petal-drift 9s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes rp-petal-drift {
+  0% { transform: translate(0, -6px) rotate(0deg); opacity: 0; }
+  15% { opacity: 0.9; }
+  100% { transform: translate(36px, 60px) rotate(140deg); opacity: 0; }
+}
+.rp-haru-wave { animation: rp-haru-wave 2.4s ease-in-out infinite; }
+@keyframes rp-haru-wave { 0%, 60%, 100% { transform: rotate(0deg); } 70% { transform: rotate(-14deg); } 85% { transform: rotate(8deg); } }
+.rp-float { animation: rp-float 6s ease-in-out infinite; }
+@keyframes rp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* Language popover — mirrors Mobile RikiLanguageSwitcher (fade + scale 0.96 → 1 + slight drop, ease-out 220ms). */
+.rp-lang-pop { animation: rp-lang-pop 220ms cubic-bezier(0.33, 1, 0.68, 1); }
+@keyframes rp-lang-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------------ Auth experience (Web editorial) */
+/* Crossfade — incoming layer fades over the outgoing one (opacity only, no white flash). */
+.rp-crossfade-in { animation: rp-crossfade 1150ms cubic-bezier(0.33, 1, 0.68, 1) both; }
+@keyframes rp-crossfade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Subtle GPU-only Ken Burns presets (> slide + fade duration so outgoing frames never snap back). */
+.rp-kb-zoom-in,
+.rp-kb-pan-right,
+.rp-kb-zoom-out,
+.rp-kb-pan-left {
+  will-change: transform;
+  transform-origin: 55% 45%;
+}
+.rp-kb-zoom-in { animation: rp-kb-zoom-in 7.8s ease-out both; }
+.rp-kb-pan-right { animation: rp-kb-pan-right 7.8s ease-out both; }
+.rp-kb-zoom-out { animation: rp-kb-zoom-out 7.8s ease-out both; }
+.rp-kb-pan-left { animation: rp-kb-pan-left 7.8s ease-out both; }
+@keyframes rp-kb-zoom-in {
+  from { transform: scale3d(1.01, 1.01, 1) translate3d(0, 0, 0); }
+  to { transform: scale3d(1.065, 1.065, 1) translate3d(-0.6%, -0.4%, 0); }
+}
+@keyframes rp-kb-pan-right {
+  from { transform: scale3d(1.03, 1.03, 1) translate3d(-0.8%, 0.2%, 0); }
+  to { transform: scale3d(1.065, 1.065, 1) translate3d(0.7%, -0.4%, 0); }
+}
+@keyframes rp-kb-zoom-out {
+  from { transform: scale3d(1.065, 1.065, 1) translate3d(0.4%, 0, 0); }
+  to { transform: scale3d(1.015, 1.015, 1) translate3d(-0.4%, 0.3%, 0); }
+}
+@keyframes rp-kb-pan-left {
+  from { transform: scale3d(1.03, 1.03, 1) translate3d(0.8%, 0.2%, 0); }
+  to { transform: scale3d(1.065, 1.065, 1) translate3d(-0.7%, -0.3%, 0); }
+}
+
+/* Slide progress bar, driven by CSS (paused via animation-play-state, restarted by re-keying). */
+.rp-slide-progress { animation: rp-slide-progress linear both; transform-origin: left center; }
+@keyframes rp-slide-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Background petals: drift down and sideways. */
+.rp-petal-drift { animation-name: rp-petal-drift; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+@keyframes rp-petal-drift {
+  0% { transform: translate3d(0, -16px, 0) rotate(0deg); opacity: 0; }
+  12% { opacity: 0.7; }
+  85% { opacity: 0.55; }
+  100% { transform: translate3d(60px, 160px, 0) rotate(170deg); opacity: 0; }
+}
+/* Branch sways very gently. */
+.rp-branch-sway { animation: rp-branch-sway 9s ease-in-out infinite; transform-origin: 0 0; }
+@keyframes rp-branch-sway { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(1.2deg); } }
+
+/* Card entrance — once on mount. */
+.rp-card-enter { animation: rp-card-enter 480ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes rp-card-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Per-screen column ratios (desktop only; single column below 1024px).
+ * Login & Register prioritize wide scenic banner; Register uses a single fullName field. */
+.rp-auth-card { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) {
+  .rp-auth-card[data-variant='login'],
+  .rp-auth-card[data-variant='register'] { grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr); }
+  .rp-auth-card[data-variant='verify'] { grid-template-columns: minmax(0, 1.35fr) minmax(400px, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-kb-zoom-in, .rp-kb-pan-right, .rp-kb-zoom-out, .rp-kb-pan-left, .rp-petal-drift, .rp-crossfade-in, .rp-card-enter, .rp-branch-sway, .rp-slide-progress, .rp-bell-badge-ping { animation: none !important; }
+  .rp-kb-zoom-in, .rp-kb-pan-right, .rp-kb-zoom-out, .rp-kb-pan-left { transform: scale(1.01); }
+  .group:hover .rp-icon-tilt, .rp-interactive:hover .rp-icon-tilt, .rp-card-hover:hover { transform: none !important; }
+}
+
+/* ------------------------------------------------------------------ Fluid Typography Classes */
+.rp-type-display { font-size: var(--rp-text-display); line-height: 1.12; font-weight: 800; letter-spacing: -0.025em; }
+.rp-type-page-title { font-size: var(--rp-text-page-title); line-height: 1.24; font-weight: 700; letter-spacing: -0.015em; }
+.rp-type-section { font-size: var(--rp-text-section); line-height: 1.35; font-weight: 700; letter-spacing: -0.01em; }
+.rp-type-card { font-size: var(--rp-text-card-title); line-height: 1.4; font-weight: 700; }
+.rp-type-body { font-size: var(--rp-text-body); line-height: 1.6; }
+.rp-type-secondary { font-size: var(--rp-text-secondary); line-height: 1.5; }
+.rp-type-caption { font-size: var(--rp-text-caption); line-height: 1.45; }
+.rp-type-label { font-size: var(--rp-text-label); line-height: 1.4; font-weight: 600; }
+.rp-type-button { font-size: var(--rp-text-button); line-height: 1.2; font-weight: 600; }
+.rp-type-kpi { font-size: var(--rp-text-kpi); line-height: 1.15; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.rp-type-nav { font-size: var(--rp-text-nav); line-height: 1.35; }
+
+/* ------------------------------------------------------------------ RikiPath App Shell, Adaptive Widths & Container Queries */
+.rp-container-narrow,
+.rp-container-reading,
+.rp-container,
+.rp-container-wide,
+.rp-container-full {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--rp-space-page-x);
+  min-width: 0;
+}
+.rp-container-narrow { max-width: 780px; }
+.rp-container-reading { max-width: 1120px; }
+.rp-container { max-width: 1760px; }
+.rp-container-wide { max-width: 1920px; }
+.rp-container-full { max-width: none; }
+
+/* Container-query context so widgets adapt to available parent width (sidebar collapsed/expanded, split screen, zoom). */
+.rp-cq {
+  container-type: inline-size;
+  container-name: rp-panel;
+  min-width: 0;
+}
+
+.rp-fluid-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--rp-grid-min, 15rem)), 1fr));
+  gap: var(--rp-space-grid);
+  min-width: 0;
+}
+.rp-fluid-grid > *,
+.rp-fluid-grid-fill > * { min-width: 0; }
+
+.rp-fluid-grid-fill {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--rp-grid-min, 15rem)), 1fr));
+  gap: var(--rp-space-grid);
+  min-width: 0;
+}
+
+.rp-cq-kpis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rp-space-grid);
+}
+.rp-cq-practice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rp-space-grid);
+}
+.rp-cq-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rp-space-section);
+  align-items: start;
+}
+.rp-cq-two-col > * { min-width: 0; }
+.rp-cq-two-col:has(> aside:empty) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container rp-panel (min-width: 320px) {
+  .rp-cq-practice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container rp-panel (min-width: 340px) {
+  .rp-cq-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container rp-panel (min-width: 920px) {
+  .rp-cq-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container rp-panel (min-width: 640px) {
+  .rp-cq-practice { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container rp-panel (min-width: 820px) {
+  .rp-cq-two-col {
+    grid-template-columns: minmax(0, 1.55fr) minmax(min(100%, 280px), 0.9fr);
+  }
+}
+@container rp-panel (min-width: 1120px) {
+  .rp-cq-two-col {
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.85fr);
+  }
+}
+
+/* Fallback for CSS engines / older tests without @container support */
+@supports not (container-type: inline-size) {
+  @media (min-width: 640px) {
+    .rp-cq-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rp-cq-practice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1024px) {
+    .rp-cq-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .rp-cq-practice { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1200px) {
+    .rp-cq-two-col { grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.85fr); }
+  }
+}
+
+/* Horizontal table/strip scroll containment — prevents table min-width from widening parent flex/grid tracks. */
+.rp-scroll-x {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Semantic icon hover micro-interaction (GPU transform only; never affects box dimensions). */
+.rp-icon-tilt {
+  transition: transform 190ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  will-change: transform;
+}
+.group:hover .rp-icon-tilt,
+.group:focus-visible .rp-icon-tilt,
+.rp-interactive:hover .rp-icon-tilt,
+.rp-interactive:focus-visible .rp-icon-tilt {
+  transform: translateY(-1px) rotate(-8deg) scale(1.08);
+}
+.group:active .rp-icon-tilt,
+.rp-interactive:active .rp-icon-tilt {
+  transform: scale(0.96);
+}
+
+/* Interactive feature/summary card hover feedback. */
+.rp-card-hover {
+  transition: transform 200ms var(--rp-ease), border-color 180ms ease, box-shadow 200ms ease, background-color 180ms ease;
+}
+.rp-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-rp-brand-border);
+  box-shadow: var(--shadow-rp-card);
+}
+
+/* Header Sakura dawn ambient backdrop & subtle bell wiggle on hover. */
+.rp-header-ambient {
+  background-image:
+    radial-gradient(640px 120px at 8% 0%, rgba(252, 231, 235, 0.65), transparent 72%),
+    radial-gradient(520px 110px at 88% 0%, rgba(234, 242, 253, 0.45), transparent 70%);
+}
+.rp-header-ambient[data-role='mentor'],
+.rp-header-ambient[data-role='admin'],
+.rp-header-ambient[data-role='contentauthor'] {
+  background-image:
+    radial-gradient(620px 110px at 10% 0%, rgba(255, 240, 243, 0.48), transparent 72%),
+    radial-gradient(520px 100px at 90% 0%, rgba(244, 242, 243, 0.55), transparent 70%);
+}
+.rp-bell-trigger:hover svg {
+  transform: rotate(10deg) scale(1.06);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes rp-bell-ping {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.16); opacity: 1; }
+}
+.rp-bell-badge-ping {
+  animation: rp-bell-ping 2.8s ease-in-out infinite;
+}
+
+/* Clean vertical scrollbar in sidebar with zero horizontal creep. */
+.rp-sidebar-scroll {
+  overflow-y: auto;
+  overflow-x: clip;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 165, 170, 0.35) transparent;
+}
+.rp-sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.rp-sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.rp-sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(180, 165, 170, 0.35); border-radius: 9999px; }
+.rp-sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(180, 165, 170, 0.65); }
+aside[data-collapsed='true'] .rp-sidebar-scroll { scrollbar-width: none; }
+aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: none; }
+
+/* Text link (auth + inline actions): Sakura Primary with an underline that sweeps in left→right on hover/focus. */
+.rp-link {
+  color: #CC4D6B;
+  font-weight: 600;
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1.5px;
+  padding-bottom: 1px;
+  transition: background-size 280ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms ease;
+}
+.rp-link:hover,
+.rp-link:focus-visible { color: #9E2F49; background-size: 100% 1.5px; }
+@media (prefers-reduced-motion: reduce) { .rp-link { transition: none; } }
+
+/* Field icons follow the field state: any input wrapper (.relative) with an absolute icon or icon button. */
+.relative:has(> input) > svg,
+.relative:has(> input) > button { transition: color 150ms ease; }
+.relative:has(> input:focus) > svg,
+.relative:has(> input:focus) > button { color: #C24362; }
+.relative:has(> input[aria-invalid="true"]) > svg { color: var(--color-rp-danger, #D93F4C); }
+.relative:has(> input:disabled) > svg { color: var(--color-rp-text-disabled, #B8AEB2); }
+
+/* Checkbox (ui/core Checkbox): box fills with a soft pop, then the tick draws itself left→right (like Mobile). */
+.rp-check-box { transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease; }
+.rp-check-tick { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.rp-check:hover + .rp-check-box { border-color: #E05A7A; }
+.rp-check:checked + .rp-check-box { background-color: #E05A7A; border-color: #E05A7A; animation: rp-check-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.rp-check:checked + .rp-check-box .rp-check-tick { stroke-dashoffset: 0; animation: rp-check-draw 280ms cubic-bezier(0.65, 0, 0.35, 1) 70ms both; }
+@keyframes rp-check-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.rp-check:focus-visible + .rp-check-box { box-shadow: 0 0 0 3px rgba(224, 90, 122, 0.28); }
+.rp-check:disabled + .rp-check-box { opacity: 0.5; }
+@keyframes rp-check-pop { 0% { transform: scale(0.82); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .rp-check-box { transition: none; }
+  .rp-check:checked + .rp-check-box, .rp-check:checked + .rp-check-box .rp-check-tick { animation: none; }
+}
+
+/* Global react-hot-toast viewport & motion (compact default look; offsets + z-index set on <Toaster>). */
+.rp-toaster-root { pointer-events: none; }
+.rp-toast { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1), 0 3px 3px rgba(0, 0, 0, 0.05); }
+@keyframes rp-toast-in {
+  from { opacity: 0; transform: translate3d(0, -12px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-toast-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(0, -8px, 0); }
+}
+.rp-toast-enter { animation: rp-toast-in 260ms cubic-bezier(0.21, 1.02, 0.73, 1) both; }
+.rp-toast-leave { animation: rp-toast-out 180ms cubic-bezier(0.06, 0.71, 0.55, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .rp-toast-enter, .rp-toast-leave { animation: none !important; }
+  /* react-hot-toast icons draw their tick / cross via forwards animations: finish them instantly
+     instead of removing them, otherwise the glyph would stay invisible. */
+  .rp-toast *, .rp-toast *::before, .rp-toast *::after { animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+
+/* Sidebar: active nav tile is solid in its feature colour; soft coloured glow under it. */
+.rp-nav-tile-active { box-shadow: 0 6px 14px -6px currentColor, inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+
+/* ------------------------------------------------------------------ Smart Feature Lock (unlock dialog art) */
+@media (prefers-reduced-motion: no-preference) {
+  .rp-unlock-glow { animation: rp-unlock-glow 3.6s ease-in-out infinite; }
+  .rp-unlock-petal { animation: rp-unlock-petal 5s ease-in-out infinite; transform-origin: 50% 50%; }
+}
+@keyframes rp-unlock-glow { 0%, 100% { opacity: 0.7; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes rp-unlock-petal { 0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); } 50% { transform: translate3d(-4px, 6px, 0) rotate(24deg); } }
+
+/* ------------------------------------------------------------------ Sidebar icon tiles (stronger tone, nav only) */
+/* Deeper glyph + richer pastel tile than the global FEATURE_TONES, so sidebar icons read clearly. Active tiles keep
+   `bg-current` (solid feature colour) because the colour below drives currentColor. */
+/* Keep `transform` in the transition list (it overrides .rp-icon-tilt's) so the hover tilt eases in/out with a
+   soft spring instead of snapping. */
+.rp-nav-tile {
+  transition:
+    transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 200ms ease,
+    color 200ms ease,
+    box-shadow 240ms ease,
+    opacity 200ms ease;
+  will-change: transform;
+}
+.group:hover .rp-nav-tile.rp-icon-tilt,
+.group:focus-visible .rp-nav-tile.rp-icon-tilt {
+  transform: rotate(-10deg) scale(1.1);
+}
+.group:active .rp-nav-tile.rp-icon-tilt {
+  transform: rotate(-4deg) scale(0.97);
+  transition-duration: 140ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-nav-tile { transition: background-color 200ms ease, color 200ms ease; }
+  .group:hover .rp-nav-tile.rp-icon-tilt, .group:focus-visible .rp-nav-tile.rp-icon-tilt, .group:active .rp-nav-tile.rp-icon-tilt { transform: none; }
+}
+.rp-nav-tile svg { stroke-width: 2.2; }
+.rp-nav-tile[data-tone="lesson"], .rp-nav-tile[data-tone="reading"] { color: #2f72c8; background-color: #e6effc; }
+.rp-nav-tile[data-tone="vocabulary"], .rp-nav-tile[data-tone="srs"] { color: #128461; background-color: #dff4ea; }
+.rp-nav-tile[data-tone="grammar"] { color: #c2630a; background-color: #ffeedb; }
+.rp-nav-tile[data-tone="kanji"], .rp-nav-tile[data-tone="kana"] { color: #6c49a8; background-color: #efe7fb; }
+.rp-nav-tile[data-tone="listening"] { color: #6448d2; background-color: #ece8fd; }
+.rp-nav-tile[data-tone="writing"] { color: #b77a06; background-color: #fff1cf; }
+.rp-nav-tile[data-tone="speaking"] { color: #16857b; background-color: #ddf3f1; }
+.rp-nav-tile[data-tone="mock"] { color: #3c5a9e; background-color: #e6ecf8; }
+.rp-nav-tile[data-tone="mentor"], .rp-nav-tile[data-tone="group"] { color: #cc3f66; background-color: #ffe6ed; }
+.rp-nav-tile[data-tone="haru"] { color: #d0466c; background-color: #ffe9ef; }
+.rp-nav-tile[data-tone="roadmap"], .rp-nav-tile[data-tone="calendar"] { color: #d84b44; background-color: #ffe9e5; }
+.rp-nav-tile[data-tone="neutral"] { color: #4f474b; background-color: #eeeaec; }
+.rp-nav-tile.rp-nav-tile-active { background-color: currentColor; }
+
+/* Locked nav rows (Smart Feature Lock): whole row faded like a disabled-but-explainable item. */
+.rp-nav-locked { opacity: 0.55; }
+.rp-nav-locked:hover, .rp-nav-locked:focus-visible { opacity: 0.8; }
+
+/* ------------------------------------------------------------------ Overlay backdrop (shared by Modal / Drawer / dialogs) */
+/* Neutral ink scrim: Sakura pink stays an accent inside the dialog, never a tint over the whole app. */
+:root { --rp-backdrop: rgba(20, 24, 35, 0.5); }
+.rp-backdrop { background-color: var(--rp-backdrop); }
+@supports ((-webkit-backdrop-filter: blur(4px)) or (backdrop-filter: blur(4px))) {
+  .rp-backdrop { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .rp-backdrop { background-color: rgba(20, 24, 35, 0.62); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

@@ -1,13 +1,13 @@
-import { useLocale } from '../../i18n/locale.js';
+import { useLocale, currentIntlTag } from '@/locales/locale.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client.js';
-import { LearnerShell } from '../../components/shells';
-import { getPracticeLevelId } from '../../api/practiceGrading.js';
+import { api } from '@/api/client.js';
+import { LearnerShell } from '@/layouts';
+import { getPracticeLevelId } from '@/features/practice/api/practiceGradingApi.js';
 import { writingLessons } from './productionPracticeLessons.js';
-import RomajiJapaneseInput from '../../components/essay/RomajiJapaneseInput.jsx';
+import RomajiJapaneseInput from '@/features/writing/components/RomajiJapaneseInput.jsx';
 
 import {
   deleteLearnerEssay,
@@ -16,41 +16,36 @@ import {
   rescanLearnerEssay,
   scanLearnerEssay,
   saveLearnerEssayDraft,
-} from '../../api/learnerEssayApi.js';
+} from '@/features/writing/api/learnerEssayApi.js';
+import { confirmAction, notify } from '@/components/ui/feedbackStore.js';
+import { SakuraLoader } from '@/components/ui';
+import Icon from '@/components/ui/Icon.jsx';
+import { parseUtcDate } from '@/utils/vnDateTime.js';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE = 10 * 1024 * 1024;
 
 const BUTTON_CLASS =
   'inline-flex min-h-9 items-center justify-center gap-1.5 ' +
-  'rounded-lg border border-[#E7D7DF] bg-white px-3 py-2 ' +
-  'text-[12px] text-[#9C6B80] transition hover:bg-[#FCF3F7] ' +
+  'rounded-lg border border-rp-line bg-white px-3 py-2 ' +
+  'text-[12px] text-rp-brand-strong transition hover:bg-rp-brand-tint ' +
   'disabled:cursor-not-allowed disabled:opacity-40';
 
 const PRIMARY_CLASS =
   'inline-flex min-h-9 items-center justify-center gap-1.5 ' +
-  'rounded-lg bg-[#AD3155] px-4 py-2 text-[12px] font-medium ' +
-  'text-white transition hover:bg-[#982B4B] ' +
+  'rounded-lg bg-rp-brand-strong px-4 py-2 text-[12px] font-medium ' +
+  'text-white transition hover:bg-rp-brand-deep ' +
   'disabled:cursor-not-allowed disabled:opacity-40';
 
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
-}
 
 function formatDate(value) {
   if (!value) return '—';
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  const date = parseUtcDate(value);
+  if (!date || Number.isNaN(date.getTime())) return '—';
 
-  return date.toLocaleString('vi-VN', {
+  return date.toLocaleString(currentIntlTag(), {
+    timeZone: 'Asia/Ho_Chi_Minh',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -69,8 +64,9 @@ function validateFile(file) {
 }
 
 export default function LearnerEssayPage() {
-  const { tr } = useLocale();
+  const { trf, tr } = useLocale();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const inputRef = useRef(null);
 
   const [essays, setEssays] = useState([]);
@@ -89,17 +85,32 @@ export default function LearnerEssayPage() {
     setOperation('grade');
     setError('');
     setGrade(null);
+    const toastKey = 'essay-grade';
+    notify.loading(tr('Đang gửi bài & chấm điểm AI…'), '', { key: toastKey, maxWaitMs: 35000 });
     try {
       const levelId = await getPracticeLevelId(lesson?.level);
       const { result } = await api.post('/PracticeSubmission/submit', {
         type: 'Writing', textContent: text, certificateLevelId: levelId, gradeWithAi: true,
         topic: lesson ? lesson.prompt + "\n" + lesson.guide : undefined,
       });
-      if (result?.grading) setGrade(result.grading);
-      else setError(result?.gradingNote || 'Chưa chấm được bài viết.');
+      if (result?.grading) {
+        setGrade(result.grading);
+        notify.success(tr('Đã có kết quả chấm bài viết!'), '', { key: toastKey, replace: true });
+      } else {
+        const note = result?.gradingNote || 'Chưa chấm được bài viết.';
+        setError(note);
+        notify.warning(tr('Chưa chấm được bài viết'), note, { key: toastKey, replace: true });
+      }
       await queryClient.invalidateQueries({ queryKey: ['study-subscription'] });
     } catch (err) {
       setError(err.message);
+      const code = err?.data?.errorCode || err?.errorCode;
+      const needsUpgrade = ['WRITING_PACKAGE_REQUIRED', 'AI_CREDIT_REQUIRED', 'SELF_STUDY_PACKAGE_REQUIRED'].includes(code) || err?.status === 403;
+      notify.apiError(err, tr('Không chấm được bài viết'), {
+        key: toastKey,
+        replace: true,
+        ...(needsUpgrade ? { action: { label: tr('Xem gói & lượt AI'), onClick: () => navigate('/plans/', { state: { from: { pathname }, requiredFeatureLabel: tr('Luyện viết AI') } }) } } : {}),
+      });
     } finally {
       setOperation('');
     }
@@ -167,15 +178,18 @@ export default function LearnerEssayPage() {
     setNotice('');
   }
 
-  function confirmDiscard() {
-    return (
-      !changed ||
-      window.confirm(tr("Bài viết có thay đổi chưa lưu. Bạn muốn tiếp tục?"))
-    );
+  async function confirmDiscard() {
+    if (!changed) return true;
+    return confirmAction({
+      title: tr('Bỏ thay đổi chưa lưu?'),
+      description: tr('Bài viết có thay đổi chưa lưu. Nếu tiếp tục, các thay đổi này sẽ mất.'),
+      confirmLabel: tr('Bỏ thay đổi'),
+      tone: 'warning',
+    });
   }
 
-  function newEssay() {
-    if (busy || !confirmDiscard()) return;
+  async function newEssay() {
+    if (busy || !(await confirmDiscard())) return;
 
     setSelected(null);
     setFile(null);
@@ -210,7 +224,7 @@ export default function LearnerEssayPage() {
   }
 
   async function openEssay(id) {
-    if (busy || !confirmDiscard()) return;
+    if (busy || !(await confirmDiscard())) return;
 
     setOperation('open');
     clearMessages();
@@ -241,13 +255,20 @@ export default function LearnerEssayPage() {
 
     if (
       text.trim() &&
-      !window.confirm(tr("Nhận dạng ảnh sẽ thay thế nội dung đang nhập. Tiếp tục?"))
+      !(await confirmAction({
+        title: tr('Thay nội dung bằng kết quả nhận dạng?'),
+        description: tr('Nhận dạng ảnh sẽ thay thế nội dung đang nhập.'),
+        confirmLabel: tr('Thay nội dung'),
+        tone: 'warning',
+      }))
     ) {
       return;
     }
 
     clearMessages();
     setOperation(selected ? 'rescan' : 'scan');
+    const toastKey = 'essay-scan';
+    notify.loading(tr('Đang nhận dạng chữ viết từ ảnh…'), '', { key: toastKey, maxWaitMs: 35000 });
 
     try {
       const result = selected
@@ -257,8 +278,19 @@ export default function LearnerEssayPage() {
       setText(content);
       setOriginalOcrText(content);
       setNotice(tr('Đã nhận dạng. Kiểm tra nội dung rồi bấm Lưu; bài đã lưu chưa thay đổi.'));
+      notify.success(tr('Đã nhận dạng xong văn bản từ ảnh'), tr('Hãy kiểm tra nội dung rồi bấm Lưu bản nháp.'), {
+        key: toastKey,
+        replace: true,
+      });
     } catch (err) {
       setError(err.message || tr("Không thể nhận dạng văn bản."));
+      const code = err?.data?.errorCode || err?.errorCode;
+      const needsUpgrade = ['WRITING_PACKAGE_REQUIRED', 'AI_CREDIT_REQUIRED', 'SELF_STUDY_PACKAGE_REQUIRED'].includes(code) || err?.status === 403;
+      notify.apiError(err, tr('Không thể nhận dạng văn bản từ ảnh'), {
+        key: toastKey,
+        replace: true,
+        ...(needsUpgrade ? { action: { label: tr('Xem gói & lượt AI'), onClick: () => navigate('/plans/', { state: { from: { pathname }, requiredFeatureLabel: tr('Nhận dạng chữ viết tay') } }) } } : {}),
+      });
     } finally {
       setOperation('');
     }
@@ -269,6 +301,8 @@ export default function LearnerEssayPage() {
 
     setOperation('save');
     clearMessages();
+    const toastKey = 'essay-save';
+    notify.loading(tr('Đang lưu bài viết…'), '', { key: toastKey, maxWaitMs: 25000 });
 
     try {
       const result = await saveLearnerEssayDraft({
@@ -285,9 +319,11 @@ export default function LearnerEssayPage() {
       setPreviewUrl('');
       if (inputRef.current) inputRef.current.value = '';
       setNotice(tr("Đã lưu thay đổi."));
+      notify.success(tr('Đã lưu bản nháp bài viết.'), '', { key: toastKey, replace: true });
       await loadEssays();
     } catch (err) {
       setError(err.message || tr("Không lưu được bài viết."));
+      notify.apiError(err, tr('Không lưu được bài viết'), { key: toastKey, replace: true });
     } finally {
       setOperation('');
     }
@@ -296,13 +332,18 @@ export default function LearnerEssayPage() {
   async function removeEssay(essay) {
     if (
       busy ||
-      !window.confirm(`Xóa "${essay.title || 'bài viết này'}"?`)
+      !(await confirmAction({
+        title: `${tr('Xóa')} "${essay.title || tr('bài viết này')}"?`,
+        description: tr('Bài viết sẽ bị xóa vĩnh viễn và không thể khôi phục.'),
+        confirmLabel: tr('Xóa bài viết'),
+      }))
     ) {
       return;
     }
 
     setOperation('delete');
     clearMessages();
+    const toastKey = 'essay-delete';
 
     try {
       await deleteLearnerEssay(essay.id);
@@ -316,9 +357,11 @@ export default function LearnerEssayPage() {
       }
 
       setNotice(tr("Đã xóa bài viết."));
+      notify.success(tr('Đã xóa bài viết.'), '', { key: toastKey });
       await loadEssays();
     } catch (err) {
       setError(err.message || tr("Không xóa được bài viết."));
+      notify.apiError(err, tr('Không xóa được bài viết'), { key: toastKey });
     } finally {
       setOperation('');
     }
@@ -326,10 +369,7 @@ export default function LearnerEssayPage() {
 
   return (
     <LearnerShell pathname={pathname} breadcrumb={tr("Luyện viết")}>
-      <main
-        className="mx-auto max-w-[1320px] px-5 py-6
-                   text-[#49353F] lg:px-7"
-      >
+      <main className="rp-container py-6 text-rp-text lg:py-8">
         <header
           className="mb-5 flex flex-wrap items-center
                      justify-between gap-3"
@@ -339,10 +379,10 @@ export default function LearnerEssayPage() {
               className="text-[25px] font-semibold
                          leading-tight tracking-tight"
             >
-              Luyện viết tiếng Nhật
+              {tr('Luyện viết tiếng Nhật')}
             </h1>
-            <p className="mt-1.5 text-[13px] text-[#967F8A]">
-              Nhập bài viết hoặc nhận dạng chữ từ ảnh để nhận điểm luyện viết riêng.
+            <p className="mt-1.5 text-[13px] text-rp-text-muted">
+              {tr('Nhập bài viết hoặc nhận dạng chữ từ ảnh để nhận điểm luyện viết riêng.')}
             </p>
           </div>
 
@@ -355,16 +395,16 @@ export default function LearnerEssayPage() {
             <Icon name="add" className="text-[18px]" />{tr('Bài mới')}</button>
         </header>
 
-        <section className="mb-5 space-y-2 rounded-xl border border-[#E7D7DF] bg-white p-4">
+        <section className="mb-5 space-y-2 rounded-xl border border-rp-line bg-white p-4">
           <label className="block max-w-md text-sm font-medium">
-            Đề luyện viết
-            <select className="mt-1 w-full rounded-lg border border-[#E7D7DF] bg-white px-3 py-2"
+            {tr('Đề luyện viết')}
+            <select className="mt-1 w-full rounded-lg border border-rp-line bg-white px-3 py-2"
               value={lessonLevel} disabled={busy} onChange={event => {
                 setLessonLevel(event.target.value);
                 setGrade(null);
               }}>
-              <option value="">Viết tự do</option>
-              {writingLessons.map(item => <option key={item.level} value={item.level}>{item.level} · {item.title}</option>)}
+              <option value="">{tr('Viết tự do')}</option>
+              {writingLessons.map(item => <option key={item.level} value={item.level}>{item.level} · {tr(item.title)}</option>)}
             </select>
           </label>
           {lesson && <>
@@ -377,8 +417,8 @@ export default function LearnerEssayPage() {
           <div
             role="alert"
             className="mb-4 flex items-start gap-2
-                       rounded-lg bg-[#FFF0F3] px-4 py-3
-                       text-[12px] leading-5 text-[#A15A70]"
+                       rounded-lg bg-rp-brand-tint px-4 py-3
+                       text-[12px] leading-5 text-rp-brand-strong"
           >
             <Icon
               name="error_outline"
@@ -392,8 +432,8 @@ export default function LearnerEssayPage() {
           <div
             role="status"
             className="mb-4 flex items-start justify-between
-                       gap-3 rounded-lg bg-[#F7F0F4]
-                       px-4 py-3 text-[12px] leading-5 text-[#987385]"
+                       gap-3 rounded-lg bg-rp-brand-soft
+                       px-4 py-3 text-[12px] leading-5 text-rp-text-muted"
           >
             <span>{notice}</span>
             <button
@@ -425,14 +465,14 @@ export default function LearnerEssayPage() {
           {/* Lịch sử */}
           <aside
             className="overflow-hidden rounded-xl border
-                       border-[#EADFE5] bg-white
+                       border-rp-line bg-white
                        lg:sticky lg:top-[84px]"
           >
             <header
               className="flex items-center justify-between
-                         border-b border-[#F0E7EC] px-4 py-3"
+                         border-b border-rp-line px-4 py-3"
             >
-              <h2 className="text-[13px] font-medium">{tr('Bài viết của tôi')}<span className="ml-2 text-[11px] text-[#B08E9E]">
+              <h2 className="text-[13px] font-medium">{tr('Bài viết của tôi')}<span className="ml-2 text-[11px] text-rp-text-muted">
                   {loading ? '…' : essays.length}
                 </span>
               </h2>
@@ -442,50 +482,45 @@ export default function LearnerEssayPage() {
                 onClick={loadEssays}
                 disabled={loading || busy}
                 aria-label={tr("Tải lại danh sách")}
-                className="rounded p-1 text-[#B08E9E]
-                           hover:bg-[#FCF2F6] disabled:opacity-40"
+                className="rounded p-1 text-rp-text-muted
+                           hover:bg-rp-brand-tint disabled:opacity-40"
               >
-                <Icon
-                  name="refresh"
-                  className={`text-[17px] ${
-                    loading ? 'animate-spin' : ''
-                  }`}
-                />
+                {loading ? <SakuraLoader variant="inline" size={16} /> : <Icon name="refresh" className="text-[17px]" />}
               </button>
             </header>
 
-            {loading ? (
-              <p className="px-4 py-6 text-[12px] text-[#A08A95]">{tr("Đang tải…")}</p>
+            {loading && essays.length === 0 ? (
+              <SakuraLoader variant="section" context="writing" label={tr('Đang tải bài viết')} className="min-h-[120px] py-6" delay={160} />
             ) : listError ? (
               <div className="px-4 py-5">
-                <p role="alert" className="text-[12px] leading-5 text-[#A15A70]">
+                <p role="alert" className="text-[12px] leading-5 text-rp-brand-strong">
                   {listError}
                 </p>
                 <button
                   type="button"
                   onClick={loadEssays}
                   disabled={busy}
-                  className="mt-2 text-[12px] text-[#AD3155] underline"
+                  className="mt-2 text-[12px] text-rp-brand-strong underline"
                 >{tr("Thử lại")}</button>
               </div>
             ) : essays.length === 0 ? (
               <div className="px-4 py-6">
                 <Icon
                   name="description"
-                  className="text-[25px] text-[#CBB2BE]"
+                  className="text-[25px] text-rp-brand"
                 />
-                <p className="mt-2 text-[12px] text-[#967F8A]">{tr('Chưa có bài viết.')}</p>
-                <p className="mt-1 text-[11px] leading-5 text-[#B09AA5]">{tr('Bắt đầu bằng cách tải ảnh bài viết của bạn.')}</p>
+                <p className="mt-2 text-[12px] text-rp-text-muted">{tr('Chưa có bài viết.')}</p>
+                <p className="mt-1 text-[11px] leading-5 text-rp-text-muted">{tr('Bắt đầu bằng cách tải ảnh bài viết của bạn.')}</p>
               </div>
             ) : (
-              <ul className="max-h-[65vh] divide-y divide-[#F5EDF1] overflow-y-auto">
+              <ul className="max-h-[65vh] divide-y divide-rp-line overflow-y-auto">
                 {essays.map((essay) => (
                   <li
                     key={essay.id}
                     className={`flex items-start gap-1 px-3 py-3 ${
                       selected?.id === essay.id
-                        ? 'bg-[#FCEEF4]'
-                        : 'hover:bg-[#FFFAFC]'
+                        ? 'bg-rp-brand-tint'
+                        : 'hover:bg-rp-brand-tint'
                     }`}
                   >
                     <button
@@ -497,7 +532,7 @@ export default function LearnerEssayPage() {
                       <span className="block truncate text-[12px] font-medium">
                         {essay.title || tr("Bài viết tiếng Nhật")}
                       </span>
-                      <span className="mt-1 block text-[10px] text-[#AD95A1]">
+                      <span className="mt-1 block text-[10px] text-rp-text-muted">
                         {formatDate(essay.scannedAt)}
                       </span>
                     </button>
@@ -506,10 +541,10 @@ export default function LearnerEssayPage() {
                       type="button"
                       onClick={() => removeEssay(essay)}
                       disabled={busy}
-                      aria-label={`Xóa ${essay.title || 'bài viết'}`}
-                      className="rounded p-1 text-[#C09BAA]
-                                 hover:bg-[#F8E4EC]
-                                 hover:text-[#AD3155]
+                      aria-label={trf('Xóa {0}', { 0: essay.title || 'bài viết' })}
+                      className="rounded p-1 text-rp-brand
+                                 hover:bg-rp-brand-soft
+                                 hover:text-rp-brand-strong
                                  disabled:opacity-40"
                     >
                       <Icon name="delete_outline" className="text-[16px]" />
@@ -524,16 +559,16 @@ export default function LearnerEssayPage() {
           <section
             aria-label={tr("Biên tập bài viết")}
             className="min-w-0 overflow-hidden rounded-2xl
-                       border border-[#EADFE5] bg-white"
+                       border border-rp-line bg-white"
           >
             <header
               className="flex flex-wrap items-center justify-between
-                         gap-2 border-b border-[#F0E7EC] px-5 py-3.5"
+                         gap-2 border-b border-rp-line px-5 py-3.5"
             >
               <h2 className="min-w-0 break-words text-[14px] font-medium">
                 {selected?.title || tr("Bài viết mới")}
               </h2>
-              <span className="text-[11px] text-[#AE95A1]">
+              <span className="text-[11px] text-rp-text-muted">
                 {changed ? tr("Có thay đổi chưa lưu") : tr("Ảnh → Văn bản → Chỉnh sửa")}
               </span>
             </header>
@@ -544,19 +579,19 @@ export default function LearnerEssayPage() {
             >
               {/* Ảnh gốc */}
               <div
-                className="border-b border-[#F0E7EC]
-                           bg-[#FFFBFD] p-4
+                className="border-b border-rp-line
+                           bg-rp-brand-tint p-4
                            xl:border-b-0 xl:border-r"
               >
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-[12px] font-medium text-[#947584]">{tr('Ảnh bài viết')}</h3>
+                  <h3 className="text-[12px] font-medium text-rp-text-muted">{tr('Ảnh bài viết')}</h3>
                   {previewSrc && (
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => inputRef.current?.click()}
-                      className="text-[11px] text-[#B2748D]
-                                 hover:text-[#AD3155] disabled:opacity-40"
+                      className="text-[11px] text-rp-brand-strong
+                                 hover:text-rp-brand-strong disabled:opacity-40"
                     >{tr('Đổi ảnh')}</button>
                   )}
                 </div>
@@ -575,8 +610,8 @@ export default function LearnerEssayPage() {
                   className={[
                     'relative overflow-hidden rounded-xl border',
                     dragging
-                      ? 'border-[#C87C99] bg-[#FBEAF1]'
-                      : 'border-[#EBDDE5] bg-white',
+                      ? 'border-rp-brand-border bg-rp-brand-soft'
+                      : 'border-rp-brand-border bg-white',
                   ].join(' ')}
                 >
                   {previewSrc ? (
@@ -588,20 +623,7 @@ export default function LearnerEssayPage() {
                       />
 
                       {scanning && (
-                        <div
-                          className="absolute inset-0 flex items-center
-                                     justify-center bg-white/80"
-                        >
-                          <span
-                            role="status"
-                            className="inline-flex items-center gap-2
-                                       text-[12px] text-[#AD627F]"
-                          >
-                            <Icon
-                              name="progress_activity"
-                              className="animate-spin text-[19px]"
-                            />{tr('Đang nhận dạng…')}</span>
-                        </div>
+                        <SakuraLoader variant="overlay" context="grading" label={tr('Đang nhận dạng…')} />
                       )}
                     </div>
                   ) : (
@@ -612,28 +634,28 @@ export default function LearnerEssayPage() {
                       className="flex min-h-[190px] w-full
                                  flex-col items-center justify-center
                                  px-4 py-6 text-center
-                                 hover:bg-[#FFF8FB]
+                                 hover:bg-rp-brand-tint
                                  disabled:opacity-50"
                     >
                       <span
                         className="flex h-11 w-11 items-center justify-center
-                                   rounded-xl bg-[#FAEAF1] text-[#BB8199]"
+                                   rounded-xl bg-rp-brand-soft text-rp-brand-strong"
                       >
                         <Icon name="add_photo_alternate" className="text-[25px]" />
                       </span>
                       <span className="mt-3 text-[13px] font-medium">{tr('Chọn ảnh bài viết')}</span>
-                      <span className="mt-1 text-[11px] text-[#AE95A1]">{tr('hoặc kéo ảnh vào đây')}</span>
+                      <span className="mt-1 text-[11px] text-rp-text-muted">{tr('hoặc kéo ảnh vào đây')}</span>
                     </button>
                   )}
                 </div>
 
-                <p className="mt-2 text-[10px] leading-5 text-[#AF98A3]">{tr('JPG, PNG, WEBP · Tối đa 10MB')}</p>
+                <p className="mt-2 text-[10px] leading-5 text-rp-text-muted">{tr('JPG, PNG, WEBP · Tối đa 10MB')}</p>
 
                 {file && (
                   <>
                     <p
                       title={file.name}
-                      className="mt-2 truncate text-[11px] text-[#A0808E]"
+                      className="mt-2 truncate text-[11px] text-rp-text-muted"
                     >
                       {file.name}
                     </p>
@@ -643,12 +665,11 @@ export default function LearnerEssayPage() {
                       disabled={busy}
                       className={`${PRIMARY_CLASS} mt-3 w-full`}
                     >
-                      <Icon
-                        name={scanning ? 'progress_activity' : 'document_scanner'}
-                        className={`text-[17px] ${
-                          scanning ? 'animate-spin' : ''
-                        }`}
-                      />
+                      {scanning ? (
+                        <SakuraLoader variant="inline" size={16} tone="light" />
+                      ) : (
+                        <Icon name="document_scanner" className="text-[17px]" />
+                      )}
                       {scanning
                         ? tr("Đang nhận dạng…")
                         : selected
@@ -658,16 +679,16 @@ export default function LearnerEssayPage() {
                   </>
                 )}
 
-                <p className="mt-4 text-[11px] leading-5 text-[#AE95A1]">{tr('Chụp rõ chữ, đủ sáng và giữ ảnh ngay ngắn.')}</p>
+                <p className="mt-4 text-[11px] leading-5 text-rp-text-muted">{tr('Chụp rõ chữ, đủ sáng và giữ ảnh ngay ngắn.')}</p>
               </div>
 
               {/* Nội dung */}
               <div className="min-w-0 p-4 sm:p-5">
                 <button type="button" onClick={gradeEssay} disabled={busy || !text.trim()} className={PRIMARY_CLASS}>
-                  {operation === 'grade' ? 'Đang chấm bài…' : 'Chấm bài bằng AI · 1 lượt'}
+                  {operation === 'grade' ? tr('Đang chấm bài…') : tr('Chấm bài bằng AI · 1 lượt')}
                 </button>
-                {grade && <section className="my-3 rounded-lg bg-[#FCF3F7] p-3 text-sm">
-                  <p className="font-semibold">Điểm luyện viết · {grade.overallScore}/100</p>
+                {grade && <section className="my-3 rounded-lg bg-rp-brand-tint p-3 text-sm">
+                  <p className="font-semibold">{trf('Điểm luyện viết · {0}/100', { 0: grade.overallScore })}</p>
                   {grade.criteria?.map((criterion) => <p key={criterion.name}>{criterion.name}: {criterion.score}/10 · {criterion.comment}</p>)}
                   {grade.improvements?.length > 0 && <ul className="mt-2 list-disc pl-4">
                     {grade.improvements.map((item, index) => <li key={index}>{item}</li>)}
@@ -675,15 +696,7 @@ export default function LearnerEssayPage() {
                 </section>}
 
                 {operation === 'open' ? (
-                  <div
-                    role="status"
-                    className="flex min-h-[260px] items-center
-                               justify-center gap-2 text-[13px] text-[#A0808E]"
-                  >
-                    <Icon
-                      name="progress_activity"
-                      className="animate-spin text-[19px]"
-                    />{tr('Đang mở bài viết…')}</div>
+                  <SakuraLoader variant="section" context="writing" label={tr('Đang mở bài viết')} className="min-h-[260px]" />
                 ) : (
                   <RomajiJapaneseInput
                     value={text}
@@ -695,9 +708,9 @@ export default function LearnerEssayPage() {
 
                 <div
                   className="mt-4 flex flex-wrap items-center justify-between
-                             gap-3 border-t border-[#F0E7EC] pt-4"
+                             gap-3 border-t border-rp-line pt-4"
                 >
-                  <p className="text-[11px] leading-5 text-[#AE95A1]">{tr('Kiểm tra lại chữ được nhận dạng trước khi lưu.')}</p>
+                  <p className="text-[11px] leading-5 text-rp-text-muted">{tr('Kiểm tra lại chữ được nhận dạng trước khi lưu.')}</p>
 
                   <button
                     type="button"
@@ -705,18 +718,17 @@ export default function LearnerEssayPage() {
                     disabled={busy || !text.trim() || !changed}
                     className={PRIMARY_CLASS}
                   >
-                    <Icon
-                      name={operation === 'save' ? 'progress_activity' : 'check'}
-                      className={`text-[16px] ${
-                        operation === 'save' ? 'animate-spin' : ''
-                      }`}
-                    />
+                    {operation === 'save' ? (
+                      <SakuraLoader variant="inline" size={16} tone="light" />
+                    ) : (
+                      <Icon name="check" className="text-[16px]" />
+                    )}
                     {operation === 'save' ? tr("Đang lưu…") : selected ? tr("Lưu thay đổi") : tr('Lưu bài viết')}
                   </button>
                 </div>
 
                 {!selected && text.trim() && (
-                  <p className="mt-3 text-[11px] leading-5 text-[#AA8495]">
+                  <p className="mt-3 text-[11px] leading-5 text-rp-brand-strong">
                     {tr('Bản nháp chưa lưu. Bấm Lưu bài viết để thêm vào danh sách của bạn.')}
                   </p>
                 )}

@@ -1,3 +1,4 @@
+import { translateTemplate, currentIntlTag } from '@/locales/locale.js';
 export const PERIODS = [
   { id: 'Morning',   name: 'Sáng',  hour: 8,  timeRange: '08:00 – 12:00' },
   { id: 'Afternoon', name: 'Chiều', hour: 13, timeRange: '13:00 – 17:00' },
@@ -18,7 +19,7 @@ export function monday(offset = 0) {
 }
 export function localTime(iso) {
   if (!iso) return '';
-  return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`).toLocaleString(currentIntlTag(), { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 // Older PostgreSQL timestamps represent UTC but arrive without a timezone suffix.
@@ -73,7 +74,7 @@ export function planMentorAvailability({ date, from, to, until, repeating, days 
   if (overlapping.length > 0) {
     return {
       ready: false,
-      error: `${overlapping.length} buổi trùng lịch đã đăng ký. Gửi lên sẽ không lưu buổi nào.`,
+      error: translateTemplate('{0} buổi trùng lịch đã đăng ký. Gửi lên sẽ không lưu buổi nào.', { 0: overlapping.length }),
       rows,
       overlapping,
     };

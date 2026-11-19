@@ -1,10 +1,15 @@
-import { useLocale } from '../../i18n/locale.js';
+import { useLocale, translateTemplate } from '@/locales/locale.js';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-import { LearnerShell } from '../../components/shells';
-import { useLearnerProfile } from '../../hooks/useLearnerHome.js';
+import { LearnerShell } from '@/layouts';
+import { LockKeyhole } from 'lucide-react';
+import { FeatureLink } from '@/features/entitlements/components/StudyUnlock.jsx';
+import { useStudyUnlock } from '@/features/entitlements/studyUnlock.js';
+import { useLearnerProfile } from '@/features/dashboard/hooks/useLearnerHome.js';
 import StandardAssessmentRoadmap from './StandardAssessmentRoadmap.jsx';
+import { StaleDataBar } from '@/components/ui';
+import Icon from '@/components/ui/Icon.jsx';
 
 const LEVELS = {
   N5: {
@@ -102,7 +107,7 @@ function getStages(level) {
       tasks: [
         {
           icon: 'quiz',
-          title: `Thi thử JLPT ${level}`,
+          title: translateTemplate('Thi thử JLPT {0}', { 0: level }),
           description: 'Chọn đề và làm bài có giới hạn thời gian.',
           to: '/mock-tests/?level=' + level,
         },
@@ -134,29 +139,21 @@ function getStages(level) {
           to: '/kanji-notebook',
         },
         {
-          icon: 'support_agent',
-    title: 'Tư vấn 1-1',
-          description: 'Trao đổi khi cần điều chỉnh kế hoạch ôn luyện.',
-          to: '/mentor',
+          icon: 'groups',
+          title: 'Học nhóm cùng Mentor',
+          description: 'Lớp 1–4 học viên, 10 tuần, chọn cường độ phù hợp.',
+          to: '/mentors',
         },
       ],
     },
   ];
 }
 
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
-}
 
 function TaskRow({ task }) {
   const { locale, tr } = useLocale();
+  const unlock = useStudyUnlock();
+  const locked = Boolean(task.to && unlock?.access.lockStateFor(task.to) === 'locked');
   const title = task.title.startsWith('Thi thử JLPT ')
     ? (locale === 'ja' ? `JLPT ${task.title.slice('Thi thử JLPT '.length)} 模擬試験` : task.title)
     : tr(task.title);
@@ -164,28 +161,30 @@ function TaskRow({ task }) {
     <>
       <span
         className="flex h-9 w-9 shrink-0 items-center
-                   justify-center rounded-lg bg-[#FAF0F5]
-                   text-[#B47F95]"
+                   justify-center rounded-lg bg-rp-brand-tint
+                   text-rp-brand-strong"
       >
         <Icon name={task.icon} className="text-[20px]" />
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-medium text-[#62505A]">
-          {title}
+        <span className="block text-[13px] font-medium text-rp-text-2">
+          {tr(title)}
         </span>
 
-        <span className="mt-1 block text-[12px] leading-5 text-[#967F8A]">
+        <span className="mt-1 block text-[12px] leading-5 text-rp-text-muted">
           {tr(task.description)}
         </span>
       </span>
 
-      {task.to && (
+      {task.to && (locked ? (
+        <LockKeyhole aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-text-muted" />
+      ) : (
         <Icon
           name="arrow_forward"
-          className="shrink-0 text-[17px] text-[#BE98A8]"
+          className="shrink-0 text-[17px] text-rp-brand"
         />
-      )}
+      ))}
     </>
   );
 
@@ -193,24 +192,24 @@ function TaskRow({ task }) {
     'flex items-center gap-3 rounded-xl px-3 py-3 text-left ' +
     'transition-colors ' +
     (task.to
-      ? 'hover:bg-[#FCF5F8] focus-visible:outline-none ' +
-        'focus-visible:ring-2 focus-visible:ring-[#AD3155]/25'
-      : 'bg-[#FCFAFB]');
+      ? 'rp-interactive hover:bg-rp-brand-tint focus-visible:outline-none ' +
+        'focus-visible:ring-2 focus-visible:ring-rp-brand-strong/25'
+      : 'bg-rp-bg-2');
 
   return task.to ? (
-    <Link to={task.to} className={className}>
+    <FeatureLink to={task.to} label={title} className={className} showLock={false}>
       {content}
-    </Link>
+    </FeatureLink>
   ) : (
     <div className={className}>{content}</div>
   );
 }
 
 export default function RoadmapJLPT() {
-  const { locale, tr } = useLocale();
+  const { trf, locale, tr } = useLocale();
   const location = useLocation();
   const { pathname } = location;
-  const { data: profile } = useLearnerProfile();
+  const { data: profile, isError: profileError, isFetching: profileFetching, refetch: retryProfile } = useLearnerProfile();
   const [selectedLevel, setLevel] = useState(null);
   const preferredLevel = profile?.targetJlptLevelName;
   const level = selectedLevel ?? (Object.hasOwn(LEVELS, preferredLevel) ? preferredLevel : 'N3');
@@ -233,12 +232,10 @@ export default function RoadmapJLPT() {
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Lộ trình ôn luyện">
+    <LearnerShell pathname={pathname} breadcrumb={tr('Lộ trình ôn luyện')}>
       <main
         data-page="RoadmapJLPT"
-        className="mx-auto max-w-[1240px] px-5 py-6
-                   font-['Be_Vietnam_Pro',sans-serif]
-                   text-[#49353F] lg:px-7"
+        className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text"
       >
         {/* Tiêu đề gọn */}
         <header
@@ -250,23 +247,22 @@ export default function RoadmapJLPT() {
               <span
                 lang="ja"
                 className="font-['Noto_Serif_JP',serif]
-                           text-[15px] text-[#B47F95]"
+                           text-[15px] text-rp-brand-strong"
               >
                 道
               </span>
-              <span className="text-[11px] text-[#AA8D9B]">
+              <span className="text-[11px] text-rp-text-muted">
                 {tr('Từng bước ôn luyện')}
               </span>
             </div>
 
             <h1
-              className="mt-2 text-[26px] font-semibold
-                         leading-tight tracking-tight"
+              className="mt-2 rp-type-page-title"
             >
               {tr('Lộ trình ôn thi JLPT')}
             </h1>
 
-            <p className="mt-2 text-[13px] text-[#967F8A]">
+            <p className="mt-2 rp-type-secondary text-rp-text-muted">
               {tr('Ôn kiến thức, luyện kỹ năng và xem lại kết quả.')}
             </p>
           </div>
@@ -274,25 +270,34 @@ export default function RoadmapJLPT() {
           <Link
             to="/onboarding"
             className="inline-flex min-h-9 items-center gap-1.5
-                       rounded-lg border border-[#E7D7DF]
-                       bg-white px-3 text-[12px] text-[#A47186]
-                       hover:bg-[#FFF3F7]"
+                       rounded-lg border border-rp-line
+                       bg-white px-3 text-[12px] text-rp-brand-strong
+                       hover:bg-rp-brand-tint"
           >
             <Icon name="flag" className="text-[16px]" />
             {tr('Đổi mục tiêu')}
           </Link>
         </header>
 
+        {profileError && (
+          <StaleDataBar
+            className="mb-5"
+            label={tr('Chưa tải được mục tiêu JLPT cá nhân — đang hiển thị lộ trình tham khảo.')}
+            onRetry={() => retryProfile()}
+            retrying={profileFetching}
+          />
+        )}
+
         <StandardAssessmentRoadmap targetLevelId={profile?.targetJlptLevelId} />
 
         {/* Chọn cấp độ */}
         <section
-          aria-label="Chọn cấp độ tài nguyên ôn luyện"
-          className="mb-5 rounded-xl border border-[#EADFE5]
+          aria-label={tr('Chọn cấp độ tài nguyên ôn luyện')}
+          className="mb-5 rounded-xl border border-rp-line
                      bg-white px-4 py-3.5"
         >
           <div className="flex flex-wrap items-center gap-4">
-            <span className="text-[12px] text-[#A08A95]">
+            <span className="text-[12px] text-rp-text-muted">
               {tr('Cấp độ')}
             </span>
 
@@ -311,10 +316,10 @@ export default function RoadmapJLPT() {
                       'rounded-lg border px-3 text-[12px]',
                       'transition-colors focus-visible:outline-none',
                       'focus-visible:ring-2',
-                      'focus-visible:ring-[#AD3155]/25',
+                      'focus-visible:ring-rp-brand-strong/25',
                       active
-                        ? 'border-[#E8B8CB] bg-[#FCEAF2] text-[#A33E61]'
-                        : 'border-[#EFE5EA] text-[#967F8A] hover:bg-[#FFF7FA]',
+                        ? 'border-rp-brand-border bg-rp-brand-soft text-rp-brand-strong'
+                        : 'border-rp-line text-rp-text-muted hover:bg-rp-brand-tint',
                     ].join(' ')}
                   >
                     <span className="font-semibold">{key}</span>
@@ -325,14 +330,13 @@ export default function RoadmapJLPT() {
             </div>
           </div>
 
-          <p className="mt-3 text-[12px] leading-5 text-[#A08A95]">
+          <p className="mt-3 text-[12px] leading-5 text-rp-text-muted">
             {tr(LEVELS[level].description)}
           </p>
         </section>
 
         <div
-          className="grid items-start gap-5
-                     xl:grid-cols-[minmax(0,1fr)_260px]"
+          className="rp-cq-two-col items-start"
         >
           {/* Lộ trình chính */}
           <section aria-labelledby="roadmap-stages-title" className="min-w-0">
@@ -341,10 +345,10 @@ export default function RoadmapJLPT() {
                 id="roadmap-stages-title"
                 className="text-[16px] font-semibold"
               >
-                Tài nguyên ôn luyện
+                {tr('Tài nguyên ôn luyện')}
               </h2>
-              <span className="text-[11px] text-[#AA8D9B]">
-                {locale === 'ja' ? `4ステップ · JLPT ${level}` : `4 chặng · JLPT ${level}`}
+              <span className="text-[11px] text-rp-text-muted">
+                {locale === 'ja' ? `4ステップ · JLPT ${level}` : trf('4 chặng · JLPT {0}', { 0: level })}
               </span>
             </div>
 
@@ -371,8 +375,8 @@ export default function RoadmapJLPT() {
                           'items-center justify-center rounded-full',
                           'border text-[11px] font-medium',
                           open
-                            ? 'border-[#AD3155] bg-[#AD3155] text-white'
-                            : 'border-[#E7D7DF] bg-[#FAF4F7] text-[#AF8698]',
+                            ? 'border-rp-brand-strong bg-rp-brand-strong text-white'
+                            : 'border-rp-line bg-rp-brand-tint text-rp-brand-strong',
                         ].join(' ')}
                       >
                         {stage.number}
@@ -383,7 +387,7 @@ export default function RoadmapJLPT() {
                       className={[
                         'min-w-0 flex-1 overflow-hidden rounded-xl',
                         'border bg-white',
-                        open ? 'border-[#E4B8C9]' : 'border-[#EADFE5]',
+                        open ? 'border-rp-brand-border' : 'border-rp-line',
                       ].join(' ')}
                     >
                       <h3>
@@ -399,22 +403,22 @@ export default function RoadmapJLPT() {
                             'gap-3 px-4 py-4 text-left',
                             'focus-visible:outline-none',
                             'focus-visible:ring-2 focus-visible:ring-inset',
-                            'focus-visible:ring-[#AD3155]/25',
-                            open ? 'bg-[#FFF7FA]' : 'hover:bg-[#FFFBFD]',
+                            'focus-visible:ring-rp-brand-strong/25',
+                            open ? 'bg-rp-brand-tint' : 'hover:bg-rp-brand-tint',
                           ].join(' ')}
                         >
                           <span className="min-w-0">
                             <span
                               lang="ja"
                               className="block font-['Noto_Sans_JP',sans-serif]
-                                         text-[10px] tracking-wider text-[#BD8FA2]"
+                                         text-[10px] tracking-wider text-rp-brand"
                             >
                               {stage.japanese}
                             </span>
 
                             <span
                               className="mt-1 block text-[15px]
-                                         font-medium text-[#62505A]"
+                                         font-medium text-rp-text-2"
                             >
                               {tr(stage.title)}
                             </span>
@@ -422,7 +426,7 @@ export default function RoadmapJLPT() {
                             {!open && (
                               <span
                                 className="mt-1 block text-[12px]
-                                           leading-5 text-[#A08A95]"
+                                           leading-5 text-rp-text-muted"
                               >
                                 {tr(stage.description)}
                               </span>
@@ -431,7 +435,7 @@ export default function RoadmapJLPT() {
 
                           <Icon
                             name="expand_more"
-                            className={`shrink-0 text-[20px] text-[#B99AA8]
+                            className={`shrink-0 text-[20px] text-rp-brand
                                         transition-transform ${
                                           open ? 'rotate-180' : ''
                                         }`}
@@ -441,11 +445,11 @@ export default function RoadmapJLPT() {
 
                       {open && (
                         <div id={`stage-${stage.id}`} className="px-3 pb-3">
-                          <p className="px-1 pb-2 pt-3 text-[12px] text-[#A08A95]">
+                          <p className="px-1 pb-2 pt-3 text-[12px] text-rp-text-muted">
                             {tr(stage.description)}
                           </p>
 
-                          <div className="divide-y divide-[#F3EBEF]">
+                          <div className="divide-y divide-rp-line">
                             {stage.tasks.map((task) => (
                               <TaskRow key={task.title} task={task} />
                             ))}
@@ -454,7 +458,7 @@ export default function RoadmapJLPT() {
                           {index < stages.length - 1 && (
                             <div
                               className="mt-2 flex justify-end
-                                         border-t border-[#F3EBEF] pt-3"
+                                         border-t border-rp-line pt-3"
                             >
                               <button
                                 type="button"
@@ -463,7 +467,7 @@ export default function RoadmapJLPT() {
                                 }
                                 className="inline-flex items-center gap-1
                                            rounded px-2 py-1 text-[12px]
-                                           text-[#AE6C87] hover:text-[#AD3155]"
+                                           text-rp-brand-strong hover:text-rp-brand-strong"
                               >
                                 {tr('Xem chặng tiếp')}
                                 <Icon name="arrow_forward" className="text-[15px]" />
@@ -482,7 +486,7 @@ export default function RoadmapJLPT() {
           {/* Thông tin hỗ trợ */}
           <aside className="space-y-4 xl:sticky xl:top-[84px]">
             <section
-              className="rounded-xl border border-[#EADFE5]
+              className="rounded-xl border border-rp-line
                          bg-white p-4"
             >
               <h2 className="text-[14px] font-medium">
@@ -492,8 +496,8 @@ export default function RoadmapJLPT() {
               <div className="mt-4 flex items-center gap-3">
                 <span
                   className="flex h-11 w-11 items-center
-                             justify-center rounded-xl bg-[#F9E8F0]
-                             text-[17px] font-semibold text-[#A84466]"
+                             justify-center rounded-xl bg-rp-brand-soft
+                             text-[17px] font-semibold text-rp-brand-strong"
                 >
                   {level}
                 </span>
@@ -501,48 +505,48 @@ export default function RoadmapJLPT() {
                   <p className="text-[13px] font-medium">
                     JLPT {level}
                   </p>
-                  <p className="mt-1 text-[11px] text-[#A08A95]">
+                  <p className="mt-1 text-[11px] text-rp-text-muted">
                     {tr(LEVELS[level].label)}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-[#F0E7EC] pt-3">
-                <p className="text-[12px] text-[#947584]">
+              <div className="mt-4 border-t border-rp-line pt-3">
+                <p className="text-[12px] text-rp-text-muted">
                   {currentIndex >= 0
                     ? (locale === 'ja'
                       ? `ステップ ${currentIndex + 1}: ${tr(stages[currentIndex].title)}`
-                      : `Chặng ${currentIndex + 1}: ${stages[currentIndex].title}`)
+                      : trf('Chặng {0}: {1}', { 0: currentIndex + 1, 1: stages[currentIndex].title }))
                     : tr('Chọn một chặng để xem nội dung.')}
                 </p>
-                <p className="mt-2 text-[11px] leading-5 text-[#AE95A1]">
-                  Chọn chặng để mở tài nguyên theo cấp độ.
+                <p className="mt-2 text-[11px] leading-5 text-rp-text-muted">
+                  {tr('Chọn chặng để mở tài nguyên theo cấp độ.')}
                 </p>
               </div>
             </section>
 
             <section
-              className="rounded-xl border border-[#EEDCE5]
-                         bg-[#FCF2F6] p-4"
+              className="rounded-xl border border-rp-line
+                         bg-rp-brand-tint p-4"
             >
               <div className="flex items-center gap-2">
                 <Icon
                   name="history"
-                  className="text-[19px] text-[#B77E95]"
+                  className="text-[19px] text-rp-brand-strong"
                 />
                 <h2 className="text-[13px] font-medium">
                   {tr('Duy trì ôn tập')}
                 </h2>
               </div>
 
-              <p className="mt-2 text-[12px] leading-6 text-[#A0808E]">
+              <p className="mt-2 text-[12px] leading-6 text-rp-text-muted">
                 {tr('Xen kẽ luyện đề với ôn lại nội dung đã lưu để việc ôn tập có trọng tâm.')}
               </p>
 
               <Link
                 to="/daily-srs"
                 className="mt-3 inline-flex items-center gap-1
-                           text-[12px] font-medium text-[#A84466]"
+                           text-[12px] font-medium text-rp-brand-strong"
               >
                 {tr('Ôn tập đến hạn')}
                 <Icon name="arrow_forward" className="text-[15px]" />
@@ -550,26 +554,26 @@ export default function RoadmapJLPT() {
             </section>
 
             <Link
-              to="/mentor"
+              to="/mentors"
               className="flex items-center gap-3 rounded-xl
-                         border border-[#EADFE5] bg-white p-4
-                         transition-colors hover:bg-[#FFFAFC]"
+                         border border-rp-line bg-white p-4
+                         transition-colors hover:bg-rp-brand-tint"
             >
               <Icon
                 name="support_agent"
-                className="text-[22px] text-[#B48A9C]"
+                className="text-[22px] text-rp-brand"
               />
               <span className="flex-1">
                 <span className="block text-[13px] font-medium">
                   {tr('Cần hướng dẫn thêm?')}
                 </span>
-                <span className="mt-1 block text-[11px] text-[#A08A95]">
-                  {tr('Trao đổi cùng cố vấn')}
+                <span className="mt-1 block text-[11px] text-rp-text-muted">
+                  {tr('Học nhóm cùng Mentor')}
                 </span>
               </span>
               <Icon
                 name="chevron_right"
-                className="text-[18px] text-[#B99AA8]"
+                className="text-[18px] text-rp-brand"
               />
             </Link>
           </aside>
