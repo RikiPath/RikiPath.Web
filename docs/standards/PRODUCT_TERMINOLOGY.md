@@ -23,9 +23,9 @@ Never translate: **RikiPath**, **Haru**, **JLPT**, level codes **N5–N2**, **Pa
 | Placement test | Bài đánh giá năng lực | レベル診断 |
 | Self-study plan | Gói tự học | 自習プラン |
 | AI grading uses | Lượt chấm AI | AI採点回数 |
-| Group learning / group class | Học nhóm / Lớp học nhóm | グループ学習 / グループレッスン |
+| Guided group learning / group class | Học cùng Giáo viên / Lớp học nhóm | 教師と学ぶ / グループレッスン |
 | Cohort (one class) | Lớp | クラス |
-| Mentor | Mentor (cố vấn) | メンター |
+| Mentor (user-facing role) | Giáo viên | 教師（担当授業では講師） |
 | Session (90 min) | Buổi học | 授業 |
 | Class schedule | Lịch học | 授業スケジュール |
 | Teaching schedule (Mentor) | Lịch dạy | 授業スケジュール |
@@ -40,7 +40,7 @@ Never translate: **RikiPath**, **Haru**, **JLPT**, level codes **N5–N2**, **Pa
 | Class transfer | Chuyển lớp | クラス変更 |
 | Complaint | Khiếu nại | お問い合わせ・苦情 |
 | Refund review | Xem xét hoàn tiền | 返金審査 |
-| Mentor replacement | Thay Mentor | メンター交代 |
+| Mentor replacement | Thay Giáo viên | 担当講師の交代 |
 | Course completion summary | Tổng kết khóa học | コース修了まとめ |
 | Notifications / Settings | Thông báo / Cài đặt | 通知 / 設定 |
 | Content Author | Tác giả nội dung | コンテンツ作成者 |
@@ -51,6 +51,8 @@ Never translate: **RikiPath**, **Haru**, **JLPT**, level codes **N5–N2**, **Pa
 - Group class: 1 Mentor, 1–4 Learners, 10 weeks, 90-minute sessions, 2/3/4 sessions per week (20/30/40 sessions).
 - Group learning is separate from the self-study plan and AI credits; there is no 1-1 booking and no Mentor payroll in the product.
 - JLPT levels offered: N5–N2.
+- Web UI dùng “Giáo viên” cho vai trò Mentor và “Học cùng Giáo viên” cho khu vực lớp có hướng dẫn. Giữ nguyên `Mentor` trong role, API, route, entity và dữ liệu lịch sử/người dùng tự nhập.
+- Sidebar Learner đi theo hành trình: Tổng quan → Lộ trình học JLPT → Thư viện tiếng Nhật → Góc học tập của tôi → Luyện tập & Thi thử → Học cùng Giáo viên. Chỉ tạo liên kết đến màn/route đang hoạt động; không dựng trang tiến độ riêng khi chưa có contract.
 - Internal ids, QA codes or cohort codes (e.g. `QA-E2E-COHORT-…`) are never shown as names; show the class name.
 - Abbreviations are not used in UI copy: "BTVN" → "bài tập về nhà / bài tập", "HV" → "học viên", "p/h" → "phút/giờ",
   "Placement" → "bài đánh giá năng lực", "Cutoff" → "khóa ghi danh". Entitlement reference codes are admin-only.

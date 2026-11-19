@@ -58,7 +58,7 @@ export default function AdminMentorQualifications() {
           : [];
       return {
         mentorId: m.id,
-        fullName: m.fullName || [ver?.firstName, ver?.lastName].filter(Boolean).join(' ') || m.email || `Mentor #${m.id}`,
+        fullName: m.fullName || [ver?.firstName, ver?.lastName].filter(Boolean).join(' ') || m.email || `Giáo viên #${m.id}`,
         email: m.email || ver?.email || '',
         certificateLevel: ver?.jlptLevel || '—',
         teachingLevels,
@@ -91,19 +91,19 @@ export default function AdminMentorQualifications() {
             {tr('Phân quyền giảng dạy JLPT (N5–N2)')}
           </p>
           <p className="mt-0.5 text-[12px] text-rp-text-2">
-            {tr('Phân quyền dùng để kiểm tra điều kiện gán Mentor và thay thế cố vấn chính cho các lớp học nhóm JLPT N5–N2. Xét duyệt chứng chỉ thực hiện tại mục Hồ sơ chờ xét duyệt.')}
+            {tr('Phân quyền dùng để kiểm tra điều kiện gán Giáo viên và thay thế giáo viên chính cho các lớp học nhóm JLPT N5–N2. Xét duyệt chứng chỉ thực hiện tại mục Hồ sơ chờ xét duyệt.')}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-[12px] font-medium text-rp-text-2">
-            {tr('Cố vấn:')}
+            {tr('Giáo viên:')}
             <select
               value={selectedMentorId}
               onChange={(e) => setSelectedMentorId(e.target.value)}
               className="h-9 min-w-0 max-w-full rounded-xl border border-rp-line bg-white px-3 text-[13px] text-rp-text"
             >
-              <option value="">{tr('Tất cả cố vấn')}</option>
+              <option value="">{tr('Tất cả giáo viên')}</option>
               {mentors.map((m) => (
                 <option key={m.id} value={m.id}>
                   #{m.id} · {m.fullName || m.email}
@@ -132,7 +132,7 @@ export default function AdminMentorQualifications() {
       <div className={cardClass}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-[15px] font-semibold text-rp-text">
-           {trf('Danh sách cố vấn & trình độ giảng dạy JLPT ({0})', { 0: rows.length })}
+           {trf('Danh sách giáo viên & trình độ giảng dạy JLPT ({0})', { 0: rows.length })}
           </h3>
           <Link
             to="/admin/mentor-verifications/"
@@ -158,15 +158,15 @@ export default function AdminMentorQualifications() {
         ) : rows.length === 0 ? (
           <ContextualEmptyState
             compact
-            title={tr('Chưa có cố vấn nào trong phạm vi lọc.')}
-            description={tr('Thử xóa bộ lọc trình độ hoặc chọn Tất cả cố vấn.')}
+            title={tr('Chưa có giáo viên nào trong phạm vi lọc.')}
+            description={tr('Thử xóa bộ lọc trình độ hoặc chọn Tất cả giáo viên.')}
           />
         ) : (
           <div data-density="compact" className="rp-scroll-x mt-4">
             <table className="w-full min-w-[680px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-rp-line text-[11px] uppercase tracking-wider text-rp-text-muted">
-                  <th className="py-2">{tr('Cố vấn')}</th>
+                  <th className="py-2">{tr('Giáo viên')}</th>
                   <th className="py-2">{tr('Chứng chỉ hồ sơ')}</th>
                   <th className="py-2">{tr('Trình độ lớp nhóm (N5–N2)')}</th>
                   <th className="py-2">{tr('Trạng thái xác minh')}</th>
@@ -226,7 +226,7 @@ export default function AdminMentorQualifications() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-6 text-center text-rp-text-muted">
-                      {tr('Chưa có cố vấn nào trong phạm vi lọc.')}
+                      {tr('Chưa có giáo viên nào trong phạm vi lọc.')}
                     </td>
                   </tr>
                 )}

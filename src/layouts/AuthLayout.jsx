@@ -9,7 +9,7 @@ import { useLocale } from '@/locales/locale.js';
 const COPY = {
   login: {
     heading: 'Học tiếng Nhật theo cách của bạn',
-    sub: 'Lộ trình rõ ràng, luyện thi JLPT có tính giờ và lớp nhóm nhỏ cùng Mentor.',
+    sub: 'Lộ trình rõ ràng, luyện thi JLPT có tính giờ và lớp nhóm nhỏ cùng Giáo viên.',
   },
   register: {
     heading: 'Bắt đầu hành trình JLPT của bạn',

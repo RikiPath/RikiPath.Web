@@ -30,7 +30,7 @@ export default function CmsLessonDetail() {
 
   return (
     <ContentAuthorShell pathname={pathname} breadcrumb={tr('Chi tiết bài')}>
-      <main data-page="CmsLessonDetail" className="rp-container-reading py-6 lg:py-8">
+      <main data-page="CmsLessonDetail" className="rp-container py-6 lg:py-8">
         <Link
           to="/lesson-cms"
           className="inline-flex items-center gap-1 text-[13px] text-rp-text-muted hover:text-rp-brand-strong"

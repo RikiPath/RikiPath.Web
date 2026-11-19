@@ -55,7 +55,7 @@ export function sessionStatusLabel(item) {
     ExcusedAbsent: 'Vắng có phép',
     Completed: 'Đã hoàn tất',
     Cancelled: 'Đã hủy',
-    CancelledByMentor: 'Mentor đã hủy',
+    CancelledByMentor: 'Giáo viên đã hủy',
     CancelledByLearner: 'Học viên đã hủy',
     TransferredOut: 'Đã chuyển lớp',
     AwaitingPayment: 'Chờ thanh toán',

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import { ContentAuthorShell } from '@/layouts';
 import {
@@ -29,13 +30,13 @@ const MODES = [
   {
     id: 'plan',
     label: 'Kế hoạch bài',
-    description: 'Mô tả một bài, hệ thống chia thành từng việc rồi soạn bản xem trước.',
+    description: 'Mô tả một bài, hệ thống chia thành từng việc rồi tạo bản xem trước để lưu nháp.',
     icon: 'account_tree',
   },
   {
     id: 'kanji',
     label: 'Kanji nhanh',
-    description: 'Gợi ý một nhóm chữ theo cấp, xem âm đọc rồi gửi duyệt.',
+    description: 'Gợi ý một nhóm chữ theo cấp, kiểm tra âm đọc và số nét rồi lưu bản nháp.',
     icon: 'draw',
   },
 ];
@@ -53,8 +54,8 @@ const EXAMPLES = {
   ],
 };
 
-const PLAN_STEPS = ['Mô tả', 'Kế hoạch', 'Xem trước', 'Gửi duyệt'];
-const KANJI_STEPS = ['Mô tả', 'Gợi ý', 'Gửi duyệt'];
+const PLAN_STEPS = ['Mô tả', 'Kế hoạch', 'Xem trước', 'Lưu bản nháp'];
+const KANJI_STEPS = ['Mô tả', 'Gợi ý', 'Lưu bản nháp'];
 
 function resultTitle(row) {
   return row.lesson?.title
@@ -75,7 +76,6 @@ function resultKind(row) {
   if (row.grammar?.length) return translateTemplate('{0} ngữ pháp', { 0: row.grammar.length });
   return 'Nội dung';
 }
-
 
 export default function ContentPlanStudio() {
   const { tr, trf } = useLocale();
@@ -99,6 +99,7 @@ export default function ContentPlanStudio() {
       setPlan(data);
       setTasks(data.tasks || []);
       setResults([]);
+      setBatchId('');
       const msg = data.clarifyingQuestion ? '' : 'Đã có kế hoạch. Có thể sửa từng việc trước khi chạy.';
       setNotice(msg);
       if (data.clarifyingQuestion) {
@@ -117,8 +118,9 @@ export default function ContentPlanStudio() {
     },
     onSuccess: (data) => {
       setResults(data.results || []);
-      setNotice('Nội dung đã được tạo. Xem lại rồi gửi duyệt.');
-      notify.success('Đã tạo xong bản nháp nội dung.', 'Hãy kiểm tra lại trước khi gửi duyệt.', {
+      setBatchId('');
+      setNotice('Nội dung đã được tạo. Kiểm tra chi tiết rồi lưu bản nháp.');
+      notify.success('Đã tạo xong bản xem trước nội dung.', 'Hãy kiểm tra lại trước khi lưu bản nháp.', {
         key: 'author-plan-run',
         replace: true,
       });
@@ -128,16 +130,16 @@ export default function ContentPlanStudio() {
 
   const confirmMutation = useMutation({
     mutationFn: () => {
-      notify.loading('Đang gửi nội dung vào hàng chờ duyệt…', '', { key: 'author-plan-confirm', maxWaitMs: 30000 });
+      notify.loading('Đang lưu bản nháp nội dung…', '', { key: 'author-plan-confirm', maxWaitMs: 30000 });
       return confirmContentPlan(toConfirmPlanBody(results));
     },
     onSuccess: (data) => {
       setBatchId(data.batchId || '');
-      const msg = trf('Đã gửi {0} dòng vào hàng chờ duyệt.', { 0: data.submittedCount });
+      const msg = trf('Đã lưu {0} bản nháp từ AI. Vào Soạn thảo thủ công để rà soát và gửi duyệt.', { 0: data.submittedCount });
       setNotice(msg);
       notify.success(msg, '', { key: 'author-plan-confirm', replace: true });
     },
-    onError: (err) => notify.apiError(err, 'Chưa gửi được nội dung để duyệt', { key: 'author-plan-confirm', replace: true }),
+    onError: (err) => notify.apiError(err, 'Chưa lưu được bản nháp nội dung', { key: 'author-plan-confirm', replace: true }),
   });
 
   const kanjiMutation = useMutation({
@@ -146,7 +148,11 @@ export default function ContentPlanStudio() {
       return suggestKanji({ prompt, certificateLevelId: levelId });
     },
     onSuccess: (data) => {
-      setKanjiItems(data.items || []);
+      setKanjiItems((data.items || []).map((item) => ({
+        ...item,
+        strokeCount: Math.max(1, Number(item.strokeCount) || 1),
+      })));
+      setBatchId('');
       notify.success(trf('Đã gợi ý {0} chữ Kanji.', { 0: (data.items || []).length }), '', { key: 'author-kanji-suggest', replace: true });
     },
     onError: (err) => notify.apiError(err, 'Không gợi ý được Kanji', { key: 'author-kanji-suggest', replace: true }),
@@ -154,7 +160,7 @@ export default function ContentPlanStudio() {
 
   const kanjiConfirm = useMutation({
     mutationFn: () => {
-      notify.loading('Đang gửi danh sách Kanji để duyệt…', '', { key: 'author-kanji-confirm', maxWaitMs: 30000 });
+      notify.loading('Đang lưu danh sách Kanji thành bản nháp…', '', { key: 'author-kanji-confirm', maxWaitMs: 30000 });
       return confirmKanjiSuggestions({
         certificateLevelId: levelId,
         items: kanjiItems.filter((item) => item.character && item.meaning).map((item) => ({
@@ -163,7 +169,7 @@ export default function ContentPlanStudio() {
           sinoVietnamese: item.sinoVietnamese,
           onYomi: item.onYomi,
           kunYomi: item.kunYomi,
-          strokeCount: Number(item.strokeCount) || 0,
+          strokeCount: Math.max(1, Number(item.strokeCount) || 1),
           isDuplicate: Boolean(item.isDuplicate),
           existingKanjiId: item.existingKanjiId ?? undefined,
         })),
@@ -171,11 +177,11 @@ export default function ContentPlanStudio() {
     },
     onSuccess: (data) => {
       setBatchId(data.batchId || '');
-      const msg = trf('Đã gửi {0} kanji vào hàng chờ duyệt.', { 0: data.submittedCount });
+      const msg = trf('Đã lưu {0} bản nháp Kanji. Mở Soạn thảo thủ công để rà soát và gửi duyệt.', { 0: data.submittedCount });
       setNotice(msg);
       notify.success(msg, '', { key: 'author-kanji-confirm', replace: true });
     },
-    onError: (err) => notify.apiError(err, 'Chưa gửi được Kanji để duyệt', { key: 'author-kanji-confirm', replace: true }),
+    onError: (err) => notify.apiError(err, 'Chưa lưu được bản nháp Kanji', { key: 'author-kanji-confirm', replace: true }),
   });
 
   const scanMutation = useMutation({
@@ -198,10 +204,20 @@ export default function ContentPlanStudio() {
   const error = planMutation.error || runMutation.error || confirmMutation.error || kanjiMutation.error || kanjiConfirm.error || scanMutation.error;
   const busy = planMutation.isPending || runMutation.isPending || confirmMutation.isPending || kanjiMutation.isPending;
   const steps = mode === 'plan' ? PLAN_STEPS : KANJI_STEPS;
-  const sent = notice.startsWith('Đã gửi');
+  const savedDraft = Boolean(batchId) || notice.startsWith('Đã lưu');
+  const hasUnsavedWork = !savedDraft && (results.length > 0 || kanjiItems.length > 0 || tasks.length > 0);
+  useEffect(() => {
+    if (!hasUnsavedWork) return undefined;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedWork]);
   const currentStep = mode === 'kanji'
-    ? (kanjiItems.length ? (sent ? 3 : 2) : 1)
-    : (results.length ? (sent ? 4 : 3) : (tasks.length ? 2 : 1));
+    ? (kanjiItems.length ? (savedDraft ? 3 : 2) : 1)
+    : (results.length ? (savedDraft ? 4 : 3) : (tasks.length ? 2 : 1));
   const scanIssues = scanMutation.data?.results?.filter((item) => item.issues?.length) || [];
 
   return (
@@ -209,9 +225,9 @@ export default function ContentPlanStudio() {
       <main className="rp-container py-6 text-rp-text lg:py-8">
         <header className="overflow-hidden rounded-3xl border border-rp-brand-border bg-[linear-gradient(135deg,#FFF7FA_0%,#FCEEF3_48%,#FFFDFC_100%)] px-6 py-6 sm:px-8">
           <p className="text-[12px] font-medium tracking-[0.14em] text-rp-brand-strong">{tr('SOẠN VỚI AI')}</p>
-          <h1 className="mt-2 text-[28px] font-semibold tracking-tight">{tr('Biến một ý tưởng thành bản xem trước.')}</h1>
+          <h1 className="mt-2 text-[28px] font-semibold tracking-tight">{tr('Biến một ý tưởng thành bản nháp học liệu.')}</h1>
           <p className="mt-2 max-w-2xl text-[14px] leading-6 text-rp-text-muted">
-            {tr('Viết bài bạn muốn có. Hệ thống lập kế hoạch, soạn nội dung để xem, rồi mới đưa vào hàng chờ duyệt. Chưa ghi vào bài đang dạy.')}
+            {tr('Viết bài bạn muốn có. Hệ thống lập kế hoạch, tạo bản xem trước và lưu thành bản nháp; bạn có thể rà soát trong Soạn thảo thủ công rồi gửi Admin duyệt.')}
           </p>
           <ol className="mt-5 flex flex-wrap gap-2">
             {steps.map((label, index) => {
@@ -300,7 +316,7 @@ export default function ContentPlanStudio() {
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
             <p className="max-w-md text-[12px] leading-5 text-rp-text-muted">
-              {mode === 'plan' ? tr('Bước này chỉ lập danh sách việc. Nội dung được tạo ở bước sau, sau khi bạn xem lại từng việc.') : tr('Gợi ý chưa vào kho. Bạn bỏ chữ không muốn rồi mới gửi duyệt.')}
+              {mode === 'plan' ? tr('Bước này chỉ lập danh sách việc. Nội dung được tạo ở bước sau, sau khi bạn xem lại từng việc.') : tr('Gợi ý chưa vào kho. Bạn chỉnh sửa hoặc bỏ chữ không muốn rồi mới lưu bản nháp.')}
             </p>
             {mode === 'plan' ? (
               <button type="button" disabled={busy || !prompt.trim()} onClick={() => { setNotice(''); planMutation.mutate(prompt.trim()); }} className={`inline-flex h-11 items-center gap-2 rounded-xl bg-rp-brand-strong px-4 text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-50 ${focus}`}>
@@ -365,16 +381,34 @@ export default function ContentPlanStudio() {
           <section className="mt-5 rounded-3xl border border-rp-line bg-white p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold text-rp-text-2">{tr('Bản xem trước')}</h2>
-              {results.some((row) => row.status === 'Succeeded') && (
-                <button type="button" disabled={confirmMutation.isPending} onClick={() => confirmMutation.mutate()} className={`inline-flex h-10 items-center gap-2 rounded-xl bg-rp-success px-4 text-[13px] font-medium text-white disabled:opacity-50 ${focus}`}>
-                  <Icon name="send" className="text-[16px]" />
-                  {confirmMutation.isPending ? tr('Đang gửi…') : tr('Gửi duyệt')}
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {batchId && (
+                  <Link
+                    to="/content-manual/"
+                    className={`inline-flex h-10 items-center gap-2 rounded-xl border border-rp-brand-border bg-white px-4 text-[13px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint ${focus}`}
+                  >
+                    {tr('Mở Soạn thảo thủ công')}
+                  </Link>
+                )}
+                {results.some((row) => row.status === 'Succeeded') && (
+                  <button type="button" disabled={confirmMutation.isPending} onClick={() => confirmMutation.mutate()} className={`inline-flex h-10 items-center gap-2 rounded-xl bg-rp-success px-4 text-[13px] font-medium text-white disabled:opacity-50 ${focus}`}>
+                    <Icon name="save" className="text-[16px]" />
+                    {confirmMutation.isPending ? tr('Đang lưu…') : tr('Lưu bản nháp')}
+                  </button>
+                )}
+              </div>
             </div>
             <ul className="mt-3 grid gap-3 sm:grid-cols-2">
               {results.map((row) => {
                 const ok = row.status === 'Succeeded';
+                const detailItems = [
+                  ...(row.vocabulary || []).map((v) => `${v.word || ''} (${v.reading || ''}): ${v.meaning || ''}`),
+                  ...(row.kanji || []).map((k) => `${k.character || ''}: ${k.meaning || ''}`),
+                  ...(row.grammar || []).map((g) => `${g.title || ''} — ${g.structure || ''}`),
+                  ...(row.lesson ? [`${row.lesson.title || ''}: ${row.lesson.description || ''}`] : []),
+                  ...(row.practiceExercise ? [`${row.practiceExercise.title || ''}`] : []),
+                  ...(row.mockTest ? [`${row.mockTest.title || ''}`] : []),
+                ].filter(Boolean);
                 return (
                   <li key={row.taskId} className="rounded-2xl bg-rp-bg-2 px-4 py-4">
                     <div className="flex items-center justify-between gap-2">
@@ -384,6 +418,14 @@ export default function ContentPlanStudio() {
                       </span>
                     </div>
                     <p className="mt-2 text-[15px] font-semibold text-rp-text" style={{ fontFamily: '"Segoe UI", "Yu Gothic", sans-serif' }}>{resultTitle(row)}</p>
+                    {detailItems.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-[12px] font-semibold text-rp-brand-strong">{trf('Xem chi tiết ({0})', { 0: detailItems.length })}</summary>
+                        <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[12px] text-rp-text-2">
+                          {detailItems.slice(0, 10).map((text, idx) => <li key={idx}>{text}</li>)}
+                        </ul>
+                      </details>
+                    )}
                     {row.error && <p className="mt-1 text-[12px] leading-5 text-rp-brand-strong">{row.error}</p>}
                   </li>
                 );
@@ -397,12 +439,22 @@ export default function ContentPlanStudio() {
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1">
               <div>
                 <h2 className="text-[15px] font-semibold text-rp-text-2">{trf('{0} chữ được gợi ý', { 0: kanjiItems.length })}</h2>
-                <p className="mt-1 text-[12px] text-rp-text-muted">{tr('Bỏ chữ đã có trong kho hoặc chữ không đúng chủ đề.')}</p>
+                <p className="mt-1 text-[12px] text-rp-text-muted">{tr('Kiểm tra nghĩa, số nét hoặc bỏ chữ không phù hợp trước khi lưu bản nháp.')}</p>
               </div>
-              <button type="button" disabled={kanjiConfirm.isPending} onClick={() => kanjiConfirm.mutate()} className={`inline-flex h-10 items-center gap-2 rounded-xl bg-rp-success px-4 text-[13px] font-medium text-white disabled:opacity-50 ${focus}`}>
-                <Icon name="send" className="text-[16px]" />
-                {kanjiConfirm.isPending ? tr('Đang gửi…') : tr('Gửi kanji chờ duyệt')}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {batchId && (
+                  <Link
+                    to="/content-manual/?type=Kanji"
+                    className={`inline-flex h-10 items-center gap-2 rounded-xl border border-rp-brand-border bg-white px-4 text-[13px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint ${focus}`}
+                  >
+                    {tr('Mở Soạn thảo thủ công')}
+                  </Link>
+                )}
+                <button type="button" disabled={kanjiConfirm.isPending} onClick={() => kanjiConfirm.mutate()} className={`inline-flex h-10 items-center gap-2 rounded-xl bg-rp-success px-4 text-[13px] font-medium text-white disabled:opacity-50 ${focus}`}>
+                  <Icon name="save" className="text-[16px]" />
+                  {kanjiConfirm.isPending ? tr('Đang lưu…') : tr('Lưu bản nháp Kanji')}
+                </button>
+              </div>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {kanjiItems.map((item, index) => (
@@ -417,6 +469,20 @@ export default function ContentPlanStudio() {
                   <p className="mt-1 text-[12px] leading-5 text-rp-text-muted">
                     {[item.onYomi && `On: ${item.onYomi}`, item.kunYomi && `Kun: ${item.kunYomi}`, item.sinoVietnamese && trf('Hán Việt: {0}', { 0: item.sinoVietnamese })].filter(Boolean).join(' · ') || tr('Chưa có âm đọc')}
                   </p>
+                  <label className="mt-2 flex items-center gap-2 text-[12px] text-rp-text-2">
+                    <span>{tr('Số nét')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={40}
+                      value={item.strokeCount || 1}
+                      onChange={(e) => {
+                        const val = Math.max(1, Number(e.target.value) || 1);
+                        setKanjiItems((prev) => prev.map((row, idx) => (idx === index ? { ...row, strokeCount: val } : row)));
+                      }}
+                      className="h-7 w-16 rounded-lg border border-rp-line bg-rp-bg-2 px-2 text-xs"
+                    />
+                  </label>
                   {item.isDuplicate && <p className="mt-2 inline-flex rounded-full bg-rp-warning-bg px-2 py-0.5 text-[11px] font-medium text-rp-warning">{tr('Đã có trong kho')}</p>}
                 </li>
               ))}
@@ -426,8 +492,8 @@ export default function ContentPlanStudio() {
 
         <section className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-rp-brand-border bg-white px-4 py-4">
           <div>
-            <p className="text-[14px] font-semibold text-rp-text">{tr('Kiểm tra bản nháp đang chờ')}</p>
-            <p className="mt-1 text-[12px] leading-5 text-rp-text-muted">{tr('Quét các dòng đã gửi trong phiên này và chỉ ra chỗ cần xem lại.')}</p>
+            <p className="text-[14px] font-semibold text-rp-text">{tr('Kiểm tra độ chính xác bản nháp')}</p>
+            <p className="mt-1 text-[12px] leading-5 text-rp-text-muted">{tr('Quét các bản nháp đã lưu trong phiên này và chỉ ra chỗ cần rà soát trước khi gửi Admin duyệt.')}</p>
           </div>
           <button type="button" disabled={scanMutation.isPending} onClick={() => scanMutation.mutate()} className={`h-10 rounded-xl border border-rp-line px-4 text-[13px] text-rp-text-2 hover:bg-rp-brand-tint disabled:opacity-50 ${focus}`}>
             {scanMutation.isPending ? tr('Đang kiểm tra…') : tr('Kiểm tra')}

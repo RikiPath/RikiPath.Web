@@ -6,6 +6,8 @@ Follow the standards in `docs/standards/` (single source; do not restate them el
 - `UX_WRITING_AND_I18N.md` — `tr` / `trf` / `fmt`, error mapping, UI states, writing voice.
 - `UI_DESIGN_SYSTEM.md` — tokens, surfaces per role, illustrations, shared components.
 - `INTERACTION_AND_MOTION.md` — durations, transform/opacity only, reduced motion, no needless WebGL.
+- `WORKSPACE_ARCHITECTURE.md` — multi-role workspace navigation, sidebar hierarchy, and route contracts.
+- `WORKSPACE_LAYOUT_AND_INTERACTION_STANDARDS.md` — mandatory 12 rules for compact workspaces, one-primary-view-at-a-time (`Lịch | Danh sách`), modal/drawer/popover selection, multi-select calendar UX, and user-first terminology.
 
 Every new screen ships with Vietnamese + Japanese text (no hard-coded strings), uses shared components and
 tokens, handles loading/empty/error/offline/forbidden states, and keeps layout stable for longer Japanese labels.

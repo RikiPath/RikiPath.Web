@@ -32,12 +32,12 @@ export default function MentorDirectory() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <LearnerShell breadcrumb={tr('Tìm Mentor')}>
+    <LearnerShell breadcrumb={tr('Tìm Giáo viên')}>
       <div className="rp-container py-6 lg:py-8">
         <PageHeader
-          eyebrow={tr('Học nhóm')}
-          title={tr('Chọn Mentor đồng hành')}
-          description={tr('Xem hồ sơ Mentor, các lớp nhóm đang mở đăng ký và chọn cường độ phù hợp với lịch của bạn. Mỗi lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.')}
+          eyebrow={tr('Học cùng Giáo viên')}
+          title={tr('Chọn Giáo viên đồng hành')}
+          description={tr('Xem hồ sơ Giáo viên, các lớp nhóm đang mở đăng ký và chọn cường độ phù hợp với lịch của bạn. Mỗi lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.')}
         />
 
         <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
@@ -71,14 +71,14 @@ export default function MentorDirectory() {
 
         <RefreshingIndicator active={query.isFetching && !query.isPending} className="mb-3" />
         {query.isPending ? (
-          <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách cố vấn')} delay={160} />
+          <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách Giáo viên')} delay={160} />
         ) : query.isError ? (
           <ErrorState error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />
         ) : items.length === 0 ? (
           <EmptyState
             art="search"
-            title={search || level ? tr('Không tìm thấy Mentor phù hợp') : tr('Chưa có Mentor công khai')}
-            description={search || level ? tr('Thử bỏ bớt bộ lọc hoặc tìm bằng từ khóa khác.') : tr('Danh sách sẽ hiển thị khi Mentor được duyệt hồ sơ.')}
+            title={search || level ? tr('Không tìm thấy Giáo viên phù hợp') : tr('Chưa có Giáo viên công khai')}
+            description={search || level ? tr('Thử bỏ bớt bộ lọc hoặc tìm bằng từ khóa khác.') : tr('Danh sách sẽ hiển thị khi Giáo viên được duyệt hồ sơ.')}
           />
         ) : (
           <>
@@ -97,7 +97,7 @@ export default function MentorDirectory() {
                       <Avatar src={m.avatarUrl} name={m.name} size={48} />
                       <div className="min-w-0">
                         <p className="truncate text-[15px] font-bold text-rp-text">{m.name}</p>
-                        <p className="truncate text-xs text-rp-text-muted">{m.expertise || tr('Mentor tiếng Nhật')}</p>
+                        <p className="truncate text-xs text-rp-text-muted">{m.expertise || tr('Giáo viên tiếng Nhật')}</p>
                       </div>
                     </div>
                     {m.bio && <p className="mt-3 line-clamp-3 text-[13px] leading-6 text-rp-text-2">{m.bio}</p>}
@@ -120,7 +120,7 @@ export default function MentorDirectory() {
             </ul>
             {totalPages > 1 && (
               <div className="mt-6">
-                <Pagination currentPage={page} totalPages={totalPages} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} showPageSize={false} itemLabel="Mentor" variant="neutral" />
+                <Pagination currentPage={page} totalPages={totalPages} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} showPageSize={false} itemLabel={tr('Giáo viên')} variant="neutral" />
               </div>
             )}
           </>

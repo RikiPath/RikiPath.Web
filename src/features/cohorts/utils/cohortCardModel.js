@@ -51,7 +51,7 @@ export function cohortCardFacts(cohort) {
   const weeks = cohort.sessionsPerWeek ? Math.round(totalSessions / cohort.sessionsPerWeek) : null;
   return [
     ['Cấp độ JLPT', cohort.level || '—'],
-    ['Mentor', cohort.mentorName || '—'],
+    ['Giáo viên', cohort.mentorName || '—'],
     ['Lịch hằng tuần', schedulePatternText(cohort.schedulePattern, cohort.sessions)],
     ['Thời lượng buổi', cohort.sessionMinutes ? translateTemplate('{0} phút/buổi', { 0: cohort.sessionMinutes }) : '—'],
     ['Tổng số buổi', !totalSessions ? '—' : translateTemplate('{0} buổi{1}', { 0: totalSessions, 1: cohort.totalTeachingHours != null ? translateTemplate(' · {0} giờ', { 0: cohort.totalTeachingHours }) : '' })],

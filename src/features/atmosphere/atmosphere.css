@@ -86,7 +86,7 @@
   --color-rp-bg-2: #fbfaf9;
   --color-rp-muted: #f4f2f3;
   --color-rp-line: #e5e0e2;
-  --color-rp-brand-strong: #a1334e;
+  --color-rp-brand-strong: #b53d5c;
   --color-rp-brand-tint: #fff0f3;
   --color-rp-brand-border: #f8bbd0;
   color: var(--color-rp-text);
@@ -359,3 +359,18 @@
 /* Collapsed sidebar → icon-only brand (Brand marks itself data-collapsed). */
 .rp-header-brand:has(> a[data-collapsed='true']) { padding: 3px; }
 .rp-paper-bg[data-sky='off'] .rp-header-brand { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* The wordmark stays dark on its light pill even when the surrounding sky turns dark. */
+.rp-sky-header[data-sky='on'][data-sky-tone='dark'] .rp-header-brand {
+  --color-rp-text: #27232b;
+}
+/* The language popover uses the night palette throughout, including listbox options. */
+.rp-sky-header[data-sky='on'][data-sky-tone='dark'] .rp-lang-pop,
+.rp-sky-header[data-sky='on'][data-sky-tone='dark'] .rp-lang-pop [role='listbox'] {
+  --color-rp-text: #f6f3fb;
+  --color-rp-text-muted: #d8d1e6;
+  --color-rp-text-disabled: #b8b0c9;
+  --color-rp-brand-pressed: #ffd4e0;
+  --color-rp-brand-tint: rgba(255, 198, 212, 0.16);
+  --color-rp-line: rgba(255, 255, 255, 0.22);
+  --color-rp-surface: #27315a;
+}

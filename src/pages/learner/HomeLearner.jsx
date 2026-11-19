@@ -1,21 +1,26 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
+  BookCheck,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Clock,
   Flame,
   RefreshCw,
   Route,
   School,
   Target,
   UsersRound,
+  Video,
 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { FeatureLink } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { useLocale } from '@/locales/locale.js';
-import { courseGet } from '@/features/cohorts/api/cohortApi';
+import { useWorkspaceCalendar } from '@/features/calendar/hooks/useWorkspaceCalendar.js';
+import { displayCourseTitle, homeworkStatusMeta } from '@/features/calendar/utils/calendarEventsModel.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { getSession } from '@/app/auth/session.js';
 import { splitSrsQueue, weekBloomStates } from '@/features/dashboard/hooks/useLearnerHome.js';
 import { JapanScene, sceneForHour } from '@/assets/illustrations';
@@ -139,21 +144,16 @@ function StreakWeek({ days, activeToday }) {
 }
 
 function GroupLearningWidget() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const session = getSession();
-  const query = useQuery({
-    queryKey: ['learner-courses-summary', session?.userId],
-    queryFn: () => courseGet(),
-    enabled: Boolean(session?.accessToken && !session?.isPreview),
-    staleTime: 60_000,
-  });
+  const calendar = useWorkspaceCalendar({ roleKey: 'Learner', includeSrs: false });
 
   if (session?.isPreview) {
     return (
       <Card>
         <CardHeader
           icon={<FeatureIcon feature="group" size="sm" />}
-          title={tr('Học nhóm cùng Mentor')}
+          title={tr('Học nhóm cùng Giáo viên')}
           description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
         />
         <ContextualEmptyState compact icon={School} title={tr('Chế độ xem trước')} description={tr('Lớp học nhóm chỉ hiển thị với dữ liệu thật.')} />
@@ -161,68 +161,183 @@ function GroupLearningWidget() {
     );
   }
 
-  const cohortCoursesOf = (rows) =>
-    (Array.isArray(rows) ? rows : []).filter((c) => c.cohortId && c.status !== 'Cancelled');
+  const courses = calendar.courses.filter((c) => c.cohortId && c.status !== 'Cancelled' && c.status !== 'Transferred');
+  const { liveSessions, upcomingSessions, upcoming7DaysSessions, pendingHomeworks } = calendar.summary;
+  const nextSession = liveSessions[0] || upcomingSessions[0] || null;
+  const hwTotal = calendar.homeworks.length;
+  const showHomeworkCard =
+    !calendar.homeworksQuery.isPending &&
+    !calendar.homeworksQuery.isError &&
+    !calendar.coursesQuery.isError &&
+    (courses.length > 0 || hwTotal > 0);
 
-  const courses = cohortCoursesOf(query.data);
+  const syntheticQuery = {
+    isPending: calendar.coursesQuery.isPending,
+    isFetching: calendar.coursesQuery.isFetching,
+    isError: calendar.coursesQuery.isError,
+    error: calendar.coursesQuery.error || null,
+    refetch: calendar.refetchAll,
+    data: calendar.coursesQuery.data,
+  };
 
   return (
-    <OptionalDashboardWidget
-      name="HomeLearner.GroupLearningWidget"
-      query={query}
-      isAuthenticated={Boolean(session?.accessToken)}
-      isEmpty={(rows) => cohortCoursesOf(rows).length === 0}
-      emptyPolicy="cta"
-      errorPolicy="hide"
-      loadingContext="cohort"
-      empty={
-        <ContextualEmptyState
-          compact
-          context="groupLearning"
-          art="calendar"
-          action={
-            <Link to="/mentors/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press">
-              <UsersRound aria-hidden="true" className="h-4 w-4" /> {tr('Tìm Mentor')}
-            </Link>
-          }
-        />
-      }
-      wrap={(content) => (
-        <Card>
-          <CardHeader
-            icon={<FeatureIcon feature="group" size="sm" />}
-            title={tr('Học nhóm cùng Mentor')}
-            description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
-            actions={
-              <div className="flex items-center gap-2">
-                <RefreshingIndicator active={query.isFetching && !query.isPending} />
-                {courses.length > 0 && <Link to="/my-courses/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Xem tất cả')}</Link>}
+    <div className="space-y-4">
+      <OptionalDashboardWidget
+        name="HomeLearner.GroupLearningWidget"
+        query={syntheticQuery}
+        isAuthenticated={Boolean(session?.accessToken)}
+        isEmpty={(rows) =>
+          (Array.isArray(rows) ? rows : []).filter((c) => c.cohortId && c.status !== 'Cancelled' && c.status !== 'Transferred').length === 0
+        }
+        emptyPolicy="cta"
+        errorPolicy="hide"
+        loadingContext="cohort"
+        empty={
+          <ContextualEmptyState
+            compact
+            context="groupLearning"
+            art="calendar"
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Link to="/cohorts" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press">
+                  <School aria-hidden="true" className="h-4 w-4" /> {tr('Khám phá lớp')}
+                </Link>
+                <Link to="/mentors/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input border border-rp-line bg-rp-surface px-3 text-[13px] font-semibold text-rp-text hover:bg-rp-muted">
+                  <UsersRound aria-hidden="true" className="h-4 w-4" /> {tr('Tìm Giáo viên')}
+                </Link>
               </div>
             }
           />
-          {content}
+        }
+        wrap={(content) => (
+          <Card>
+            <CardHeader
+              icon={<FeatureIcon feature="group" size="sm" />}
+              title={tr('Học nhóm cùng Giáo viên')}
+              description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
+              actions={
+                <div className="flex items-center gap-2">
+                  <RefreshingIndicator active={calendar.isFetching && !calendar.isLoading} />
+                  <Link to="/calendar" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch học')}</Link>
+                  {courses.length > 0 && <Link to="/my-courses/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Tất cả')}</Link>}
+                </div>
+              }
+            />
+            {content}
+          </Card>
+        )}
+      >
+        {() => (
+          <div className="space-y-3">
+            {nextSession && (
+              <div className={cx(
+                'rounded-rp-input border p-3',
+                nextSession.canJoin ? 'border-[#99F6E4] bg-[#F0FDFA]' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
+              )}>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className={cx('font-bold uppercase tracking-wide', nextSession.canJoin ? 'text-[#0F766E]' : 'text-rp-brand-strong')}>
+                    {nextSession.canJoin ? tr('Phòng đang mở') : tr('Buổi sắp tới')}
+                  </span>
+                  <span className="flex items-center gap-1 text-rp-text-muted">
+                    <Clock className="h-3 w-3" /> {formatVnDateTime(nextSession.scheduledAt)}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-[13px] font-bold text-rp-text">{nextSession.title}</p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="truncate text-xs text-rp-text-muted">{nextSession.mentorName}</span>
+                  {nextSession.canJoin ? (
+                    <Link
+                      to={nextSession.roomHref}
+                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-[#0F766E] px-3 text-xs font-semibold text-white hover:bg-[#115E59]"
+                    >
+                      <Video className="h-3.5 w-3.5" /> {tr('Vào phòng')}
+                    </Link>
+                  ) : (
+                    <Link
+                      to={nextSession.secondaryHref || '/my-courses'}
+                      className="shrink-0 text-xs font-semibold rp-link"
+                    >
+                      {tr('Mở lớp')}
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <ul className="space-y-2">
+              {courses.slice(0, 3).map((c) => {
+                const s = COURSE_STATUS[c.status] || { tone: 'neutral', label: c.status };
+                const total = Array.isArray(c.sessions) ? c.sessions.length : 0;
+                const present = Array.isArray(c.sessions) ? c.sessions.filter((x) => x.status === 'Present').length : 0;
+                return (
+                  <li key={c.id}>
+                    <Link to={`/my-courses/${c.id}`} className="rp-focus rp-card-hover flex items-center gap-3 rounded-rp-input border border-rp-line px-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-rp-text">{displayCourseTitle(c, tr('Lớp học nhóm'))}</span>
+                        <span className="block text-xs text-rp-text-muted">
+                          {c.level || 'JLPT'}{c.mentorName ? ` · ${c.mentorName}` : ''}{total > 0 ? ` · ${present}/${total}` : ''}
+                        </span>
+                      </span>
+                      <Badge tone={s.tone} size="sm">{tr(s.label)}</Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="flex items-center justify-between border-t border-rp-line/80 pt-2.5 text-xs">
+              <Link to="/group-learning/progress" className="font-semibold rp-link">{tr('Tiến độ học nhóm')}</Link>
+              <Link to="/group-learning" className="font-semibold text-rp-text-muted hover:text-rp-brand-strong">{tr('Tổng quan nhóm')}</Link>
+            </div>
+          </div>
+        )}
+      </OptionalDashboardWidget>
+
+      {showHomeworkCard && (
+        <Card>
+          <CardHeader
+            icon={<FeatureIcon feature="writing" icon={BookCheck} size="sm" />}
+            title={tr('Bài tập & Lịch học tuần')}
+            description={
+              pendingHomeworks.length > 0
+                ? trf('{0} bài chưa nộp · {1} buổi trong 7 ngày tới', { 0: pendingHomeworks.length, 1: upcoming7DaysSessions.length })
+                : tr('Theo dõi hạn nộp bài tập và lịch buổi học')
+            }
+            actions={<Link to="/homework" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Bài tập')}</Link>}
+          />
+          {pendingHomeworks.length === 0 ? (
+            <div className="flex items-center justify-between gap-2 rounded-rp-input border border-rp-line bg-rp-bg-2/50 px-3 py-2.5 text-xs">
+              <span className="text-rp-text-muted">{tr('Bạn không có bài tập tồn đọng lúc này.')}</span>
+              <Link to="/calendar" className="inline-flex shrink-0 items-center gap-1 font-semibold rp-link">
+                <CalendarDays className="h-3.5 w-3.5" /> {tr('Xem lịch')}
+              </Link>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {pendingHomeworks.slice(0, 2).map((hw) => {
+                const meta = homeworkStatusMeta(hw, calendar.nowMs);
+                return (
+                  <li key={hw.id}>
+                    <Link
+                      to={hw.cohortId ? `/homework/?cohortId=${hw.cohortId}` : '/homework'}
+                      className="rp-focus rp-card-hover flex items-center justify-between gap-2.5 rounded-rp-input border border-rp-line px-3 py-2"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-rp-text">{hw.title}</span>
+                        <span className="block truncate text-[11px] text-rp-text-muted">
+                          {hw.dueAt ? formatVnDateTime(hw.dueAt) : tr('Chưa đặt hạn nộp')}
+                        </span>
+                      </span>
+                      <Badge tone={meta.tone} size="sm">{tr(meta.label)}</Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
       )}
-    >
-      {() => (
-        <ul className="space-y-2">
-          {courses.slice(0, 3).map((c) => {
-            const s = COURSE_STATUS[c.status] || { tone: 'neutral', label: c.status };
-            return (
-              <li key={c.id}>
-                <Link to="/my-courses/" className="rp-focus rp-card-hover flex items-center gap-3 rounded-rp-input border border-rp-line px-3 py-2.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-rp-text">{c.cohortName || c.name}</span>
-                    <span className="block text-xs text-rp-text-muted">{c.level || 'JLPT'}{c.mentorName ? ` · ${c.mentorName}` : ''}</span>
-                  </span>
-                  <Badge tone={s.tone} size="sm">{tr(s.label)}</Badge>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </OptionalDashboardWidget>
+    </div>
   );
 }
 

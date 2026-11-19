@@ -90,10 +90,11 @@ export function ShiftPreviewDetails({ preview }) {
 }
 
 // Hàng đợi yêu cầu dời lịch / hủy lớp trống: Admin xem kiểm tra điều kiện, xung đột rồi duyệt / từ chối.
-export default function AdminCohortScheduleRequestsPanel({ busy = false, onRun }) {
+export default function AdminCohortScheduleRequestsPanel({ busy = false, initialRequestId = null, onRun }) {
   const { trf, tr } = useLocale();
-  const [status, setStatus] = useState('Pending');
-  const [selectedId, setSelectedId] = useState(null);
+  const initialIdNum = initialRequestId ? Number(initialRequestId) : null;
+  const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
+  const [selectedId, setSelectedId] = useState(initialIdNum);
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState('');
   const [note, setNote] = useState('');
@@ -106,6 +107,13 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, onRun }
   const rows = Array.isArray(query.data) ? query.data : [];
 
   const selected = rows.find((r) => r.id === selectedId) || null;
+  const [previewedInitialId, setPreviewedInitialId] = useState(null);
+  if (selected && initialIdNum && selected.id === initialIdNum && previewedInitialId !== selected.id && selected.kind === 'ShiftWeeks' && selected.status === 'Pending') {
+    setPreviewedInitialId(selected.id);
+    getCohortShiftPreview(selected.cohortId, selected.shiftWeeks || 1)
+      .then(setPreview)
+      .catch((e) => setPreviewError(describeApiError(e).message));
+  }
 
   const choose = (row) => {
     setSelectedId(row.id);
@@ -133,7 +141,7 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, onRun }
         </select>
       </div>
       <p className="course-meta">
-        {tr('Mentor hoặc Admin gửi yêu cầu; chỉ Admin duyệt. Máy chủ kiểm tra lại toàn bộ điều kiện (học viên đã ghi danh, thanh toán đang chờ, xung đột lịch) khi duyệt.')}
+        {tr('Giáo viên hoặc Admin gửi yêu cầu; chỉ Admin duyệt. Máy chủ kiểm tra lại toàn bộ điều kiện (học viên đã ghi danh, thanh toán đang chờ, xung đột lịch) khi duyệt.')}
       </p>
       <SmartDataBoundary
         query={query}
@@ -160,7 +168,7 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, onRun }
                     <td>{r.requestedByRole}</td>
                     <td>{date(r.createdAtUtc)}</td>
                     <td>{tr(SCHEDULE_REQUEST_STATUS[r.status] || r.status)}</td>
-                    <td><button type="button" onClick={() => choose(r)}>Xem</button></td>
+                    <td><button type="button" onClick={() => choose(r)}>{tr('Xem')}</button></td>
                   </tr>
                 ))}
               </tbody>

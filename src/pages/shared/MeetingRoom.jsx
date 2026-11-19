@@ -116,7 +116,7 @@ function ParticipantTile({
             className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${isMentor ? 'bg-rp-brand/30 text-rp-brand border border-rp-brand/40' : 'bg-white/10 text-white/70'
               }`}
           >
-            {isMentor ? tr("Mentor") : 'Learner'}
+            {isMentor ? tr('Giáo viên') : 'Learner'}
           </span>
         </div>
 
@@ -239,7 +239,7 @@ export default function ConsultationRoom() {
   };
 
   const handleCopyInviteLink = () => {
-    const inviteUrl = `${window.location.origin}/consultation-room?roomId=${encodeURIComponent(roomId)}`;
+    const inviteUrl = `${window.location.origin}/meeting-room/${encodeURIComponent(roomId)}`;
     navigator.clipboard.writeText(inviteUrl);
     setCopiedLink(true);
     notify.success(tr('Đã sao chép liên kết phòng học.'), '', { key: 'meeting-copy-link' });
@@ -293,7 +293,7 @@ export default function ConsultationRoom() {
           <BrandMark className="h-12 w-[4.25rem]" />
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-bold text-white">{tr("Phòng học nhóm cùng cố vấn · JLPT N3")}</span>
+              <span className="truncate text-sm font-bold text-white">{tr("Phòng học nhóm cùng giáo viên · JLPT N3")}</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rp-brand/20 border border-rp-brand/40 text-rp-brand-soft">
                 {totalParticipantsCount} {tr('Người')}
               </span>
@@ -625,7 +625,7 @@ export default function ConsultationRoom() {
                 {chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-2">
                     <MessageSquare className="w-8 h-8 stroke-1" />
-                    <p className="text-xs">{tr("Chưa có tin nhắn trong phòng.")}<br />{tr("Hãy đặt câu hỏi cho cố vấn!")}</p>
+                    <p className="text-xs">{tr("Chưa có tin nhắn trong phòng.")}<br />{tr("Hãy đặt câu hỏi cho giáo viên!")}</p>
                   </div>
                 ) : (
                   chatMessages.map((msg) => (

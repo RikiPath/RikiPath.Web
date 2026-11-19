@@ -57,7 +57,7 @@ function getName(mentor) {
     mentor.name ||
     [mentor.lastName, mentor.firstName].filter(Boolean).join(' ') ||
     mentor.email ||
-    'Cố vấn'
+    'Giáo viên'
   );
 }
 
@@ -173,7 +173,7 @@ function Dialog({ titleId, onClose, children, wide = false }) {
         className={`flex max-h-[90vh] w-full flex-col
           overflow-hidden rounded-2xl bg-white
           shadow-[0_16px_60px_rgba(48,36,43,0.16)]
-          outline-none ${wide ? 'max-w-[820px]' : 'max-w-[460px]'}`}
+          outline-none ${wide ? 'max-w-[1160px]' : 'max-w-[520px]'}`}
       >
         {children}
       </section>
@@ -203,7 +203,7 @@ export default function AdminConsultants({ embedded = false }) {
   });
   const mentors = useMemo(() => mentorsQuery.data ?? [], [mentorsQuery.data]);
   const loading = mentorsQuery.isPending;
-  const error = mentorsQuery.isError ? 'Không thể tải danh sách cố vấn. Vui lòng thử lại.' : '';
+  const error = mentorsQuery.isError ? 'Không thể tải danh sách giáo viên. Vui lòng thử lại.' : '';
   const setMentors = useCallback((update) => {
     queryClient.setQueryData(ADMIN_MENTORS_KEY, (current = []) => (typeof update === 'function' ? update(current) : update));
   }, [queryClient]);
@@ -274,12 +274,12 @@ export default function AdminConsultants({ embedded = false }) {
 
       setShowCreate(false);
       setForm({ ...EMPTY_FORM });
-      setNotice('Đã thêm cố vấn.');
-      notify.success('Đã thêm cố vấn mới.', '', { key: 'admin-mentor-create' });
+      setNotice('Đã thêm giáo viên.');
+      notify.success('Đã thêm giáo viên mới.', '', { key: 'admin-mentor-create' });
       await loadMentors();
     } catch (err) {
-      setFormError('Không thể thêm cố vấn. Vui lòng kiểm tra thông tin và thử lại.');
-      notify.apiError(err, 'Không thể thêm cố vấn', { key: 'admin-mentor-create-err' });
+      setFormError('Không thể thêm giáo viên. Vui lòng kiểm tra thông tin và thử lại.');
+      notify.apiError(err, 'Không thể thêm giáo viên', { key: 'admin-mentor-create-err' });
     } finally {
       setSubmitting(false);
     }
@@ -321,12 +321,12 @@ export default function AdminConsultants({ embedded = false }) {
         isActive: nextActive,
       }));
       setConfirmStatus(false);
-      const msg = nextActive ? 'Đã kích hoạt cố vấn.' : 'Đã vô hiệu hóa cố vấn.';
+      const msg = nextActive ? 'Đã kích hoạt giáo viên.' : 'Đã vô hiệu hóa giáo viên.';
       setNotice(msg);
       notify.success(msg, '', { key: `admin-mentor-status-${detailMentor.id}` });
     } catch (err) {
       setDetailError(err.message || 'Không thể đổi trạng thái.');
-      notify.apiError(err, 'Không thể đổi trạng thái cố vấn', { key: 'admin-mentor-status-err' });
+      notify.apiError(err, 'Không thể đổi trạng thái giáo viên', { key: 'admin-mentor-status-err' });
     } finally {
       setChangingStatus(false);
     }
@@ -342,7 +342,7 @@ export default function AdminConsultants({ embedded = false }) {
           {!embedded && (
             <div>
               <h1 className="text-[25px] font-semibold tracking-tight">
-                {tr('Quản lý cố vấn')}
+                {tr('Quản lý giáo viên')}
               </h1>
               <p className="mt-1 text-[13px] text-rp-text-muted">
                 {tr('Hồ sơ và trạng thái tư vấn.')}
@@ -363,7 +363,7 @@ export default function AdminConsultants({ embedded = false }) {
                        hover:bg-rp-brand-deep rp-press"
           >
             <Plus size={17} />
-            {tr('Thêm cố vấn')}
+            {tr('Thêm giáo viên')}
           </button>
         </header>
 
@@ -386,7 +386,7 @@ export default function AdminConsultants({ embedded = false }) {
         )}
 
         <section
-          aria-label={tr('Danh sách cố vấn')}
+          aria-label={tr('Danh sách giáo viên')}
           className="overflow-hidden rounded-xl border
                      border-rp-line bg-white"
         >
@@ -400,7 +400,7 @@ export default function AdminConsultants({ embedded = false }) {
               ) : (
                 <>
                   <span className="font-medium text-rp-text-2">
-                   {trf('{0} cố vấn', { 0: mentors.length })}
+                   {trf('{0} giáo viên', { 0: mentors.length })}
                   </span>
                   <span className="mx-2 text-rp-text-muted">·</span>
                   {activeCount}{' '}{tr('đang hoạt động')}
@@ -417,7 +417,7 @@ export default function AdminConsultants({ embedded = false }) {
                 />
                 <input
                   type="search"
-                  aria-label={tr('Tìm cố vấn')}
+                  aria-label={tr('Tìm giáo viên')}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={tr('Tên, email, số điện thoại...')}
@@ -430,7 +430,7 @@ export default function AdminConsultants({ embedded = false }) {
               </div>
 
               <Select
-                aria-label={tr('Lọc trạng thái cố vấn')}
+                aria-label={tr('Lọc trạng thái giáo viên')}
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
                 className="!h-9 !w-auto !rounded-lg !px-3 !pr-8 !text-[12px]"
@@ -483,7 +483,7 @@ export default function AdminConsultants({ embedded = false }) {
                 <thead className="bg-rp-bg-2 text-[12px] text-rp-text-muted">
                   <tr>
                     <th scope="col" className="px-5 py-3 font-medium">
-                      {tr('Cố vấn')}
+                      {tr('Giáo viên')}
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
                       {tr('Số điện thoại')}
@@ -504,14 +504,14 @@ export default function AdminConsultants({ embedded = false }) {
                   {loading && mentors.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-8 text-center">
-                        <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách cố vấn')} className="min-h-[120px] py-4" delay={160} />
+                        <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách giáo viên')} className="min-h-[120px] py-4" delay={160} />
                       </td>
                     </tr>
                   ) : filteredMentors.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-12 text-center">
                         <p className="text-[14px] text-rp-text-2">
-                          {tr('Không có cố vấn phù hợp')}
+                          {tr('Không có giáo viên phù hợp')}
                         </p>
                         <p className="mt-1 text-[12px] text-rp-text-muted">
                           {tr('Thử thay đổi từ khóa hoặc bộ lọc.')}
@@ -619,7 +619,7 @@ export default function AdminConsultants({ embedded = false }) {
               className="border-t border-rp-line px-5 py-2.5
                          text-[12px] text-rp-text-muted"
             >
-             {trf('Hiển thị {0}/{1} cố vấn', { 0: filteredMentors.length, 1: mentors.length })}
+             {trf('Hiển thị {0}/{1} giáo viên', { 0: filteredMentors.length, 1: mentors.length })}
             </div>
           )}
         </section>
@@ -631,7 +631,7 @@ export default function AdminConsultants({ embedded = false }) {
                          border-b border-rp-line px-5 py-4"
             >
               <h2 id="add-mentor-title" className="text-[17px] font-semibold">
-                {tr('Thêm cố vấn')}
+                {tr('Thêm giáo viên')}
               </h2>
               <button
                 type="button"
@@ -733,7 +733,7 @@ export default function AdminConsultants({ embedded = false }) {
                              text-[13px] text-white hover:bg-rp-brand-deep
                              disabled:opacity-50 rp-press"
                 >
-                  {submitting ? tr('Đang thêm…') : tr('Thêm cố vấn')}
+                  {submitting ? tr('Đang thêm…') : tr('Thêm giáo viên')}
                 </button>
               </footer>
             </form>
@@ -747,7 +747,7 @@ export default function AdminConsultants({ embedded = false }) {
                          border-b border-rp-line px-5 py-4"
             >
               <h2 id="mentor-detail-title" className="text-[17px] font-semibold">
-                {tr('Thông tin cố vấn')}
+                {tr('Thông tin giáo viên')}
               </h2>
               <button
                 type="button"
@@ -807,8 +807,8 @@ export default function AdminConsultants({ embedded = false }) {
                   <div className="rounded-lg bg-rp-brand-tint p-3">
                     <p className="text-[13px] text-rp-text-2">
                       {detailMentor.isActive === false
-                        ? tr('Kích hoạt lại cố vấn này?')
-                        : tr('Vô hiệu hóa cố vấn này?')}
+                        ? tr('Kích hoạt lại giáo viên này?')
+                        : tr('Vô hiệu hóa giáo viên này?')}
                     </p>
                     <div className="mt-3 flex justify-end gap-2">
                       <button
@@ -839,8 +839,8 @@ export default function AdminConsultants({ embedded = false }) {
                       className="text-[12px] text-rp-brand-strong disabled:opacity-40"
                     >
                       {detailMentor.isActive === false
-                        ? tr('Kích hoạt cố vấn')
-                        : tr('Vô hiệu hóa cố vấn')}
+                        ? tr('Kích hoạt giáo viên')
+                        : tr('Vô hiệu hóa giáo viên')}
                     </button>
                     <button
                       type="button"
@@ -870,7 +870,7 @@ export default function AdminConsultants({ embedded = false }) {
   }
 
   return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Cố vấn')}>
+    <AdminShell pathname={pathname} breadcrumb={tr('Giáo viên')}>
       <main className="rp-container py-6 text-rp-text lg:py-8">
         {page}
       </main>

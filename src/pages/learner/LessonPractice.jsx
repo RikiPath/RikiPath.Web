@@ -16,6 +16,7 @@ import {
 import { notify } from '@/components/ui/feedbackStore.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { ContextualEmptyState, ContextualErrorState, SakuraLoader } from '@/components/ui';
+import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
 
 const focus =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
@@ -160,7 +161,7 @@ export default function LessonPractice() {
         )}
 
         {attempt && !result && (
-          <section className="mt-4 rounded-2xl border border-rp-line bg-white px-5 py-5">
+          <section data-notebook-ignore="true" className="mt-4 rounded-2xl border border-rp-line bg-white px-5 py-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[18px] font-semibold">{tr(attempt.title)}</h2>
               <button type="button" onClick={() => setAttempt(null)} className={`text-[12px] text-rp-text-muted ${focus}`}>{tr('Danh sách')}</button>
@@ -218,7 +219,15 @@ export default function LessonPractice() {
                   <p className={item.isCorrect ? 'text-rp-success' : 'text-rp-brand-strong'}>
                     {item.isCorrect == null ? tr('Câu tự luận đã lưu') : item.isCorrect ? tr('Đúng') : tr('Chưa đúng')}
                   </p>
-                  {item.explanation && <p className="mt-1 leading-6 text-rp-text-2">{item.explanation}</p>}
+                  {item.explanation && (
+                    <p className="mt-1 leading-6 text-rp-text-2">
+                      <HighlightableText
+                        text={item.explanation}
+                        contentId={`practice-exp-${item.questionId}`}
+                        sourceTitle={tr('Giải thích bài tập')}
+                      />
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

@@ -87,7 +87,7 @@ export default function AdminMentorScheduleCalendar({ mentorId, mentorName, emai
       statusLabel: label,
       tone,
       metaRows: [
-        { label: 'Cố vấn', value: mentorName },
+        { label: 'Giáo viên', value: mentorName },
         { label: 'Trạng thái', value: label },
         paid.length > 0 && { label: 'Học viên', value: learnerTitle || trf('{0} học viên', { 0: paid.length }) },
       ].filter(Boolean),
@@ -131,7 +131,7 @@ export default function AdminMentorScheduleCalendar({ mentorId, mentorName, emai
               <Table2 size={13} />{' '}{tr('Bảng ngày')}
             </button>
           </div>
-          <button type="button" disabled={query.isFetching} onClick={() => query.refetch()} className={button} aria-label={tr('Làm mới lịch cố vấn')}>
+          <button type="button" disabled={query.isFetching} onClick={() => query.refetch()} className={button} aria-label={tr('Làm mới lịch giáo viên')}>
             <RefreshCw size={14} className={query.isFetching ? 'animate-spin' : ''} />{' '}{tr('Làm mới')}
           </button>
         </div>
@@ -192,7 +192,7 @@ export default function AdminMentorScheduleCalendar({ mentorId, mentorName, emai
                   );
                 })}
                 {!daySlots.length && (
-                  <tr><td colSpan={3} className="p-6 text-center text-sm text-rp-text-muted">{tr('Ngày này chưa có khung giờ nào được xếp cho cố vấn.')}</td></tr>
+                  <tr><td colSpan={3} className="p-6 text-center text-sm text-rp-text-muted">{tr('Ngày này chưa có khung giờ nào được xếp cho giáo viên.')}</td></tr>
                 )}
               </tbody>
             </table>

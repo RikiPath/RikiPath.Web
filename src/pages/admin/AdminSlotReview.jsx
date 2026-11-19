@@ -109,7 +109,7 @@ export default function AdminSlotReview() {
 
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Duyệt khung giờ')}>
-      <main className="rp-container-reading rp-cq py-[var(--rp-space-page-y)] text-rp-text">
+      <main className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text">
         <h1 className="rp-type-page-title">{tr('Duyệt khung giờ')}</h1>
         <p className="rp-type-secondary mt-1 text-rp-text-muted">{tr('Khung giờ giảng dạy theo chính sách Admin chờ phê duyệt hoặc điều chỉnh.')}</p>
 
@@ -158,7 +158,7 @@ export default function AdminSlotReview() {
                 <input type="checkbox" className="mt-1" checked={picked.includes(row.id)} onChange={() => toggle(row.id)} />
               )}
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium">{row.mentorName || trf('Cố vấn #{0}', { 0: row.mentorId })}</span>
+                <span className="block text-[13px] font-medium">{row.mentorName || trf('Giáo viên #{0}', { 0: row.mentorId })}</span>
                 <span className="mt-0.5 block text-[12px] text-rp-text-muted">{when(row.startTime)} – {when(row.endTime)}</span>
                 {(row.cancelReason || row.changeRequestReason) && (
                   <span className="mt-1 block text-[12px] leading-5 text-rp-text-2">{row.cancelReason || row.changeRequestReason}</span>

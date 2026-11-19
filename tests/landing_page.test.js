@@ -127,9 +127,9 @@ describe('landing: motion safety', () => {
 
   it('hero photo is eager / high priority (LCP) and has a fixed aspect ratio (no CLS)', () => {
     const scene = readSrc('src/features/landing/components/HeroLearningScene.jsx');
-    // The stage reserves a fixed aspect box; the photo is the hero's full-bleed background (HomeLanding).
-    assert.match(scene, /aspect-\[4\/5\][^"]*aspect-\[6\/5\]/);
-    assert.match(readSrc('src/pages/marketing/HomeLanding.jsx'), /<HeroScenicSlideshow sizes="100vw"/);
+    // The scenic frame reserves a fixed aspect box; the slideshow fills only that frame (not the hero background).
+    assert.match(scene, /aspect-\[4\/5\][^"]*aspect-\[6\/5\][^"]*" \/>\s*<HeroScenicSlideshow className="absolute inset-0"/);
+    assert.doesNotMatch(readSrc('src/pages/marketing/HomeLanding.jsx'), /<HeroScenicSlideshow/);
     const slides = readSrc('src/features/landing/components/HeroScenicSlideshow.jsx');
     assert.match(slides, /\{ name: 'fuji'/); // first scene = fuji
     assert.match(slides, /priority=\{current === 0\}/); // first frame eager + high priority

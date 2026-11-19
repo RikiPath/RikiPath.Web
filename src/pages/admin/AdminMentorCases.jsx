@@ -1,21 +1,47 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
 import { AdminShell } from '@/layouts';
 import { describeApiError } from '@/api/apiErrors.js';
-import { notify } from '@/components/ui';
+import { Tabs, notify } from '@/components/ui';
 import AdminCohortComplaintsPanel from '@/features/complaints/components/AdminCohortComplaintsPanel.jsx';
 import AdminCohortScheduleRequestsPanel from '@/features/scheduling/components/AdminCohortScheduleRequestsPanel.jsx';
 import AdminCohortTransferQueuePanel from '@/features/cohorts/components/AdminCohortTransferQueuePanel.jsx';
 import '@/pages/shared/studyCourses.css';
 import { useLocale } from '@/locales/locale.js';
 
+const CASE_TABS = [
+  { id: 'complaints', label: 'Khiếu nại khóa học' },
+  { id: 'schedule', label: 'Yêu cầu dời/hủy lớp' },
+  { id: 'transfers', label: 'Yêu cầu chuyển lớp' },
+];
+
 export default function AdminMentorCases() {
   const { tr } = useLocale();
   const { pathname } = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+
+  const complaintIdParam = searchParams.get('complaintId');
+  const scheduleReqIdParam = searchParams.get('cohortScheduleRequestId');
+  const transferReqIdParam = searchParams.get('transferRequestId');
+  const rawTab = searchParams.get('tab');
+
+  const activeTab = CASE_TABS.some((t) => t.id === rawTab)
+    ? rawTab
+    : scheduleReqIdParam
+      ? 'schedule'
+      : transferReqIdParam
+        ? 'transfers'
+        : 'complaints';
+
+  function selectTab(nextTab) {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', nextTab);
+    setSearchParams(next, { replace: true });
+  }
 
   async function runAction(fn, message = 'Đã lưu thay đổi.') {
     if (busy) return;
@@ -44,7 +70,7 @@ export default function AdminMentorCases() {
             <p className="text-[11px] font-semibold tracking-[0.16em] text-rp-brand-strong">{tr('XỬ LÝ')}</p>
             <h1 className="mt-1 text-[26px] font-semibold tracking-tight">{tr('Khiếu nại, Dời lịch & Chuyển lớp nhóm')}</h1>
             <p className="mt-1.5 max-w-2xl text-[13px] leading-6 text-rp-text-muted">
-              {tr('Xét duyệt khiếu nại khóa học, yêu cầu dời lịch/hủy lớp trống của Mentor và yêu cầu chuyển lớp của học viên.')}
+              {tr('Xét duyệt khiếu nại khóa học, yêu cầu dời lịch/hủy lớp trống của Giáo viên và yêu cầu chuyển lớp của học viên.')}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -63,13 +89,28 @@ export default function AdminMentorCases() {
           </div>
         </header>
 
+        <div className="mb-4 rounded-2xl border border-rp-line bg-white p-2.5 shadow-rp-xs">
+          <Tabs
+            value={activeTab}
+            onChange={selectTab}
+            label={tr('Phân loại yêu cầu lớp nhóm')}
+            tabs={CASE_TABS.map((t) => ({ value: t.id, label: tr(t.label) }))}
+          />
+        </div>
+
         {error && <p role="alert" className="mb-4 rounded-xl bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">{error}</p>}
         {notice && <p role="status" className="mb-4 rounded-xl bg-rp-success-bg px-4 py-3 text-[13px] text-rp-success">{notice}</p>}
 
-        <div className="course-page space-y-5" style={{ padding: 0 }}>
-          <AdminCohortComplaintsPanel busy={busy} onRun={runAction} />
-          <AdminCohortScheduleRequestsPanel busy={busy} onRun={runAction} />
-          <AdminCohortTransferQueuePanel busy={busy} onRun={runAction} />
+        <div className="course-page" style={{ padding: 0 }}>
+          {activeTab === 'complaints' && (
+            <AdminCohortComplaintsPanel busy={busy} initialComplaintId={complaintIdParam} onRun={runAction} />
+          )}
+          {activeTab === 'schedule' && (
+            <AdminCohortScheduleRequestsPanel busy={busy} initialRequestId={scheduleReqIdParam} onRun={runAction} />
+          )}
+          {activeTab === 'transfers' && (
+            <AdminCohortTransferQueuePanel busy={busy} initialTransferId={transferReqIdParam} onRun={runAction} />
+          )}
         </div>
       </div>
     </AdminShell>

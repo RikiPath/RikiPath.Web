@@ -33,13 +33,13 @@ function Checks({ checks }) {
 function CohortCard({ cohort, selected, onSelect }) {
   const { tr, trf } = useLocale();
   return (
-    <article className="course-box" style={{ borderColor: selected ? '#ad3155' : undefined }}>
+    <article className="course-box" style={{ borderColor: selected ? 'var(--color-rp-brand-pressed, #cc4b6b)' : undefined }}>
       <span className="course-badge">{cohort.level}</span>{' '}
       <span className={`course-badge ${cohort.seatsAvailable > 0 ? 'ok' : 'muted'}`}>
         {trf('{0}/{1} học viên · còn {2} chỗ', { 0: cohort.enrolledCount, 1: cohort.capacity, 2: cohort.seatsAvailable })}
       </span>
       <h3 style={{ marginTop: 8 }}>{cohort.name}</h3>
-      <p className="course-meta">{trf('Mentor: {0} · Khai giảng {1} · Khóa đăng ký {2}', { 0: cohort.mentorName, 1: date(cohort.startsAt), 2: date(cohort.enrollmentClosesAtUtc) })}</p>
+      <p className="course-meta">{trf('Giáo viên: {0} · Khai giảng {1} · Khóa đăng ký {2}', { 0: cohort.mentorName, 1: date(cohort.startsAt), 2: date(cohort.enrollmentClosesAtUtc) })}</p>
       <details>
         <summary>{trf('Lịch {0} buổi', { 0: cohort.sessions.length })}</summary>
         <ul>{cohort.sessions.map((s) => <li key={s.number} className="course-meta">{trf('Buổi {0}: {1}', { 0: s.number, 1: date(s.startTime) })}</li>)}</ul>
@@ -54,10 +54,11 @@ function CohortCard({ cohort, selected, onSelect }) {
 }
 
 // Hàng đợi yêu cầu chuyển lớp: xem chi tiết, tiến độ, lớp đích (sức chứa/lịch) và duyệt/từ chối.
-export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
+export default function AdminCohortTransferQueuePanel({ busy, initialTransferId = null, onRun }) {
   const { tr, trf } = useLocale();
-  const [status, setStatus] = useState('Pending');
-  const [selectedId, setSelectedId] = useState(null);
+  const initialIdNum = initialTransferId ? Number(initialTransferId) : null;
+  const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
+  const [selectedId, setSelectedId] = useState(initialIdNum);
   const [detail, setDetail] = useState(null);
   const [targetId, setTargetId] = useState(null);
   const [eligibility, setEligibility] = useState(null);
@@ -83,6 +84,12 @@ export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
       })
       .catch((e) => setError(describeApiError(e).message));
 
+  const [loadedInitialId, setLoadedInitialId] = useState(null);
+  if (initialIdNum && loadedInitialId !== initialIdNum) {
+    setLoadedInitialId(initialIdNum);
+    loadDetail(initialIdNum);
+  }
+
   const choose = (cohortId) => {
     setTargetId(cohortId);
     setEligibility(null);
@@ -104,7 +111,7 @@ export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
         </select>
       </div>
       <p className="course-meta">
-        {tr('Học viên không thể tự đổi lớp hoặc Mentor. Máy chủ kiểm tra lại toàn bộ điều kiện khi duyệt; chuyển vào lớp đã khai giảng chưa được hỗ trợ.')}
+        {tr('Học viên không thể tự đổi lớp hoặc Giáo viên. Máy chủ kiểm tra lại toàn bộ điều kiện khi duyệt; chuyển vào lớp đã khai giảng chưa được hỗ trợ.')}
       </p>
       {error && <p role="alert" className="course-error">{error}</p>}
       <SmartDataBoundary

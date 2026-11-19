@@ -302,7 +302,7 @@ export default function ExamN3() {
               <Link className={buttonClass} to="/roadmap/#self-study-roadmap-title">{tr('Xem lộ trình tự học')}</Link>
               <Link className="text-sm font-semibold text-rp-brand-strong underline"
                 to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}>{tr('Tự ôn với audio')}</Link>
-              <Link className="text-sm font-semibold text-rp-brand-strong underline" to="/mentors/">{tr('Tìm lớp nhóm cùng Mentor')}</Link>
+              <Link className="text-sm font-semibold text-rp-brand-strong underline" to="/mentors/">{tr('Tìm lớp nhóm cùng Giáo viên')}</Link>
             </>}
             {canRetake && <button type="button" className="text-sm font-semibold text-rp-brand-strong underline" disabled={pending} onClick={() => start(true)}>
               {trf('Làm lại bài đánh giá {0}', { 0: resultTarget })}

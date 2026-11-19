@@ -11,8 +11,8 @@ import { useLocale } from '@/locales/locale.js';
 const SECTIONS = [
   {
     to: '/admin/mentors',
-    label: 'Hồ sơ Mentor',
-    note: 'Danh sách và trạng thái Mentor.',
+    label: 'Hồ sơ Giáo viên',
+    note: 'Danh sách và trạng thái Giáo viên.',
     paths: ['/admin/mentors', '/admin/consultants'],
     icon: UsersRound,
     tone: 'bg-tone-mentor-bg text-tone-mentor',
@@ -28,7 +28,7 @@ const SECTIONS = [
   {
     to: '/admin/mentor-schedules',
     label: 'Duyệt lịch dạy',
-    note: 'Khung giờ dạy lớp nhóm của Mentor.',
+    note: 'Khung giờ dạy lớp nhóm của Giáo viên.',
     paths: ['/admin/mentor-schedules'],
     icon: CalendarCheck,
     tone: 'bg-tone-calendar-bg text-tone-calendar',
@@ -65,11 +65,11 @@ export default function AdminMentorHub() {
   const groupPolicy = current === '/admin/mentor-group-policy';
 
   return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Quản lý Mentor')}>
+    <AdminShell pathname={pathname} breadcrumb={tr('Quản lý Giáo viên')}>
       <div className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text">
         <header className="mb-[var(--rp-space-stack)]">
           <h1 className="rp-type-page-title">
-            {tr('Quản lý Mentor')}
+            {tr('Quản lý Giáo viên')}
           </h1>
           <p className="rp-type-body mt-1 text-rp-text-2">
             {tr('Hồ sơ xét duyệt, lịch dạy lớp nhóm, phân quyền giảng dạy JLPT N5–N2 và chính sách lớp nhóm.')}
@@ -77,7 +77,7 @@ export default function AdminMentorHub() {
         </header>
 
         <nav
-          aria-label={tr('Mục quản lý cố vấn')}
+          aria-label={tr('Mục quản lý giáo viên')}
           className="mb-[var(--rp-space-section)] grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
         >
           {SECTIONS.map((section) => {

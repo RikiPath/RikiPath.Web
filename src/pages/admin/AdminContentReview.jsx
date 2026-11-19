@@ -231,10 +231,10 @@ function FieldRow({ f }) {
     return (
       <tr className="bg-amber-50/70">
         <td className="py-2 pl-4 pr-3 align-top text-[12px] font-semibold text-rp-text-2 whitespace-nowrap w-32">{displayLabel}</td>
-        <td className="py-2 pr-3 align-top text-[12px] text-rp-text break-all max-w-[160px]">
+        <td className="py-2 pr-3 align-top text-[12px] text-rp-text break-all min-w-[160px] max-w-md">
           {f.oldValue != null ? <span className="line-through text-rose-400">{f.oldValue}</span> : <span className="italic text-rp-text-muted">—</span>}
         </td>
-        <td className="py-2 pr-4 align-top text-[12px] font-medium text-emerald-700 break-words max-w-[200px]">
+        <td className="py-2 pr-4 align-top text-[12px] font-medium text-emerald-700 break-words min-w-[180px] max-w-md">
           {f.newValue ?? <span className="italic text-rp-text-muted">—</span>}
         </td>
       </tr>

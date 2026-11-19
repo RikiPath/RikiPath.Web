@@ -39,8 +39,8 @@ export const ERROR_MESSAGES = Object.freeze({
   COHORT_ALREADY_STARTED: 'Lớp đã khai giảng nên không thể dời hoặc hủy.',
   COHORT_SCHEDULE_REQUEST_REASON_REQUIRED: 'Vui lòng nhập lý do cho yêu cầu.',
   // Đánh giá Mentor
-  COHORT_REVIEW_NOT_ELIGIBLE: 'Bạn chỉ có thể đánh giá Mentor đã trực tiếp dạy bạn trong khóa học này.',
-  COHORT_REVIEW_DUPLICATE: 'Bạn đã đánh giá Mentor này cho khóa học. Bạn có thể chỉnh sửa đánh giá đã gửi.',
+  COHORT_REVIEW_NOT_ELIGIBLE: 'Bạn chỉ có thể đánh giá Giáo viên đã trực tiếp dạy bạn trong khóa học này.',
+  COHORT_REVIEW_DUPLICATE: 'Bạn đã đánh giá Giáo viên này cho khóa học. Bạn có thể chỉnh sửa đánh giá đã gửi.',
   // Gói tự học & lượt AI
   SELF_STUDY_PACKAGE_REQUIRED: 'Tính năng này yêu cầu Gói tự học đang hiệu lực. Vào mục Gói tự học để kích hoạt.',
   WRITING_PACKAGE_REQUIRED: 'Nhận dạng chữ viết tay từ ảnh yêu cầu Gói tự học hoặc Gói luyện viết.',

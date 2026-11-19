@@ -18,7 +18,7 @@ const safeError = error => error?.status === 409
   : error?.status === 401 || error?.status === 403
     ? 'Bạn không có quyền truy cập hồ sơ này.'
     : 'Không thể xử lý hồ sơ. Vui lòng thử lại.';
-const fullName = row => row?.fullName?.trim() || [row?.firstName, row?.lastName].filter(Boolean).join(' ') || 'Cố vấn chưa cập nhật tên';
+const fullName = row => row?.fullName?.trim() || [row?.firstName, row?.lastName].filter(Boolean).join(' ') || 'Giáo viên chưa cập nhật tên';
 
 export default function AdminMentorVerifications() {
   const { trf, tr } = useLocale();
@@ -44,7 +44,7 @@ export default function AdminMentorVerifications() {
     enabled: Boolean(selectedId),
   });
   useEffect(() => {
-    const onNew = () => { setToast('Hồ sơ cố vấn vừa được cập nhật.'); queryClient.invalidateQueries({ queryKey: ['admin-mentor-verifications'] }); if (selectedId) queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] }); };
+    const onNew = () => { setToast('Hồ sơ giáo viên vừa được cập nhật.'); queryClient.invalidateQueries({ queryKey: ['admin-mentor-verifications'] }); if (selectedId) queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] }); };
     window.addEventListener('rikipath:mentor-verification', onNew);
     return () => window.removeEventListener('rikipath:mentor-verification', onNew);
   }, [queryClient, selectedId]);
@@ -77,7 +77,7 @@ export default function AdminMentorVerifications() {
     }),
     onSuccess: () => {
       setNotice('Đã lưu quyết định xét duyệt.');
-      notify.success('Đã lưu quyết định xét duyệt hồ sơ Mentor.', '', { key: `admin-mentor-verify-${selectedId}` });
+      notify.success('Đã lưu quyết định xét duyệt hồ sơ Giáo viên.', '', { key: `admin-mentor-verify-${selectedId}` });
       setDecision(''); setReason('');
       queryClient.invalidateQueries({ queryKey: ['admin-mentor-verifications'] });
       queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] });
@@ -89,11 +89,11 @@ export default function AdminMentorVerifications() {
     },
   });
 
-  return <div className="grid gap-5 lg:grid-cols-[minmax(min(100%,280px),0.9fr)_minmax(0,1.1fr)]" data-page="AdminMentorVerifications">
+  return <div className="grid gap-5 lg:grid-cols-[minmax(min(100%,280px),0.9fr)_minmax(0,1.1fr)]" data-page="AdminGiáo viênVerifications">
     <section className={card}>
       <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">{tr('Hồ sơ xét duyệt')}</h2><button type="button" onClick={() => listQuery.refetch()} className="text-sm text-rp-brand-strong">{tr('Làm mới')}</button></div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <input aria-label={tr('Tìm cố vấn')} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={tr('Tìm tên, email, chuyên môn')} className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm" />
+        <input aria-label={tr('Tìm giáo viên')} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={tr('Tìm tên, email, chuyên môn')} className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm" />
         <select aria-label={tr('Lọc trạng thái')} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} className="rounded-lg border px-2 py-2 text-sm">
           <option value="All">{tr('Tất cả')}</option>{filters.map(value => <option key={value} value={value}>{labels[value]}</option>)}
         </select>
@@ -121,7 +121,7 @@ export default function AdminMentorVerifications() {
       {filtered.length > pageSize && <div className="mt-4 flex items-center justify-between text-sm"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>{tr('Trước')}</button><span>Trang {page}/{Math.ceil(filtered.length / pageSize)}</span><button type="button" disabled={page * pageSize >= filtered.length} onClick={() => setPage(page + 1)}>Sau</button></div>}
     </section>
     <section className={card}>
-      <h2 className="font-semibold">{tr('Chi tiết hồ sơ cố vấn')}</h2>
+      <h2 className="font-semibold">{tr('Chi tiết hồ sơ giáo viên')}</h2>
       {!selectedId && <p className="mt-4 text-sm text-rp-text-muted">{tr('Chọn một hồ sơ để xem và xét duyệt.')}</p>}
       {selectedId && detailQuery.isPending && <SakuraLoader variant="section" context="profile" label={tr('Đang tải chi tiết')} delay={160} className="mt-4" />}
       {selectedId && detailQuery.isError && !detail && (
@@ -166,13 +166,13 @@ export default function AdminMentorVerifications() {
                 {documentUrl?.isPdf ? (
                   <iframe
                     src={currentDocumentUrl}
-                    title={tr('Tài liệu chứng chỉ cố vấn')}
+                    title={tr('Tài liệu chứng chỉ giáo viên')}
                     className="h-64 w-full rounded border-0"
                   />
                 ) : (
                   <img
                     src={currentDocumentUrl}
-                    alt={tr('Tài liệu chứng chỉ cố vấn')}
+                    alt={tr('Tài liệu chứng chỉ giáo viên')}
                     className="max-h-56 min-h-16 w-auto rounded object-contain"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
@@ -189,7 +189,7 @@ export default function AdminMentorVerifications() {
             </p>
           )}
           <div className="flex flex-wrap gap-2">{[['Approve', 'Phê duyệt'], ['Reject', 'Từ chối'], ['RequestChanges', 'Yêu cầu bổ sung']].map(([value, label]) => <button type="button" key={value} disabled={value === 'Approve' && !currentDocumentUrl} onClick={() => { setDecision(value); setReason(''); }} className={`rounded-lg px-3.5 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${decision === value ? 'bg-rp-brand-strong text-white' : 'border border-rp-line bg-white hover:bg-rp-brand-tint'}`}>{tr(label)}</button>)}</div>
-          {decision && <div role="dialog" aria-label={tr('Xác nhận xét duyệt')} className="mt-4 rounded-xl bg-rp-bg-2 p-4"><p className="text-sm font-semibold">{tr('Xác nhận')}{' '}{decision === 'Approve' ? tr('phê duyệt') : decision === 'Reject' ? tr('từ chối') : tr('yêu cầu bổ sung')}{' '}{tr('hồ sơ?')}</p>{decision !== 'Approve' && <textarea aria-label={tr('Lý do hoặc nội dung cần bổ sung')} value={reason} onChange={e => setReason(e.target.value)} maxLength={1000} rows={3} className="mt-3 w-full rounded-lg border p-2 text-sm" placeholder={tr('Nhập nội dung gửi cho cố vấn')} />}<div className="mt-3 flex gap-2"><button type="button" disabled={review.isPending || (decision !== 'Approve' && !reason.trim())} onClick={() => review.mutate()} className="rounded-lg bg-rp-brand-strong px-3 py-2 text-sm text-white disabled:opacity-50 rp-press">{review.isPending ? tr('Đang xử lý…') : tr('Xác nhận')}</button><button type="button" disabled={review.isPending} onClick={() => setDecision('')} className="rounded-lg border px-3 py-2 text-sm">{tr('Đóng')}</button></div></div>}
+          {decision && <div role="dialog" aria-label={tr('Xác nhận xét duyệt')} className="mt-4 rounded-xl bg-rp-bg-2 p-4"><p className="text-sm font-semibold">{tr('Xác nhận')}{' '}{decision === 'Approve' ? tr('phê duyệt') : decision === 'Reject' ? tr('từ chối') : tr('yêu cầu bổ sung')}{' '}{tr('hồ sơ?')}</p>{decision !== 'Approve' && <textarea aria-label={tr('Lý do hoặc nội dung cần bổ sung')} value={reason} onChange={e => setReason(e.target.value)} maxLength={1000} rows={3} className="mt-3 w-full rounded-lg border p-2 text-sm" placeholder={tr('Nhập nội dung gửi cho giáo viên')} />}<div className="mt-3 flex gap-2"><button type="button" disabled={review.isPending || (decision !== 'Approve' && !reason.trim())} onClick={() => review.mutate()} className="rounded-lg bg-rp-brand-strong px-3 py-2 text-sm text-white disabled:opacity-50 rp-press">{review.isPending ? tr('Đang xử lý…') : tr('Xác nhận')}</button><button type="button" disabled={review.isPending} onClick={() => setDecision('')} className="rounded-lg border px-3 py-2 text-sm">{tr('Đóng')}</button></div></div>}
         </div>}
         {notice && <p role="status" className="mt-4 text-sm text-[#397653]">{notice}</p>}
         {review.isError && <p role="alert" className="mt-4 text-sm text-red-700">{safeError(review.error)}</p>}

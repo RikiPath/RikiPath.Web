@@ -8,6 +8,7 @@ import { useLocale } from '@/locales/locale.js';
 import { getSession } from '@/app/auth/session.js';
 import { bookmarkVocabulary, createNotebookList, getNotebookLists } from '@/features/notebook/api/notebookApi.js';
 import { getVocabulary, searchVocabulary } from '@/features/content-author/api/sharedBankApi.js';
+import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
 
 export default function VocabWordDetail() {
   const { tr } = useLocale();
@@ -106,12 +107,24 @@ export default function VocabWordDetail() {
               <div className="space-y-5 px-6 py-5">
                 <section>
                   <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Nghĩa')}</h2>
-                  <p className="mt-1.5 text-[17px] leading-7 text-rp-text">{word.meaning}</p>
+                  <p className="mt-1.5 text-[17px] leading-7 text-rp-text">
+                    <HighlightableText
+                      text={word.meaning}
+                      contentId={`vocab-${word.id}-meaning`}
+                      sourceTitle={word.word}
+                    />
+                  </p>
                 </section>
                 {word.exampleSentence && (
                   <section>
                     <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Ví dụ')}</h2>
-                    <p lang="ja" className="rp-jp mt-1.5 rounded-rp-input border-l-4 border-tone-vocab bg-rp-bg-2 px-4 py-3 text-[16px] leading-8 text-rp-text">{word.exampleSentence}</p>
+                    <p lang="ja" className="rp-jp mt-1.5 rounded-rp-input border-l-4 border-tone-vocab bg-rp-bg-2 px-4 py-3 text-[16px] leading-8 text-rp-text">
+                      <HighlightableText
+                        text={word.exampleSentence}
+                        contentId={`vocab-${word.id}-example`}
+                        sourceTitle={word.word}
+                      />
+                    </p>
                   </section>
                 )}
                 <div className="flex flex-wrap gap-2 border-t border-rp-line pt-4">

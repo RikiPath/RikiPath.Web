@@ -67,7 +67,7 @@ const FOOTER_COLUMNS = [
   {
     title: 'Học cùng người thật',
     links: [
-      { to: '/#group-learning', label: 'Học nhóm cùng Mentor' },
+      { to: '/#group-learning', label: 'Học nhóm cùng Giáo viên' },
       { to: '/about', label: 'RikiPath là gì?' },
       { to: '/#faq', label: 'Câu hỏi thường gặp' },
     ],
@@ -149,7 +149,7 @@ export default function PublicShell({ children }) {
               <BrandMark className="h-10 w-12" />
               <span className="text-lg font-extrabold">Riki<span className="text-rp-brand">Path</span></span>
             </Link>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-rp-text-2">{tr('Nền tảng học tiếng Nhật và luyện thi JLPT N5–N2: tự học theo lộ trình, thi thử, học nhóm cùng Mentor và góp ý từ Haru AI.')}</p>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-rp-text-2">{tr('Nền tảng học tiếng Nhật và luyện thi JLPT N5–N2: tự học theo lộ trình, thi thử, học nhóm cùng Giáo viên và góp ý từ Haru AI.')}</p>
             <p lang="ja" className="rp-kanji mt-4 text-[13px] tracking-[0.2em] text-rp-brand-pressed/80">一歩ずつ、確かに。</p>
           </div>
           {FOOTER_COLUMNS.map((col) => (

@@ -8,6 +8,7 @@ import { notify } from '@/components/ui/feedbackStore.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { ContextualErrorState, SakuraLoader } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
 
 const focus =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
@@ -325,7 +326,15 @@ export default function LessonPlayer() {
                 <div>
                   <p className="text-[12px] text-rp-brand-strong">{lesson.levelCode}</p>
                   <h1 className="mt-1 text-[26px] font-medium leading-tight">{tr(lesson.title)}</h1>
-                  {lesson.content && <p className="mt-2 max-w-2xl text-[13px] leading-6 text-rp-text-muted">{lesson.content}</p>}
+                  {lesson.content && (
+                    <p className="mt-2 max-w-2xl text-[13px] leading-6 text-rp-text-muted">
+                      <HighlightableText
+                        text={lesson.content}
+                        contentId={`lesson-player-${lesson.lessonId}-intro`}
+                        sourceTitle={tr(lesson.title)}
+                      />
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                 <Link

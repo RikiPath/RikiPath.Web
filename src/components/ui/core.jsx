@@ -93,6 +93,23 @@ export const IconButton = forwardRef(function IconButton(
   );
 });
 
+/** Shared red corner tag badge for top-bar circular icon controls (Language Globe, Smart Calendar, Notifications). */
+export function HeaderIconBadge({ children, pulse = false, className }) {
+  if (children == null || children === false) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        'pointer-events-none absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#E5383B] px-1 text-[10px] font-bold leading-none text-white shadow-[0_2px_6px_-1px_rgba(229,56,59,0.55)]',
+        pulse && 'rp-bell-badge-ping',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 /* ------------------------------------------------------------------ Card */
 
 export function Card({ as: Tag = 'section', density, className, padded = true, children, ...rest }) {

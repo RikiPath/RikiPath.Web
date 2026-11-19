@@ -14,7 +14,7 @@ function PageControls({ label, page, total, change }) {
       onClick={() => change(page - 1)}>{tr('Trước')}</button>
     <span>{tr(label)} {page + 1}/{total}</span>
     <button type="button" className={buttonClass} aria-label={label + ' sau'} disabled={page + 1 >= total}
-      onClick={() => change(page + 1)}>Sau</button>
+      onClick={() => change(page + 1)}>{tr('Sau')}</button>
   </div>;
 }
 

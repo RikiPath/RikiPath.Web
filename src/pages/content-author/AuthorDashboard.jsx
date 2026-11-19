@@ -96,10 +96,10 @@ export default function AuthorDashboard() {
 
   const tabs = [
     { value: 'all', label: 'Tất cả', count: groups.length },
+    { value: 'Draft', label: 'Bản nháp', count: count('Draft') },
     { value: 'PendingReview', label: 'Chờ duyệt', count: count('PendingReview') },
     { value: 'Rejected', label: 'Bị từ chối', count: count('Rejected') },
     { value: 'Approved', label: 'Đã duyệt', count: count('Approved') },
-    ...(count('Draft') ? [{ value: 'Draft', label: 'Bản nháp', count: count('Draft') }] : []),
   ];
 
   return (
@@ -213,7 +213,17 @@ export default function AuthorDashboard() {
                                 <span className="text-xs text-rp-text-muted">{tr(TYPE[row.entityType] || row.entityType)}</span>
                                 {row.reviewNote && <span className="mt-1 block text-xs text-rp-danger">{row.reviewNote}</span>}
                               </span>
-                              <Badge tone={rs.tone} size="sm">{tr(rs.label)}</Badge>
+                              <span className="flex shrink-0 items-center gap-2">
+                                {row.status === 'Draft' && (
+                                  <Link
+                                    to={`/content-manual/?type=${encodeURIComponent(row.entityType || 'Lesson')}`}
+                                    className="rp-focus rounded-lg border border-rp-line bg-white px-2.5 py-1 text-xs font-semibold text-rp-brand-strong hover:bg-rp-brand-tint"
+                                  >
+                                    {tr('Sửa & gửi duyệt')}
+                                  </Link>
+                                )}
+                                <Badge tone={rs.tone} size="sm">{tr(rs.label)}</Badge>
+                              </span>
                             </li>
                           );
                         })}

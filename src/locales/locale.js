@@ -189,7 +189,6 @@ const ui = {
     'Kết quả thi': '試験結果',
     'Hỗ trợ': 'サポート',
     'Trợ lý Haru': 'Haruアシスタント',
-    'Tư vấn Mentor': 'メンター相談',
     'Tin nhắn': 'メッセージ',
     'Cài đặt tài khoản': 'アカウント設定',
     'Tài khoản của tôi': 'マイアカウント',
@@ -209,7 +208,7 @@ const ui = {
     'Tin nhắn 1–1': '個別メッセージ',
     'Sổ từ': '単語帳',
     'Kết quả': '結果',
-    'Cố vấn ôn tập': '学習アドバイザー',
+    'Giáo viên ôn tập': '学習を支える教師',
     'Sổ tay Hán tự': '漢字ノート',
     'Cài đặt': '設定',
     'Ôn SRS': 'SRS復習',
@@ -339,7 +338,7 @@ const ui = {
     'Duy trì ôn tập': '復習を続ける',
     'Xen kẽ luyện đề với ôn lại nội dung đã lưu để việc ôn tập có trọng tâm.': '問題演習と保存した内容の復習を交互に行い、重点を絞って学習する。',
     'Cần hướng dẫn thêm?': 'もっと案内が必要ですか？',
-    'Trao đổi cùng Mentor': 'メンターに相談する',
+    'Trao đổi cùng Giáo viên': '教師に相談する',
     'Xem chặng tiếp': '次のステップ',
     'Kanji': '漢字',
     'Hán Việt': '漢越',
@@ -469,7 +468,7 @@ const ui = {
     'Nhắc ôn tập đến hạn': '復習期限の通知',
     'Nhắc ôn từ vựng và Hán tự đã lưu.': '保存した語彙と漢字の復習を知らせます。',
     'Nhắc lịch tư vấn': '相談予定の通知',
-    'Thông báo trước buổi tư vấn với Mentor.': 'メンターとの相談の前にお知らせします。',
+    'Thông báo trước buổi tư vấn với Giáo viên.': '教師との相談の前にお知らせします。',
     'Chưa kết nối': '未接続',
     'Tùy chọn thông báo cần được kết nối với hệ thống trước khi có thể bật hoặc tắt.': '通知のオン・オフには、システムへの接続が必要です。',
     'Chưa có thông tin': '情報はまだありません',
@@ -562,13 +561,13 @@ const ui = {
     'Xem lại hướng ôn của bạn': '自分の復習方針を見直す',
     'Kết quả làm bài': '解答結果',
     'Xem lại những lần luyện trước': 'これまでの練習を見直す',
-    'Trao đổi với mentor': 'メンターに相談',
+    'Trao đổi với giáo viên': '教師に相談',
     'Khi bạn cần thêm hướng dẫn': 'もっと案内が必要なとき',
     'Chưa có giá': '価格はまだありません',
     'Gói tư vấn': '相談プラン',
     'Giá trọn gói': 'プラン料金',
     'Mua gói này': 'このプランを購入',
-    'Tư vấn cùng Mentor': 'メンターと相談',
+    'Tư vấn cùng Giáo viên': '教師と相談',
     'Mua gói để cộng lượt, rồi chọn lịch. Mỗi tiết dùng 1 lượt.': 'プランを買って回数を追加し、日程を選びます。1コマにつき1回使います。',
     'Đã có lượt, chọn lịch': '回数があるので日程を選ぶ',
     'Chọn gói': 'プランを選ぶ',
@@ -584,21 +583,21 @@ const ui = {
     'giờ Việt Nam': 'ベトナム時間',
     'Chi tiết': '詳細',
     'Gói / số lượt còn lại': 'プラン / 残り回数',
-    'Chat với mentor': 'メンターとチャット',
+    'Chat với giáo viên': '教師とチャット',
     'Link phòng họp': '会議室リンク',
     'Đang hủy…': 'キャンセル中…',
     'Hủy buổi': 'この回をキャンセル',
     'Chưa có buổi tư vấn': '相談の予約はまだありません',
     'Buổi đã đặt sẽ hiện ở đây.': '予約した回はここに表示されます。',
     'Đặt lịch video 1–1': '1対1ビデオを予約',
-    'Chọn mentor, ngày và giờ phù hợp với lịch của bạn.': '自分の予定に合うメンター、日、時間を選びます。',
+    'Chọn giáo viên, ngày và giờ phù hợp với lịch của bạn.': '自分の予定に合う教師、日、時間を選びます。',
     'Chuyên gia': 'メンター',
-    'Đang tải danh sách mentor…': 'メンター一覧を読み込み中…',
-    'Chưa có mentor.': 'メンターはまだいません。',
+    'Đang tải danh sách giáo viên…': '教師一覧を読み込み中…',
+    'Chưa có giáo viên.': '教師はまだいません。',
     'Chọn để xem lịch trống.': '選ぶと空き日程を見られます。',
     'Ngày rảnh · 89 ngày tới': '空き日 · 今後89日',
     'Làm mới lịch': '予定を更新',
-    'Chọn mentor để xem lịch.': 'メンターを選ぶと予定が見られます。',
+    'Chọn giáo viên để xem lịch.': '教師を選ぶと予定が見られます。',
     'Đang chọn': '選択中',
     'Sẵn sàng': '空き',
     'Chủ đề buổi học': '授業のテーマ',
@@ -606,8 +605,9 @@ const ui = {
     'Tài liệu (tuỳ chọn)': '資料（任意）',
     'Link Drive, bài mock test…': 'Driveのリンク、模試…',
     'Tóm tắt lịch hẹn': '予約の概要',
-    'Chưa chọn mentor': 'メンター未選択',
-    'Mentor': 'メンター',
+    'Chưa chọn Giáo viên': '教師未選択',
+    'Mentor': '教師',
+    'Giáo viên': '教師',
     'Thời gian': '時間',
     'Chưa chọn khung giờ': '時間未選択',
     'Nền tảng': '形式',
@@ -622,11 +622,11 @@ const ui = {
     'Vào đúng giờ theo khung lịch đã chọn.': '選んだ時間どおりに入室する。',
     'Chưa chọn ngày': '日が未選択',
     'Về lịch của tôi': '自分の予定へ',
-    'Chưa phân công mentor': 'メンター未割当',
+    'Chưa phân công giáo viên': '教師未割当',
     'Bắt đầu': '開始',
     'Kết thúc': '終了',
     'Chưa gửi câu hỏi.': '質問はまだ送られていません。',
-    'Tin nhắn với mentor': 'メンターへのメッセージ',
+    'Tin nhắn với giáo viên': '教師へのメッセージ',
     'Vào phòng họp': '会議室に入る',
     'Trạng thái thanh toán': '支払い状況',
     'Không tìm thấy buổi này trong tài khoản của bạn.': 'この回はあなたのアカウントに見つかりません。',
@@ -712,9 +712,16 @@ const ui = {
 
 export function translateText(text, locale = readLocale()) {
   if (!text || typeof text !== 'string' || locale === 'vi') return text;
-  if (ui[locale]?.[text]) return ui[locale][text];
+  const legacyKey = text.replaceAll('Giáo viên', 'Mentor').replaceAll('giáo viên', 'cố vấn');
+  const uiTranslation = ui[locale]?.[text] || (legacyKey !== text ? ui[locale]?.[legacyKey] : null);
+  if (uiTranslation) return locale === 'ja' ? uiTranslation.replaceAll('メンター', '教師') : uiTranslation;
   if (locale === 'ja') {
-    for (const dict of JA_DICTIONARIES) if (dict[text]) return dict[text];
+    // Giữ bản dịch của nhãn cũ khi UI chuyển sang “Giáo viên”; không đổi role/API
+    // hoặc biến nội dung người dùng tự nhập thành một nhãn hệ thống.
+    for (const dict of JA_DICTIONARIES) {
+      const translated = dict[text] || (legacyKey !== text ? dict[legacyKey] : null);
+      if (translated) return translated.replaceAll('メンター', '教師');
+    }
     return extraTr(locale, text);
   }
   return text;

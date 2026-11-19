@@ -36,5 +36,5 @@ export function isAiDraftUnavailable(info) {
 export function aiDraftNotice(result) {
   return result?.available === false
     ? translateTemplate('AI chưa tạo được gợi ý: {0}. Bạn vẫn có thể chấm trực tiếp.', { 0: result.reason || 'dịch vụ tạm thời gián đoạn' })
-    : 'Đã cập nhật gợi ý nháp AI cho Mentor.';
+    : 'Đã cập nhật gợi ý nháp AI cho Giáo viên.';
 }

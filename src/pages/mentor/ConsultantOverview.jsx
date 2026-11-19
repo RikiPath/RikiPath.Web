@@ -263,7 +263,7 @@ export default function ConsultantOverview() {
                           </Link>
                         )}
                         <Link
-                          to={next.cohortId ? `/mentor-study-courses/?cohortId=${next.cohortId}` : '/mentor-study-courses/'}
+                          to={next.cohortId ? `/mentor-study-courses/${next.cohortId}/` : '/mentor-study-courses/'}
                           className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press"
                         >
                           {tr('Mở lớp phụ trách')}{' '}<ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -304,7 +304,7 @@ export default function ConsultantOverview() {
                               <p className="truncate font-semibold text-rp-text">{trf('{0} · Buổi {1}', { 0: p.cohortName, 1: p.number })}</p>
                               <p className="truncate text-[11.5px] text-rp-text-muted">{p.learnerName} · {formatVnDateTime(new Date(p.at).toISOString())}</p>
                             </div>
-                            <Link to="/mentor-study-courses/" className="rp-link shrink-0 font-semibold">
+                            <Link to={p.cohortId ? `/mentor-study-courses/${p.cohortId}/?section=attendance` : '/mentor-study-courses/'} className="rp-link shrink-0 font-semibold">
                               {tr('Chốt ngay')}
                             </Link>
                           </li>
@@ -349,7 +349,7 @@ export default function ConsultantOverview() {
                       {cohortSummary.map((ch) => (
                         <Link
                           key={ch.cohortId}
-                          to={`/mentor-study-courses/?cohortId=${ch.cohortId}`}
+                          to={`/mentor-study-courses/${ch.cohortId}/`}
                           className="rp-card-hover block rounded-xl border border-rp-line bg-white p-3.5 transition hover:border-rp-brand-border"
                         >
                           <div className="flex items-center justify-between gap-2">

@@ -105,7 +105,7 @@ export default function ChangePassword() {
       className="flex min-h-dvh items-center justify-center bg-rp-brand-tint px-[var(--rp-space-page-x)] py-[var(--rp-space-page-y)] text-rp-text"
     >
       <main className="grid w-full max-w-[960px] overflow-hidden rounded-[24px] border border-rp-line bg-white shadow-[0_12px_48px_rgba(75,42,55,0.06)] lg:grid-cols-[0.82fr_1.18fr]">
-        <aside className="relative flex flex-col overflow-hidden bg-rp-brand-strong p-[var(--rp-space-card-pad)] text-white lg:p-9">
+        <aside className="relative flex flex-col overflow-hidden bg-gradient-to-br from-[#C84666] via-[#B53D5C] to-[#9E3350] p-[var(--rp-space-card-pad)] text-white lg:p-9">
           <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/[0.07]" />
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full border border-white/[0.07]" />
 

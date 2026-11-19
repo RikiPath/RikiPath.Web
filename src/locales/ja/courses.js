@@ -139,7 +139,7 @@ export const jaCourses = {
   'Tìm theo tên hoặc chuyên môn…': '名前または専門分野で検索…',
   'Trình độ giảng dạy': '指導レベル',
   'Mọi trình độ': 'すべてのレベル',
-  'Đang tải danh sách cố vấn': 'メンター一覧を読み込み中',
+  'Đang tải danh sách giáo viên': '教師一覧を読み込み中',
   'Không tìm thấy Mentor phù hợp': '条件に合うメンターが見つかりません',
   'Chưa có Mentor công khai': '公開中のメンターはいません',
   'Thử bỏ bớt bộ lọc hoặc tìm bằng từ khóa khác.': '絞り込みを減らすか、別のキーワードで検索してください。',

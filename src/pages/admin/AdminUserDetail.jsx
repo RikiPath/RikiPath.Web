@@ -11,7 +11,7 @@ import { useLocale, currentIntlTag } from '@/locales/locale.js';
 const ROLES = [
   ['Learner', 'Người ôn luyện'],
   ['ContentAuthor', 'Biên tập viên'],
-  ['Mentor', 'Cố vấn'],
+  ['Mentor', 'Giáo viên'],
   ['Admin', 'Quản trị viên'],
 ];
 

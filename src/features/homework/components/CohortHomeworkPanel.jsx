@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useNow } from '@/hooks/useNow.js';
 import {
   createCohortHomework,
   generateHomeworkAiDraft,
@@ -23,6 +25,7 @@ const scopeLabel = (scope) => (scope === 'CohortCommon' ? 'Giao chung cả lớp
 export default function CohortHomeworkPanel({
   cohortId,
   cohortName = '',
+  cohortMap = null,
   coursesInCohort = [],
   items = [],
   role = 'Learner',
@@ -30,6 +33,7 @@ export default function CohortHomeworkPanel({
   onRun,
 }) {
   const { tr, trf } = useLocale();
+  const nowMs = useNow();
   const isMentor = role === 'Mentor';
   const isLearner = role === 'Learner';
   const [scopeMode, setScopeMode] = useState('common');
@@ -123,6 +127,9 @@ export default function CohortHomeworkPanel({
         <p className="course-meta" style={{ marginTop: 12 }}>{tr('Chưa có bài tập nhóm nào được giao.')}</p>
       ) : (
         items.map((item) => {
+          const cohortMeta = item.cohortId && cohortMap ? cohortMap.get(item.cohortId) : null;
+          const resolvedCohortName = cohortMeta?.name || item.cohortName || cohortName;
+          const resolvedCourseId = item.studyCourseId || cohortMeta?.courseId;
           const textDraft = drafts[item.id]?.text ?? (item.submission?.textContent || '');
           const fileDraft = drafts[item.id]?.file ?? null;
           const gradeDraft = gradeInputs[item.id] ?? {
@@ -131,16 +138,34 @@ export default function CohortHomeworkPanel({
             feedback: item.publishedGrade?.feedback ?? item.aiDraft?.feedback ?? '',
           };
           const canLearnerSubmit = isLearner && item.status !== 'Graded';
+          const dueMs = item.dueAt ? new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(item.dueAt) ? item.dueAt : `${item.dueAt}Z`).getTime() : null;
+          const isOverdue = Boolean(dueMs && dueMs < nowMs && item.status === 'Assigned');
+          const attachedExercises = Array.isArray(item.exercises) ? item.exercises : [];
+          const unfinishedExercises = attachedExercises.filter((ex) => ex.bestScorePercent == null && ex.completed !== true);
+          const hasUnfinishedExercises = isLearner && unfinishedExercises.length > 0;
+          const hasSubmissionPayload = Boolean(textDraft.trim() || fileDraft || item.submission?.hasScan || (attachedExercises.length > 0 && !hasUnfinishedExercises));
           const fileError = validateHomeworkScanFile(fileDraft);
           const gradeCheck = buildGradePayload(gradeDraft);
 
           return (
             <article className="course-row" key={item.id}>
               <div className="course-buttons" style={{ justifyContent: 'space-between' }}>
-                <div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {resolvedCohortName && (
+                    resolvedCourseId && isLearner ? (
+                      <Link
+                        to={`/my-courses/${resolvedCourseId}?section=homework`}
+                        className="course-badge rp-underline"
+                      >
+                        {resolvedCohortName}
+                      </Link>
+                    ) : (
+                      <span className="course-badge">{resolvedCohortName}</span>
+                    )
+                  )}
                   <span className="course-badge">{scopeLabel(item.assignmentScope)}</span>{' '}
-                  <span className={`course-badge ${item.status === 'Graded' ? 'ok' : item.status === 'Submitted' ? 'warn' : 'muted'}`}>
-                    {item.status === 'Graded' ? tr('Đã chấm') : item.status === 'Submitted' ? tr('Đã nộp') : tr('Chưa nộp')}
+                  <span className={`course-badge ${item.status === 'Graded' ? 'ok' : item.status === 'Submitted' ? 'warn' : isOverdue ? 'bad' : 'muted'}`}>
+                    {item.status === 'Graded' ? tr('Đã chấm') : item.status === 'Submitted' ? tr('Đã nộp') : isOverdue ? tr('Chưa nộp · Quá hạn') : tr('Chưa nộp')}
                   </span>
                 </div>
                 <span className="course-meta">
@@ -176,7 +201,7 @@ export default function CohortHomeworkPanel({
               {item.publishedGrade && (
                 <div className="course-notice" style={{ marginTop: 10 }}>
                   <strong>
-                    {tr('Kết quả Mentor:')}{' '}{item.publishedGrade.passed ? tr('Đạt') : tr('Chưa đạt')}
+                    {tr('Kết quả Giáo viên:')}{' '}{item.publishedGrade.passed ? tr('Đạt') : tr('Chưa đạt')}
                     {item.publishedGrade.score != null ? ` · ${item.publishedGrade.score}/100` : ''}
                   </strong>
                   <p className="course-pre">{item.publishedGrade.feedback}</p>
@@ -203,7 +228,7 @@ export default function CohortHomeworkPanel({
                 >
                   <fieldset disabled={busy}>
                     <label className="course-field" style={{ flexBasis: '100%' }}>
-                      <span>{item.submission ? tr('Chỉnh sửa câu trả lời (trước khi Mentor chấm)') : tr('Nội dung bài làm')}</span>
+                      <span>{item.submission ? tr('Chỉnh sửa câu trả lời (trước khi Giáo viên chấm)') : tr('Nội dung bài làm')}</span>
                       <textarea
                         maxLength={20000}
                         value={textDraft}
@@ -255,10 +280,18 @@ export default function CohortHomeworkPanel({
                     <button
                       className="course-primary"
                       type="submit"
-                      disabled={busy || Boolean(fileError) || (!textDraft.trim() && !fileDraft)}
+                      disabled={busy || Boolean(fileError) || hasUnfinishedExercises || !hasSubmissionPayload}
                     >
                       {item.submission ? tr('Cập nhật bài nộp') : tr('Nộp bài')}
                     </button>
+                    {hasUnfinishedExercises && (
+                      <p className="course-error" role="status">
+                        {trf('Cần hoàn thành {0}/{1} bài luyện tập đính kèm trước khi nộp bài.', {
+                          0: unfinishedExercises.length,
+                          1: attachedExercises.length,
+                        })}
+                      </p>
+                    )}
                     {fileError && <p className="course-error" role="alert">{fileError}</p>}
                   </fieldset>
                 </form>
@@ -274,7 +307,7 @@ export default function CohortHomeworkPanel({
                         onRun(() => generateHomeworkAiDraft(item.id), aiDraftNotice)
                       }
                     >
-                      {tr('Tạo nháp gợi ý AI (chỉ Mentor xem)')}
+                      {tr('Tạo nháp gợi ý AI (chỉ Giáo viên xem)')}
                     </button>
                     {item.aiDraft?.unavailableReason && (
                       <span className="course-badge warn">{item.aiDraft.unavailableReason}</span>

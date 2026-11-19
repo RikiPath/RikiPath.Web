@@ -1,5 +1,6 @@
 // 日本語 — public landing page (HomeLanding, HeroLearningScene, LandingSections, landingContent.js).
 export const jaLanding = {
+  'Lộ trình theo cấp độ, ôn tập lặp ngắt quãng, đề thi thử có tính giờ và lớp nhóm nhỏ cùng Giáo viên — trong một nền tảng, đồng bộ giữa Web và ứng dụng RikiPath.': 'レベル別のロードマップ、間隔反復の復習、時間制限つきの模擬試験、教師との少人数グループレッスン。すべてを一つのプラットフォームで、Webとアプリの間で同期します。',
   // Hero
   'Học tiếng Nhật bài bản,': '日本語を、しっかり体系的に。',
   'Lộ trình theo cấp độ, ôn tập lặp ngắt quãng, đề thi thử có tính giờ và lớp nhóm nhỏ cùng Mentor — trong một nền tảng, đồng bộ giữa Web và ứng dụng RikiPath.': 'レベル別のロードマップ、間隔反復の復習、時間制限つきの模擬試験、メンターとの少人数グループレッスン。すべてを一つのプラットフォームで、Webとアプリの間で同期します。',

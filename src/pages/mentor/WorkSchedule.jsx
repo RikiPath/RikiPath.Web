@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SakuraCalendar from '@/features/scheduling/components/SakuraCalendar.jsx';
 import {
   buildWeekDays,
+  formatCleanCohortTitle,
   mondayOfDateKey,
   toVnDateKey,
   toVnTimeParts,
@@ -16,7 +17,7 @@ import { api } from '@/api/client.js';
 import { courseGet, getCohorts } from '@/features/cohorts/api/cohortApi.js';
 import { deleteMentorAvailability, requestSlotChange } from '@/features/scheduling/api/mentorScheduleApi.js';
 import { describeApiError } from '@/api/apiErrors.js';
-import { ContextualEmptyState, ContextualErrorState, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { ContextualErrorState, Modal, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { formatVnDateTime as bookingTime, parseUtcDate as bookingDate } from '@/utils/vnDateTime.js';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
@@ -181,20 +182,29 @@ export default function WorkSchedule() {
           const end = toVnTimeParts(slot.endTime);
           const pendingCancel = slot.cancelRequestedAt && !slot.cancelRejectedAt;
           const pendingChange = slot.changeRequestedAt && !slot.changeResolution;
-          const tone = slot.rejectedAt
+          const ended = (bookingDate(slot.endTime)?.getTime() || 0) <= nowMs;
+          const tone = slot.isDeleted
             ? 'cancelled'
-            : (pendingCancel || pendingChange || !slot.isApproved)
-              ? 'pending'
-              : slot.isBooked ? 'booked' : slot.publishedAt ? 'open' : 'approved';
-          const statusLabel = slot.rejectedAt
-            ? 'Bị từ chối'
-            : pendingCancel
-              ? 'Chờ duyệt hủy'
-              : pendingChange
-                ? 'Chờ duyệt điều chỉnh'
-                : !slot.isApproved
-                  ? 'Chờ Admin duyệt'
-                  : slot.isBooked ? 'Đã xếp lớp' : slot.publishedAt ? 'Đã công bố' : 'Đã duyệt';
+            : slot.rejectedAt
+              ? 'rejected'
+              : (pendingCancel || pendingChange || !slot.isApproved)
+                ? 'pending'
+                : ended
+                  ? 'present'
+                  : slot.isBooked ? 'booked' : slot.publishedAt ? 'open' : 'approved';
+          const statusLabel = slot.isDeleted
+            ? 'Đã hủy'
+            : slot.rejectedAt
+              ? 'Bị từ chối'
+              : pendingCancel
+                ? 'Chờ duyệt hủy'
+                : pendingChange
+                  ? 'Chờ duyệt điều chỉnh'
+                  : !slot.isApproved
+                    ? 'Chờ Admin duyệt'
+                    : ended
+                      ? 'Đã hoàn thành'
+                      : slot.isBooked ? 'Đã xếp lớp' : slot.publishedAt ? 'Đã công bố' : 'Đã duyệt';
           return {
             id: `slot-${slot.id}`,
             rawSlot: slot,
@@ -218,6 +228,7 @@ export default function WorkSchedule() {
           ? 'present'
           : booking.status === 'CancelledByMentor' ? 'cancelled' : 'session';
         const cohortTitle = (booking.cohortId && cohortNameById.get(booking.cohortId)) || booking.planName || 'Lớp nhóm';
+        const cleanTitle = formatCleanCohortTitle(cohortTitle, booking.sessionNumber);
         const learnersLabel = (booking.learnerNames || []).join(', ');
         return {
           id: `booking-${booking.id}`,
@@ -226,12 +237,13 @@ export default function WorkSchedule() {
           startMinute: start.minute,
           endHour: end.hour,
           endMinute: end.minute,
-          title: trf('{0} · Buổi {1}', { 0: cohortTitle, 1: booking.sessionNumber }),
-          detail: learnersLabel ? trf('Học viên: {0}', { 0: learnersLabel }) : undefined,
+          title: cleanTitle,
+          fullTitle: trf('{0} · Buổi {1}', { 0: cohortTitle, 1: booking.sessionNumber }),
+          detail: learnersLabel ? trf('HV: {0}', { 0: learnersLabel }) : undefined,
           tone: sessionTone,
-          href: roomMatch ? `/meeting-room/${roomMatch[1]}` : (booking.cohortId ? `/mentor-study-courses/?cohortId=${booking.cohortId}` : '/mentor-study-courses/'),
+          href: roomMatch ? `/meeting-room/${roomMatch[1]}` : (booking.cohortId ? `/mentor-study-courses/${booking.cohortId}/` : '/mentor-study-courses/'),
           hrefLabel: roomMatch ? 'Vào phòng học chung' : 'Mở lớp phụ trách',
-          secondaryHref: booking.cohortId ? `/mentor-study-courses/?cohortId=${booking.cohortId}` : '/mentor-study-courses/',
+          secondaryHref: booking.cohortId ? `/mentor-study-courses/${booking.cohortId}/` : '/mentor-study-courses/',
           metaRows: [
             { label: 'Lớp nhóm', value: cohortTitle },
             learnersLabel && { label: 'Học viên', value: learnersLabel },
@@ -248,22 +260,22 @@ export default function WorkSchedule() {
     <MentorShell pathname={pathname} breadcrumb={tr('Lịch làm việc')}>
       <div
         data-page="WorkSchedule"
-        className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text"
+        className="rp-container rp-cq pt-2.5 pb-1.5 text-rp-text space-y-2"
       >
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <header className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="rp-type-page-title">{tr('Lịch làm việc')}</h1>
-            <p className="rp-type-secondary mt-1.5 text-rp-text-muted">
-              {tr('Buổi đã đặt và khung giờ bạn đã mở. Giờ Việt Nam.')}
+            <h1 className="text-[20px] font-bold tracking-tight text-rp-text">{tr('Lịch làm việc')}</h1>
+            <p className="text-[12.5px] text-rp-text-muted">
+              {tr('Theo dõi buổi dạy đã xếp lớp và các khung giờ đã mở theo chế độ Lịch hoặc Danh sách.')}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <RefreshingIndicator active={(query.isFetching || assigned.isFetching) && !query.isPending && !assigned.isPending} />
             <Link
-              to="/mentor-availability"
-              className={`inline-flex h-9 items-center rounded-lg border border-rp-line bg-white px-3 text-[12px] text-rp-text-2 hover:bg-rp-brand-tint ${focusClass}`}
+              to="/mentor-shift-schedule/"
+              className={`inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong ${focusClass}`}
             >
-              {tr('Đăng ký buổi rảnh')}
+              {tr('Đăng ký lịch dạy')}
             </Link>
           </div>
         </header>
@@ -340,7 +352,7 @@ export default function WorkSchedule() {
                   <button
                     type="button"
                     onClick={() => { close(); setChangeId(slot.id); setChangeReason(''); setSlotNotice(''); }}
-                    className="h-9 rounded-xl bg-rp-brand-strong px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-deep"
+                    className="h-9 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong"
                   >
                     {tr('Xin đổi / hủy tiết')}
                   </button>
@@ -350,101 +362,47 @@ export default function WorkSchedule() {
           }}
         />
 
-        <section className="mt-4 overflow-hidden rounded-2xl border border-rp-line bg-white">
-          <h2 className="border-b border-rp-line px-4 py-2.5 text-[13px] font-medium text-rp-text-2">
-            {tr('Khung giờ trong tuần')}
-          </h2>
-          {(assigned.data || [])
-            .filter((slot) => weekKeys.has(dayKey(slot.startTime)))
-            .map((slot) => {
-              const started = new Date(slot.startTime).getTime() <= nowMs;
-              return (
-                <div key={slot.id} className="border-b border-rp-line px-4 py-3 last:border-b-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[13px] font-medium">
-                        {dayLabel(slot.startTime)} · {slotClock(slot.startTime)}–{slotClock(slot.endTime)}
-                      </p>
-                      <p className="mt-0.5 text-[12px] text-rp-text-muted">
-                        {slot.isBooked ? tr('Đã xếp lớp') : tr('Khung trống')}
-                        {slot.changeRequestedAt ? tr(' · Đã xin đổi, chờ quản trị') : ''}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {!slot.isBooked && !slot.bookedCount && (
-                        <button
-                          type="button"
-                          disabled={removeSlot.isPending}
-                          onClick={() => { setSlotNotice(''); removeSlot.mutate(slot.id); }}
-                          className={`h-8 rounded-lg border border-rp-line px-3 text-[12px] disabled:opacity-50 ${focusClass}`}
-                        >
-                          {tr('Xóa')}
-                        </button>
-                      )}
-                      {!started && !slot.changeRequestedAt && (
-                        <button
-                          type="button"
-                          onClick={() => { setChangeId(slot.id); setChangeReason(''); setSlotNotice(''); }}
-                          className={`h-8 rounded-lg bg-rp-brand-strong px-3 text-[12px] text-white ${focusClass}`}
-                        >
-                          {tr('Xin đổi')}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {changeId === slot.id && (
-                    <form
-                      className="mt-3 flex flex-wrap items-end gap-2"
-                      onSubmit={(event) => { event.preventDefault(); askChange.mutate(); }}
-                    >
-                      <label className="min-w-0 flex-1 basis-[200px] text-[12px] text-rp-text-2">
-                        {tr('Lý do')}
-                        <input
-                          required
-                          maxLength={1000}
-                          value={changeReason}
-                          onChange={(event) => setChangeReason(event.target.value)}
-                          className="mt-1 h-9 w-full rounded-lg border border-rp-line px-3 text-[13px]"
-                        />
-                      </label>
-                      <button type="submit" disabled={askChange.isPending || !changeReason.trim()} className="h-9 rounded-lg bg-rp-brand-strong px-3 text-[12px] text-white disabled:opacity-50 rp-press">
-                        {askChange.isPending ? tr('Đang gửi…') : tr('Gửi')}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              );
-            })}
-          {(assigned.data || []).filter((slot) => weekKeys.has(dayKey(slot.startTime))).length === 0 && !assigned.isError && (
-            <ContextualEmptyState
-              compact
-              title={tr('Tuần này chưa có khung giờ đã mở.')}
-              description={tr('Bấm Đăng ký buổi rảnh nếu bạn muốn mở thêm lịch dạy cho tuần này.')}
-            />
-          )}
-        </section>
-
-        {later.length > 0 ? (
-          <section className="mt-4 overflow-hidden rounded-2xl border border-rp-line bg-white">
-            <h2 className="border-b border-rp-line px-4 py-2.5 text-[13px] font-medium text-rp-text-2">
-             {trf('Lịch khác trong tháng {0}', { 0: monthLabel })}
-            </h2>
-            {later.map(([day, items]) => (
-              <div key={day} className="border-b border-rp-line px-4 py-3 last:border-b-0">
-                <p className="text-[12px] capitalize text-rp-text-muted">{dayLabel(items[0].scheduledAt)}</p>
-                {items.map((booking) => (
-                  <Link
-                    key={booking.id}
-                    to={booking.cohortId ? `/mentor-study-courses/?cohortId=${booking.cohortId}` : '/mentor-study-courses/'}
-                    className={`mt-1 block text-[13px] text-rp-text hover:text-rp-brand-strong ${focusClass} rounded`}
-                  >
-                    {((booking.cohortId && cohortNameById.get(booking.cohortId)) || booking.planName || tr('Lớp nhóm'))}{booking.learnerNames?.length ? ` · ${booking.learnerNames.join(', ')}` : (booking.learnerName ? ` · ${booking.learnerName}` : '')} · {bookingTime(booking.scheduledAt)}
-                  </Link>
-                ))}
+        {changeId != null && (
+          <Modal
+            open={changeId != null}
+            onClose={() => { setChangeId(null); setChangeReason(''); }}
+            title={tr('Yêu cầu điều chỉnh hoặc hủy khung giờ')}
+            size="sm"
+          >
+            <form
+              className="space-y-4"
+              onSubmit={(event) => { event.preventDefault(); askChange.mutate(); }}
+            >
+              <label className="block text-[12.5px] font-medium text-rp-text-2">
+                {tr('Lý do gửi quản trị viên')}
+                <input
+                  required
+                  maxLength={1000}
+                  value={changeReason}
+                  onChange={(event) => setChangeReason(event.target.value)}
+                  placeholder={tr('Nhập lý do cần điều chỉnh hoặc hủy tiết…')}
+                  className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px]"
+                />
+              </label>
+              <div className="flex justify-end gap-2 border-t border-rp-line pt-3">
+                <button
+                  type="button"
+                  onClick={() => { setChangeId(null); setChangeReason(''); }}
+                  className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3.5 text-[12.5px] font-semibold text-rp-text-2 hover:bg-rp-bg-2"
+                >
+                  {tr('Hủy')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={askChange.isPending || !changeReason.trim()}
+                  className="inline-flex h-9 items-center rounded-xl bg-rp-brand-pressed px-4 text-[12.5px] font-semibold text-white hover:bg-rp-brand-strong disabled:opacity-50"
+                >
+                  {askChange.isPending ? tr('Đang gửi…') : tr('Gửi yêu cầu')}
+                </button>
               </div>
-            ))}
-          </section>
-        ) : null}
+            </form>
+          </Modal>
+        )}
         </>
         )}
       </div>
