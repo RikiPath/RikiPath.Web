@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-import { AdminShell } from '../../components/shells';
-import { usePagination } from '../../hooks/usePagination.js';
-import Pagination from '../../components/Pagination.jsx';
+import { AdminShell } from '@/layouts';
+import { usePagination } from '@/hooks/usePagination.js';
+import Pagination from '@/components/ui/Pagination.jsx';
 
 import {
   getAdminUsers,
   createAdminUser,
   disableAdminUser,
   unwrapApiList,
-} from '../../api/admin.js';
+} from '@/features/admin/api/adminApi.js';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { SakuraLoader } from '@/components/ui';
+import Icon from '@/components/ui/Icon.jsx';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
 const ROLE_LABELS = {
   Admin: 'Quản trị',
@@ -22,8 +28,7 @@ const ROLE_LABELS = {
 const ROLES = ['Learner', 'ContentAuthor', 'Mentor', 'Admin'];
 
 const EMPTY_USER = {
-  firstName: '',
-  lastName: '',
+  fullName: '',
   email: '',
   password: '',
   role: 'Learner',
@@ -31,14 +36,14 @@ const EMPTY_USER = {
 
 const INPUT_CLASS =
   'h-10 w-full rounded-lg border border-[#DED8DA] bg-white px-3 ' +
-  'text-[14px] text-[#2D282A] outline-none transition ' +
-  'placeholder:text-[#A39A9E] focus:border-[#A92D50] ' +
-  'focus:ring-2 focus:ring-[#A92D50]/10';
+  'text-[14px] text-rp-text outline-none transition ' +
+  'placeholder:text-rp-text-muted focus:border-rp-brand-strong ' +
+  'focus:ring-2 focus:ring-rp-brand-strong/10';
 
 const SELECT_CLASS =
   'h-9 rounded-lg border border-[#DED8DA] bg-white px-3 ' +
-  'text-[13px] text-[#2D282A] outline-none ' +
-  'focus:border-[#A92D50] focus:ring-2 focus:ring-[#A92D50]/10';
+  'text-[13px] text-rp-text outline-none ' +
+  'focus:border-rp-brand-strong focus:ring-2 focus:ring-rp-brand-strong/10';
 
 function normalizeUser(user) {
   const rawRole =
@@ -53,9 +58,9 @@ function normalizeUser(user) {
     .filter(Boolean)
     .join(' ');
 
-  const lastActiveDate = user.lastActiveAt
-    ? new Date(user.lastActiveAt)
-    : null;
+  const lastActive = user.lastActiveAt
+    ? formatVnDateTime(user.lastActiveAt, '—')
+    : '—';
 
   return {
     ...user,
@@ -72,16 +77,7 @@ function normalizeUser(user) {
       user.isActive === false || user.isDisabled
         ? 'Suspended'
         : 'Active',
-    lastActive:
-      lastActiveDate && !Number.isNaN(lastActiveDate.getTime())
-        ? lastActiveDate.toLocaleString('vi-VN', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : '—',
+    lastActive,
   };
 }
 
@@ -99,11 +95,12 @@ function getInitials(name) {
 }
 
 function RoleBadge({ role }) {
+  const { tr } = useLocale();
   const styles = {
-    Admin: 'bg-[#F8E9EE] text-[#9E2A4B]',
+    Admin: 'bg-rp-brand-soft text-rp-brand-strong',
     ContentAuthor: 'bg-[#EEF2FA] text-[#47628E]',
     Mentor: 'bg-[#FFF2E7] text-[#945B2B]',
-    Learner: 'bg-[#F2F3F5] text-[#59616C]',
+    Learner: 'bg-rp-muted text-rp-text-2',
   };
 
   return (
@@ -113,19 +110,20 @@ function RoleBadge({ role }) {
           styles[role] || styles.Learner
         }`}
     >
-      {ROLE_LABELS[role] || role}
+      {tr(ROLE_LABELS[role] || role)}
     </span>
   );
 }
 
 function StatusBadge({ status }) {
+  const { tr } = useLocale();
   const active = status === 'Active';
 
   return (
     <span
       className={`inline-flex items-center gap-2 whitespace-nowrap
         text-[13px] ${
-          active ? 'text-[#377353]' : 'text-[#88757C]'
+          active ? 'text-[#377353]' : 'text-rp-text-2'
         }`}
     >
       <span
@@ -134,21 +132,26 @@ function StatusBadge({ status }) {
           active ? 'bg-[#389966]' : 'bg-[#A09298]'
         }`}
       />
-      {active ? 'Hoạt động' : 'Đã khóa'}
+      {active ? tr('Hoạt động') : tr('Đã khóa')}
     </span>
   );
 }
 
 export default function AdminUsers({ embedded = false }) {
+  const { trf, tr } = useLocale();
   const { pathname } = useLocation();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
 
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const usersQuery = useQuery({
+    queryKey: ['admin-users', 'all'],
+    queryFn: async () => unwrapApiList(await getAdminUsers({ includeDisabled: true })).map(normalizeUser),
+  });
+  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
+  const loading = usersQuery.isPending;
+  const error = usersQuery.isError ? usersQuery.error?.message || 'Không thể tải danh sách người dùng.' : '';
   const [success, setSuccess] = useState('');
 
   const [showCreate, setShowCreate] = useState(false);
@@ -160,27 +163,7 @@ export default function AdminUsers({ embedded = false }) {
   const [disabling, setDisabling] = useState(false);
   const [disableError, setDisableError] = useState('');
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await getAdminUsers({
-        includeDisabled: true,
-      });
-
-      const list = unwrapApiList(response);
-      setUsers(list.map(normalizeUser));
-    } catch (err) {
-      setError(err.message || 'Không thể tải danh sách người dùng.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  const loadUsers = useCallback(() => usersQuery.refetch(), [usersQuery]);
 
   const filteredUsers = useMemo(() => {
     const keyword = searchTerm.trim().toLocaleLowerCase('vi-VN');
@@ -256,13 +239,12 @@ export default function AdminUsers({ embedded = false }) {
 
     const payload = {
       ...newUser,
-      firstName: newUser.firstName.trim(),
-      lastName: newUser.lastName.trim(),
+      fullName: newUser.fullName.trim(),
       email: newUser.email.trim(),
     };
 
-    if (!payload.firstName || !payload.lastName) {
-      setCreateError('Vui lòng nhập đầy đủ họ và tên.');
+    if (!payload.fullName) {
+      setCreateError('Vui lòng nhập họ và tên.');
       return;
     }
 
@@ -276,11 +258,13 @@ export default function AdminUsers({ embedded = false }) {
       setShowCreate(false);
       setNewUser({ ...EMPTY_USER });
       setSuccess('Đã tạo tài khoản.');
+      notify.success('Đã tạo tài khoản người dùng mới.', '', { key: 'admin-user-create' });
       setCurrentPage(1);
 
       await loadUsers();
     } catch (err) {
       setCreateError(err.message || 'Không thể tạo tài khoản.');
+      notify.apiError(err, 'Không thể tạo tài khoản', { key: 'admin-user-create-err' });
     } finally {
       setCreating(false);
     }
@@ -310,12 +294,14 @@ export default function AdminUsers({ embedded = false }) {
 
       setUserToDisable(null);
       setSuccess('Đã khóa tài khoản.');
+      notify.success('Đã khóa tài khoản.', '', { key: `admin-user-disable-${userToDisable.id}` });
 
       await loadUsers();
     } catch (err) {
       setDisableError(
         err.message || 'Không thể khóa tài khoản.',
       );
+      notify.apiError(err, 'Không thể khóa tài khoản', { key: 'admin-user-disable-err' });
     } finally {
       setDisabling(false);
     }
@@ -328,31 +314,26 @@ export default function AdminUsers({ embedded = false }) {
                      justify-between gap-3"
         >
           {embedded ? (
-            <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined pointer-events-none
+            <div className="relative min-w-0 flex-1 basis-[210px] sm:max-w-xs">
+              <Icon name="search" className="pointer-events-none
                            absolute left-3 top-1/2 -translate-y-1/2
-                           text-[19px] text-[#A09399]"
-              >
-                search
-              </span>
+                           text-[19px] text-rp-text-muted" />
               <input
                 type="search"
-                aria-label="Tìm theo tên hoặc email"
-                placeholder="Tìm theo tên hoặc email"
+                aria-label={tr('Tìm theo tên hoặc email')}
+                placeholder={tr('Tìm theo tên hoặc email')}
                 value={searchTerm}
                 onChange={(event) => handleSearchChange(event.target.value)}
-                className="h-9 w-full rounded-[10px] border border-[#E9E1E5]
-                           bg-white pl-9 pr-3 text-[12px] text-[#4B4247]
-                           placeholder:text-[#A89BA2] focus:border-[#C8889D]
-                           focus:outline-none focus:ring-2 focus:ring-[#AD3155]/10"
+                className="h-9 w-full rounded-[10px] border border-rp-line
+                           bg-white pl-9 pr-3 text-[12px] text-rp-text
+                           placeholder:text-rp-text-muted focus:border-rp-brand-border
+                           focus:outline-none focus:ring-2 focus:ring-rp-brand-strong/10"
               />
             </div>
           ) : (
             <div>
               <h1 className="text-[22px] font-semibold leading-tight">
-                Người dùng
+                {tr('Người dùng')}
               </h1>
             </div>
           )}
@@ -366,13 +347,8 @@ export default function AdminUsers({ embedded = false }) {
                        focus-visible:outline-none focus-visible:ring-2
                        focus-visible:ring-primary focus-visible:ring-offset-2"
           >
-            <span
-              aria-hidden="true"
-              className="material-symbols-outlined text-[19px]"
-            >
-              person_add
-            </span>
-            Thêm tài khoản
+            <Icon name="person_add" className="text-[19px]" />
+            {tr('Thêm tài khoản')}
           </button>
         </div>
 
@@ -381,8 +357,8 @@ export default function AdminUsers({ embedded = false }) {
             role="alert"
             className="mb-4 flex flex-wrap items-center
                        justify-between gap-2 rounded-lg border
-                       border-[#F0CBCD] bg-[#FFF4F4] px-4 py-3
-                       text-[13px] text-[#A13943]"
+                       border-rp-brand-border bg-rp-brand-tint px-4 py-3
+                       text-[13px] text-rp-brand-strong"
           >
             <span>{error}</span>
 
@@ -393,7 +369,7 @@ export default function AdminUsers({ embedded = false }) {
               className="font-medium underline underline-offset-2
                          disabled:opacity-50"
             >
-              Thử lại
+              {tr('Thử lại')}
             </button>
           </div>
         )}
@@ -411,35 +387,30 @@ export default function AdminUsers({ embedded = false }) {
             <button
               type="button"
               onClick={() => setSuccess('')}
-              aria-label="Đóng thông báo"
+              aria-label={tr('Đóng thông báo')}
               className="inline-flex h-6 w-6 items-center
                          justify-center rounded hover:bg-[#E4F2E9]"
             >
-              <span
-                aria-hidden="true"
-                className="material-symbols-outlined text-[17px]"
-              >
-                close
-              </span>
+              <Icon name="close" className="text-[17px]" />
             </button>
           </div>
         )}
 
         <section
-          aria-label="Danh sách người dùng"
+          aria-label={tr('Danh sách người dùng')}
           className="overflow-hidden rounded-xl border
-                     border-[#EAE6E7] bg-white"
+                     border-rp-line bg-white"
         >
           <div
             className="flex flex-wrap items-center justify-between
-                       gap-2 border-b border-[#EAE6E7] px-5 py-2.5"
+                       gap-2 border-b border-rp-line px-5 py-2.5"
           >
             <div className="flex flex-wrap items-center gap-3">
               <label
                 className="flex items-center gap-2
-                           text-[13px] text-[#756D70]"
+                           text-[13px] text-rp-text-2"
               >
-                Vai trò
+                {tr('Vai trò')}
                 <select
                   value={selectedRole}
                   onChange={(event) => {
@@ -448,11 +419,11 @@ export default function AdminUsers({ embedded = false }) {
                   }}
                   className={SELECT_CLASS}
                 >
-                  <option value="ALL">Tất cả</option>
+                  <option value="ALL">{tr('Tất cả')}</option>
 
                   {ROLES.map((role) => (
                     <option key={role} value={role}>
-                      {ROLE_LABELS[role]}
+                      {tr(ROLE_LABELS[role])}
                     </option>
                   ))}
                 </select>
@@ -460,9 +431,9 @@ export default function AdminUsers({ embedded = false }) {
 
               <label
                 className="flex items-center gap-2
-                           text-[13px] text-[#756D70]"
+                           text-[13px] text-rp-text-2"
               >
-                Trạng thái
+                {tr('Trạng thái')}
                 <select
                   value={selectedStatus}
                   onChange={(event) => {
@@ -471,9 +442,9 @@ export default function AdminUsers({ embedded = false }) {
                   }}
                   className={SELECT_CLASS}
                 >
-                  <option value="ALL">Tất cả</option>
-                  <option value="Active">Hoạt động</option>
-                  <option value="Suspended">Đã khóa</option>
+                  <option value="ALL">{tr('Tất cả')}</option>
+                  <option value="Active">{tr('Hoạt động')}</option>
+                  <option value="Suspended">{tr('Đã khóa')}</option>
                 </select>
               </label>
 
@@ -481,45 +452,45 @@ export default function AdminUsers({ embedded = false }) {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="text-[13px] text-[#756D70]
+                  className="text-[13px] text-rp-text-2
                              hover:text-primary"
                 >
-                  Xóa bộ lọc
+                  {tr('Xóa bộ lọc')}
                 </button>
               )}
             </div>
 
-            <span className="text-[13px] text-[#756D70]">
+            <span className="inline-flex items-center gap-2 text-[13px] text-rp-text-2">
               {loading
-                ? 'Đang tải…'
-                : `${filteredUsers.length} người dùng`}
+                ? <SakuraLoader variant="inline" size={14} context="profile" delay={160} />
+                : trf('{0} người dùng', { 0: filteredUsers.length })}
             </span>
           </div>
 
-          <div className="overflow-x-auto">
+          <div data-density="compact" className="rp-scroll-x">
             <table
               aria-busy={loading}
               className="w-full min-w-[760px] text-left text-[14px]"
             >
-              <thead className="bg-[#FAF9F9]">
-                <tr className="text-[12px] text-[#756D70]">
+              <thead className="bg-rp-bg-2">
+                <tr className="text-[12px] text-rp-text-2">
                   <th scope="col" className="px-5 py-3 font-medium">
-                    Người dùng
+                    {tr('Người dùng')}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Vai trò
+                    {tr('Vai trò')}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Trạng thái
+                    {tr('Trạng thái')}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Hoạt động gần nhất
+                    {tr('Hoạt động gần nhất')}
                   </th>
                   <th
                     scope="col"
                     className="px-5 py-3 text-right font-medium"
                   >
-                    Thao tác
+                    {tr('Thao tác')}
                   </th>
                 </tr>
               </thead>
@@ -527,12 +498,13 @@ export default function AdminUsers({ embedded = false }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-5 py-14 text-center
-                                 text-[14px] text-[#756D70]"
-                    >
-                      Đang tải…
+                    <td colSpan={5} className="px-5 py-10 text-center">
+                      <SakuraLoader
+                        variant="section"
+                        context="profile"
+                        label={tr('Đang tải danh sách người dùng')}
+                        delay={160}
+                      />
                     </td>
                   </tr>
                 ) : error ? (
@@ -540,9 +512,9 @@ export default function AdminUsers({ embedded = false }) {
                     <td
                       colSpan={5}
                       className="px-5 py-14 text-center
-                                 text-[14px] text-[#756D70]"
+                                 text-[14px] text-rp-text-2"
                     >
-                      Không tải được danh sách.
+                      {tr('Không tải được danh sách.')}
                     </td>
                   </tr>
                 ) : usersOnPage.length === 0 ? (
@@ -550,8 +522,8 @@ export default function AdminUsers({ embedded = false }) {
                     <td colSpan={5} className="px-5 py-14 text-center">
                       <p className="text-[14px] font-medium">
                         {hasFilters
-                          ? 'Không có kết quả'
-                          : 'Chưa có người dùng'}
+                          ? tr('Không có kết quả')
+                          : tr('Chưa có người dùng')}
                       </p>
 
                       {hasFilters && (
@@ -559,9 +531,9 @@ export default function AdminUsers({ embedded = false }) {
                           type="button"
                           onClick={clearFilters}
                           className="mt-3 text-[13px] font-medium
-                                     text-primary hover:underline"
+                                     text-primary rp-underline"
                         >
-                          Xóa bộ lọc
+                          {tr('Xóa bộ lọc')}
                         </button>
                       )}
                     </td>
@@ -570,8 +542,8 @@ export default function AdminUsers({ embedded = false }) {
                   usersOnPage.map((user) => (
                     <tr
                       key={user.id}
-                      className="border-t border-[#F0EDEE]
-                                 transition-colors hover:bg-[#FCFAFB]"
+                      className="border-t border-rp-line
+                                 transition-colors hover:bg-rp-bg-2"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
@@ -579,7 +551,7 @@ export default function AdminUsers({ embedded = false }) {
                             aria-hidden="true"
                             className="flex h-9 w-9 shrink-0
                                        items-center justify-center
-                                       rounded-lg bg-[#F6ECEF]
+                                       rounded-lg bg-rp-brand-soft
                                        text-[12px] font-semibold
                                        text-primary"
                           >
@@ -598,7 +570,7 @@ export default function AdminUsers({ embedded = false }) {
                             <p
                               className="mt-0.5 max-w-[260px]
                                          truncate text-[12px]
-                                         text-[#756D70]"
+                                         text-rp-text-2"
                               title={user.email}
                             >
                               {user.email || '—'}
@@ -617,7 +589,7 @@ export default function AdminUsers({ embedded = false }) {
 
                       <td
                         className="whitespace-nowrap px-4 py-3
-                                   text-[13px] text-[#756D70]"
+                                   text-[13px] text-rp-text-2"
                       >
                         {user.lastActive}
                       </td>
@@ -628,21 +600,15 @@ export default function AdminUsers({ embedded = false }) {
                             to={`/admin/users/detail?id=${encodeURIComponent(
                               user.id,
                             )}`}
-                            title="Xem chi tiết"
-                            aria-label={`Xem chi tiết ${user.name}`}
+                            title={tr('Xem chi tiết')}
+                            aria-label={trf('Xem chi tiết {0}', { 0: user.name })}
                             className="inline-flex h-8 w-8 items-center
                                        justify-center rounded-md
-                                       text-[#756D70] transition
-                                       hover:bg-[#F5F1F3]
+                                       text-rp-text-2 transition
+                                       hover:bg-rp-muted
                                        hover:text-primary"
                           >
-                            <span
-                              aria-hidden="true"
-                              className="material-symbols-outlined
-                                         text-[19px]"
-                            >
-                              visibility
-                            </span>
+                            <Icon name="visibility" className="text-[19px]" />
                           </Link>
 
                           <button
@@ -651,25 +617,19 @@ export default function AdminUsers({ embedded = false }) {
                             disabled={user.status === 'Suspended'}
                             title={
                               user.status === 'Suspended'
-                                ? 'Tài khoản đã khóa'
-                                : 'Khóa tài khoản'
+                                ? tr('Tài khoản đã khóa')
+                                : tr('Khóa tài khoản')
                             }
-                            aria-label={`Khóa tài khoản ${user.name}`}
+                            aria-label={trf('Khóa tài khoản {0}', { 0: user.name })}
                             className="inline-flex h-8 w-8 items-center
                                        justify-center rounded-md
-                                       text-[#756D70] transition
-                                       enabled:hover:bg-[#FFF0F1]
-                                       enabled:hover:text-[#B33A49]
+                                       text-rp-text-2 transition
+                                       enabled:hover:bg-rp-brand-tint
+                                       enabled:hover:text-rp-brand-strong
                                        disabled:cursor-not-allowed
                                        disabled:opacity-30"
                           >
-                            <span
-                              aria-hidden="true"
-                              className="material-symbols-outlined
-                                         text-[19px]"
-                            >
-                              person_off
-                            </span>
+                            <Icon name="person_off" className="text-[19px]" />
                           </button>
                         </div>
                       </td>
@@ -681,7 +641,7 @@ export default function AdminUsers({ embedded = false }) {
           </div>
 
           {!loading && !error && (
-            <div className="border-t border-[#EAE6E7]">
+            <div className="border-t border-rp-line">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -693,7 +653,7 @@ export default function AdminUsers({ embedded = false }) {
                   setCurrentPage(1);
                 }}
                 pageSizeOptions={[5, 10, 20, 50]}
-                itemLabel="người dùng"
+                itemLabel={tr('người dùng')}
                 variant="admin"
               />
             </div>
@@ -721,7 +681,7 @@ export default function AdminUsers({ embedded = false }) {
                     id="create-user-title"
                     className="text-[18px] font-semibold"
                   >
-                    Thêm tài khoản
+                    {tr('Thêm tài khoản')}
                   </h2>
                 </div>
 
@@ -729,18 +689,13 @@ export default function AdminUsers({ embedded = false }) {
                   type="button"
                   onClick={closeCreateModal}
                   disabled={creating}
-                  aria-label="Đóng"
+                  aria-label={tr('Đóng')}
                   className="inline-flex h-8 w-8 shrink-0
                              items-center justify-center rounded-md
-                             text-[#756D70] hover:bg-[#F5F1F3]
+                             text-rp-text-2 hover:bg-rp-muted
                              disabled:opacity-40"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="material-symbols-outlined text-[20px]"
-                  >
-                    close
-                  </span>
+                  <Icon name="close" className="text-[20px]" />
                 </button>
               </div>
 
@@ -748,40 +703,22 @@ export default function AdminUsers({ embedded = false }) {
                 disabled={creating}
                 className="mt-6 space-y-4 disabled:opacity-70"
               >
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="mb-1.5 block text-[13px] font-medium">
-                      Họ
-                    </span>
-                    <input
-                      autoFocus
-                      required
-                      autoComplete="family-name"
-                      value={newUser.lastName}
-                      onChange={(event) =>
-                        updateNewUser('lastName', event.target.value)
-                      }
-                      placeholder="Nguyễn"
-                      className={INPUT_CLASS}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1.5 block text-[13px] font-medium">
-                      Tên
-                    </span>
-                    <input
-                      required
-                      autoComplete="given-name"
-                      value={newUser.firstName}
-                      onChange={(event) =>
-                        updateNewUser('firstName', event.target.value)
-                      }
-                      placeholder="Minh Anh"
-                      className={INPUT_CLASS}
-                    />
-                  </label>
-                </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px] font-medium">
+                    {tr('Họ và tên')}
+                  </span>
+                  <input
+                    autoFocus
+                    required
+                    autoComplete="name"
+                    value={newUser.fullName}
+                    onChange={(event) =>
+                      updateNewUser('fullName', event.target.value)
+                    }
+                    placeholder={tr('Nguyễn Minh Anh')}
+                    className={INPUT_CLASS}
+                  />
+                </label>
 
                 <label className="block">
                   <span className="mb-1.5 block text-[13px] font-medium">
@@ -802,7 +739,7 @@ export default function AdminUsers({ embedded = false }) {
 
                 <label className="block">
                   <span className="mb-1.5 block text-[13px] font-medium">
-                    Mật khẩu
+                    {tr('Mật khẩu')}
                   </span>
                   <input
                     required
@@ -813,18 +750,18 @@ export default function AdminUsers({ embedded = false }) {
                     onChange={(event) =>
                       updateNewUser('password', event.target.value)
                     }
-                    placeholder="Nhập mật khẩu"
+                    placeholder={tr('Nhập mật khẩu')}
                     aria-describedby="password-help"
                     className={INPUT_CLASS}
                   />
                   <span id="password-help" className="sr-only">
-                    Tối thiểu 8 ký tự.
+                    {tr('Tối thiểu 8 ký tự.')}
                   </span>
                 </label>
 
                 <label className="block">
                   <span className="mb-1.5 block text-[13px] font-medium">
-                    Vai trò
+                    {tr('Vai trò')}
                   </span>
                   <select
                     value={newUser.role}
@@ -835,7 +772,7 @@ export default function AdminUsers({ embedded = false }) {
                   >
                     {ROLES.map((role) => (
                       <option key={role} value={role}>
-                        {ROLE_LABELS[role]}
+                        {tr(ROLE_LABELS[role])}
                       </option>
                     ))}
                   </select>
@@ -846,8 +783,8 @@ export default function AdminUsers({ embedded = false }) {
                 <p
                   id="create-user-error"
                   role="alert"
-                  className="mt-4 rounded-lg bg-[#FFF0F1]
-                             px-3 py-2 text-[13px] text-[#A13943]"
+                  className="mt-4 rounded-lg bg-rp-brand-tint
+                             px-3 py-2 text-[13px] text-rp-brand-strong"
                 >
                   {createError}
                 </p>
@@ -855,7 +792,7 @@ export default function AdminUsers({ embedded = false }) {
 
               <div
                 className="mt-6 flex justify-end gap-2
-                           border-t border-[#EAE6E7] pt-4"
+                           border-t border-rp-line pt-4"
               >
                 <button
                   type="button"
@@ -863,9 +800,9 @@ export default function AdminUsers({ embedded = false }) {
                   disabled={creating}
                   className="h-10 rounded-lg border border-[#DED8DA]
                              px-4 text-[14px] font-medium
-                             hover:bg-[#FAF9F9] disabled:opacity-50"
+                             hover:bg-rp-bg-2 disabled:opacity-50"
                 >
-                  Hủy
+                  {tr('Hủy')}
                 </button>
 
                 <button
@@ -876,7 +813,7 @@ export default function AdminUsers({ embedded = false }) {
                              hover:opacity-90 disabled:cursor-wait
                              disabled:opacity-60"
                 >
-                  {creating ? 'Đang tạo…' : 'Tạo tài khoản'}
+                  {creating ? tr('Đang tạo…') : tr('Tạo tài khoản')}
                 </button>
               </div>
             </form>
@@ -900,16 +837,16 @@ export default function AdminUsers({ embedded = false }) {
                 id="disable-user-title"
                 className="text-[20px] font-semibold"
               >
-                Khóa tài khoản?
+                {tr('Khóa tài khoản?')}
               </h2>
 
               <p
                 id="disable-user-description"
                 className="mt-3 break-words text-[14px]
-                           leading-relaxed text-[#756D70]"
+                           leading-relaxed text-rp-text-2"
               >
-                Khóa{' '}
-                <strong className="font-medium text-[#2D282A]">
+                {tr('Khóa')}{' '}
+                <strong className="font-medium text-rp-text">
                   {userToDisable.email || userToDisable.name}
                 </strong>
                 ?
@@ -918,8 +855,8 @@ export default function AdminUsers({ embedded = false }) {
               {disableError && (
                 <p
                   role="alert"
-                  className="mt-4 rounded-lg bg-[#FFF0F1]
-                             px-3 py-2 text-[13px] text-[#A13943]"
+                  className="mt-4 rounded-lg bg-rp-brand-tint
+                             px-3 py-2 text-[13px] text-rp-brand-strong"
                 >
                   {disableError}
                 </p>
@@ -933,21 +870,21 @@ export default function AdminUsers({ embedded = false }) {
                   disabled={disabling}
                   className="h-10 rounded-lg border border-[#DED8DA]
                              px-4 text-[14px] font-medium
-                             hover:bg-[#FAF9F9] disabled:opacity-50"
+                             hover:bg-rp-bg-2 disabled:opacity-50"
                 >
-                  Hủy
+                  {tr('Hủy')}
                 </button>
 
                 <button
                   type="button"
                   onClick={handleDisableUser}
                   disabled={disabling}
-                  className="h-10 rounded-lg bg-[#AA3449] px-4
+                  className="h-10 rounded-lg bg-rp-brand-strong px-4
                              text-[14px] font-medium text-white
-                             hover:bg-[#942B3E] disabled:cursor-wait
-                             disabled:opacity-60"
+                             hover:bg-rp-brand-strong disabled:cursor-wait
+                             disabled:opacity-60 rp-press"
                 >
-                  {disabling ? 'Đang khóa…' : 'Khóa tài khoản'}
+                  {disabling ? tr('Đang khóa…') : tr('Khóa tài khoản')}
                 </button>
               </div>
             </div>
@@ -957,21 +894,18 @@ export default function AdminUsers({ embedded = false }) {
   );
 
   if (embedded) {
-    return <div className="text-[#2D282A]">{page}</div>;
+    return <div className="text-rp-text">{page}</div>;
   }
 
   return (
     <AdminShell
       pathname={pathname}
-      breadcrumb="Tổng quan"
+      breadcrumb={tr('Tổng quan')}
       searchValue={searchTerm}
       onSearchChange={handleSearchChange}
-      searchPlaceholder="Tìm theo tên hoặc email"
+      searchPlaceholder={tr('Tìm theo tên hoặc email')}
     >
-      <main
-        className="mx-auto max-w-6xl px-4 pb-4 pt-1 text-[#2D282A]
-                   sm:px-6 lg:px-8"
-      >
+      <main className="rp-container pb-6 pt-2 text-rp-text">
         {page}
       </main>
     </AdminShell>

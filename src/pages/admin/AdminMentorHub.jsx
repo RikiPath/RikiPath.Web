@@ -1,48 +1,53 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { AdminShell } from '../../components/shells';
+import { BadgeCheck, CalendarCheck, ClipboardList, GraduationCap, UsersRound } from 'lucide-react';
+import { AdminShell } from '@/layouts';
 import AdminConsultants from './AdminConsultants.jsx';
 import AdminMentorSchedules from './AdminMentorSchedules.jsx';
-import AdminMentorPlans from './AdminMentorPlans.jsx';
 import AdminMentorVerifications from './AdminMentorVerifications.jsx';
 import AdminMentorQualifications from './AdminMentorQualifications.jsx';
 import AdminMentorGroupPolicy from './AdminMentorGroupPolicy.jsx';
+import { useLocale } from '@/locales/locale.js';
 
 const SECTIONS = [
   {
     to: '/admin/mentors',
-    label: 'Quản lý cố vấn',
-    note: 'Danh sách và trạng thái cố vấn.',
+    label: 'Hồ sơ Mentor',
+    note: 'Danh sách và trạng thái Mentor.',
     paths: ['/admin/mentors', '/admin/consultants'],
+    icon: UsersRound,
+    tone: 'bg-tone-mentor-bg text-tone-mentor',
   },
   {
     to: '/admin/mentor-verifications',
     label: 'Hồ sơ chờ xét duyệt',
-    note: 'Phê duyệt, từ chối và yêu cầu bổ sung.',
+    note: 'Phê duyệt, từ chối và bổ sung.',
     paths: ['/admin/mentor-verifications'],
+    icon: BadgeCheck,
+    tone: 'bg-tone-reading-bg text-tone-reading',
   },
   {
     to: '/admin/mentor-schedules',
-    label: 'Lịch tư vấn',
-    note: 'Duyệt & theo dõi lịch cố vấn.',
+    label: 'Duyệt lịch dạy',
+    note: 'Khung giờ dạy lớp nhóm của Mentor.',
     paths: ['/admin/mentor-schedules'],
-  },
-  {
-    to: '/admin/study-courses',
-    label: 'Gói học và lớp',
-    note: 'Cấu hình lịch thi, thời lượng, giá và sĩ số.',
-    paths: ['/admin/mentor-plans'],
+    icon: CalendarCheck,
+    tone: 'bg-tone-calendar-bg text-tone-calendar',
   },
   {
     to: '/admin/mentor-qualifications',
     label: 'Phân quyền JLPT',
-    note: 'Cấp hoặc thu hồi trình độ JLPT N5–N2 cho Cố vấn.',
+    note: 'Cấp hoặc thu hồi JLPT N5–N2.',
     paths: ['/admin/mentor-qualifications'],
+    icon: GraduationCap,
+    tone: 'bg-tone-grammar-bg text-tone-grammar',
   },
   {
     to: '/admin/mentor-group-policy',
     label: 'Chính sách lớp nhóm',
-    note: 'Sĩ số tối đa, cutoff, BTVN học lại & Placement.',
+    note: 'Sĩ số, hạn đăng ký, bài tập & đánh giá năng lực.',
     paths: ['/admin/mentor-group-policy'],
+    icon: ClipboardList,
+    tone: 'bg-rp-brand-tint text-rp-brand-strong',
   },
 ];
 
@@ -51,6 +56,7 @@ function cleanPath(pathname) {
 }
 
 export default function AdminMentorHub() {
+  const { tr } = useLocale();
   const { pathname } = useLocation();
   const current = cleanPath(pathname);
   const schedules = current === '/admin/mentor-schedules';
@@ -59,47 +65,50 @@ export default function AdminMentorHub() {
   const groupPolicy = current === '/admin/mentor-group-policy';
 
   return (
-    <AdminShell pathname={pathname} breadcrumb="Quản lý cố vấn">
-      <main
-        className="mx-auto max-w-[1320px] px-4 py-5
-                   text-[#352C31] sm:px-6 lg:px-8"
-      >
-        <header className="mb-4">
-          <h1 className="text-[25px] font-semibold tracking-tight">
-            Quản lý cố vấn
+    <AdminShell pathname={pathname} breadcrumb={tr('Quản lý Mentor')}>
+      <div className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text">
+        <header className="mb-[var(--rp-space-stack)]">
+          <h1 className="rp-type-page-title">
+            {tr('Quản lý Mentor')}
           </h1>
-          <p className="mt-1 text-[13px] text-[#82737B]">
-            Hồ sơ xét duyệt, lịch tư vấn, gói tư vấn theo JLPT N5–N2 và phân quyền giảng dạy.
+          <p className="rp-type-body mt-1 text-rp-text-2">
+            {tr('Hồ sơ xét duyệt, lịch dạy lớp nhóm, phân quyền giảng dạy JLPT N5–N2 và chính sách lớp nhóm.')}
           </p>
         </header>
 
         <nav
-          aria-label="Mục quản lý cố vấn"
-          className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
+          aria-label={tr('Mục quản lý cố vấn')}
+          className="mb-[var(--rp-space-section)] grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
         >
           {SECTIONS.map((section) => {
             const active = section.paths.includes(current);
+            const Icon = section.icon;
 
             return (
               <NavLink
                 key={section.to}
                 to={section.to}
                 aria-current={active ? 'page' : undefined}
-                className={`rounded-xl border px-4 py-3 transition ${
+                className={`rp-focus rp-card-hover rp-interactive group flex items-start gap-3 rounded-rp-card border px-3.5 py-3 transition-all ${
                   active
-                    ? 'border-[#AD3155] bg-[#FCEEF3]'
-                    : 'border-[#EAE1E6] bg-white hover:bg-[#FDFAFC]'
+                    ? 'border-rp-brand-border bg-rp-brand-tint shadow-rp-xs'
+                    : 'border-rp-line bg-rp-surface hover:border-rp-brand-border'
                 }`}
               >
-                <span
-                  className={`block text-[14px] font-medium ${
-                    active ? 'text-[#AD3155]' : 'text-[#51434A]'
-                  }`}
-                >
-                  {section.label}
+                <span aria-hidden="true" className={`rp-icon-tilt mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${section.tone}`}>
+                  <Icon className="h-4 w-4" />
                 </span>
-                <span className="mt-1 block text-[12px] text-[#82737B]">
-                  {section.note}
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={`block truncate text-[13.5px] font-semibold ${
+                      active ? 'text-rp-brand-strong' : 'text-rp-text'
+                    }`}
+                  >
+                    {tr(section.label)}
+                  </span>
+                  <span className="mt-0.5 line-clamp-2 block text-[11.5px] leading-snug text-rp-text-muted">
+                    {tr(section.note)}
+                  </span>
                 </span>
               </NavLink>
             );
@@ -108,8 +117,6 @@ export default function AdminMentorHub() {
 
         {verifications ? (
           <AdminMentorVerifications />
-        ) : current === '/admin/mentor-plans' ? (
-          <AdminMentorPlans />
         ) : qualifications ? (
           <AdminMentorQualifications />
         ) : groupPolicy ? (
@@ -119,7 +126,7 @@ export default function AdminMentorHub() {
         ) : (
           <AdminConsultants embedded />
         )}
-      </main>
+      </div>
     </AdminShell>
   );
 }

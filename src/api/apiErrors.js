@@ -5,6 +5,7 @@ export const NETWORK_MESSAGE = 'Không thể kết nối đến máy chủ. Vui 
 export const GENERIC_MESSAGE = 'Không thể hoàn tất thao tác. Vui lòng thử lại.';
 export const INTERNAL_MESSAGE = 'Hệ thống gặp sự cố. Vui lòng thử lại sau.';
 export const AUTH_EXPIRED_MESSAGE = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+export const FORBIDDEN_MESSAGE = 'Bạn không có quyền truy cập nội dung hoặc thực hiện thao tác này.';
 
 export const ERROR_MESSAGES = Object.freeze({
   // Lịch dạy của Mentor / lịch lớp
@@ -40,6 +41,11 @@ export const ERROR_MESSAGES = Object.freeze({
   // Đánh giá Mentor
   COHORT_REVIEW_NOT_ELIGIBLE: 'Bạn chỉ có thể đánh giá Mentor đã trực tiếp dạy bạn trong khóa học này.',
   COHORT_REVIEW_DUPLICATE: 'Bạn đã đánh giá Mentor này cho khóa học. Bạn có thể chỉnh sửa đánh giá đã gửi.',
+  // Gói tự học & lượt AI
+  SELF_STUDY_PACKAGE_REQUIRED: 'Tính năng này yêu cầu Gói tự học đang hiệu lực. Vào mục Gói tự học để kích hoạt.',
+  WRITING_PACKAGE_REQUIRED: 'Nhận dạng chữ viết tay từ ảnh yêu cầu Gói tự học hoặc Gói luyện viết.',
+  SPEAKING_PACKAGE_REQUIRED: 'Chấm điểm luyện nói AI yêu cầu Gói tự học hoặc Gói luyện nói.',
+  AI_CREDIT_REQUIRED: 'Bạn chưa có lượt chấm AI cho kỹ năng này. Vào mục Gói tự học để mua thêm lượt.',
   // Hệ thống
   INTERNAL_ERROR: INTERNAL_MESSAGE,
   CONCURRENCY_CONFLICT: 'Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại và thử lại.',
@@ -79,6 +85,31 @@ const RETRYABLE_CODES = new Set([
   'COHORT_PAYMENT_PENDING',
 ]);
 
+const CONFLICT_CODES = new Set([
+  'CONCURRENCY_CONFLICT',
+  'DUPLICATE_REQUEST',
+  'MENTOR_SCHEDULE_CONFLICT',
+  'MENTOR_REST_INTERVAL_VIOLATION',
+  'MENTOR_DAILY_LIMIT_EXCEEDED',
+  'MENTOR_WEEKLY_LIMIT_EXCEEDED',
+  'COHORT_SESSION_DUPLICATE',
+  'COHORT_SCHEDULE_REVISION_CONFLICT',
+  'COHORT_SCHEDULE_ALREADY_PUBLISHED',
+  'COHORT_FULL',
+  'COHORT_ENROLLMENT_CLOSED',
+  'COHORT_ALREADY_ENROLLED',
+  'COHORT_SCHEDULE_CONFLICT',
+  'COHORT_CANCELLATION_NOT_ALLOWED',
+  'TRANSFER_SOURCE_STARTED',
+  'COHORT_SCHEDULE_REQUEST_PENDING',
+  'COHORT_HAS_CONFIRMED_LEARNERS',
+  'COHORT_PAYMENT_PENDING',
+  'COHORT_PAYMENT_REVIEW_OPEN',
+  'COHORT_ALREADY_STARTED',
+  'COHORT_REVIEW_NOT_ELIGIBLE',
+  'COHORT_REVIEW_DUPLICATE',
+]);
+
 const NETWORK_CODES = new Set(['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT', 'ECONNREFUSED', 'ERR_CANCELED_TIMEOUT']);
 
 const TECHNICAL_PATTERN =
@@ -95,7 +126,7 @@ export function isSafeUserMessage(text) {
 
 const STATUS_MESSAGES = {
   400: 'Dữ liệu gửi lên chưa hợp lệ. Vui lòng kiểm tra lại.',
-  403: 'Bạn không có quyền thực hiện thao tác này.',
+  403: FORBIDDEN_MESSAGE,
   404: 'Không tìm thấy dữ liệu yêu cầu. Có thể dữ liệu đã thay đổi, vui lòng tải lại.',
   409: 'Dữ liệu đã thay đổi hoặc xung đột với trạng thái hiện tại. Vui lòng tải lại và thử lại.',
   413: 'Tệp đính kèm quá lớn. Vui lòng chọn tệp nhỏ hơn 10 MB.',
@@ -108,11 +139,47 @@ const STATUS_MESSAGES = {
 };
 
 /**
- * @returns {{ code: string|null, message: string, retryable: boolean, authExpired: boolean, offline: boolean, status: number|null, correlationId: string|null }}
+ * Maps an API/network error to a Smart UI Rendering state category.
+ * @returns {'unauthenticated' | 'forbidden' | 'business-conflict' | 'network-error' | 'server-error'}
+ */
+export function classifyApiErrorState(error) {
+  if (!error) return 'server-error';
+  const status = Number(error.status ?? error.response?.status) || null;
+  const code = error.errorCode || error.data?.errorCode || error.response?.data?.errorCode || null;
+  const offline =
+    !status &&
+    (error.isNetwork === true ||
+      error.isTimeout === true ||
+      NETWORK_CODES.has(error.code) ||
+      error.message === 'Network Error' ||
+      (typeof navigator !== 'undefined' && navigator && navigator.onLine === false && !code));
+  if (offline) return 'network-error';
+  if (status === 401 || code === 'AUTH_EXPIRED') return 'unauthenticated';
+  if (status === 403) return 'forbidden';
+  if (status === 409 || (code && CONFLICT_CODES.has(code))) return 'business-conflict';
+  return 'server-error';
+}
+
+/**
+ * Primary `message` stays clean for users (never embeds long correlationId or stack traces).
+ * `referenceText` / `messageWithReference` expose correlationId strictly for support drawers & diagnostics.
+ * @returns {{ code: string|null, message: string, userMessage: string, referenceText: string|null, messageWithReference: string, state: string, retryable: boolean, authExpired: boolean, offline: boolean, status: number|null, correlationId: string|null }}
  */
 export function describeApiError(error) {
   if (!error) {
-    return { code: null, message: GENERIC_MESSAGE, retryable: false, authExpired: false, offline: false, status: null, correlationId: null };
+    return {
+      code: null,
+      message: GENERIC_MESSAGE,
+      userMessage: GENERIC_MESSAGE,
+      referenceText: null,
+      messageWithReference: GENERIC_MESSAGE,
+      state: 'server-error',
+      retryable: false,
+      authExpired: false,
+      offline: false,
+      status: null,
+      correlationId: null,
+    };
   }
   const status = Number(error.status ?? error.response?.status) || null;
   const code =
@@ -125,45 +192,51 @@ export function describeApiError(error) {
     error.response?.headers?.['x-correlation-id'] ||
     null;
   const serverMessage = error.data?.errorMessage ?? error.response?.data?.errorMessage ?? null;
-  const base = { code, status, correlationId, authExpired: false, offline: false, retryable: false };
+  const state = classifyApiErrorState(error);
+  const referenceText = correlationId ? `Mã tra cứu: ${correlationId}` : null;
+  const build = (message, overrides = {}) => ({
+    code,
+    status,
+    correlationId,
+    referenceText,
+    state,
+    authExpired: false,
+    offline: false,
+    retryable: false,
+    message,
+    userMessage: message,
+    messageWithReference: referenceText ? `${message} (${referenceText})` : message,
+    ...overrides,
+  });
 
-  const offline =
-    !status &&
-    (error.isNetwork === true ||
-      error.isTimeout === true ||
-      NETWORK_CODES.has(error.code) ||
-      error.message === 'Network Error' ||
-      (typeof navigator !== 'undefined' && navigator && navigator.onLine === false && !code));
-  if (offline) {
-    return { ...base, code: code || 'NETWORK_ERROR', message: NETWORK_MESSAGE, offline: true, retryable: true };
+  if (state === 'network-error') {
+    return build(NETWORK_MESSAGE, { code: code || 'NETWORK_ERROR', offline: true, retryable: true });
   }
 
   if (status === 401) {
-    return { ...base, code: code || 'AUTH_EXPIRED', message: AUTH_EXPIRED_MESSAGE, authExpired: true };
+    return build(AUTH_EXPIRED_MESSAGE, { code: code || 'AUTH_EXPIRED', authExpired: true });
   }
-
-  const withReference = (message) => (correlationId ? `${message} (Mã tra cứu: ${correlationId})` : message);
 
   if (code === 'INTERNAL_ERROR' || (status && status >= 500 && !ERROR_MESSAGES[code])) {
     const message = status && status !== 500 && STATUS_MESSAGES[status] ? STATUS_MESSAGES[status] : INTERNAL_MESSAGE;
-    return { ...base, code: code || 'INTERNAL_ERROR', message: withReference(message), retryable: true };
+    return build(message, { code: code || 'INTERNAL_ERROR', retryable: true });
   }
 
   const retryable = RETRYABLE_CODES.has(code) || status === 504;
   if (code && ERROR_MESSAGES[code]) {
     const message = PREFER_SERVER_DETAIL.has(code) && isSafeUserMessage(serverMessage) ? serverMessage.trim() : ERROR_MESSAGES[code];
-    return { ...base, message: status >= 500 ? withReference(message) : message, retryable };
+    return build(message, { retryable });
   }
   if (code && PAYMENT_STATE_MESSAGES[code]) {
-    return { ...base, message: PAYMENT_STATE_MESSAGES[code], retryable };
+    return build(PAYMENT_STATE_MESSAGES[code], { retryable });
   }
 
   // Mã chưa biết: dùng thông điệp máy chủ nếu an toàn, nếu không dùng thông điệp theo HTTP status.
-  if (isSafeUserMessage(serverMessage)) return { ...base, message: serverMessage.trim(), retryable };
-  if (status && STATUS_MESSAGES[status]) return { ...base, message: STATUS_MESSAGES[status], retryable };
+  if (isSafeUserMessage(serverMessage)) return build(serverMessage.trim(), { retryable });
+  if (status && STATUS_MESSAGES[status]) return build(STATUS_MESSAGES[status], { retryable });
   // Lỗi do chính giao diện ném ra (kiểm tra dữ liệu phía client) – chỉ khi thông điệp an toàn.
-  if (!status && isSafeUserMessage(error.message)) return { ...base, message: error.message.trim() };
-  return { ...base, message: GENERIC_MESSAGE, retryable };
+  if (!status && isSafeUserMessage(error.message)) return build(error.message.trim());
+  return build(GENERIC_MESSAGE, { retryable });
 }
 
 export const errorMessage = (error) => describeApiError(error).message;

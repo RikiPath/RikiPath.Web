@@ -1,20 +1,24 @@
-import LanguageSwitch from '../../components/LanguageSwitch.jsx';
-import { useLocale } from '../../i18n/locale.js';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { savePendingVerify } from '../../auth/session.js';
-import BrandMark from '../../components/BrandMark.jsx';
-import { useRegisterMutation } from '../../hooks/useAuth.js';
+import { Eye, EyeOff, LockKeyhole, Mail, UserPlus, UserRound } from 'lucide-react';
+import { useLocale } from '@/locales/locale.js';
+import { savePendingVerify } from '@/app/auth/session.js';
+import AuthLayout from '@/layouts/AuthLayout.jsx';
+import AuthPromptLinks from '@/features/auth/components/AuthPromptLinks.jsx';
+import { describeApiError } from '@/api/apiErrors.js';
+import { Banner, Button, Checkbox, Field, Input, notify } from '@/components/ui';
+import { useRegisterMutation } from '@/features/auth/hooks/useAuthMutations.js';
 import GoogleSignIn from './GoogleSignIn.jsx';
 import { useCompleteSignIn } from './useCompleteSignIn.js';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { t } = useLocale();
+  const { t, tr } = useLocale();
+  const [agreed, setAgreed] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const registerMutation = useRegisterMutation();
   const completeSignIn = useCompleteSignIn();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,38 +32,54 @@ export default function Register() {
     e.preventDefault();
     if (loading) return;
     setError('');
-    if (password !== confirmPassword) {
-      setError(t('passwordMismatch'));
-      return;
-    }
-    if (password.length < 6) {
-      setError(t('passwordShort'));
-      return;
-    }
+    // Mirrors Backend RegisterRequest: [EmailAddress], [MinLength(6)], [Compare(Password)], [MaxLength(200)] FullName.
+    const next = {};
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) next.email = tr('Email chưa đúng định dạng.');
+    if (password.length < 6) next.password = t('passwordShort');
+    if (password !== confirmPassword) next.confirmPassword = t('passwordMismatch');
+    if (!agreed) next.terms = tr('Vui lòng đồng ý với điều khoản để tiếp tục.');
+    setFieldErrors(next);
+    if (Object.keys(next).length) return;
     const payload = {
       email: email.trim(),
       password,
       confirmPassword,
     };
-    if (firstName.trim()) payload.firstName = firstName.trim();
-    if (lastName.trim()) payload.lastName = lastName.trim();
+    if (fullName.trim()) payload.fullName = fullName.trim();
     const registeredEmail = email.trim();
     registerMutation.mutate(payload, {
       onSuccess: (data) => {
         const result = data.result || {};
+        notify.success(
+          tr('Đăng ký thành công!'),
+          tr('Vui lòng kiểm tra email để nhập mã xác thực tài khoản.'),
+          { key: 'auth-register-success' },
+        );
         goToVerify(result.email || registeredEmail, result.userId);
       },
       onError: (err) => {
         const msg = err.message || t('registerFailed');
+        const fields = err.errors && typeof err.errors === 'object' && !Array.isArray(err.errors) ? err.errors : null;
+        if (fields) {
+          const map = {};
+          for (const [k, v] of Object.entries(fields)) map[k.charAt(0).toLowerCase() + k.slice(1)] = [].concat(v)[0];
+          setFieldErrors(map);
+        }
         if (msg.includes('Tạo tài khoản thành công')) {
+          notify.success(tr('Đăng ký thành công!'), msg, { key: 'auth-register-success' });
           goToVerify(registeredEmail, resultUserIdFromError(err), msg);
           return;
         }
         if (msg.toLowerCase().includes('đã được đăng ký')) {
           setError(msg);
+          notify.warning(tr('Email đã tồn tại'), msg, { key: 'auth-register-exists' });
           return;
         }
-        setError(msg);
+        const safeMsg = err.status && err.status >= 500 ? describeApiError(err).message : msg;
+        setError(safeMsg);
+        if (!fields) {
+          notify.apiError(err, tr('Chưa tạo được tài khoản'), { key: 'auth-register-error' });
+        }
       },
     });
   }
@@ -81,216 +101,91 @@ export default function Register() {
     ? `/verify-email?email=${encodeURIComponent(email.trim())}`
     : '/verify-email';
 
+  const pwToggle = (shown, set) => (
+    <button type="button" onClick={() => set((v) => !v)} aria-label={t('togglePassword')} aria-pressed={shown} className="rp-focus absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-rp-text-muted hover:text-rp-text">
+      {shown ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 md:p-8 lg:p-12 text-charcoal-900 antialiased selection:bg-sakura-200 selection:text-sakura-800" style={{ backgroundColor: "rgb(250, 247, 242)", position: "relative" }} data-page="Register">
-<div className="fixed inset-0 pointer-events-none z-0 opacity-20" style={{ backgroundImage: "url(\"https://lh3.googleusercontent.com/aida/AEtjO1XsYWpcypAaiicJ5aWDsaW-GEmVWOKogAEQ7kZW4nxNFB_JZTuC9dhy22iD5Mnutw1-dtQ-HzB6D_VzjEx9subcYz6PRrv0yijHn4N-jAJ5MXOS4-C7ZVxGV4l2XoEkHfC4wG6mbXFoj3jaBxyOPj_Z_xylJmm-FRcPsVf-1klRUQuv1hr9HgKslqHQcIxclS9hAnXtwq8jA0ngfRmWAVTjaBx5hh644yXJMi3Bdy5g8E0mhB9PvzPKpXg\")", backgroundRepeat: "repeat", backgroundSize: "120px 120px" }} aria-hidden="true"></div>
-
-
-{/*  BEGIN: MainAuthCard  */}
-
-
-<main className="w-full max-w-[1360px] bg-white rounded-3xl shadow-soft-card overflow-hidden border border-white/80 grid grid-cols-1 lg:grid-cols-12 min-h-[860px] relative z-10" data-purpose="registration-card-container">
-{/*  ==============================================  */}
-{/*  BEGIN: LeftShowcaseColumn (Sakura Visual Hero)  */}
-{/*  ==============================================  */}
-<section className="lg:col-span-5 xl:col-span-6 bg-gradient-to-br from-[#fff4f6] via-[#ffecee] to-[#fce4ea] p-8 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-sakura-100" data-purpose="visual-showcase">
-{/*  Decorative Petal SVGs & Ambient Gradients  */}
-<div className="absolute -top-16 -left-16 w-56 h-56 bg-sakura-200/40 rounded-full blur-3xl pointer-events-none"></div>
-<div className="absolute bottom-10 -right-12 w-64 h-64 bg-sakura-300/30 rounded-full blur-3xl pointer-events-none"></div>
-{/*  Top Badges & Japanese Slogan  */}
-<header className="relative z-10 flex items-center justify-between gap-4 flex-wrap">
-{/*  Haru AI Assistant Pill  */}
-<div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 backdrop-blur-sm border border-sakura-200/80 shadow-sm" data-purpose="hero-badge">
-<span className="text-base leading-none">🌸</span>
-<span className="text-xs font-bold tracking-wider text-sakura-700 uppercase">BẮT ĐẦU HÀNH TRÌNH VỚI AI HARU</span>
-</div>
-{/*  Japanese Cultural Motto  */}
-<div className="hidden sm:flex items-center gap-1.5 text-xs text-sakura-600 font-jp tracking-widest">
-<span className="">桜</span>
-<span className="text-[9px] text-sakura-400">●</span>
-<span className="">日本への道</span>
-</div>
-</header>
-{/*  Center Feature: Japanese Sakura Artwork Card  */}
-<div className="relative z-10 my-auto py-6 flex flex-col items-center" data-purpose="illustration-wrapper">
-<div className="relative group w-full max-w-[430px] aspect-square rounded-2xl p-2 bg-gradient-to-tr from-white/90 via-sakura-100/60 to-white/90 shadow-sakura-glow border border-sakura-200/80">
-<img alt="Hoa anh đào sakura nền pastel ấm, phong cách minh họa Nhật Bản" className="w-full h-full object-cover object-center rounded-xl shadow-inner transition-transform duration-700 group-hover:scale-[1.01]" src="/images/sakura-hero.jpg" />
-<div className="absolute -right-5 bottom-6 bg-white/90 backdrop-blur-md px-3 py-4 rounded-xl border border-sakura-200/90 shadow-md flex items-center gap-2" data-purpose="quote-callout">
-<span className="text-xl">⛩️</span>
-<div className="text-left">
-<p className="text-[11px] font-medium text-slate-500">{t('dailyStep')}</p>
-<p className="text-xs font-bold text-sakura-700 font-serif tracking-wider">一期一会 (Ichigo Ichie)</p>
-</div>
-</div>
-</div>
-</div>
-{/*  Bottom Headline & Marketing Value Proposition  */}
-<footer className="relative z-10 text-center lg:text-left mt-4">
-{/*  Floating petal decorative accent  */}
-<div className="w-2.5 h-2.5 bg-sakura-300 rotate-45 mb-4 mx-auto lg:mx-0 opacity-80"></div>
-<h2 className="text-2xl xl:text-3xl font-extrabold text-charcoal-900 tracking-tight leading-snug">{t('registerHeadlineBefore')}<span className="text-sakura-600">RikiPath</span>{t('registerHeadlineAfter')}</h2>
-<p className="mt-3 text-sm text-charcoal-500 leading-relaxed max-w-lg mx-auto lg:mx-0">{t('registerLead')}</p>
-</footer>
-</section>
-{/*  END: LeftShowcaseColumn  */}
-{/*  ==============================================  */}
-{/*  BEGIN: RightFormColumn (Register Form)  */}
-{/*  ==============================================  */}
-<section className="lg:col-span-7 xl:col-span-6 p-7 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between bg-white overflow-y-auto" data-purpose="registration-form-panel">
-<div>
-{/*  Top App Bar: Brand Logo & Language Switcher  */}
-<header className="flex items-center justify-between gap-4 pb-6">
-{/*  Logo & Brand identity  */}
-<Link to="/" aria-label="Về trang chủ" className="flex items-center gap-3" data-purpose="brand-logo">
-<BrandMark className="h-12 w-[4.5rem]" />
-<div>
-<span className="block text-xl font-extrabold text-charcoal-900 tracking-tight leading-none">RikiPath</span>
-<p className="text-[10px] tracking-widest font-bold text-sakura-600 mt-1 uppercase">Sakura Learning Hub</p>
-</div>
-</Link>
-{/*  Language Selector  */}
-<LanguageSwitch className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-charcoal-200 bg-white text-xs font-semibold text-charcoal-700 hover:bg-sakura-50/50 hover:border-sakura-200 transition-colors" />
-</header>
-{/*  Segmented Tab Switcher (Sign in / Sign up)  */}
-<nav className="grid grid-cols-2 p-1 bg-charcoal-100/80 rounded-xl mb-7" data-purpose="auth-tabs">
-{/*  Inactive Login Tab  */}
-<Link to="/auth" className="py-2.5 text-center text-sm font-semibold text-charcoal-500 rounded-lg hover:text-sakura-600 transition-colors">{t('login')}</Link>
-{/*  Active Register Tab  */}
-<a className="py-2.5 text-center text-sm font-bold text-sakura-700 bg-white rounded-lg shadow-sm flex items-center justify-center gap-1.5 border border-sakura-100" href="#">
-<span className="">{t('register')}</span>
-<span className="w-1.5 h-1.5 rounded-full bg-sakura-600"></span>
-</a>
-</nav>
-{/*  Form Title & Welcoming Introduction  */}
-<div className="mb-6">
-<div className="flex items-center gap-2">
-<h2 className="text-2xl sm:text-[26px] font-extrabold text-charcoal-900 tracking-tight">{t('createTitle')}</h2>
-<span className="text-xl" aria-hidden="true">🌸</span>
-</div>
-<p className="mt-1.5 text-sm text-charcoal-500">{t('join')}</p>
-</div>
-{/*  Registration Form Elements  */}
-<form className="space-y-4" data-purpose="signup-form" onSubmit={handleRegister}>
-{error ? (
-  <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-600">
-    <p>{error}</p>
-    {error.toLowerCase().includes('đã được đăng ký') ? (
-      <Link className="mt-1 inline-block font-bold text-sakura-600 underline" to={`/verify-email?email=${encodeURIComponent(email)}`}>{t('goVerify')}</Link>
-    ) : null}
-  </div>
-) : null}
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-<div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="lastName">{t('lastName')}</label>
-<input className="h-11 w-full px-4 rounded-xl border border-[#f2dfe3] bg-white text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="lastName" name="lastName" placeholder="Nguyễn" type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-</div>
-<div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="firstName">{t('firstName')}</label>
-<input className="h-11 w-full px-4 rounded-xl border border-[#f2dfe3] bg-white text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="firstName" name="firstName" placeholder="An" type="text" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-</div>
-</div>
-<div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="email">{t('emailShort')}</label>
-<div className="relative">
-<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-</svg>
-</div>
-<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-4 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="email" name="email" placeholder="nhap.email@example.com" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-</div>
-</div>
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-<div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="password">{t('password')}</label>
-<div className="relative">
-<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-</svg>
-</div>
-<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-11 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="password" name="password" placeholder={t('passwordMin')} required minLength={6} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-<button aria-label={t('showPassword')} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-sakura-600" type="button" onClick={() => setShowPassword((v) => !v)}>
-<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-</svg>
-</button>
-</div>
-</div>
-<div>
-<label className="block text-[11px] font-bold tracking-wider text-charcoal-700 uppercase mb-1.5" htmlFor="confirm-password">{t('confirmPassword')}</label>
-<div className="relative">
-<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-<path d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-</svg>
-</div>
-<input className="h-11 w-full rounded-xl border border-[#f2dfe3] bg-white pl-11 pr-11 text-sm text-charcoal-900 placeholder:text-charcoal-400 focus:outline-none focus:border-sakura-500 focus:ring-2 focus:ring-sakura-500/20" id="confirm-password" name="confirmPassword" placeholder={t('confirmPlaceholder')} required minLength={6} type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-<button aria-label={t('showConfirm')} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-sakura-600" type="button" onClick={() => setShowConfirm((v) => !v)}>
-<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"></path>
-</svg>
-</button>
-</div>
-</div>
-</div>
-{/*  Terms Agreement Checkbox  */}
-<div className="flex items-start gap-2.5 pt-1">
-<input className="mt-1 w-4 h-4 rounded border-charcoal-300 text-sakura-600 focus:ring-sakura-500 cursor-pointer" id="terms" name="terms" required type="checkbox" />
-<label className="cursor-pointer select-none text-xs leading-5 text-charcoal-600" htmlFor="terms">
-<span className="whitespace-nowrap">{t('agreeTerms')}</span>{' '}
-<span className="whitespace-nowrap font-semibold text-sakura-600">{t('serviceTerms')}</span>{' '}
-<span className="whitespace-nowrap">{t('and')}</span>{' '}
-<span className="whitespace-nowrap font-semibold text-sakura-600">{t('privacy')}</span>{' '}
-<span className="whitespace-nowrap">{t('ofRiki')}</span>
-</label>
-</div>
-{/*  Primary Submit CTA Button  */}
-<button className="w-full py-3 px-6 mt-3 bg-sakura-600 hover:bg-sakura-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base rounded-xl shadow-sakura-btn hover:shadow-lg transition-all flex items-center justify-center gap-2 group disabled:opacity-60" data-purpose="submit-button" type="submit" disabled={loading}>
-<span className="">{loading ? t('creating') : t('registerNow')}</span>
-<span className="text-base group-hover:rotate-12 transition-transform">🌸</span>
-</button>
-</form>
-<div className="mt-4">
-  <GoogleSignIn mode="register" disabled={registerMutation.isPending}
-    onPendingChange={setGooglePending} onSuccess={data => completeSignIn(data, true)} />
-</div>
-</div>
-{/*  Bottom Footer Navigation Link  */}
-<footer className="mt-8 border-t border-[#F4EAEE] pt-5">
-<p className="mb-2 text-center text-[12px] text-[#8A7380]">{t('hasAccount')}</p>
-<div className="grid grid-cols-2 gap-2">
-<Link to="/auth" className="flex h-10 items-center justify-center rounded-lg bg-[#FDF2F5] text-[12px] font-semibold text-[#C43E5C] hover:bg-[#FBE7EE]">
-{t('loginNow')}
-</Link>
-<Link to={verifyHref} className="flex h-10 items-center justify-center rounded-lg border border-[#F0E4E8] text-[12px] font-semibold text-[#7A6570] hover:bg-[#FFF8FA]">
-{t('verifyEmail')}
-</Link>
-</div>
-<p className="mt-3 text-center text-[11px] leading-5 text-[#B3A4AB]">
-<span className="whitespace-nowrap">{t('agreeContinue')}</span>{' '}
-<span className="whitespace-nowrap">{t('terms')}</span>
-{' · '}
-<span className="whitespace-nowrap">{t('privacy')}</span>{' '}
-<span className="whitespace-nowrap">{t('ofRiki')}</span>
-</p>
-</footer>
-</section>
-{/*  END: RightFormColumn  */}
-</main>
-
-
-{/*  END: MainAuthCard  */}
-
-
-{/*  Interactive script for password visibility toggle & pill selection  */}
-
-
-
-
-
-    </div>
+    <AuthLayout
+      variant="register"
+      title={tr('Tạo tài khoản RikiPath')}
+      subtitle={tr('Miễn phí. Bạn sẽ nhận mã xác thực qua email sau khi đăng ký.')}
+     
+    >
+      <form className="space-y-4" noValidate onSubmit={handleRegister} data-page="Register">
+        {error && <Banner tone="danger" title={tr('Chưa tạo được tài khoản')}>{error}{/đã được đăng ký/i.test(error) && <> <Link to="/auth/" state={{ email: email.trim() }} className="rp-focus rp-link rounded-sm">{tr('Đăng nhập')}</Link></>}</Banner>}
+        <Field label={t('fullName')} error={fieldErrors.fullName}>
+          {({ id, describedBy, invalid }) => (
+            <Input
+              id={id}
+              icon={UserRound}
+              aria-describedby={describedBy}
+              invalid={invalid}
+              autoComplete="name"
+              placeholder={tr('Nguyễn Minh Anh')}
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label={t('email')} error={fieldErrors.email} required>
+          {({ id, describedBy, invalid }) => <Input id={id} icon={Mail} aria-describedby={describedBy} invalid={invalid} type="email" inputMode="email" autoComplete="email" placeholder="ban@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />}
+        </Field>
+        <Field label={t('password')} hint={t('passwordShort')} error={fieldErrors.password} required>
+          {({ id, describedBy, invalid }) => (
+            <div className="relative">
+              <LockKeyhole aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
+              <Input
+                id={id}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                placeholder={t('passwordPlaceholder')}
+                className="pl-10 pr-11"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              {pwToggle(showPassword, setShowPassword)}
+            </div>
+          )}
+        </Field>
+        <Field label={t('confirmPassword')} error={fieldErrors.confirmPassword} required>
+          {({ id, describedBy, invalid }) => (
+            <div className="relative">
+              <LockKeyhole aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
+              <Input
+                id={id}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                type={showConfirm ? 'text' : 'password'}
+                autoComplete="new-password"
+                placeholder={t('confirmPlaceholder')}
+                className="pl-10 pr-11"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+              {pwToggle(showConfirm, setShowConfirm)}
+            </div>
+          )}
+        </Field>
+        <div>
+          <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)} label={`${t('agreeContinue')} ${t('terms')} · ${t('privacy')} ${t('ofRiki')}`} />
+          {fieldErrors.terms && <p role="alert" className="mt-1 text-xs font-medium text-rp-danger">{fieldErrors.terms}</p>}
+        </div>
+        <Button type="submit" size="lg" className="w-full" loading={loading} icon={UserPlus}>{tr('Tạo tài khoản')}</Button>
+      </form>
+      <div className="mt-4">
+        <GoogleSignIn mode="register" disabled={registerMutation.isPending} onPendingChange={setGooglePending} onSuccess={(data) => completeSignIn(data, true)} />
+      </div>
+      <AuthPromptLinks
+        items={[
+          { question: tr('Đã có tài khoản?'), label: t('login'), to: '/auth/' },
+          { question: tr('Chưa xác thực tài khoản?'), label: t('verifyEmail'), to: verifyHref },
+        ]}
+      />
+    </AuthLayout>
   );
 }

@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { LearnerShell } from '../../components/shells';
-import { useLocale } from '../../i18n/locale.js';
+import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
+import { Card, FeatureIcon, HaruMascot, cx } from '@/components/ui';
+import { LearnerShell } from '@/layouts';
+import { useLocale } from '@/locales/locale.js';
+import Icon from '@/components/ui/Icon.jsx';
 
 const PRACTICE_OPTIONS = [
   {
@@ -92,249 +95,114 @@ const QUICK_LINKS = [
     description: 'Xem lại những lần luyện trước',
   },
   {
-    to: '/mentor',
-    icon: 'forum',
-    title: 'Trao đổi với cố vấn',
-    description: 'Khi bạn cần thêm hướng dẫn',
+    to: '/mentors',
+    icon: 'groups',
+    title: 'Học nhóm cùng Mentor',
+    description: 'Lớp nhỏ 1–4 học viên, 10 tuần',
   },
 ];
 
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
-}
 
+const FEATURE_OF = { vocabulary: 'vocabulary', reading: 'reading', listening: 'listening', writing: 'writing' };
+
+/**
+ * Haru study guide. Backend has no conversational AI endpoint, so this page guides practice
+ * by skill; AI grading itself lives in Writing (/riki/essay) and Speaking (/speech).
+ */
 export default function AICounselor() {
-  const { pathname } = useLocation();
   const { tr } = useLocale();
   const [focusId, setFocusId] = useState('vocabulary');
-
-  const focus =
-    PRACTICE_OPTIONS.find((item) => item.id === focusId) ||
-    PRACTICE_OPTIONS[0];
-
-  const focusStyle =
-    'focus-visible:outline-none focus-visible:ring-2 ' +
-    'focus-visible:ring-[#AD3155]/40 focus-visible:ring-offset-2';
+  const focus = PRACTICE_OPTIONS.find((item) => item.id === focusId) || PRACTICE_OPTIONS[0];
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Cố vấn ôn tập">
-      <div
-        data-page="AICounselor"
-        className="min-h-full bg-[#FCF8FA] text-[#49353F]"
-      >
-        <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-7">
-          {/* Tiêu đề */}
-          <header className="mb-5 flex items-start justify-between gap-4">
-            <div>
-              <p className="mb-1 text-[12px] font-medium text-[#AD3155]">
-                HARU · ÔN TẬP TIẾNG NHẬT
-              </p>
-
-              <h1 className="text-[25px] font-semibold tracking-tight sm:text-[28px]">
-                {tr('Hôm nay mình ôn gì?')}
-              </h1>
-
-              <p className="mt-1.5 text-[14px] leading-6 text-[#8C7782]">
-                {tr('Chọn một kỹ năng, bắt đầu từ một phần nhỏ.')}
+    <LearnerShell breadcrumb="Haru AI">
+      <div data-page="AICounselor" className="rp-container rp-cq py-[var(--rp-space-page-y)]">
+        <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
+          <div className="rp-pattern-seigaiha absolute inset-0 opacity-60" aria-hidden="true" />
+          <div className="relative flex items-center gap-6 p-6 sm:p-8">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tone-haru">Haru · {tr('gợi ý ôn tập')}</p>
+              <h1 className="mt-2 text-2xl font-bold tracking-[-0.01em] text-rp-text sm:text-[28px]">{tr('Hôm nay mình ôn gì?')}</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-rp-text-2">
+                {tr('Chọn một kỹ năng, bắt đầu từ một phần nhỏ. Haru chấm bài viết trong Luyện viết và góp ý bài nói trong Luyện nói.')}
               </p>
             </div>
-
-            <span
-              lang="ja"
-              aria-hidden="true"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#EEDDE5] bg-[#FBEAF1] font-serif text-[27px] text-[#AD3155]"
-            >
-              春
-            </span>
-          </header>
-
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-            {/* Nội dung chính */}
-            <section className="min-w-0 overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-              <div className="border-b border-[#F0E7EC] px-4 py-4 sm:px-5">
-                <h2 className="text-[14px] font-semibold">
-                  {tr('Bạn muốn tập trung vào đâu?')}
-                </h2>
-
-                <div
-                  role="group"
-                  aria-label={tr('Chọn kỹ năng ôn tập')}
-                  className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"
-                >
-                  {PRACTICE_OPTIONS.map((item) => {
-                    const active = focusId === item.id;
-
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setFocusId(item.id)}
-                        className={[
-                          'flex min-h-11 items-center justify-center gap-2',
-                          'rounded-lg border px-3 py-2 text-[13px]',
-                          'transition-colors',
-                          focusStyle,
-                          active
-                            ? 'border-[#E8BFCE] bg-[#FCEEF4] font-medium text-[#A33357]'
-                            : 'border-[#EDE5E9] bg-white text-[#85717C] hover:bg-[#FCF8FA]',
-                        ].join(' ')}
-                      >
-                        <Icon
-                          name={item.icon}
-                          className="text-[18px]"
-                        />
-                        {tr(item.label)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="p-4 sm:p-5">
-                <div className="rounded-xl bg-[#FCF3F7] p-4 sm:p-5">
-                  <div className="flex items-center gap-2 text-[12px] text-[#A46B81]">
-                    <span lang="ja">{focus.japanese}</span>
-                    <span aria-hidden="true">/</span>
-                    <span>{tr('Gợi ý ôn tập')}</span>
-                  </div>
-
-                  <h3 className="mt-2 text-[20px] font-semibold leading-snug tracking-tight">
-                    {tr(focus.title)}
-                  </h3>
-
-                  <p className="mt-2 max-w-xl text-[13px] leading-6 text-[#88727E]">
-                    {tr(focus.description)}
-                  </p>
-                </div>
-
-                <ol className="my-5 space-y-3">
-                  {focus.steps.map((step, index) => (
-                    <li
-                      key={step}
-                      className="flex items-start gap-3 text-[13px] leading-6"
-                    >
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F5EFF2] text-[11px] font-medium text-[#9C7C8C]">
-                        {index + 1}
-                      </span>
-                      <span>{tr(step)}</span>
-                    </li>
-                  ))}
-                </ol>
-
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[#F0E7EC] pt-4">
-                  <Link
-                    to={focus.to}
-                    className={[
-                      'inline-flex min-h-10 items-center justify-center gap-2',
-                      'rounded-lg bg-[#AD3155] px-4 py-2',
-                      'text-[13px] font-medium text-white',
-                      'transition-colors hover:bg-[#982B4B]',
-                      focusStyle,
-                    ].join(' ')}
-                  >
-                    {tr(focus.action)}
-                    <Icon
-                      name="arrow_forward"
-                      className="text-[17px]"
-                    />
-                  </Link>
-
-                  <Link
-                    to={focus.secondaryTo}
-                    className={[
-                      'rounded text-[13px] text-[#8F6D7D]',
-                      'underline-offset-4 hover:text-[#AD3155] hover:underline',
-                      focusStyle,
-                    ].join(' ')}
-                  >
-                    {tr(focus.secondaryLabel)}
-                  </Link>
-                </div>
-              </div>
-            </section>
-
-            {/* Truy cập nhanh */}
-            <aside className="space-y-4">
-              <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-                <h2 className="px-4 pb-2 pt-4 text-[14px] font-semibold">
-                  {tr('Tiếp tục từ đây')}
-                </h2>
-
-                <div className="px-2 pb-2">
-                  {QUICK_LINKS.map((item) => (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={[
-                        'group flex items-center gap-3 rounded-lg px-2 py-3',
-                        'transition-colors hover:bg-[#FCF4F8]',
-                        focusStyle,
-                      ].join(' ')}
-                    >
-                      <Icon
-                        name={item.icon}
-                        className="shrink-0 text-[21px] text-[#B08A9C]"
-                      />
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium">
-                          {tr(item.title)}
-                        </span>
-                        <span className="mt-0.5 block text-[12px] leading-5 text-[#9A8691]">
-                          {tr(item.description)}
-                        </span>
-                      </span>
-
-                      <Icon
-                        name="chevron_right"
-                        className="shrink-0 text-[18px] text-[#C2AEB8] group-hover:text-[#AD3155]"
-                      />
-                    </Link>
-                  ))}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-[#EEDFE6] bg-[#FFF4F8] p-4">
-                <div className="flex items-center gap-2">
-                  <Icon
-                    name="bookmark"
-                    className="text-[18px] text-[#AF6B86]"
-                  />
-                  <h2 className="text-[13px] font-medium">
-                    {tr('Chưa biết bắt đầu ở đâu?')}
-                  </h2>
-                </div>
-
-                <p className="mt-2 text-[13px] leading-6 text-[#927887]">
-                  {tr('Xem lại mục tiêu JLPT để chọn phần ôn phù hợp với bạn.')}
-                </p>
-
-                <Link
-                  to="/onboarding"
-                  className={[
-                    'mt-3 inline-flex items-center gap-1 rounded',
-                    'text-[13px] font-medium text-[#AD3155]',
-                    focusStyle,
-                  ].join(' ')}
-                >
-                  {tr('Xem mục tiêu')}
-                  <Icon
-                    name="arrow_forward"
-                    className="text-[16px]"
-                  />
-                </Link>
-              </section>
-            </aside>
+            <HaruMascot pose="guiding" size={132} className="hidden shrink-0 sm:block" />
           </div>
+        </section>
+
+        <div className="mt-[var(--rp-space-section)] grid gap-[var(--rp-space-section)] lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div role="radiogroup" aria-label={tr('Chọn kỹ năng')} className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 lg:grid-cols-1">
+            {PRACTICE_OPTIONS.map((item) => {
+              const active = item.id === focus.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setFocusId(item.id)}
+                  className={cx(
+                    'rp-focus flex items-center gap-3 rounded-rp-card border bg-rp-surface p-3 text-left transition-[border-color,box-shadow,transform] duration-150',
+                    active ? 'border-rp-brand shadow-rp-card' : 'border-rp-line hover:-translate-y-0.5 hover:border-rp-brand-border',
+                  )}
+                >
+                  <FeatureIcon feature={FEATURE_OF[item.id] || 'neutral'} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-rp-text">{tr(item.label)}</span>
+                    <span lang="ja" className="rp-jp block text-xs text-rp-text-muted">{item.japanese}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <Card className="rp-anim-fade p-6" key={focus.id} aria-live="polite">
+            <div className="flex items-start gap-4">
+              <FeatureIcon feature={FEATURE_OF[focus.id] || 'neutral'} size="lg" />
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-rp-text">{tr(focus.title)}</h2>
+                <p className="mt-1 text-sm leading-6 text-rp-text-2">{tr(focus.description)}</p>
+              </div>
+            </div>
+            <ol className="mt-5 space-y-3">
+              {focus.steps.map((step, index) => (
+                <li key={step} className="flex items-start gap-3">
+                  <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rp-brand-tint text-xs font-bold text-rp-brand-strong">{index + 1}</span>
+                  <span className="pt-1 text-sm leading-6 text-rp-text">{tr(step)}</span>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Link to={focus.to} className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand hover:bg-rp-brand-strong rp-press">
+                {tr(focus.action)} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+              {focus.secondaryTo && (
+                <Link to={focus.secondaryTo} className="rp-focus inline-flex h-10 items-center rounded-rp-input border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text hover:border-rp-brand-border">
+                  {tr(focus.secondaryLabel)}
+                </Link>
+              )}
+            </div>
+          </Card>
         </div>
+
+        <section aria-labelledby="haru-more" className="mt-6">
+          <h2 id="haru-more" className="mb-3 text-sm font-bold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Tiếp tục hành trình')}</h2>
+          <ul style={{ '--rp-grid-min': '14.5rem' }} className="rp-fluid-grid">
+            {QUICK_LINKS.map((item) => (
+              <li key={item.to}>
+                <Link to={item.to} className="rp-focus group flex items-center gap-3 rounded-rp-card border border-rp-line bg-rp-surface p-4 transition-colors hover:border-rp-brand-border">
+                  <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-xl bg-rp-muted text-[20px] text-rp-text-2"><Icon name={item.icon} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-rp-text">{tr(item.title)}</span>
+                    <span className="block text-xs text-rp-text-muted">{tr(item.description)}</span>
+                  </span>
+                  <ArrowRight aria-hidden="true" className="h-4 w-4 text-rp-text-muted transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
     </LearnerShell>
   );

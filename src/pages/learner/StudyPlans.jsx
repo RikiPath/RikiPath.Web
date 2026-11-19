@@ -1,13 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { getSession } from '../../auth/session.js';
-import { LearnerShell } from '../../components/shells';
-import { useLocale } from '../../i18n/locale.js';
-import { getMySubscription, getStudyPlans } from '../../api/subscriptions.js';
+import { Badge, Banner, Card, EmptyState, ErrorState, FeatureIcon, RefreshingIndicator, SakuraLoader } from '@/components/ui';
+import { getSession } from '@/app/auth/session.js';
+import { LearnerShell, PublicShell } from '@/layouts';
+import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { getMySubscription, getStudyPlans } from '@/features/checkout/api/subscriptionApi.js';
 
 function money(value) {
-  return new Intl.NumberFormat('vi-VN', {
+  return new Intl.NumberFormat(currentIntlTag(), {
     style: 'currency',
     currency: 'VND',
     maximumFractionDigits: 0,
@@ -15,9 +16,13 @@ function money(value) {
 }
 
 export default function StudyPlans() {
-  const { tr } = useLocale();
-  const { pathname } = useLocation();
+  const { trf, tr } = useLocale();
+  const { pathname, state } = useLocation();
   const session = getSession();
+  const fromPath = state?.from?.pathname
+    ? `${state.from.pathname}${state.from.search || ''}`
+    : '';
+  const requiredLabel = state?.requiredFeatureLabel || '';
 
   const plansQuery = useQuery({
     queryKey: ['study-plans'],
@@ -28,116 +33,137 @@ export default function StudyPlans() {
   const mineQuery = useQuery({
     queryKey: ['study-subscription', session?.userId],
     enabled: Boolean(session?.accessToken),
-    refetchInterval: (query) => query.state.data?.active ? 60000 : false,
+    refetchInterval: (query) => (query.state.data?.active ? 60000 : false),
     queryFn: getMySubscription,
     retry: false,
   });
 
-  const plans = plansQuery.data ?? [];
+  const plans = (plansQuery.data ?? []).filter((p) => p?.kind !== 'mentor');
   const current = mineQuery.data;
+  const Shell = session?.accessToken ? LearnerShell : PublicShell;
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Mua gói">
-      <main
-        data-page="StudyPlans"
-        className="mx-auto max-w-[980px] px-5 py-6 font-['Be_Vietnam_Pro',sans-serif] text-[#49353F] lg:px-7"
-      >
-        <section className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-5 sm:px-6">
-          <p className="text-[11px] font-medium tracking-[0.14em] text-[#AD3155]">
-            GÓI ÔN LUYỆN
-          </p>
-          <h1 className="mt-2 text-[22px] font-semibold">Mua gói và lượt sử dụng</h1>
-          <p className="mt-2 max-w-xl text-[13px] leading-6 text-[#8C7782]">
-            Chọn gói tự học, luyện từng kỹ năng, lượt AI hoặc buổi ôn luyện cùng mentor.
-          </p>
-          {current && <div className="mt-4 space-y-2 text-sm">
-            <p>Lượt AI nói hoặc viết: {current.aiGradingUsesRemaining} · Riêng nói: {current.speakingUsesRemaining} · Riêng viết: {current.writingUsesRemaining}</p>
-            <p>Lượt tạo lộ trình AI: {current.learningPathUsesRemaining} · Buổi mentor: {current.mentorSessionsRemaining}</p>
-            {current.purchases?.length > 0 && <details>
-              <summary className="cursor-pointer font-medium">Gói đã mua</summary>
-              <ul className="mt-2 space-y-1">
-                {current.purchases.map((order) => <li key={order.id}>
-                  {order.planName} · {money(order.amountPaid)} · {order.active ? 'Đang hiệu lực' : 'Đã hết hạn'}
-                </li>)}
-              </ul>
-            </details>}
-          </div>}
+    <Shell pathname={pathname} breadcrumb={tr('Gói tự học')}>
+      <main data-page="StudyPlans" className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text">
+        {fromPath && (
+          <Banner tone="info" className="mb-5">
+            <span>
+              {tr('Bạn vừa mở')}{' '}<strong>{requiredLabel || tr('tính năng có yêu cầu gói')}</strong>{tr('. Chọn gói phù hợp bên dưới hoặc')}{' '}
+              <Link to={fromPath} className="font-semibold underline">
+                {tr('quay lại trang trước')}
+              </Link>.
+            </span>
+          </Banner>
+        )}
+        <Card className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-4">
+            <FeatureIcon feature="haru" size="lg" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rp-brand-strong">
+                {tr('GÓI TỰ HỌC & LƯỢT AI')}
+              </p>
+              <h1 className="mt-1 text-[22px] font-bold text-rp-text sm:text-2xl">{tr('Gói tự học & lượt chấm AI')}</h1>
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-rp-text-2">
+                {tr('Chọn gói tự học theo ngày, luyện kỹ năng JLPT và lượt chấm Haru AI. Lớp học nhóm cùng Mentor được đăng ký riêng theo khóa 10 tuần tại mục Tìm Mentor.')}
+              </p>
+            </div>
+          </div>
+          {mineQuery.isError && (
+            <ErrorState error={mineQuery.error} onRetry={() => mineQuery.refetch()} retrying={mineQuery.isFetching} compact className="mt-4" />
+          )}
+          {current && (
+            <div className="mt-5 space-y-3 rounded-rp-input border border-rp-line bg-rp-bg-2 p-4 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="brand" icon={false}>{tr('AI nói/viết:')}{' '}{current.aiGradingUsesRemaining ?? 0}</Badge>
+                <Badge tone="info" icon={false}>{tr('Riêng nói:')}{' '}{current.speakingUsesRemaining ?? 0}</Badge>
+                <Badge tone="neutral" icon={false}>{tr('Riêng viết:')}{' '}{current.writingUsesRemaining ?? 0}</Badge>
+                <Badge tone="neutral" icon={false}>{tr('Lộ trình AI:')}{' '}{current.learningPathUsesRemaining ?? 0}</Badge>
+              </div>
+              {current.purchases?.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-[13px] font-semibold text-rp-text">{trf('Lịch sử gói đã mua ({0})', { 0: current.purchases.length })}</summary>
+                  <ul className="mt-2 space-y-1 text-[13px] text-rp-text-2">
+                    {current.purchases.map((order) => (
+                      <li key={order.id}>
+                        {order.planName} · {money(order.amountPaid)} · {order.active ? tr('Đang hiệu lực') : tr('Đã hết hạn')}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
           {current?.active && (
-            <p className="mt-4 rounded-xl bg-[#FCEEF4] px-4 py-3 text-[13px] text-[#9E2A4B]">
-              Bạn đang dùng {current.planName || 'một gói'}.
+            <div className="mt-4 rounded-rp-input border border-rp-brand-soft bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">
+              {tr('Bạn đang dùng')}{' '}<strong>{current.planName || tr('một gói')}</strong>.
               {current.selfStudyExpiresAt && (
-                <span className="block mt-1">
-                  Còn {current.selfStudyDaysRemaining} ngày tự học · Hết hạn lúc{' '}
-                  {new Intl.DateTimeFormat('vi-VN', {
+                <span className="mt-1 block">
+                 {trf('Còn {0} ngày tự học · Hết hạn lúc  {1} (giờ Việt Nam)', { 0: current.selfStudyDaysRemaining, 1: new Intl.DateTimeFormat(currentIntlTag(), {
                     dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
-                  }).format(new Date(current.selfStudyExpiresAt))} (giờ Việt Nam)
+                  }).format(new Date(current.selfStudyExpiresAt)) })}
                 </span>
               )}
-              <Link to="/app" className="ml-2 font-medium underline">
+              <Link to="/app" className="mt-1 inline-block font-semibold underline">
                 {tr('Vào trang ôn luyện')}
               </Link>
-            </p>
+            </div>
           )}
-        </section>
+        </Card>
 
-        {plansQuery.isPending && (
-          <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Đang tải các gói…')}</p>
+        {plansQuery.isPending && plans.length === 0 && (
+          <SakuraLoader variant="section" context="payment" label={tr('Đang tải các gói tự học')} delay={160} />
         )}
+        <div className="mt-3 flex justify-end">
+          <RefreshingIndicator active={plansQuery.isFetching && !plansQuery.isPending} />
+        </div>
         {plansQuery.isError && (
-          <p className="mt-4 text-[13px] text-[#9E2A4B]" role="alert">
-            {plansQuery.error.message}
-          </p>
+          <Card className="mt-5">
+            <ErrorState error={plansQuery.error} onRetry={() => plansQuery.refetch()} retrying={plansQuery.isFetching} compact />
+          </Card>
         )}
         {!plansQuery.isPending && !plansQuery.isError && plans.length === 0 && (
-          <p className="mt-4 text-[13px] text-[#8C7782]">{tr('Chưa có gói tự học đang mở.')}</p>
+          <Card className="mt-5">
+            <EmptyState compact title={tr('Chưa có gói tự học đang mở.')} />
+          </Card>
         )}
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div style={{ '--rp-grid-min': '18rem' }} className="rp-fluid-grid mt-[var(--rp-space-section)]">
           {plans.map((plan) => (
             <article
               key={plan.id}
-              className={`rounded-2xl border bg-white p-5 ${
-                plan.isPopular ? 'border-[#AD3155]' : 'border-[#EADFE5]'
+              className={`rp-card-hover flex flex-col rounded-rp-card border bg-rp-surface p-5 ${
+                plan.isPopular ? 'border-rp-brand-strong shadow-rp-card' : 'border-rp-line'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-[16px] font-semibold">{plan.name}</h2>
-                {plan.isPopular && (
-                  <span className="rounded-full bg-[#FCEEF4] px-2 py-0.5 text-[11px] font-medium text-[#AD3155]">
-                    {tr('Phổ biến')}
-                  </span>
-                )}
+                <h2 className="text-[16px] font-bold text-rp-text">{plan.name}</h2>
+                {plan.isPopular && <Badge tone="brand" size="sm" icon={false}>{tr('Phổ biến')}</Badge>}
               </div>
-              <p className="mt-2 text-[22px] font-semibold text-[#AD3155]">{money(plan.price)}</p>
-              <p className="mt-1 text-[12px] text-[#8C7782]">{plan.durationDays > 0 ? `${plan.durationDays} ngày` : '1 lượt dùng'}{plan.durationDays > 0 && plan.aiUses > 0 ? ` · ${plan.aiUses} lượt AI` : ''}</p>
+              <p className="mt-2 text-[24px] font-bold tabular-nums text-rp-brand-strong">{money(plan.price)}</p>
+              <p className="mt-1 text-xs text-rp-text-muted">{plan.durationDays > 0 ? trf('{0} ngày', { 0: plan.durationDays }) : tr('1 lượt dùng')}{plan.durationDays > 0 && plan.aiUses > 0 ? trf(' · {0} lượt AI', { 0: plan.aiUses }) : ''}</p>
               {plan.description && (
-                <p className="mt-3 text-[13px] leading-6 text-[#6F5C66]">{plan.description}</p>
+                <p className="mt-3 text-[13px] leading-6 text-rp-text-2">{tr(plan.description)}</p>
               )}
               {Array.isArray(plan.features) && plan.features.length > 0 && (
-                <ul className="mt-3 space-y-1 text-[12px] text-[#8C7782]">
+                <ul className="mt-3 space-y-1 text-xs text-rp-text-muted">
                   {plan.features.map((feature) => (
-                    <li key={feature}>{feature}</li>
+                    <li key={feature}>• {feature}</li>
                   ))}
                 </ul>
               )}
-              {plan.kind === "mentor" ? (
-                <Link to={session?.accessToken ? `/mentor/?planId=${plan.id}` : "/auth"} className="mt-4 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-sm font-medium text-white">
-                  Mua buổi mentor
-                </Link>
-              ) : (
+              <div className="mt-auto pt-4">
                 <Link
-                  to={session?.accessToken ? `/study-payment?planId=${plan.id}` : "/auth"}
+                  to={session?.accessToken ? `/study-payment?planId=${plan.id}` : '/auth'}
                   state={{ plan }}
-                  className="mt-4 inline-flex h-10 items-center rounded-full bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B]"
+                  className="rp-focus inline-flex h-10 w-full items-center justify-center rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand transition-colors hover:bg-rp-brand-strong rp-press"
                 >
                   {tr('Mua gói')}
                 </Link>
-              )}
+              </div>
             </article>
           ))}
         </div>
-
       </main>
-    </LearnerShell>
+    </Shell>
   );
 }

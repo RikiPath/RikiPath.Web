@@ -15,7 +15,6 @@ function backendOrigin() {
 
 export function hubEndpoint(path) {
   const overrides = {
-    '/hubs/mentor-chat': env.VITE_MENTOR_CHAT_HUB,
     '/hubs/mentor-meeting': env.VITE_HUB_URL || env.VITE_SIGNALR_HUB,
     '/hubs/notification': env.VITE_NOTIFICATION_HUB,
   };

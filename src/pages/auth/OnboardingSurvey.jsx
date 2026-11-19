@@ -1,20 +1,23 @@
-import BrandMark from '../../components/BrandMark.jsx';
-import LanguageSwitch from '../../components/LanguageSwitch.jsx';
-import { useLocale } from '../../i18n/locale.js';
+import BrandMark from '@/components/brand/BrandMark.jsx';
+import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
+import { useLocale } from '@/locales/locale.js';
 import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
-import JlptExamDatePicker from '../../components/JlptExamDatePicker.jsx';
-import { buildLearningGoal, isJlptExamDate } from '../../utils/learningGoal.js';
-import { getSession, patchSession } from '../../auth/session.js';
-import { queryClient } from '../../api/queryClient.js';
-import { getPlacementStatus, placementAssessmentKey, startPlacementAttempt } from '../../api/placementApi.js';
-import { useSetJlptGoalMutation } from '../../hooks/useAuth.js';
-import { useLearnerProfile } from '../../hooks/useLearnerHome.js';
+import JlptExamDatePicker from '@/features/auth/components/JlptExamDatePicker.jsx';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { buildLearningGoal, isJlptExamDate } from '@/features/learning-path/utils/learningGoal.js';
+import { getSession, patchSession } from '@/app/auth/session.js';
+import { queryClient } from '@/api/queryClient.js';
+import { getPlacementStatus, placementAssessmentKey, startPlacementAttempt } from '@/features/placement/api/placementApi.js';
+import { useSetJlptGoalMutation } from '@/features/auth/hooks/useAuthMutations.js';
+import { useLearnerProfile } from '@/features/dashboard/hooks/useLearnerHome.js';
 import {
   useCertificateTypesQuery,
   useCertificateLevelsQuery,
-} from '../../hooks/useCertificates.js';
+} from '@/features/learning-path/hooks/useCertificates.js';
+import { SakuraLoader } from '@/components/ui';
+import Icon from '@/components/ui/Icon.jsx';
 
 
 // Fallback mô tả cấp độ nếu DB chưa có mô tả chi tiết
@@ -25,19 +28,9 @@ const LEVEL_FALLBACKS = {
   N2: { title: 'Nâng cao năng lực', desc: 'Luyện hiểu văn bản dài và chủ đề đa dạng.' },
 };
 
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
-}
 
 export default function OnboardingSurvey() {
-  const { locale, tr } = useLocale();
+  const { trf, tr } = useLocale();
   const navigate = useNavigate();
   const session = getSession();
   const profileQuery = useLearnerProfile();
@@ -109,13 +102,12 @@ export default function OnboardingSurvey() {
   const needsCertificateChoice = heldOptions.length > 0 && hasCertificate && !heldCode;
 
 
+  const saving = goalMutation.isPending || startingAssessment;
   const busy =
-    goalMutation.isPending ||
-    startingAssessment ||
+    saving ||
     loadingTypes ||
     loadingLevels ||
-    profileQuery.isLoading ||
-    profileQuery.isError;
+    profileQuery.isLoading;
 
   function handleSelectCert(certId) {
     if (certId === activeCertId) return;
@@ -130,14 +122,14 @@ export default function OnboardingSurvey() {
   }
 
   function skipForNow() {
-    if (busy) return;
+    if (saving) return;
     patchSession({ skipOnboarding: true });
     navigate('/app', { replace: true });
   }
 
   async function handleSubmit(event, saveOnly = false) {
     event.preventDefault();
-    if (busy || submitting.current) return;
+    if (saving || submitting.current) return;
 
     let payload;
     try {
@@ -162,6 +154,7 @@ export default function OnboardingSurvey() {
       goalSaved = true;
       patchSession({ skipOnboarding: false });
       if (saveOnly) {
+        notify.success(tr('Đã cập nhật mục tiêu JLPT.'), '', { key: 'jlpt-goal-saved' });
         navigate('/app', { replace: true });
         return;
       }
@@ -173,6 +166,7 @@ export default function OnboardingSurvey() {
       setStartingAssessment(true);
       const current = await getPlacementStatus();
       if (current.hasActiveAttempt || current.latestCompletedAttemptId || current.attemptAllowance?.started > 0) {
+        notify.success(tr('Đã lưu mục tiêu học tập.'), tr('Đang mở bài đánh giá năng lực phù hợp.'), { key: 'jlpt-goal-saved' });
         navigate('/app/placement-test/', { replace: true });
         return;
       }
@@ -181,10 +175,16 @@ export default function OnboardingSurvey() {
         attempt,
         status: { ...current, ...status },
       });
+      notify.success(tr('Đã lưu mục tiêu JLPT.'), tr('Bắt đầu bài đánh giá năng lực ngay bây giờ.'), { key: 'jlpt-goal-saved' });
       navigate(`/app/placement-test/?attemptId=${attempt.attemptId}`, { replace: true });
     } catch (err) {
       const fallback = goalSaved ? 'Vui lòng thử bắt đầu lại.' : 'Không lưu được mục tiêu. Vui lòng thử lại.';
       setError(`${goalSaved ? 'Mục tiêu đã lưu. ' : ''}${err?.message || fallback}`);
+      if (goalSaved) {
+        notify.warning(tr('Mục tiêu đã được lưu'), err?.message || fallback, { key: 'onboarding-goal-partial' });
+      } else {
+        notify.apiError(err, tr('Không lưu được mục tiêu'), { key: 'onboarding-goal-error' });
+      }
     } finally {
       submitting.current = false;
       setStartingAssessment(false);
@@ -198,22 +198,21 @@ export default function OnboardingSurvey() {
   return (
     <div
       data-page="OnboardingSurvey"
-      className="flex min-h-screen items-center justify-center
-                 bg-[#F8F5F4] px-4 py-6
-                 font-['Be_Vietnam_Pro',sans-serif]
-                 text-[#352C31] sm:px-6 lg:py-8"
+      className="flex min-h-dvh items-center justify-center
+                 bg-rp-brand-tint px-[var(--rp-space-page-x)] py-[var(--rp-space-page-y)]
+                 text-rp-text"
     >
       <main
-        className="grid w-full max-w-[1100px] overflow-hidden
-                   rounded-[24px] border border-[#EEE4E7]
+        className="grid w-full max-w-[1160px] overflow-hidden
+                   rounded-[24px] border border-rp-line
                    bg-white shadow-[0_12px_48px_rgba(75,42,55,0.06)]
                    lg:grid-cols-[0.8fr_1.4fr]"
       >
         {/* Cột giới thiệu bên trái */}
         <aside
           className="relative flex flex-col overflow-hidden
-                     bg-[#92344F] px-7 py-7 text-white
-                     sm:px-9 lg:p-9"
+                     bg-rp-brand-strong p-[var(--rp-space-card-pad)] text-white
+                     lg:p-9"
         >
           <div
             aria-hidden="true"
@@ -263,7 +262,7 @@ export default function OnboardingSurvey() {
               className="mt-4 max-w-[320px] text-[13px]
                          leading-6 text-[#EDD4DC]"
             >
-              Chọn chứng chỉ, cấp độ và thời lượng phù hợp để bắt đầu lộ trình ôn luyện cá nhân hóa cùng RikiPath.
+              {tr('Chọn chứng chỉ, cấp độ và thời lượng phù hợp để bắt đầu lộ trình ôn luyện cá nhân hóa cùng RikiPath.')}
             </p>
           </div>
 
@@ -284,9 +283,9 @@ export default function OnboardingSurvey() {
                 </span>
 
                 <div className="pt-0.5">
-                  <p className="text-[13px] font-medium">{title}</p>
+                  <p className="text-[13px] font-medium">{tr(title)}</p>
                   <p className="mt-1 text-[12px] text-[#DFC0CB]">
-                    {description}
+                    {tr(description)}
                   </p>
                 </div>
               </li>
@@ -304,7 +303,7 @@ export default function OnboardingSurvey() {
               className="mt-0.5 shrink-0 text-[18px]"
             />
             <p>
-              Chọn thời lượng bạn có thể duy trì đều đặn mỗi ngày để đạt hiệu quả cao nhất.
+              {tr('Chọn thời lượng bạn có thể duy trì đều đặn mỗi ngày để đạt hiệu quả cao nhất.')}
             </p>
           </div>
         </aside>
@@ -312,53 +311,56 @@ export default function OnboardingSurvey() {
         {/* Khối chọn mục tiêu bên phải */}
         <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
           <div className="mb-4 flex justify-end">
-            <LanguageSwitch className="inline-flex items-center gap-1 rounded-lg border border-[#EAE2E6] bg-[#FCF7F9] px-2.5 py-1 text-xs font-semibold text-[#6F5C66]" />
+            <LanguageSwitch />
           </div>
           <header>
-            <p className="text-[12px] font-medium text-[#AD526F]">
-              Thiết lập mục tiêu học tập
+            <p className="text-[12px] font-medium text-rp-brand-strong">
+              {tr('Thiết lập mục tiêu học tập')}
             </p>
 
             <h2
               className="mt-2 text-[25px] font-semibold
                          leading-tight tracking-tight sm:text-[28px]"
             >
-              Bạn muốn ôn luyện mục tiêu nào?
+              {tr('Bạn muốn ôn luyện mục tiêu nào?')}
             </h2>
 
-            <p className="mt-2 text-[13px] leading-6 text-[#8A7A82]">
-              Chọn chứng chỉ và cấp độ bạn đang hướng đến.
+            <p className="mt-2 text-[13px] leading-6 text-rp-text-muted">
+              {tr('Chọn chứng chỉ và cấp độ bạn đang hướng đến.')}
             </p>
           </header>
 
-          {profile?.targetJlptLevelId && <div className="mt-4 rounded-xl bg-[#FFF5F8] p-3 text-[13px] text-[#8F3654]">
-            <Link to="/app/placement-test" className="font-semibold underline">Tiếp tục bài đánh giá hiện tại</Link>
-            <p className="mt-1">Bạn cũng có thể cập nhật mục tiêu bên dưới. Đổi cấp độ sẽ mở đề tương ứng; khi bắt đầu đề mới, lượt cũ sẽ kết thúc và được giữ trong lịch sử.</p>
+          {profile?.targetJlptLevelId && <div className="mt-4 rounded-xl bg-rp-brand-tint p-3 text-[13px] text-rp-brand-strong">
+            <Link to="/app/placement-test" className="font-semibold underline">{tr('Tiếp tục bài đánh giá hiện tại')}</Link>
+            <p className="mt-1">{tr('Bạn cũng có thể cập nhật mục tiêu bên dưới. Đổi cấp độ sẽ mở đề tương ứng; khi bắt đầu đề mới, lượt cũ sẽ kết thúc và được giữ trong lịch sử.')}</p>
           </div>}
           <form onSubmit={handleSubmit} className="mt-6">
             {/* BƯỚC 1: Chọn chứng chỉ */}
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-[13px] font-semibold text-[#4A3841]">
-                  1. Chọn chứng chỉ
+                <label className="text-[13px] font-semibold text-rp-text">
+                  {tr('1. Chọn chứng chỉ')}
                 </label>
                 {loadingTypes && (
-                  <span className="flex items-center gap-1.5 text-[11px] text-[#A08E97]">
-                    <Icon name="progress_activity" className="animate-spin text-[14px]" />
-                    Đang tải chứng chỉ…
-                  </span>
+                  <SakuraLoader
+                    variant="inline"
+                    size={16}
+                    context="assessment"
+                    label={tr('Đang tải chứng chỉ…')}
+                    delay={160}
+                  />
                 )}
               </div>
 
               {typesError ? (
                 <div className="mt-2 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
-                  <span>Không tải được danh sách chứng chỉ.</span>
+                  <span>{tr('Không tải được danh sách chứng chỉ.')}</span>
                   <button
                     type="button"
                     onClick={() => refetchTypes()}
                     className="font-medium underline hover:text-red-900"
                   >
-                    Thử lại
+                    {tr('Thử lại')}
                   </button>
                 </div>
               ) : loadingTypes && certificateTypes.length === 0 ? (
@@ -366,7 +368,7 @@ export default function OnboardingSurvey() {
                   {[1, 2].map((i) => (
                     <div
                       key={i}
-                      className="h-16 animate-pulse rounded-xl border border-[#EAE2E6] bg-[#FAF7F8]"
+                      className="h-16 animate-pulse rounded-xl border border-rp-line bg-rp-brand-tint"
                     />
                   ))}
                 </div>
@@ -382,19 +384,19 @@ export default function OnboardingSurvey() {
                         disabled={busy}
                         className={[
                           'group flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all duration-150',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D94B68]/40',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand/40',
                           'disabled:cursor-wait',
                           isSelected
-                            ? 'border-[#CD708C] bg-[#FFF5F8] shadow-xs'
-                            : 'border-[#EAE2E6] bg-white hover:border-[#D8A7B7] hover:bg-[#FFFCFD]',
+                            ? 'border-rp-brand-border bg-rp-brand-tint shadow-xs'
+                            : 'border-rp-line bg-white hover:border-rp-brand-border hover:bg-rp-brand-tint',
                         ].join(' ')}
                       >
                         <span
                           className={[
                             'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[13px] font-bold transition-colors',
                             isSelected
-                              ? 'bg-[#D94B68] text-white shadow-xs'
-                              : 'bg-[#F5EFF2] text-[#8C6E7A] group-hover:bg-[#F2E5EB]',
+                              ? 'bg-rp-brand-pressed text-white shadow-xs'
+                              : 'bg-rp-brand-soft text-rp-text-2 group-hover:bg-rp-brand-soft',
                           ].join(' ')}
                         >
                           {cert.name || 'CC'}
@@ -402,22 +404,22 @@ export default function OnboardingSurvey() {
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-1.5">
-                            <span className="text-[14px] font-semibold text-[#352C31]">
+                            <span className="text-[14px] font-semibold text-rp-text">
                               {cert.name}
                             </span>
                             <span
                               className={[
                                 'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full transition-colors',
                                 isSelected
-                                  ? 'bg-[#D94B68] text-white'
+                                  ? 'bg-rp-brand-pressed text-white'
                                   : 'border border-[#DCD1D6]',
                               ].join(' ')}
                             >
                               {isSelected && <Icon name="check" className="text-[12px]" />}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-[12px] leading-4 text-[#8A7A82] line-clamp-2">
-                            {cert.description || `Luyện thi & đánh giá chứng chỉ ${cert.name}`}
+                          <p className="mt-0.5 text-[12px] leading-4 text-rp-text-muted line-clamp-2">
+                            {cert.description || trf('Luyện thi & đánh giá chứng chỉ {0}', { 0: cert.name })}
                           </p>
                         </div>
                       </button>
@@ -428,34 +430,37 @@ export default function OnboardingSurvey() {
             </div>
 
             {/* BƯỚC 2: Chọn cấp độ */}
-            <fieldset disabled={busy} className="mt-5 border-t border-[#F0E8EC] pt-5">
+            <fieldset disabled={busy} className="mt-5 border-t border-rp-line pt-5">
               <div className="flex items-center justify-between">
-                <legend className="text-[13px] font-semibold text-[#4A3841]">
-                  2. Chọn cấp độ mục tiêu
+                <legend className="text-[13px] font-semibold text-rp-text">
+                  {tr('2. Chọn cấp độ mục tiêu')}
                   {selectedCert?.name && (
-                    <span className="ml-1 text-[12px] font-normal text-[#94858C]">
-                      (theo chứng chỉ {selectedCert.name})
+                    <span className="ml-1 text-[12px] font-normal text-rp-text-muted">
+                      {trf('(theo chứng chỉ {0})', { 0: selectedCert.name })}
                     </span>
                   )}
                 </legend>
 
                 {loadingLevels && (
-                  <span className="flex items-center gap-1.5 text-[11px] text-[#A08E97]">
-                    <Icon name="progress_activity" className="animate-spin text-[14px]" />
-                    Đang tải cấp độ…
-                  </span>
+                  <SakuraLoader
+                    variant="inline"
+                    size={16}
+                    context="assessment"
+                    label={tr('Đang tải cấp độ…')}
+                    delay={160}
+                  />
                 )}
               </div>
 
               {levelsError ? (
                 <div className="mt-3 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
-                  <span>Không tải được danh sách cấp độ theo chứng chỉ.</span>
+                  <span>{tr('Không tải được danh sách cấp độ theo chứng chỉ.')}</span>
                   <button
                     type="button"
                     onClick={() => refetchLevels()}
                     className="font-medium underline hover:text-red-900"
                   >
-                    Thử lại
+                    {tr('Thử lại')}
                   </button>
                 </div>
               ) : loadingLevels && levels.length === 0 ? (
@@ -463,13 +468,13 @@ export default function OnboardingSurvey() {
                   {[1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
-                      className="h-24 animate-pulse rounded-xl border border-[#EAE2E6] bg-[#FAF7F8]"
+                      className="h-24 animate-pulse rounded-xl border border-rp-line bg-rp-brand-tint"
                     />
                   ))}
                 </div>
               ) : levels.length === 0 ? (
-                <div className="mt-3 rounded-xl border border-dashed border-[#EAE2E6] bg-[#FAFAFA] p-6 text-center text-[13px] text-[#8C7681]">
-                  Chưa có danh sách cấp độ cho chứng chỉ này. Vui lòng chọn chứng chỉ khác.
+                <div className="mt-3 rounded-xl border border-dashed border-rp-line bg-rp-bg-2 p-6 text-center text-[13px] text-rp-text-muted">
+                  {tr('Chưa có danh sách cấp độ cho chứng chỉ này. Vui lòng chọn chứng chỉ khác.')}
                 </div>
               ) : (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -477,7 +482,7 @@ export default function OnboardingSurvey() {
                     const isSelected = activeLevelId === level.id;
                     const codeLabel = level.code || level.name || '';
                     const fallback = LEVEL_FALLBACKS[codeLabel.toUpperCase()] || {};
-                    const title = fallback.title || (level.name && level.name !== codeLabel ? level.name : `Cấp độ ${codeLabel}`);
+                    const title = fallback.title || (level.name && level.name !== codeLabel ? level.name : trf('Cấp độ {0}', { 0: codeLabel }));
                     const description = level.description || fallback.desc || 'Chương trình ôn luyện chuẩn đầu ra.';
 
                     return (
@@ -498,12 +503,12 @@ export default function OnboardingSurvey() {
                             'gap-3 rounded-xl border p-4',
                             'transition-all duration-150',
                             'peer-focus-visible:ring-2',
-                            'peer-focus-visible:ring-[#D94B68]/40',
+                            'peer-focus-visible:ring-rp-brand/40',
                             'peer-focus-visible:ring-offset-2',
                             'peer-disabled:cursor-wait',
                             isSelected
-                              ? 'border-[#CD708C] bg-[#FFF5F8] shadow-xs'
-                              : 'border-[#EAE2E6] bg-white hover:border-[#D8A7B7] hover:bg-[#FFFCFD]',
+                              ? 'border-rp-brand-border bg-rp-brand-tint shadow-xs'
+                              : 'border-rp-line bg-white hover:border-rp-brand-border hover:bg-rp-brand-tint',
                           ].join(' ')}
                         >
                           <span
@@ -513,8 +518,8 @@ export default function OnboardingSurvey() {
                               'justify-center rounded-[10px]',
                               'text-[14px] font-semibold transition-colors',
                               isSelected
-                                ? 'bg-[#D94B68] text-white shadow-xs'
-                                : 'bg-[#F5EFF2] text-[#947983]',
+                                ? 'bg-rp-brand-pressed text-white shadow-xs'
+                                : 'bg-rp-brand-soft text-rp-text-muted',
                             ].join(' ')}
                           >
                             {codeLabel}
@@ -522,7 +527,7 @@ export default function OnboardingSurvey() {
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-[14px] font-semibold text-[#352C31]">
+                              <span className="text-[14px] font-semibold text-rp-text">
                                 {selectedCert?.name ? `${selectedCert.name} ${codeLabel}` : codeLabel}
                               </span>
 
@@ -532,7 +537,7 @@ export default function OnboardingSurvey() {
                                   'flex h-[18px] w-[18px] shrink-0',
                                   'items-center justify-center rounded-full transition-colors',
                                   isSelected
-                                    ? 'bg-[#D94B68] text-white'
+                                    ? 'bg-rp-brand-pressed text-white'
                                     : 'border border-[#DCD1D6]',
                                 ].join(' ')}
                               >
@@ -545,15 +550,15 @@ export default function OnboardingSurvey() {
                               </span>
                             </div>
 
-                            <p className="mt-1 text-[12px] font-medium text-[#8C6E7A]">
-                              {title}
+                            <p className="mt-1 text-[12px] font-medium text-rp-text-2">
+                              {tr(title)}
                             </p>
 
                             <p
                               id={`level-${level.id}-desc`}
-                              className="mt-1 text-[12px] leading-5 text-[#94858C]"
+                              className="mt-1 text-[12px] leading-5 text-rp-text-muted"
                             >
-                              {description}
+                              {tr(description)}
                             </p>
                           </div>
                         </div>
@@ -565,27 +570,27 @@ export default function OnboardingSurvey() {
             </fieldset>
 
             {heldOptions.length > 0 && (
-              <fieldset className="space-y-3 border-t border-[#EAE2E6] py-5" disabled={busy}>
-                <label className="flex items-center gap-2 text-sm font-semibold text-[#49353F]">
-                  <input type="checkbox" className="accent-[#AD3155]" checked={hasCertificate}
+              <fieldset className="space-y-3 border-t border-rp-line py-5" disabled={busy}>
+                <label className="flex items-center gap-2 text-sm font-semibold text-rp-text">
+                  <input type="checkbox" checked={hasCertificate}
                     onChange={event => {
                       setHeldOverride(event.target.checked ? '' : 'NONE');
                       setError('');
                     }} />
-                  {targetCode === 'N4' ? 'Bạn đã có chứng chỉ JLPT N5 chưa?' : 'Bạn đã có chứng chỉ JLPT chưa?'}
+                  {targetCode === 'N4' ? tr('Bạn đã có chứng chỉ JLPT N5 chưa?') : tr('Bạn đã có chứng chỉ JLPT chưa?')}
                 </label>
                 {hasCertificate && <label className="block space-y-1 text-sm">
-                  <span>Bạn đã có chứng chỉ nào? Chọn cấp cao nhất.</span>
+                  <span>{tr('Bạn đã có chứng chỉ nào? Chọn cấp cao nhất.')}</span>
                   <select value={heldCode} required onChange={event => {
                     setHeldOverride(event.target.value);
                     setError('');
-                  }} className="w-full rounded-lg border border-[#EAE2E6] bg-white px-3 py-2">
-                    <option value="">Chọn chứng chỉ</option>
+                  }} className="w-full rounded-lg border border-rp-line bg-white px-3 py-2">
+                    <option value="">{tr('Chọn chứng chỉ')}</option>
                     {heldOptions.map(code => <option key={code} value={code}>JLPT {code}</option>)}
                   </select>
                 </label>}
-                <p className="text-xs text-[#826773]">
-                  Bài đánh giá{heldCode ? ' rút gọn' : ''} gồm câu hỏi {comparisonLevel} và {targetCode} cho cả bốn kỹ năng.
+                <p className="text-xs text-rp-text-muted">
+                  {tr('Bài đánh giá')}{heldCode ? tr(' rút gọn') : ''}{' '}{tr('gồm câu hỏi')}{' '}{comparisonLevel}{' '}{tr('và')}{' '}{targetCode}{' '}{tr('cho cả bốn kỹ năng.')}
                 </p>
               </fieldset>
             )}
@@ -593,72 +598,72 @@ export default function OnboardingSurvey() {
             {/* BƯỚC 3: Thời gian mỗi ngày */}
             <fieldset
               disabled={busy}
-              className="mt-5 border-t border-[#F0E8EC] pt-5"
+              className="mt-5 border-t border-rp-line pt-5"
             >
               <legend className="sr-only">
                 {tr('Thời gian ôn luyện mỗi ngày')}
               </legend>
 
-              <h3 className="text-[13px] font-semibold text-[#4A3841]">
-                3. Bạn dành bao nhiêu phút ôn luyện mỗi ngày?
+              <h3 className="text-[13px] font-semibold text-rp-text">
+                {tr('3. Bạn dành bao nhiêu phút ôn luyện mỗi ngày?')}
               </h3>
 
               <div className="mt-3 flex flex-wrap gap-4">
                 <label className="flex cursor-pointer items-center gap-2 text-[13px]">
-                  <input type="radio" name="study-time-mode" value="fixed" checked={timeMode === 'fixed'} onChange={() => setTimeMode('fixed')} className="accent-[#AD3155]" />
-                  Một mốc phút
+                  <input type="radio" name="study-time-mode" value="fixed" checked={timeMode === 'fixed'} onChange={() => setTimeMode('fixed')} />
+                  {tr('Một mốc phút')}
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-[13px]">
-                  <input type="radio" name="study-time-mode" value="range" checked={timeMode === 'range'} onChange={() => setTimeMode('range')} className="accent-[#AD3155]" />
-                  Khoảng từ–đến
+                  <input type="radio" name="study-time-mode" value="range" checked={timeMode === 'range'} onChange={() => setTimeMode('range')} />
+                  {tr('Khoảng từ–đến')}
                 </label>
               </div>
 
-              <p className="mt-2 text-[11px] text-[#A08E97]">
-                Chọn thời gian phù hợp với lịch sinh hoạt để ôn luyện bền bỉ mỗi ngày.
+              <p className="mt-2 text-[11px] text-rp-text-muted">
+                {tr('Chọn thời gian phù hợp với lịch sinh hoạt để ôn luyện bền bỉ mỗi ngày.')}
               </p>
             </fieldset>
 
-            <fieldset disabled={busy} className="mt-5 border-t border-[#F0E8EC] pt-5">
-              <label htmlFor="study-minutes" className="block text-[13px] font-semibold">{timeMode === 'fixed' ? 'Số phút học mỗi ngày' : 'Từ (phút/ngày)'}</label>
-              <input id="study-minutes" type="number" min="15" max="480" step="1" value={minutes} onChange={(event) => setMinutes(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EAE2E6] p-3 text-sm" />
+            <fieldset disabled={busy} className="mt-5 border-t border-rp-line pt-5">
+              <label htmlFor="study-minutes" className="block text-[13px] font-semibold">{timeMode === 'fixed' ? tr('Số phút học mỗi ngày') : tr('Từ (phút/ngày)')}</label>
+              <input id="study-minutes" type="number" min="15" max="480" step="1" value={minutes} onChange={(event) => setMinutes(event.target.value)} className="mt-2 w-full rounded-lg border border-rp-line p-3 text-sm" />
               {timeMode === 'range' && <>
-              <label htmlFor="study-minutes-max" className="mt-4 block text-[13px] font-semibold">Đến (phút/ngày)</label>
-              <input id="study-minutes-max" type="number" min="15" max="480" step="1" value={maxMinutes} onChange={(event) => setMaxMinutes(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EAE2E6] p-3 text-sm" />
+              <label htmlFor="study-minutes-max" className="mt-4 block text-[13px] font-semibold">{tr('Đến (phút/ngày)')}</label>
+              <input id="study-minutes-max" type="number" min="15" max="480" step="1" value={maxMinutes} onChange={(event) => setMaxMinutes(event.target.value)} className="mt-2 w-full rounded-lg border border-rp-line p-3 text-sm" />
               </>}
-              <p className="mt-2 text-[11px] text-[#94858C]">{timeMode === 'fixed' ? 'Tự nhập số phút bạn có thể học mỗi ngày, từ 15 đến 480 phút.' : 'Tự nhập khoảng thời gian từ 15 đến 480 phút. AI dùng mức tối thiểu cho nội dung cốt lõi và phần còn lại cho ôn luyện tùy chọn.'}</p>
+              <p className="mt-2 text-[11px] text-rp-text-muted">{timeMode === 'fixed' ? tr('Tự nhập số phút bạn có thể học mỗi ngày, từ 15 đến 480 phút.') : tr('Tự nhập khoảng thời gian từ 15 đến 480 phút. AI dùng mức tối thiểu cho nội dung cốt lõi và phần còn lại cho ôn luyện tùy chọn.')}</p>
               {isJlpt ? <JlptExamDatePicker value={examDate} today={today} onChange={setExamDate} requiredForAssessment /> : <>
-                <label htmlFor="target-exam-date" className="mt-4 block text-[13px] font-semibold">Ngày dự định thi (không bắt buộc)</label>
-                <input id="target-exam-date" type="date" value={examDate} onChange={event => setExamDate(event.target.value)} className="mt-2 w-full rounded-lg border border-[#EAE2E6] p-3 text-sm" />
+                <label htmlFor="target-exam-date" className="mt-4 block text-[13px] font-semibold">{tr('Ngày dự định thi (không bắt buộc)')}</label>
+                <input id="target-exam-date" type="date" value={examDate} onChange={event => setExamDate(event.target.value)} className="mt-2 w-full rounded-lg border border-rp-line p-3 text-sm" />
               </>}
-              <p className="mt-2 text-[11px] text-[#94858C]">Ngày thi và thời gian học được lưu để AI lập đề xuất lộ trình tiếp theo. Lộ trình hiện tại chưa tự động thay đổi.</p>
+              <p className="mt-2 text-[11px] text-rp-text-muted">{tr('Ngày thi và thời gian học được lưu để AI lập đề xuất lộ trình tiếp theo. Lộ trình hiện tại chưa tự động thay đổi.')}</p>
             </fieldset>
             {/* Tóm tắt */}
             <div
               className="mt-5 flex items-center gap-2.5
-                         rounded-lg bg-[#FAF5F7] px-3.5 py-2.5"
+                         rounded-lg bg-rp-brand-tint px-3.5 py-2.5"
             >
               <Icon
                 name="flag"
-                className="shrink-0 text-[19px] text-[#B26E86]"
+                className="shrink-0 text-[19px] text-rp-brand-strong"
               />
 
-              <p className="text-[12px] text-[#8C6E7A]">
-                Mục tiêu đã chọn:
-                <strong className="ml-1.5 font-semibold text-[#9E3658]">
-                  {selectedCert?.name || 'Chứng chỉ'}{' '}
-                  {selectedLevel ? (selectedLevel.code || selectedLevel.name) : '…'} · {timeMode === 'fixed' ? minutes : `${minutes}–${maxMinutes}`} phút/ngày
+              <p className="text-[12px] text-rp-text-2">
+                {tr('Mục tiêu đã chọn:')}
+                <strong className="ml-1.5 font-semibold text-rp-brand-strong">
+                  {selectedCert?.name || tr('Chứng chỉ')}{' '}
+                  {selectedLevel ? (selectedLevel.code || selectedLevel.name) : '…'} · {timeMode === 'fixed' ? minutes : `${minutes}–${maxMinutes}`}{' '}{tr('phút/ngày')}
                 </strong>
               </p>
             </div>
 
-            {profileQuery.isError && <p role="alert" className="mt-3 text-sm text-red-700">Không tải được mục tiêu hiện tại. <button type="button" onClick={() => profileQuery.refetch()} className="underline">Thử lại</button></p>}
+            {profileQuery.isError && <p role="alert" className="mt-3 text-sm text-red-700">{tr('Không tải được mục tiêu hiện tại.')}{' '}<button type="button" onClick={() => profileQuery.refetch()} className="underline">{tr('Thử lại')}</button></p>}
             {error && (
               <p
                 role="alert"
-                className="mt-3 rounded-lg bg-[#FFF0F2]
+                className="mt-3 rounded-lg bg-rp-brand-tint
                            px-3 py-2.5 text-[12px]
-                           leading-5 text-[#A13950]"
+                           leading-5 text-rp-brand-strong"
               >
                 {error}
               </p>
@@ -669,23 +674,23 @@ export default function OnboardingSurvey() {
               disabled={busy || !activeLevelId}
               className="mt-5 flex h-11 w-full items-center
                          justify-center gap-2 rounded-[10px]
-                         bg-[#D94B68] px-4 text-[14px]
+                         bg-rp-brand-pressed px-4 text-[14px]
                          font-semibold text-white
-                         transition-all hover:bg-[#C43E5C]
+                         transition-all hover:bg-rp-brand
                          focus-visible:outline-none
                          focus-visible:ring-2
-                         focus-visible:ring-[#D94B68]/40
+                         focus-visible:ring-rp-brand/40
                          focus-visible:ring-offset-2
-                         disabled:cursor-not-allowed disabled:opacity-60"
+                         disabled:cursor-not-allowed disabled:opacity-60 rp-press"
             >
-              {busy ? (
-                <>
-                  <Icon
-                    name="progress_activity"
-                    className="animate-spin text-[18px]"
-                  />
-                  {startingAssessment ? 'Đang bắt đầu bài đánh giá…' : 'Đang lưu mục tiêu…'}
-                </>
+              {saving ? (
+                <SakuraLoader
+                  variant="inline"
+                  size={18}
+                  tone="light"
+                  context="assessment"
+                  label={startingAssessment ? tr('Đang bắt đầu bài đánh giá…') : tr('Đang lưu mục tiêu…')}
+                />
               ) : (
                 <>
                   {tr('Lưu mục tiêu và tiếp tục')}
@@ -697,17 +702,17 @@ export default function OnboardingSurvey() {
               )}
             </button>
 
-            <button type="button" onClick={(event) => handleSubmit(event, true)} disabled={busy || !activeLevelId} className="mt-3 h-11 w-full rounded-lg border border-[#EAE2E6] text-[13px] text-[#92344F] disabled:opacity-50">Lưu thay đổi và về trang chủ</button>
+            <button type="button" onClick={(event) => handleSubmit(event, true)} disabled={busy || !activeLevelId} className="mt-3 h-11 w-full rounded-lg border border-rp-line text-[13px] text-rp-brand-strong disabled:opacity-50">{tr('Lưu thay đổi và về trang chủ')}</button>
             <div className="mt-3 text-center">
               <button
                 type="button"
                 onClick={skipForNow}
-                disabled={busy}
+                disabled={saving}
                 className="rounded px-2 py-1 text-[12px]
-                           text-[#94858C] hover:text-[#AD3155]
+                           text-rp-text-muted hover:text-rp-brand-strong
                            focus-visible:outline-none
                            focus-visible:ring-2
-                           focus-visible:ring-[#D94B68]/30
+                           focus-visible:ring-rp-brand/30
                            disabled:opacity-40"
               >
                 {tr('Để sau, vào trang chủ')}

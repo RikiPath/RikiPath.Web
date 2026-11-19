@@ -1,10 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+const ADMIN_MENTORS_KEY = ['admin-mentors', 'list'];
 import { useLocation } from 'react-router-dom';
 import {
   Plus,
@@ -16,33 +20,35 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 
-import { AdminShell } from '../../components/shells';
+import { AdminShell } from '@/layouts';
+import { RefreshingIndicator, SakuraLoader, Select } from '@/components/ui';
 import AdminMentorScheduleCalendar from './AdminMentorScheduleCalendar.jsx';
 import {
   getAdminMentors,
   createAdminMentor,
   setAdminMentorActive,
   unwrapApiList,
-} from '../../api/admin.js';
+} from '@/features/admin/api/adminApi.js';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
 const EMPTY_FORM = {
   email: '',
   password: '',
-  firstName: '',
-  lastName: '',
+  fullName: '',
   phoneNumber: '',
 };
 
 const INPUT_CLASS =
-  'h-10 w-full rounded-lg border border-[#E5DDE1] bg-white ' +
-  'px-3 text-[13px] text-[#4B4247] outline-none ' +
-  'placeholder:text-[#A99CA3] focus:border-[#C8889D] ' +
-  'focus:ring-2 focus:ring-[#AD3155]/10';
+  'h-10 w-full rounded-lg border border-rp-line bg-white ' +
+  'px-3 text-[13px] text-rp-text outline-none ' +
+  'placeholder:text-rp-text-muted focus:border-rp-brand-border ' +
+  'focus:ring-2 focus:ring-rp-brand-strong/10';
 
 const BUTTON_CLASS =
   'inline-flex h-9 items-center justify-center gap-2 rounded-lg ' +
-  'border border-[#E5DDE1] bg-white px-3 text-[13px] ' +
-  'text-[#75616C] transition hover:bg-[#FAF5F7] ' +
+  'border border-rp-line bg-white px-3 text-[13px] ' +
+  'text-rp-text-2 transition hover:bg-rp-brand-tint ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 function getName(mentor) {
@@ -66,11 +72,12 @@ function getInitials(name) {
 }
 
 function Status({ active }) {
+  const { tr } = useLocale();
   return (
     <span
       className={`inline-flex items-center gap-2 whitespace-nowrap
         text-[13px] ${
-          active ? 'text-[#49745A]' : 'text-[#8C7D84]'
+          active ? 'text-[#49745A]' : 'text-rp-text-muted'
         }`}
     >
       <span
@@ -79,7 +86,7 @@ function Status({ active }) {
           active ? 'bg-[#51956B]' : 'bg-[#A99AA1]'
         }`}
       />
-      {active ? 'Hoạt động' : 'Đã tắt'}
+      {active ? tr('Hoạt động') : tr('Đã tắt')}
     </span>
   );
 }
@@ -88,7 +95,9 @@ function Status({ active }) {
 function Dialog({ titleId, onClose, children, wide = false }) {
   const panelRef = useRef(null);
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  useLayoutEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const previousFocus = document.activeElement;
@@ -181,11 +190,23 @@ function ScheduleDialog({ mentor, onClose }) {
   );
 }
 export default function AdminConsultants({ embedded = false }) {
+  const { tr, trf } = useLocale();
   const { pathname } = useLocation();
 
-  const [mentors, setMentors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const mentorsQuery = useQuery({
+    queryKey: ADMIN_MENTORS_KEY,
+    queryFn: async () => unwrapApiList(await getAdminMentors()).map((mentor) => ({
+      ...mentor,
+      id: mentor.id ?? mentor.mentorId ?? mentor.userId,
+    })),
+  });
+  const mentors = useMemo(() => mentorsQuery.data ?? [], [mentorsQuery.data]);
+  const loading = mentorsQuery.isPending;
+  const error = mentorsQuery.isError ? 'Không thể tải danh sách cố vấn. Vui lòng thử lại.' : '';
+  const setMentors = useCallback((update) => {
+    queryClient.setQueryData(ADMIN_MENTORS_KEY, (current = []) => (typeof update === 'function' ? update(current) : update));
+  }, [queryClient]);
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -201,40 +222,7 @@ export default function AdminConsultants({ embedded = false }) {
   const [confirmStatus, setConfirmStatus] = useState(false);
   const [detailError, setDetailError] = useState('');
 
-  const requestRef = useRef(0);
-
-  const loadMentors = useCallback(async () => {
-    const requestId = ++requestRef.current;
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await getAdminMentors();
-      const list = unwrapApiList(response);
-
-      if (requestId === requestRef.current) {
-        setMentors(
-          list.map((mentor) => ({
-            ...mentor,
-            id: mentor.id ?? mentor.mentorId ?? mentor.userId,
-          })),
-        );
-      }
-    } catch {
-      if (requestId === requestRef.current) {
-        setError('Không thể tải danh sách cố vấn. Vui lòng thử lại.');
-      }
-    } finally {
-      if (requestId === requestRef.current) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadMentors();
-    return () => {
-      requestRef.current += 1;
-    };
-  }, [loadMentors]);
+  const loadMentors = useCallback(() => mentorsQuery.refetch(), [mentorsQuery]);
 
   const filteredMentors = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase('vi-VN');
@@ -280,17 +268,18 @@ export default function AdminConsultants({ embedded = false }) {
       await createAdminMentor({
         ...form,
         email: form.email.trim(),
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
+        fullName: form.fullName.trim(),
         phoneNumber: form.phoneNumber.trim(),
       });
 
       setShowCreate(false);
       setForm({ ...EMPTY_FORM });
       setNotice('Đã thêm cố vấn.');
+      notify.success('Đã thêm cố vấn mới.', '', { key: 'admin-mentor-create' });
       await loadMentors();
-    } catch {
+    } catch (err) {
       setFormError('Không thể thêm cố vấn. Vui lòng kiểm tra thông tin và thử lại.');
+      notify.apiError(err, 'Không thể thêm cố vấn', { key: 'admin-mentor-create-err' });
     } finally {
       setSubmitting(false);
     }
@@ -332,11 +321,12 @@ export default function AdminConsultants({ embedded = false }) {
         isActive: nextActive,
       }));
       setConfirmStatus(false);
-      setNotice(
-        nextActive ? 'Đã kích hoạt cố vấn.' : 'Đã vô hiệu hóa cố vấn.',
-      );
+      const msg = nextActive ? 'Đã kích hoạt cố vấn.' : 'Đã vô hiệu hóa cố vấn.';
+      setNotice(msg);
+      notify.success(msg, '', { key: `admin-mentor-status-${detailMentor.id}` });
     } catch (err) {
       setDetailError(err.message || 'Không thể đổi trạng thái.');
+      notify.apiError(err, 'Không thể đổi trạng thái cố vấn', { key: 'admin-mentor-status-err' });
     } finally {
       setChangingStatus(false);
     }
@@ -352,10 +342,10 @@ export default function AdminConsultants({ embedded = false }) {
           {!embedded && (
             <div>
               <h1 className="text-[25px] font-semibold tracking-tight">
-                Quản lý cố vấn
+                {tr('Quản lý cố vấn')}
               </h1>
-              <p className="mt-1 text-[13px] text-[#82737B]">
-                Hồ sơ và trạng thái tư vấn.
+              <p className="mt-1 text-[13px] text-rp-text-muted">
+                {tr('Hồ sơ và trạng thái tư vấn.')}
               </p>
             </div>
           )}
@@ -368,12 +358,12 @@ export default function AdminConsultants({ embedded = false }) {
               setShowCreate(true);
             }}
             className="inline-flex h-10 items-center gap-2
-                       rounded-[10px] bg-[#AD3155] px-4
+                       rounded-[10px] bg-rp-brand-strong px-4
                        text-[13px] font-medium text-white
-                       hover:bg-[#982B4B]"
+                       hover:bg-rp-brand-deep rp-press"
           >
             <Plus size={17} />
-            Thêm cố vấn
+            {tr('Thêm cố vấn')}
           </button>
         </header>
 
@@ -388,7 +378,7 @@ export default function AdminConsultants({ embedded = false }) {
             <button
               type="button"
               onClick={() => setNotice('')}
-              aria-label="Đóng thông báo"
+              aria-label={tr('Đóng thông báo')}
             >
               <X size={16} />
             </button>
@@ -396,24 +386,24 @@ export default function AdminConsultants({ embedded = false }) {
         )}
 
         <section
-          aria-label="Danh sách cố vấn"
+          aria-label={tr('Danh sách cố vấn')}
           className="overflow-hidden rounded-xl border
-                     border-[#EAE1E6] bg-white"
+                     border-rp-line bg-white"
         >
           <div
             className="flex flex-wrap items-center justify-between
-                       gap-3 border-b border-[#EEE7EA] px-5 py-3.5"
+                       gap-3 border-b border-rp-line px-5 py-3.5"
           >
-            <p className="text-[13px] text-[#82737B]">
-              {loading ? (
-                'Đang tải…'
+            <p className="text-[13px] text-rp-text-muted">
+              {loading && !mentors.length ? (
+                <SakuraLoader variant="inline" size={16} context="cohort" />
               ) : (
                 <>
-                  <span className="font-medium text-[#51434A]">
-                    {mentors.length} cố vấn
+                  <span className="font-medium text-rp-text-2">
+                   {trf('{0} cố vấn', { 0: mentors.length })}
                   </span>
-                  <span className="mx-2 text-[#C9BBC2]">·</span>
-                  {activeCount} đang hoạt động
+                  <span className="mx-2 text-rp-text-muted">·</span>
+                  {activeCount}{' '}{tr('đang hoạt động')}
                 </>
               )}
             </p>
@@ -423,65 +413,62 @@ export default function AdminConsultants({ embedded = false }) {
                 <Search
                   size={16}
                   className="pointer-events-none absolute left-3
-                             top-1/2 -translate-y-1/2 text-[#A09399]"
+                             top-1/2 -translate-y-1/2 text-rp-text-muted"
                 />
                 <input
                   type="search"
-                  aria-label="Tìm cố vấn"
+                  aria-label={tr('Tìm cố vấn')}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Tên, email, số điện thoại..."
+                  placeholder={tr('Tên, email, số điện thoại...')}
                   className="h-9 w-[240px] rounded-lg border
-                             border-[#EAE1E6] bg-[#FDFBFC]
+                             border-rp-line bg-rp-brand-tint
                              pl-9 pr-3 text-[12px] outline-none
-                             focus:border-[#C8889D]
-                             focus:ring-2 focus:ring-[#AD3155]/10"
+                             focus:border-rp-brand-border
+                             focus:ring-2 focus:ring-rp-brand-strong/10"
                 />
               </div>
 
-              <select
-                aria-label="Lọc trạng thái cố vấn"
+              <Select
+                aria-label={tr('Lọc trạng thái cố vấn')}
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                className="h-9 rounded-lg border border-[#EAE1E6]
-                           bg-white px-2 text-[12px] text-[#75616C]"
+                className="!h-9 !w-auto !rounded-lg !px-3 !pr-8 !text-[12px]"
               >
-                <option value="all">Mọi trạng thái</option>
-                <option value="active">Hoạt động</option>
-                <option value="inactive">Đã tắt</option>
-              </select>
+                <option value="all">{tr('Mọi trạng thái')}</option>
+                <option value="active">{tr('Hoạt động')}</option>
+                <option value="inactive">{tr('Đã tắt')}</option>
+              </Select>
 
+              <RefreshingIndicator active={loading && mentors.length > 0} />
               <button
                 type="button"
                 onClick={loadMentors}
                 disabled={loading}
-                aria-label="Tải lại danh sách"
-                title="Tải lại"
+                aria-label={tr('Tải lại danh sách')}
+                title={tr('Tải lại')}
                 className="flex h-9 w-9 items-center justify-center
-                           rounded-lg text-[#95858D]
-                           hover:bg-[#FAF5F7] disabled:opacity-50"
+                           rounded-lg text-rp-text-muted
+                           hover:bg-rp-brand-tint disabled:opacity-50"
               >
-                <RefreshCw
-                  size={16}
-                  className={loading ? 'animate-spin' : ''}
-                />
+                {loading ? <SakuraLoader variant="inline" size={16} /> : <RefreshCw size={16} />}
               </button>
             </div>
           </div>
 
           {error ? (
             <div role="alert" className="px-5 py-10 text-center">
-              <p className="text-[13px] text-[#A13950]">{error}</p>
+              <p className="text-[13px] text-rp-brand-strong">{error}</p>
               <button
                 type="button"
                 onClick={loadMentors}
-                className="mt-3 text-[13px] text-[#AD3155] underline"
+                className="mt-3 text-[13px] text-rp-brand-strong underline"
               >
-                Thử lại
+                {tr('Thử lại')}
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div data-density="compact" className="rp-scroll-x">
               <table
                 aria-busy={loading}
                 className="w-full min-w-[700px] table-fixed text-left"
@@ -493,44 +480,41 @@ export default function AdminConsultants({ embedded = false }) {
                   <col className="w-[20%]" />
                 </colgroup>
 
-                <thead className="bg-[#FCFAFB] text-[12px] text-[#8C7D84]">
+                <thead className="bg-rp-bg-2 text-[12px] text-rp-text-muted">
                   <tr>
                     <th scope="col" className="px-5 py-3 font-medium">
-                      Cố vấn
+                      {tr('Cố vấn')}
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
-                      Số điện thoại
+                      {tr('Số điện thoại')}
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
-                      Trạng thái
+                      {tr('Trạng thái')}
                     </th>
                     <th
                       scope="col"
                       className="px-5 py-3 text-right font-medium"
                     >
-                      Thao tác
+                      {tr('Thao tác')}
                     </th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-[#F2EDF0]">
-                  {loading ? (
+                <tbody className="divide-y divide-rp-line">
+                  {loading && mentors.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={4}
-                        className="py-12 text-center text-[13px] text-[#8C7D84]"
-                      >
-                        Đang tải danh sách…
+                      <td colSpan={4} className="py-8 text-center">
+                        <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách cố vấn')} className="min-h-[120px] py-4" delay={160} />
                       </td>
                     </tr>
                   ) : filteredMentors.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-12 text-center">
-                        <p className="text-[14px] text-[#62515A]">
-                          Không có cố vấn phù hợp
+                        <p className="text-[14px] text-rp-text-2">
+                          {tr('Không có cố vấn phù hợp')}
                         </p>
-                        <p className="mt-1 text-[12px] text-[#95858D]">
-                          Thử thay đổi từ khóa hoặc bộ lọc.
+                        <p className="mt-1 text-[12px] text-rp-text-muted">
+                          {tr('Thử thay đổi từ khóa hoặc bộ lọc.')}
                         </p>
                       </td>
                     </tr>
@@ -539,16 +523,16 @@ export default function AdminConsultants({ embedded = false }) {
                       const name = getName(mentor);
 
                       return (
-                        <tr key={mentor.id} className="hover:bg-[#FDFAFC]">
+                        <tr key={mentor.id} className="hover:bg-rp-bg-2">
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-3">
                               <div
                                 aria-hidden="true"
                                 className="flex h-9 w-9 shrink-0
                                            items-center justify-center
-                                           rounded-xl bg-[#F8EAF0]
+                                           rounded-xl bg-rp-brand-soft
                                            text-[12px] font-medium
-                                           text-[#AD3155]"
+                                           text-rp-brand-strong"
                               >
                                 {getInitials(name)}
                               </div>
@@ -560,7 +544,7 @@ export default function AdminConsultants({ embedded = false }) {
                                   title={name}
                                   className="block max-w-full truncate
                                              text-left text-[14px]
-                                             font-medium hover:text-[#AD3155]"
+                                             font-medium hover:text-rp-brand-strong"
                                 >
                                   {name}
                                 </button>
@@ -568,15 +552,15 @@ export default function AdminConsultants({ embedded = false }) {
                                 <div className="mt-0.5 flex items-center gap-1.5">
                                   <span
                                     title={mentor.email}
-                                    className="truncate text-[12px] text-[#8C7D84]"
+                                    className="truncate text-[12px] text-rp-text-muted"
                                   >
                                     {mentor.email || '—'}
                                   </span>
                                   {mentor.isEmailVerified && (
                                     <span
                                       role="img"
-                                      aria-label="Email đã xác thực"
-                                      title="Email đã xác thực"
+                                      aria-label={tr('Email đã xác thực')}
+                                      title={tr('Email đã xác thực')}
                                       className="shrink-0 text-[#629171]"
                                     >
                                       <CheckCircle2 size={13} />
@@ -587,7 +571,7 @@ export default function AdminConsultants({ embedded = false }) {
                             </div>
                           </td>
 
-                          <td className="px-4 py-3.5 text-[13px] text-[#82737B]">
+                          <td className="px-4 py-3.5 text-[13px] text-rp-text-muted">
                             {mentor.phoneNumber || '—'}
                           </td>
 
@@ -603,19 +587,19 @@ export default function AdminConsultants({ embedded = false }) {
                                 className="inline-flex items-center gap-1.5
                                            whitespace-nowrap rounded-md
                                            px-2 py-1.5 text-[12px]
-                                           text-[#9E4563] hover:bg-[#FAEDF2]"
+                                           text-rp-brand-strong hover:bg-rp-brand-soft"
                               >
                                 <Calendar size={14} />
-                                Xem lịch
+                                {tr('Xem lịch')}
                               </button>
 
                               <button
                                 type="button"
                                 onClick={() => openDetail(mentor)}
-                                aria-label={`Chi tiết ${name}`}
-                                title="Chi tiết và trạng thái"
+                                aria-label={trf('Chi tiết {0}', { 0: name })}
+                                title={tr('Chi tiết và trạng thái')}
                                 className="rounded-md p-1.5
-                                           text-[#95858D] hover:bg-[#F5EFF2]"
+                                           text-rp-text-muted hover:bg-rp-brand-soft"
                               >
                                 <MoreHorizontal size={18} />
                               </button>
@@ -632,10 +616,10 @@ export default function AdminConsultants({ embedded = false }) {
 
           {!loading && !error && (
             <div
-              className="border-t border-[#EEE7EA] px-5 py-2.5
-                         text-[12px] text-[#95858D]"
+              className="border-t border-rp-line px-5 py-2.5
+                         text-[12px] text-rp-text-muted"
             >
-              Hiển thị {filteredMentors.length}/{mentors.length} cố vấn
+             {trf('Hiển thị {0}/{1} cố vấn', { 0: filteredMentors.length, 1: mentors.length })}
             </div>
           )}
         </section>
@@ -644,17 +628,17 @@ export default function AdminConsultants({ embedded = false }) {
           <Dialog titleId="add-mentor-title" onClose={closeCreate}>
             <header
               className="flex items-center justify-between
-                         border-b border-[#EEE7EA] px-5 py-4"
+                         border-b border-rp-line px-5 py-4"
             >
               <h2 id="add-mentor-title" className="text-[17px] font-semibold">
-                Thêm cố vấn
+                {tr('Thêm cố vấn')}
               </h2>
               <button
                 type="button"
                 disabled={submitting}
                 onClick={closeCreate}
-                aria-label="Đóng"
-                className="rounded-lg p-1 text-[#95858D] hover:bg-[#FAF5F7]"
+                aria-label={tr('Đóng')}
+                className="rounded-lg p-1 text-rp-text-muted hover:bg-rp-brand-tint"
               >
                 <X size={18} />
               </button>
@@ -662,25 +646,16 @@ export default function AdminConsultants({ embedded = false }) {
 
             <form onSubmit={createMentor} className="overflow-y-auto p-5">
               <fieldset disabled={submitting} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    ['lastName', 'Họ', 'Nguyễn'],
-                    ['firstName', 'Tên', 'Minh Anh'],
-                  ].map(([field, label, placeholder]) => (
-                    <label key={field} className="block">
-                      <span className="mb-1.5 block text-[13px]">{label}</span>
-                      <input
-                        value={form[field]}
-                        onChange={(event) => updateForm(field, event.target.value)}
-                        placeholder={placeholder}
-                        className={INPUT_CLASS}
-                        autoComplete={
-                          field === 'lastName' ? 'family-name' : 'given-name'
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px]">{tr('Họ và tên')}</span>
+                  <input
+                    value={form.fullName}
+                    onChange={(event) => updateForm('fullName', event.target.value)}
+                    placeholder={tr('Nguyễn Minh Anh')}
+                    className={INPUT_CLASS}
+                    autoComplete="name"
+                  />
+                </label>
 
                 <label className="block">
                   <span className="mb-1.5 block text-[13px]">Email *</span>
@@ -697,7 +672,7 @@ export default function AdminConsultants({ embedded = false }) {
 
                 <label className="block">
                   <span className="mb-1.5 block text-[13px]">
-                    Mật khẩu khởi tạo *
+                    {tr('Mật khẩu khởi tạo *')}
                   </span>
                   <input
                     required
@@ -708,14 +683,14 @@ export default function AdminConsultants({ embedded = false }) {
                     onChange={(event) => updateForm('password', event.target.value)}
                     className={INPUT_CLASS}
                   />
-                  <span className="mt-1 block text-[11px] text-[#95858D]">
-                    Tối thiểu 6 ký tự theo form hiện tại.
+                  <span className="mt-1 block text-[11px] text-rp-text-muted">
+                    {tr('Tối thiểu 6 ký tự theo form hiện tại.')}
                   </span>
                 </label>
 
                 <label className="block">
                   <span className="mb-1.5 block text-[13px]">
-                    Số điện thoại
+                    {tr('Số điện thoại')}
                   </span>
                   <input
                     type="tel"
@@ -732,8 +707,8 @@ export default function AdminConsultants({ embedded = false }) {
               {formError && (
                 <p
                   role="alert"
-                  className="mt-4 rounded-lg bg-[#FFF1F4]
-                             px-3 py-2 text-[12px] text-[#A13950]"
+                  className="mt-4 rounded-lg bg-rp-brand-tint
+                             px-3 py-2 text-[12px] text-rp-brand-strong"
                 >
                   {formError}
                 </p>
@@ -741,7 +716,7 @@ export default function AdminConsultants({ embedded = false }) {
 
               <footer
                 className="mt-5 flex justify-end gap-2
-                           border-t border-[#EEE7EA] pt-4"
+                           border-t border-rp-line pt-4"
               >
                 <button
                   type="button"
@@ -749,16 +724,16 @@ export default function AdminConsultants({ embedded = false }) {
                   onClick={closeCreate}
                   className={BUTTON_CLASS}
                 >
-                  Hủy
+                  {tr('Hủy')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="h-9 rounded-lg bg-[#AD3155] px-4
-                             text-[13px] text-white hover:bg-[#982B4B]
-                             disabled:opacity-50"
+                  className="h-9 rounded-lg bg-rp-brand-strong px-4
+                             text-[13px] text-white hover:bg-rp-brand-deep
+                             disabled:opacity-50 rp-press"
                 >
-                  {submitting ? 'Đang thêm…' : 'Thêm cố vấn'}
+                  {submitting ? tr('Đang thêm…') : tr('Thêm cố vấn')}
                 </button>
               </footer>
             </form>
@@ -769,17 +744,17 @@ export default function AdminConsultants({ embedded = false }) {
           <Dialog titleId="mentor-detail-title" onClose={closeDetail}>
             <header
               className="flex items-center justify-between
-                         border-b border-[#EEE7EA] px-5 py-4"
+                         border-b border-rp-line px-5 py-4"
             >
               <h2 id="mentor-detail-title" className="text-[17px] font-semibold">
-                Thông tin cố vấn
+                {tr('Thông tin cố vấn')}
               </h2>
               <button
                 type="button"
                 disabled={changingStatus}
                 onClick={closeDetail}
-                aria-label="Đóng chi tiết"
-                className="rounded-lg p-1 text-[#95858D] hover:bg-[#FAF5F7]"
+                aria-label={tr('Đóng chi tiết')}
+                className="rounded-lg p-1 text-rp-text-muted hover:bg-rp-brand-tint"
               >
                 <X size={18} />
               </button>
@@ -808,13 +783,13 @@ export default function AdminConsultants({ embedded = false }) {
                     'Ngày tạo',
                     detailMentor.createdAt &&
                     !Number.isNaN(new Date(detailMentor.createdAt).getTime())
-                      ? new Date(detailMentor.createdAt).toLocaleDateString('vi-VN')
+                      ? new Date(detailMentor.createdAt).toLocaleDateString(currentIntlTag())
                       : null,
                   ],
                 ].map(([label, value]) => (
                   <div key={label} className="grid grid-cols-[120px_1fr] gap-3">
-                    <dt className="text-[#95858D]">{label}</dt>
-                    <dd className="break-words text-[#62515A]">
+                    <dt className="text-rp-text-muted">{tr(label)}</dt>
+                    <dd className="break-words text-rp-text-2">
                       {value ?? '—'}
                     </dd>
                   </div>
@@ -822,18 +797,18 @@ export default function AdminConsultants({ embedded = false }) {
               </dl>
 
               {detailError && (
-                <p role="alert" className="mt-4 text-[12px] text-[#A13950]">
+                <p role="alert" className="mt-4 text-[12px] text-rp-brand-strong">
                   {detailError}
                 </p>
               )}
 
-              <div className="mt-5 border-t border-[#EEE7EA] pt-4">
+              <div className="mt-5 border-t border-rp-line pt-4">
                 {confirmStatus ? (
-                  <div className="rounded-lg bg-[#FAF3F6] p-3">
-                    <p className="text-[13px] text-[#75616C]">
+                  <div className="rounded-lg bg-rp-brand-tint p-3">
+                    <p className="text-[13px] text-rp-text-2">
                       {detailMentor.isActive === false
-                        ? 'Kích hoạt lại cố vấn này?'
-                        : 'Vô hiệu hóa cố vấn này?'}
+                        ? tr('Kích hoạt lại cố vấn này?')
+                        : tr('Vô hiệu hóa cố vấn này?')}
                     </p>
                     <div className="mt-3 flex justify-end gap-2">
                       <button
@@ -842,16 +817,16 @@ export default function AdminConsultants({ embedded = false }) {
                         onClick={() => setConfirmStatus(false)}
                         className={BUTTON_CLASS}
                       >
-                        Hủy
+                        {tr('Hủy')}
                       </button>
                       <button
                         type="button"
                         disabled={changingStatus}
                         onClick={changeStatus}
-                        className="h-9 rounded-lg bg-[#AD3155] px-3
-                                   text-[13px] text-white disabled:opacity-50"
+                        className="h-9 rounded-lg bg-rp-brand-strong px-3
+                                   text-[13px] text-white disabled:opacity-50 rp-press"
                       >
-                        {changingStatus ? 'Đang xử lý…' : 'Xác nhận'}
+                        {changingStatus ? tr('Đang xử lý…') : tr('Xác nhận')}
                       </button>
                     </div>
                   </div>
@@ -861,18 +836,18 @@ export default function AdminConsultants({ embedded = false }) {
                       type="button"
                       disabled={detailMentor.id == null}
                       onClick={() => setConfirmStatus(true)}
-                      className="text-[12px] text-[#AD3155] disabled:opacity-40"
+                      className="text-[12px] text-rp-brand-strong disabled:opacity-40"
                     >
                       {detailMentor.isActive === false
-                        ? 'Kích hoạt cố vấn'
-                        : 'Vô hiệu hóa cố vấn'}
+                        ? tr('Kích hoạt cố vấn')
+                        : tr('Vô hiệu hóa cố vấn')}
                     </button>
                     <button
                       type="button"
                       onClick={closeDetail}
                       className={BUTTON_CLASS}
                     >
-                      Đóng
+                      {tr('Đóng')}
                     </button>
                   </div>
                 )}
@@ -891,15 +866,12 @@ export default function AdminConsultants({ embedded = false }) {
   );
 
   if (embedded) {
-    return <div className="text-[#352C31]">{page}</div>;
+    return <div className="text-rp-text">{page}</div>;
   }
 
   return (
-    <AdminShell pathname={pathname} breadcrumb="Cố vấn">
-      <main
-        className="mx-auto max-w-[1320px] px-4 py-5
-                   text-[#352C31] sm:px-6 lg:px-8"
-      >
+    <AdminShell pathname={pathname} breadcrumb={tr('Cố vấn')}>
+      <main className="rp-container py-6 text-rp-text lg:py-8">
         {page}
       </main>
     </AdminShell>

@@ -1,7 +1,10 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
+@import "./styles/design-system.css";
+@import "./styles/i18n.css";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Be Vietnam Pro", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Noto Serif JP", ui-serif, serif;
   --color-sakura-deep: #9E2A4B;
   --color-sakura-base: #D94B68;
@@ -144,143 +147,24 @@
   --shadow-float-badge: 0 12px 30px -4px rgba(217, 75, 104, 0.16);
   --shadow-sakura-btn: 0 10px 24px -4px rgba(217, 75, 104, 0.38);
   --shadow-xs: 0 1px 2px rgba(45, 40, 42, 0.05);
-  --font-sans: "Plus Jakarta Sans", "Noto Sans JP", sans-serif, sans-serif;
-  --font-jp: ""Noto Serif JP"", serif, sans-serif;
+  --font-jp: "Noto Sans JP", sans-serif;
   --font-serif: "Noto Serif JP", serif, sans-serif;
-  --font-japanese-display: "Plus Jakarta Sans", sans-serif;
-  --font-body-md: "Plus Jakarta Sans", sans-serif;
-  --font-headline-lg: "Plus Jakarta Sans", sans-serif;
-  --font-headline-md: "Plus Jakarta Sans", sans-serif;
-  --font-title-md: "Plus Jakarta Sans", sans-serif;
-  --font-body-sm: "Plus Jakarta Sans", sans-serif;
-  --font-headline-sm: "Plus Jakarta Sans", sans-serif;
-  --font-label-sm: "Plus Jakarta Sans", sans-serif;
-  --font-headline-xl-mobile: "Plus Jakarta Sans", sans-serif;
-  --font-label-md: "Plus Jakarta Sans", sans-serif;
-  --font-body-lg: "Plus Jakarta Sans", sans-serif;
-  --font-title-sm: "Plus Jakarta Sans", sans-serif;
-  --font-headline-xl: "Plus Jakarta Sans", sans-serif;
-  --font-headline-lg-mobile: "Plus Jakarta Sans", sans-serif;
   --font-kanji: "Noto Serif JP", serif, sans-serif;
-  --font-label-xs: "Plus Jakarta Sans", sans-serif, sans-serif;
-  --font-display-lg: "Plus Jakarta Sans", sans-serif;
-  --font-display-lg-mobile: "Plus Jakarta Sans", sans-serif;
-  --font-label-lg: "Plus Jakarta Sans", sans-serif;
-  --font-support-sm: "Plus Jakarta Sans", sans-serif, sans-serif;
   --font-serif_jp: "Noto Serif JP", serif, sans-serif;
-  --spacing-space-3xl: 4rem;
-  --spacing-gutter-tablet: 1.5rem;
-  --spacing-margin-mobile: 1rem;
-  --spacing-space-2xl: 3rem;
-  --spacing-space-xl: 2rem;
-  --spacing-space-xs: 0.5rem;
-  --spacing-space-xxs: 0.25rem;
-  --spacing-space-lg: 1.5rem;
-  --spacing-gutter-mobile: 1rem;
-  --spacing-space-sm: 0.75rem;
-  --spacing-margin-desktop: 3rem;
-  --spacing-space-md: 1rem;
-  --spacing-margin-tablet: 2rem;
-  --spacing-gutter-desktop: 1.5rem;
-  --spacing-base: 8px;
-  --spacing-gutter: 16px;
-  /* Stitch numeric space scale (px) — used by imported desktop screens */
-  --spacing-space-2: 2px;
-  --spacing-space-3: 3px;
-  --spacing-space-4: 4px;
-  --spacing-space-6: 6px;
-  --spacing-space-8: 8px;
-  --spacing-space-12: 12px;
-  --spacing-space-16: 16px;
-  --spacing-space-20: 20px;
-  --spacing-space-24: 24px;
-  --spacing-space-32: 32px;
-  --spacing-space-48: 48px;
-  --spacing-sidebar-width: 260px;
-  --spacing-topbar-height: 64px;
-  --spacing-grid-max-width: 1440px;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
-  --text-japanese-display: 28px;
-  --text-japanese-display--line-height: 40px;
-  --text-japanese-display--font-weight: 500;
-  --text-body-md: 15px;
-  --text-body-md--line-height: 24px;
+  --text-body-md: clamp(0.875rem, 0.855rem + 0.12vw, 0.9375rem);
+  --text-body-md--line-height: 1.6;
   --text-body-md--font-weight: 400;
-  --text-headline-lg: 32px;
-  --text-headline-lg--line-height: 40px;
-  --text-headline-lg--letter-spacing: -0.015em;
-  --text-headline-lg--font-weight: 700;
-  --text-headline-md: 24px;
-  --text-headline-md--line-height: 32px;
-  --text-headline-md--letter-spacing: -0.01em;
-  --text-headline-md--font-weight: 600;
-  --text-title-md: 18px;
-  --text-title-md--line-height: 26px;
-  --text-title-md--font-weight: 600;
-  --text-body-sm: 13px;
-  --text-body-sm--line-height: 20px;
-  --text-body-sm--font-weight: 400;
-  --text-headline-sm: 20px;
-  --text-headline-sm--line-height: 28px;
-  --text-headline-sm--letter-spacing: -0.005em;
-  --text-headline-sm--font-weight: 600;
-  --text-label-sm: 12px;
-  --text-label-sm--line-height: 16px;
+  --text-label-sm: clamp(0.75rem, 0.73rem + 0.08vw, 0.8125rem);
+  --text-label-sm--line-height: 1.35;
   --text-label-sm--letter-spacing: 0.02em;
   --text-label-sm--font-weight: 600;
-  --text-headline-xl-mobile: 30px;
-  --text-headline-xl-mobile--line-height: 38px;
-  --text-headline-xl-mobile--letter-spacing: -0.015em;
-  --text-headline-xl-mobile--font-weight: 700;
-  --text-label-md: 14px;
-  --text-label-md--line-height: 20px;
+  --text-label-md: clamp(0.8125rem, 0.795rem + 0.08vw, 0.875rem);
+  --text-label-md--line-height: 1.4;
   --text-label-md--letter-spacing: 0.01em;
   --text-label-md--font-weight: 600;
-  --text-body-lg: 17px;
-  --text-body-lg--line-height: 26px;
-  --text-body-lg--font-weight: 400;
-  --text-title-sm: 16px;
-  --text-title-sm--line-height: 24px;
-  --text-title-sm--font-weight: 600;
-  --text-headline-xl: 40px;
-  --text-headline-xl--line-height: 48px;
-  --text-headline-xl--letter-spacing: -0.02em;
-  --text-headline-xl--font-weight: 700;
-  --text-headline-lg-mobile: 24px;
-  --text-headline-lg-mobile--line-height: 32px;
-  --text-headline-lg-mobile--letter-spacing: -0.01em;
-  --text-headline-lg-mobile--font-weight: 700;
-  --text-label-xs: 12px;
-  --text-label-xs--line-height: 16px;
-  --text-label-xs--letter-spacing: 0.05em;
-  --text-label-xs--font-weight: 600;
-  --text-support-sm: 14px;
-  --text-support-sm--line-height: 20px;
-  --text-support-sm--font-weight: 400;
-  --text-display-lg: 56px;
-  --text-display-lg--line-height: 68px;
-  --text-display-lg--letter-spacing: -0.02em;
-  --text-display-lg--font-weight: 700;
-  --text-display-sm: 36px;
-  --text-display-sm--line-height: 44px;
-  --text-display-sm--letter-spacing: -0.02em;
-  --text-display-sm--font-weight: 700;
-  --font-display-sm: "Plus Jakarta Sans", sans-serif;
-  --text-display-lg-mobile: 36px;
-  --text-display-lg-mobile--line-height: 44px;
-  --text-display-lg-mobile--letter-spacing: -0.02em;
-  --text-display-lg-mobile--font-weight: 700;
-  --text-label-lg: 14px;
-  --text-label-lg--line-height: 20px;
-  --text-label-lg--letter-spacing: 0.01em;
-  --text-label-lg--font-weight: 600;
-  --container-sm: 24rem;
-  --container-md: 28rem;
-  --container-lg: 32rem;
-  --container-xl: 36rem;
-  --container-2xl: 42rem;
 }
 
 html, body, #root {
@@ -289,105 +173,18 @@ html, body, #root {
 
 body {
   margin: 0;
-  font-family: "Plus Jakarta Sans", "Noto Sans JP", sans-serif;
-  background-color: #FAF7F5;
-  color: #2D282A;
+  font-family: var(--font-rp);
+  background-color: var(--color-rp-bg);
+  color: var(--color-rp-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overscroll-behavior: none;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-.material-symbols-outlined {
-  font-family: "Material Symbols Outlined";
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
-}
-
-.material-symbols-outlined.fill-1 {
-  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
-}
 
 html {
   --preview-nav-h: 0px !important;
-}
-[data-shell="cms"] > aside {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  bottom: 0 !important;
-  height: 100vh !important;
-  width: 248px !important;
-  margin: 0 !important;
-  background: #FAF8F7 !important;
-  border-right: 1px solid #E8DFDC !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
-}
-[data-shell="consult"] > aside {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  bottom: 0 !important;
-  height: 100vh !important;
-  width: 248px !important;
-  margin: 0 !important;
-  background: #FAF8F7 !important;
-  border-right: 1px solid #E8DFDC !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
-}
-[data-shell="learner"] > aside {
-  position: fixed !important;
-  top: 64px !important;
-  left: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-  width: 216px !important;
-  margin: 0 !important;
-  background: #FAF8F7 !important;
-  border-right: 1px solid #E8DFDC !important;
-  backdrop-filter: none !important;
-}
-[data-shell="admin"] > aside {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  bottom: 0 !important;
-  height: 100vh !important;
-  width: 248px !important;
-  margin: 0 !important;
-}
-[data-shell="cms"] > div > header {
-  position: fixed !important;
-  top: 0 !important;
-  left: 248px !important;
-  right: 0 !important;
-  background: #FAF8F7 !important;
-  border-bottom: 1px solid #E8DFDC !important;
-  backdrop-filter: none !important;
-}
-[data-shell="consult"] > div > header {
-  position: fixed !important;
-  top: 0 !important;
-  left: 248px !important;
-  right: 0 !important;
-  background: #FAF8F7 !important;
-  border-bottom: 1px solid #E8DFDC !important;
-  backdrop-filter: none !important;
-}
-[data-shell="admin"] > div > header {
-  position: fixed !important;
-  top: 0 !important;
-  left: 248px !important;
-  right: 0 !important;
 }
 
 /* Nội dung trang trong shell: tránh card dính mép */
@@ -413,14 +210,14 @@ html {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #FAF7F5;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #EADFD9;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #D94B68;
+  background: #C9BEC2;
 }
 
 .sakura-bg-pattern {
@@ -518,13 +315,7 @@ html {
   border: 1px solid #fce7eb !important;
 }
 
-/* Apptist-inspired catalog cards, sakura palette */
-body {
-  background:
-    radial-gradient(1200px 520px at 12% -8%, rgba(255, 217, 228, 0.55), transparent 58%),
-    radial-gradient(900px 420px at 92% 8%, rgba(254, 232, 238, 0.55), transparent 52%),
-    #faf7f5;
-}
+/* Catalog cards, sakura palette (neutral page background lives in tokens.css) */
 
 .rp-catalog-card {
   border: 1px solid rgba(223, 191, 193, 0.45);

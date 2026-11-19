@@ -2,25 +2,30 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
-import PracticeQuestionFields from '../../components/PracticeQuestionFields.jsx';
-import LessonStudyMaterial from '../../components/LessonStudyMaterial.jsx';
+import PracticeQuestionFields from '@/features/practice/components/PracticeQuestionFields.jsx';
+import LessonStudyMaterial from '@/features/practice/components/LessonStudyMaterial.jsx';
 import {
   completeLesson, getLessonDetail, getLessonPracticeExercises,
   startPracticeExercise, submitPracticeExerciseAttempt,
   completeAssessmentRoadmapLesson, getAssessmentRoadmapLesson, getAssessmentRoadmapExercises,
   startAssessmentRoadmapPractice, submitAssessmentRoadmapPractice,
-} from '../../api/learningPathApi.js';
+} from '@/features/learning-path/api/learningPathApi.js';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { SakuraLoader } from '@/components/ui';
+import { useLocale } from '@/locales/locale.js';
 
 function LessonLoadError({ message, retry }) {
+  const { tr } = useLocale();
   return <div role="alert" className="rounded-xl border border-rose-200 bg-white p-4 text-sm">
-    <p>{message}</p>
+    <p>{tr(message)}</p>
     <button type="button" onClick={retry} className="mt-2 font-semibold text-primary underline">
-      Thử lại
+      {tr('Thử lại')}
     </button>
   </div>;
 }
 
 function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fromAssessmentRoadmap }) {
+  const { tr } = useLocale();
   const [attempt, setAttempt] = useState(null);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
@@ -35,7 +40,11 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
     mutationFn: () => fromAssessmentRoadmap
       ? completeAssessmentRoadmapLesson(lesson.lessonId)
       : completeLesson(lesson.lessonId),
-    onSuccess: onStudied,
+    onSuccess: (res) => {
+      notify.success('Đã đánh dấu hoàn thành bài học!', '', { key: `lesson-studied-${lesson.lessonId}` });
+      onStudied?.(res);
+    },
+    onError: (err) => notify.apiError(err, 'Chưa lưu tiến độ bài học', { key: `lesson-studied-err-${lesson.lessonId}` }),
   });
   const start = useMutation({
     mutationFn: id => fromAssessmentRoadmap
@@ -46,19 +55,27 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
       setAnswers({});
       setResult(null);
     },
+    onError: (err) => notify.apiError(err, 'Không mở được bài luyện tập', { key: 'lesson-practice-start-err' }),
   });
   const submit = useMutation({
     mutationFn: () => {
       const submitAttempt = fromAssessmentRoadmap ? submitAssessmentRoadmapPractice : submitPracticeExerciseAttempt;
+      notify.loading('Đang nộp bài luyện tập…', '', { key: 'lesson-practice-submit', maxWaitMs: 30000 });
       return submitAttempt(attempt.attemptId, attempt.questions.map(question => ({
         questionId: question.questionId, selectedOptionId: answers[question.questionId],
       })));
     },
     onSuccess: async value => {
+      if (value?.passed === false) {
+        notify.info('Đã chấm bài luyện tập', 'Bạn có thể xem lại đáp án và làm lại để đạt điểm yêu cầu.', { key: 'lesson-practice-submit', replace: true });
+      } else {
+        notify.success('Đã hoàn thành bài luyện tập!', '', { key: 'lesson-practice-submit', replace: true });
+      }
       setResult(value);
       setAttempt(null);
       await Promise.all([refresh(), exercises.refetch()]);
     },
+    onError: (err) => notify.apiError(err, 'Chưa nộp được bài luyện tập', { key: 'lesson-practice-submit', replace: true }),
   });
   const availableExercises = exercises.data ?? [];
   const chosenExercise = availableExercises.find(exercise => exercise.passed) ?? availableExercises[0];
@@ -71,32 +88,34 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
 
   return <section className="mt-5 space-y-3 border-t border-card-border pt-4 text-sm">
     {!studied && <button type="button" className={button} disabled={busy} onClick={() => mark.mutate()}>
-      {mark.isPending ? 'Đang lưu…' : 'Đã học xong'}
+      {mark.isPending ? tr('Đang lưu…') : tr('Đã học xong')}
     </button>}
     {studied && !lesson.hasPracticeExercise && <p>
       {fromAssessmentRoadmap
-        ? 'Bài này chưa có bài luyện tập hợp lệ. Bài kế tiếp sẽ mở khi bạn đạt bài luyện tập.'
-        : 'Đã học xong. Bài này chưa có bài luyện tập.'}
+        ? tr('Bài này chưa có bài luyện tập hợp lệ. Bài kế tiếp sẽ mở khi bạn đạt bài luyện tập.')
+        : tr('Đã học xong. Bài này chưa có bài luyện tập.')}
     </p>}
-    {studied && lesson.hasPracticeExercise && <h3 className="font-semibold">Bài luyện tập của bài học</h3>}
-    {studied && lesson.hasPracticeExercise && exercises.isPending && <p role="status">Đang tải bài luyện tập…</p>}
+    {studied && lesson.hasPracticeExercise && <h3 className="font-semibold">{tr('Bài luyện tập của bài học')}</h3>}
+    {studied && lesson.hasPracticeExercise && exercises.isPending && (
+      <SakuraLoader variant="section" context="homework" delay={160} />
+    )}
     {studied && lesson.hasPracticeExercise && exercises.isSuccess && !visibleExercises.length &&
-      <p role="status">Chưa có bài luyện tập khả dụng.</p>}
+      <p role="status">{tr('Chưa có bài luyện tập khả dụng.')}</p>}
     {studied && !attempt && visibleExercises.map(exercise => {
       const isRetry = exercise.passed || result?.practiceExerciseId === exercise.practiceExerciseId;
       const label = isRetry ? 'Làm lại bài luyện tập' : 'Bắt đầu làm bài';
       return <div key={exercise.practiceExerciseId}
         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-card-border p-3">
         <div>
-          <p className="font-semibold">{exercise.title}</p>
-          <p className="mt-1 text-xs text-[#765E6B]">
-            {exercise.passed ? 'Đã đạt' : 'Điểm đạt ' + exercise.minimumPassingScorePercent + '%'}
+          <p className="font-semibold">{tr(exercise.title)}</p>
+          <p className="mt-1 text-xs text-rp-text-2">
+            {exercise.passed ? tr('Đã đạt') : 'Điểm đạt ' + exercise.minimumPassingScorePercent + '%'}
           </p>
         </div>
         <button type="button" className={button} disabled={busy}
           aria-label={label + ' – ' + exercise.title}
           onClick={() => start.mutate(exercise.practiceExerciseId)}>
-          {label}
+          {tr(label)}
         </button>
       </div>;
     })}
@@ -107,18 +126,19 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
         onAnswer={(questionId, optionId) => setAnswers(previous => ({ ...previous, [questionId]: optionId }))} />
       <button type="button" className={button} onClick={() => submit.mutate()}
         disabled={busy || attempt.questions.some(question => !answers[question.questionId])}>
-        {submit.isPending ? 'Đang chấm…' : 'Nộp bài luyện tập'}
+        {submit.isPending ? tr('Đang chấm…') : tr('Nộp bài luyện tập')}
       </button>
     </div>}
-    {result && <p role="status">{result.scorePercent}% · {result.correctCount}/{result.totalQuestions} câu đúng · {result.passed
-      ? 'Đã đạt bài luyện tập.'
-      : 'Chưa đạt. Bạn có thể làm lại.'}</p>}
-    {error && <p role="alert" className="text-rose-700">{error.message}</p>}
-    {exercises.isError && <button type="button" className={button} onClick={() => exercises.refetch()}>Tải lại bài luyện tập</button>}
+    {result && <p role="status">{result.scorePercent}% · {result.correctCount}/{result.totalQuestions}{' '}{tr('câu đúng ·')}{' '}{result.passed
+      ? tr('Đã đạt bài luyện tập.')
+      : tr('Chưa đạt. Bạn có thể làm lại.')}</p>}
+    {error && <p role="alert" className="text-rose-700">{tr(error.message)}</p>}
+    {exercises.isError && <button type="button" className={button} onClick={() => exercises.refetch()}>{tr('Tải lại bài luyện tập')}</button>}
   </section>;
 }
 
 export default function LessonContent({ lesson, userId, skill, refresh, fromAssessmentRoadmap = false, onAccessDenied }) {
+  const { tr } = useLocale();
   const { lessonId } = lesson;
   const queryClient = useQueryClient();
   const detailKey = ['self-study-lesson', userId, lessonId, fromAssessmentRoadmap];
@@ -133,15 +153,15 @@ export default function LessonContent({ lesson, userId, skill, refresh, fromAsse
     if (requiresPlan) void onAccessDenied?.();
   }, [requiresPlan, onAccessDenied]);
 
-  if (detail.isPending) return <p role="status">Đang tải nội dung…</p>;
+  if (detail.isPending) return <SakuraLoader variant="section" context="lesson" delay={160} />;
   if (requiresPlan) {
     return <div role="alert" className="text-sm">
-      {detail.error.message}{' '}
-      <Link to="/plans" className="font-semibold text-primary underline">Xem gói tự học</Link>
+      {tr(detail.error.message)}{' '}
+      <Link to="/plans" className="font-semibold text-primary underline">{tr('Xem gói tự học')}</Link>
     </div>;
   }
   if (detail.isError) return <LessonLoadError
-    message={detail.error?.message || 'Chưa tải được nội dung bài học.'} retry={detail.refetch} />;
+    message={detail.error?.message || tr('Chưa tải được nội dung bài học.')} retry={detail.refetch} />;
 
   const studied = detail.data.isCompleted || lesson.practicePassed;
   return <div className="space-y-4 text-sm leading-relaxed">

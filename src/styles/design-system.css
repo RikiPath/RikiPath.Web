@@ -1,0 +1,237 @@
+/*
+ * RikiPath.Web — unified interactive design system.
+ *
+ * One place for interaction tokens and for the default look of NATIVE controls, so every screen
+ * (Learner, Mentor, Content Author, Admin, Public — including portals, modals and dropdowns) shares
+ * the same checkbox, radio, link, button and field behaviour without per-page CSS.
+ *
+ *  - Tokens (:root)            motion durations/easing, control sizes, radii, focus ring, states.
+ *  - @layer base               defaults for raw <input type=checkbox|radio>, text fields, buttons,
+ *                              focus-visible. Tailwind utilities on an element still win, so layout
+ *                              classes keep working.
+ *  - Unlayered .rp-* classes   opt-in variants (links, press feedback, field focus) that must win
+ *                              over per-page colour utilities.
+ *
+ * Shared React primitives (components/ui/core.jsx) use the same tokens: Button, IconButton, Input,
+ * Textarea, Select, Checkbox, Field. Prefer those for new code; these rules cover the long tail.
+ */
+
+:root {
+  /* Motion */
+  --rp-dur-fast: 140ms;        /* hover colour, press feedback */
+  --rp-dur-standard: 200ms;    /* control state changes (check, focus, underline) */
+  --rp-dur-overlay: 260ms;     /* popovers, dialogs, drawers, toasts */
+  --rp-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --rp-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --rp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --rp-hover-lift: translateY(-1px);
+  --rp-press-scale: scale(0.985);
+
+  /* Controls */
+  --rp-control-h-sm: 2rem;     /* 32px */
+  --rp-control-h-md: 2.5rem;   /* 40px */
+  --rp-control-h-lg: 3rem;     /* 48px */
+  --rp-check-size: 18px;
+  --rp-radius-check: 5px;
+  --rp-radius-control: 12px;
+
+  /* Colour roles for interaction */
+  --rp-accent: #E05A7A;             /* checked controls, focus ring, active indicators */
+  --rp-accent-strong: #C24362;      /* primary buttons, link text (AA) */
+  --rp-link: #CC4D6B;
+  --rp-link-hover: #9E2F49;
+  --rp-link-danger: #C62828;
+  --rp-link-danger-hover: #9F1F1F;
+  --rp-control-border: #DDBFC3;
+  --rp-control-border-hover: #E05A7A;
+  --rp-focus-ring: 0 0 0 3px rgba(224, 90, 122, 0.28);
+  --rp-focus-ring-danger: 0 0 0 3px rgba(198, 40, 40, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --rp-dur-fast: 0ms;
+    --rp-dur-standard: 0ms;
+    --rp-dur-overlay: 0ms;
+    --rp-hover-lift: none;
+    --rp-press-scale: none;
+  }
+}
+
+/* ------------------------------------------------------------------ Native defaults */
+@layer base {
+  /* Keyboard focus is always visible, on every interactive element (mouse focus stays quiet). */
+  :where(a, button, [role="button"], [role="tab"], [role="option"], [role="menuitem"], summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--rp-accent);
+    outline-offset: 2px;
+  }
+
+  :where(button, [role="button"]) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: var(--rp-dur-fast);
+    transition-timing-function: var(--rp-ease-standard);
+  }
+  :where(button, [role="button"]):disabled,
+  :where(button, [role="button"])[aria-disabled="true"] { cursor: not-allowed; }
+
+  :where(a) { transition: color var(--rp-dur-fast) var(--rp-ease-standard); }
+
+  /* Selectors below use :is() (not :where()) so they outrank Tailwind preflight inside the same base layer. */
+  /* Checkbox — same look as the Login checkbox (ui/core Checkbox) for every raw checkbox in tables,
+     filters and admin forms. Native input, so keyboard / screen reader / form behaviour is unchanged. */
+  :is(input[type="checkbox"]),
+  :is(input[type="radio"]) {
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    width: var(--rp-check-size);
+    height: var(--rp-check-size);
+    margin: 0;
+    display: inline-grid;
+    place-content: center;
+    vertical-align: middle;
+    border: 1.5px solid var(--rp-control-border);
+    background-color: #fff;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 0 0;
+    cursor: pointer;
+    transition:
+      background-color var(--rp-dur-standard) var(--rp-ease-standard),
+      border-color var(--rp-dur-standard) var(--rp-ease-standard),
+      background-size var(--rp-dur-standard) var(--rp-ease-spring),
+      box-shadow var(--rp-dur-fast) var(--rp-ease-standard);
+  }
+  :is(input[type="checkbox"]) {
+    border-radius: var(--rp-radius-check);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M2.6 8.3 6.3 12 13.4 4.2' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  :is(input[type="radio"]) {
+    border-radius: 9999px;
+    background-image: radial-gradient(circle, #fff 0 34%, transparent 36%);
+  }
+  :is(input[type="checkbox"], input[type="radio"]):hover:not(:disabled) { border-color: var(--rp-control-border-hover); }
+  :is(input[type="checkbox"], input[type="radio"]):checked,
+  :is(input[type="checkbox"]):indeterminate {
+    background-color: var(--rp-accent);
+    border-color: var(--rp-accent);
+    background-size: 100% 100%;
+  }
+  :is(input[type="checkbox"]):indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+  :is(input[type="checkbox"], input[type="radio"]):focus-visible {
+    outline: none;
+    box-shadow: var(--rp-focus-ring);
+  }
+  :is(input[type="checkbox"], input[type="radio"])[aria-invalid="true"] { border-color: var(--color-rp-danger, #C62828); }
+  :is(input[type="checkbox"], input[type="radio"]):disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  /* Text fields: shared focus, placeholder and autofill treatment. */
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea) {
+    transition: border-color var(--rp-dur-standard) var(--rp-ease-standard), box-shadow var(--rp-dur-standard) var(--rp-ease-standard), background-color var(--rp-dur-standard) var(--rp-ease-standard);
+  }
+  :is(input, textarea)::placeholder { color: var(--color-rp-text-disabled, #9E9397); opacity: 1; }
+  /* Autofill keeps the field white instead of the browser's yellow/blue, without breaking autofill. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--color-rp-text, #2D282A);
+    -webkit-box-shadow: 0 0 0 1000px #fff inset;
+    caret-color: var(--color-rp-text, #2D282A);
+    transition: background-color 9999s 0s;
+  }
+}
+
+/* Bordered text fields across all pages focus the same way (wins over per-page focus:* utilities).
+   Borderless fields (chat composers, inline editors) opt out by having no border class. */
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea)[class*="border"]:not([class*="border-0"], [class*="border-none"], [class*="border-transparent"]):focus {
+  outline: none;
+  border-color: var(--rp-accent);
+  box-shadow: var(--rp-focus-ring);
+}
+:is(input, select, textarea)[aria-invalid="true"][class*="border"]:not([class*="border-0"]) { border-color: var(--color-rp-danger, #C62828); }
+:is(input, select, textarea)[aria-invalid="true"][class*="border"]:not([class*="border-0"]):focus { box-shadow: var(--rp-focus-ring-danger); }
+/* Suppress Chrome 135+ customizable-select native picker triangle whenever custom SVG chevron is used. */
+:is(select).appearance-none {
+  appearance: none;
+  -webkit-appearance: none;
+}
+@supports selector(::picker-icon) {
+  :is(select).appearance-none::picker-icon { display: none; }
+}
+
+/* ------------------------------------------------------------------ Links */
+/* Inline text link (body copy): brand colour + underline that sweeps in. Defined in tokens.css as .rp-link. */
+/* Underline-only variant: keeps the element's own colour (action links, links on tinted banners). */
+.rp-underline {
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1.5px;
+  transition: background-size 280ms var(--rp-ease-out), color var(--rp-dur-fast) var(--rp-ease-standard);
+}
+.rp-underline:hover,
+.rp-underline:focus-visible { background-size: 100% 1.5px; }
+/* Destructive action link. */
+.rp-link-danger {
+  color: var(--rp-link-danger);
+  font-weight: 600;
+}
+.rp-link-danger:hover,
+.rp-link-danger:focus-visible { color: var(--rp-link-danger-hover); }
+/* External link indicator (append to .rp-link / .rp-underline on target="_blank"). */
+.rp-link-external::after {
+  content: "↗";
+  display: inline-block;
+  margin-left: 0.15em;
+  font-size: 0.85em;
+  transition: transform var(--rp-dur-fast) var(--rp-ease-out);
+}
+.rp-link-external:hover::after { transform: translate(1px, -1px); }
+/* Disabled link: not clickable and not pretending to be. */
+:is(.rp-link, .rp-underline, .rp-link-danger)[aria-disabled="true"] {
+  pointer-events: none;
+  color: var(--color-rp-text-disabled, #9E9397);
+  background-size: 0 0;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ Buttons */
+/* Press feedback shared by every solid action button (ui Button + raw page buttons): gentle lift on
+   hover, slight press on click. Never rotates. */
+.rp-press {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: var(--rp-dur-standard);
+  transition-timing-function: var(--rp-ease-out);
+}
+.rp-press:hover:not(:disabled, [aria-disabled="true"]) { transform: var(--rp-hover-lift); }
+.rp-press:active:not(:disabled, [aria-disabled="true"]) { transform: var(--rp-press-scale); transition-duration: 90ms; }
+
+/* One checkbox/radio size everywhere: unlayered so stray h-4/w-5 utilities on raw inputs can't drift. */
+:where(input[type="checkbox"], input[type="radio"]) {
+  width: var(--rp-check-size);
+  height: var(--rp-check-size);
+}
+
+/* Navigation link (public header): Sakura underline grows from the centre; active stays underlined. */
+.rp-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0.25rem;
+  right: 0.25rem;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--rp-accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--rp-dur-standard) var(--rp-ease-out);
+}
+.rp-nav-link:hover::after,
+.rp-nav-link:focus-visible::after,
+.rp-nav-link.is-active::after { transform: scaleX(1); }
