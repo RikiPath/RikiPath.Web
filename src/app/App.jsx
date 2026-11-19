@@ -54,7 +54,6 @@ const PAGES = {
   DailySRS: page(() => import('@/pages/learner/DailySRS.jsx')),
   MockTestPage: page(() => import('@/pages/learner/MockTestPage.jsx')),
   ExamResult: page(() => import('@/pages/learner/ExamResult.jsx')),
-  AICounselor: page(() => import('@/pages/learner/AICounselor.jsx')),
   LearnerSettings: page(() => import('@/pages/learner/LearnerSettings.jsx')),
   StudyPlans: page(() => import('@/pages/learner/StudyPlans.jsx')),
   StudyPayment: page(() => import('@/pages/learner/StudyPayment.jsx')),

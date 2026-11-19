@@ -36,15 +36,14 @@ The Login screen is the **canonical color & surface reference** for all RikiPath
 - **Grid Canvas**: Uniform clean white (`#FFFFFF`) across all hours and days (Mon–Sun share identical white surface; no weekend column fill and no colored Morning/Noon/Afternoon/Evening background bands).
 - **Gridlines**: Subtle light gray (`border-gray-200/80` hour lines, `border-dashed border-gray-100` half-hour lines).
 - **15-Minute Rest Buffer**: Subtle dashed border indicator (`border-dashed border-rp-line/80`), never yellow striped blocks.
-- **Semantic Schedule Status & Event Type Colors**:
-  - **Buổi lớp nhóm / Đã xếp lớp (`session` / `booked`)**: Sakura Pink `#CE476D` (surface `#FFF5F7`, border `#F2CCD7`, left accent `#CE476D`, ink `#7D2941`).
-  - **Chờ duyệt (`pending`)**: Amber `#E4A020` (surface `#FFFBF2`, border `#F3D7A4`, left accent `#E4A020`, ink `#784506`).
-  - **Đã duyệt (`approved`)**: Teal `#0D9488` (surface `#F0FDFA`, border `#99F6E4`, left accent `#0D9488`, ink `#115E59`).
-  - **Đã công bố (`open`)**: Blue `#3B82F6` (surface `#EFF6FF`, border `#BFDBFE`, left accent `#3B82F6`, ink `#1E3A8A`).
-  - **Đã hoàn thành (`present`)**: Green `#16A34A` (surface `#F0FDF4`, border `#BBF7D0`, left accent `#16A34A`, ink `#14532D`).
+- **Semantic Schedule Status Colors (4 Main + 2 Exception Statuses)**:
+  - **Chờ duyệt (`pending`)**: Amber Yellow `#E4A020` (surface `#FFFBF2`, border `#F3D7A4`, left accent `#E4A020`, ink `#784506`).
+  - **Đã duyệt (`approved` — Đã duyệt bởi Admin, chưa xếp lớp)**: Teal `#0D9488` (surface `#F0FDFA`, border `#99F6E4`, left accent `#0D9488`, ink `#115E59`).
+  - **Đã xếp lớp (`session` / `booked` — Buổi lớp nhóm)**: Sakura Pink `#CE476D` (surface `#FFF5F7`, border `#F2CCD7`, left accent `#CE476D`, ink `#7D2941`). Tuyệt đối không dùng màu xanh biển cho trạng thái đã xếp lớp hoặc nhãn `"Đã công bố"`.
+  - **Đã hoàn thành (`present` — Xác nhận hoàn thành theo lifecycle Backend)**: Green `#16A34A` (surface `#F0FDF4`, border `#BBF7D0`, left accent `#16A34A`, ink `#14532D`).
   - **Bị từ chối (`rejected` / `conflict`)**: Red `#DC3545` (surface `#FFF5F5`, border `#F5C2C7`, left accent `#DC3545`, ink `#842029`).
-  - **Đã hủy (`cancelled`)**: Gray `#8B8B97` (surface `#F8F8FA`, border `#E2E2E8`, left accent `#8B8B97`, ink `#5E5E6A`).
-  - **Đang chọn chưa gửi (`selected` Draft)**: Light Green `#22C55E` (surface `#F3FEF6`, border `#86EFAC`, left accent `#22C55E`, ink `#14532D`).
+  - **Đã hủy (`cancelled`)**: Neutral Gray `#8B8B97` (surface `#F8F8FA`, border `#E2E2E8`, left accent `#8B8B97`, ink `#5E5E6A`).
+  - **Đang chọn chưa gửi (`selected` — Draft cục bộ trên client)**: Light Green `#22C55E` (surface `#F3FEF6`, border `#86EFAC`, left accent `#22C55E`, ink `#14532D`).
 
 ## Surfaces & roles
 

@@ -51,7 +51,7 @@ export function notificationDestination(url) {
   const path = rawPath.replace(/\/+$/, '') || '/';
   const suffix = rawQuery ? `?${rawQuery}` : '';
 
-  if (path === '/mentor-availability' || path === '/mentor/availability') return `/work-schedule/${suffix}`;
+  if (path === '/mentor-availability' || path === '/mentor/availability') return `/mentor-shift-schedule/${suffix}`;
   if (path === '/mentor/schedule') return `/work-schedule/${suffix}`;
   if (path === '/mentor/profile') return `/mentor-profile/${suffix}`;
   if (path === '/mentor/reviews') return `/mentor-reviews/${suffix}`;

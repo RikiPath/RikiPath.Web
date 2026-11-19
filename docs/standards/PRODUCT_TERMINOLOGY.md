@@ -52,7 +52,7 @@ Never translate: **RikiPath**, **Haru**, **JLPT**, level codes **N5–N2**, **Pa
 - Group learning is separate from the self-study plan and AI credits; there is no 1-1 booking and no Mentor payroll in the product.
 - JLPT levels offered: N5–N2.
 - Web UI dùng “Giáo viên” cho vai trò Mentor và “Học cùng Giáo viên” cho khu vực lớp có hướng dẫn. Giữ nguyên `Mentor` trong role, API, route, entity và dữ liệu lịch sử/người dùng tự nhập.
-- Sidebar Learner đi theo hành trình: Tổng quan → Lộ trình học JLPT → Thư viện tiếng Nhật → Góc học tập của tôi → Luyện tập & Thi thử → Học cùng Giáo viên. Chỉ tạo liên kết đến màn/route đang hoạt động; không dựng trang tiến độ riêng khi chưa có contract.
+- Sidebar Learner đi theo hành trình: Tổng quan → Học cùng Giáo viên → Lộ trình học JLPT → Thư viện tiếng Nhật → Góc học tập của tôi → Luyện tập & Thi thử. Chỉ tạo liên kết đến màn/route đang hoạt động; không dựng trang tiến độ riêng khi chưa có contract.
 - Internal ids, QA codes or cohort codes (e.g. `QA-E2E-COHORT-…`) are never shown as names; show the class name.
 - Abbreviations are not used in UI copy: "BTVN" → "bài tập về nhà / bài tập", "HV" → "học viên", "p/h" → "phút/giờ",
   "Placement" → "bài đánh giá năng lực", "Cutoff" → "khóa ghi danh". Entitlement reference codes are admin-only.

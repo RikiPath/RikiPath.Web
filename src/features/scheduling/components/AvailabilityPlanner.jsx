@@ -35,13 +35,14 @@ const JA_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const monday = () => mondayOfDateKey(toVnDateKey(new Date()));
 
 function statusOf(s, conflictIds) {
-  if (s.rejectedAt) return { label: 'Bị từ chối', tone: 'rejected', calTone: 'cancelled' };
+  if (s.isDeleted) return { label: 'Đã hủy', tone: 'cancelled', calTone: 'cancelled' };
+  if (s.rejectedAt) return { label: 'Bị từ chối', tone: 'rejected', calTone: 'rejected' };
   if (s.cancelRequestedAt && !s.cancelRejectedAt) return { label: 'Chờ duyệt hủy', tone: 'pending', calTone: 'pending' };
   if (s.changeRequestedAt && !s.changeResolution) return { label: 'Chờ duyệt đổi giờ', tone: 'pending', calTone: 'pending' };
   if (!s.isApproved) return { label: 'Chờ duyệt', tone: 'pending', calTone: 'pending' };
   if (conflictIds?.has(s.id)) return { label: 'Trùng lịch', tone: 'rejected', calTone: 'conflict' };
-  if (s.isInCohort || (s.bookedCount ?? 0) > 0) return { label: 'Đã xếp lớp', tone: 'booked', calTone: 'booked' };
-  if (s.publishedAt) return { label: 'Đã công bố', tone: 'approved', calTone: 'open' };
+  if (s.sessionCompleted || (s.isInCohort && s.status === 'Completed')) return { label: 'Đã hoàn thành', tone: 'present', calTone: 'present' };
+  if (s.isInCohort || s.status === 'Booked' || (s.bookedCount ?? 0) > 0) return { label: 'Đã xếp lớp', tone: 'session', calTone: 'session' };
   return { label: 'Đã duyệt', tone: 'approved', calTone: 'approved' };
 }
 

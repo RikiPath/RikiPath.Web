@@ -5,16 +5,16 @@ import { useLocale } from '@/locales/locale.js';
 
 const SCHEDULE_TABS = [
   { to: '/work-schedule/', label: 'Lịch làm việc', icon: CalendarCheck, match: '/work-schedule' },
-  { to: '/mentor-shift-schedule/', label: 'Lịch tương tác 90 phút', icon: CalendarClock, match: '/mentor-shift-schedule' },
-  { to: '/mentor-availability/', label: 'Lịch rảnh & Google Calendar', icon: CalendarPlus, match: '/mentor-availability' },
+  { to: '/mentor-shift-schedule/', label: 'Đăng ký lịch dạy', icon: CalendarClock, match: '/mentor-shift-schedule' },
 ];
 
 const STATUS_LEGEND = [
-  { label: 'Chờ duyệt', dot: 'bg-amber-400' },
-  { label: 'Đã duyệt · chưa công bố', dot: 'bg-sky-500' },
-  { label: 'Đã công bố', dot: 'bg-emerald-500' },
-  { label: 'Đã xếp lớp', dot: 'bg-rp-brand-pressed' },
-  { label: 'Xung đột lịch', dot: 'bg-rose-600' },
+  { label: 'Chờ duyệt', dot: 'bg-[#E4A020]' },
+  { label: 'Đã duyệt', dot: 'bg-[#0D9488]' },
+  { label: 'Đã xếp lớp', dot: 'bg-[#CE476D]' },
+  { label: 'Đã hoàn thành', dot: 'bg-[#16A34A]' },
+  { label: 'Bị từ chối', dot: 'bg-[#DC3545]' },
+  { label: 'Đã hủy', dot: 'bg-[#8B8B97]' },
 ];
 
 export default function MentorScheduleNavTabs({ showLegend = true, className = '' }) {

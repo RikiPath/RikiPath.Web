@@ -49,11 +49,13 @@ Hỗ trợ đầy đủ bàn phím (`Tab`, `Enter`, `Space`, `Escape`, phím mũ
   - **Ngày hôm nay (`isToday`)**: đánh dấu bằng vòng tròn **Soft Sakura Rose** (`bg-rp-brand-pressed text-white`) quanh số ngày trên Header.
   - **Ngày đang chọn (`isSelectedDay`)**: hiển thị highlight Sakura nhẹ trên ô Header (`bg-rp-brand-tint/35`, vạch chỉ báo `bg-rp-brand` dưới chân Header, vòng số `border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong`).
   - **Ngày hôm nay đồng thời là ngày đang chọn (`isToday && isSelectedDay`)**: kết hợp vòng tròn Sakura Rose với viền mảnh (`ring-2 ring-rp-brand-border ring-offset-1`) và vạch chỉ báo dưới chân Header, rõ ràng và không chồng màu.
-- Phân biệt rõ trạng thái thẻ lịch 90 phút:
-  - **Xanh lá nhạt (`Đã chọn`)**: khung giờ đang chọn, chưa gửi (nhấp lại để bỏ chọn).
-  - **Vàng kem (`Chờ duyệt`)**: khung giờ đã gửi, đang chờ quản trị viên duyệt.
-  - **Hồng Sakura / Xanh dương / Ngọc (`Đã xếp lớp` / `Đã duyệt` / `Đã công bố`)**: lịch chính thức.
-  - **Đỏ nhạt (`Trùng lịch`)**: khung giờ cần kiểm tra hoặc điều chỉnh.
+- Phân biệt rõ **4 trạng thái chính + 2 trạng thái ngoại lệ** (loại bỏ nhãn `"Đã công bố"` trên lịch Giáo viên) và thông tin lớp đi kèm:
+  - **Xanh lá nhạt (`Đã chọn` — Draft cục bộ chưa gửi)**: lựa chọn nháp trên client (click để bỏ chọn, kéo thả trực tiếp).
+  - **Vàng hổ phách `#E4A020` (`Chờ duyệt`)**: khung giờ đã gửi lên hệ thống, đang chờ Quản trị viên duyệt.
+  - **Xanh ngọc `#0D9488` (`Đã duyệt`)**: Quản trị viên đã duyệt, ghi rõ `"Chưa xếp lớp"` (không hiển thị `0/4 học viên`).
+  - **Hồng Sakura `#CE476D` (`Đã xếp lớp`)**: buổi học đã gắn với lớp nhóm & sĩ số thực tế `{enrolledCount}/{capacity} học viên` (lấy từ `StudyCohort`, không dùng xanh dương).
+  - **Xanh lá `#16A34A` (`Đã hoàn thành`)**: chỉ xác lập từ lifecycle / xác nhận điểm danh Backend, tuyệt đối không suy luận chỉ vì đã qua giờ kết thúc.
+  - **Đỏ `#DC3545` (`Bị từ chối` / `Trùng lịch`)** và **Xám `#8B8B97` (`Đã hủy`)**: trạng thái ngoại lệ.
 
 ### Rule 09 — User-First Terminology
 Không sao chép nguyên thuật ngữ kỹ thuật từ prompt hoặc hệ thống nội bộ (`API`, `snap`, `conflict`, `policy`, `workflow`, `backend`, `atomic`, `batch`, `cohort code QA-...`) lên giao diện người dùng. Dùng ngôn ngữ tự nhiên, thân thiện bằng Tiếng Việt và Tiếng Nhật (`tr` / `trf`).
@@ -79,7 +81,7 @@ Mọi cải tiến về bố cục và thao tác phải bảo toàn 100% quy t�
 
 ## 2. 12 Quy chuẩn bắt buộc cho Calendar, Bảng dữ liệu & Hiệu năng (Mandatory Scheduling & Performance Rules)
 
-1. **Status-Based Interaction Lock**: Chỉ cho phép kéo thả (`drag`) và click bỏ chọn trực tiếp trên lưới Calendar đối với các thẻ **Draft đang chọn nhưng chưa gửi** (`isSelectedDraft`). Mọi bản ghi đã lưu (`Chờ duyệt`, `Đã duyệt`, `Đã công bố`, `Đã xếp lớp`, `Đã hoàn thành`, `Bị từ chối`, `Đã hủy`) đều bị khóa kéo thả trực tiếp trên lưới lịch (`draggable: false, locked: true`).
+1. **Status-Based Interaction Lock & Two-Workspace Split**: Giáo viên chỉ có **2 trang lịch** (`Lịch làm việc` chỉ hiển thị buổi sắp diễn ra / đã hoàn thành; `Đăng ký lịch dạy` quản lý đăng ký khung rảnh). Chỉ cho phép kéo thả (`drag`), chỉnh giờ trực tiếp và click bỏ chọn đối với **Draft chưa gửi** (`isSelectedDraft`). Mọi bản ghi đã lưu trên Backend (`Chờ duyệt`, `Đã duyệt`, `Đã xếp lớp`, `Đã hoàn thành`, `Bị từ chối`, `Đã hủy`) đều khóa kéo thả/sửa trực tiếp trên lưới lịch (`draggable: false, locked: true`) và chỉ xử lý hủy/điều chỉnh qua workflow Backend hợp lệ.
 2. **Không dùng màu thay cho chữ**: Mọi thẻ lịch và badge trạng thái phải luôn hiển thị nhãn văn bản rõ ràng đi kèm chấm tròn màu ngữ nghĩa (`Semantic Status Dot`).
 3. **Custom Listbox cho bộ lọc có màu/icon**: Không sử dụng `<select>` native khi dropdown cần hiển thị chấm màu trạng thái hoặc badge; sử dụng `StatusDotListbox` hỗ trợ đầy đủ bàn phím (`ArrowUp/Down`, `Home/End`, `Enter`, `Escape`) và `aria-selected`.
 4. **Direct Row Actions đúng quyền**: Trên bảng danh sách (`Ngày | Giờ dạy | Loại lịch | Trạng thái | Thao tác`), đặt trực tiếp các nút thao tác hợp lệ (`Xem`, `Sửa giờ`, `Hủy`) ở cuối dòng thay vì ẩn toàn bộ vào menu 3 chấm; ẩn các nút không được phép theo trạng thái thực tế và mở `Modal` xác nhận giải thích rõ hậu quả khi nhấn `Hủy`.

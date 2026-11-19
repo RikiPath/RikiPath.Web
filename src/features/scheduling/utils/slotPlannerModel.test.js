@@ -150,11 +150,10 @@ test('buildPresetCandidateSlots splits dayparts into valid 90m slots with 15m re
 });
 
 test('classifyScheduleEvent, filterScheduleEvents and sortScheduleEvents separate EventType from Status and enforce combined AND filters + smart sort', () => {
-  // Verify required semantic status colors in CALENDAR_TONES
-  assert.equal(CALENDAR_TONES.session.hex, '#CE476D');
+  // Verify canonical 4+2 semantic status colors in CALENDAR_TONES (plus Draft selection)
   assert.equal(CALENDAR_TONES.pending.hex, '#E4A020');
   assert.equal(CALENDAR_TONES.approved.hex, '#0D9488');
-  assert.equal(CALENDAR_TONES.open.hex, '#3B82F6');
+  assert.equal(CALENDAR_TONES.session.hex, '#CE476D');
   assert.equal(CALENDAR_TONES.present.hex, '#16A34A');
   assert.equal(CALENDAR_TONES.rejected.hex, '#DC3545');
   assert.equal(CALENDAR_TONES.cancelled.hex, '#8B8B97');

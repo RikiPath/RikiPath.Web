@@ -95,7 +95,7 @@ export default function SmartNotebookWorkspace() {
   const [editorMode, setEditorMode] = useState('split'); // 'write' | 'preview' | 'split'
   const textareaRef = useRef(null);
 
-  if (activeNotePage && activeNotePage.id !== editorPageId) {
+  if (activeNotePage?.id != null && activeNotePage.id !== editorPageId) {
     setEditorPageId(activeNotePage.id);
     setEditorBody(activeNotePage.body || '');
     setEditorSummary(activeNotePage.summary || '');
@@ -174,7 +174,7 @@ export default function SmartNotebookWorkspace() {
   const [entryPersonalNoteDraft, setEntryPersonalNoteDraft] = useState('');
   const [entryMeaningDraft, setEntryMeaningDraft] = useState('');
 
-  if (activeEntry && activeEntry.noteEntryId !== entryEditId) {
+  if (activeEntry?.noteEntryId != null && activeEntry.noteEntryId !== entryEditId) {
     setEntryEditId(activeEntry.noteEntryId);
     setEntryPersonalNoteDraft(activeEntry.personalNote || '');
     setEntryMeaningDraft(activeEntry.meaning || '');

@@ -79,16 +79,12 @@ const DAY_SHORT_JA = ['日', '月', '火', '水', '木', '金', '土'];
 const HOUR_HEIGHT = 64;
 const CONFLICT_DEBOUNCE_MS = 250;
 
-function slotStatusMeta(s, conflictIds, restConflictIds, nowMs = Date.now()) {
-  if (s.isDeleted) {
+function slotStatusMeta(s, conflictIds, restConflictIds, cohortMeta = null) {
+  if (s.isDeleted || s.status === 'Cancelled') {
     return { kind: 'cancelled', label: 'Đã hủy', tone: 'cancelled', draggable: false, locked: true };
   }
-  if (s.rejectedAt) {
+  if (s.rejectedAt || s.status === 'Rejected') {
     return { kind: 'rejected', label: 'Bị từ chối', tone: 'rejected', draggable: false, locked: true };
-  }
-  const endMs = backendUtcDate(s.endTime)?.getTime() || 0;
-  if (endMs > 0 && endMs <= nowMs && (s.isApproved || s.isInCohort)) {
-    return { kind: 'present', label: 'Đã hoàn thành', tone: 'present', draggable: false, locked: true };
   }
   if (s.cancelRequestedAt && !s.cancelRejectedAt) {
     return { kind: 'pending', label: 'Chờ duyệt hủy', tone: 'pending', draggable: false, locked: true };
@@ -105,20 +101,23 @@ function slotStatusMeta(s, conflictIds, restConflictIds, nowMs = Date.now()) {
       locked: true,
     };
   }
-  if (s.isInCohort) {
+  const inCohort = Boolean(s.isInCohort || cohortMeta);
+  const isCompletedByLifecycle = Boolean(
+    cohortMeta?.sessionCompleted ||
+    s.sessionCompleted ||
+    (inCohort && s.status === 'Completed')
+  );
+  if (isCompletedByLifecycle) {
+    return { kind: 'present', label: 'Đã hoàn thành', tone: 'present', draggable: false, locked: true };
+  }
+  if (inCohort || s.isBooked || s.status === 'Booked' || (s.bookedCount ?? 0) > 0) {
     return { kind: 'session', label: 'Đã xếp lớp', tone: 'session', draggable: false, locked: true };
   }
-  if (s.isBooked || (s.bookedCount ?? 0) > 0) {
-    return { kind: 'booked', label: 'Đã xếp lớp', tone: 'booked', draggable: false, locked: true };
-  }
-  if (!s.isApproved) {
-    // Status-based interaction lock: submitted Pending slots are LOCKED on the Calendar grid
-    // (cannot be directly dragged on the grid; can only be canceled/adjusted via explicit row/modal actions).
+  if (!s.isApproved || s.status === 'Pending') {
+    // Status-based interaction lock: submitted Pending slots are LOCKED on the Calendar grid.
     return { kind: 'pending', label: 'Chờ duyệt', tone: 'pending', draggable: false, locked: true };
   }
-  if (s.publishedAt) {
-    return { kind: 'open', label: 'Đã công bố', tone: 'open', draggable: false, locked: true };
-  }
+  // Admin-approved slots not yet assigned to a cohort use canonical Teal 'Đã duyệt' (no separate 'Đã công bố' label).
   return { kind: 'approved', label: 'Đã duyệt', tone: 'approved', draggable: false, locked: true };
 }
 
@@ -627,6 +626,41 @@ export default function InteractiveSlotCalendar({
     const events = [];
     const coveredAvailabilityIds = new Set();
 
+    const buildCohortRows = ({ meta, slotObj, mins, statusText }) => {
+      const cap = Number(meta?.capacity ?? (slotObj?.isInCohort ? slotObj?.maxLearners : 0) ?? 0);
+      const enrolled = Number(meta?.enrolledCount ?? slotObj?.bookedCount ?? 0);
+      const sessionNum = meta?.sessionNumber ?? slotObj?.sessionNumber ?? null;
+      const totalSess = Number(meta?.totalSessions || 0);
+      const sessionLabel = sessionNum
+        ? (totalSess > 0
+          ? trf('Buổi {0}/{1}', { 0: sessionNum, 1: totalSess })
+          : trf('Buổi {0}', { 0: sessionNum }))
+        : null;
+      const headcountLabel = cap > 0 ? trf('{0}/{1} học viên', { 0: enrolled, 1: cap }) : null;
+      const att = meta?.attendanceSummary;
+      const attendanceLabel = att && att.confirmedCount > 0
+        ? trf('{0}/{1} có mặt', { 0: att.presentCount, 1: att.totalRecords || att.confirmedCount })
+        : slotObj?.attendanceConfirmedCount > 0
+          ? trf('Đã điểm danh {0} lượt', { 0: slotObj.attendanceConfirmedCount })
+          : null;
+      const learnerListText = meta?.learnerNames?.length > 0 ? meta.learnerNames.join(', ') : null;
+      const cohortDisplayName = meta?.cohortName || slotObj?.cohortName || null;
+
+      return {
+        sessionLabel,
+        headcountLabel,
+        rows: [
+          { label: 'Trạng thái', value: tr(statusText) },
+          cohortDisplayName && { label: 'Lớp học', value: cohortDisplayName },
+          sessionLabel && { label: 'Thứ tự buổi', value: sessionLabel },
+          headcountLabel && { label: 'Sĩ số', value: headcountLabel },
+          learnerListText && { label: 'Học viên', value: learnerListText },
+          attendanceLabel && { label: 'Kết quả điểm danh', value: attendanceLabel },
+          { label: 'Thời lượng', value: fmt.duration(mins) },
+        ].filter(Boolean),
+      };
+    };
+
     for (const s of slots) {
       if (!s) continue;
       if (pendingMove?.slot?.id === s.id) continue;
@@ -634,8 +668,8 @@ export default function InteractiveSlotCalendar({
       const endParts = toVnTimeParts(s.endTime);
       const dk = toVnDateKey(s.startTime);
       const mins = slotDurationMinutes(s.startTime, s.endTime);
-      const st = slotStatusMeta(s, overlapIds, restIds);
       const cohortMeta = cohortByAvailabilityId.get(s.id);
+      const st = slotStatusMeta(s, overlapIds, restIds, cohortMeta);
       if (s.id) coveredAvailabilityIds.add(s.id);
 
       const isLegacyLong = mins > durationMinutes;
@@ -645,14 +679,34 @@ export default function InteractiveSlotCalendar({
           ? `Cách khung lân cận dưới ${restMinutes} phút nghỉ.`
           : '';
 
-      const cleanCohortTitle = cohortMeta?.cohortName
-        ? formatCleanCohortTitle(cohortMeta.cohortName, cohortMeta.sessionNumber)
+      const cohortName = cohortMeta?.cohortName || s.cohortName || null;
+      const sessionNum = cohortMeta?.sessionNumber ?? s.sessionNumber ?? null;
+      const cleanCohortTitle = cohortName
+        ? formatCleanCohortTitle(cohortName, sessionNum)
         : null;
+      const inCohort = Boolean(s.isInCohort || cohortMeta);
+      const cohortInfo = inCohort
+        ? buildCohortRows({ meta: cohortMeta, slotObj: s, mins, statusText: st.label })
+        : null;
+      const registeredAtLabel = s.createdAt
+        ? fmt.dateTime(backendUtcDate(s.createdAt))
+        : `${formatShortDateVn(dk)} · ${startParts.hhmm}–${endParts.hhmm}`;
+
+      const detailSummary = conflictNote
+        ? tr(conflictNote)
+        : inCohort
+          ? [cohortInfo?.sessionLabel, cohortInfo?.headcountLabel].filter(Boolean).join(' · ') || tr(st.label)
+          : st.kind === 'approved'
+            ? tr('Chưa xếp lớp')
+            : tr(st.label);
 
       events.push({
         id: `av-${s.id}`,
         slotId: s.id,
         slot: s,
+        cohortId: cohortMeta?.cohortId ?? s.cohortId ?? null,
+        sessionCompleted: st.kind === 'present',
+        attendanceStatus: st.kind === 'present' ? 'Present' : undefined,
         sourceKind: st.kind,
         draggable: st.draggable,
         locked: st.locked,
@@ -664,25 +718,30 @@ export default function InteractiveSlotCalendar({
         timeLabel: `${startParts.hhmm}–${endParts.hhmm}`,
         title: cleanCohortTitle
           || (isLegacyLong ? trf('Khung gộp cũ ({0}p)', { 0: mins }) : `${startParts.hhmm}–${endParts.hhmm}`),
-        fullTitle: cohortMeta?.cohortName
-          ? `${cohortMeta.cohortName}${cohortMeta.sessionNumber ? ` · Buổi ${cohortMeta.sessionNumber}` : ''}`
+        fullTitle: cohortName
+          ? `${cohortName}${sessionNum ? ` · Buổi ${sessionNum}` : ''}`
           : `${startParts.hhmm}–${endParts.hhmm}`,
-        detail: conflictNote || (cohortMeta?.learnerNames?.length
-          ? trf('HV: {0}', { 0: cohortMeta.learnerNames.join(', ') })
-          : tr(st.label)),
+        detail: detailSummary,
         statusLabel: st.label,
         tone: st.tone,
-        metaRows: [
-          { label: 'Trạng thái', value: tr(st.label) },
-          { label: 'Thời lượng', value: fmt.duration(mins) },
-          cohortMeta?.cohortName && { label: 'Lớp nhóm', value: cohortMeta.cohortName },
-          cohortMeta?.learnerNames?.length > 0 && { label: 'Học viên', value: cohortMeta.learnerNames.join(', ') },
-          !s.isInCohort && s.publishedAt && { label: 'Công bố lúc', value: fmt.dateTime(backendUtcDate(s.publishedAt)) },
-          s.rejectionReason && { label: 'Lý do từ chối', value: s.rejectionReason },
-          s.cancelRejectedAt && s.cancelRejectionReason && { label: 'Không duyệt hủy', value: s.cancelRejectionReason },
-          s.changeResolution && { label: 'Kết quả điều chỉnh', value: s.changeResolution },
-          conflictNote && { label: 'Lưu ý', value: tr(conflictNote) },
-        ].filter(Boolean),
+        href: inCohort && (cohortMeta?.cohortId ?? s.cohortId) ? `/mentor-study-courses/${cohortMeta?.cohortId ?? s.cohortId}/` : undefined,
+        hrefLabel: inCohort ? 'Mở lớp phụ trách' : undefined,
+        metaRows: inCohort
+          ? [
+              ...cohortInfo.rows,
+              s.changeResolution && { label: 'Kết quả điều chỉnh', value: s.changeResolution },
+              conflictNote && { label: 'Lưu ý', value: tr(conflictNote) },
+            ].filter(Boolean)
+          : [
+              { label: 'Trạng thái', value: st.kind === 'approved' ? tr('Đã duyệt bởi Admin') : tr(st.label) },
+              st.kind === 'approved' && { label: 'Ghi chú', value: tr('Chưa xếp lớp') },
+              { label: 'Thời gian đăng ký', value: registeredAtLabel },
+              { label: 'Thời lượng', value: fmt.duration(mins) },
+              s.rejectionReason && { label: 'Lý do từ chối', value: s.rejectionReason },
+              s.cancelRejectedAt && s.cancelRejectionReason && { label: 'Không duyệt hủy', value: s.cancelRejectionReason },
+              s.changeResolution && { label: 'Kết quả điều chỉnh', value: s.changeResolution },
+              conflictNote && { label: 'Lưu ý', value: tr(conflictNote) },
+            ].filter(Boolean),
       });
     }
 
@@ -697,9 +756,16 @@ export default function InteractiveSlotCalendar({
       const startParts = toVnTimeParts(startDate);
       const endParts = toVnTimeParts(endDate);
       const cleanTitle = formatCleanCohortTitle(cs.cohortName, cs.sessionNumber);
+      const isCompleted = Boolean(cs.sessionCompleted || cs.status === 'Completed');
+      const statusText = isCompleted ? 'Đã hoàn thành' : 'Đã xếp lớp';
+      const cohortInfo = buildCohortRows({ meta: cs, slotObj: null, mins, statusText });
+
       events.push({
         id: `cohort-${cs.id || cs.availabilityId || startIso}`,
-        sourceKind: 'session',
+        cohortId: cs.cohortId ?? null,
+        sessionCompleted: isCompleted,
+        attendanceStatus: isCompleted ? 'Present' : 'Scheduled',
+        sourceKind: isCompleted ? 'present' : 'session',
         draggable: false,
         locked: true,
         dayKey: toVnDateKey(startDate),
@@ -710,16 +776,12 @@ export default function InteractiveSlotCalendar({
         timeLabel: `${startParts.hhmm}–${endParts.hhmm}`,
         title: cleanTitle,
         fullTitle: cs.cohortName ? `${cs.cohortName}${cs.sessionNumber ? ` · Buổi ${cs.sessionNumber}` : ''}` : cleanTitle,
-        detail: cs.learnerNames?.length ? `HV: ${cs.learnerNames.join(', ')}` : 'Buổi học đã xếp lớp',
-        statusLabel: cs.status === 'Present' ? 'Đã hoàn thành' : 'Đã xếp lớp',
-        tone: cs.status === 'Present' ? 'present' : 'session',
+        detail: [cohortInfo.sessionLabel, cohortInfo.headcountLabel].filter(Boolean).join(' · ') || tr(statusText),
+        statusLabel: statusText,
+        tone: isCompleted ? 'present' : 'session',
         href: cs.cohortId ? `/mentor-study-courses/${cs.cohortId}/` : '/mentor-study-courses/',
         hrefLabel: 'Mở lớp phụ trách',
-        metaRows: [
-          { label: 'Lớp nhóm', value: cs.cohortName || 'Lớp nhóm' },
-          cs.learnerNames?.length > 0 && { label: 'Học viên', value: cs.learnerNames.join(', ') },
-          { label: 'Thời lượng', value: fmt.duration(mins) },
-        ].filter(Boolean),
+        metaRows: cohortInfo.rows,
       });
     }
 
@@ -2384,12 +2446,8 @@ export default function InteractiveSlotCalendar({
                             ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs
                             : true;
 
-                          // Direct editing ONLY for unsent Drafts or unapproved future Pending slots;
-                          // Approved future slots use workflow-guarded "Xin đổi giờ"
-                          const canEditDirect = Boolean(
-                            ev.isSelectedDraft ||
-                            (s && !s.isApproved && !s.rejectedAt && !s.isDeleted && (s.bookedCount ?? 0) === 0 && !s.isInCohort && isFuture && onMovePendingSlot)
-                          );
+                          // Direct time editing ONLY for unsent local Drafts; saved records follow Backend workflows
+                          const canEditDirect = Boolean(ev.isSelectedDraft);
                           const canRequestChange = Boolean(
                             !canEditDirect && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
                           );
@@ -2997,18 +3055,6 @@ export default function InteractiveSlotCalendar({
 
                 {canDeletePending && (
                   <div className="flex flex-wrap gap-2 border-t border-rp-line pt-3">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        const ev = selectedEvent;
-                        setSelectedEvent(null);
-                        openAdjustTimeModal(ev);
-                      }}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3.5 text-[12px] font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
-                    >
-                      <Clock className="h-4 w-4" /> {tr('Điều chỉnh giờ')}
-                    </button>
                     <button
                       type="button"
                       disabled={busy}

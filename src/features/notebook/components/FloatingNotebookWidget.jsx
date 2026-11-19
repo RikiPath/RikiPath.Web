@@ -10,7 +10,6 @@ import {
   Minimize2,
   Plus,
   Search,
-  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -368,19 +367,8 @@ export default function FloatingNotebookWidget() {
         </section>
       )}
 
-      {/* Unified Floating Action Dock: Haru AI Quick Link + Sakura Smart Notebook Bubble */}
+      {/* Sakura Smart Notebook Floating Bubble */}
       <div className="pointer-events-auto flex items-center gap-2">
-        {cleanPath !== '/ai-counselor' && (
-          <Link
-            to="/ai-counselor/"
-            title={tr('Hỏi Haru AI')}
-            className="hidden h-10 items-center gap-1.5 rounded-full border border-rp-line bg-white/95 px-3 text-[12px] font-semibold text-rp-text-2 shadow-[0_6px_18px_rgba(45,40,42,0.1)] backdrop-blur transition-all hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong sm:inline-flex"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-rp-brand-strong" />
-            <span>Haru AI</span>
-          </Link>
-        )}
-
         <button
           type="button"
           data-testid="floating-notebook-bubble"

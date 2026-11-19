@@ -234,6 +234,9 @@ export default function SakuraCalendar({
   onEmptySlotClick,
   renderEventActions,
   showToneFilter = true,
+  agendaSortSmart = false,
+  agendaShowAllDates = false,
+  toolbarExtra = null,
   emptyTitle = 'Chưa có lịch nào trong khoảng thời gian đang xem.',
   emptyDescription = 'Bạn có thể chuyển sang tuần/tháng khác hoặc bấm Làm mới để cập nhật.',
   className = '',
@@ -303,14 +306,21 @@ export default function SakuraCalendar({
   );
   const agendaGroups = useMemo(
     () => (view === 'agenda'
-      ? groupAgendaEvents(filteredEvents, { startKey: range.startKey, endKey: range.endKey, todayKey })
+      ? groupAgendaEvents(filteredEvents, {
+          startKey: agendaShowAllDates ? undefined : range.startKey,
+          endKey: agendaShowAllDates ? undefined : range.endKey,
+          todayKey,
+          smartOrder: agendaSortSmart,
+        })
       : []),
-    [view, filteredEvents, range.startKey, range.endKey, todayKey]
+    [view, filteredEvents, range.startKey, range.endKey, todayKey, agendaSortSmart, agendaShowAllDates]
   );
 
   const rangeEventsCount = useMemo(
-    () => filteredEvents.filter((ev) => ev.dayKey >= range.startKey && ev.dayKey <= range.endKey).length,
-    [filteredEvents, range.startKey, range.endKey]
+    () => (view === 'agenda' && agendaShowAllDates
+      ? filteredEvents.length
+      : filteredEvents.filter((ev) => ev.dayKey >= range.startKey && ev.dayKey <= range.endKey).length),
+    [view, agendaShowAllDates, filteredEvents, range.startKey, range.endKey]
   );
 
   // Adaptive hour range across visible week/day events
@@ -488,6 +498,8 @@ export default function SakuraCalendar({
               })}
             </div>
           )}
+
+          {toolbarExtra}
 
           {showToneFilter && availableTones.length > 0 && (
             <StatusDotListbox

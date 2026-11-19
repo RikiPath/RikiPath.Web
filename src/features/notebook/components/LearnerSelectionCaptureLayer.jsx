@@ -63,13 +63,13 @@ export default function LearnerSelectionCaptureLayer() {
 
   // Highlight detail edit state
   const detail = nb?.activeHighlightDetail || null;
+  const detailEntryId = detail?.entry?.noteEntryId ?? null;
+  const detailPersonalNote = detail?.entry?.personalNote || '';
   const [editingNote, setEditingNote] = useState('');
-  const [editingEntryId, setEditingEntryId] = useState(null);
 
-  if (detail?.entry?.noteEntryId !== editingEntryId) {
-    setEditingEntryId(detail?.entry?.noteEntryId ?? null);
-    setEditingNote(detail?.entry?.personalNote || '');
-  }
+  useEffect(() => {
+    setEditingNote(detailPersonalNote);
+  }, [detailEntryId, detailPersonalNote]);
 
   useEffect(() => {
     if (!nb?.isLearner || !nb?.policy?.selectionAllowed) {

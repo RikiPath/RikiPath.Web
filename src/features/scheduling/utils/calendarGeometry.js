@@ -7,7 +7,7 @@ const FULL_DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ 
 
 export const CALENDAR_TONES = Object.freeze({
   session: {
-    label: 'Buổi lớp nhóm',
+    label: 'Đã xếp lớp',
     hex: '#CE476D',
     card: 'border-l-[3.5px] border-l-[#CE476D] border border-[#F2CCD7] bg-[#FFF5F7] text-[#7D2941] shadow-2xs',
     pill: 'bg-[#FCEAEF] text-[#9E3350] border border-[#F2CCD7]',
@@ -20,14 +20,15 @@ export const CALENDAR_TONES = Object.freeze({
     pill: 'bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]',
     dot: 'bg-[#16A34A]',
   },
-  open: {
-    label: 'Đã công bố',
-    hex: '#3B82F6',
-    card: 'border-l-[3.5px] border-l-[#3B82F6] border border-[#BFDBFE] bg-[#EFF6FF] text-[#1E3A8A]',
-    pill: 'bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]',
-    dot: 'bg-[#3B82F6]',
-  },
   approved: {
+    label: 'Đã duyệt',
+    hex: '#0D9488',
+    card: 'border-l-[3.5px] border-l-[#0D9488] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
+    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
+    dot: 'bg-[#0D9488]',
+  },
+  // Legacy alias mapped uniformly to Teal 'Đã duyệt' (no separate 'Đã công bố' status)
+  open: {
     label: 'Đã duyệt',
     hex: '#0D9488',
     card: 'border-l-[3.5px] border-l-[#0D9488] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
@@ -356,13 +357,26 @@ export function packDayEvents(events = []) {
   return output;
 }
 
-export function groupAgendaEvents(events = [], { startKey, endKey, todayKey } = {}) {
+export function groupAgendaEvents(events = [], { startKey, endKey, todayKey, smartOrder = false } = {}) {
   const byDay = new Map();
-  const sorted = [...events]
-    .filter((ev) => (!startKey || ev.dayKey >= startKey) && (!endKey || ev.dayKey <= endKey))
-    .sort((a, b) => a.dayKey.localeCompare(b.dayKey) || minutesOfEvent(a).start - minutesOfEvent(b).start);
+  const inRange = [...events].filter((ev) => (!startKey || ev.dayKey >= startKey) && (!endKey || ev.dayKey <= endKey));
+  if (smartOrder) {
+    const isCompleted = (ev) => ev?.tone === 'present' || ev?.sessionCompleted === true;
+    inRange.sort((a, b) => {
+      const ca = isCompleted(a);
+      const cb = isCompleted(b);
+      if (ca !== cb) return ca ? 1 : -1;
+      const dayCmp = a.dayKey.localeCompare(b.dayKey);
+      if (!ca) {
+        return dayCmp !== 0 ? dayCmp : minutesOfEvent(a).start - minutesOfEvent(b).start;
+      }
+      return dayCmp !== 0 ? -dayCmp : minutesOfEvent(b).start - minutesOfEvent(a).start;
+    });
+  } else {
+    inRange.sort((a, b) => a.dayKey.localeCompare(b.dayKey) || minutesOfEvent(a).start - minutesOfEvent(b).start);
+  }
 
-  for (const ev of sorted) {
+  for (const ev of inRange) {
     if (!byDay.has(ev.dayKey)) byDay.set(ev.dayKey, []);
     byDay.get(ev.dayKey).push(ev);
   }

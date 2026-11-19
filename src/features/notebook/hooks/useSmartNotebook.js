@@ -36,7 +36,7 @@ export function useSmartNotebook({ enabled = true } = {}) {
   const queryClient = useQueryClient();
   const session = getSession();
   const uid = session?.userId ?? 'anon';
-  const signedIn = Boolean(session?.accessToken) && String(session?.role || '').toLowerCase() === 'learner';
+  const signedIn = Boolean(session?.accessToken) && !session?.isPreview && String(session?.role || '').toLowerCase() === 'learner';
   const active = Boolean(enabled && signedIn);
 
   const [saveState, setSaveState] = useState({ status: 'idle', error: '', updatedAt: null });

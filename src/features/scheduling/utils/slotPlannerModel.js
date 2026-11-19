@@ -176,7 +176,7 @@ export function buildOccupiedItems({
     const kind = isCommitted
       ? 'booked'
       : s.isApproved
-        ? (s.publishedAt ? 'published' : 'approved')
+        ? 'approved'
         : 'pending';
     seenAvailabilityIds.add(s.id);
     items.push({
@@ -193,9 +193,7 @@ export function buildOccupiedItems({
         ? (s.cohortName || 'Buổi đã xếp lớp')
         : !s.isApproved
           ? 'Khung chờ duyệt'
-          : s.publishedAt
-            ? 'Khung đã công bố'
-            : 'Khung đã duyệt',
+          : 'Khung đã duyệt',
       blocksOverlap: true,
       blocksRest: true,
     });
@@ -648,18 +646,23 @@ export function buildPresetCandidateSlots({
 }
 
 /**
- * Semantic Status Options for Teacher Schedule Filtering.
- * Separates EventType (Loại lịch: Buổi lớp nhóm vs Khung giờ rảnh) from Status (Trạng thái).
+ * Canonical 4 Main + 2 Exception Statuses for Teacher Schedule Filtering:
+ * - Chờ duyệt (#E4A020)
+ * - Đã duyệt (#0D9488)
+ * - Đã xếp lớp (#CE476D)
+ * - Đã hoàn thành (#16A34A)
+ * - Bị từ chối (#DC3545)
+ * - Đã hủy (#8B8B97)
+ * (Unsent Drafts are local-only selections and stay separated from saved statuses.)
  */
 export const SCHEDULE_STATUS_OPTIONS = Object.freeze([
   { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
   { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#0D9488]' },
-  { id: 'open', label: 'Đã công bố', tone: 'open', dotClass: 'bg-[#3B82F6]' },
+  { id: 'session', label: 'Đã xếp lớp', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'present', label: 'Đã hoàn thành', tone: 'present', dotClass: 'bg-[#16A34A]' },
   { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
   { id: 'cancelled', label: 'Đã hủy', tone: 'cancelled', dotClass: 'bg-[#8B8B97]' },
-  { id: 'selected', label: 'Đang chọn (chưa gửi)', tone: 'selected', dotClass: 'bg-[#22C55E]' },
 ]);
 
 export const SCHEDULE_EVENT_TYPE_OPTIONS = Object.freeze([
@@ -679,51 +682,51 @@ export const SCHEDULE_SORT_OPTIONS = Object.freeze([
 ]);
 
 /**
- * Resolves the canonical statusKey ('pending' | 'approved' | 'open' | 'present' | 'rejected' | 'cancelled' | 'selected')
- * and eventType ('CohortSession' | 'Availability' | 'Draft' | 'External') for any schedule event.
+ * Resolves the canonical statusKey ('pending' | 'approved' | 'session' | 'present' | 'rejected' | 'cancelled' | 'selected')
+ * and eventType ('CohortSession' | 'Availability' | 'Draft') strictly from Backend lifecycle state (never inferring Completed from clock time).
  */
-export function classifyScheduleEvent(ev, nowMs = Date.now()) {
+export function classifyScheduleEvent(ev) {
   if (ev.isSelectedDraft || ev.sourceKind === 'selected') {
     return { statusKey: 'selected', eventType: 'Draft', eventTypeLabel: 'Khung đang chọn' };
   }
   const s = ev.slot || ev.rawSlot;
-  const startMin = (ev.startHour || 0) * 60 + (ev.startMinute || 0);
-  const endMin = (ev.endHour || 0) * 60 + (ev.endMinute || 0);
-  const eventEndUtcIso = ev.dayKey
-    ? vnLocalToUtcIso(endMin >= 24 * 60 ? shiftDateKey(ev.dayKey, 1) : ev.dayKey, clockFromMinutes(endMin % (24 * 60)))
-    : null;
-  const ended = s?.endTime
-    ? (backendUtcDate(s.endTime)?.getTime() || 0) <= nowMs
-    : eventEndUtcIso
-      ? new Date(eventEndUtcIso).getTime() <= nowMs
-      : false;
 
   const isCohort = Boolean(
     ev.sourceKind === 'session' ||
     ev.tone === 'session' ||
     ev.tone === 'booked' ||
     s?.isInCohort ||
+    s?.status === 'Booked' ||
+    s?.status === 'Completed' ||
+    s?.isBooked ||
     ev.cohortId
   );
   const eventType = isCohort ? 'CohortSession' : 'Availability';
   const eventTypeLabel = isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký';
 
-  if (s?.isDeleted || ev.sourceKind === 'cancelled' || (ev.tone === 'cancelled' && !s?.rejectedAt && ev.sourceKind !== 'rejected')) {
+  if (s?.isDeleted || s?.status === 'Cancelled' || ev.sourceKind === 'cancelled' || (ev.tone === 'cancelled' && !s?.rejectedAt && ev.sourceKind !== 'rejected')) {
     return { statusKey: 'cancelled', eventType, eventTypeLabel };
   }
-  if (s?.rejectedAt || ev.sourceKind === 'rejected' || ev.tone === 'rejected') {
+  if (s?.rejectedAt || s?.status === 'Rejected' || ev.sourceKind === 'rejected' || ev.tone === 'rejected') {
     return { statusKey: 'rejected', eventType, eventTypeLabel };
   }
-  if (ev.tone === 'present' || (ended && (s?.isApproved || isCohort))) {
+  const isCompletedByLifecycle = Boolean(
+    ev.tone === 'present' ||
+    ev.sessionCompleted === true ||
+    ev.attendanceStatus === 'Present' ||
+    s?.sessionCompleted === true ||
+    (isCohort && s?.status === 'Completed')
+  );
+  if (isCompletedByLifecycle) {
     return { statusKey: 'present', eventType, eventTypeLabel };
   }
   const pendingCancel = Boolean(s?.cancelRequestedAt && !s?.cancelRejectedAt);
   const pendingChange = Boolean(s?.changeRequestedAt && !s?.changeResolution);
-  if (ev.tone === 'pending' || (s && (!s.isApproved || pendingCancel || pendingChange))) {
+  if (ev.tone === 'pending' || s?.status === 'Pending' || (s && (!s.isApproved || pendingCancel || pendingChange))) {
     return { statusKey: 'pending', eventType, eventTypeLabel };
   }
-  if (ev.tone === 'open' || s?.publishedAt) {
-    return { statusKey: 'open', eventType, eventTypeLabel };
+  if (isCohort) {
+    return { statusKey: 'session', eventType, eventTypeLabel };
   }
   return { statusKey: 'approved', eventType, eventTypeLabel };
 }
@@ -784,8 +787,8 @@ function statusSortRank(statusKey) {
   switch (statusKey) {
     case 'selected': return 0;
     case 'pending': return 1;
-    case 'open': return 2;
-    case 'approved': return 3;
+    case 'approved': return 2;
+    case 'session': return 3;
     case 'present': return 4;
     case 'rejected': return 5;
     case 'cancelled': return 6;

@@ -622,19 +622,6 @@ export default function HomeLearner({ data = null }) {
                 )}
               </OptionalDashboardWidget>
             </Card>
-
-            <Card className="rp-card-hover relative overflow-hidden">
-              <div className="flex items-start gap-3">
-                <HaruMascot pose="guiding" size={72} className="-ml-1 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[15px] font-bold text-rp-text">Haru AI</p>
-                  <p className="mt-1 text-[13px] leading-5 text-rp-text-2">{tr('Haru gợi ý cách ôn từng kỹ năng, chấm bài viết và góp ý bài nói của bạn.')}</p>
-                  <Link to="/ai-counselor/" className="rp-focus mt-3 inline-flex items-center gap-1.5 rounded text-[13px] font-semibold rp-link">
-                    {tr('Xem gợi ý của Haru')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </div>
-              </div>
-            </Card>
           </aside>
         </div>
       </div>

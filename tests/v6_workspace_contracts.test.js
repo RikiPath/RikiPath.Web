@@ -41,7 +41,7 @@ describe('V6 Multi-Role Workspace contracts', () => {
     assert.equal(notificationDestination('/mentor/cohorts/14?section=attendance'), '/mentor-study-courses/14/?section=attendance');
     assert.equal(notificationDestination('/mentor/complaints/8'), '/mentor-disputes/?complaintId=8');
     assert.equal(notificationDestination('/mentor/schedule'), '/work-schedule/');
-    assert.equal(notificationDestination('/mentor/availability'), '/work-schedule/');
+    assert.equal(notificationDestination('/mentor/availability'), '/mentor-shift-schedule/');
     assert.equal(notificationDestination('/admin/study-courses?cohortScheduleRequestId=3'), '/admin/study-courses?cohortScheduleRequestId=3');
     assert.equal(notificationDestination('/my-courses/21?section=homework'), '/my-courses/21?section=homework');
   });

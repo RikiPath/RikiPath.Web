@@ -31,8 +31,8 @@ import { useLocale, currentIntlTag } from '@/locales/locale.js';
 const QUICK_ACTIONS = [
   { to: '/mentor-study-courses/', label: 'Quản lý lớp nhóm', note: 'Lớp phụ trách, buổi học, điểm danh', feature: 'mentor' },
   { to: '/mentor-homework/', label: 'Bài tập & chấm điểm', note: 'Giao bài, xem bài nộp, chấm điểm', feature: 'writing' },
-  { to: '/mentor-shift-schedule/', label: 'Đăng ký lịch dạy', note: 'Khung giờ rảnh theo tuần', feature: 'calendar' },
-  { to: '/mentor-availability/', label: 'Lịch tuần', note: 'Lịch dạy đã duyệt và yêu cầu', feature: 'calendar' },
+  { to: '/work-schedule/', label: 'Lịch làm việc', note: 'Buổi dạy sắp diễn ra & đã hoàn thành', feature: 'calendar' },
+  { to: '/mentor-shift-schedule/', label: 'Đăng ký lịch dạy', note: 'Đăng ký khung giờ & theo dõi duyệt', feature: 'calendar' },
   { to: '/mentor-attendance-kpi/', label: 'Điểm danh & KPI', note: 'Chỉ số giảng dạy thực tế', feature: 'reading' },
   { to: '/mentor-reviews/', label: 'Đánh giá', note: 'Phản hồi từ học viên lớp nhóm', feature: 'grammar' },
 ];

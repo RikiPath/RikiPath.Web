@@ -433,7 +433,7 @@ export function buildMentorCalendarEvents({
       const startParts = toVnTimeParts(slot.startTime);
       const endParts = slot.endTime ? toVnTimeParts(slot.endTime) : { hour: startParts.hour + 1, minute: startParts.minute };
       const pending = !slot.isApproved || slot.cancelRequestedAt || slot.changeRequestedAt;
-      const tone = slot.rejectedAt ? 'cancelled' : pending ? 'pending' : slot.publishedAt ? 'open' : 'approved';
+      const tone = slot.rejectedAt ? 'rejected' : pending ? 'pending' : 'approved';
       events.push({
         id: `slot-${slot.id}`,
         eventType: 'availability',
@@ -443,11 +443,11 @@ export function buildMentorCalendarEvents({
         startMinute: startParts.minute,
         endHour: endParts.hour,
         endMinute: endParts.minute,
-        title: slot.rejectedAt ? tr('Khung rảnh bị từ chối') : pending ? tr('Khung rảnh chờ duyệt') : tr('Khung giờ rảnh'),
-        statusLabel: slot.publishedAt ? tr('Đã công bố') : slot.isApproved ? tr('Đã duyệt') : tr('Chờ duyệt'),
+        title: slot.rejectedAt ? tr('Khung giờ bị từ chối') : pending ? tr('Khung giờ chờ duyệt') : tr('Khung giờ đã duyệt'),
+        statusLabel: slot.rejectedAt ? tr('Bị từ chối') : pending ? tr('Chờ duyệt') : tr('Đã duyệt'),
         tone,
-        href: '/mentor-availability',
-        hrefLabel: 'Quản lý lịch tuần',
+        href: '/mentor-shift-schedule',
+        hrefLabel: 'Đăng ký lịch dạy',
         z: 1,
       });
     });
