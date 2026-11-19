@@ -50,7 +50,7 @@ function toForm(profile) {
 
 function displayName(profile) {
   const name = (profile?.fullName || `${profile?.firstName || ''} ${profile?.lastName || ''}`).trim();
-  return name || profile?.email || 'Cố vấn';
+  return name || profile?.email || 'Giáo viên';
 }
 
 export default function MentorProfile() {
@@ -91,11 +91,11 @@ export default function MentorProfile() {
       setForm(toForm(profile));
       setError('');
       setMessage('Đã lưu hồ sơ.');
-      notify.success('Đã lưu hồ sơ cố vấn.', '', { key: 'mentor-profile-save' });
+      notify.success('Đã lưu hồ sơ giáo viên.', '', { key: 'mentor-profile-save' });
     },
     onError: (err) => {
       setError(describeApiError(err).message);
-      notify.apiError(err, 'Chưa lưu được hồ sơ cố vấn', { key: 'mentor-profile-save-err' });
+      notify.apiError(err, 'Chưa lưu được hồ sơ giáo viên', { key: 'mentor-profile-save-err' });
     },
   });
 

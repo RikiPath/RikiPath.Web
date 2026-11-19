@@ -8,6 +8,7 @@ import { useLocale } from '@/locales/locale.js';
 import { getSession } from '@/app/auth/session.js';
 import { bookmarkGrammar } from '@/features/notebook/api/notebookApi.js';
 import { getGrammar, searchGrammar } from '@/features/content-author/api/sharedBankApi.js';
+import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
 
 const SAMPLES = ['ている', 'たら', 'ながら'];
 
@@ -116,13 +117,25 @@ export default function GrammarBank() {
                 {pattern.explanation && (
                   <section className="mt-5">
                     <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Ý nghĩa & cách dùng')}</h3>
-                    <p className="mt-2 whitespace-pre-line text-[15px] leading-7 text-rp-text">{pattern.explanation}</p>
+                    <p className="mt-2 whitespace-pre-line text-[15px] leading-7 text-rp-text">
+                      <HighlightableText
+                        text={pattern.explanation}
+                        contentId={`grammar-${pattern.id}-explanation`}
+                        sourceTitle={pattern.structure || pattern.title}
+                      />
+                    </p>
                   </section>
                 )}
                 {pattern.exampleSentence && (
                   <section className="mt-5">
                     <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Ví dụ')}</h3>
-                    <p lang="ja" className="rp-jp mt-2 rounded-rp-input border-l-4 border-tone-grammar bg-tone-grammar-bg px-4 py-3 text-[17px] leading-8 text-rp-text">{pattern.exampleSentence}</p>
+                    <p lang="ja" className="rp-jp mt-2 rounded-rp-input border-l-4 border-tone-grammar bg-tone-grammar-bg px-4 py-3 text-[17px] leading-8 text-rp-text">
+                      <HighlightableText
+                        text={pattern.exampleSentence}
+                        contentId={`grammar-${pattern.id}-example`}
+                        sourceTitle={pattern.structure || pattern.title}
+                      />
+                    </p>
                   </section>
                 )}
               </Card>

@@ -5,18 +5,20 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api/client.js';
 import { ContentAuthorShell } from '@/layouts';
 import { ContextualEmptyState, ContextualErrorState, SakuraLoader } from '@/components/ui';
-
-async function searchBank(path) {
-  const data = await api.post(path, { keyword: '', page: 1, pageSize: 100 });
-  const page = data?.result ?? data;
-  return {
-    items: page?.items || page?.Items || [],
-    total: page?.totalCount ?? page?.TotalCount ?? 0,
-  };
-}
-
+import Pagination from '@/components/ui/Pagination.jsx';
 import { AUTHOR_LEVELS } from '@/features/content-author/constants/authorLevels.js';
 import { useLocale } from '@/locales/locale.js';
+
+const BANK_PAGE_SIZE = 48;
+
+async function searchBank(path, page = 1) {
+  const data = await api.post(path, { keyword: '', page, pageSize: BANK_PAGE_SIZE });
+  const result = data?.result ?? data;
+  return {
+    items: result?.items || result?.Items || [],
+    total: result?.totalCount ?? result?.TotalCount ?? 0,
+  };
+}
 
 export default function ApprovedBankPage({
   pathname,
@@ -33,11 +35,14 @@ export default function ApprovedBankPage({
   const currentPath = pathname || location.pathname;
   const [queryText, setQueryText] = useState('');
   const [level, setLevel] = useState(AUTHOR_LEVELS[0]);
+  const [bankPage, setBankPage] = useState(1);
   const query = useQuery({
-    queryKey: ['approved-bank', endpoint],
-    queryFn: () => searchBank(endpoint),
+    queryKey: ['approved-bank', endpoint, bankPage],
+    queryFn: () => searchBank(endpoint, bankPage),
   });
   const items = useMemo(() => query.data?.items || [], [query.data]);
+  const totalServerItems = query.data?.total ?? 0;
+  const totalServerPages = Math.max(1, Math.ceil(totalServerItems / BANK_PAGE_SIZE));
   const visible = useMemo(() => {
     const text = queryText.trim().toLowerCase();
     return items.filter((row) => {
@@ -98,6 +103,7 @@ export default function ApprovedBankPage({
             />
           </div>
         )}
+
         {!query.isPending && !query.isError && visible.length > 0 && (
           <div style={{ '--rp-grid-min': '17rem' }} className="rp-fluid-grid mt-4">
             {visible.map((row) => {
@@ -117,7 +123,7 @@ export default function ApprovedBankPage({
                       <dl className="mt-2 space-y-1">
                         {columns.filter((column) => column.key !== columns[0].key && column.key !== 'jlptLevelName').map((column) => (
                           <div key={column.key} className="flex gap-2 text-[12px]">
-                            <dt className="w-16 shrink-0 text-rp-text-muted">{tr(column.label)}</dt>
+                            <dt className="min-w-[84px] shrink-0 text-rp-text-muted">{tr(column.label)}</dt>
                             <dd className="min-w-0 text-rp-brand-deep">{row[column.key] || '—'}</dd>
                           </div>
                         ))}
@@ -127,6 +133,21 @@ export default function ApprovedBankPage({
                 </article>
               );
             })}
+          </div>
+        )}
+
+        {totalServerPages > 1 && !query.isError && (
+          <div className="mt-6">
+            <Pagination
+              currentPage={bankPage}
+              totalPages={totalServerPages}
+              pageSize={BANK_PAGE_SIZE}
+              totalItems={totalServerItems}
+              onPageChange={setBankPage}
+              showPageSize={false}
+              itemLabel={tr('mục')}
+              variant="neutral"
+            />
           </div>
         )}
       </main>

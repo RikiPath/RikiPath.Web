@@ -27,7 +27,7 @@ const DAYPART = {
 const focus = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
 
 function mentorName(mentor) {
-  return mentor.fullName || mentor.name || [mentor.lastName, mentor.firstName].filter(Boolean).join(' ') || mentor.email || translateTemplate('Cố vấn #{0}', { 0: mentor.id });
+  return mentor.fullName || mentor.name || [mentor.lastName, mentor.firstName].filter(Boolean).join(' ') || mentor.email || translateTemplate('Giáo viên #{0}', { 0: mentor.id });
 }
 
 function clock(value) {
@@ -66,7 +66,7 @@ export default function AdminMentorTemplate() {
   const rules = template.data?.rules || [];
 
   return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Mẫu ca cố vấn')}>
+    <AdminShell pathname={pathname} breadcrumb={tr('Mẫu ca giáo viên')}>
       <main className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text">
         <header className="mb-5">
           <p className="rp-type-caption font-semibold tracking-[0.16em] text-rp-brand-strong">{tr('LỊCH')}</p>
@@ -78,13 +78,13 @@ export default function AdminMentorTemplate() {
 
         <section className="rounded-[22px] border border-rp-line bg-white p-4 shadow-[0_10px_30px_rgba(90,40,58,0.04)] sm:p-5">
           <label className="block text-[12px] font-medium text-rp-text-2">
-            {tr('Cố vấn')}
+            {tr('Giáo viên')}
             <select
               value={mentorId}
               onChange={(event) => setMentorId(event.target.value)}
               className={`mt-1.5 h-11 w-full rounded-2xl border border-rp-line bg-white px-3 text-[13px] ${focus}`}
             >
-              <option value="">{tr('Chọn cố vấn')}</option>
+              <option value="">{tr('Chọn giáo viên')}</option>
               {(mentors.data || []).map((mentor) => {
                 const id = mentor.id || mentor.mentorId || mentor.userId;
                 return (
@@ -101,12 +101,12 @@ export default function AdminMentorTemplate() {
               compact
               className="mt-3"
               error={mentors.error}
-              title={tr('Chưa tải được danh sách cố vấn')}
+              title={tr('Chưa tải được danh sách giáo viên')}
               onRetry={() => mentors.refetch()}
               retrying={mentors.isFetching}
             />
           )}
-          {mentors.isPending && <SakuraLoader variant="inline" size={16} context="profile" label={tr('Đang tải danh sách cố vấn')} delay={160} className="mt-3" />}
+          {mentors.isPending && <SakuraLoader variant="inline" size={16} context="profile" label={tr('Đang tải danh sách giáo viên')} delay={160} className="mt-3" />}
         </section>
 
         {mentorId && template.isPending && <SakuraLoader variant="section" context="cohort" label={tr('Đang tải mẫu ca')} delay={160} className="mt-4" />}
@@ -115,7 +115,7 @@ export default function AdminMentorTemplate() {
             <ContextualErrorState
               compact
               error={template.error}
-              title={tr('Chưa tải được mẫu ca cố vấn')}
+              title={tr('Chưa tải được mẫu ca giáo viên')}
               onRetry={() => template.refetch()}
               retrying={template.isFetching}
             />
@@ -125,7 +125,7 @@ export default function AdminMentorTemplate() {
         {template.data && (
           <section className="mt-4 rounded-[22px] border border-rp-line bg-white p-4 shadow-[0_10px_30px_rgba(90,40,58,0.04)] sm:p-5">
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-              <Fact label={tr('Cố vấn')} value={template.data.mentorName || trf('Cố vấn #{0}', { 0: template.data.mentorId })} />
+              <Fact label={tr('Giáo viên')} value={template.data.mentorName || trf('Giáo viên #{0}', { 0: template.data.mentorId })} />
               <Fact label={tr('Múi giờ')} value={template.data.timeZoneId || 'Asia/Ho_Chi_Minh'} />
               <Fact label={tr('Công bố')} value={template.data.autoPublish ? 'Tự động' : 'Thủ công'} />
               <Fact label={tr('Đã sinh đến')} value={template.data.generatedThrough ? dayText(template.data.generatedThrough) : 'Chưa sinh'} />

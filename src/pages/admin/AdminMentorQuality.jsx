@@ -66,11 +66,11 @@ export default function AdminMentorQuality() {
   }, [filteredMentors]);
 
   return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Chấm công & KPI Cố vấn')}>
+    <AdminShell pathname={pathname} breadcrumb={tr('Chấm công & KPI Giáo viên')}>
       <div className="rp-container rp-cq space-y-[var(--rp-space-section)] py-[var(--rp-space-page-y)] text-rp-text">
         <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <h1 className="rp-type-page-title">{tr('Chấm công & KPI Cố vấn')}</h1>
+            <h1 className="rp-type-page-title">{tr('Chấm công & KPI Giáo viên')}</h1>
             <p className="rp-type-secondary mt-1 max-w-2xl text-rp-text-2">
               {tr('Theo dõi phân công giảng dạy, điểm danh phòng họp, bài tập và phản hồi từ học viên. Không áp dụng trọng số KPI, thưởng/phạt hoặc tính lương.')}
             </p>
@@ -97,7 +97,7 @@ export default function AdminMentorQuality() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={tr('Tìm tên hoặc ID cố vấn…')}
+              placeholder={tr('Tìm tên hoặc ID giáo viên…')}
               className="h-9 min-w-0 w-full rounded-xl border border-rp-line bg-white px-3 text-[13px] sm:w-52"
             />
           </div>
@@ -111,7 +111,7 @@ export default function AdminMentorQuality() {
           <section className="rounded-2xl border border-rp-line bg-white p-5">
             <ContextualErrorState
               error={kpiQuery.error}
-              title={tr('Không tải được dữ liệu KPI Cố vấn')}
+              title={tr('Không tải được dữ liệu KPI Giáo viên')}
               onRetry={() => kpiQuery.refetch()}
               retrying={kpiQuery.isFetching}
             />
@@ -126,7 +126,7 @@ export default function AdminMentorQuality() {
           <div className="rounded-2xl border border-rp-line bg-white p-4">
             <p className="text-[12px] text-rp-text-muted">{tr('Tổng buổi phân công')}</p>
             <p className="mt-1.5 text-[24px] font-semibold text-rp-text">{totals.assigned}</p>
-            <p className="mt-0.5 text-[11px] text-rp-text-muted">{trf('{0} cố vấn trong bộ lọc', { 0: filteredMentors.length })}</p>
+            <p className="mt-0.5 text-[11px] text-rp-text-muted">{trf('{0} giáo viên trong bộ lọc', { 0: filteredMentors.length })}</p>
           </div>
           <div className="rounded-2xl border border-rp-line bg-white p-4">
             <p className="text-[12px] text-rp-text-muted">{tr('Hoàn thành hợp lệ')}</p>
@@ -150,15 +150,15 @@ export default function AdminMentorQuality() {
         </section>
 
         <section className="rounded-2xl border border-rp-line bg-white p-5">
-          <h2 className="text-[16px] font-semibold text-rp-text">{tr('Bảng tổng hợp KPI theo Cố vấn')}</h2>
+          <h2 className="text-[16px] font-semibold text-rp-text">{tr('Bảng tổng hợp KPI theo Giáo viên')}</h2>
           {filteredMentors.length === 0 ? (
-            <ContextualEmptyState compact title={tr('Chưa có dữ liệu cố vấn trong bộ lọc.')} description={tr('Hãy thử đổi khoảng ngày hoặc từ khóa tìm kiếm.')} />
+            <ContextualEmptyState compact title={tr('Chưa có dữ liệu giáo viên trong bộ lọc.')} description={tr('Hãy thử đổi khoảng ngày hoặc từ khóa tìm kiếm.')} />
           ) : (
             <div data-density="compact" className="rp-scroll-x mt-3">
               <table className="w-full min-w-[760px] text-left text-[13px]">
                 <thead>
                   <tr className="border-b border-rp-line bg-rp-bg-2/60 text-[11px] uppercase tracking-wider text-rp-text-muted">
-                    <th className="px-3 py-2.5">{tr('Cố vấn')}</th>
+                    <th className="px-3 py-2.5">{tr('Giáo viên')}</th>
                     <th className="px-3 py-2.5">{tr('Phân công / Hợp lệ')}</th>
                     <th className="px-3 py-2.5">{tr('Thời lượng')}</th>
                     <th className="px-3 py-2.5">{tr('Hủy / Vắng / Chờ')}</th>

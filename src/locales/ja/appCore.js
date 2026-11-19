@@ -375,8 +375,8 @@ export const jaAppCore = {
 
   // Meeting room
   'Đã sao chép liên kết phòng học.': '教室のリンクをコピーしました。',
-  'Phòng học nhóm cùng cố vấn · JLPT N3': 'メンターとのグループレッスン教室・JLPT N3',
-  'Hãy đặt câu hỏi cho cố vấn!': 'メンターに質問してみましょう！',
+  'Phòng học nhóm cùng giáo viên · JLPT N3': '教師とのグループレッスン教室・JLPT N3',
+  'Hãy đặt câu hỏi cho giáo viên!': '教師に質問してみましょう！',
   'Điểm danh: Chưa tải được trạng thái': '出欠確認：状態を読み込めませんでした',
   'Chưa tải được danh sách điểm danh.': '出欠一覧を読み込めませんでした。',
 };

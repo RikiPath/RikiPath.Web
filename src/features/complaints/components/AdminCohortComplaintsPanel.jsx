@@ -18,10 +18,11 @@ const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
 const categoryLabel = (v) => COMPLAINT_CATEGORIES.find((c) => c.value === v)?.label || v;
 
 // Hàng đợi khiếu nại khóa học: Admin lọc, xem chi tiết + minh chứng + phản hồi Mentor, rồi ra quyết định.
-export default function AdminCohortComplaintsPanel({ busy = false, onRun }) {
+export default function AdminCohortComplaintsPanel({ busy = false, initialComplaintId = null, onRun }) {
   const { tr, trf } = useLocale();
-  const [status, setStatus] = useState('Open');
-  const [selectedId, setSelectedId] = useState(null);
+  const initialIdNum = initialComplaintId ? Number(initialComplaintId) : null;
+  const [status, setStatus] = useState(initialIdNum ? '' : 'Open');
+  const [selectedId, setSelectedId] = useState(initialIdNum);
   const [detail, setDetail] = useState(null);
   const [decisionStatus, setDecisionStatus] = useState('Resolved');
   const [decision, setDecision] = useState('');
@@ -43,6 +44,12 @@ export default function AdminCohortComplaintsPanel({ busy = false, onRun }) {
         setDetail(d);
       })
       .catch((e) => setError(describeApiError(e).message));
+
+  const [loadedInitialId, setLoadedInitialId] = useState(null);
+  if (initialIdNum && loadedInitialId !== initialIdNum) {
+    setLoadedInitialId(initialIdNum);
+    loadDetail(initialIdNum);
+  }
 
   const choose = (row) => {
     setSelectedId(row.id);
@@ -82,7 +89,7 @@ export default function AdminCohortComplaintsPanel({ busy = false, onRun }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ textAlign: 'left' }}><th>#</th><th>{tr('Lớp')}</th><th>{tr('Loại')}</th><th>Mentor</th><th>{tr('Gửi lúc')}</th><th>{tr('Trạng thái')}</th><th /></tr>
+                <tr style={{ textAlign: 'left' }}><th>#</th><th>{tr('Lớp')}</th><th>{tr('Loại')}</th><th>{tr('Giáo viên')}</th><th>{tr('Gửi lúc')}</th><th>{tr('Trạng thái')}</th><th /></tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
@@ -96,7 +103,7 @@ export default function AdminCohortComplaintsPanel({ busy = false, onRun }) {
                     <td>{r.mentorName || '—'}</td>
                     <td>{date(r.createdAtUtc)}</td>
                     <td>{tr(COMPLAINT_STATUS_LABELS[r.status] || r.status)}</td>
-                    <td><button type="button" onClick={() => choose(r)}>Xem</button></td>
+                    <td><button type="button" onClick={() => choose(r)}>{tr('Xem')}</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -109,13 +116,13 @@ export default function AdminCohortComplaintsPanel({ busy = false, onRun }) {
         <div className="course-form">
           <h3>{tr('Khiếu nại #')}{item.id} · {categoryLabel(item.category)} · {tr(COMPLAINT_STATUS_LABELS[item.status] || item.status)}</h3>
           <p className="course-meta">
-            {item.cohortName || trf('Khóa #{0}', { 0: item.courseId })} · Mentor: {item.mentorName || tr('Không chỉ định')}{' '}{tr('· Gửi lúc')}{' '}{date(item.createdAtUtc)}
+            {item.cohortName || trf('Khóa #{0}', { 0: item.courseId })} · {tr('Giáo viên:')} {item.mentorName || tr('Không chỉ định')}{' '}{tr('· Gửi lúc')}{' '}{date(item.createdAtUtc)}
           </p>
           {item.refundReviewRequested && (
             <p className="course-notice">{tr('Học viên đề nghị xem xét hoàn tiền / ghi danh – cần đối chiếu giao dịch trước khi quyết định.')}</p>
           )}
           <p className="course-pre"><strong>{tr('Nội dung:')}</strong> {tr(item.message)}</p>
-          {item.mentorResponse && <p className="course-pre"><strong>{tr('Phản hồi của Mentor:')}</strong> {item.mentorResponse}</p>}
+          {item.mentorResponse && <p className="course-pre"><strong>{tr('Phản hồi của Giáo viên:')}</strong> {item.mentorResponse}</p>}
           {item.decision && <p className="course-pre"><strong>{trf('Quyết định ({0}):', { 0: date(item.decidedAtUtc) })}</strong> {item.decision}</p>}
           {item.hasEvidence && (
             <button type="button" disabled={busy} onClick={() => onRun(() => openCohortComplaintEvidence(item.id), 'Đã mở minh chứng riêng tư.')}>

@@ -17,7 +17,7 @@ const ATTENDANCE = {
   Present: 'Có mặt',
   Absent: 'Vắng',
   ExcusedAbsent: 'Vắng có phép',
-  CancelledByMentor: 'Mentor hủy',
+  CancelledByMentor: 'Giáo viên hủy',
   Cancelled: 'Đã hủy',
 };
 
@@ -41,10 +41,10 @@ function ReviewForm({ courseId, mentor, existing, busy, onRun, onSaved }) {
             throw err;
           }
           onSaved();
-        }, existing?.id ? 'Đã cập nhật đánh giá Mentor.' : 'Cảm ơn bạn đã đánh giá Mentor.');
+        }, existing?.id ? 'Đã cập nhật đánh giá Giáo viên.' : 'Cảm ơn bạn đã đánh giá Giáo viên.');
       }}
     >
-      <h3>{existing?.id ? tr('Sửa đánh giá') : tr('Đánh giá')} Mentor {mentor.mentorName}</h3>
+      <h3>{existing?.id ? tr('Sửa đánh giá') : tr('Đánh giá')} {tr('Giáo viên')} {mentor.mentorName}</h3>
       <fieldset disabled={busy}>
         <label className="course-field" style={{ maxWidth: 160 }}>
           <span>{tr('Số sao (1–5)')}</span>
@@ -98,15 +98,15 @@ export default function CohortCompletionSummary({ courseId, summary, error = '',
       </div>
       <p className="course-notice" role="note">{summary.note || COMPLETION_NOTE}</p>
 
-      <h3>{tr('Mentor phụ trách')}</h3>
+      <h3>{tr('Giáo viên phụ trách')}</h3>
       {(summary.mentors || []).length === 0 ? (
-        <p className="course-meta">{tr('Chưa có dữ liệu Mentor.')}</p>
+        <p className="course-meta">{tr('Chưa có dữ liệu Giáo viên.')}</p>
       ) : (
         <ul>
           {summary.mentors.map((m) => (
             <li key={m.mentorId} className="course-meta">
               <strong>{m.mentorName}</strong>
-              {m.isPrimary ? tr(' (Mentor chính)') : ''}{' '}{tr('· Buổi:')}{' '}{(m.sessionNumbers || []).join(', ') || '—'}
+              {m.isPrimary ? tr(' (Giáo viên chính)') : ''}{' '}{tr('· Buổi:')}{' '}{(m.sessionNumbers || []).join(', ') || '—'}
             </li>
           ))}
         </ul>
@@ -132,7 +132,7 @@ export default function CohortCompletionSummary({ courseId, summary, error = '',
         {tr('Được giao')}{' '}{hw.assigned ?? 0}{' '}{tr('· Đã nộp')}{' '}{hw.submitted ?? 0}{' '}{tr('· Đã chấm')}{' '}{hw.graded ?? 0}{' '}{tr('· Còn thiếu')}{' '}{hw.outstanding ?? 0}
       </p>
 
-      <h3>{tr('Nhận xét của Mentor')}</h3>
+      <h3>{tr('Nhận xét của Giáo viên')}</h3>
       {(summary.mentorFeedback || []).length === 0 ? (
         <p className="course-meta">{tr('Chưa có nhận xét nào được công bố.')}</p>
       ) : (
@@ -159,19 +159,19 @@ export default function CohortCompletionSummary({ courseId, summary, error = '',
         </>
       )}
 
-      <h3 style={{ marginTop: 12 }}>{tr('Đánh giá Mentor')}</h3>
+      <h3 style={{ marginTop: 12 }}>{tr('Đánh giá Giáo viên')}</h3>
       {reviewsQuery.isPending ? (
         <SakuraLoader variant="section" size={28} context="cohort" className="min-h-[80px] py-2" delay={160} />
       ) : reviewsQuery.isError ? (
         <ContextualErrorState
           variant="inline"
           error={reviewsQuery.error}
-          title={tr('Chưa tải được đánh giá Mentor đã gửi')}
+          title={tr('Chưa tải được đánh giá Giáo viên đã gửi')}
           onRetry={reviewsQuery.refetch}
           retrying={reviewsQuery.isFetching}
         />
       ) : reviewable.length === 0 ? (
-        <p className="course-meta">{tr('Bạn có thể đánh giá Mentor sau khi đã học ít nhất một buổi do Mentor đó trực tiếp dạy.')}</p>
+        <p className="course-meta">{tr('Bạn có thể đánh giá Giáo viên sau khi đã học ít nhất một buổi do Giáo viên đó trực tiếp dạy.')}</p>
       ) : (
         reviewable.map((m) => {
           const existing = reviews.find((r) => Number(r.mentorId) === Number(m.mentorId)) || null;

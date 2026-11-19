@@ -47,7 +47,7 @@ function fmtDate(value) {
 
 const KPI_RULES = [
   'Buổi hợp lệ: buổi học nhóm của lớp đã thanh toán và có điểm danh.',
-  'Thời lượng xác nhận: thời gian Mentor có mặt trong phòng học, so với thời lượng theo lịch.',
+  'Thời lượng xác nhận: thời gian Giáo viên có mặt trong phòng học, so với thời lượng theo lịch.',
   'Hủy / vắng: buổi bị hủy hoặc không diễn ra trong kỳ.',
   'Bài tập: số bài đã giao, đã nộp và đã chấm trong kỳ.',
   'Đánh giá và khiếu nại: tính theo thời điểm học viên gửi.',
@@ -219,7 +219,7 @@ export default function MentorAttendanceKpi() {
                   {kpi.cancelledSessionsCount + kpi.missedOrNoShowSessionsCount}
                 </p>
                 <p className="mt-1 text-[11px] text-rp-text-muted">
-                 {trf('Hủy: {0} (Mentor {1}) · Vắng/Quá giờ: {2} · Sắp tới: {3}', { 0: kpi.cancelledSessionsCount, 1: kpi.cancelledByMentorCount, 2: kpi.missedOrNoShowSessionsCount, 3: kpi.upcomingOrIncompleteSessionsCount })}
+                 {trf('Hủy: {0} (Giáo viên {1}) · Vắng/Quá giờ: {2} · Sắp tới: {3}', { 0: kpi.cancelledSessionsCount, 1: kpi.cancelledByMentorCount, 2: kpi.missedOrNoShowSessionsCount, 3: kpi.upcomingOrIncompleteSessionsCount })}
                 </p>
               </article>
             </section>

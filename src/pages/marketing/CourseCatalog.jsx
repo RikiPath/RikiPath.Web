@@ -7,7 +7,7 @@ const CHIPS = [
   { href: '#lo-trinh', label: 'Lộ trình ôn luyện' },
   { href: '#thi-thu', label: 'Luyện đề và thi thử' },
   { href: '#cap-do', label: 'Cấp độ N5–N2' },
-  { href: '/register', label: 'Học nhóm cùng Mentor', route: true },
+  { href: '/register', label: 'Học nhóm cùng Giáo viên', route: true },
 ];
 
 const FIT = [
@@ -89,8 +89,8 @@ const MORE = [
   },
   {
     to: '/#group-learning',
-    t: 'Học nhóm cùng Mentor',
-    d: 'Lớp nhỏ 1–4 học viên trong 10 tuần, lịch cố định cùng Mentor.',
+    t: 'Học nhóm cùng Giáo viên',
+    d: 'Lớp nhỏ 1–4 học viên trong 10 tuần, lịch cố định cùng Giáo viên.',
     cta: 'Tìm hiểu lớp nhóm',
   },
 ];
@@ -101,7 +101,7 @@ export default function CourseCatalog() {
 
   return (
     <PublicShell pathname={pathname}>
-      <div className="bg-rp-brand-tint text-rp-text" data-page="CourseCatalog">
+      <div className="bg-rp-bg text-rp-text" data-page="CourseCatalog">
         <div className="mx-auto max-w-[1100px] px-5 pb-12 pt-6 sm:px-8">
           <nav className="mb-4 flex items-center gap-2 text-[13px] text-rp-text-2">
             <Link className="hover:text-rp-brand" to="/">{tr('Trang chủ')}</Link>
@@ -193,11 +193,11 @@ export default function CourseCatalog() {
             </div>
             <aside className="rounded-[28px] bg-rp-brand-tint p-6 sm:p-7">
               <h3 className="text-[20px] font-extrabold">{tr('Bắt đầu ngay')}</h3>
-              <p className="mt-2 text-[14px] leading-relaxed text-rp-text-2">{tr('Tạo tài khoản, làm một bài thi thử, hoặc học nhóm cùng Mentor.')}</p>
+              <p className="mt-2 text-[14px] leading-relaxed text-rp-text-2">{tr('Tạo tài khoản, làm một bài thi thử, hoặc học nhóm cùng Giáo viên.')}</p>
               <div className="mt-4 flex flex-col items-start gap-2 text-[14px] font-semibold text-rp-brand-strong">
                 <Link className="hover:text-rp-brand" to="/register">{tr('Tạo tài khoản')}</Link>
                 <Link className="hover:text-rp-brand" to="/mock-tests/?level=N3">{tr('Làm thi thử')}</Link>
-                <Link className="hover:text-rp-brand" to="/register">{tr('Học nhóm cùng Mentor')}</Link>
+                <Link className="hover:text-rp-brand" to="/register">{tr('Học nhóm cùng Giáo viên')}</Link>
               </div>
             </aside>
           </section>

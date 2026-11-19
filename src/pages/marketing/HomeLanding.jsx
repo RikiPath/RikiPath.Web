@@ -6,7 +6,6 @@ import { useAuth } from '@/app/auth/authContext.js';
 import { useLocale } from '@/locales/locale.js';
 import { homeForRole } from '@/app/routes/routeTable.js';
 import HeroLearningScene from '@/features/landing/components/HeroLearningScene.jsx';
-import HeroScenicSlideshow from '@/features/landing/components/HeroScenicSlideshow.jsx';
 import {
   ClosingCta,
   CtaLink,
@@ -49,14 +48,13 @@ export default function HomeLanding() {
       <div ref={rootRef} className="rp-landing overflow-x-clip">
         {/* Hero */}
         <section className="px-2 pb-6 pt-2 sm:px-3 sm:pt-3" aria-labelledby="hero-title">
-          {/* Full-width cinematic hero: the Japanese landscape slideshow is the background of the whole banner
-              (grid "full" track), copy and stage sit in a centred content track (landing.css .lp-hero-shell). */}
+          {/* Full-width hero on the Sakura / Ivory / Mint surface (dots, seigaiha, orb). The Japanese landscape
+              slideshow lives ONLY inside the scenic frame of HeroLearningScene (right column), never behind the copy. */}
           <div className="lp-hero lp-hero-shell relative isolate overflow-hidden rounded-[24px] sm:rounded-[32px]">
-          <HeroScenicSlideshow sizes="100vw" className="lp-hero-bg" />
-          <div aria-hidden="true" className="lp-hero-scrim" />
-          <div aria-hidden="true" className="lp-hero-deco pointer-events-none absolute inset-0 z-[1]">
-            <div className="lp-hero-dots absolute inset-0 opacity-70" />
-            <div className="rp-pattern-seigaiha absolute inset-x-0 bottom-0 h-40 opacity-35 [mask-image:linear-gradient(to_top,black,transparent)]" />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
+            <div className="lp-hero-dots absolute inset-0" />
+            <div className="rp-pattern-seigaiha absolute inset-x-0 bottom-0 h-48 opacity-60 [mask-image:linear-gradient(to_top,black,transparent)]" />
+            <div className="lp-hero-orb absolute -right-24 -top-24 h-[420px] w-[420px] rounded-full" />
           </div>
             <div className="lp-hero-copy min-w-0 max-w-[600px]">
               <p data-intro style={{ '--d': '80ms' }} className="inline-flex items-center gap-2 rounded-full border border-rp-brand-soft bg-white/85 px-3 py-1.5 text-[13px] font-semibold text-rp-brand-strong shadow-rp-xs">
@@ -76,7 +74,7 @@ export default function HomeLanding() {
                 </span>
               </h1>
               <p data-intro style={{ '--d': '330ms' }} className="mt-6 max-w-[540px] rp-type-body leading-8 text-rp-text-2 sm:text-[17px]">
-                {tr('Lộ trình theo cấp độ, ôn tập lặp ngắt quãng, đề thi thử có tính giờ và lớp nhóm nhỏ cùng Mentor — trong một nền tảng, đồng bộ giữa Web và ứng dụng RikiPath.')}
+                {tr('Lộ trình theo cấp độ, ôn tập lặp ngắt quãng, đề thi thử có tính giờ và lớp nhóm nhỏ cùng Giáo viên — trong một nền tảng, đồng bộ giữa Web và ứng dụng RikiPath.')}
               </p>
               <div data-intro style={{ '--d': '420ms' }} className="mt-8 flex flex-wrap gap-3">
                 <CtaLink to={startTo}>{tr(startLabel)} <ArrowRight aria-hidden="true" className="h-4 w-4" /></CtaLink>

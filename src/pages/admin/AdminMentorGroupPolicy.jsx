@@ -254,7 +254,7 @@ export default function AdminMentorGroupPolicy() {
             <input type="number" min={0} max={10080} value={draft.enrollmentCutoffMinutesBeforeFirstSession} onChange={(e) => setField('enrollmentCutoffMinutesBeforeFirstSession', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
           <label className="text-[12px] text-rp-text-2">
-            {tr('Số buổi tối đa / ngày')}
+            {tr('Số khung giờ tối đa Giáo viên đăng ký / ngày')}
             <input type="number" min={1} max={12} value={draft.dailySessionCap} onChange={(e) => setField('dailySessionCap', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
           <label className="text-[12px] text-rp-text-2">
@@ -301,7 +301,7 @@ export default function AdminMentorGroupPolicy() {
             {tr('Admin duyệt yêu cầu học lại (theo quy định)')}
           </label>
           <label className="text-[12px] text-rp-text-2">
-            {tr('Báo trước khi thay cố vấn chính (giờ)')}
+            {tr('Báo trước khi thay giáo viên chính (giờ)')}
             <input type="number" min={0} max={720} value={draft.mentorReplacementLeadHours} onChange={(e) => setField('mentorReplacementLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
           <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
@@ -316,20 +316,20 @@ export default function AdminMentorGroupPolicy() {
             {tr('Theo chính sách hiện hành: không chuyển lớp sau khi khóa học bắt đầu.')}
           </p>
           <label className="text-[12px] text-rp-text-2">
-            {tr('Số buổi tối đa / tuần (0 = không giới hạn)')}
+            {tr('Hạn mức khung giờ Giáo viên / tuần (0 = không giới hạn)')}
             <input type="number" min={0} max={84} value={draft.weeklySessionCap} onChange={(e) => setField('weeklySessionCap', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
           <label className="text-[12px] text-rp-text-2">
-            {tr('Thời lượng khóa (tuần)')}
+            {tr('Thời lượng khóa lớp nhóm (tuần)')}
             <input type="number" min={1} max={52} value={draft.courseDurationWeeks} onChange={(e) => setField('courseDurationWeeks', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
           <label className="text-[12px] text-rp-text-2">
-            {tr('Số buổi/tuần được phép (VD: 2,3,4)')}
+            {tr('Cường độ buổi học của mỗi lớp nhóm / tuần (VD: 2,3,4)')}
             <input value={draft.allowedSessionsPerWeekCsv} onChange={(e) => setField('allowedSessionsPerWeekCsv', e.target.value)} aria-invalid={sessionsCsvInvalid} className={`mt-1 h-9 w-full rounded-lg border px-2.5 text-[13px] ${sessionsCsvInvalid ? 'border-rp-brand-strong' : 'border-rp-line'}`} />
             {sessionsCsvInvalid && <span className="mt-1 block text-[11px] text-rp-brand-strong">{tr('Nhập các số 1–7, cách nhau bởi dấu phẩy.')}</span>}
           </label>
           <label className="text-[12px] text-rp-text-2">
-            {tr('Số buổi/tuần mặc định (khuyến nghị)')}
+            {tr('Cường độ lớp nhóm mặc định (khuyến nghị)')}
             <select value={draft.defaultSessionsPerWeek} onChange={(e) => setField('defaultSessionsPerWeek', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line bg-white px-2.5 text-[13px]">
               {(allowedSessionsPerWeek.length ? allowedSessionsPerWeek : [Number(draft.defaultSessionsPerWeek)]).map((n) => (
                 <option key={n} value={n}>{trf('{0} buổi/tuần', { 0: n })}</option>
@@ -348,7 +348,7 @@ export default function AdminMentorGroupPolicy() {
           </label>
           <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
             <input type="checkbox" checked={Boolean(draft.mentorReplacementEnabled)} onChange={(e) => setField('mentorReplacementEnabled', e.target.checked)} />
-            {tr('Cho phép Admin thay cố vấn chính cho phần còn lại của lớp')}
+            {tr('Cho phép Admin thay giáo viên chính cho phần còn lại của lớp')}
           </label>
         </div>
         <div className="mt-4 flex justify-end">

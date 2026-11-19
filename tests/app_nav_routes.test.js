@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ROLE_NAV, allNavTargets, buildBreadcrumbs, isNavItemActive } from '@/layouts/appNav.js';
+import { ROLE_NAV, allNavTargets, buildBreadcrumbs, flattenNavItems, isNavItemActive } from '@/layouts/appNav.js';
 import { canAccessPath, homeForRole, matchRoute } from '@/app/routes/routeTable.js';
 
 describe('role sidebars', () => {
@@ -12,34 +12,57 @@ describe('role sidebars', () => {
   it('only link to pages the role can open', () => {
     for (const [role, nav] of Object.entries(ROLE_NAV)) {
       for (const group of nav.groups) {
-        for (const item of group.items) assert.ok(canAccessPath(item.to, [role]), `${role} cannot open ${item.to}`);
+        for (const item of flattenNavItems(group.items)) {
+          if (item.to) assert.ok(canAccessPath(item.to, [role]), `${role} cannot open ${item.to}`);
+        }
       }
       assert.equal(nav.home, homeForRole(role));
     }
   });
 
   it('contain no 1-1 booking, consultation package, payroll or payout entries', () => {
-    const labels = Object.values(ROLE_NAV).flatMap((n) => n.groups.flatMap((g) => g.items.map((i) => `${i.label} ${i.to}`))).join(' | ');
+    const labels = Object.values(ROLE_NAV)
+      .flatMap((n) => n.groups.flatMap((g) => flattenNavItems(g.items).map((i) => `${i.label} ${i.to}`)))
+      .join(' | ');
     assert.doesNotMatch(labels, /Tư vấn 1-1|booking|payout|payroll|lương|compensation|mentor-plans|consultation-/i);
   });
 
-  it('Learner reaches Group Learning (not 1-1 consultation)', () => {
+  it('Learner reaches Group Learning workspace hierarchy', () => {
     const learner = allNavTargets();
+    assert.ok(learner.includes('/group-learning'));
     assert.ok(learner.includes('/mentors'));
+    assert.ok(learner.includes('/cohorts'));
     assert.ok(learner.includes('/my-courses'));
+    assert.ok(learner.includes('/calendar'));
+    assert.ok(learner.includes('/homework'));
+    assert.ok(learner.includes('/group-learning/progress'));
+  });
+
+  it('uses Giáo viên consistently in user-facing role navigation', () => {
+    const labels = Object.values(ROLE_NAV)
+      .flatMap((nav) => [nav.area, ...nav.groups.flatMap((group) => [group.label, ...flattenNavItems(group.items).map((item) => item.label)])]);
+    assert.ok(labels.includes('Học cùng Giáo viên'));
+    assert.ok(labels.includes('Tìm Giáo viên'));
+    assert.doesNotMatch(labels.join(' | '), /\bMentor\b|Cố vấn/i);
   });
 });
 
 describe('active state and breadcrumbs', () => {
-  it('matches query-specific items', () => {
-    const kana = ROLE_NAV.Learner.groups[1].items.find((i) => i.label === 'Kana');
+  it('matches query-specific items and propagates active state to hierarchical parents', () => {
+    const kana = ROLE_NAV.Learner.groups.flatMap((g) => g.items).find((i) => i.label === 'Bảng chữ Katakana');
     assert.equal(isNavItemActive(kana, '/kanji-writing/', '?type=katakana'), true);
     assert.equal(isNavItemActive(kana, '/kanji-writing/', '?type=kanji'), false);
+
+    const groupBranch = ROLE_NAV.Learner.groups.flatMap((g) => g.items).find((i) => i.id === 'group-learning');
+    assert.equal(isNavItemActive(groupBranch, '/calendar', ''), true);
+    assert.equal(isNavItemActive(groupBranch, '/my-courses/7', ''), true);
+    assert.equal(isNavItemActive(groupBranch, '/roadmap', ''), false);
   });
 
   it('builds area › group › item › page trails', () => {
     const trail = buildBreadcrumbs('Learner', '/mentors/12/', '', 'Sensei Aoi');
-    assert.deepEqual(trail.map((c) => c.label), ['Học viên', 'Học nhóm', 'Tìm Mentor', 'Sensei Aoi']);
+    assert.deepEqual(trail.map((c) => c.label), ['Học viên', 'Học cùng Giáo viên', 'Tìm Giáo viên', 'Sensei Aoi']);
+    assert.equal(trail[1].to, '/group-learning');
     assert.equal(trail[2].to, '/mentors');
   });
 

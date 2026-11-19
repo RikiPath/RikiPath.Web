@@ -35,22 +35,25 @@ export function ComplaintHistory({ history = [] }) {
   );
 }
 
-function ComplaintRow({ item, children }) {
+function ComplaintRow({ item, highlighted = false, children }) {
   const { tr } = useLocale();
   return (
-    <article className="course-row">
+    <article
+      id={`complaint-${item.id}`}
+      className={`course-row ${highlighted ? 'ring-2 ring-rp-brand-strong/40 bg-rp-brand-tint/25' : ''}`}
+    >
       <div className="course-buttons" style={{ justifyContent: 'space-between' }}>
         <strong>#{item.id} · {categoryLabel(item.category)}</strong>
         <span className={`course-badge ${statusTone(item.status)}`}>{tr(COMPLAINT_STATUS_LABELS[item.status] || item.status)}</span>
       </div>
       <p className="course-meta">
         {item.cohortName || tr('Khóa học nhóm')}
-        {item.mentorName ? ` · Mentor: ${item.mentorName}` : ''}{' '}{tr('· Gửi lúc')}{' '}{date(item.createdAtUtc)}
+        {item.mentorName ? ` · ${tr('Giáo viên:')} ${item.mentorName}` : ''}{' '}{tr('· Gửi lúc')}{' '}{date(item.createdAtUtc)}
         {item.hasEvidence ? tr(' · Có minh chứng') : ''}
         {item.refundReviewRequested ? tr(' · Đề nghị xem xét hoàn tiền') : ''}
       </p>
       <p className="course-pre">{tr(item.message)}</p>
-      {item.mentorResponse && <p className="course-pre"><strong>{tr('Phản hồi của Mentor:')}</strong> {item.mentorResponse}</p>}
+      {item.mentorResponse && <p className="course-pre"><strong>{tr('Phản hồi của Giáo viên:')}</strong> {item.mentorResponse}</p>}
       {item.decision && <p className="course-pre"><strong>{tr('Quyết định của Admin:')}</strong> {item.decision}</p>}
       {children}
       <ComplaintHistory history={item.history} />
@@ -58,10 +61,17 @@ function ComplaintRow({ item, children }) {
   );
 }
 
-function MentorComplaints({ busy, onRun }) {
+function MentorComplaints({ cohortId = null, highlightComplaintId = null, busy, onRun }) {
   const { tr } = useLocale();
   const [drafts, setDrafts] = useState({});
-  const query = useAsyncResource(() => getCohortComplaints(), []);
+  const query = useAsyncResource(async () => {
+    const all = await getCohortComplaints();
+    const list = Array.isArray(all) ? all : [];
+    if (cohortId != null && Number(cohortId) > 0) {
+      return list.filter((item) => Number(item.cohortId) === Number(cohortId));
+    }
+    return list;
+  }, [cohortId]);
   const rows = Array.isArray(query.data) ? query.data : [];
 
   return (
@@ -90,7 +100,7 @@ function MentorComplaints({ busy, onRun }) {
               item.category !== 'PaymentEnrollment' && !item.mentorResponse && (item.status === 'Open' || item.status === 'UnderReview');
             const draft = drafts[item.id] ?? '';
             return (
-              <ComplaintRow key={item.id} item={item}>
+              <ComplaintRow key={item.id} item={item} highlighted={Boolean(highlightComplaintId && Number(highlightComplaintId) === Number(item.id))}>
                 {canRespond && (
                   <form
                     className="course-form"
@@ -106,7 +116,7 @@ function MentorComplaints({ busy, onRun }) {
                   >
                     <fieldset disabled={busy}>
                       <label className="course-field">
-                        <span>{tr('Phản hồi của Mentor (bắt buộc)')}</span>
+                        <span>{tr('Phản hồi của Giáo viên (bắt buộc)')}</span>
                         <textarea
                           required
                           maxLength={2000}
@@ -197,7 +207,7 @@ function LearnerComplaints({ course, mentors = [], busy, onRun }) {
     <section className="course-box">
       <h2>{tr('Khiếu nại & hỗ trợ')}</h2>
       {underReview && (
-        <div className="course-notice" role="status" style={{ borderLeft: '4px solid #ad3155' }}>
+        <div className="course-notice" role="status" style={{ borderLeft: '4px solid var(--color-rp-brand-pressed, #cc4b6b)' }}>
           <strong>{paymentStateMessage('PaidUnderReview')}</strong>
           <p className="course-meta">
             {tr('Nếu cần, hãy gửi khiếu nại loại "Thanh toán & ghi danh" và đánh dấu "Đề nghị xem xét hoàn tiền" để Admin ưu tiên xử lý.')}
@@ -221,7 +231,7 @@ function LearnerComplaints({ course, mentors = [], busy, onRun }) {
             </select>
           </label>
           <label className="course-field" style={{ maxWidth: 260 }}>
-            <span>{tr('Mentor liên quan (không bắt buộc)')}</span>
+            <span>{tr('Giáo viên liên quan (không bắt buộc)')}</span>
             <select value={mentorId} onChange={(e) => { setMentorId(e.target.value); resetDraftKey(); }}>
               <option value="">{tr('Không chỉ định')}</option>
               {mentors.map((m) => <option key={m.mentorId} value={m.mentorId}>{m.mentorName}</option>)}
@@ -272,7 +282,15 @@ function LearnerComplaints({ course, mentors = [], busy, onRun }) {
   );
 }
 
-export default function CohortComplaintPanel({ role = 'Learner', course = null, mentors = [], busy = false, onRun }) {
-  if (role === 'Mentor') return <MentorComplaints busy={busy} onRun={onRun} />;
+export default function CohortComplaintPanel({
+  role = 'Learner',
+  course = null,
+  cohortId = null,
+  highlightComplaintId = null,
+  mentors = [],
+  busy = false,
+  onRun,
+}) {
+  if (role === 'Mentor') return <MentorComplaints cohortId={cohortId} highlightComplaintId={highlightComplaintId} busy={busy} onRun={onRun} />;
   return <LearnerComplaints key={course?.id ?? 'none'} course={course} mentors={mentors} busy={busy} onRun={onRun} />;
 }

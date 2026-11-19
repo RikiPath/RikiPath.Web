@@ -6,7 +6,7 @@ const FACTS = [
   'Ôn luyện tiếng Nhật theo mục tiêu từ N5 đến N2.',
   'Thi thử có giới hạn thời gian, nhận diện điểm mạnh và phần cần cải thiện.',
   'Luyện nói và viết với phản hồi từ trợ lý AI Haru.',
-  'Học nhóm cùng Mentor để được hướng dẫn phù hợp với nhu cầu học tập.',
+  'Học nhóm cùng Giáo viên để được hướng dẫn phù hợp với nhu cầu học tập.',
 ];
 
 const CHIPS = [
@@ -31,8 +31,8 @@ const PARTS = [
     'Luyện nói và viết với phản hồi từ Haru, giúp bạn nhận ra lỗi và từng bước cải thiện cách diễn đạt.',
   ],
   [
-    'Đồng hành cùng Mentor',
-    'Học trong lớp nhóm nhỏ cùng Mentor để được giải đáp thắc mắc và định hướng việc học theo mục tiêu của bạn.',
+    'Đồng hành cùng Giáo viên',
+    'Học trong lớp nhóm nhỏ cùng Giáo viên để được giải đáp thắc mắc và định hướng việc học theo mục tiêu của bạn.',
   ],
 ];
 
@@ -69,7 +69,7 @@ const START = [
   [
     '03',
     'Ôn tập và theo dõi tiến bộ',
-    'Củng cố phần còn yếu, luyện đề để đánh giá lại và học nhóm cùng Mentor khi cần hỗ trợ.',
+    'Củng cố phần còn yếu, luyện đề để đánh giá lại và học nhóm cùng Giáo viên khi cần hỗ trợ.',
   ],
 ];
 
@@ -84,11 +84,11 @@ const FAQ = [
   ],
   [
     'Tôi nên bắt đầu từ cấp độ nào?',
-    'Bạn có thể chọn cấp độ phù hợp với kiến thức đã học và thử làm một bài thi ở cấp độ đó. Dựa vào kết quả, bạn sẽ có thêm cơ sở để chọn nội dung ôn tập hoặc học nhóm cùng Mentor.',
+    'Bạn có thể chọn cấp độ phù hợp với kiến thức đã học và thử làm một bài thi ở cấp độ đó. Dựa vào kết quả, bạn sẽ có thêm cơ sở để chọn nội dung ôn tập hoặc học nhóm cùng Giáo viên.',
   ],
   [
-    'AI Haru và Mentor hỗ trợ tôi như thế nào?',
-    'AI Haru hỗ trợ phản hồi khi bạn luyện nói và viết. Mentor dạy lớp nhóm nhỏ, giải đáp thắc mắc và định hướng phù hợp với nhu cầu của bạn. Phản hồi từ AI mang tính tham khảo và đôi khi cần được kiểm tra lại.',
+    'AI Haru và Giáo viên hỗ trợ tôi như thế nào?',
+    'AI Haru hỗ trợ phản hồi khi bạn luyện nói và viết. Giáo viên dạy lớp nhóm nhỏ, giải đáp thắc mắc và định hướng phù hợp với nhu cầu của bạn. Phản hồi từ AI mang tính tham khảo và đôi khi cần được kiểm tra lại.',
   ],
 ];
 
@@ -113,8 +113,8 @@ const NEXT = [
   },
   {
     to: '/#group-learning',
-    t: 'Học nhóm cùng Mentor',
-    d: 'Lớp nhỏ 1–4 học viên cùng Mentor theo lộ trình 10 tuần.',
+    t: 'Học nhóm cùng Giáo viên',
+    d: 'Lớp nhỏ 1–4 học viên cùng Giáo viên theo lộ trình 10 tuần.',
     cta: 'Tìm hiểu lớp nhóm',
   },
 ];
@@ -123,7 +123,7 @@ export default function AboutRiki() {
   const { tr } = useLocale();
   return (
     <PublicShell>
-      <div className="bg-rp-brand-tint text-rp-text" data-page="AboutRiki">
+      <div className="bg-rp-bg text-rp-text" data-page="AboutRiki">
         <div className="mx-auto max-w-[1100px] px-5 pb-12 pt-6 sm:px-8">
           <nav className="mb-6 flex items-center gap-2 text-[13px] text-rp-text-2">
             <Link className="hover:text-rp-brand" to="/">{tr('Trang chủ')}</Link>
@@ -179,7 +179,7 @@ export default function AboutRiki() {
             <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-rp-brand">{tr('Giới thiệu')}</div>
             <h2 className="mt-2 text-[28px] font-extrabold leading-tight sm:text-[32px]">{tr('Đồng hành trên hành trình học và luyện thi tiếng Nhật')}</h2>
             <p className="mt-2 text-[15px] leading-relaxed text-rp-text-2">
-            {tr('RikiPath giúp bạn nối nội dung ôn với việc làm đề và xem kết quả. Từ bài luyện tập đến bài thi thử, bạn xem lại lỗi sai và điều chỉnh kế hoạch ôn tập. Khi cần thêm hướng dẫn, luyện nói và viết cùng AI Haru hoặc học nhóm cùng Mentor.')}
+            {tr('RikiPath giúp bạn nối nội dung ôn với việc làm đề và xem kết quả. Từ bài luyện tập đến bài thi thử, bạn xem lại lỗi sai và điều chỉnh kế hoạch ôn tập. Khi cần thêm hướng dẫn, luyện nói và viết cùng AI Haru hoặc học nhóm cùng Giáo viên.')}
             </p>
           </section>
 

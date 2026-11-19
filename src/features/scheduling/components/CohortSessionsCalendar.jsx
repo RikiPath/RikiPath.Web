@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CalendarDays, List } from 'lucide-react';
 import SakuraCalendar from './SakuraCalendar.jsx';
-import { toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
+import { formatCleanCohortTitle, toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
 import { parseUtcDate, sessionStatusLabel } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -56,7 +56,8 @@ export default function CohortSessionsCalendar({
           startMinute: start.minute,
           endHour: end.hour,
           endMinute: end.minute,
-          title: trf('{0} · Buổi {1}', { 0: course.cohortName || course.name, 1: s.number }),
+          title: formatCleanCohortTitle(course.cohortName || course.name, s.number),
+          fullTitle: trf('{0} · Buổi {1}', { 0: course.cohortName || course.name, 1: s.number }),
           detail: s.note || computedStatusLabel,
           statusLabel: computedStatusLabel,
           tone: toneForSession(s.status),
@@ -65,7 +66,7 @@ export default function CohortSessionsCalendar({
           metaRows: [
             { label: 'Lớp / Khóa', value: course.cohortName || course.name },
             { label: 'Học viên', value: course.learnerName || '—' },
-            { label: 'Mentor', value: course.mentorName || 'Chưa phân công' },
+            { label: tr('Giáo viên'), value: course.mentorName || 'Chưa phân công' },
             s.note && { label: 'Ghi chú', value: s.note },
           ].filter(Boolean),
         };
@@ -77,7 +78,7 @@ export default function CohortSessionsCalendar({
       events: mapped,
       firstKey: upcoming?.dayKey || mapped[0]?.dayKey || todayKey,
     };
-  }, [course, cohort, renderedAt]);
+  }, [course, cohort, renderedAt, tr, trf]);
 
   const [anchorKey, setAnchorKey] = useState(firstKey);
 
@@ -87,7 +88,7 @@ export default function CohortSessionsCalendar({
         <div>
           <h2 className="m-0">{tr('Lịch buổi học & Phòng học chung')}</h2>
           <p className="course-meta m-0 mt-0.5">
-            {trf('{0} buổi đã xếp lịch · Giờ Việt Nam (GMT+7)', { 0: events.length })}
+            {trf('{0} buổi toàn khóa · Giờ Việt Nam (GMT+7)', { 0: events.length })}
           </p>
         </div>
         <div
@@ -116,7 +117,7 @@ export default function CohortSessionsCalendar({
         </div>
       </div>
 
-      {mode === 'calendar' && events.length > 0 ? (
+      {mode === 'calendar' ? (
         <SakuraCalendar
           events={events}
           anchorKey={anchorKey}

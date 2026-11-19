@@ -15,7 +15,7 @@ export default function QuestionBank() {
       page="QuestionBank"
       breadcrumb={tr('Ngân hàng câu hỏi')}
       title={tr('Ngân hàng câu hỏi')}
-      hint={tr('Soạn câu trên trang này. Chưa lưu vào kho.')}
+      hint={tr('Nháp cục bộ trên trình duyệt để phác thảo câu hỏi tạm thời (không lưu lên máy chủ). Dùng Đề thi thử hoặc Soạn thảo thủ công để lưu chính thức.')}
       addLabel={tr('Thêm câu')}
       columns={[
         { key: 'prompt', label: 'Câu hỏi' },

@@ -45,7 +45,7 @@ export default function ScheduleConflictList({ conflicts = [], title, cohortLink
               {href && (
                 <>
                   {' '}
-                  <Link to={href} style={{ color: '#ad3155', textDecoration: 'underline' }}>
+                  <Link to={href} style={{ color: 'var(--color-rp-brand-strong, #b53d5c)', textDecoration: 'underline' }}>
                     {tr('Xem lớp')}{' '}{c.cohortName || `#${c.cohortId}`}
                   </Link>
                 </>

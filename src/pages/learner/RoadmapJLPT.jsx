@@ -140,7 +140,7 @@ function getStages(level) {
         },
         {
           icon: 'groups',
-          title: 'Học nhóm cùng Mentor',
+          title: 'Học nhóm cùng Giáo viên',
           description: 'Lớp 1–4 học viên, 10 tuần, chọn cường độ phù hợp.',
           to: '/mentors',
         },
@@ -568,7 +568,7 @@ export default function RoadmapJLPT() {
                   {tr('Cần hướng dẫn thêm?')}
                 </span>
                 <span className="mt-1 block text-[11px] text-rp-text-muted">
-                  {tr('Học nhóm cùng Mentor')}
+                  {tr('Học nhóm cùng Giáo viên')}
                 </span>
               </span>
               <Icon

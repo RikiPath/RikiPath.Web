@@ -4,7 +4,7 @@ export const FEATURES = {
     title: 'Luyện shadowing theo câu mẫu',
     eyebrow: 'Kỹ thuật phát âm',
     icon: 'record_voice_over',
-    iconWrap: 'bg-[#ffd9e4]/80 text-[#9E2A4B]',
+    iconWrap: 'bg-rp-brand-soft text-rp-brand-strong',
     ctaLabel: 'Trải nghiệm kỹ thuật',
     tryTo: '/lesson-player',
     tryLabel: 'Mở bài shadowing mẫu',
@@ -35,7 +35,7 @@ export const FEATURES = {
     title: 'AI Chấm thi & Phát âm',
     eyebrow: 'Haru Sensei AI',
     icon: 'neurology',
-    iconWrap: 'bg-[#ffd9dd]/80 text-[#9E2A4B]',
+    iconWrap: 'bg-rp-brand-soft text-rp-brand-strong',
     ctaLabel: 'Xem mô phỏng AI',
     tryTo: '/ai-scoring',
     tryLabel: 'Xem phiếu chấm mẫu',
@@ -53,7 +53,7 @@ export const FEATURES = {
     points: [
       'Chấm ngữ cảnh, không chỉ đúng/sai trắc nghiệm',
       'Biểu đồ quên lãng gắn với điểm yếu thật',
-      'Mang phiếu chấm vào lớp nhóm để Mentor góp ý thêm',
+      'Mang phiếu chấm vào lớp nhóm để Giáo viên góp ý thêm',
     ],
     demo: {
       title: 'Phiếu chấm · 経験',
@@ -66,7 +66,7 @@ export const FEATURES = {
     title: '10,000+ Kanji & Flashcard SRS',
     eyebrow: 'Ghi nhớ dài hạn',
     icon: 'auto_stories',
-    iconWrap: 'bg-secondary-container/70 text-[#9E2A4B]',
+    iconWrap: 'bg-rp-brand-soft text-rp-brand-strong',
     ctaLabel: 'Thư viện từ vựng',
     tryTo: '/daily-srs',
     tryLabel: 'Mở hàng đợi SRS',
@@ -95,23 +95,23 @@ export const FEATURES = {
   // Slug kept for old links; the product is now Group Learning (no 1-1 sessions are sold).
   sensei: {
     slug: 'sensei',
-    title: 'Học nhóm cùng Mentor',
+    title: 'Học nhóm cùng Giáo viên',
     eyebrow: 'Lớp nhỏ 1–4 học viên',
     icon: 'groups',
     iconWrap: 'bg-[#FFF0F3] text-[#BD385E]',
     ctaLabel: 'Tạo tài khoản',
     tryTo: '/register',
     tryLabel: 'Đăng ký để xem lớp',
-    lead: 'Chọn Mentor, xem lớp nhóm đang mở, chọn cường độ phù hợp và thanh toán trọn khóa. Lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.',
+    lead: 'Chọn Giáo viên, xem lớp nhóm đang mở, chọn cường độ phù hợp và thanh toán trọn khóa. Lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.',
     stats: [
       { k: '10 tuần', v: 'mỗi khóa' },
       { k: '90 phút', v: 'mỗi buổi' },
       { k: '1–4', v: 'học viên mỗi lớp' },
     ],
     steps: [
-      { t: 'Chọn Mentor & lớp', d: 'Xem hồ sơ Mentor, lịch học, cường độ Nhẹ / Tiêu chuẩn / Nâng cao.' },
+      { t: 'Chọn Giáo viên & lớp', d: 'Xem hồ sơ Giáo viên, lịch học, cường độ Nhẹ / Tiêu chuẩn / Nâng cao.' },
       { t: 'Giữ chỗ & thanh toán', d: 'Chỗ được giữ trong thời gian thanh toán; ghi danh chỉ có hiệu lực khi hệ thống xác minh.' },
-      { t: 'Vào lớp', d: 'Lịch học, phòng học trực tuyến, điểm danh, bài tập và nhận xét của Mentor.' },
+      { t: 'Vào lớp', d: 'Lịch học, phòng học trực tuyến, điểm danh, bài tập và nhận xét của Giáo viên.' },
     ],
     points: [
       'Nhẹ: 2 buổi/tuần · 20 buổi · 30 giờ',

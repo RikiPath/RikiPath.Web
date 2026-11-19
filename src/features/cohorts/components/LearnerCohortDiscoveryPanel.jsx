@@ -4,7 +4,7 @@ import { describeApiError } from '@/api/apiErrors';
 import { ContextualEmptyState, ContextualErrorState, Modal, SakuraLoader } from '@/components/ui';
 import CohortSummaryCard, { IntensityBadge } from './CohortSummaryCard';
 import { money, schedulePatternText } from '@/features/cohorts/utils/cohortCardModel';
-import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
 const FILTER_DEBOUNCE_MS = 350;
@@ -41,14 +41,14 @@ const EMPTY_FILTERS = { mentorId: '', level: '', intensity: '', weekday: '', fro
 
 function ReviewSummary({ state }) {
   const { tr } = useLocale();
-  if (state === undefined) return <SakuraLoader variant="inline" size={14} context="cohort" label={tr('Đang tải đánh giá Mentor')} delay={160} />;
-  if (state?.error) return <p className="course-meta">{tr('Đánh giá Mentor: Tạm chưa tải được')}</p>;
+  if (state === undefined) return <SakuraLoader variant="inline" size={14} context="cohort" label={tr('Đang tải đánh giá Giáo viên')} delay={160} />;
+  if (state?.error) return <p className="course-meta">{tr('Đánh giá Giáo viên: Tạm chưa tải được')}</p>;
   const summary = state?.summary ?? null;
-  if (!summary || !summary.reviewCount) return <p className="course-meta">{tr('Đánh giá Mentor: Chưa có đánh giá')}</p>;
+  if (!summary || !summary.reviewCount) return <p className="course-meta">{tr('Đánh giá Giáo viên: Chưa có đánh giá')}</p>;
   const latest = (summary.comments || []).filter((c) => c.comment).slice(0, 2);
   return (
     <div className="course-meta">
-      {tr('Đánh giá Mentor:')}{' '}<strong>★ {Number(summary.averageRating).toFixed(1)}/5</strong> ({summary.reviewCount}{' '}{tr('đánh giá từ học viên lớp nhóm)')}
+      {tr('Đánh giá Giáo viên:')}{' '}<strong>★ {Number(summary.averageRating).toFixed(1)}/5</strong> ({summary.reviewCount}{' '}{tr('đánh giá từ học viên lớp nhóm)')}
       {latest.length > 0 && (
         <details>
           <summary>{tr('Nhận xét gần đây')}</summary>
@@ -63,6 +63,7 @@ function ReviewSummary({ state }) {
 
 export default function LearnerCohortDiscoveryPanel({
   cohorts = [],
+  enrolledCourses = [],
   myEntitlements = [],
   busy = false,
   onRun,
@@ -84,9 +85,9 @@ export default function LearnerCohortDiscoveryPanel({
   const activeEntitlements = useMemo(() => myEntitlements.filter((e) => e.isUsable), [myEntitlements]);
   const mentorOptions = useMemo(() => {
     const map = new Map();
-    cohorts.forEach((c) => c.mentorId && map.set(c.mentorId, c.mentorName || `Mentor #${c.mentorId}`));
+    cohorts.forEach((c) => c.mentorId && map.set(c.mentorId, c.mentorName || tr('Giáo viên lớp nhóm')));
     return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-  }, [cohorts]);
+  }, [cohorts, tr]);
   const levelOptions = useMemo(() => {
     const set = new Set(['N5', 'N4', 'N3', 'N2']);
     cohorts.forEach((c) => c.level && set.add(c.level));
@@ -145,6 +146,45 @@ export default function LearnerCohortDiscoveryPanel({
         .catch(() => setReviewSummaries((cur) => ({ ...cur, [id]: { error: true, summary: null } })));
     });
   }, [visibleMentorIds]);
+
+  const activeEnrolledWindows = useMemo(() => {
+    const out = [];
+    for (const c of enrolledCourses || []) {
+      if (!c || c.status === 'Cancelled' || c.status === 'TransferredOut') continue;
+      if (c.paymentStatus !== 'Paid' && c.paymentState !== 'AwaitingPayment' && c.paymentStatus !== 'Pending') continue;
+      const mins = Number(c.sessionMinutes) || 90;
+      for (const s of c.sessions || []) {
+        if (s.status && s.status !== 'Scheduled' && s.status !== 'Confirmed' && s.status !== 'Assigned') continue;
+        const start = parseUtcDate(s.scheduledAt || s.startTime);
+        if (!start) continue;
+        const end = parseUtcDate(s.endTime) || new Date(start.getTime() + mins * 60000);
+        out.push({ cohortId: c.cohortId, name: c.cohortName || c.name || 'Lớp hiện tại', startMs: start.getTime(), endMs: end.getTime() });
+      }
+    }
+    return out;
+  }, [enrolledCourses]);
+
+  const scheduleConflictByCohortId = useMemo(() => {
+    const map = new Map();
+    if (!activeEnrolledWindows.length) return map;
+    for (const cohort of visibleCohorts) {
+      if (!cohort?.sessions?.length || cohort.myEnrollmentCourseId) continue;
+      const mins = Number(cohort.sessionMinutes) || 90;
+      const conflict = cohort.sessions.find((s) => {
+        const sStart = parseUtcDate(s.startTime || s.scheduledAt)?.getTime();
+        const sEnd = parseUtcDate(s.endTime)?.getTime() || (sStart ? sStart + mins * 60000 : 0);
+        if (!sStart || !sEnd) return false;
+        return activeEnrolledWindows.some((w) => w.cohortId !== cohort.id && w.startMs < sEnd && sStart < w.endMs);
+      });
+      if (conflict) {
+        const sStart = parseUtcDate(conflict.startTime || conflict.scheduledAt)?.getTime() || 0;
+        const sEnd = parseUtcDate(conflict.endTime)?.getTime() || sStart + mins * 60000;
+        const hit = activeEnrolledWindows.find((w) => w.cohortId !== cohort.id && w.startMs < sEnd && sStart < w.endMs);
+        map.set(cohort.id, hit?.name || 'lớp học hiện tại');
+      }
+    }
+    return map;
+  }, [visibleCohorts, activeEnrolledWindows]);
 
   const setFilter = (key, value) => setFilters((cur) => ({ ...cur, [key]: value }));
 
@@ -227,44 +267,44 @@ export default function LearnerCohortDiscoveryPanel({
         </div>
       )}
 
-      <div className="course-buttons" style={{ marginBottom: 16, alignItems: 'flex-end' }}>
-        <label className="course-field" style={{ maxWidth: 220 }}>
-          <span>Mentor</span>
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 items-end">
+        <label className="course-field">
+          <span>{tr('Giáo viên')}</span>
           <select value={filters.mentorId} onChange={(e) => setFilter('mentorId', e.target.value)}>
-            <option value="">{tr('Tất cả Mentor')}</option>
+            <option value="">{tr('Tất cả Giáo viên')}</option>
             {mentorOptions.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </label>
-        <label className="course-field" style={{ maxWidth: 150 }}>
+        <label className="course-field">
           <span>{tr('Cấp độ JLPT')}</span>
           <select value={filters.level} onChange={(e) => setFilter('level', e.target.value)}>
             <option value="">{tr('Tất cả cấp độ')}</option>
             {levelOptions.map((lvl) => <option key={lvl} value={lvl}>{lvl}</option>)}
           </select>
         </label>
-        <label className="course-field" style={{ maxWidth: 235 }}>
+        <label className="course-field">
           <span>{tr('Cường độ')}</span>
           <select value={filters.intensity} onChange={(e) => setFilter('intensity', e.target.value)}>
             <option value="">{tr('Tất cả cường độ')}</option>
             {INTENSITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{trf('{0} ({1} buổi/tuần)', { 0: o.label, 1: o.sessionsPerWeek })}</option>)}
           </select>
         </label>
-        <label className="course-field" style={{ maxWidth: 150 }}>
+        <label className="course-field">
           <span>{tr('Thứ trong tuần')}</span>
           <select value={filters.weekday} onChange={(e) => setFilter('weekday', e.target.value)}>
             <option value="">{tr('Bất kỳ')}</option>
             {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>{tr(w.label)}</option>)}
           </select>
         </label>
-        <label className="course-field" style={{ maxWidth: 130 }}>
+        <label className="course-field">
           <span>{tr('Từ giờ')}</span>
           <input type="time" value={filters.fromTime} onChange={(e) => setFilter('fromTime', e.target.value)} />
         </label>
-        <label className="course-field" style={{ maxWidth: 130 }}>
+        <label className="course-field">
           <span>{tr('Đến giờ')}</span>
           <input type="time" value={filters.toTime} onChange={(e) => setFilter('toTime', e.target.value)} />
         </label>
-        <label className="course-field" style={{ maxWidth: 240 }}>
+        <label className="course-field">
           <span>{tr('Tìm theo tên lớp')}</span>
           <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={tr('Ví dụ: N3 tối…')} />
         </label>
@@ -288,20 +328,23 @@ export default function LearnerCohortDiscoveryPanel({
           compact
           art="search"
           title={tr('Chưa có lớp phù hợp với bộ lọc')}
-          description={tr('Hãy thử thay đổi bộ lọc hoặc chọn Mentor khác.')}
+          description={tr('Hãy thử thay đổi bộ lọc hoặc chọn Giáo viên khác.')}
         />
       ) : (
         <div className="course-grid">
           {visibleCohorts.map((cohort) => {
-            const canEnroll = cohort.enrollmentOpen === true && !cohort.myEnrollmentCourseId;
+            const conflictCourseName = scheduleConflictByCohortId.get(cohort.id);
+            const canEnroll = cohort.enrollmentOpen === true && !cohort.myEnrollmentCourseId && !conflictCourseName;
             const awaiting = cohort.myEnrollmentPaymentState === 'AwaitingPayment' && !!cohort.myEnrollmentCourseId;
             const statusReason = cohort.myEnrollmentCourseId
               ? trf('Bạn đã ghi danh lớp này ({0})', { 0: tr(COURSE_STATUS_LABELS[cohort.myEnrollmentStatus] || cohort.myEnrollmentStatus) })
-              : cohort.seatsAvailable != null && cohort.seatsAvailable <= 0
-                ? 'Lớp đã đủ sĩ số.'
-                : cohort.enrollmentOpen === false
-                  ? cohort.entitlementStatusMessage || 'Lớp đã đóng ghi danh.'
-                  : cohort.entitlementStatusMessage || 'Chưa mở ghi danh trực tiếp.';
+              : conflictCourseName
+                ? trf('Trùng lịch học hiện tại với {0}.', { 0: conflictCourseName })
+                : cohort.seatsAvailable != null && cohort.seatsAvailable <= 0
+                  ? 'Lớp đã đủ sĩ số.'
+                  : cohort.enrollmentOpen === false
+                    ? cohort.entitlementStatusMessage || 'Lớp đã đóng ghi danh.'
+                    : cohort.entitlementStatusMessage || 'Chưa mở ghi danh trực tiếp.';
 
             return (
               <CohortSummaryCard
@@ -311,7 +354,7 @@ export default function LearnerCohortDiscoveryPanel({
               >
                 {cohort.hasApprovedEntitlement ? (
                   <p className="course-notice" style={{ padding: '6px 10px', fontSize: 12.5 }}>
-                    {trf('Đã có quyền ghi danh hợp lệ ({0})', { 0: cohort.entitlementReference })}
+                    {tr('Đã được Admin cấp quyền ghi danh cho lớp này.')}
                   </p>
                 ) : (
                   <p className="course-meta" style={{ color: '#8f2948' }}>{statusReason}</p>
@@ -350,7 +393,7 @@ export default function LearnerCohortDiscoveryPanel({
         {confirmCohort && (
           <div className="space-y-3 text-[13px] text-rp-text-2">
             <p className="text-rp-text">
-              {tr('Cấp độ:')}{' '}<strong>{confirmCohort.level}</strong> · Mentor: <strong>{confirmCohort.mentorName}</strong>{' '}{tr('· Khai giảng:')}{' '}{fmtDate(confirmCohort.startsAt)}
+              {tr('Cấp độ:')}{' '}<strong>{confirmCohort.level}</strong> · {tr('Giáo viên:')} <strong>{confirmCohort.mentorName}</strong>{' '}{tr('· Khai giảng:')}{' '}{fmtDate(confirmCohort.startsAt)}
             </p>
             <div className="flex flex-wrap items-center gap-2 text-xs text-rp-text-muted">
               <IntensityBadge cohort={confirmCohort} />
@@ -359,7 +402,7 @@ export default function LearnerCohortDiscoveryPanel({
             <p className="text-xs text-rp-text-muted">{trf('Lịch học: {0}', { 0: schedulePatternText(confirmCohort.schedulePattern, confirmCohort.sessions) })}</p>
             {confirmCohort.hasApprovedEntitlement ? (
               <p className="rounded-xl border border-rp-success-line bg-rp-success-bg px-3 py-2 text-xs text-rp-success">
-                {tr('Ghi danh bằng quyền học:')}{' '}<code>{confirmCohort.entitlementReference || tr('Theo kiểm tra chính sách máy chủ')}</code>{' '}{tr('· Không phát sinh thanh toán.')}
+                {tr('Ghi danh bằng quyền học đã được Admin cấp · Không phát sinh thanh toán.')}
               </p>
             ) : (
               <div className="rounded-xl border border-rp-line bg-rp-bg-2 p-3 space-y-1.5">

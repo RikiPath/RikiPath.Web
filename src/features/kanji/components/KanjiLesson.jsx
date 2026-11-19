@@ -123,7 +123,7 @@ function StrokeOrder({ character, active = 0 }) {
             <svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
               <g transform={transform}>
                 {strokes.slice(0, index + 1).map((path, pathIndex) => (
-                  <path key={pathIndex} d={path} fill={pathIndex === index ? '#AD3155' : '#E4D0D8'} />
+                  <path key={pathIndex} d={path} fill={pathIndex === index ? '#CC4B6B' : '#E6D6DC'} />
                 ))}
               </g>
             </svg>

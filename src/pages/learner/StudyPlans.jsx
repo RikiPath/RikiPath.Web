@@ -64,7 +64,7 @@ export default function StudyPlans() {
               </p>
               <h1 className="mt-1 text-[22px] font-bold text-rp-text sm:text-2xl">{tr('Gói tự học & lượt chấm AI')}</h1>
               <p className="mt-1.5 max-w-2xl text-sm leading-6 text-rp-text-2">
-                {tr('Chọn gói tự học theo ngày, luyện kỹ năng JLPT và lượt chấm Haru AI. Lớp học nhóm cùng Mentor được đăng ký riêng theo khóa 10 tuần tại mục Tìm Mentor.')}
+                {tr('Chọn gói tự học theo ngày, luyện kỹ năng JLPT và lượt chấm Haru AI. Lớp học nhóm cùng Giáo viên được đăng ký riêng theo khóa 10 tuần tại mục Tìm Giáo viên.')}
               </p>
             </div>
           </div>

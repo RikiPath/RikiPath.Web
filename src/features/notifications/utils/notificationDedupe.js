@@ -47,7 +47,26 @@ export function createNotificationDeduper(limit = 300) {
 /** Only app-relative links from notifications are followed (no open redirect). */
 export function notificationDestination(url) {
   if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) return '';
-  const path = url.split('?')[0].replace(/\/+$/, '') || '/';
-  if (path === '/mentor-availability') return '/work-schedule/';
+  const [rawPath, rawQuery] = url.split('?');
+  const path = rawPath.replace(/\/+$/, '') || '/';
+  const suffix = rawQuery ? `?${rawQuery}` : '';
+
+  if (path === '/mentor-availability' || path === '/mentor/availability') return `/work-schedule/${suffix}`;
+  if (path === '/mentor/schedule') return `/work-schedule/${suffix}`;
+  if (path === '/mentor/profile') return `/mentor-profile/${suffix}`;
+  if (path === '/mentor/reviews') return `/mentor-reviews/${suffix}`;
+  if (path === '/mentor/disputes' || path === '/mentor/complaints') return `/mentor-disputes/${suffix}`;
+  if (path === '/mentor/cohorts') return `/mentor-study-courses/${suffix}`;
+
+  const cohortMatch = path.match(/^\/mentor\/cohorts\/(\d+)$/);
+  if (cohortMatch) return `/mentor-study-courses/${cohortMatch[1]}/${suffix}`;
+
+  const complaintMatch = path.match(/^\/mentor\/complaints\/(\d+)$/);
+  if (complaintMatch) {
+    const params = new URLSearchParams(rawQuery || '');
+    params.set('complaintId', complaintMatch[1]);
+    return `/mentor-disputes/?${params.toString()}`;
+  }
+
   return url;
 }

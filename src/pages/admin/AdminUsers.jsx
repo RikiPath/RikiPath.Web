@@ -21,7 +21,7 @@ import { useLocale } from '@/locales/locale.js';
 const ROLE_LABELS = {
   Admin: 'Quản trị',
   ContentAuthor: 'Biên tập',
-  Mentor: 'Cố vấn',
+  Mentor: 'Giáo viên',
   Learner: 'Người ôn luyện',
 };
 

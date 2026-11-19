@@ -42,10 +42,10 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
     <section className="course-box" aria-labelledby={`transfer-${course.id}`}>
       <h2 id={`transfer-${course.id}`}>{tr('Yêu cầu chuyển lớp')}</h2>
       <p className="course-meta">
-        {tr('Mentor chính hiện tại:')}{' '}<strong>{course.mentorName || tr('Chưa phân công')}</strong>{' '}{tr('· Lớp hiện tại #')}{course.cohortId}{tr('. Việc chuyển lớp cần Admin xem xét sức chứa, lịch học, cấp độ và chính sách; lịch sử điểm danh, bài tập về nhà và nhận xét của bạn được giữ nguyên.')}
+        {tr('Giáo viên chính hiện tại:')}{' '}<strong>{course.mentorName || tr('Chưa phân công')}</strong>{' '}{tr('· Lớp hiện tại:')}{' '}<strong>{course.cohortName || tr('Lớp đang học')}</strong>{tr('. Việc chuyển lớp cần Admin xem xét sức chứa, lịch học, cấp độ và chính sách; lịch sử điểm danh, bài tập về nhà và nhận xét của bạn được giữ nguyên.')}
       </p>
       <p className="course-meta">
-        {tr('Muốn góp ý hoặc đánh giá Mentor? Hãy dùng mục phản hồi/khiếu nại riêng — đánh giá Mentor không tự động tạo yêu cầu chuyển lớp.')}
+        {tr('Muốn góp ý hoặc đánh giá Giáo viên? Hãy dùng mục phản hồi/khiếu nại riêng — đánh giá Giáo viên không tự động tạo yêu cầu chuyển lớp.')}
       </p>
 
       {course.status === 'Transferred' && (
@@ -111,7 +111,7 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
             return (
               <article className="course-row" key={r.id}>
                 <div className="course-buttons" style={{ justifyContent: 'space-between' }}>
-                  <h3>{tr('Yêu cầu #')}{r.id} <span className={`course-badge ${tone}`}>{tr(label)}</span></h3>
+                  <h3>{tr('Yêu cầu chuyển lớp')} <span className={`course-badge ${tone}`}>{tr(label)}</span></h3>
                   <span className="course-meta">{trf('Gửi lúc {0}', { 0: date(r.createdAtUtc) })}</span>
                 </div>
                 <p className="course-meta">

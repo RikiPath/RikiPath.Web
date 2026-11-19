@@ -1,8 +1,8 @@
 .availability-page {
-  --av-rose: #ad3155;
-  --av-ink: #352d36;
-  --av-muted: #8e7c87;
-  --av-line: #eee4e9;
+  --av-rose: var(--color-rp-brand-pressed, #cc4b6b);
+  --av-ink: var(--color-rp-text, #2d282a);
+  --av-muted: var(--color-rp-text-muted, #776c70);
+  --av-line: var(--color-rp-line, #e8e1e3);
   width: 100%;
   max-width: 1760px;
   margin: 0 auto;
@@ -82,7 +82,7 @@
 .av-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; border: 1px solid #e5d9e0; background: #fff; border-radius: 9px; padding: 8px 13px; color: #795767; font-size: 12px !important; font-weight: 550; white-space: nowrap; }
 .av-button:hover { border-color: #d6a0b4; background: #fdf4f8; }
 .av-button-primary { min-height: 40px; padding: 10px 18px; border-color: var(--av-rose); background: var(--av-rose); color: white; }
-.av-button-primary:hover { background: #972546; border-color: #972546; }
+.av-button-primary:hover { background: var(--color-rp-brand-strong, #b53d5c); border-color: var(--color-rp-brand-strong, #b53d5c); }
 .av-icon-button { border: 1px solid transparent; background: transparent; color: #8f7785; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
 .av-icon-button:hover { background: #f9edf3; color: var(--av-rose); }
 .av-calendar-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 17px 20px 13px; flex-wrap: wrap; }

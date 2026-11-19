@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
@@ -667,6 +667,15 @@ function ContentImportPreviewPage() {
         }),
     });
     const hasChanges = Object.keys(changes).length > 0;
+    useEffect(() => {
+        if (!hasChanges) return undefined;
+        const onBeforeUnload = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [hasChanges]);
     const busy = preview.isPending || confirmImport.isPending || submitReview.isPending ||
         workbookPreview.isPending || applyWorkbook.isPending;
 

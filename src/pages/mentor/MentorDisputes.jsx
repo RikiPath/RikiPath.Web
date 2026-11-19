@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 
 import { MentorShell } from '@/layouts';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -11,6 +11,10 @@ import { useLocale } from '@/locales/locale.js';
 export default function MentorDisputes() {
   const { tr } = useLocale();
   const { pathname } = useLocation();
+  const { complaintId: pathComplaintId } = useParams();
+  const [searchParams] = useSearchParams();
+  const highlightComplaintId = pathComplaintId || searchParams.get('complaintId') || null;
+  const cohortId = searchParams.get('cohortId') || null;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -65,7 +69,7 @@ export default function MentorDisputes() {
         )}
 
         <div className="course-page" style={{ padding: 0 }}>
-          <CohortComplaintPanel role="Mentor" busy={busy} onRun={runAction} />
+          <CohortComplaintPanel role="Mentor" cohortId={cohortId} highlightComplaintId={highlightComplaintId} busy={busy} onRun={runAction} />
         </div>
       </div>
     </MentorShell>

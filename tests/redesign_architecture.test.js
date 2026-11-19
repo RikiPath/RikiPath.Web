@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/SakuraIcons.js';
 import { FEATURE_TONES, errorStateKind } from '@/components/ui/logic.js';
 import { isSessionExpiry } from '@/api/client.js';
-import { ROLE_NAV, findActiveNav } from '@/layouts/appNav.js';
+import { ROLE_NAV, findActiveNav, flattenNavItems } from '@/layouts/appNav.js';
 import {
   learnerKeys,
   learnerScopeKey,
@@ -50,7 +50,7 @@ describe('SakuraIcons & semantic tone mapping', () => {
   });
 
   it('assigns distinct adjacent semantic icons across Learner nav groups', () => {
-    const learnerItems = ROLE_NAV.Learner.groups.flatMap((g) => g.items);
+    const learnerItems = ROLE_NAV.Learner.groups.flatMap((g) => flattenNavItems(g.items));
     const roadmap = learnerItems.find((i) => i.to === '/roadmap');
     const kanji = learnerItems.find((i) => i.to === '/kanji-writing?type=kanji');
     const kana = learnerItems.find((i) => i.to === '/kanji-writing?type=hiragana');
@@ -132,6 +132,15 @@ describe('Layout tokens, sidebar collapse geometry & canonical Group Learning UI
     assert.match(overlay, /<Portal>/);
     assert.match(overlay, /role="tooltip"/);
     assert.match(overlay, /fixed z-\[140\]/);
+  });
+
+  it('lets clicking a hierarchical sidebar parent button smoothly toggle open/closed even on active child routes', () => {
+    const shell = readSrc('src/layouts/AppShell.jsx');
+    const css = readSrc('src/styles/tokens.css');
+    assert.match(shell, /onClick=\{onToggleExpand\}[\s\S]*aria-expanded=\{isOpen\}/);
+    assert.doesNotMatch(shell, /const isOpen = expanded \|\| hasActiveChild/);
+    assert.match(shell, /min-h-0 overflow-hidden/);
+    assert.match(css, /\.rp-sidebar-scroll[\s\S]*scrollbar-gutter:\s*stable/);
   });
 
   it('keeps Haru mascot confined to Learner workspace and absent from Mentor dashboard', () => {

@@ -25,16 +25,16 @@ export default function MentorPublicProfile() {
   const review = reviewQuery.data;
 
   return (
-    <LearnerShell breadcrumb={profile?.name || tr('Hồ sơ Mentor')}>
+    <LearnerShell breadcrumb={profile?.name || tr('Hồ sơ Giáo viên')}>
       <div className="rp-container py-6 lg:py-8">
         <Link to="/mentors/" className="rp-focus mb-4 inline-flex items-center gap-1.5 rounded text-sm font-semibold rp-link">
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />{' '}{tr('Tất cả Mentor')}
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />{' '}{tr('Tất cả Giáo viên')}
         </Link>
 
         {!valid ? (
-          <Card><EmptyState art="search" title={tr('Không tìm thấy Mentor')} description={tr('Đường dẫn hồ sơ không hợp lệ.')} /></Card>
+          <Card><EmptyState art="search" title={tr('Không tìm thấy Giáo viên')} description={tr('Đường dẫn hồ sơ không hợp lệ.')} /></Card>
         ) : profileQuery.isPending ? (
-          <SakuraLoader variant="section" context="profile" label={tr('Đang tải hồ sơ Mentor')} delay={160} />
+          <SakuraLoader variant="section" context="profile" label={tr('Đang tải hồ sơ Giáo viên')} delay={160} />
         ) : profileQuery.isError ? (
           <Card><ErrorState error={profileQuery.error} onRetry={() => profileQuery.refetch()} retrying={profileQuery.isFetching} /></Card>
         ) : (
@@ -43,7 +43,7 @@ export default function MentorPublicProfile() {
               <Avatar src={profile.avatarUrl} name={profile.name} size={72} />
               <div className="min-w-0 flex-1">
                 <h1 className="text-2xl font-bold text-rp-text">{profile.name}</h1>
-                <p className="mt-1 text-sm text-rp-text-2">{profile.expertise || tr('Mentor tiếng Nhật')}</p>
+                <p className="mt-1 text-sm text-rp-text-2">{profile.expertise || tr('Giáo viên tiếng Nhật')}</p>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {(profile.teachingJlptLevels || []).map((l) => <Badge key={l} tone="brand">{trf('Dạy JLPT {0}', { 0: l })}</Badge>)}
                   {profile.jlptLevel && <Badge tone="neutral">{trf('Chứng chỉ {0}', { 0: profile.jlptLevel })}</Badge>}
@@ -73,7 +73,7 @@ export default function MentorPublicProfile() {
                   </div>
                 </dl>
                 {/* Bio is rendered as text (React escapes it) — never as HTML. */}
-                <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-rp-text">{profile.bio || tr('Mentor chưa cập nhật phần giới thiệu.')}</p>
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-rp-text">{profile.bio || tr('Giáo viên chưa cập nhật phần giới thiệu.')}</p>
               </div>
             </div>
           </Card>
@@ -96,7 +96,7 @@ export default function MentorPublicProfile() {
           ) : cohortQuery.isError ? (
             <Card><ErrorState error={cohortQuery.error} onRetry={() => cohortQuery.refetch()} retrying={cohortQuery.isFetching} compact /></Card>
           ) : cohorts.length === 0 ? (
-            <Card><EmptyState art="calendar" title={tr('Mentor chưa có lớp đang mở đăng ký')} description={tr('Bạn có thể quay lại sau hoặc xem lớp của Mentor khác.')} /></Card>
+            <Card><EmptyState art="calendar" title={tr('Giáo viên chưa có lớp đang mở đăng ký')} description={tr('Bạn có thể quay lại sau hoặc xem lớp của Giáo viên khác.')} /></Card>
           ) : (
             <div className="course-page" style={{ padding: 0 }}>
               <div className="course-grid">

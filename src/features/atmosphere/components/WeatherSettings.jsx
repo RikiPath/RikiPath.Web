@@ -17,7 +17,7 @@ const LEVELS = [
   { value: 'high', label: 'Mạnh' },
 ];
 const ROLE_NOTE = {
-  subtle: 'Không gian Mentor dùng phiên bản giản lược (không cánh hoa).',
+  subtle: 'Không gian Giáo viên dùng phiên bản giản lược (không cánh hoa).',
   minimal: 'Không gian làm việc dùng phiên bản tối giản để ưu tiên khả năng đọc.',
 };
 

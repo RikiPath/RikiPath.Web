@@ -235,7 +235,7 @@ export const getMentorCohortReviewSummary = async (mentorId) =>
 // ── Khiếu nại khóa học ──
 export const COMPLAINT_CATEGORIES = Object.freeze([
   { value: 'TeachingQuality', label: 'Chất lượng giảng dạy' },
-  { value: 'MentorConduct', label: 'Thái độ / ứng xử của Mentor' },
+  { value: 'MentorConduct', label: 'Thái độ / ứng xử của Giáo viên' },
   { value: 'Schedule', label: 'Lịch học' },
   { value: 'PaymentEnrollment', label: 'Thanh toán & ghi danh' },
   { value: 'Other', label: 'Khác' },

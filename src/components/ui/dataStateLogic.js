@@ -32,7 +32,7 @@ export function isErrorDataState(state) {
 export const CONTEXT_EMPTY_COPY = Object.freeze({
   groupLearning: {
     title: 'Bạn chưa có lớp học nào.',
-    description: 'Chọn Mentor, xem lịch 10 tuần và cường độ Nhẹ / Tiêu chuẩn / Nâng cao trước khi giữ chỗ.',
+    description: 'Chọn Giáo viên, xem lịch 10 tuần và cường độ Nhẹ / Tiêu chuẩn / Nâng cao trước khi giữ chỗ.',
   },
   srs: {
     title: 'Bạn đã hoàn thành lượt ôn tập hôm nay.',
@@ -40,7 +40,7 @@ export const CONTEXT_EMPTY_COPY = Object.freeze({
   },
   homework: {
     title: 'Chưa có bài tập nào.',
-    description: 'Bài tập do Mentor giao sẽ xuất hiện tại đây cùng hướng dẫn và hạn nộp.',
+    description: 'Bài tập do Giáo viên giao sẽ xuất hiện tại đây cùng hướng dẫn và hạn nộp.',
   },
   progress: {
     title: 'Chưa có dữ liệu tiến độ.',

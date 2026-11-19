@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Globe } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
-import { cx } from '@/components/ui';
+import { HeaderIconBadge, IconButton, cx, notify } from '@/components/ui';
 import viFlag from '@/assets/flags/vi.svg';
 import jaFlag from '@/assets/flags/ja.svg';
+import { languageSwitchMessage } from './languageSwitchFeedback.js';
 
 // Same flags and layout as RikiPath.Mobile `RikiLanguageSwitcher` (assets/flags/*.svg):
 // pill trigger + 188px popover with "Ngôn ngữ / 言語" header, flag rows and a check on the active one.
@@ -22,8 +23,8 @@ function Flag({ src }) {
   );
 }
 
-/** `className` positions/hides the switcher (e.g. "hidden sm:block"); its look is owned here. */
-export default function LanguageSwitch({ className }) {
+/** `variant="icon"` renders the circular Globe trigger with a red language tag badge; `variant="pill"` keeps the wider flag+code pill for auth/public headers. */
+export default function LanguageSwitch({ className, variant = 'pill' }) {
   const { tr, locale, setLocale, t } = useLocale();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -55,7 +56,11 @@ export default function LanguageSwitch({ className }) {
   }, [open]);
 
   function choose(id) {
-    if (id !== locale) setLocale(id);
+    if (id !== locale) {
+      const message = languageSwitchMessage(locale, id);
+      setLocale(id);
+      if (message) notify.success(message, '', { key: 'language-switch', locale, replace: true });
+    }
     setOpen(false);
     triggerRef.current?.focus();
   }
@@ -73,27 +78,49 @@ export default function LanguageSwitch({ className }) {
 
   return (
     <div ref={rootRef} className={cx('relative', className)}>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listId : undefined}
-        aria-label={`${t('langLabel')}: ${t(current.labelKey)}`}
-        onClick={() => setOpen((v) => !v)}
-        className={cx(
-          'rp-focus inline-flex h-9 items-center gap-2 rounded-[10px] border bg-rp-surface pl-2.5 pr-2 text-[13px] font-semibold text-rp-text shadow-rp-xs transition-[border-color,background-color,box-shadow] duration-150',
-          open ? 'border-rp-brand-border bg-rp-brand-tint' : 'border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint',
-        )}
-      >
-        <Flag src={current.flag} />
-        <span key={current.code} className="rp-anim-fade tabular-nums tracking-wide">{current.code}</span>
-        <ChevronDown aria-hidden="true" className={cx('h-4 w-4 text-rp-text-muted transition-transform duration-200', open && 'rotate-180')} />
-      </button>
+      {variant === 'icon' ? (
+        <IconButton
+          ref={triggerRef}
+          icon={Globe}
+          variant="outline"
+          label={`${t('langLabel')}: ${t(current.labelKey)}`}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          onClick={() => setOpen((v) => !v)}
+          className={cx(
+            'shadow-rp-xs',
+            open && 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong',
+          )}
+          badge={(
+            <HeaderIconBadge key={current.code} className="rp-anim-fade tracking-[-0.01em]">
+              {current.code}
+            </HeaderIconBadge>
+          )}
+        />
+      ) : (
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-label={`${t('langLabel')}: ${t(current.labelKey)}`}
+          onClick={() => setOpen((v) => !v)}
+          className={cx(
+            'rp-focus inline-flex h-9 items-center gap-2 rounded-[10px] border bg-rp-surface pl-2.5 pr-2 text-[13px] font-semibold text-rp-text shadow-rp-xs transition-[border-color,background-color,box-shadow] duration-150',
+            open ? 'border-rp-brand-border bg-rp-brand-tint' : 'border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint',
+          )}
+        >
+          <Flag src={current.flag} />
+          <span key={current.code} className="rp-anim-fade tabular-nums tracking-wide">{current.code}</span>
+          <ChevronDown aria-hidden="true" className={cx('h-4 w-4 text-rp-text-muted transition-transform duration-200', open && 'rotate-180')} />
+        </button>
+      )}
 
       {open && (
         <div
-          className="rp-lang-pop absolute right-0 top-[calc(100%+8px)] z-[95] w-[188px] origin-top-right rounded-rp-card border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
+          className="rp-lang-pop absolute right-0 top-[calc(100%+8px)] z-[95] w-[188px] max-w-[calc(100vw-24px)] origin-top-right rounded-rp-card border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
         >
           <p className="flex items-center gap-2 px-2 pb-2 pt-1 text-xs font-semibold text-rp-text">
             <Globe aria-hidden="true" className="h-4 w-4 text-rp-brand" />

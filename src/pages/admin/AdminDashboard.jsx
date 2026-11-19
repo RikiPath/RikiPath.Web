@@ -11,20 +11,20 @@ import { useLocale, currentIntlTag } from '@/locales/locale.js';
 // or invented trend data. The legacy 1-1 booking count is intentionally not shown.
 const ATTENTION = [
   { key: 'pendingContent', label: 'Nội dung chờ duyệt', hint: 'Bài học, từ vựng, câu hỏi đã gửi', to: '/admin/content-review/', icon: ShieldCheck },
-  { key: 'pendingMentorSchedules', label: 'Khung giờ dạy chờ duyệt', hint: 'Mentor đăng ký lịch dạy lớp nhóm', to: '/admin/mentor-schedules/', icon: CalendarCheck },
+  { key: 'pendingMentorSchedules', label: 'Khung giờ dạy chờ duyệt', hint: 'Giáo viên đăng ký lịch dạy lớp nhóm', to: '/admin/mentor-schedules/', icon: CalendarCheck },
 ];
 
 const FIGURES = [
   { key: 'totalUsers', label: 'Tài khoản hoạt động', to: '/admin/users/', icon: UserCog, tone: 'bg-tone-reading-bg text-tone-reading' },
   { key: 'learners', label: 'Học viên', to: '/admin/users/', icon: GraduationCap, tone: 'bg-tone-vocab-bg text-tone-vocab' },
-  { key: 'mentors', label: 'Mentor', to: '/admin/mentors/', icon: UsersRound, tone: 'bg-tone-mentor-bg text-tone-mentor' },
+  { key: 'mentors', label: 'Giáo viên', to: '/admin/mentors/', icon: UsersRound, tone: 'bg-tone-mentor-bg text-tone-mentor' },
   { key: 'activePlans', label: 'Gói tự học mở bán', to: '/admin/study-courses/', icon: Layers, tone: 'bg-tone-grammar-bg text-tone-grammar' },
   { key: 'paidSubscriptions', label: 'Lượt mua đã thanh toán', to: '/admin/study-courses/', icon: CreditCard, tone: 'bg-rp-brand-tint text-rp-brand-strong' },
 ];
 
 const SHORTCUTS = [
   { to: '/admin/study-courses/', label: 'Gói học, lớp & ghi danh', icon: School },
-  { to: '/admin/mentor-verifications/', label: 'Xét duyệt hồ sơ Mentor', icon: BadgeCheck },
+  { to: '/admin/mentor-verifications/', label: 'Xét duyệt hồ sơ Giáo viên', icon: BadgeCheck },
   { to: '/admin/slot-review/', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarCheck },
 ];
 

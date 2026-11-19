@@ -77,13 +77,13 @@ export default function Pagination({
   const isAdmin = variant === 'admin';
 
   const activeBtnClass = isSakura
-    ? 'bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] text-white shadow-sm shadow-[#D94B68]/30 font-bold border-transparent'
+    ? 'bg-rp-brand-pressed text-white shadow-sm shadow-rp-brand/25 font-bold border-transparent'
     : isAdmin
     ? 'bg-primary text-on-primary font-bold shadow-xs border-transparent'
     : 'bg-gray-900 text-white font-bold border-transparent';
 
   const idleBtnClass =
-    'bg-white text-[#2D282A] border border-[#EADFD9] hover:bg-[#FDF2F5] hover:text-[#D94B68] hover:border-[#F8BBD0] transition-all font-medium';
+    'bg-white text-[#2D282A] border border-[#E8E1E3] hover:bg-[#FFF4F7] hover:text-[#CC4B6B] hover:border-[#F2CCD7] transition-all font-medium';
 
   return (
     <div
@@ -108,7 +108,7 @@ export default function Pagination({
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="py-1 px-2.5 bg-[#FAF7F5] border border-[#EADFD9] rounded-lg text-xs font-semibold text-[#2D282A] focus:outline-none focus:border-[#D94B68] focus:ring-1 focus:ring-[#D94B68]/40 transition-colors cursor-pointer"
+              className="py-1 px-2.5 bg-[#FAF8F6] border border-[#E8E1E3] rounded-lg text-xs font-semibold text-[#2D282A] focus:outline-none focus:border-rp-brand focus:ring-1 focus:ring-rp-brand/35 transition-colors cursor-pointer"
             >
               {pageSizeOptions.map((opt) => (
                 <option key={opt} value={opt}>

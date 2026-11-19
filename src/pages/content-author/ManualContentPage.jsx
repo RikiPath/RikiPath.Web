@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/api/client.js';
 import { uploadListeningAudio } from '@/features/content-author/api/contentImportApi.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useAuth } from '@/app/auth/authContext.js';
 import { ContentAuthorShell } from '@/layouts';
 import { describeApiError } from '@/api/apiErrors.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
+import { ContextualErrorState, Modal, SakuraLoader, confirmAction } from '@/components/ui';
 import { AUTHOR_LEVELS } from '@/features/content-author/constants/authorLevels.js';
 import { ORDERING_TYPE, normalizeKeys, statuses, withRowId } from '@/features/content-author/utils/contentModel.js';
 import { useLocale } from '@/locales/locale.js';
@@ -269,11 +269,12 @@ function LessonTopicField({ data, change, topics }) {
   </div>;
 }
 
-export function ContentForm({ type, initial, record, lookups, save, close, viewOnly = false }) {
+export function ContentForm({ type, initial, record, latestRecord, lookups, save, close, viewOnly = false, onDirtyChange }) {
   const { trf, tr } = useLocale();
   const [data, setData] = useState(initial);
   const [formError, setFormError] = useState('');
-  const readOnly = viewOnly || record?.status === 'PendingReview';
+  const staleStatusConflict = Boolean(record?.id && latestRecord?.status && record?.status && latestRecord.status !== record.status);
+  const readOnly = viewOnly || record?.status === 'PendingReview' || staleStatusConflict;
   const change = (key, value) => setData(previous => updateField(previous, key, value));
   const skills = lookups.skills.map(skill => ({ value: skill.id, label: skill.name }));
   const exercise = type === 'PracticeExercise';
@@ -282,6 +283,11 @@ export function ContentForm({ type, initial, record, lookups, save, close, viewO
     queryFn: () => api.get(endpoint + '/lessons/' + data.certificateLevelId),
     enabled: exercise && Boolean(data.certificateLevelId),
   });
+  const isDirty = !readOnly && JSON.stringify(data) !== JSON.stringify(initial);
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    return () => onDirtyChange?.(false);
+  }, [isDirty, onDirtyChange]);
   const published = record?.status === 'Approved';
 
   function submit(event) {
@@ -308,7 +314,14 @@ export function ContentForm({ type, initial, record, lookups, save, close, viewO
       <h2 className="text-lg font-bold">{readOnly ? tr('Xem nội dung') : record ? tr('Sửa nội dung') : tr('Thêm nội dung')}</h2>
       <button className={actionClass} type="button" onClick={close}>{tr('Đóng biểu mẫu')}</button>
     </div>
-    {published && <p className="text-sm">{tr('Khi lưu, hệ thống tạo bản chỉnh sửa để gửi Admin duyệt.')}</p>}
+    {published && !staleStatusConflict && <p className="text-sm">{tr('Khi lưu, hệ thống tạo bản chỉnh sửa để gửi Admin duyệt.')}</p>}
+    {staleStatusConflict && (
+      <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        {trf('Trạng thái học liệu vừa chuyển sang "{0}" từ thao tác khác. Hãy đóng và mở lại để tránh ghi đè dữ liệu mới.', {
+          0: tr(statuses[latestRecord.status]?.label ?? latestRecord.status),
+        })}
+      </p>
+    )}
     <fieldset disabled={save.isPending || readOnly} className="space-y-4">
       <Select label={tr('Cấp độ')} value={data.certificateLevelId}
         change={value => setData(previous => ({ ...previous, certificateLevelId: Number(value), lessonId: null, lessonTitle: exercise ? '' : previous.lessonTitle }))}
@@ -367,11 +380,23 @@ export function ContentForm({ type, initial, record, lookups, save, close, viewO
 export function ManualContentWorkspace({ heading = 'Tạo và sửa học liệu', pageName, children, examOnly = false, fixedType }) {
   const { tr, trf } = useLocale();
   const { user } = useAuth();
-  const [selectedType, setType] = useState('Lesson');
+  const [searchParams] = useSearchParams();
+  const paramType = searchParams.get('type');
+  const [selectedType, setType] = useState(() => (paramType && definitions[paramType] ? paramType : 'Lesson'));
   const type = fixedType ?? (examOnly ? 'MockTest' : selectedType);
   const [activeLevel, setActiveLevel] = useState(AUTHOR_LEVELS[0]);
   const [examSearch, setExamSearch] = useState('');
   const [editor, setEditor] = useState(null);
+  const [formDirty, setFormDirty] = useState(false);
+  useEffect(() => {
+    if (!formDirty) return undefined;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [formDirty]);
   const [approvalFilter, setApprovalFilter] = useState('');
   const [notice, setNotice] = useState('');
   const queryClient = useQueryClient();
@@ -445,8 +470,17 @@ export function ManualContentWorkspace({ heading = 'Tạo và sửa học liệu
     onError: (err) => notify.apiError(err, 'Không gửi được nội dung để duyệt', { key: 'manual-content-submit-err' }),
   });
 
-  function openEditor(item) {
+  async function openEditor(item) {
     if (save.isPending || send.isPending) return;
+    if (formDirty && editor !== item) {
+      const ok = await confirmAction({
+        title: 'Chưa lưu thay đổi?',
+        description: 'Nội dung bạn đang soạn hoặc chỉnh sửa chưa được lưu bản nháp.',
+        confirmLabel: 'Bỏ thay đổi',
+        tone: 'warning',
+      });
+      if (!ok) return;
+    }
     save.reset();
     send.reset();
     setNotice('');
@@ -507,10 +541,17 @@ export function ManualContentWorkspace({ heading = 'Tạo và sửa học liệu
           retrying={lookups.isFetching || list.isFetching || detail.isFetching}
         />
       )}
-      {editor && formLookups && (editor.id ? detail.data
-        ? <ContentForm key={editor.id} type={type} record={editor} initial={detail.data} lookups={formLookups} save={save} close={() => openEditor(null)} />
-        : detail.isPending && <SakuraLoader variant="section" context="lesson" delay={160} />
-        : <ContentForm key={type} type={type} initial={editor.initial ?? {}} lookups={formLookups} save={save} close={() => openEditor(null)} />)}
+      <Modal
+        open={Boolean(editor)}
+        onClose={() => openEditor(null)}
+        title={editor?.id ? tr('Chỉnh sửa mục học liệu') : tr('Tạo mục học liệu mới')}
+        size="xl"
+      >
+        {editor && formLookups && (editor.id ? detail.data
+          ? <ContentForm key={editor.id} type={type} record={editor} latestRecord={list.data?.find(x => x.id === editor.id)} initial={detail.data} lookups={formLookups} save={save} close={() => openEditor(null)} onDirtyChange={setFormDirty} />
+          : detail.isPending && <SakuraLoader variant="section" context="lesson" delay={160} />
+          : <ContentForm key={type} type={type} initial={editor.initial ?? {}} lookups={formLookups} save={save} close={() => openEditor(null)} onDirtyChange={setFormDirty} />)}
+      </Modal>
       {(list.isPending || lookups.isPending) && <SakuraLoader variant="section" context="data" delay={160} />}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-lg font-semibold">{examOnly ? tr('Đề thi của tôi') : fixedType === 'Lesson' ? tr('Bài học của tôi') : tr('Học liệu của tôi')}</h2>
@@ -523,9 +564,9 @@ export function ManualContentWorkspace({ heading = 'Tạo và sửa học liệu
         </label>
       </div>
       {!list.isPending && !lookups.isPending && !list.isError && !lookups.isError && visibleItems?.length === 0 && (
-        <p>{examOnly ? 'Chưa có đề phù hợp ở cấp ' + activeLevel + '.' : approvalFilter
-          ? 'Chưa có học liệu ' + activeLevel + ' ở trạng thái này.'
-          : 'Bạn chưa có học liệu ' + activeLevel + ' thuộc loại này.'}</p>
+        <p>{examOnly ? trf('Chưa có đề phù hợp ở cấp {0}.', { 0: activeLevel }) : approvalFilter
+          ? trf('Chưa có học liệu {0} ở trạng thái này.', { 0: activeLevel })
+          : trf('Bạn chưa có học liệu {0} thuộc loại này.', { 0: activeLevel })}</p>
       )}
       <ul className="space-y-2">
         {visibleItems?.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rp-line bg-white p-4">
@@ -533,7 +574,7 @@ export function ManualContentWorkspace({ heading = 'Tạo và sửa học liệu
             <p className="font-semibold">{item.rowKey}</p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-rp-text-muted">
               <span className={'rounded-full px-2.5 py-1 text-xs font-semibold ' + (statuses[item.status]?.style ?? '')}>
-                {statuses[item.status]?.label ?? item.status}
+                {tr(statuses[item.status]?.label ?? item.status)}
               </span>
               {item.topicTitle && <span>{trf('Chủ đề · {0}', { 0: item.topicTitle })}</span>}
               {item.sourceFileName && <span>{item.sourceFileName}</span>}
@@ -542,7 +583,7 @@ export function ManualContentWorkspace({ heading = 'Tạo và sửa học liệu
           </div>
           <div className="flex gap-2">
             <button className={actionClass} type="button" onClick={() => openEditor(item)}>
-              {item.status === 'PendingReview' ? 'Xem' : tr('Sửa')}
+              {item.status === 'PendingReview' ? tr('Xem') : tr('Sửa')}
             </button>
             {item.status === 'Draft' && <button className={actionClass} type="button"
               disabled={send.isPending || editor?.id === item.id} onClick={() => send.mutate(item.id)}>{tr('Yêu cầu Admin duyệt')}</button>}
