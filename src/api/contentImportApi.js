@@ -42,17 +42,22 @@ export async function editExcelWorkbook(file, edits) {
  * @param {string} [entityType] 
  * @returns {Promise<any>}
  */
-export async function previewContentImport(file, entityType) {
+export async function previewContentImport(file, entityType, audioFiles = [], imageFiles = []) {
   const formData = new FormData();
   formData.append('file', file, file.name || 'import.xlsx');
-
+  for (const audio of audioFiles) {
+    formData.append('audioFiles', audio, audio.webkitRelativePath || audio.name);
+  }
+  for (const image of imageFiles) {
+    formData.append('imageFiles', image, image.webkitRelativePath || image.name);
+  }
 
   const response = await api.post('/content-import/preview', formData, {
     params: { entityType: entityType || undefined },
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    timeout: 60000,
+    timeout: 300000,
     transformRequest: [(payload, headers) => {
       delete headers['Content-Type'];
       return payload;
@@ -77,7 +82,13 @@ export async function confirmContentImport(payload) {
 export async function uploadListeningAudio(file) {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await api.post('/content-import/listening-audio', formData, { timeout: 60000 });
+  if (!/\.mp3$/i.test(file.name) || file.size < 4 || file.size > 25 * 1024 * 1024) {
+    throw new Error('Chọn file MP3 có dữ liệu, tối đa 25 MB.');
+  }
+  const response = await api.post('/content-import/listening-audio', formData, {
+    timeout: 60000,
+    transformRequest: [(data, headers) => { delete headers['Content-Type']; return data; }],
+  });
   return response?.result ?? response;
 }
 
@@ -92,4 +103,18 @@ export async function getAuthorImportBatch(batchId) {
 export async function submitAuthorImportBatch(batchId) {
   const response = await api.post('/content-author/manual/import-batches/' + batchId + '/submit');
   return response.result;
+}
+
+export async function getAudioTranscript(audioUrl) {
+  const response = await api.get('/content-import/listening-audio/transcript', { params: { audioUrl } });
+  return response.result ?? null;
+}
+
+export async function retryAudioTranscript(audioUrl) {
+  const response = await api.post('/content-import/listening-audio/transcript', { audioUrl });
+  return response.result;
+}
+
+export async function getMyAudioUploads() {
+  return (await api.get('/content-import/listening-audio/uploads')).result ?? [];
 }

@@ -106,6 +106,7 @@ export default function LessonPractice() {
                   <div>
                     <p className="text-[11px] text-[#AD3155]">{exercise.languageSkillName || tr('Luyện tập')}</p>
                     <h2 className="mt-1 text-[16px] font-semibold">{exercise.title}</h2>
+                    {exercise.imageUrl && <img src={exercise.imageUrl} alt={exercise.title} loading="lazy" className="my-2 max-h-64 max-w-full rounded-lg object-contain" />}
                     {exercise.description && <p className="mt-1 text-[13px] leading-6 text-[#8C7782]">{exercise.description}</p>}
                     <p className="mt-2 text-[12px] text-[#8C7782]">
                       {exercise.questionCount} {tr('câu')}
@@ -132,10 +133,12 @@ export default function LessonPractice() {
               <h2 className="text-[18px] font-semibold">{attempt.title}</h2>
               <button type="button" onClick={() => setAttempt(null)} className={`text-[12px] text-[#8C7782] ${focus}`}>{tr('Danh sách')}</button>
             </div>
+            {attempt.imageUrl && <img src={attempt.imageUrl} alt={attempt.title} loading="lazy" className="mt-3 max-h-64 max-w-full rounded-lg object-contain" />}
             <ol className="mt-4 space-y-5">
               {(attempt.questions || []).map((question, index) => (
                 <li key={question.id}>
                   <p className="text-[14px] font-medium">{index + 1}. {question.questionText}</p>
+                  {question.imageUrl && <img src={question.imageUrl} alt={'Hình câu ' + (index + 1)} loading="lazy" className="mt-2 max-h-80 max-w-full rounded-lg object-contain" />}
                   {question.options?.length > 0 ? (
                     <div className="mt-2 space-y-2">
                       {question.options.map((option) => (
@@ -146,7 +149,7 @@ export default function LessonPractice() {
                             checked={picks[question.id] === option.id}
                             onChange={() => setPicks((prev) => ({ ...prev, [question.id]: option.id }))}
                           />
-                          <span>{option.optionText}</span>
+                          <span>{option.optionText}{option.imageUrl && <img src={option.imageUrl} alt="Hình lựa chọn" loading="lazy" className="mt-1 max-h-48 max-w-full object-contain" />}</span>
                         </label>
                       ))}
                     </div>

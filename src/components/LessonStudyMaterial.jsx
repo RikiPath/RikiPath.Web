@@ -9,6 +9,7 @@ export default function LessonStudyMaterial({ detail }) {
       example: item.exampleSentence,
       translation: item.exampleSentenceMeaning,
       audioUrl: item.audioUrl,
+      imageUrl: item.imageUrl,
     })) },
     { type: 'kanji', title: 'Hán tự', items: kanjis.map(item => ({
       id: item.kanjiId,
@@ -19,13 +20,15 @@ export default function LessonStudyMaterial({ detail }) {
         item.kunYomi && 'Kun ' + item.kunYomi,
         item.strokeCount > 0 && item.strokeCount + ' nét',
       ].filter(Boolean).join(' · '),
-      imageUrl: item.strokeOrderImageUrl,
+      imageUrl: item.imageUrl ?? item.strokeOrderImageUrl,
+      strokeImageUrl: item.imageUrl ? item.strokeOrderImageUrl : null,
       audioUrl: item.audioUrl,
     })) },
     { type: 'grammar', title: 'Ngữ pháp', items: grammars.map(item => ({
       id: item.grammarPatternId,
       label: [item.title, item.structure].filter(Boolean).join(' · '),
       notes: item.usageNotes,
+      imageUrl: item.imageUrl,
       example: item.exampleSentence,
       translation: item.exampleSentenceMeaning,
     })) },
@@ -34,6 +37,7 @@ export default function LessonStudyMaterial({ detail }) {
 
   return <div className="space-y-4 text-sm leading-relaxed">
     {content && <p className="whitespace-pre-wrap">{content}</p>}
+    {detail.imageUrl && <img src={detail.imageUrl} alt={'Hình minh họa ' + detail.title} loading="lazy" className="max-h-96 max-w-full rounded-lg object-contain" />}
     {detail.audioUrl && <section aria-labelledby={'audio-lesson-' + detail.lessonId}>
       <h3 id={'audio-lesson-' + detail.lessonId} className="font-bold text-primary">Audio bài học</h3>
       <audio className="mt-2 max-w-full" controls preload="none" aria-label={'Nghe ' + detail.title} src={detail.audioUrl} />
@@ -47,7 +51,8 @@ export default function LessonStudyMaterial({ detail }) {
           {item.example && <p lang="ja" className="mt-1 whitespace-pre-wrap">{item.example}</p>}
           {item.translation && <p className="whitespace-pre-wrap text-[#765E6B]">{item.translation}</p>}
           {item.imageUrl && <img className="mt-1 max-h-28 max-w-full" src={item.imageUrl}
-            alt={'Thứ tự nét ' + item.label} loading="lazy" />}
+            alt={'Hình minh họa ' + item.label} loading="lazy" />}
+          {item.strokeImageUrl && <img src={item.strokeImageUrl} alt={'Thứ tự nét ' + item.label} loading="lazy" className="mt-1 max-h-28 max-w-full" />}
           {item.audioUrl && <audio className="mt-1 max-w-full" controls preload="none"
             aria-label={'Nghe ' + item.label} src={item.audioUrl} />}
           <LearnerFeedbackPanel type={group.type} id={item.id} label="Phản hồi về mục này" />
@@ -55,7 +60,7 @@ export default function LessonStudyMaterial({ detail }) {
       </ul>
     </section>)}
     {!availableGroups.length && <p className="text-[#765E6B]">
-      {content || detail.audioUrl
+      {content || detail.audioUrl || detail.imageUrl
         ? 'Bài này chưa có Hán tự, từ vựng hoặc ngữ pháp được liên kết.'
         : 'Bài này chưa có nội dung tự học.'}
     </p>}

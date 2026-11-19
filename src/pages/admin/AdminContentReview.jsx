@@ -291,10 +291,12 @@ function LessonRelatedContent({ items = [] }) {
                           {questions.map((question, questionIndex) => (
                             <li key={question.sortOrder ?? question.SortOrder ?? questionIndex}>
                               <p className="whitespace-pre-wrap">{question.questionText ?? question.QuestionText}</p>
+                              {(question.imageUrl ?? question.ImageUrl) && <img src={question.imageUrl ?? question.ImageUrl} alt="Ảnh câu hỏi" loading="lazy" className="mt-2 max-h-64 max-w-full object-contain" />}
                               <ul className="mt-1 list-disc pl-4">
                                 {(question.options ?? question.Options ?? []).map((option, optionIndex) => (
                                   <li key={option.sortOrder ?? option.SortOrder ?? optionIndex} className={option.isCorrect ?? option.IsCorrect ? 'font-semibold text-emerald-700' : ''}>
                                     {option.optionText ?? option.OptionText}
+                                    {(option.imageUrl ?? option.ImageUrl) && <img src={option.imageUrl ?? option.ImageUrl} alt="Ảnh đáp án" loading="lazy" className="mt-1 max-h-40 max-w-full object-contain" />}
                                   </li>
                                 ))}
                               </ul>

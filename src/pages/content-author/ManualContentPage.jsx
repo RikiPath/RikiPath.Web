@@ -1,3 +1,4 @@
+import AudioTranscriptPanel from '../../components/AudioTranscriptPanel.jsx';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -102,6 +103,7 @@ function AudioField({ data, change }) {
     </label>
     {upload.isPending && <p role="status" className="text-sm">Đang tải MP3…</p>}
     {upload.isError && <p role="alert" className="text-sm text-rose-700">{upload.error.message}</p>}
+    {data.audioUrl && <AudioTranscriptPanel audioUrl={data.audioUrl} />}
   </div>;
 }
 
@@ -211,6 +213,17 @@ function QuestionFormat({ question, change, formats }) {
       }} />
       Phát lựa chọn trong audio, chỉ hiển thị số
     </label>}
+    {listening && <div className="space-y-2">
+      <p className="text-sm text-[#765E6B]">Nếu dùng một MP3 cho nhiều câu, điền khoảng thời gian chứa lời thoại của câu này.</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {[['audioStartSeconds', 'Bắt đầu (giây)'], ['audioEndSeconds', 'Kết thúc (giây)']].map(([key, label]) =>
+          <label key={key} className="block text-sm font-medium">
+            {label}
+            <input type="number" min="0" step="any" className={inputClass} value={data[key] ?? ''}
+              onChange={event => changeData(key, event.target.value === '' ? undefined : Number(event.target.value))} />
+          </label>)}
+      </div>
+    </div>}
   </fieldset>;
 }
 

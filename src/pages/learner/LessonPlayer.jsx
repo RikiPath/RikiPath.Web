@@ -37,7 +37,7 @@ function faceOf(part, item) {
         item.strokeCount ? { label: 'Nét', value: String(item.strokeCount), vi: true } : null,
       ].filter(Boolean),
       audio: item.audioUrl,
-      image: item.strokeOrderImageUrl,
+      image: item.imageUrl ?? item.strokeOrderImageUrl,
     };
   }
   if (part === 'grammar') {
@@ -50,6 +50,7 @@ function faceOf(part, item) {
       noteVi: true,
       example: item.exampleSentence,
       exampleMeaning: item.exampleSentenceMeaning,
+      image: item.imageUrl,
     };
   }
   return {
@@ -60,6 +61,7 @@ function faceOf(part, item) {
     example: item.exampleSentence,
     exampleMeaning: item.exampleSentenceMeaning,
     audio: item.audioUrl,
+    image: item.imageUrl,
   };
 }
 
@@ -296,6 +298,7 @@ export default function LessonPlayer() {
                 <div>
                   <p className="text-[12px] text-[#AD3155]">{lesson.levelCode}</p>
                   <h1 className="mt-1 text-[26px] font-medium leading-tight">{lesson.title}</h1>
+                  {lesson.imageUrl && <img src={lesson.imageUrl} alt={lesson.title} loading="lazy" className="mt-3 max-h-80 max-w-full rounded-xl object-contain" />}
                   {lesson.content && <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[#95828C]">{lesson.content}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
