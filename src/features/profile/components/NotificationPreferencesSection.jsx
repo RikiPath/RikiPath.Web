@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Bell, Lock, Mail, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Banner, Switch, notify } from '@/components/ui';
@@ -26,11 +26,13 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
   const [prefs, setPrefs] = useState(() => clonePrefs(profile, categoriesMeta));
   const [failedPayload, setFailedPayload] = useState(null);
 
-  useEffect(() => {
+  const [lastSource, setLastSource] = useState({ profile, categoriesMeta });
+  if (profile !== lastSource.profile || categoriesMeta !== lastSource.categoriesMeta) {
+    setLastSource({ profile, categoriesMeta });
     if (profile && !failedPayload) {
       setPrefs(clonePrefs(profile, categoriesMeta));
     }
-  }, [profile, categoriesMeta, failedPayload]);
+  }
 
   const mutation = useMutation({
     mutationFn: ({ nextPrefs }) => updateNotificationSettings(nextPrefs),

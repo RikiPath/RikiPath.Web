@@ -150,7 +150,7 @@ function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', 
       >
         <Icon className={cx('h-[17px] w-[17px]', active && 'text-white')} />
       </span>
-      {!collapsed && <span className="min-w-0 flex-1 truncate">{tr(label)}</span>}
+      {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
     </NavLink>
   );
   return collapsed ? (
@@ -796,7 +796,7 @@ function QuickJumpModal({ open, onClose, groups, tr }) {
         ) : (
           filtered.map((g) => (
             <div key={g.label}>
-              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-rp-text-muted">{tr(g.label)}</p>
+              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-rp-text-muted">{g.label}</p>
               <ul className="space-y-1">
                 {g.items.map((item) => {
                   const tone = FEATURE_TONES[item.tone] || FEATURE_TONES.neutral;
@@ -873,10 +873,11 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [lastPath, setLastPath] = useState(pathname);
-  if (lastPath !== pathname) {
-    setLastPath(pathname);
-    if (drawerOpen) setDrawerOpen(false);
+  const locationKey = `${pathname}${search}`;
+  const [lastLocationKey, setLastLocationKey] = useState(locationKey);
+  if (locationKey !== lastLocationKey) {
+    setLastLocationKey(locationKey);
+    setDrawerOpen(false);
   }
 
   useEffect(() => {
@@ -970,7 +971,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
       </aside>
 
       {/* Mobile / tablet drawer */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="left" width="w-[min(300px,88vw)]" title={area}>
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="left" width="w-[min(300px,88vw)]" title={nav.area}>
         <div className="flex min-h-full flex-col">
           <SidebarNav roleKey={roleKey} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
           <div className="shrink-0 space-y-2 border-t border-rp-line p-3 sm:hidden">

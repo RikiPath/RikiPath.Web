@@ -19,6 +19,11 @@ export const writingLessons = [
     prompt: '在宅勤務にはどんな利点と課題がありますか。具体例を挙げて、自分の意見を述べてください。',
     guide: 'Viết khoảng 200–300 chữ tiếng Nhật. Nêu một lợi ích, một hạn chế, ví dụ cụ thể và kết luận của bạn.',
   },
+  {
+    level: 'N1', title: 'AI và thị trường lao động',
+    prompt: '生成AIの普及は今後の雇用や働き方にどのような影響を与えると考えますか。多角的な視点から論じてください。',
+    guide: 'Viết khoảng 350–450 chữ tiếng Nhật. Phân tích tác động hai mặt, nêu dẫn chứng và đề xuất hướng thích ứng.',
+  },
 ];
 
 export const speakingLessons = [
@@ -45,5 +50,11 @@ export const speakingLessons = [
     text: '費用を抑えることも大切ですが、長期的に見れば、使いやすさを優先したほうがよいと思います。',
     reading: 'ひようを おさえることも たいせつですが、ちょうきてきに みれば、つかいやすさを ゆうせんしたほうが よいと おもいます。',
     meaning: 'Tiết kiệm chi phí cũng quan trọng, nhưng xét về lâu dài, tôi nghĩ nên ưu tiên tính dễ sử dụng.',
+  },
+  {
+    level: 'N1', title: 'Phản biện trang trọng',
+    text: 'ご提案の方向性には賛同いたしますが、導入コストの回収見通しについては慎重に精査する必要があるかと存じます。',
+    reading: 'ごていあんの ほうこうせいには さんどういたしますが、どうにゅうコストの かいしゅうみとおしについては しんちょうに せいさする ひつようが あるかと ぞんじます。',
+    meaning: 'Tôi đồng tình với định hướng đề xuất, nhưng tôi cho rằng cần thẩm định thận trọng khả năng thu hồi chi phí triển khai.',
   },
 ];

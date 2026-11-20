@@ -33,7 +33,6 @@ import {
   updateAdminSubscriptionPlan,
 } from '@/features/admin/api/adminApi.js';
 import { courseGet, INTENSITY_OPTIONS, saveCoursePlan } from '@/features/cohorts/api/cohortApi.js';
-import { describeApiError } from '@/api/apiErrors.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 

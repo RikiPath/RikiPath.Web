@@ -1,16 +1,16 @@
 import LessonContent from './LessonContent.jsx';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { LearnerShell } from '@/layouts';
 import { Check, ChevronDown, Headphones, Lock } from 'lucide-react';
-import { Badge, Card, EmptyState, ErrorState, FeatureIcon, ProgressBar, RefreshingIndicator, SakuraLoader, Tabs, cx } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, FeatureIcon, PageContainer, ProgressBar, RefreshingIndicator, SakuraLoader, Tabs, cx } from '@/components/ui';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getCertificateTypes, getLevelsByCertificate } from '@/features/learning-path/api/certificateApi.js';
 import { getLessonCatalog } from '@/features/learning-path/api/learningPathApi.js';
 import { useLocale } from '@/locales/locale.js';
 
-const levels = ['N5', 'N4', 'N3', 'N2'];
+const DEFAULT_LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 const sections = {
   lessons: { title: 'Bài luyện tập' },
   listening: { title: 'Nghe hiểu', skill: 'Listening' },
@@ -32,11 +32,23 @@ function Catalog({ section, userId, requestedLevel }) {
   const { title, skill } = sections[section];
   const queryClient = useQueryClient();
   const preferenceKey = ['rikipath', 'study-level', userId ?? 'guest', section].join(':');
+  const levelQuery = useQuery({
+    queryKey: ['self-study-jlpt-levels'],
+    queryFn: loadJlptLevels,
+    retry: false,
+  });
+  const availableLevels = (() => {
+    const codes = (levelQuery.data || [])
+      .map((l) => (l.code || l.name || '').trim().toUpperCase())
+      .filter((code) => DEFAULT_LEVELS.includes(code));
+    return codes.length > 0 ? codes : DEFAULT_LEVELS;
+  })();
+
   const [level, setLevel] = useState(() => {
-    if (levels.includes(requestedLevel)) return requestedLevel;
+    if (DEFAULT_LEVELS.includes(requestedLevel)) return requestedLevel;
     try {
       const saved = localStorage.getItem(preferenceKey);
-      return levels.includes(saved) ? saved : 'N5';
+      return DEFAULT_LEVELS.includes(saved) ? saved : 'N5';
     } catch {
       return 'N5';
     }
@@ -53,11 +65,6 @@ function Catalog({ section, userId, requestedLevel }) {
     }
   }
 
-  const levelQuery = useQuery({
-    queryKey: ['self-study-jlpt-levels'],
-    queryFn: loadJlptLevels,
-    retry: false,
-  });
   const levelId = levelQuery.data?.find(item => item.code?.trim().toUpperCase() === level)?.id;
   const catalog = useQuery({
     queryKey: ['self-study-catalog', userId, levelId],
@@ -76,7 +83,7 @@ function Catalog({ section, userId, requestedLevel }) {
   const doneCount = lessons.filter((lesson) => lesson.practicePassed || (lesson.isCompleted && !lesson.hasPracticeExercise)).length;
   const feature = section === 'listening' ? 'listening' : section === 'reading' ? 'reading' : 'lesson';
 
-  return <div className="rp-container rp-cq space-y-[var(--rp-space-section)] py-[var(--rp-space-page-y)]">
+  return <PageContainer width="default" density="comfortable" className="space-y-[var(--rp-space-section)]">
     <header className="rounded-rp-card-lg border border-rp-line bg-rp-surface p-[var(--rp-space-card-pad)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
@@ -101,7 +108,7 @@ function Catalog({ section, userId, requestedLevel }) {
         label={tr('Cấp độ ôn luyện')}
         value={level}
         onChange={chooseLevel}
-        tabs={levels.map((code) => ({ value: code, label: `JLPT ${code}` }))}
+        tabs={availableLevels.map((code) => ({ value: code, label: `JLPT ${code}` }))}
       />
     </header>
 
@@ -129,7 +136,7 @@ function Catalog({ section, userId, requestedLevel }) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-rp-text-muted">{skillLabels[lesson.languageSkillName] ?? lesson.languageSkillName}</span>
+                <span className="text-xs font-semibold text-rp-text-muted">{skillLabels[lesson.languageSkillName] ? tr(skillLabels[lesson.languageSkillName]) : lesson.languageSkillName}</span>
                 {lesson.hasAudio && <Badge size="sm" tone="info" icon={Headphones}>{tr('Có audio')}</Badge>}
               </span>
               <span className="rp-jp mt-0.5 block font-semibold text-rp-text">{tr(lesson.title)}</span>
@@ -142,13 +149,23 @@ function Catalog({ section, userId, requestedLevel }) {
             </span>
             {!locked && <ChevronDown aria-hidden="true" className={cx('h-4 w-4 shrink-0 text-rp-text-muted transition-transform', open && 'rotate-180')} />}
           </button>
-          {open && <div className="rp-anim-fade border-t border-rp-line p-4 sm:p-5">
+          {open && <div className="rp-anim-fade space-y-4 border-t border-rp-line p-4 sm:p-5">
+            <div className="flex flex-wrap gap-2">
+              <Link to={`/lesson-player/?lessonId=${lesson.lessonId}`}>
+                <Button variant="secondary" size="sm">{tr('Mở trình học thẻ & Video')}</Button>
+              </Link>
+              {lesson.hasPracticeExercise && (
+                <Link to={`/lesson-practice/?lessonId=${lesson.lessonId}`}>
+                  <Button variant="soft" size="sm">{tr('Mở trang bài tập')}</Button>
+                </Link>
+              )}
+            </div>
             <LessonContent lesson={lesson} userId={userId} skill={skill} refresh={refresh} />
           </div>}
         </li>;
       })}
     </ol>
-  </div>;
+  </PageContainer>;
 }
 
 export default function LessonList({ section = 'lessons' }) {

@@ -15,7 +15,6 @@ import {
   GripVertical,
   List,
   Lock,
-  MoreHorizontal,
   Pencil,
   Plus,
   Send,
@@ -25,7 +24,8 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { Modal, Popover } from '@/components/ui/overlay.jsx';
+import { AlertDialog, Modal, Popover } from '@/components/ui/overlay.jsx';
+import { DateInput } from '@/components/ui/core.jsx';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
 import Pagination from '@/components/ui/Pagination.jsx';
 import { useLocale } from '@/locales/locale.js';
@@ -234,8 +234,6 @@ export default function InteractiveSlotCalendar({
   onAnchorChange,
   selectedSlots: controlledSelectedSlots,
   onSelectedSlotsChange,
-  onRefresh,
-  refreshing = false,
   busy = false,
   onCreateAvailability,
   onCreateAvailabilityBatch,
@@ -257,8 +255,10 @@ export default function InteractiveSlotCalendar({
 
   // Primary display mode: 'calendar' vs 'list' (Lịch | Danh sách)
   const [displayMode, setDisplayMode] = useState('calendar');
-  // Calendar sub-view when displayMode === 'calendar': 'day' | 'week' | 'month'
-  const [calendarSubView, setCalendarSubView] = useState('week');
+  // Calendar sub-view defaults to 'day' on mobile viewports (<768px) per Rule 11, 'week' on tablet/desktop
+  const [calendarSubView, setCalendarSubView] = useState(() => (
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
+  ));
   const view = displayMode === 'list' ? 'week' : calendarSubView;
 
   // Unified Advanced Filtering & Smart Sorting state (persisted across Calendar <-> List switches)
@@ -306,7 +306,6 @@ export default function InteractiveSlotCalendar({
 
   const [monthDayModal, setMonthDayModal] = useState(null);
   const [miniOpen, setMiniOpen] = useState(false);
-  const [openRowMenuId, setOpenRowMenuId] = useState(null);
   const [actionReason, setActionReason] = useState('');
 
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -1355,7 +1354,10 @@ export default function InteractiveSlotCalendar({
     const toSubmit = [...validSelectedSlots].sort((a, b) => (
       a.dayKey === b.dayKey ? a.startMin - b.startMin : a.dayKey.localeCompare(b.dayKey)
     ));
-    const idempotencyKey = `batch-${toSubmit.map((s) => `${s.dayKey}_${s.startMin}`).join('|')}`;
+    const attemptNonce = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const idempotencyKey = `batch-${attemptNonce}`;
 
     if (onCreateAvailabilityBatch) {
       try {
@@ -1589,6 +1591,10 @@ export default function InteractiveSlotCalendar({
         return;
       }
       if (s.isApproved && onRequestCancelSlot) {
+        if (!cancelModalReason.trim()) {
+          setCancelModalError(tr('Vui lòng nhập lý do xin hủy để Quản trị viên xem xét.'));
+          return;
+        }
         await onRequestCancelSlot(s.id, cancelModalReason.trim());
         setCancelingEvent(null);
       }
@@ -2118,7 +2124,7 @@ export default function InteractiveSlotCalendar({
                             >
                               {h >= 12 && (
                                 <span className="text-[8.5px] font-medium text-rp-text-muted/75">
-                                  {trf('Nghỉ {0}p', { 0: restMinutes })}
+                                  {trf('Nghỉ {0} phút', { 0: restMinutes })}
                                 </span>
                               )}
                             </div>
@@ -2199,7 +2205,9 @@ export default function InteractiveSlotCalendar({
                               <span>
                                 {clockFromMinutes(dragVisual.startMin)}–{clockFromMinutes(dragVisual.startMin + durationMinutes)}
                               </span>
-                              <span className="rounded bg-white/90 px-1.5 py-0.5 text-[10px]">{durationMinutes}p</span>
+                              <span className="rounded bg-white/90 px-1.5 py-0.5 text-[10px]">
+                                {trf('{0} phút', { 0: durationMinutes })}
+                              </span>
                             </div>
                             <span className="line-clamp-2 text-[10.5px] font-medium">
                               {dragVisual.valid ? tr('Vị trí hợp lệ · Thả để chọn') : dragVisual.reason}
@@ -2295,8 +2303,8 @@ export default function InteractiveSlotCalendar({
                                     {tr('Đã chọn')}
                                   </span>
                                 ) : (
-                                  <span className="shrink-0 rounded bg-white/75 px-1 py-0.5 text-[9.5px] font-semibold opacity-85">
-                                    90p
+                                  <span className="shrink-0 rounded bg-white/75 px-1.5 py-0.5 text-[9.5px] font-semibold opacity-85">
+                                    {trf('{0} phút', { 0: durationMinutes })}
                                   </span>
                                 )}
                               </div>
@@ -2418,7 +2426,86 @@ export default function InteractiveSlotCalendar({
                 </div>
               ) : (
                 <>
-                  <div className="max-h-[calc(100dvh-236px)] min-h-[440px] overflow-auto">
+                  {/* Mobile Compact Card List (Zero Horizontal Overflow <768px) */}
+                  <div className="divide-y divide-rp-line md:hidden">
+                    {pagedTableRows.map((ev) => {
+                      const meta = getToneMeta(ev.tone);
+                      const { eventTypeLabel, statusKey } = classifyScheduleEvent(ev, nowMs);
+                      const { start, end } = minutesOfEvent(ev);
+                      const mins = Math.max(end - start, durationMinutes);
+                      const s = ev.slot;
+                      const isFuture = s ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs : true;
+                      const canEditDirect = Boolean(ev.isSelectedDraft);
+                      const canRequestChange = Boolean(
+                        !canEditDirect && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
+                      );
+                      const canCancelDirectOrRequest = Boolean(
+                        (ev.isSelectedDraft && ev.selectedKey) ||
+                        (s && !s.isApproved && !s.rejectedAt && !s.isDeleted && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot) ||
+                        (s && s.isApproved && !s.isDeleted && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot)
+                      );
+                      return (
+                        <div key={`m-${ev.id}`} className="space-y-2 p-3.5 text-[13px]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-rp-text-muted">{formatFullDayVn(ev.dayKey, todayKey)}</span>
+                            <span data-status-key={statusKey} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
+                              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                              {tr(ev.statusLabel || meta.label)}
+                            </span>
+                          </div>
+                          <p className="font-bold tabular-nums text-rp-text">
+                            {clockFromMinutes(start)} – {clockFromMinutes(end)}{' '}
+                            <span className="text-xs font-normal text-rp-text-muted">({trf('{0} phút', { 0: mins })})</span>
+                          </p>
+                          <p className="text-xs text-rp-text-2">{tr(eventTypeLabel)}{ev.fullTitle && ev.fullTitle !== ev.timeLabel && !ev.isSelectedDraft ? ` · ${ev.fullTitle}` : ''}</p>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEvent(ev)}
+                              className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>{tr('Xem')}</span>
+                            </button>
+                            {canEditDirect && (
+                              <button
+                                type="button"
+                                onClick={() => openAdjustTimeModal(ev)}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                <span>{tr('Sửa giờ')}</span>
+                              </button>
+                            )}
+                            {canRequestChange && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedEvent(ev)}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2"
+                              >
+                                <Clock className="h-3.5 w-3.5" />
+                                <span>{tr('Yêu cầu đổi giờ')}</span>
+                              </button>
+                            )}
+                            {canCancelDirectOrRequest && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => openCancelConfirmModal(ev)}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 disabled:opacity-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>{tr('Hủy')}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Desktop 5-Column Compact Table */}
+                  <div className="hidden max-h-[calc(100dvh-236px)] min-h-[440px] overflow-auto md:block">
                     <table className="w-full min-w-[680px] border-collapse text-left text-[13px]">
                       <thead className="sticky top-0 z-10 border-b border-rp-line bg-[#FAF7F9] text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
                         <tr>
@@ -2499,7 +2586,7 @@ export default function InteractiveSlotCalendar({
                               <td className="px-4 py-2.5">
                                 <div className="font-bold tabular-nums text-rp-text">
                                   {clockFromMinutes(start)} – {clockFromMinutes(end)}
-                                  <span className="ml-1.5 text-[11.5px] font-normal text-rp-text-muted">({mins}p)</span>
+                                  <span className="ml-1.5 text-[11.5px] font-normal text-rp-text-muted">({trf('{0} phút', { 0: mins })})</span>
                                 </div>
                                 {ev.fullTitle && ev.fullTitle !== ev.timeLabel && !ev.isSelectedDraft && (
                                   <div className="mt-0.5 text-[11.5px] font-medium text-rp-text-2">{ev.fullTitle}</div>
@@ -2557,7 +2644,7 @@ export default function InteractiveSlotCalendar({
                                       className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
                                     >
                                       <Clock className="h-3.5 w-3.5" />
-                                      <span>{tr('Sửa giờ')}</span>
+                                      <span>{tr('Yêu cầu đổi giờ')}</span>
                                     </button>
                                   )}
 
@@ -2801,121 +2888,105 @@ export default function InteractiveSlotCalendar({
         </Modal>
       )}
 
-      {/* Cancel Confirmation Modal ("Xác nhận hủy khung giờ") — Explains consequences clearly */}
-      {cancelingEvent && (
-        <Modal
-          open={Boolean(cancelingEvent)}
-          onClose={() => !busy && setCancelingEvent(null)}
-          title={
-            cancelingEvent.isSelectedDraft
-              ? tr('Bỏ chọn khung giờ?')
-              : cancelingEvent.slot?.isApproved
-                ? tr('Gửi yêu cầu hủy khung giờ đã duyệt')
-                : tr('Hủy khung giờ đang chờ duyệt?')
-          }
-          size="sm"
-        >
-          {(() => {
-            const s = cancelingEvent.slot;
-            const isApprovedSlot = Boolean(s?.isApproved);
-            const cancelDaysLeadOk = s
-              ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= 7 * 86400_000
-              : true;
+      {/* Cancel Confirmation Modal ("Xác nhận hủy khung giờ") — Reads cancellationLeadHours from policy */}
+      {cancelingEvent && (() => {
+        const s = cancelingEvent.slot;
+        const isApprovedSlot = Boolean(s?.isApproved);
+        const leadHours = Number(policy?.cancellationLeadHours) || 168;
+        const leadDays = Math.max(1, Math.round(leadHours / 24));
+        const cancelDaysLeadOk = s
+          ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= leadHours * 3600_000
+          : true;
 
-            return (
-              <form onSubmit={handleConfirmCancelEvent} className="space-y-4 text-[13px]">
-                <div className="rounded-xl border border-rp-line bg-rp-bg-2/70 p-3">
-                  <p className="font-bold text-rp-text">
-                    {formatFullDayVn(cancelingEvent.dayKey, todayKey)} · {ClockRangeText(cancelingEvent)}
-                  </p>
-                  <p className="mt-1 text-[12px] text-rp-text-2">
-                    {cancelingEvent.isSelectedDraft
-                      ? tr('Khung giờ này mới đang được chọn tạm trên lịch và chưa gửi lên hệ thống. Sau khi bỏ chọn, bạn có thể chọn lại bất cứ lúc nào.')
-                      : isApprovedSlot
-                        ? tr('Khung giờ này đã được Quản trị viên phê duyệt. Yêu cầu hủy sẽ được gửi tới Quản trị viên để xem xét (cần gửi trước giờ bắt đầu ít nhất 7 ngày).')
-                        : tr('Khung giờ đang chờ duyệt sẽ bị thu hồi khỏi danh sách gửi duyệt và khoảng thời gian này sẽ trống trở lại.')}
-                  </p>
-                </div>
+        return (
+          <AlertDialog
+            open={Boolean(cancelingEvent)}
+            busy={busy}
+            tone="danger"
+            onCancel={() => !busy && setCancelingEvent(null)}
+            onConfirm={() => {
+              if (isApprovedSlot && !cancelDaysLeadOk) return;
+              handleConfirmCancelEvent();
+            }}
+            cancelLabel="Giữ lại"
+            confirmLabel={
+              cancelingEvent.isSelectedDraft
+                ? 'Bỏ chọn'
+                : isApprovedSlot
+                  ? 'Gửi yêu cầu hủy'
+                  : 'Xác nhận hủy'
+            }
+            title={
+              cancelingEvent.isSelectedDraft
+                ? 'Bỏ chọn khung giờ?'
+                : isApprovedSlot
+                  ? 'Gửi yêu cầu hủy khung giờ đã duyệt'
+                  : 'Hủy khung giờ đang chờ duyệt?'
+            }
+            description={
+              cancelingEvent.isSelectedDraft
+                ? 'Khung giờ này mới đang được chọn tạm trên lịch và chưa gửi lên hệ thống. Sau khi bỏ chọn, bạn có thể chọn lại bất cứ lúc nào.'
+                : isApprovedSlot
+                  ? trf('Khung giờ này đã được Quản trị viên phê duyệt. Yêu cầu hủy sẽ được gửi để xem xét (cần gửi trước giờ bắt đầu ít nhất {0} ngày).', { 0: leadDays })
+                  : 'Khung giờ đang chờ duyệt sẽ bị thu hồi khỏi danh sách gửi duyệt và khoảng thời gian này sẽ trống trở lại.'
+            }
+          >
+            <div className="space-y-3 text-[13px]">
+              <p className="rounded-xl border border-rp-line bg-rp-bg-2/70 px-3 py-2 font-bold text-rp-text">
+                {formatFullDayVn(cancelingEvent.dayKey, todayKey)} · {ClockRangeText(cancelingEvent)}
+              </p>
 
-                {isApprovedSlot && (
-                  <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                    {tr('Lý do xin hủy (gửi Quản trị viên)')}
-                    <input
-                      value={cancelModalReason}
-                      onChange={(e) => setCancelModalReason(e.target.value)}
-                      maxLength={1000}
-                      placeholder={tr('Nhập lý do cần hủy khung giờ này…')}
-                      className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px] font-normal"
-                    />
-                  </label>
-                )}
+              {isApprovedSlot && (
+                <label className="block text-[12.5px] font-semibold text-rp-text-2">
+                  {tr('Lý do xin hủy (gửi Quản trị viên)')}
+                  <input
+                    value={cancelModalReason}
+                    onChange={(e) => setCancelModalReason(e.target.value)}
+                    maxLength={1000}
+                    placeholder={tr('Nhập lý do cần hủy khung giờ này…')}
+                    className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px] font-normal"
+                  />
+                </label>
+              )}
 
-                {isApprovedSlot && !cancelDaysLeadOk && (
-                  <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-900">
-                    {tr('Yêu cầu hủy lịch đã duyệt chỉ áp dụng cho các buổi cách thời điểm hiện tại ít nhất 7 ngày.')}
-                  </p>
-                )}
+              {isApprovedSlot && !cancelDaysLeadOk && (
+                <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-900">
+                  {trf('Yêu cầu hủy lịch đã duyệt chỉ áp dụng cho các buổi cách thời điểm hiện tại ít nhất {0} ngày.', { 0: leadDays })}
+                </p>
+              )}
 
-                {cancelModalError && (
-                  <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-800">
-                    {cancelModalError}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 border-t border-rp-line pt-3">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setCancelingEvent(null)}
-                    className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3.5 text-[12.5px] font-semibold text-rp-text-2 hover:bg-rp-bg-2"
-                  >
-                    {tr('Giữ lại')}
-                  </button>
-                  <button
-                    type="submit"
-                    data-testid="confirm-cancel-slot-btn"
-                    disabled={busy || (isApprovedSlot && !cancelDaysLeadOk)}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-danger px-4 text-[12.5px] font-semibold text-white hover:opacity-95 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>
-                      {cancelingEvent.isSelectedDraft
-                        ? tr('Bỏ chọn')
-                        : isApprovedSlot
-                          ? tr('Gửi yêu cầu hủy')
-                          : tr('Xác nhận hủy')}
-                    </span>
-                  </button>
-                </div>
-              </form>
-            );
-          })()}
-        </Modal>
-      )}
+              {cancelModalError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-800">
+                  {cancelModalError}
+                </p>
+              )}
+            </div>
+          </AlertDialog>
+        );
+      })()}
 
       {/* Quick Hour Picker Modal */}
       {touchPickerDay && (
         <Modal
           open={Boolean(touchPickerDay)}
           onClose={() => setTouchPickerDay(null)}
-          title={trf('Chọn khung 90 phút · {0}', { 0: formatFullDayVn(touchPickerDay.dayKey, todayKey) })}
+          title={trf('Chọn khung {0} phút · {1}', { 0: durationMinutes, 1: formatFullDayVn(touchPickerDay.dayKey, todayKey) })}
           size="md"
         >
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-rp-text-muted">
               <span>{trf('Mỗi buổi {0} phút · Nghỉ tối thiểu {1} phút giữa hai buổi', { 0: durationMinutes, 1: restMinutes })}</span>
-              <input
-                type="date"
+              <DateInput
                 min={todayKey}
                 value={touchPickerDay.dayKey}
                 onChange={(e) => setTouchPickerDay((cur) => ({ ...cur, dayKey: e.target.value }))}
-                className="h-8 rounded-lg border border-rp-line px-2 text-[12px] text-rp-text"
+                className="!h-8 w-auto rounded-lg px-2 text-[12px]"
               />
             </div>
             <div className="grid max-h-[340px] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
               {touchCandidates.length === 0 ? (
                 <div className="col-span-full flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-rp-line bg-[#FCF9FB] p-5 text-center text-[12.5px] text-rp-text-2">
-                  <span>{tr('Ngày này không còn khung giờ 90 phút khả dụng.')}</span>
+                  <span>{trf('Ngày này không còn khung giờ {0} phút khả dụng.', { 0: durationMinutes })}</span>
                   <button
                     type="button"
                     onClick={() => setTouchPickerDay((cur) => ({ ...cur, dayKey: shiftDateKey(cur.dayKey, 1) }))}
@@ -2948,7 +3019,7 @@ export default function InteractiveSlotCalendar({
                       : cand.valid
                         ? tr('Khả dụng')
                         : cand.code === 'REST_GAP'
-                          ? trf('Cần nghỉ {0}p', { 0: restMinutes })
+                          ? trf('Cần nghỉ {0} phút', { 0: restMinutes })
                           : tr('Đã kín')}
                   </span>
                 </button>
@@ -2997,7 +3068,9 @@ export default function InteractiveSlotCalendar({
             const canDeletePending = Boolean(s && !s.isApproved && !s.rejectedAt && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot);
             const canRequestChange = Boolean(s && s.isApproved && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot);
             const canRequestCancel = Boolean(s && s.isApproved && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot);
-            const cancelDaysLeadOk = s ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= 7 * 86400_000 : false;
+            const leadHours = Number(policy?.cancellationLeadHours) || 168;
+            const leadDays = Math.max(1, Math.round(leadHours / 24));
+            const cancelDaysLeadOk = s ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= leadHours * 3600_000 : false;
 
             return (
               <div className="space-y-4">
@@ -3120,8 +3193,8 @@ export default function InteractiveSlotCalendar({
                       {canRequestCancel && (
                         <button
                           type="button"
-                          disabled={busy || !cancelDaysLeadOk}
-                          title={!cancelDaysLeadOk ? tr('Yêu cầu hủy cần gửi trước giờ bắt đầu ít nhất 7 ngày.') : undefined}
+                          disabled={busy || !cancelDaysLeadOk || !actionReason.trim()}
+                          title={!cancelDaysLeadOk ? trf('Yêu cầu hủy cần gửi trước giờ bắt đầu ít nhất {0} ngày.', { 0: leadDays }) : undefined}
                           onClick={async () => {
                             await onRequestCancelSlot(s.id, actionReason.trim());
                             setSelectedEvent(null);
@@ -3129,7 +3202,7 @@ export default function InteractiveSlotCalendar({
                           }}
                           className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3.5 text-[12px] font-semibold text-rp-text-2 hover:bg-rp-brand-tint disabled:opacity-50"
                         >
-                          {cancelDaysLeadOk ? tr('Gửi yêu cầu hủy') : tr('Hủy (cần trước ≥ 7 ngày)')}
+                          {cancelDaysLeadOk ? tr('Gửi yêu cầu hủy') : trf('Hủy (cần trước ≥ {0} ngày)', { 0: leadDays })}
                         </button>
                       )}
                     </div>

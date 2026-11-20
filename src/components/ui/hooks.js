@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { confirmAction } from './feedbackStore.js';
 
 const FOCUSABLE =
   'a[href],area[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
 
-let openLayers = 0;
+const activeTrapStack = [];
+let baseBodyOverflow = '';
 
-/** Traps Tab focus inside `ref`, closes on Escape, restores focus and locks body scroll. */
+/** Traps Tab focus inside `ref`, closes on Escape (topmost layer only), restores focus and locks body scroll cleanly across stacked overlays. */
 export function useFocusTrap(ref, { open, onEscape, initialFocusRef } = {}) {
   const escapeRef = useRef(onEscape);
   useEffect(() => {
@@ -16,9 +18,12 @@ export function useFocusTrap(ref, { open, onEscape, initialFocusRef } = {}) {
     if (!open) return undefined;
     const node = ref.current;
     const previouslyFocused = document.activeElement;
-    openLayers += 1;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const layerId = Symbol('focus-trap');
+    if (activeTrapStack.length === 0) {
+      baseBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    activeTrapStack.push(layerId);
 
     const focusFirst = () => {
       const target = initialFocusRef?.current || node?.querySelector('[data-autofocus]') || node?.querySelector(FOCUSABLE) || node;
@@ -27,7 +32,7 @@ export function useFocusTrap(ref, { open, onEscape, initialFocusRef } = {}) {
     const raf = window.requestAnimationFrame(focusFirst);
 
     function onKeyDown(event) {
-      if (!node) return;
+      if (!node || activeTrapStack[activeTrapStack.length - 1] !== layerId) return;
       if (event.key === 'Escape') {
         event.stopPropagation();
         escapeRef.current?.();
@@ -50,15 +55,56 @@ export function useFocusTrap(ref, { open, onEscape, initialFocusRef } = {}) {
         first.focus();
       }
     }
-    node?.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onKeyDown);
     return () => {
       window.cancelAnimationFrame(raf);
-      node?.removeEventListener('keydown', onKeyDown);
-      openLayers = Math.max(0, openLayers - 1);
-      if (openLayers === 0) document.body.style.overflow = prevOverflow;
-      if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus({ preventScroll: true });
+      document.removeEventListener('keydown', onKeyDown);
+      const idx = activeTrapStack.lastIndexOf(layerId);
+      if (idx !== -1) activeTrapStack.splice(idx, 1);
+      if (activeTrapStack.length === 0) {
+        document.body.style.overflow = baseBodyOverflow;
+      }
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus({ preventScroll: true });
+      }
     };
   }, [open, ref, initialFocusRef]);
+}
+
+/**
+ * Registers browser `beforeunload` warning when `dirty` is true and provides
+ * an async `guardLeave` helper backed by `AlertDialog` (`confirmAction`) for in-app transitions.
+ */
+export function useUnsavedGuard(dirty, options = {}) {
+  const {
+    title = 'Bỏ thay đổi chưa lưu?',
+    description = 'Nội dung bạn đang chỉnh sửa chưa được lưu lại.',
+    confirmLabel = 'Rời khỏi',
+    cancelLabel = 'Tiếp tục chỉnh sửa',
+  } = options;
+
+  useEffect(() => {
+    if (!dirty || typeof window === 'undefined') return undefined;
+    const onBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  const confirmLeave = useCallback(async () => {
+    if (!dirty) return true;
+    return confirmAction({
+      title,
+      description,
+      confirmLabel,
+      cancelLabel,
+      tone: 'warning',
+    });
+  }, [dirty, title, description, confirmLabel, cancelLabel]);
+
+  return { dirty: Boolean(dirty), confirmLeave };
 }
 
 

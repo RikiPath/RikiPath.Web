@@ -41,6 +41,8 @@ export default function Dashboard() {
           grammar: skillScore(home.skills, /ngữ pháp|grammar/i),
           reading: skillScore(home.skills, /đọc|reading/i),
           listening: skillScore(home.skills, /nghe|listen/i),
+          writing: skillScore(home.skills, /viết|writ/i),
+          speaking: skillScore(home.skills, /nói|speak/i),
         },
         loading: {
           profile: home.profileQuery.isPending,

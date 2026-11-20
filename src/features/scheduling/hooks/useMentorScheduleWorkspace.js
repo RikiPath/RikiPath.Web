@@ -15,6 +15,7 @@ import {
 } from '@/features/scheduling/api/mentorScheduleManageApi.js';
 import { resolveSchedulePolicy } from '@/features/scheduling/utils/slotPlannerModel.js';
 import { backendUtcDate } from '@/utils/mentorSchedule.js';
+import { useNow } from '@/hooks/useNow.js';
 
 /**
  * Shared React Query workspace loader + normalized Cohort Session + GroupPolicy resolver
@@ -22,6 +23,7 @@ import { backendUtcDate } from '@/utils/mentorSchedule.js';
  */
 export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refetchSlotsMs = 15000 } = {}) {
   const queryClient = useQueryClient();
+  const currentTimeMs = useNow();
   const uid = getSession()?.userId ?? 'anon';
   const scheduleKey = ['my-mentor-schedule', uid];
   const slotsKey = ['my-availability-slots', uid];
@@ -96,7 +98,7 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
 
     const merged = new Map();
     const rawCourses = Array.isArray(coursesQuery.data) ? coursesQuery.data : [];
-    const nowMs = Date.now();
+    const nowMs = currentTimeMs;
     const reservesSeat = (c) => {
       if (!c) return false;
       if (c.paymentStatus === 'Paid' && !['PaymentReview', 'Cancelled', 'Transferred'].includes(c.status)) return true;
@@ -236,7 +238,7 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
       ...item,
       enrolledCount: item.enrolledCount != null ? item.enrolledCount : item.learnerNames.length,
     }));
-  }, [cohorts, coursesQuery.data, policy.sessionMinutes]);
+  }, [cohorts, coursesQuery.data, policy.sessionMinutes, currentTimeMs]);
 
   const externalBusyEvents = useMemo(
     () => (Array.isArray(calendarQuery.data?.busyEvents) ? calendarQuery.data.busyEvents : []),

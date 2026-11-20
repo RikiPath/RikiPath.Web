@@ -6,7 +6,6 @@ import {
   ArrowUp,
   CheckCircle2,
   Eye,
-  FilePlus2,
   FolderUp,
   History,
   Pencil,
@@ -49,6 +48,7 @@ import {
 import { ORDERING_TYPE, normalizeKeys, statuses, withRowId } from '@/features/content-author/utils/contentModel.js';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { definitions } from '@/features/content-author/utils/contentDefinitions.js';
 
 const endpoint = '/content-author/manual';
 
@@ -57,68 +57,6 @@ const STATUS_BADGE_TONES = {
   PendingReview: 'warning',
   Approved: 'success',
   Rejected: 'danger',
-};
-
-export const definitions = {
-  Lesson: {
-    label: 'Bài học',
-    fields: [
-      { key: 'title', label: 'Tên bài học', kind: 'text', required: true, maxLength: 200 },
-      { key: 'description', label: 'Mô tả bài học', kind: 'textarea', maxLength: 2000 },
-      { key: 'sortOrder', label: 'Thứ tự hiển thị', kind: 'number' },
-    ],
-  },
-  Vocabulary: {
-    label: 'Từ vựng',
-    fields: [
-      { key: 'word', label: 'Từ vựng (Kanji / Kana)', kind: 'text', required: true, maxLength: 150 },
-      { key: 'reading', label: 'Cách đọc (Hiragana / Katakana)', kind: 'text', required: true, maxLength: 150 },
-      { key: 'meaning', label: 'Nghĩa tiếng Việt', kind: 'textarea', required: true, maxLength: 1000 },
-      { key: 'exampleSentence', label: 'Câu ví dụ', kind: 'text', maxLength: 500 },
-      { key: 'exampleSentenceMeaning', label: 'Nghĩa câu ví dụ', kind: 'text', maxLength: 500 },
-      { key: 'lessonTitle', label: 'Tên bài học liên kết (nếu có)', kind: 'text', maxLength: 200 },
-    ],
-  },
-  Kanji: {
-    label: 'Hán tự',
-    fields: [
-      { key: 'character', label: 'Chữ Hán (Kanji)', kind: 'text', required: true, maxLength: 20 },
-      { key: 'meaning', label: 'Nghĩa tiếng Việt', kind: 'textarea', required: true, maxLength: 500 },
-      { key: 'sinoVietnamese', label: 'Âm Hán Việt', kind: 'text', maxLength: 100 },
-      { key: 'onYomi', label: 'Âm On (Onyomi)', kind: 'text', maxLength: 150 },
-      { key: 'kunYomi', label: 'Âm Kun (Kunyomi)', kind: 'text', maxLength: 150 },
-      { key: 'strokeCount', label: 'Số nét', kind: 'number', required: true },
-      { key: 'strokeOrderImageUrl', label: 'URL ảnh thứ tự nét', kind: 'url', maxLength: 500 },
-      { key: 'lessonTitle', label: 'Tên bài học liên kết (nếu có)', kind: 'text', maxLength: 200 },
-    ],
-  },
-  Grammar: {
-    label: 'Ngữ pháp',
-    fields: [
-      { key: 'title', label: 'Tên mẫu ngữ pháp', kind: 'text', required: true, maxLength: 200 },
-      { key: 'structure', label: 'Cấu trúc ngữ pháp', kind: 'text', required: true, maxLength: 300 },
-      { key: 'usageNotes', label: 'Cách dùng & lưu ý', kind: 'textarea', maxLength: 2000 },
-      { key: 'exampleSentence', label: 'Câu ví dụ', kind: 'text', maxLength: 500 },
-      { key: 'exampleSentenceMeaning', label: 'Nghĩa câu ví dụ', kind: 'text', maxLength: 500 },
-      { key: 'lessonTitle', label: 'Tên bài học liên kết (nếu có)', kind: 'text', maxLength: 200 },
-    ],
-  },
-  PracticeExercise: {
-    label: 'Bài luyện tập',
-    fields: [
-      { key: 'title', label: 'Tên bài luyện tập', kind: 'text', required: true, maxLength: 200 },
-      { key: 'description', label: 'Mô tả bài luyện tập', kind: 'textarea', maxLength: 2000 },
-      { key: 'sortOrder', label: 'Thứ tự bài luyện tập', kind: 'number' },
-    ],
-  },
-  MockTest: {
-    label: 'Đề thi thử',
-    fields: [
-      { key: 'title', label: 'Tên đề thi thử', kind: 'text', required: true, maxLength: 200 },
-      { key: 'description', label: 'Mô tả đề thi', kind: 'textarea', maxLength: 2000 },
-      { key: 'timeLimitMinutes', label: 'Thời lượng làm bài (phút)', kind: 'number', required: true },
-    ],
-  },
 };
 
 const orderingType = ORDERING_TYPE;
@@ -1158,17 +1096,22 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
   const activeLevelObj = activeLevel === 'ALL' ? null : levels.find((l) => String(l.id) === String(activeLevel));
   const defaultCreateLevelId = activeLevelObj?.id ?? levels[0]?.id ?? null;
 
-  // Support deep link ?editId=...
-  useEffect(() => {
-    if (!paramEditId || !Array.isArray(list.data)) return;
+  // Resolve the deep link once its list row is available, then remove the consumed URL parameter.
+  const [handledEditId, setHandledEditId] = useState(null);
+  if (paramEditId && paramEditId !== handledEditId && Array.isArray(list.data)) {
     const match = list.data.find((x) => Number(x.id) === Number(paramEditId));
     if (match) {
       setEditor(match);
+      setHandledEditId(paramEditId);
+    }
+  }
+  useEffect(() => {
+    if (paramEditId && handledEditId === paramEditId) {
       const next = new URLSearchParams(searchParams);
       next.delete('editId');
       setSearchParams(next, { replace: true });
     }
-  }, [paramEditId, list.data, searchParams, setSearchParams]);
+  }, [paramEditId, handledEditId, searchParams, setSearchParams]);
 
   const visibleItems = useMemo(() => {
     const raw = Array.isArray(list.data) ? list.data : [];

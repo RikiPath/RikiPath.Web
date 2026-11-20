@@ -10,20 +10,30 @@ import {
   Layers,
   MessageSquareWarning,
   RefreshCw,
-  Search,
   Users,
   Video,
 } from 'lucide-react';
 import { MentorShell } from '@/layouts';
 import {
+  Badge,
+  Banner,
+  Button,
   Card,
   CardHeader,
   ContextualEmptyState,
   ContextualErrorState,
+  CustomSelect,
+  DataTable,
+  Drawer,
   FeatureIcon,
+  Field,
   Modal,
+  PageContainer,
+  PageHeader,
   SakuraLoader,
+  SearchInput,
   Tabs,
+  Textarea,
   cx,
   notify,
 } from '@/components/ui';
@@ -44,8 +54,7 @@ import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessi
 import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
 import { displayCourseTitle, getSessionJoinState } from '@/features/calendar/utils/calendarEventsModel.js';
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
-import '@/pages/shared/studyCourses.css';
-import { useLocale, translateText } from '@/locales/locale.js';
+import { translateText, useLocale } from '@/locales/locale.js';
 
 const STATUS_LABELS = {
   PendingPayment: 'Chờ thanh toán',
@@ -78,13 +87,16 @@ const TABS = [
   { id: 'support', label: 'Khiếu nại & Hỗ trợ', icon: MessageSquareWarning },
 ];
 
+const ATTENDANCE_OPTIONS = ['Present', 'Absent', 'ExcusedAbsent', 'CancelledByMentor'];
+
 const showStatus = (v) => translateText(STATUS_LABELS[v] || v || '');
 const fmtDate = (v) => (v ? formatVnDateTime(v, '—') : '—');
 
 function statusBadgeTone(status) {
-  if (status === 'Active' || status === 'Present' || status === 'Approved' || status === 'Open') return 'ok';
-  if (status === 'Ready' || status === 'Scheduled' || status === 'Pending') return 'warn';
-  return 'muted';
+  if (status === 'Active' || status === 'Present' || status === 'Approved' || status === 'Open' || status === 'Published') return 'success';
+  if (status === 'Ready' || status === 'Scheduled' || status === 'Pending') return 'warning';
+  if (status === 'Absent' || status === 'Cancelled' || status === 'CancelledByMentor' || status === 'Rejected') return 'danger';
+  return 'neutral';
 }
 
 function findRoomId(session, cohortObj) {
@@ -110,6 +122,7 @@ export default function MentorClassWorkspace() {
   const [courses, setCourses] = useState([]);
   const [cohorts, setCohorts] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [complaintsError, setComplaintsError] = useState(false);
   const [cohortHomework, setCohortHomework] = useState([]);
   const [homeworkLoading, setHomeworkLoading] = useState(false);
   const [homeworkError, setHomeworkError] = useState(null);
@@ -123,8 +136,8 @@ export default function MentorClassWorkspace() {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const [selectedSessionNumber, setSelectedSessionNumber] = useState(null);
-  const [attendanceDrafts, setAttendanceDrafts] = useState({});
-  const [supportDrafts, setSupportDrafts] = useState({});
+  const [attendanceModal, setAttendanceModal] = useState(null); // { course, session, status, note }
+  const [supportModal, setSupportModal] = useState(null); // { request, plan }
   const [scheduleDrawerOpen, setScheduleDrawerOpen] = useState(false);
   const [skillModal, setSkillModal] = useState(null); // { learnerId, learnerName, loading, data, error }
 
@@ -134,14 +147,17 @@ export default function MentorClassWorkspace() {
   }, []);
 
   async function loadAll() {
-    const [coursesData, cohortsData, complaintsData] = await Promise.all([
+    const [coursesData, cohortsData, complaintsRes] = await Promise.all([
       courseGet(),
       getCohorts(),
-      getCohortComplaints().catch(() => []),
+      getCohortComplaints()
+        .then((res) => ({ ok: true, data: res }))
+        .catch(() => ({ ok: false, data: [] })),
     ]);
     setCourses(Array.isArray(coursesData) ? coursesData : []);
     setCohorts(Array.isArray(cohortsData) ? cohortsData : []);
-    setComplaints(Array.isArray(complaintsData) ? complaintsData : []);
+    setComplaintsError(!complaintsRes.ok);
+    setComplaints(Array.isArray(complaintsRes.data) ? complaintsRes.data : []);
     setLoadError(null);
   }
 
@@ -159,7 +175,6 @@ export default function MentorClassWorkspace() {
     };
   }, []);
 
-  // Group Mentor cohorts (merging cohorts API + enrollments so empty/ready cohorts are included).
   const mentorCohortEntries = useMemo(() => {
     const byId = new Map();
     const courseCohortIds = new Set(courses.map((c) => c.cohortId).filter(Boolean));
@@ -177,14 +192,14 @@ export default function MentorClassWorkspace() {
         intensityLabel: cohortObj?.intensityLabel || '',
         status: cohortObj?.status || c.status || 'Active',
         startsAt: cohortObj?.startsAt || c.startsAt,
-        totalSessions: cohortObj?.totalSessions || c.totalSessions || 0,
-        sessionMinutes: cohortObj?.sessionMinutes || c.sessionMinutes || 90,
-        capacity: cohortObj?.capacity || 4,
+        totalSessions: cohortObj?.totalSessions ?? c.totalSessions ?? 0,
+        sessionMinutes: cohortObj?.sessionMinutes ?? c.sessionMinutes ?? null,
+        capacity: cohortObj?.capacity ?? null,
         enrolledCourses: [],
         allCourses: [],
       };
       existing.allCourses.push(c);
-      if (c.status !== 'Cancelled') existing.enrolledCourses.push(c);
+      if (c.status !== 'Cancelled' && c.status !== 'PendingPayment') existing.enrolledCourses.push(c);
       byId.set(cid, existing);
     }
 
@@ -200,9 +215,9 @@ export default function MentorClassWorkspace() {
         intensityLabel: ch.intensityLabel || '',
         status: ch.status || 'Open',
         startsAt: ch.startsAt,
-        totalSessions: ch.totalSessions || 0,
-        sessionMinutes: ch.sessionMinutes || 90,
-        capacity: ch.capacity || 4,
+        totalSessions: ch.totalSessions ?? 0,
+        sessionMinutes: ch.sessionMinutes ?? null,
+        capacity: ch.capacity ?? null,
         enrolledCourses: [],
         allCourses: [],
       });
@@ -214,7 +229,6 @@ export default function MentorClassWorkspace() {
         || entry.allCourses[0]
         || null;
 
-      // Build unified session schedule from representative course or cohort object
       const sessionMap = new Map();
       (entry.cohortObj?.sessions || []).forEach((s) => {
         sessionMap.set(Number(s.number), {
@@ -243,17 +257,16 @@ export default function MentorClassWorkspace() {
 
       let nextSession = null;
       let liveSession = null;
+      const durationMinutes = entry.sessionMinutes || 90;
       for (const s of sessions) {
         if (!s.scheduledAt) continue;
         const at = parseUtcDate(s.scheduledAt)?.getTime();
         if (!Number.isFinite(at)) continue;
         const joinState = repCourse
           ? getSessionJoinState(s, { ...repCourse, paymentStatus: 'Paid', status: 'Active' }, nowMs)
-          : { canJoin: nowMs >= at - 15 * 60_000 && nowMs <= at + ((entry.sessionMinutes || 90) + 30) * 60_000 };
-        const endAt = at + (entry.sessionMinutes || 90) * 60_000;
-        if (joinState.canJoin && s.roomId) {
-          liveSession = s;
-        }
+          : { canJoin: nowMs >= at - 15 * 60_000 && nowMs <= at + (durationMinutes + 30) * 60_000 };
+        const endAt = at + durationMinutes * 60_000;
+        if (joinState.canJoin && s.roomId) liveSession = s;
         if (!nextSession && nowMs <= endAt + 15 * 60_000 && s.status !== 'CancelledByMentor') {
           nextSession = { ...s, canJoin: Boolean(joinState.canJoin && s.roomId) };
         }
@@ -264,7 +277,7 @@ export default function MentorClassWorkspace() {
         if (c.status !== 'Active') continue;
         for (const s of c.sessions || []) {
           if (s.status !== 'Scheduled' || !s.scheduledAt) continue;
-          const endAt = (parseUtcDate(s.scheduledAt)?.getTime() || 0) + (c.sessionMinutes || 90) * 60_000;
+          const endAt = (parseUtcDate(s.scheduledAt)?.getTime() || 0) + (c.sessionMinutes || durationMinutes) * 60_000;
           if (endAt > 0 && endAt <= nowMs) pendingAttendanceCount += 1;
         }
       }
@@ -274,9 +287,11 @@ export default function MentorClassWorkspace() {
           .filter((r) => r.status === 'Approved')
           .map((r) => ({ ...r, courseId: c.id, learnerName: c.learnerName })),
       );
-      const openComplaintsCount = complaints.filter(
-        (cp) => Number(cp.cohortId) === entry.cohortId && (cp.status === 'Open' || cp.status === 'UnderReview'),
-      ).length;
+      const openComplaintsCount = complaintsError
+        ? null
+        : complaints.filter(
+            (cp) => Number(cp.cohortId) === entry.cohortId && (cp.status === 'Open' || cp.status === 'UnderReview'),
+          ).length;
 
       return {
         ...entry,
@@ -292,7 +307,7 @@ export default function MentorClassWorkspace() {
           : '',
       };
     });
-  }, [courses, cohorts, complaints, sessionUserId, nowMs, tr, trf]);
+  }, [courses, cohorts, complaints, complaintsError, sessionUserId, nowMs, tr, trf]);
 
   const selectedCohort = useMemo(() => {
     if (!activeCohortIdParam) return null;
@@ -340,9 +355,9 @@ export default function MentorClassWorkspace() {
       if (!q) return true;
       const learnerNames = entry.enrolledCourses.map((c) => c.learnerName || '').join(' ').toLowerCase();
       return (
-        String(entry.name || '').toLowerCase().includes(q) ||
-        String(entry.level || '').toLowerCase().includes(q) ||
-        learnerNames.includes(q)
+        String(entry.name || '').toLowerCase().includes(q)
+        || String(entry.level || '').toLowerCase().includes(q)
+        || learnerNames.includes(q)
       );
     });
   }, [mentorCohortEntries, search, statusFilter]);
@@ -364,6 +379,7 @@ export default function MentorClassWorkspace() {
       }
     } catch (e) {
       notify.apiError(e, opts.errorTitle || 'Chưa thực hiện được', { id: toastId || undefined, key, replace: true });
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -402,13 +418,12 @@ export default function MentorClassWorkspace() {
     [cohortHomework],
   );
 
-  // Selected session attendance rows across all enrolled learners in the cohort
   const sessionRoster = useMemo(() => {
     if (!selectedCohort || effectiveSessionNumber == null) return [];
     return selectedCohort.enrolledCourses.map((course) => {
       const sess = (course.sessions || []).find((s) => Number(s.number) === Number(effectiveSessionNumber)) || null;
       return { course, session: sess };
-    });
+    }).filter((r) => Boolean(r.session));
   }, [selectedCohort, effectiveSessionNumber]);
 
   const currentCohortSessionMeta = useMemo(() => {
@@ -430,180 +445,300 @@ export default function MentorClassWorkspace() {
     };
   }, [selectedCohort]);
 
+  const totalOpenComplaints = useMemo(() => {
+    if (complaintsError) return '—';
+    return mentorCohortEntries.reduce((n, e) => n + (e.openComplaintsCount || 0), 0);
+  }, [mentorCohortEntries, complaintsError]);
+
+  const learnerColumns = [
+    {
+      key: 'learner',
+      header: 'Học viên',
+      sortValue: (c) => c.learnerName || '',
+      render: (c) => (
+        <div>
+          <p className="font-semibold text-rp-text">{c.learnerName || tr('Học viên')}</p>
+          {c.status === 'Transferred' && (
+            <p className="text-xs text-rp-text-muted">{tr('Đã chuyển lớp; dữ liệu cũ được giữ nguyên.')}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      render: (c) => <Badge tone={statusBadgeTone(c.status)} size="sm">{showStatus(c.status)}</Badge>,
+    },
+    {
+      key: 'attendance',
+      header: 'Chuyên cần',
+      render: (c) => {
+        const sessList = c.sessions || [];
+        const presentCount = sessList.filter((s) => s.status === 'Present').length;
+        const absentCount = c.eligibility?.absentSessions ?? sessList.filter((s) => s.status === 'Absent').length;
+        const total = sessList.length || selectedCohort?.totalSessions || 0;
+        return (
+          <span className="text-xs text-rp-text-2">
+            {trf('{0}/{1} buổi có mặt', { 0: presentCount, 1: total })}
+            {absentCount > 0 ? ` · ${trf('{0} vắng', { 0: absentCount })}` : ''}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'homework',
+      header: 'Bài tập đúng hạn',
+      render: (c) => (
+        <span className="text-xs text-rp-text-2">
+          {c.eligibility ? `${c.eligibility.passedOnTimeHomework}/${c.eligibility.requiredHomework}` : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      sortable: false,
+      align: 'right',
+      render: (c) => {
+        const hasApprovedRetake = (c.requests || []).some((r) => r.status === 'Approved');
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => openSkillModal(c)}>
+              {tr('Hồ sơ năng lực')}
+            </Button>
+            {hasApprovedRetake && (
+              <Button variant="soft" size="sm" onClick={() => switchSection('support')}>
+                {tr('Lộ trình ôn lại')}
+              </Button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const attendanceColumns = [
+    {
+      key: 'learner',
+      header: 'Học viên',
+      render: ({ course }) => (
+        <div>
+          <p className="font-semibold text-rp-text">{course.learnerName || tr('Học viên')}</p>
+          <p className="text-xs text-rp-text-muted">{showStatus(course.status)}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Trạng thái buổi',
+      render: ({ session }) => (
+        <Badge tone={statusBadgeTone(session.status)} size="sm">
+          {showStatus(session.status)}
+        </Badge>
+      ),
+    },
+    {
+      key: 'note',
+      header: 'Ghi chú',
+      render: ({ session }) => (
+        <span className="text-xs text-rp-text-2">{session.note || '—'}</span>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Điểm danh',
+      sortable: false,
+      align: 'right',
+      render: ({ course, session }) => {
+        const canMark = course.status === 'Active' && session.status === 'Scheduled';
+        return canMark ? (
+          <Button
+            variant="primary"
+            size="sm"
+            icon={CheckCircle2}
+            disabled={busy}
+            onClick={() => setAttendanceModal({
+              course,
+              session,
+              status: 'Present',
+              note: session.note || '',
+            })}
+          >
+            {tr('Điểm danh')}
+          </Button>
+        ) : (
+          <span className="text-xs text-rp-text-muted">{tr('Đã chốt')}</span>
+        );
+      },
+    },
+  ];
+
   return (
     <MentorShell breadcrumb={selectedCohort ? selectedCohort.name : tr('Lớp đang phụ trách')}>
-      <main className="course-page space-y-5">
+      <PageContainer width="default" density="comfortable" className="space-y-[var(--rp-space-section)] text-rp-text">
         {loading ? (
           <SakuraLoader variant="section" context="cohort" delay={160} />
         ) : loadError && mentorCohortEntries.length === 0 ? (
-          <section className="course-box">
+          <Card>
             <ContextualErrorState
               error={loadError}
               title={tr('Chưa tải được danh sách lớp phụ trách')}
               onRetry={() => runAction(loadAll, '', { silentLoading: true })}
               retrying={busy}
             />
-          </section>
+          </Card>
         ) : !selectedCohort ? (
-          /* ====================== 1. CLASS DIRECTORY VIEW ====================== */
           <>
-            <header className="flex flex-wrap items-end justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <FeatureIcon feature="mentor" size="lg" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand">
-                    {tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
-                  </p>
-                  <h1 className="m-0">{tr('Lớp học nhóm đang phụ trách')}</h1>
-                  <p className="course-meta m-0 mt-1">
-                    {tr('Chọn một lớp học để xem danh sách học viên, điểm danh theo buổi, giao/chấm bài tập và quản lý lịch dạy.')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  to="/work-schedule/"
-                  className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3.5 text-xs font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
-                >
-                  <CalendarDays className="h-3.5 w-3.5" /> {tr('Lịch làm việc')}
-                </Link>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => runAction(loadAll, 'Đã cập nhật danh sách lớp.', { silentLoading: true })}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3.5 text-xs font-semibold text-rp-text hover:bg-rp-brand-tint"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" /> {tr('Tải lại')}
-                </button>
-              </div>
-            </header>
+            <PageHeader
+              eyebrow="Giảng dạy lớp nhóm"
+              title="Lớp học nhóm đang phụ trách"
+              description="Chọn một lớp học để xem danh sách học viên, điểm danh theo buổi, giao/chấm bài tập và quản lý lịch dạy."
+              actions={(
+                <>
+                  <Button as={Link} to="/work-schedule/" variant="secondary" size="sm" icon={CalendarDays}>
+                    {tr('Lịch làm việc')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={RefreshCw}
+                    loading={busy}
+                    onClick={() => runAction(loadAll, 'Đã cập nhật danh sách lớp.', { silentLoading: true })}
+                  >
+                    {tr('Tải lại')}
+                  </Button>
+                </>
+              )}
+            />
+
+            {complaintsError && (
+              <Banner tone="warning">
+                {tr('Chưa tải được thống kê khiếu nại. Vui lòng thử tải lại sau ít phút.')}
+              </Banner>
+            )}
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Card>
+              <Card interactive className="p-4">
                 <p className="text-xs font-medium text-rp-text-muted">{tr('Lớp phụ trách')}</p>
-                <p className="mt-1.5 text-2xl font-bold text-rp-text">{mentorCohortEntries.length}</p>
+                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">{mentorCohortEntries.length}</p>
               </Card>
-              <Card>
+              <Card interactive className="p-4">
                 <p className="text-xs font-medium text-rp-text-muted">{tr('Tổng học viên đang học')}</p>
-                <p className="mt-1.5 text-2xl font-bold text-rp-text">
+                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">
                   {mentorCohortEntries.reduce((n, e) => n + e.enrolledCourses.filter((c) => c.status === 'Active' || c.status === 'Ready').length, 0)}
                 </p>
               </Card>
-              <Card>
+              <Card interactive className="p-4">
                 <p className="text-xs font-medium text-rp-text-muted">{tr('Lượt buổi chờ điểm danh')}</p>
-                <p className="mt-1.5 text-2xl font-bold text-rp-brand-strong">
+                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-brand-strong">
                   {mentorCohortEntries.reduce((n, e) => n + e.pendingAttendanceCount, 0)}
                 </p>
               </Card>
-              <Card>
+              <Card interactive className="p-4">
                 <p className="text-xs font-medium text-rp-text-muted">{tr('Khiếu nại cần lưu ý')}</p>
-                <p className="mt-1.5 text-2xl font-bold text-rp-text">
-                  {mentorCohortEntries.reduce((n, e) => n + e.openComplaintsCount, 0)}
-                </p>
+                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">{totalOpenComplaints}</p>
               </Card>
             </section>
 
-            <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-white p-3.5">
-              <label className="relative min-w-[240px] flex-1">
-                <span className="sr-only">{tr('Tìm lớp hoặc tên học viên')}</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
-                <input
-                  type="search"
+            <Card density="compact" className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-1 lg:max-w-sm">
+                <SearchInput
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={tr('Tìm theo tên lớp, trình độ N5–N2 hoặc tên học viên…')}
-                  className="h-9 w-full rounded-xl border border-rp-line bg-rp-bg-2 pl-9 pr-3 text-sm text-rp-text focus:border-rp-brand focus:bg-white focus:outline-none"
+                  onClear={() => setSearch('')}
+                  placeholder="Tìm theo tên lớp, trình độ JLPT hoặc học viên…"
                 />
-              </label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  { id: 'ALL', label: 'Tất cả' },
-                  { id: 'Active', label: 'Đang học' },
-                  { id: 'Ready', label: 'Chờ khai giảng' },
-                  { id: 'Open', label: 'Đang mở đăng ký' },
-                  { id: 'Completed', label: 'Đã hoàn thành' },
-                ].map((chip) => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    onClick={() => setStatusFilter(chip.id)}
-                    className={cx(
-                      'rp-focus rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                      statusFilter === chip.id
-                        ? 'bg-rp-brand-strong text-white'
-                        : 'border border-rp-line bg-white text-rp-text-2 hover:border-rp-brand-border',
-                    )}
-                  >
-                    {tr(chip.label)}
-                  </button>
-                ))}
               </div>
-            </section>
+              <Tabs
+                variant="pill"
+                className="flex-wrap sm:flex-nowrap"
+                label={tr('Lọc trạng thái lớp')}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                tabs={[
+                  { value: 'ALL', label: 'Tất cả' },
+                  { value: 'Active', label: 'Đang học' },
+                  { value: 'Ready', label: 'Chờ khai giảng' },
+                  { value: 'Open', label: 'Đang mở đăng ký' },
+                  { value: 'Completed', label: 'Đã hoàn thành' },
+                ]}
+              />
+            </Card>
 
             {filteredList.length === 0 ? (
-              <section className="course-box">
+              <Card>
                 <ContextualEmptyState
                   context="groupLearning"
-                  title={tr('Không tìm thấy lớp học nhóm phù hợp')}
-                  description={tr('Các lớp bạn phụ trách sẽ hiển thị tại đây khi được Admin mở lớp hoặc có học viên ghi danh.')}
+                  title="Không tìm thấy lớp học nhóm phù hợp"
+                  description="Các lớp bạn phụ trách sẽ hiển thị tại đây khi được mở lớp hoặc có học viên ghi danh."
                 />
-              </section>
+              </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredList.map((entry) => (
-                  <Card key={entry.cohortId} className="cohort-card flex flex-col justify-between gap-3">
-                    <div>
+                  <Card key={entry.cohortId} interactive className="flex flex-col justify-between gap-4">
+                    <div className="space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="course-badge">{entry.level}</span>
-                          {entry.intensityLabel && <span className="course-badge intensity-badge intensity-standard">{tr(entry.intensityLabel)}</span>}
+                          <Badge tone="brand" icon={false} size="sm">{entry.level}</Badge>
+                          {entry.intensityLabel && <Badge tone="neutral" icon={false} size="sm">{tr(entry.intensityLabel)}</Badge>}
                         </div>
-                        <span className={`course-badge ${statusBadgeTone(entry.status)}`}>{showStatus(entry.status)}</span>
+                        <Badge tone={statusBadgeTone(entry.status)} size="sm">{showStatus(entry.status)}</Badge>
                       </div>
-                      <h2 className="mt-2.5 text-base font-bold text-rp-text">{entry.name}</h2>
-                      <p className="mt-1 text-xs text-rp-text-muted">
-                        {entry.patternText || trf('{0} buổi · {1} phút/buổi', { 0: entry.totalSessions, 1: entry.sessionMinutes })}
-                      </p>
 
-                      <dl className="cohort-facts">
+                      <div>
+                        <h2 className="text-base font-semibold text-rp-text">{entry.name}</h2>
+                        <p className="mt-1 text-xs text-rp-text-muted">
+                          {entry.patternText || trf('{0} buổi · {1} phút/buổi', {
+                            0: entry.totalSessions || 0,
+                            1: entry.sessionMinutes || 90,
+                          })}
+                        </p>
+                      </div>
+
+                      <dl className="grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2 p-3 text-xs">
                         <div>
-                          <dt>{tr('Sĩ số lớp')}</dt>
-                          <dd>{entry.enrolledCourses.length}/{entry.capacity} {tr('học viên')}</dd>
+                          <dt className="text-rp-text-muted">{tr('Sĩ số lớp')}</dt>
+                          <dd className="mt-0.5 font-semibold text-rp-text">
+                            {entry.capacity != null
+                              ? `${entry.enrolledCourses.length}/${entry.capacity} ${tr('học viên')}`
+                              : `${entry.enrolledCourses.length} ${tr('học viên')}`}
+                          </dd>
                         </div>
                         <div>
-                          <dt>{tr('Khai giảng')}</dt>
-                          <dd>{fmtDate(entry.startsAt)}</dd>
+                          <dt className="text-rp-text-muted">{tr('Khai giảng')}</dt>
+                          <dd className="mt-0.5 font-semibold text-rp-text">{fmtDate(entry.startsAt)}</dd>
                         </div>
                       </dl>
 
                       {entry.nextSession && (
                         <div className={cx(
-                          'mt-2 rounded-xl border px-3 py-2 text-xs',
-                          entry.nextSession.canJoin ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rp-line bg-rp-bg-2 text-rp-text-2',
+                          'rounded-xl border px-3 py-2 text-xs',
+                          entry.nextSession.canJoin ? 'border-rp-success-line bg-rp-success-bg text-rp-success' : 'border-rp-line bg-rp-bg-2 text-rp-text-2',
                         )}>
                           <p className="font-semibold">
                             {entry.nextSession.canJoin ? tr('Phòng học đang mở') : tr('Buổi sắp tới')} · {trf('Buổi {0}', { 0: entry.nextSession.number })}
                           </p>
-                          <p className="mt-0.5 text-[11.5px] opacity-85">{fmtDate(entry.nextSession.scheduledAt)}</p>
+                          <p className="mt-0.5 opacity-90">{fmtDate(entry.nextSession.scheduledAt)}</p>
                         </div>
                       )}
 
-                      {(entry.pendingAttendanceCount > 0 || entry.openComplaintsCount > 0 || entry.approvedRetakeRequests.length > 0) && (
-                        <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px]">
+                      {(entry.pendingAttendanceCount > 0 || (entry.openComplaintsCount ?? 0) > 0 || entry.approvedRetakeRequests.length > 0) && (
+                        <div className="flex flex-wrap gap-1.5">
                           {entry.pendingAttendanceCount > 0 && (
-                            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 font-semibold text-amber-800">
+                            <Badge tone="warning" size="sm">
                               {trf('{0} lượt chờ điểm danh', { 0: entry.pendingAttendanceCount })}
-                            </span>
+                            </Badge>
                           )}
-                          {entry.openComplaintsCount > 0 && (
-                            <span className="rounded-full bg-rose-50 px-2.5 py-0.5 font-semibold text-rose-700">
+                          {(entry.openComplaintsCount ?? 0) > 0 && (
+                            <Badge tone="danger" size="sm">
                               {trf('{0} khiếu nại mở', { 0: entry.openComplaintsCount })}
-                            </span>
+                            </Badge>
                           )}
                           {entry.approvedRetakeRequests.length > 0 && (
-                            <span className="rounded-full bg-sky-50 px-2.5 py-0.5 font-semibold text-sky-800">
+                            <Badge tone="info" size="sm">
                               {trf('{0} hỗ trợ ôn JLPT', { 0: entry.approvedRetakeRequests.length })}
-                            </span>
+                            </Badge>
                           )}
                         </div>
                       )}
@@ -611,20 +746,13 @@ export default function MentorClassWorkspace() {
 
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-rp-line pt-3">
                       {entry.nextSession?.canJoin && entry.nextSession?.roomId ? (
-                        <Link
-                          to={`/meeting-room/${entry.nextSession.roomId}`}
-                          className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
-                        >
-                          <Video className="h-3.5 w-3.5" /> {tr('Vào dạy')}
-                        </Link>
+                        <Button as={Link} to={`/meeting-room/${entry.nextSession.roomId}`} variant="primary" size="sm" icon={Video}>
+                          {tr('Vào dạy')}
+                        </Button>
                       ) : <span />}
-                      <button
-                        type="button"
-                        onClick={() => openCohort(entry.cohortId, 'overview')}
-                        className="course-primary !px-3.5 !py-1.5 !text-xs"
-                      >
+                      <Button variant="soft" size="sm" onClick={() => openCohort(entry.cohortId, 'overview')}>
                         {tr('Mở không gian lớp')}
-                      </button>
+                      </Button>
                     </div>
                   </Card>
                 ))}
@@ -632,67 +760,58 @@ export default function MentorClassWorkspace() {
             )}
           </>
         ) : (
-          /* ====================== 2. DEDICATED COHORT WORKSPACE ====================== */
           <>
-            <section className="rounded-2xl border border-rp-line bg-white p-4 shadow-rp-xs sm:p-5">
+            <Card className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/mentor-study-courses/')}
-                    className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-xs font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
-                  >
-                    <ArrowLeft className="h-3.5 w-3.5" /> {tr('Tất cả lớp')}
-                  </button>
+                  <Button variant="secondary" size="sm" icon={ArrowLeft} onClick={() => navigate('/mentor-study-courses/')}>
+                    {tr('Tất cả lớp')}
+                  </Button>
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="course-badge">{selectedCohort.level}</span>
-                      <span className={`course-badge ${statusBadgeTone(selectedCohort.status)}`}>{showStatus(selectedCohort.status)}</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone="brand" icon={false} size="sm">{selectedCohort.level}</Badge>
+                      <Badge tone={statusBadgeTone(selectedCohort.status)} size="sm">{showStatus(selectedCohort.status)}</Badge>
                       {selectedCohort.intensityLabel && (
-                        <span className="course-badge intensity-badge intensity-standard">{tr(selectedCohort.intensityLabel)}</span>
+                        <Badge tone="neutral" icon={false} size="sm">{tr(selectedCohort.intensityLabel)}</Badge>
                       )}
                     </div>
-                    <h1 className="mt-1.5 text-xl font-bold text-rp-text sm:text-2xl">{selectedCohort.name}</h1>
+                    <h1 className="mt-1.5 text-xl font-semibold text-rp-text sm:text-2xl">{selectedCohort.name}</h1>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {mentorCohortEntries.length > 1 && (
-                    <label className="min-w-[200px]">
-                      <span className="sr-only">{tr('Chuyển nhanh sang lớp khác')}</span>
-                      <select
-                        value={selectedCohort.cohortId}
-                        onChange={(e) => openCohort(Number(e.target.value), activeSection)}
-                        className="h-9 w-full rounded-xl border border-rp-line bg-rp-bg-2 px-3 text-xs font-semibold text-rp-text"
-                      >
-                        {mentorCohortEntries.map((entry) => (
-                          <option key={entry.cohortId} value={entry.cohortId}>
-                            {entry.name} ({entry.level})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="w-56">
+                      <CustomSelect
+                        size="sm"
+                        aria-label={tr('Chuyển nhanh sang lớp khác')}
+                        value={String(selectedCohort.cohortId)}
+                        onChange={(val) => openCohort(Number(val), activeSection)}
+                        options={mentorCohortEntries.map((entry) => ({
+                          value: String(entry.cohortId),
+                          label: `${entry.name} (${entry.level})`,
+                        }))}
+                      />
+                    </div>
                   )}
                   {selectedCohort.liveSession?.roomId && (
-                    <Link
-                      to={`/meeting-room/${selectedCohort.liveSession.roomId}`}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                    >
-                      <Video className="h-3.5 w-3.5" /> {tr('Vào phòng học chung')}
-                    </Link>
+                    <Button as={Link} to={`/meeting-room/${selectedCohort.liveSession.roomId}`} variant="primary" size="sm" icon={Video}>
+                      {tr('Vào phòng học chung')}
+                    </Button>
                   )}
-                  <button
-                    type="button"
-                    disabled={busy}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={RefreshCw}
+                    loading={busy}
                     onClick={() => runAction(loadAll, 'Đã làm mới dữ liệu lớp.', { silentLoading: true })}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-xs font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
                   >
-                    <RefreshCw className="h-3.5 w-3.5" /> {tr('Tải lại')}
-                  </button>
+                    {tr('Tải lại')}
+                  </Button>
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-rp-line pt-3">
+              <div className="border-t border-rp-line pt-3">
                 <Tabs
                   className="sm:flex-wrap"
                   value={activeSection}
@@ -700,7 +819,7 @@ export default function MentorClassWorkspace() {
                   label={tr('Điều hướng không gian lớp')}
                   tabs={TABS.map((tab) => ({
                     value: tab.id,
-                    label: tr(tab.label),
+                    label: tab.label,
                     icon: tab.icon,
                     count: tab.id === 'learners'
                       ? selectedCohort.enrolledCourses.length
@@ -709,275 +828,268 @@ export default function MentorClassWorkspace() {
                         : tab.id === 'attendance'
                           ? selectedCohort.pendingAttendanceCount || undefined
                           : tab.id === 'support'
-                            ? (selectedCohort.openComplaintsCount + selectedCohort.approvedRetakeRequests.length) || undefined
+                            ? ((selectedCohort.openComplaintsCount || 0) + selectedCohort.approvedRetakeRequests.length) || undefined
                             : undefined,
                   }))}
                 />
               </div>
-            </section>
+            </Card>
 
             {/* ---------- TAB 1: OVERVIEW ---------- */}
             {activeSection === 'overview' && (
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-                <Card>
+                <Card className="space-y-4">
                   <CardHeader
-                    title={tr('Thông tin lớp học')}
-                    description={selectedCohort.patternText || trf('{0} buổi · {1} phút/buổi', { 0: selectedCohort.totalSessions, 1: selectedCohort.sessionMinutes })}
+                    title="Thông tin lớp học"
+                    description={selectedCohort.patternText || trf('{0} buổi · {1} phút/buổi', {
+                      0: selectedCohort.totalSessions || 0,
+                      1: selectedCohort.sessionMinutes || 90,
+                    })}
                     icon={<FeatureIcon feature="mentor" size="sm" />}
                   />
-                  <dl className="cohort-facts">
+                  <dl className="grid grid-cols-2 gap-3 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5 text-xs">
                     <div>
-                      <dt>{tr('Sĩ số hiện tại')}</dt>
-                      <dd>{selectedCohort.enrolledCourses.length}/{selectedCohort.capacity} {tr('học viên')}</dd>
+                      <dt className="text-rp-text-muted">{tr('Sĩ số hiện tại')}</dt>
+                      <dd className="mt-0.5 text-sm font-semibold text-rp-text">
+                        {selectedCohort.capacity != null
+                          ? `${selectedCohort.enrolledCourses.length}/${selectedCohort.capacity} ${tr('học viên')}`
+                          : `${selectedCohort.enrolledCourses.length} ${tr('học viên')}`}
+                      </dd>
                     </div>
                     <div>
-                      <dt>{tr('Ngày khai giảng')}</dt>
-                      <dd>{fmtDate(selectedCohort.startsAt)}</dd>
+                      <dt className="text-rp-text-muted">{tr('Ngày khai giảng')}</dt>
+                      <dd className="mt-0.5 text-sm font-semibold text-rp-text">{fmtDate(selectedCohort.startsAt)}</dd>
                     </div>
                     <div>
-                      <dt>{tr('Thời lượng chuẩn')}</dt>
-                      <dd>{trf('{0} buổi · {1} phút/buổi', { 0: selectedCohort.totalSessions, 1: selectedCohort.sessionMinutes })}</dd>
+                      <dt className="text-rp-text-muted">{tr('Thời lượng chuẩn')}</dt>
+                      <dd className="mt-0.5 text-sm font-semibold text-rp-text">
+                        {trf('{0} buổi · {1} phút/buổi', {
+                          0: selectedCohort.totalSessions || 0,
+                          1: selectedCohort.sessionMinutes || 90,
+                        })}
+                      </dd>
                     </div>
                     <div>
-                      <dt>{tr('Học viên chờ điểm danh')}</dt>
-                      <dd>{selectedCohort.pendingAttendanceCount}</dd>
+                      <dt className="text-rp-text-muted">{tr('Học viên chờ điểm danh')}</dt>
+                      <dd className="mt-0.5 text-sm font-semibold text-rp-brand-strong">{selectedCohort.pendingAttendanceCount}</dd>
                     </div>
                   </dl>
 
                   {selectedCohort.nextSession ? (
                     <div className={cx(
-                      'mt-3 rounded-xl border p-4',
-                      selectedCohort.nextSession.canJoin ? 'border-emerald-200 bg-emerald-50/70' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
+                      'rounded-xl border p-4',
+                      selectedCohort.nextSession.canJoin ? 'border-rp-success-line bg-rp-success-bg/70' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
                     )}>
-                      <p className="text-xs font-bold uppercase tracking-wide text-rp-brand-strong">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-rp-brand-strong">
                         {selectedCohort.nextSession.canJoin ? tr('Phòng học đang mở') : tr('Buổi dạy tiếp theo')}
                       </p>
-                      <p className="mt-1 text-base font-bold text-rp-text">
+                      <p className="mt-1 text-base font-semibold text-rp-text">
                         {trf('Buổi {0}', { 0: selectedCohort.nextSession.number })} · {fmtDate(selectedCohort.nextSession.scheduledAt)}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {selectedCohort.nextSession.roomId && (
-                          <Link
-                            to={`/meeting-room/${selectedCohort.nextSession.roomId}`}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-rp-brand-strong px-3 text-xs font-semibold text-white hover:bg-rp-brand-deep"
-                          >
-                            <Video className="h-3.5 w-3.5" /> {tr('Vào phòng học chung')}
-                          </Link>
+                          <Button as={Link} to={`/meeting-room/${selectedCohort.nextSession.roomId}`} variant="primary" size="sm" icon={Video}>
+                            {tr('Vào phòng học chung')}
+                          </Button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => switchSection('attendance')}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rp-line bg-white px-3 text-xs font-semibold text-rp-text hover:bg-rp-brand-tint"
-                        >
-                          <ClipboardCheck className="h-3.5 w-3.5" /> {tr('Chốt điểm danh')}
-                        </button>
+                        <Button variant="secondary" size="sm" icon={ClipboardCheck} onClick={() => switchSection('attendance')}>
+                          {tr('Chốt điểm danh')}
+                        </Button>
                       </div>
                     </div>
                   ) : (
-                    <p className="mt-3 text-sm text-rp-text-muted">{tr('Chưa có lịch buổi dạy sắp tới.')}</p>
+                    <p className="text-sm text-rp-text-muted">{tr('Chưa có lịch buổi dạy sắp tới.')}</p>
                   )}
                 </Card>
 
                 <Card>
-                  <CardHeader title={tr('Việc cần xử lý trong lớp')} description={tr('Chuyển nhanh tới đúng công việc')} />
-                  <div className="space-y-2.5">
-                    <button
-                      type="button"
-                      onClick={() => switchSection('learners')}
-                      className="flex w-full items-center justify-between rounded-xl border border-rp-line bg-white px-3.5 py-2.5 text-left text-sm hover:border-rp-brand-border hover:bg-rp-brand-tint/30"
-                    >
-                      <span><strong>{selectedCohort.enrolledCourses.length}</strong> {tr('Học viên ghi danh & hồ sơ năng lực')}</span>
-                      <span className="text-xs font-semibold text-rp-brand-strong">{tr('Xem danh sách')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => switchSection('homework')}
-                      className="flex w-full items-center justify-between rounded-xl border border-rp-line bg-white px-3.5 py-2.5 text-left text-sm hover:border-rp-brand-border hover:bg-rp-brand-tint/30"
-                    >
-                      <span><strong>{submittedHomeworkCount}</strong> {tr('Bài tập đã nộp chờ chấm')}</span>
-                      <span className="text-xs font-semibold text-rp-brand-strong">{tr('Mở bài tập')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => switchSection('attendance')}
-                      className="flex w-full items-center justify-between rounded-xl border border-rp-line bg-white px-3.5 py-2.5 text-left text-sm hover:border-rp-brand-border hover:bg-rp-brand-tint/30"
-                    >
-                      <span><strong>{selectedCohort.pendingAttendanceCount}</strong> {tr('Lượt buổi chưa chốt điểm danh')}</span>
-                      <span className="text-xs font-semibold text-rp-brand-strong">{tr('Điểm danh')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => switchSection('support')}
-                      className="flex w-full items-center justify-between rounded-xl border border-rp-line bg-white px-3.5 py-2.5 text-left text-sm hover:border-rp-brand-border hover:bg-rp-brand-tint/30"
-                    >
-                      <span><strong>{selectedCohort.openComplaintsCount}</strong> {tr('Khiếu nại đang mở')}</span>
-                      <span className="text-xs font-semibold text-rp-brand-strong">{tr('Xử lý')}</span>
-                    </button>
+                  <CardHeader title="Việc cần xử lý trong lớp" description="Chuyển nhanh tới đúng công việc" />
+                  <div className="mt-3 space-y-2.5">
+                    {[
+                      {
+                        section: 'learners',
+                        count: selectedCohort.enrolledCourses.length,
+                        label: 'Học viên ghi danh & hồ sơ năng lực',
+                        cta: 'Xem danh sách',
+                      },
+                      {
+                        section: 'homework',
+                        count: submittedHomeworkCount,
+                        label: 'Bài tập đã nộp chờ chấm',
+                        cta: 'Mở bài tập',
+                      },
+                      {
+                        section: 'attendance',
+                        count: selectedCohort.pendingAttendanceCount,
+                        label: 'Lượt buổi chưa chốt điểm danh',
+                        cta: 'Điểm danh',
+                      },
+                      {
+                        section: 'support',
+                        count: selectedCohort.openComplaintsCount ?? '—',
+                        label: 'Khiếu nại đang mở',
+                        cta: 'Xử lý',
+                      },
+                    ].map((item) => (
+                      <button
+                        key={item.section}
+                        type="button"
+                        onClick={() => switchSection(item.section)}
+                        className="rp-focus flex w-full items-center justify-between rounded-xl border border-rp-line bg-rp-surface px-3.5 py-2.5 text-left text-sm transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint/30"
+                      >
+                        <span>
+                          <strong className="tabular-nums">{item.count}</strong> {tr(item.label)}
+                        </span>
+                        <span className="text-xs font-semibold text-rp-brand-strong">{tr(item.cta)}</span>
+                      </button>
+                    ))}
                   </div>
                 </Card>
               </div>
             )}
 
-            {/* ---------- TAB 2: LEARNERS & SKILL PROFILE DRAWER ---------- */}
+            {/* ---------- TAB 2: LEARNERS & SKILL PROFILE ---------- */}
             {activeSection === 'learners' && (
-              <section className="course-box space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="m-0">{trf('Danh sách học viên ({0})', { 0: selectedCohort.enrolledCourses.length })}</h2>
-                    <p className="course-meta m-0 mt-0.5">
-                      {tr('Theo dõi chuyên cần, tỷ lệ nộp bài tập đúng hạn và mở hồ sơ năng lực chi tiết của từng học viên.')}
-                    </p>
-                  </div>
-                </div>
-
+              <Card className="space-y-4">
+                <CardHeader
+                  title={trf('Danh sách học viên ({0})', { 0: selectedCohort.allCourses.length })}
+                  description="Theo dõi chuyên cần, tỷ lệ nộp bài tập đúng hạn và mở hồ sơ năng lực chi tiết của từng học viên."
+                />
                 {selectedCohort.allCourses.length === 0 ? (
                   <ContextualEmptyState
                     compact
-                    title={tr('Lớp chưa có học viên ghi danh')}
-                    description={tr('Khi học viên đăng ký thành công, hồ sơ học tập sẽ hiển thị tại đây.')}
+                    title="Lớp chưa có học viên ghi danh"
+                    description="Khi học viên đăng ký thành công, hồ sơ học tập sẽ hiển thị tại đây."
                   />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="course-table">
-                      <thead>
-                        <tr>
-                          <th>{tr('Học viên')}</th>
-                          <th>{tr('Trạng thái')}</th>
-                          <th>{tr('Chuyên cần')}</th>
-                          <th>{tr('Bài tập đúng hạn')}</th>
-                          <th>{tr('Thao tác')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedCohort.allCourses.map((c) => {
-                          const sessList = c.sessions || [];
-                          const presentCount = sessList.filter((s) => s.status === 'Present').length;
-                          const absentCount = c.eligibility?.absentSessions ?? sessList.filter((s) => s.status === 'Absent').length;
-                          const hasApprovedRetake = (c.requests || []).some((r) => r.status === 'Approved');
-                          return (
-                            <tr key={c.id}>
-                              <td>
-                                <p className="font-semibold text-rp-text">{c.learnerName || tr('Học viên')}</p>
-                                {c.status === 'Transferred' && (
-                                  <p className="text-xs text-rp-text-muted">{tr('Đã chuyển lớp; dữ liệu cũ được giữ nguyên.')}</p>
-                                )}
-                              </td>
-                              <td>
-                                <span className={`course-badge ${statusBadgeTone(c.status)}`}>{showStatus(c.status)}</span>
-                              </td>
-                              <td className="text-xs text-rp-text-2">
-                                {trf('{0}/{1} buổi có mặt', { 0: presentCount, 1: sessList.length || selectedCohort.totalSessions })}
-                                {absentCount > 0 ? ` · ${trf('{0} vắng', { 0: absentCount })}` : ''}
-                              </td>
-                              <td className="text-xs text-rp-text-2">
-                                {c.eligibility
-                                  ? `${c.eligibility.passedOnTimeHomework}/${c.eligibility.requiredHomework}`
-                                  : '—'}
-                              </td>
-                              <td>
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => openSkillModal(c)}
-                                    className="rounded-lg border border-rp-line bg-white px-2.5 py-1 text-xs font-semibold text-rp-brand-strong hover:bg-rp-brand-tint"
-                                  >
-                                    {tr('Hồ sơ năng lực')}
-                                  </button>
-                                  {hasApprovedRetake && (
-                                    <button
-                                      type="button"
-                                      onClick={() => switchSection('support')}
-                                      className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100"
-                                    >
-                                      {tr('Lộ trình ôn lại')}
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    <div className="hidden md:block">
+                      <DataTable
+                        columns={learnerColumns}
+                        rows={selectedCohort.allCourses}
+                        rowKey={(c) => c.id}
+                        density="compact"
+                        itemLabel="học viên"
+                      />
+                    </div>
+                    <div className="space-y-2.5 md:hidden">
+                      {selectedCohort.allCourses.map((c) => {
+                        const sessList = c.sessions || [];
+                        const presentCount = sessList.filter((s) => s.status === 'Present').length;
+                        const hasApprovedRetake = (c.requests || []).some((r) => r.status === 'Approved');
+                        return (
+                          <div key={c.id} className="rounded-xl border border-rp-line bg-rp-bg-2 p-3 space-y-2 text-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-sm font-semibold text-rp-text">{c.learnerName || tr('Học viên')}</span>
+                              <Badge tone={statusBadgeTone(c.status)} size="sm">{showStatus(c.status)}</Badge>
+                            </div>
+                            <p className="text-rp-text-2">
+                              {trf('{0}/{1} buổi có mặt', { 0: presentCount, 1: sessList.length || selectedCohort.totalSessions })}
+                              {c.eligibility ? ` · ${tr('Bài tập')}: ${c.eligibility.passedOnTimeHomework}/${c.eligibility.requiredHomework}` : ''}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="secondary" size="sm" onClick={() => openSkillModal(c)}>
+                                {tr('Hồ sơ năng lực')}
+                              </Button>
+                              {hasApprovedRetake && (
+                                <Button variant="soft" size="sm" onClick={() => switchSection('support')}>
+                                  {tr('Lộ trình ôn lại')}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
-              </section>
+              </Card>
             )}
 
             {/* ---------- TAB 3: SCHEDULE & RESCHEDULE DRAWER ---------- */}
             {activeSection === 'schedule' && (
               <div className="space-y-4">
                 {selectedCohort.cohortObj && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-white px-4 py-3">
+                  <Card density="compact" className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-rp-text">{tr('Điều chỉnh lịch khai giảng / dời tuần học')}</p>
-                      <p className="text-xs text-rp-text-muted">{tr('Yêu cầu dời lịch hoặc hủy lớp trống sẽ gửi tới Admin xem xét trước khi áp dụng.')}</p>
+                      <p className="text-xs text-rp-text-muted">{tr('Yêu cầu dời lịch hoặc hủy lớp trống sẽ gửi tới Quản trị viên xem xét trước khi áp dụng.')}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleDrawerOpen((v) => !v)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-3.5 text-xs font-semibold text-white hover:bg-rp-brand-deep"
-                    >
-                      {scheduleDrawerOpen ? tr('Ẩn biểu mẫu dời lịch') : tr('Gửi yêu cầu dời/hủy lịch')}
-                    </button>
-                  </div>
-                )}
-
-                {scheduleDrawerOpen && selectedCohort.cohortObj && (
-                  <CohortScheduleRequestPanel
-                    cohorts={[selectedCohort.cohortObj]}
-                    initialCohortId={selectedCohort.cohortId}
-                    busy={busy}
-                    onRun={runAction}
-                  />
+                    <Button variant="primary" size="sm" onClick={() => setScheduleDrawerOpen(true)}>
+                      {tr('Gửi yêu cầu dời/hủy lịch')}
+                    </Button>
+                  </Card>
                 )}
 
                 {calendarRepresentativeCourse && (
                   <CohortSessionsCalendar course={calendarRepresentativeCourse} cohort={selectedCohort.cohortObj}>
                     <div className="space-y-2">
                       {selectedCohort.sessions.length === 0 ? (
-                        <p className="course-meta">{tr('Chưa có buổi học nào.')}</p>
+                        <p className="text-sm text-rp-text-muted">{tr('Chưa có buổi học nào.')}</p>
                       ) : (
                         selectedCohort.sessions.map((s) => (
-                          <article key={s.id || s.number} className="course-row flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <strong>{trf('Buổi {0}', { 0: s.number })}{s.attempt > 1 ? trf(' (học bù {0})', { 0: s.attempt - 1 }) : ''}</strong> · {fmtDate(s.scheduledAt)} ·{' '}
-                              <span className={`course-badge ${statusBadgeTone(s.status)}`}>{showStatus(s.status)}</span>
+                          <div
+                            key={s.id || s.number}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2 px-3.5 py-2.5 text-sm"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <strong className="text-rp-text">
+                                {trf('Buổi {0}', { 0: s.number })}
+                                {s.attempt > 1 ? trf(' (học bù {0})', { 0: s.attempt - 1 }) : ''}
+                              </strong>
+                              <span className="text-xs text-rp-text-muted">· {fmtDate(s.scheduledAt)}</span>
+                              <Badge tone={statusBadgeTone(s.status)} size="sm">{showStatus(s.status)}</Badge>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                               {s.roomId && (
-                                <Link className="course-pill-link" to={`/meeting-room/${s.roomId}`}>
+                                <Button as={Link} to={`/meeting-room/${s.roomId}`} variant="soft" size="sm" icon={Video}>
                                   {tr('Vào phòng học chung')}
-                                </Link>
+                                </Button>
                               )}
-                              <button
-                                type="button"
+                              <Button
+                                variant="secondary"
+                                size="sm"
                                 onClick={() => {
                                   setSelectedSessionNumber(Number(s.number));
                                   switchSection('attendance');
                                 }}
-                                className="rounded-lg border border-rp-line bg-white px-2.5 py-1 text-xs font-semibold text-rp-text hover:bg-rp-brand-tint"
                               >
                                 {tr('Điểm danh buổi này')}
-                              </button>
+                              </Button>
                             </div>
-                          </article>
+                          </div>
                         ))
                       )}
                     </div>
                   </CohortSessionsCalendar>
                 )}
+
+                <Drawer
+                  open={scheduleDrawerOpen && Boolean(selectedCohort.cohortObj)}
+                  onClose={() => setScheduleDrawerOpen(false)}
+                  title={tr('Yêu cầu dời lịch / hủy lớp trống')}
+                  width="w-[min(560px,100vw)]"
+                >
+                  {selectedCohort.cohortObj && (
+                    <CohortScheduleRequestPanel
+                      cohorts={[selectedCohort.cohortObj]}
+                      initialCohortId={selectedCohort.cohortId}
+                      busy={busy}
+                      onRun={runAction}
+                    />
+                  )}
+                </Drawer>
               </div>
             )}
 
             {/* ---------- TAB 4: HOMEWORK ---------- */}
             {activeSection === 'homework' && (
               homeworkLoading && cohortHomework.length === 0 ? (
-                <section className="course-box">
+                <Card>
                   <SakuraLoader variant="section" context="homework" className="min-h-[140px]" delay={160} />
-                </section>
+                </Card>
               ) : homeworkError ? (
-                <section className="course-box">
+                <Card>
                   <ContextualErrorState
                     compact
                     error={homeworkError}
@@ -985,7 +1097,7 @@ export default function MentorClassWorkspace() {
                     onRetry={() => setHomeworkTick((t) => t + 1)}
                     retrying={homeworkLoading}
                   />
-                </section>
+                </Card>
               ) : (
                 <CohortHomeworkPanel
                   cohortId={selectedCohort.cohortId}
@@ -1001,137 +1113,103 @@ export default function MentorClassWorkspace() {
 
             {/* ---------- TAB 5: SESSION-CENTRIC COHORT ATTENDANCE ---------- */}
             {activeSection === 'attendance' && (
-              <section className="course-box space-y-4">
+              <Card className="space-y-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 className="m-0">{tr('Điểm danh theo buổi học')}</h2>
-                    <p className="course-meta m-0 mt-0.5">
-                      {tr('Chọn buổi học để điểm danh tất cả học viên trong lớp trên một màn hình.')}
+                    <h2 className="rp-type-card text-rp-text">{tr('Điểm danh theo buổi học')}</h2>
+                    <p className="mt-1 text-xs text-rp-text-muted">
+                      {tr('Chọn buổi học để điểm danh từng học viên trong lớp trên một màn hình.')}
                     </p>
                   </div>
                   {currentCohortSessionMeta?.roomId && (
-                    <Link
-                      to={`/meeting-room/${currentCohortSessionMeta.roomId}`}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-3.5 text-xs font-semibold text-white hover:bg-rp-brand-deep"
-                    >
-                      <Video className="h-3.5 w-3.5" /> {tr('Mở phòng học chung')}
-                    </Link>
+                    <Button as={Link} to={`/meeting-room/${currentCohortSessionMeta.roomId}`} variant="primary" size="sm" icon={Video}>
+                      {tr('Mở phòng học chung')}
+                    </Button>
                   )}
                 </div>
 
                 {selectedCohort.sessions.length === 0 ? (
-                  <ContextualEmptyState compact title={tr('Lớp chưa có lịch buổi học để điểm danh')} />
+                  <ContextualEmptyState compact title="Lớp chưa có lịch buổi học để điểm danh" />
                 ) : (
                   <>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedCohort.sessions.map((s) => {
-                        const active = Number(s.number) === Number(effectiveSessionNumber);
-                        const pendingAny = selectedCohort.enrolledCourses.some(
-                          (c) => c.status === 'Active' && (c.sessions || []).some((cs) => Number(cs.number) === Number(s.number) && cs.status === 'Scheduled'),
-                        );
-                        return (
-                          <button
-                            key={s.number}
-                            type="button"
-                            onClick={() => setSelectedSessionNumber(Number(s.number))}
-                            className={cx(
-                              'rp-focus inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold',
-                              active
-                                ? 'border-rp-brand-strong bg-rp-brand-strong text-white'
-                                : 'border-rp-line bg-white text-rp-text-2 hover:border-rp-brand-border',
-                            )}
-                          >
-                            <span>{trf('Buổi {0}', { 0: s.number })}</span>
-                            {pendingAny && !active && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-                          </button>
-                        );
-                      })}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="w-full sm:w-72">
+                        <CustomSelect
+                          aria-label={tr('Chọn buổi học')}
+                          value={String(effectiveSessionNumber ?? '')}
+                          onChange={(val) => setSelectedSessionNumber(Number(val))}
+                          options={selectedCohort.sessions.map((s) => {
+                            const pendingAny = selectedCohort.enrolledCourses.some(
+                              (c) => c.status === 'Active' && (c.sessions || []).some((cs) => Number(cs.number) === Number(s.number) && cs.status === 'Scheduled'),
+                            );
+                            return {
+                              value: String(s.number),
+                              label: `${trf('Buổi {0}', { 0: s.number })} · ${fmtDate(s.scheduledAt)}${pendingAny ? ` · ${tr('Chờ điểm danh')}` : ''}`,
+                            };
+                          })}
+                        />
+                      </div>
+
+                      {currentCohortSessionMeta && (
+                        <div className="flex items-center gap-2 rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2 text-xs text-rp-text-2">
+                          <Clock className="h-3.5 w-3.5 text-rp-brand-strong" />
+                          <span className="font-semibold text-rp-text">{trf('Buổi {0}', { 0: currentCohortSessionMeta.number })}</span>
+                          <span>· {fmtDate(currentCohortSessionMeta.scheduledAt)}</span>
+                        </div>
+                      )}
                     </div>
 
-                    {currentCohortSessionMeta && (
-                      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-rp-line bg-rp-bg-2 px-3.5 py-2.5 text-xs text-rp-text-2">
-                        <span className="inline-flex items-center gap-1 font-semibold text-rp-text">
-                          <Clock className="h-3.5 w-3.5" /> {trf('Buổi {0}', { 0: currentCohortSessionMeta.number })}
-                        </span>
-                        <span>· {fmtDate(currentCohortSessionMeta.scheduledAt)}</span>
-                      </div>
-                    )}
-
                     {sessionRoster.length === 0 ? (
-                      <p className="course-meta">{tr('Chưa có học viên nào ghi danh vào buổi học này.')}</p>
+                      <ContextualEmptyState compact title="Chưa có học viên nào ghi danh vào buổi học này." />
                     ) : (
-                      <div className="space-y-2.5">
-                        {sessionRoster.map(({ course, session }) => {
-                          if (!session) return null;
-                          const draftKey = `${course.id}-${session.id}`;
-                          const draft = attendanceDrafts[draftKey] || { status: 'Present', note: '' };
-                          const canMark = course.status === 'Active' && session.status === 'Scheduled';
-                          return (
-                            <article key={draftKey} className="course-row space-y-2">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <strong className="text-sm text-rp-text">{course.learnerName || tr('Học viên')}</strong>
-                                  <span className="ml-2 text-xs text-rp-text-muted">{showStatus(course.status)}</span>
+                      <>
+                        <div className="hidden md:block">
+                          <DataTable
+                            columns={attendanceColumns}
+                            rows={sessionRoster}
+                            rowKey={({ course, session }) => `${course.id}-${session.id}`}
+                            density="compact"
+                            itemLabel="học viên"
+                          />
+                        </div>
+                        <div className="space-y-2.5 md:hidden">
+                          {sessionRoster.map(({ course, session }) => {
+                            const canMark = course.status === 'Active' && session.status === 'Scheduled';
+                            return (
+                              <div key={`${course.id}-${session.id}`} className="rounded-xl border border-rp-line bg-rp-bg-2 p-3 space-y-2 text-xs">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-sm font-semibold text-rp-text">{course.learnerName || tr('Học viên')}</p>
+                                    <p className="text-rp-text-muted">{showStatus(course.status)}</p>
+                                  </div>
+                                  <Badge tone={statusBadgeTone(session.status)} size="sm">{showStatus(session.status)}</Badge>
                                 </div>
-                                <span className={`course-badge ${statusBadgeTone(session.status)}`}>{showStatus(session.status)}</span>
+                                {session.note && <p className="text-rp-text-2">{session.note}</p>}
+                                {canMark && (
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    icon={CheckCircle2}
+                                    disabled={busy}
+                                    onClick={() => setAttendanceModal({
+                                      course,
+                                      session,
+                                      status: 'Present',
+                                      note: session.note || '',
+                                    })}
+                                  >
+                                    {tr('Điểm danh')}
+                                  </Button>
+                                )}
                               </div>
-                              {session.note && <p className="course-meta m-0">{tr(session.note)}</p>}
-                              {canMark && (
-                                <form
-                                  className="course-form"
-                                  onSubmit={(e) => {
-                                    e.preventDefault();
-                                    runAction(
-                                      () => coursePost(`/${course.id}/sessions/${session.id}/attendance`, {
-                                        status: draft.status,
-                                        note: draft.note.trim(),
-                                      }),
-                                      trf('Đã lưu điểm danh cho {0}.', { 0: course.learnerName || tr('học viên') }),
-                                    );
-                                  }}
-                                >
-                                  <fieldset disabled={busy} className="flex flex-wrap items-end gap-3 border-0 p-0">
-                                    <label className="course-field" style={{ minWidth: 160 }}>
-                                      <span>{tr('Trạng thái')}</span>
-                                      <select
-                                        value={draft.status}
-                                        onChange={(e) => setAttendanceDrafts((cur) => ({
-                                          ...cur,
-                                          [draftKey]: { ...draft, status: e.target.value },
-                                        }))}
-                                      >
-                                        {['Present', 'Absent', 'ExcusedAbsent', 'CancelledByMentor'].map((x) => (
-                                          <option key={x} value={x}>{showStatus(x)}</option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                    <label className="course-field" style={{ flex: '1 1 240px' }}>
-                                      <span>{tr('Ghi chú điểm danh (bắt buộc)')}</span>
-                                      <input
-                                        required
-                                        maxLength={1000}
-                                        value={draft.note}
-                                        onChange={(e) => setAttendanceDrafts((cur) => ({
-                                          ...cur,
-                                          [draftKey]: { ...draft, note: e.target.value },
-                                        }))}
-                                        placeholder={tr('Nhận xét tình hình tham gia buổi học…')}
-                                      />
-                                    </label>
-                                    <button type="submit" className="course-primary">
-                                      <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" /> {tr('Lưu điểm danh')}
-                                    </button>
-                                  </fieldset>
-                                </form>
-                              )}
-                            </article>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
                   </>
                 )}
-              </section>
+              </Card>
             )}
 
             {/* ---------- TAB 6: COMPLAINTS & JLPT RETAKE SUPPORT ---------- */}
@@ -1144,60 +1222,183 @@ export default function MentorClassWorkspace() {
                   onRun={runAction}
                 />
 
-                <section className="course-box space-y-3">
-                  <div>
-                    <h2 className="m-0">{tr('Lộ trình hỗ trợ ôn lại khi trượt JLPT chính thức')}</h2>
-                    <p className="course-meta m-0 mt-0.5">
-                      {tr('Sau khi Admin duyệt minh chứng trượt JLPT của học viên, Giáo viên lập lộ trình ôn lại tại đây.')}
-                    </p>
-                  </div>
+                <Card className="space-y-4">
+                  <CardHeader
+                    title="Lộ trình hỗ trợ ôn lại khi trượt JLPT chính thức"
+                    description="Sau khi Quản trị viên duyệt minh chứng trượt JLPT của học viên, Giáo viên lập kế hoạch ôn lại tại đây."
+                  />
                   {selectedCohort.approvedRetakeRequests.length === 0 ? (
                     <ContextualEmptyState
                       compact
-                      title={tr('Chưa có học viên nào cần lập kế hoạch ôn lại trong lớp này')}
+                      title="Chưa có yêu cầu hỗ trợ ôn lại"
+                      description="Chưa có học viên nào cần lập kế hoạch ôn lại trong lớp này."
                     />
                   ) : (
-                    selectedCohort.approvedRetakeRequests.map((r) => (
-                      <article key={r.id} className="course-row space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <strong>{r.learnerName || tr('Học viên')}</strong>
-                          <span className="course-meta">{trf('Thi: {0} · Công bố: {1}', { 0: fmtDate(r.examDate), 1: fmtDate(r.resultPublishedAt) })}</span>
-                        </div>
-                        {r.reason && <p className="course-pre"><strong>{tr('Lý do học viên:')}</strong> {tr(r.reason)}</p>}
-                        {r.response && <p className="course-pre"><strong>{tr('Quyết định của Admin:')}</strong> {r.response}</p>}
-                        <form
-                          className="course-form"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            const val = (supportDrafts[r.id] ?? r.mentorSupportPlan ?? '').trim();
-                            runAction(
-                              () => saveRetakeSupportPlan(r.courseId, r.id, val),
-                              'Đã lưu kế hoạch hỗ trợ ôn lại cho học viên.',
-                            );
-                          }}
-                        >
-                          <fieldset disabled={busy} className="space-y-2 border-0 p-0">
-                            <label className="course-field" style={{ flexBasis: '100%' }}>
-                              <span>{tr('Lộ trình hỗ trợ ôn lại JLPT của Giáo viên')}</span>
-                              <textarea
-                                required
-                                maxLength={2000}
-                                value={supportDrafts[r.id] ?? r.mentorSupportPlan ?? ''}
-                                onChange={(e) => setSupportDrafts((cur) => ({ ...cur, [r.id]: e.target.value }))}
-                                placeholder={tr('Nhập kế hoạch ôn luyện kỹ năng yếu và lịch đồng hành…')}
-                              />
-                            </label>
-                            <button type="submit" className="course-primary">{tr('Lưu lộ trình hỗ trợ')}</button>
-                          </fieldset>
-                        </form>
-                      </article>
-                    ))
+                    <div className="space-y-3">
+                      {selectedCohort.approvedRetakeRequests.map((r) => (
+                        <Card key={r.id} density="compact" className="space-y-2 bg-rp-bg-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <strong className="text-sm text-rp-text">{r.learnerName || tr('Học viên')}</strong>
+                            <span className="text-xs text-rp-text-muted">
+                              {trf('Thi: {0} · Công bố: {1}', { 0: fmtDate(r.examDate), 1: fmtDate(r.resultPublishedAt) })}
+                            </span>
+                          </div>
+                          {r.reason && (
+                            <p className="text-xs leading-relaxed text-rp-text-2">
+                              <strong>{tr('Lý do học viên:')}</strong> {r.reason}
+                            </p>
+                          )}
+                          {r.response && (
+                            <p className="text-xs leading-relaxed text-rp-text-2">
+                              <strong>{tr('Quyết định của Quản trị viên:')}</strong> {r.response}
+                            </p>
+                          )}
+                          {r.mentorSupportPlan && (
+                            <p className="rounded-lg border border-rp-line bg-rp-surface px-3 py-2 text-xs text-rp-text">
+                              <strong>{tr('Lộ trình đã lưu:')}</strong> {r.mentorSupportPlan}
+                            </p>
+                          )}
+                          <div className="flex justify-end">
+                            <Button
+                              variant={r.mentorSupportPlan ? 'secondary' : 'primary'}
+                              size="sm"
+                              onClick={() => setSupportModal({ request: r, plan: r.mentorSupportPlan || '' })}
+                            >
+                              {tr(r.mentorSupportPlan ? 'Cập nhật lộ trình' : 'Lập lộ trình hỗ trợ')}
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
                   )}
-                </section>
+                </Card>
               </div>
             )}
           </>
         )}
+
+        {/* Attendance Modal */}
+        <Modal
+          open={Boolean(attendanceModal)}
+          onClose={() => !busy && setAttendanceModal(null)}
+          title={attendanceModal ? trf('Điểm danh: {0}', { 0: attendanceModal.course.learnerName || tr('Học viên') }) : ''}
+          description={attendanceModal ? `${trf('Buổi {0}', { 0: attendanceModal.session.number })} · ${fmtDate(attendanceModal.session.scheduledAt)}` : ''}
+          size="md"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setAttendanceModal(null)} disabled={busy}>
+                {tr('Hủy')}
+              </Button>
+              <Button
+                type="submit"
+                form="cohort-attendance-form"
+                variant="primary"
+                loading={busy}
+                disabled={!attendanceModal?.note?.trim()}
+              >
+                {tr('Lưu điểm danh')}
+              </Button>
+            </>
+          )}
+        >
+          {attendanceModal && (
+            <form
+              id="cohort-attendance-form"
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = attendanceModal.note.trim();
+                if (!trimmed) return;
+                runAction(
+                  async () => {
+                    await coursePost(
+                      `/${attendanceModal.course.id}/sessions/${attendanceModal.session.id}/attendance`,
+                      { status: attendanceModal.status, note: trimmed },
+                    );
+                    setAttendanceModal(null);
+                  },
+                  trf('Đã lưu điểm danh cho {0}.', { 0: attendanceModal.course.learnerName || tr('học viên') }),
+                );
+              }}
+            >
+              <Field label="Trạng thái" required>
+                <CustomSelect
+                  disabled={busy}
+                  value={attendanceModal.status}
+                  onChange={(val) => setAttendanceModal((cur) => cur && ({ ...cur, status: val }))}
+                  options={ATTENDANCE_OPTIONS.map((x) => ({ value: x, label: showStatus(x) }))}
+                />
+              </Field>
+              <Field label="Ghi chú điểm danh" required counter={`${attendanceModal.note.trim().length} / 1000`}>
+                <Textarea
+                  required
+                  rows={4}
+                  disabled={busy}
+                  maxLength={1000}
+                  value={attendanceModal.note}
+                  onChange={(e) => setAttendanceModal((cur) => cur && ({ ...cur, note: e.target.value }))}
+                  placeholder={tr('Nhận xét tình hình tham gia buổi học…')}
+                />
+              </Field>
+            </form>
+          )}
+        </Modal>
+
+        {/* JLPT Retake Support Plan Modal */}
+        <Modal
+          open={Boolean(supportModal)}
+          onClose={() => !busy && setSupportModal(null)}
+          title="Lộ trình hỗ trợ ôn lại JLPT của Giáo viên"
+          description={supportModal?.request?.learnerName || tr('Học viên')}
+          size="md"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setSupportModal(null)} disabled={busy}>
+                {tr('Hủy')}
+              </Button>
+              <Button
+                type="submit"
+                form="retake-support-plan-form"
+                variant="primary"
+                loading={busy}
+                disabled={!supportModal?.plan?.trim()}
+              >
+                {tr('Lưu lộ trình hỗ trợ')}
+              </Button>
+            </>
+          )}
+        >
+          {supportModal && (
+            <form
+              id="retake-support-plan-form"
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const val = supportModal.plan.trim();
+                if (!val) return;
+                runAction(
+                  async () => {
+                    await saveRetakeSupportPlan(supportModal.request.courseId, supportModal.request.id, val);
+                    setSupportModal(null);
+                  },
+                  'Đã lưu kế hoạch hỗ trợ ôn lại cho học viên.',
+                );
+              }}
+            >
+              <Field label="Nội dung lộ trình" required counter={`${supportModal.plan.trim().length} / 2000`}>
+                <Textarea
+                  required
+                  rows={5}
+                  disabled={busy}
+                  maxLength={2000}
+                  value={supportModal.plan}
+                  onChange={(e) => setSupportModal((cur) => cur && ({ ...cur, plan: e.target.value }))}
+                  placeholder={tr('Nhập kế hoạch ôn luyện kỹ năng yếu và lịch đồng hành…')}
+                />
+              </Field>
+            </form>
+          )}
+        </Modal>
 
         {/* Learner Skill Profile Modal */}
         <Modal
@@ -1221,21 +1422,23 @@ export default function MentorClassWorkspace() {
           ) : skillModal?.data ? (
             <div className="space-y-3 text-sm">
               <p className="text-rp-text-2">
-                {tr('Trình độ đánh giá:')}{' '}<strong>{skillModal.data.assessedJlptLevel || selectedCohort?.level || 'JLPT'}</strong>{' '}
-                · {tr('Bài tập đúng hạn:')}{' '}<strong>{skillModal.data.homeworkStats?.onTimeCount ?? 0}/{skillModal.data.homeworkStats?.assignedCount ?? 0}</strong>
+                {tr('Trình độ đánh giá:')}{' '}
+                <strong>{skillModal.data.assessedJlptLevel || selectedCohort?.level || 'JLPT'}</strong>{' '}
+                · {tr('Bài tập đúng hạn:')}{' '}
+                <strong>{skillModal.data.homeworkStats?.onTimeCount ?? 0}/{skillModal.data.homeworkStats?.assignedCount ?? 0}</strong>
                 {skillModal.data.homeworkStats?.onTimePercent != null ? ` (${skillModal.data.homeworkStats.onTimePercent}%)` : ''}
               </p>
               <div className="flex flex-wrap gap-2">
                 {(skillModal.data.skills || []).map((sk) => (
-                  <span key={sk.skill} className="course-badge">
-                    {sk.skill}: {sk.averageScorePercent != null ? `${sk.averageScorePercent}%` : tr('Chưa có mẫu')}
-                  </span>
+                  <Badge key={sk.skill} tone="neutral" icon={false} size="sm">
+                    {tr(sk.skill)}: {sk.averageScorePercent != null ? `${sk.averageScorePercent}%` : tr('Chưa có mẫu')}
+                  </Badge>
                 ))}
               </div>
             </div>
           ) : null}
         </Modal>
-      </main>
+      </PageContainer>
     </MentorShell>
   );
 }

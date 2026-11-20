@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { CalendarDays } from 'lucide-react';
 
 import SakuraCalendar from '@/features/scheduling/components/SakuraCalendar.jsx';
@@ -10,10 +10,11 @@ import {
 } from '@/features/scheduling/utils/calendarGeometry.js';
 import { useMentorScheduleWorkspace } from '@/features/scheduling/hooks/useMentorScheduleWorkspace.js';
 import { useNow } from '@/hooks/useNow.js';
+import { useAuth } from '@/app/auth/authContext.js';
 import { backendUtcDate } from '@/utils/mentorSchedule.js';
-import { ContextualErrorState, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { Banner, ContextualErrorState, PageHeader, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
-import { MentorShell } from '@/layouts';
+import { AdminShell, MentorShell } from '@/layouts';
 
 const focusClass =
   'focus-visible:outline-none focus-visible:ring-2 ' +
@@ -28,6 +29,9 @@ const SESSION_FILTERS = [
 export default function WorkSchedule() {
   const { tr, trf, fmt } = useLocale();
   const { pathname } = useLocation();
+  const { id: targetBookingId } = useParams();
+  const { user } = useAuth();
+  const isAdminViewer = String(user?.role || '').toLowerCase() === 'admin';
   const nowMs = useNow();
   const [anchorKey, setAnchorKey] = useState(() => toVnDateKey(new Date()));
   const [sessionFilter, setSessionFilter] = useState('ALL');
@@ -62,7 +66,7 @@ export default function WorkSchedule() {
       const hasEndedWaitingConfirm = !isCompleted && endDate.getTime() <= nowMs;
 
       const roomMatch = cs.meetingUrl?.match(/\/meeting-room\/([0-9a-f-]+)/i);
-      const cohortTitle = cs.cohortName || 'Lớp nhóm';
+      const cohortTitle = cs.cohortName || tr('Lớp nhóm');
       const cleanTitle = formatCleanCohortTitle(cohortTitle, cs.sessionNumber);
       const sessionLabel = cs.totalSessions
         ? trf('Buổi {0}/{1}', { 0: cs.sessionNumber || 1, 1: cs.totalSessions })
@@ -80,7 +84,7 @@ export default function WorkSchedule() {
       const tone = isCompleted ? 'present' : 'session';
       const cardDetail = [
         headcountLabel,
-        learnersLabel ? trf('HV: {0}', { 0: learnersLabel }) : null,
+        learnersLabel ? trf('Học viên: {0}', { 0: learnersLabel }) : null,
       ].filter(Boolean).join(' · ') || tr(statusText);
 
       const joinStartMs = startDate.getTime() - 15 * 60000;
@@ -176,30 +180,64 @@ export default function WorkSchedule() {
     </div>
   );
 
+  const [resolvedTargetId, setResolvedTargetId] = useState(null);
+  if (targetBookingId && resolvedTargetId !== targetBookingId) {
+    const match = teachingEvents.find(
+      (ev) => String(ev.id) === `work-${targetBookingId}` || String(ev.cohortId) === String(targetBookingId),
+    );
+    if (match?.dayKey) {
+      setAnchorKey(match.dayKey);
+      setResolvedTargetId(targetBookingId);
+    }
+  }
+
+  const Shell = isAdminViewer ? AdminShell : MentorShell;
+  if (isAdminViewer) {
+    return (
+      <Shell pathname={pathname} breadcrumb={tr('Lịch làm việc')}>
+        <div className="rp-container py-6">
+          <Banner
+            tone="info"
+            title={tr('Trang này dành riêng cho lịch dạy cá nhân của Giáo viên')}
+            actions={(
+              <Link
+                to="/admin/mentor-schedules/"
+                className="rp-focus inline-flex h-9 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-xs font-semibold text-white hover:bg-rp-brand-strong"
+              >
+                {tr('Mở điều phối lịch dạy Giáo viên')}
+              </Link>
+            )}
+          >
+            {tr('Tài khoản Quản trị viên vui lòng xem và điều phối lịch giảng dạy tại khu vực Quản trị đội ngũ Giáo viên.')}
+          </Banner>
+        </div>
+      </Shell>
+    );
+  }
+
   return (
-    <MentorShell pathname={pathname} breadcrumb={tr('Lịch làm việc')}>
+    <Shell pathname={pathname} breadcrumb={tr('Lịch làm việc')}>
       <div
         data-page="WorkSchedule"
         className="rp-container rp-cq pt-2.5 pb-1.5 text-rp-text space-y-2"
       >
-        <header className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h1 className="text-[20px] font-bold tracking-tight text-rp-text">{tr('Lịch làm việc')}</h1>
-            <p className="text-[12.5px] text-rp-text-muted">
-              {tr('Theo dõi các buổi dạy chính thức đã xếp lớp (sắp diễn ra và đã hoàn thành).')}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <RefreshingIndicator active={isRefreshing} />
-            <Link
-              to="/mentor-shift-schedule/"
-              className={`inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong ${focusClass}`}
-            >
-              <CalendarDays className="h-3.5 w-3.5" />
-              <span>{tr('Đăng ký lịch dạy')}</span>
-            </Link>
-          </div>
-        </header>
+        <PageHeader
+          className="!mb-1.5"
+          title="Lịch làm việc"
+          description="Theo dõi các buổi dạy chính thức đã xếp lớp (sắp diễn ra và đã hoàn thành)."
+          actions={(
+            <div className="flex flex-wrap items-center gap-2">
+              <RefreshingIndicator active={isRefreshing} />
+              <Link
+                to="/mentor-shift-schedule/"
+                className={`inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong ${focusClass}`}
+              >
+                <CalendarDays className="h-4 w-4" />
+                <span>{tr('Đăng ký lịch dạy')}</span>
+              </Link>
+            </div>
+          )}
+        />
 
         {isInitialLoading ? (
           <SakuraLoader variant="section" context="calendar" label={tr('Đang tải lịch làm việc')} delay={160} />
@@ -252,6 +290,6 @@ export default function WorkSchedule() {
           </>
         )}
       </div>
-    </MentorShell>
+    </Shell>
   );
 }

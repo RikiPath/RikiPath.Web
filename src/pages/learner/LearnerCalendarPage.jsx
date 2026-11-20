@@ -18,7 +18,6 @@ import { useLocale } from '@/locales/locale.js';
 import {
   Badge,
   Card,
-  ContextualEmptyState,
   ContextualErrorState,
   FeatureIcon,
   PageHeader,
@@ -305,6 +304,7 @@ export default function LearnerCalendarPage() {
               )}
               <SakuraCalendar
                 events={filteredEvents}
+                audience="learner"
                 anchorKey={anchorKey}
                 onAnchorChange={setAnchorKey}
                 defaultView="month"

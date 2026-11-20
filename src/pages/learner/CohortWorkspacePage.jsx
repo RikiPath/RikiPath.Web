@@ -3,7 +3,6 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
-  ArrowRight,
   BookCheck,
   CalendarDays,
   CheckCircle2,
@@ -32,20 +31,28 @@ import CohortCompletionSummary from '@/features/cohorts/components/CohortComplet
 import LearnerCohortTransferPanel from '@/features/cohorts/components/LearnerCohortTransferPanel';
 import CohortComplaintPanel from '@/features/complaints/components/CohortComplaintPanel';
 import { displayCourseTitle, getSessionJoinState } from '@/features/calendar/utils/calendarEventsModel.js';
-import { formatVnDateTime, sessionStatusLabel } from '@/utils/vnDateTime.js';
+import { formatVnDateTime, parseUtcDate, sessionStatusLabel } from '@/utils/vnDateTime.js';
 import { useNow } from '@/hooks/useNow.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   Badge,
   Banner,
+  Button,
   Card,
   CardHeader,
   ContextualEmptyState,
   ContextualErrorState,
+  DateInput,
+  Field,
+  FileUpload,
+  Input,
+  PageContainer,
   PageHeader,
   ProgressBar,
   SakuraLoader,
   Tabs,
+  Textarea,
+  confirmAction,
   cx,
 } from '@/components/ui';
 import '@/pages/shared/studyCourses.css';
@@ -67,7 +74,11 @@ const STATUS_META = {
   Cancelled: { tone: 'neutral', label: 'Đã hủy' },
 };
 
-const toUtcIso = (val) => (val ? new Date(val).toISOString() : null);
+function toUtcIsoDate(val) {
+  if (!val) return null;
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(val) ? new Date(`${val}T00:00:00Z`) : parseUtcDate(val);
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null;
+}
 
 export default function CohortWorkspacePage() {
   const { tr, trf } = useLocale();
@@ -91,6 +102,10 @@ export default function CohortWorkspacePage() {
 
   const [cancelReason, setCancelReason] = useState('');
   const [showComplaintBox, setShowComplaintBox] = useState(false);
+  const [examDate, setExamDate] = useState('');
+  const [resultPublishedAt, setResultPublishedAt] = useState('');
+  const [retakeReason, setRetakeReason] = useState('');
+  const [retakeFile, setRetakeFile] = useState(null);
 
   const workspace = useLearnerCohortWorkspace({ includeCohorts: true, includeHomework: true });
   const { uid, courses, cohorts, homeworks, coursesQuery, busy, actionError, actionNotice, setActionError, setActionNotice, runAction } = workspace;
@@ -131,9 +146,10 @@ export default function CohortWorkspacePage() {
 
   const classHomeworks = useMemo(() => {
     if (!current) return [];
-    return homeworks.filter((hw) =>
-      (current.cohortId && Number(hw.cohortId) === Number(current.cohortId))
-      || (hw.studyCourseId && Number(hw.studyCourseId) === Number(current.id)),
+    return homeworks.filter(
+      (hw) =>
+        (current.cohortId && Number(hw.cohortId) === Number(current.cohortId)) ||
+        (hw.studyCourseId && Number(hw.studyCourseId) === Number(current.id)),
     );
   }, [homeworks, current]);
 
@@ -147,9 +163,11 @@ export default function CohortWorkspacePage() {
   const sessionMinutes = current?.sessionMinutes || 90;
   const nextSession = useMemo(
     () =>
-      sessions.find(
-        (s) => s.status === 'Scheduled' && new Date(s.scheduledAt).getTime() + sessionMinutes * 60_000 >= nowMs - 30 * 60_000,
-      ) || null,
+      sessions.find((s) => {
+        if (s.status !== 'Scheduled') return false;
+        const startMs = parseUtcDate(s.scheduledAt)?.getTime() ?? 0;
+        return startMs + sessionMinutes * 60_000 >= nowMs - 30 * 60_000;
+      }) || null,
     [sessions, sessionMinutes, nowMs],
   );
   const nextJoinState = nextSession && current ? getSessionJoinState(nextSession, current, nowMs) : null;
@@ -163,9 +181,10 @@ export default function CohortWorkspacePage() {
     () =>
       SECTIONS.map((s) => ({
         ...s,
+        label: tr(s.label),
         count: s.value === 'homework' && pendingHwCount > 0 ? pendingHwCount : undefined,
       })),
-    [pendingHwCount],
+    [pendingHwCount, tr],
   );
 
   const cohortIdValue = current?.cohortId ?? null;
@@ -179,7 +198,7 @@ export default function CohortWorkspacePage() {
 
   return (
     <LearnerShell breadcrumb={title}>
-      <div className="rp-container space-y-5 py-6 lg:py-8">
+      <PageContainer width="default" className="space-y-5">
         <div>
           <Link
             to="/my-courses"
@@ -208,7 +227,7 @@ export default function CohortWorkspacePage() {
                   {nextJoinState?.canJoin && (
                     <Link
                       to={nextJoinState.roomHref}
-                      className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#0F766E] px-4 text-sm font-semibold text-white hover:bg-[#115E59]"
+                      className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-sm font-semibold text-white hover:opacity-95"
                     >
                       <Video className="h-4 w-4" />
                       {tr('Vào phòng học ngay')}
@@ -253,7 +272,7 @@ export default function CohortWorkspacePage() {
               action={
                 <Link
                   to="/my-courses"
-                  className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white"
+                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white"
                 >
                   {tr('Về Lớp của tôi')}
                 </Link>
@@ -276,7 +295,7 @@ export default function CohortWorkspacePage() {
                 <Card className="space-y-4 p-5">
                   <CardHeader title={tr('Buổi học tiếp theo & Phòng học chung')} />
                   {nextSession ? (
-                    <div className="rounded-2xl border border-rp-line bg-rp-bg-2/60 p-4 space-y-2.5">
+                    <div className="space-y-2.5 rounded-2xl border border-rp-line bg-rp-bg-2/60 p-4">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-rp-text">
                           {tr('Buổi')} {nextSession.number}
@@ -293,28 +312,19 @@ export default function CohortWorkspacePage() {
                         {nextJoinState?.canJoin ? (
                           <Link
                             to={nextJoinState.roomHref}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0F766E] px-4 text-xs font-semibold text-white hover:bg-[#115E59]"
+                            className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-xs font-semibold text-white hover:opacity-95"
                           >
                             <Video className="h-3.5 w-3.5" />
                             {tr('Vào phòng học chung')}
                           </Link>
                         ) : (
-                          <button
-                            type="button"
-                            disabled
-                            className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-xl bg-rp-muted px-3.5 text-xs font-semibold text-rp-text-muted"
-                          >
-                            <Video className="h-3.5 w-3.5" />
+                          <Button type="button" variant="secondary" size="sm" disabled icon={Video}>
                             {tr('Chưa tới giờ vào phòng')}
-                          </button>
+                          </Button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => setSection('schedule')}
-                          className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-rp-surface px-3 text-xs font-semibold text-rp-text hover:bg-rp-muted"
-                        >
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setSection('schedule')}>
                           {tr('Xem toàn bộ lịch học')}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -326,7 +336,6 @@ export default function CohortWorkspacePage() {
                     />
                   )}
 
-                  {/* Quick class metrics */}
                   <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-rp-line/80 bg-rp-bg-2/40 p-3.5 text-xs">
                     <div>
                       <dt className="text-rp-text-muted">{tr('Khai giảng')}</dt>
@@ -348,37 +357,35 @@ export default function CohortWorkspacePage() {
                     </div>
                     <div>
                       <dt className="text-rp-text-muted">{tr('Bài tập chưa nộp')}</dt>
-                      <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">
-                        {pendingHwCount}
-                      </dd>
+                      <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">{pendingHwCount}</dd>
                     </div>
                   </dl>
                 </Card>
 
                 <div className="space-y-4">
-                  {/* Payment Pending Block (Contextual ONLY when needed) */}
                   {current.paymentStatus === 'Pending' && (
-                    <Card className="border-rp-warning-line bg-rp-warning-bg/70 p-5 space-y-3" role="status">
+                    <Card className="space-y-3 border-rp-warning-line bg-rp-warning-bg/70 p-5" role="status">
                       <p className="font-bold text-rp-warning">{paymentStateMessage('AwaitingPayment')}</p>
-                      {current.paymentExpiresAt && (
-                        <HoldCountdown expiresAt={current.paymentExpiresAt} className="flex" />
-                      )}
+                      {current.paymentExpiresAt && <HoldCountdown expiresAt={current.paymentExpiresAt} className="flex" />}
                       <p className="text-xs text-rp-text-2">
-                        {trf('Chỗ được giữ đến: {0}. Hệ thống chỉ xác nhận ghi danh sau khi máy chủ đối chiếu giao dịch với PayOS.', {
-                          0: current.paymentExpiresAt ? formatVnDateTime(current.paymentExpiresAt) : '—',
-                        })}
+                        {trf(
+                          'Chỗ được giữ đến: {0}. Hệ thống chỉ xác nhận ghi danh sau khi máy chủ đối chiếu giao dịch với PayOS.',
+                          { 0: current.paymentExpiresAt ? formatVnDateTime(current.paymentExpiresAt) : '—' },
+                        )}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {typeof current.checkoutUrl === 'string' && current.checkoutUrl.startsWith('https://') && (
                           <a
                             href={current.checkoutUrl}
-                            className="inline-flex h-9 items-center rounded-xl bg-rp-warning px-4 text-xs font-semibold text-white hover:opacity-90"
+                            className="rp-focus inline-flex h-9 items-center rounded-xl bg-rp-warning px-4 text-xs font-semibold text-white hover:opacity-90"
                           >
                             {tr('Tiếp tục thanh toán')}
                           </a>
                         )}
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="sm"
                           disabled={busy}
                           onClick={() =>
                             wrappedAction(
@@ -389,54 +396,36 @@ export default function CohortWorkspacePage() {
                                   : paymentStateMessage(res?.paymentState) || 'Đang chờ PayOS xác nhận.',
                             )
                           }
-                          className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-rp-surface px-3.5 text-xs font-semibold text-rp-text hover:bg-rp-muted"
                         >
                           {tr('Kiểm tra trạng thái thanh toán')}
-                        </button>
+                        </Button>
                       </div>
                     </Card>
                   )}
 
-                  {/* Quick Jump Cards inside Class Workspace */}
-                  <Card className="space-y-3 p-5">
-                    <CardHeader title={tr('Thao tác nhanh trong lớp')} />
-                    <div className="grid gap-2.5 sm:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => setSection('homework')}
-                        className="rp-focus flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/50 p-3 text-left text-xs font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-surface"
-                      >
-                        <span>{tr('Bài tập lớp này')} ({classHomeworks.length})</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-rp-brand-strong" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSection('progress')}
-                        className="rp-focus flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/50 p-3 text-left text-xs font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-surface"
-                      >
-                        <span>{tr('Điểm danh & tiến độ')}</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-rp-brand-strong" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSection('schedule')}
-                        className="rp-focus flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/50 p-3 text-left text-xs font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-surface"
-                      >
-                        <span>{tr('Lịch từng buổi học')}</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-rp-brand-strong" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSection('support')}
-                        className="rp-focus flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/50 p-3 text-left text-xs font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-surface"
-                      >
-                        <span>{tr('Đánh giá & hỗ trợ')}</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-rp-brand-strong" />
-                      </button>
-                    </div>
-                  </Card>
+                  {classHomeworks.length > 0 && (
+                    <Card className="space-y-3 p-5">
+                      <CardHeader
+                        title={tr('Bài tập gần đây')}
+                        actions={
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setSection('homework')}>
+                            {tr('Mở mục Bài tập')}
+                          </Button>
+                        }
+                      />
+                      <ul className="space-y-2 text-xs">
+                        {classHomeworks.slice(0, 3).map((hw) => (
+                          <li key={hw.id} className="flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/50 px-3 py-2">
+                            <span className="truncate font-semibold text-rp-text">{hw.title}</span>
+                            <Badge tone={hw.submission || hw.status === 'Graded' ? 'success' : 'warning'} size="sm">
+                              {hw.status === 'Graded' ? tr('Đã chấm') : hw.submission ? tr('Đã nộp') : tr('Chưa nộp')}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    </Card>
+                  )}
 
-                  {/* Pre-start cancellation (Contextual ONLY when eligible) */}
                   {canCancelBeforeStart && (
                     <Card className="space-y-2.5 border-dashed p-4">
                       <p className="text-xs font-bold text-rp-text">{tr('Hủy ghi danh trước ngày khai giảng')}</p>
@@ -444,27 +433,35 @@ export default function CohortWorkspacePage() {
                         {tr('Bạn chỉ có thể hủy ghi danh cá nhân khi lớp chưa bắt đầu buổi đầu tiên.')}
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        <input
-                          type="text"
-                          maxLength={300}
-                          value={cancelReason}
-                          onChange={(e) => setCancelReason(e.target.value)}
-                          placeholder={tr('Lý do hủy ghi danh (không bắt buộc)...')}
-                          className="h-9 flex-1 rounded-xl border border-rp-line bg-rp-bg-2 px-3 text-xs text-rp-text focus:border-rp-brand focus:outline-none"
-                        />
-                        <button
+                        <div className="flex-1">
+                          <Input
+                            maxLength={300}
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            placeholder={tr('Lý do hủy ghi danh (không bắt buộc)...')}
+                          />
+                        </div>
+                        <Button
                           type="button"
+                          variant="danger"
+                          size="sm"
                           disabled={busy}
-                          onClick={() =>
-                            wrappedAction(
+                          onClick={async () => {
+                            const ok = await confirmAction({
+                              title: tr('Xác nhận hủy ghi danh lớp?'),
+                              description: tr('Chỗ của bạn trong lớp sẽ được giải phóng ngay. Bạn có chắc chắn muốn hủy?'),
+                              confirmLabel: tr('Hủy ghi danh'),
+                              tone: 'danger',
+                            });
+                            if (!ok) return;
+                            await wrappedAction(
                               () => cancelCohortEnrollment(current.id, cancelReason),
                               'Đã hủy ghi danh cá nhân và giải phóng 1 chỗ trong lớp.',
-                            )
-                          }
-                          className="h-9 shrink-0 rounded-xl border border-rp-danger/40 bg-rp-danger-bg px-3.5 text-xs font-semibold text-rp-danger hover:bg-rp-danger hover:text-white"
+                            );
+                          }}
                         >
                           {tr('Hủy ghi danh')}
-                        </button>
+                        </Button>
                       </div>
                     </Card>
                   )}
@@ -512,7 +509,7 @@ export default function CohortWorkspacePage() {
                   <p className="text-xs text-rp-text-muted">
                     {tr('Hiển thị bài tập thuộc lớp học này. Bạn cũng có thể xem tất cả bài tập của toàn bộ lớp.')}
                   </p>
-                  <Link to="/homework" className="text-xs font-semibold rp-link">
+                  <Link to="/homework" className="rp-link text-xs font-semibold">
                     {tr('Mở trang bài tập tổng hợp')}
                   </Link>
                 </div>
@@ -538,7 +535,7 @@ export default function CohortWorkspacePage() {
                   <CardHeader
                     title={tr('Tiến độ chuyên cần & điều kiện hoàn thành')}
                     actions={
-                      <Link to="/group-learning/progress" className="text-xs font-semibold rp-link">
+                      <Link to="/group-learning/progress" className="rp-link text-xs font-semibold">
                         {tr('Xem tổng hợp tất cả lớp')}
                       </Link>
                     }
@@ -546,7 +543,7 @@ export default function CohortWorkspacePage() {
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
                       <p className="text-xs text-rp-text-muted">{tr('Buổi có mặt')}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums text-[#059669]">{attendedCount}</p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-rp-success">{attendedCount}</p>
                     </div>
                     <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
                       <p className="text-xs text-rp-text-muted">{tr('Buổi vắng')}</p>
@@ -567,15 +564,15 @@ export default function CohortWorkspacePage() {
                 </Card>
 
                 {current.cohortId && (
-                  <div className="course-page" style={{ padding: 0 }}>
-                    <CohortCompletionSummary
-                      courseId={current.id}
-                      summary={completionQuery.data || null}
-                      error={completionQuery.error || null}
-                      busy={busy}
-                      onRun={wrappedAction}
-                    />
-                  </div>
+                  <CohortCompletionSummary
+                    courseId={current.id}
+                    summary={completionQuery.data || null}
+                    error={completionQuery.error || null}
+                    onRetry={() => completionQuery.refetch()}
+                    retrying={completionQuery.isFetching}
+                    busy={busy}
+                    onRun={wrappedAction}
+                  />
                 )}
               </div>
             )}
@@ -584,80 +581,130 @@ export default function CohortWorkspacePage() {
             {activeSection === 'support' && (
               <div className="space-y-5">
                 {current.cohortId && current.status !== 'Completed' && (
-                  <div className="course-page" style={{ padding: 0 }}>
-                    <LearnerCohortTransferPanel course={current} cohorts={cohorts} busy={busy} onRun={wrappedAction} />
-                  </div>
+                  <LearnerCohortTransferPanel course={current} cohorts={cohorts} busy={busy} onRun={wrappedAction} />
                 )}
 
-                {/* JLPT Retake Support - Compact & Contextual */}
                 {(current.status === 'Completed' || (current.requests || []).length > 0) && (
-                  <Card className="course-page space-y-3 p-5">
+                  <Card className="space-y-4 p-5">
                     <CardHeader title={tr('Hỗ trợ ôn lại khi trượt JLPT chính thức')} />
                     <p className="text-xs text-rp-text-muted">
                       {tr('Admin duyệt minh chứng và điều kiện nộp bài tập. Sau khi Admin duyệt, Giáo viên lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
                     </p>
+
                     {current.status === 'Completed' && !(current.requests || []).some((r) => r.status === 'Pending') && (
                       <form
-                        className="course-form"
+                        className="space-y-3 rounded-xl border border-rp-line bg-rp-bg-2/60 p-4"
                         onSubmit={(e) => {
                           e.preventDefault();
-                          const formEl = e.currentTarget;
-                          const f = new FormData(formEl);
                           wrappedAction(async () => {
                             const payload = new FormData();
-                            payload.append('examDate', toUtcIso(f.get('examDate')));
-                            payload.append('resultPublishedAt', toUtcIso(f.get('resultPublishedAt')));
-                            payload.append('reason', String(f.get('reason') || '').trim());
-                            const file = f.get('evidence');
-                            if (file && file.size > 0) payload.append('evidence', file);
+                            const utcExam = toUtcIsoDate(examDate);
+                            const utcPublished = toUtcIsoDate(resultPublishedAt);
+                            if (utcExam) payload.append('examDate', utcExam);
+                            if (utcPublished) payload.append('resultPublishedAt', utcPublished);
+                            payload.append('reason', retakeReason.trim());
+                            if (retakeFile) payload.append('evidence', retakeFile);
                             await uploadRetakeEvidence(current.id, payload);
-                            formEl.reset();
+                            setExamDate('');
+                            setResultPublishedAt('');
+                            setRetakeReason('');
+                            setRetakeFile(null);
                           }, 'Đã gửi yêu cầu hỗ trợ JLPT lên Admin.');
                         }}
                       >
-                        <fieldset disabled={busy}>
-                          <label className="course-field">
-                            <span>{tr('Ngày thi JLPT')}</span>
-                            <input name="examDate" type="date" required />
-                          </label>
-                          <label className="course-field">
-                            <span>{tr('Ngày công bố kết quả')}</span>
-                            <input name="resultPublishedAt" type="date" required />
-                          </label>
-                          <label className="course-field" style={{ flexBasis: '100%' }}>
-                            <span>{tr('Lý do / Tường trình kết quả thi')}</span>
-                            <textarea name="reason" required maxLength={1000} />
-                          </label>
-                          <label className="course-field">
-                            <span>{tr('Minh chứng chính thức (PDF/PNG/JPG ≤ 10 MB)')}</span>
-                            <input name="evidence" type="file" accept="application/pdf,image/png,image/jpeg" />
-                          </label>
-                          <button className="course-primary" type="submit" disabled={busy}>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field label={tr('Ngày thi JLPT')} required>
+                            <DateInput value={examDate} onChange={(e) => setExamDate(e.target.value)} required disabled={busy} />
+                          </Field>
+                          <Field label={tr('Ngày công bố kết quả')} required>
+                            <DateInput value={resultPublishedAt} onChange={(e) => setResultPublishedAt(e.target.value)} required disabled={busy} />
+                          </Field>
+                        </div>
+                        <Field label={tr('Lý do / Tường trình kết quả thi')} required>
+                          <Textarea
+                            required
+                            rows={3}
+                            maxLength={1000}
+                            disabled={busy}
+                            value={retakeReason}
+                            onChange={(e) => setRetakeReason(e.target.value)}
+                            placeholder={tr('Trình bày kết quả kỳ thi JLPT vừa qua và phần kỹ năng cần ôn lại…')}
+                          />
+                        </Field>
+                        <Field label={tr('Minh chứng chính thức (PDF/PNG/JPG ≤ 10 MB)')}>
+                          <FileUpload
+                            accept="application/pdf,image/png,image/jpeg"
+                            maxSizeMb={10}
+                            disabled={busy}
+                            value={retakeFile}
+                            onChange={(file) => setRetakeFile(file || null)}
+                          />
+                        </Field>
+                        <div className="flex justify-end">
+                          <Button
+                            type="submit"
+                            variant="primary"
+                            size="sm"
+                            disabled={busy || !examDate || !resultPublishedAt || !retakeReason.trim()}
+                            loading={busy}
+                          >
                             {tr('Gửi Admin xét duyệt')}
-                          </button>
-                        </fieldset>
+                          </Button>
+                        </div>
                       </form>
                     )}
+
                     {(current.requests || []).map((r) => (
-                      <article className="course-row" key={r.id}>
-                        <div className="flex items-center justify-between gap-2">
-                          <strong>{tr(r.status === 'Approved' ? 'Đã duyệt' : r.status === 'Rejected' ? 'Từ chối' : r.status === 'Pending' ? 'Chờ duyệt' : r.status)}</strong>
+                      <article className="space-y-2 rounded-xl border border-rp-line bg-rp-bg-2/40 p-4 text-xs" key={r.id}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Badge
+                            tone={r.status === 'Approved' ? 'success' : r.status === 'Rejected' ? 'danger' : 'warning'}
+                            size="sm"
+                          >
+                            {tr(
+                              r.status === 'Approved'
+                                ? 'Đã duyệt'
+                                : r.status === 'Rejected'
+                                  ? 'Từ chối'
+                                  : r.status === 'Pending'
+                                    ? 'Chờ duyệt'
+                                    : r.status,
+                            )}
+                          </Badge>
                           {r.hasEvidence && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={busy}
                               onClick={() => wrappedAction(() => openRetakeEvidence(current.id, r.id), 'Đã tải minh chứng riêng tư.')}
                             >
                               {tr('Tải minh chứng riêng tư')}
-                            </button>
+                            </Button>
                           )}
                         </div>
-                        {r.reason && <p className="course-pre">{r.reason}</p>}
+                        {r.reason && <p className="whitespace-pre-wrap text-rp-text">{r.reason}</p>}
+                        {r.decisionNote && (
+                          <Banner tone={r.status === 'Rejected' ? 'danger' : 'info'}>
+                            <strong>{tr('Ghi chú xét duyệt:')}</strong>{' '}{r.decisionNote}
+                          </Banner>
+                        )}
+                        {r.mentorSupportPlan && (
+                          <div className="space-y-1 rounded-xl border border-rp-brand-soft bg-rp-brand-tint/70 p-3">
+                            <p className="font-semibold text-rp-brand-strong">{tr('Kế hoạch hỗ trợ ôn lại từ Giáo viên')}</p>
+                            <p className="whitespace-pre-wrap text-rp-text">{r.mentorSupportPlan}</p>
+                            {r.mentorSupportPlanAtUtc && (
+                              <p className="text-[11px] text-rp-text-muted">
+                                {trf('Cập nhật lúc {0}', { 0: formatVnDateTime(r.mentorSupportPlanAtUtc) })}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </article>
                     ))}
                   </Card>
                 )}
 
-                {/* Collapsible Complaints & Support Section */}
                 <Card className="p-5">
                   <button
                     type="button"
@@ -694,7 +741,7 @@ export default function CohortWorkspacePage() {
             )}
           </>
         )}
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

@@ -3,22 +3,32 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { School } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
-import { AdminShell, MentorShell, LearnerShell } from '@/layouts';
-import { courseGet, getCohorts, getCohortHomework } from '@/features/cohorts/api/cohortApi';
+import { AdminShell, LearnerShell, MentorShell } from '@/layouts';
+import { courseGet, getCohortHomework, getCohorts } from '@/features/cohorts/api/cohortApi';
 import { describeApiError } from '@/api/apiErrors.js';
 import CohortHomeworkPanel from '@/features/homework/components/CohortHomeworkPanel';
-import { Banner, Card, CustomSelect, EmptyState, ErrorState, PageHeader, SakuraLoader, Tabs, notify } from '@/components/ui';
+import {
+  Banner,
+  Button,
+  Card,
+  CustomSelect,
+  EmptyState,
+  ErrorState,
+  PageContainer,
+  PageHeader,
+  SakuraLoader,
+  Tabs,
+  notify,
+  useSubmitGuard,
+} from '@/components/ui';
 import { classifyHomeworkItem } from '@/features/calendar/utils/calendarEventsModel.js';
-import '@/pages/shared/studyCourses.css';
 import { useLocale } from '@/locales/locale.js';
 
 /**
  * Group Learning homework hub (Learner / Mentor / Admin).
- * Uses the canonical Cohort homework contract only:
- *   GET /homework?cohortId · POST /homework/cohorts/{id} · POST /homework/{id}/scan
- *   POST /homework/{id}/ai-draft (Mentor) · PUT /homework/{id}/grade {submissionId, score 0–100, feedback ≤ 2000}
- * The former 1-1 booking homework (audio upload, batch AI drafts, /homework/group) is retired:
- * those Backend routes do not exist.
+ * Canonical Cohort homework contract:
+ *   GET /homework?cohortId · POST /homework/cohorts/{id} · POST /homework/{id}/submit
+ *   POST /homework/{id}/submit-scan · POST /homework/{id}/ai-draft · POST /homework/{id}/grade
  */
 export default function HomeworkPage({ mentor = false, admin = false }) {
   const { tr } = useLocale();
@@ -27,7 +37,7 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
   const Shell = admin ? AdminShell : mentor ? MentorShell : LearnerShell;
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const [busy, setBusy] = useState(false);
+  const { busy, guard } = useSubmitGuard();
   const [error, setError] = useState('');
 
   const coursesQuery = useQuery({ queryKey: ['homework-hub', uid, role, 'courses'], queryFn: () => courseGet() });
@@ -40,7 +50,10 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
     return m;
   }, [cohortsListQuery.data]);
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const courses = useMemo(() => (Array.isArray(coursesQuery.data) ? coursesQuery.data : []).filter((c) => c.cohortId && c.status !== 'Cancelled'), [coursesQuery.data]);
+  const courses = useMemo(
+    () => (Array.isArray(coursesQuery.data) ? coursesQuery.data : []).filter((c) => c.cohortId && c.status !== 'Cancelled' && c.status !== 'PendingPayment'),
+    [coursesQuery.data],
+  );
   const cohorts = useMemo(() => {
     const map = new Map();
     for (const c of courses) {
@@ -85,43 +98,42 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
     });
   }, [hwQuery.data, statusFilter]);
 
-  // Single in-flight guard for create / submit / AI draft / grade (no double submit).
+  // Single in-flight guard via useSubmitGuard for create / submit / AI draft / grade.
   async function onRun(fn, message = 'Đã lưu thay đổi.') {
-    if (busy) return;
-    setBusy(true);
-    setError('');
-    const toastId = notify.loading('Đang xử lý bài tập…', '', { key: 'homework-action' });
-    try {
-      const result = await fn();
-      await queryClient.invalidateQueries({ queryKey: ['homework-hub', uid, role, 'items'] });
-      await queryClient.invalidateQueries({ queryKey: ['workspace-calendar', 'homeworks', uid] });
-      const resolved = typeof message === 'function' ? message(result) : message;
-      const isAiUnavailable = Boolean(result?.aiDraftUnavailable || (typeof resolved === 'string' && resolved.includes('AI chưa tạo được')));
-      notify[isAiUnavailable ? 'warning' : 'success'](resolved, '', { id: toastId, key: 'homework-action', replace: true });
-    } catch (e) {
-      const info = describeApiError(e);
-      setError(info.message);
-      notify.apiError(e, info.status === 409 ? 'Xung đột dữ liệu bài tập' : 'Thao tác thất bại', { id: toastId, key: 'homework-action', replace: true });
-      // 409 HOMEWORK_SUBMISSION_CHANGED: the learner re-submitted — reload so the Mentor grades the latest version.
-      if (info.status === 409) void hwQuery.refetch();
-    } finally {
-      setBusy(false);
-    }
+    return guard(async () => {
+      setError('');
+      const toastId = notify.loading('Đang xử lý bài tập…', '', { key: 'homework-action' });
+      try {
+        const result = await fn();
+        await queryClient.invalidateQueries({ queryKey: ['homework-hub', uid, role, 'items'] });
+        await queryClient.invalidateQueries({ queryKey: ['workspace-calendar', 'homeworks', uid] });
+        const resolved = typeof message === 'function' ? message(result) : message;
+        const isAiUnavailable = Boolean(result?.available === false || result?.aiDraftUnavailable);
+        notify[isAiUnavailable ? 'warning' : 'success'](resolved, '', { id: toastId, key: 'homework-action', replace: true });
+        return result;
+      } catch (e) {
+        const info = describeApiError(e);
+        setError(info.message);
+        notify.apiError(e, info.status === 409 ? 'Xung đột dữ liệu bài tập' : 'Thao tác thất bại', { id: toastId, key: 'homework-action', replace: true });
+        if (info.status === 409) void hwQuery.refetch();
+        throw e;
+      }
+    });
   }
 
-  const title = role === 'Mentor' ? 'Bài tập & chấm điểm' : role === 'Admin' ? 'Bài tập về nhà' : 'Bài tập về nhà';
+  const title = role === 'Mentor' ? 'Bài tập & chấm điểm' : 'Bài tập về nhà';
   const description =
     role === 'Mentor'
-      ? 'Giao bài chung hoặc riêng, xem bài nộp (chữ/ảnh/PDF ≤ 10 MB), dùng gợi ý AI/OCR khi có và chấm điểm 0–100 kèm nhận xét.'
+      ? 'Giao bài chung hoặc riêng, xem bài nộp bằng chữ hoặc ảnh/PDF, tham khảo gợi ý chấm bài AI và công bố điểm 0–100 kèm nhận xét.'
       : role === 'Admin'
         ? 'Theo dõi bài tập của các lớp nhóm (chỉ xem).'
         : 'Nộp bài bằng chữ hoặc ảnh/PDF và xem điểm, nhận xét của Giáo viên.';
 
   return (
-    <Shell breadcrumb={title}>
-      <div className="rp-container py-6 lg:py-8">
+    <Shell breadcrumb={tr(title)}>
+      <PageContainer width="default" density="comfortable" className="text-rp-text">
         <PageHeader
-          eyebrow={tr('Học nhóm')}
+          eyebrow="Học nhóm"
           title={title}
           description={description}
           actions={
@@ -145,7 +157,25 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
           }
         />
 
-        {error && <Banner tone="danger" title={tr('Chưa thực hiện được')} onDismiss={() => setError('')} className="mb-4">{error}</Banner>}
+        {error && (
+          <Banner tone="danger" title="Chưa thực hiện được" onDismiss={() => setError('')} className="mb-4">
+            {error}
+          </Banner>
+        )}
+
+        {cohortsListQuery.isError && (
+          <Banner
+            tone="warning"
+            className="mb-4"
+            actions={(
+              <Button variant="secondary" size="sm" onClick={() => cohortsListQuery.refetch()}>
+                {tr('Thử lại')}
+              </Button>
+            )}
+          >
+            {tr('Chưa tải được tên đầy đủ của các lớp nhóm. Đang dùng tên hiển thị mặc định.')}
+          </Banner>
+        )}
 
         {coursesQuery.isPending ? (
           <SakuraLoader variant="section" context="cohort" delay={160} />
@@ -155,10 +185,12 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
           <Card>
             <EmptyState
               art="empty"
-              title={role === 'Learner' ? tr('Bạn chưa tham gia lớp nhóm nào') : tr('Chưa có lớp nhóm')}
-              description={role === 'Learner' ? tr('Bài tập về nhà được giao trong lớp học nhóm cùng Giáo viên.') : tr('Bài tập xuất hiện khi lớp nhóm có học viên ghi danh.')}
+              title={role === 'Learner' ? 'Bạn chưa tham gia lớp nhóm nào' : 'Chưa có lớp nhóm'}
+              description={role === 'Learner' ? 'Bài tập về nhà được giao trong lớp học nhóm cùng Giáo viên.' : 'Bài tập xuất hiện khi lớp nhóm có học viên ghi danh.'}
               action={role === 'Learner' && (
-                <Link to="/cohorts" className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white rp-press"><School aria-hidden="true" className="h-4 w-4" />{' '}{tr('Khám phá lớp học')}</Link>
+                <Link to="/cohorts">
+                  <Button variant="primary" icon={School}>{tr('Khám phá lớp học')}</Button>
+                </Link>
               )}
             />
           </Card>
@@ -175,45 +207,38 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
                 value={statusFilter}
                 onChange={setStatusFilter}
                 tabs={[
-                  { value: 'ALL', label: tr('Tất cả') },
-                  { value: 'PENDING', label: tr('Cần làm') },
-                  { value: 'SUBMITTED', label: tr('Đã nộp') },
-                  { value: 'GRADED', label: tr('Đã chấm') },
+                  { value: 'ALL', label: 'Tất cả' },
+                  { value: 'PENDING', label: role === 'Mentor' ? 'Chưa nộp' : 'Cần làm' },
+                  { value: 'SUBMITTED', label: role === 'Mentor' ? 'Chờ chấm' : 'Đã nộp' },
+                  { value: 'GRADED', label: 'Đã chấm' },
                 ]}
               />
               {effectiveCohortId && cohortMap.get(effectiveCohortId)?.courseId && role === 'Learner' && (
-                <Link
-                  to={`/my-courses/${cohortMap.get(effectiveCohortId).courseId}?section=homework`}
-                  className="text-xs font-semibold rp-link"
-                >
+                <Link to={`/my-courses/${cohortMap.get(effectiveCohortId).courseId}?section=homework`} className="rp-link text-xs font-semibold">
                   {tr('Mở không gian lớp này')}
                 </Link>
               )}
               {effectiveCohortId && role === 'Mentor' && (
-                <Link
-                  to={`/mentor-study-courses/${effectiveCohortId}/?section=homework`}
-                  className="text-xs font-semibold rp-link"
-                >
+                <Link to={`/mentor-study-courses/${effectiveCohortId}/?section=homework`} className="rp-link text-xs font-semibold">
                   {tr('Mở không gian lớp này')}
                 </Link>
               )}
             </div>
-            <div className="course-page" style={{ padding: 0 }}>
-              <CohortHomeworkPanel
-                key={`${cohortId}-${statusFilter}`}
-                cohortId={effectiveCohortId}
-                cohortName={effectiveCohortId ? (cohorts.find((c) => c.id === effectiveCohortId)?.name || '') : tr('Tất cả lớp')}
-                cohortMap={cohortMap}
-                coursesInCohort={coursesInCohort}
-                items={filteredHomeworks}
-                role={role}
-                busy={busy}
-                onRun={onRun}
-              />
-            </div>
+
+            <CohortHomeworkPanel
+              key={cohortId ?? 'all'}
+              cohortId={effectiveCohortId}
+              cohortName={effectiveCohortId ? (cohorts.find((c) => c.id === effectiveCohortId)?.name || '') : tr('Tất cả lớp')}
+              cohortMap={cohortMap}
+              coursesInCohort={coursesInCohort}
+              items={filteredHomeworks}
+              role={role}
+              busy={busy}
+              onRun={onRun}
+            />
           </div>
         )}
-      </div>
+      </PageContainer>
     </Shell>
   );
 }

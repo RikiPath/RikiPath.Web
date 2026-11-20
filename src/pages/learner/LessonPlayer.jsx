@@ -190,7 +190,7 @@ export default function LessonPlayer() {
   const [revealed, setRevealed] = useState(false);
   const [done, setDone] = useState(false);
   const [known, setKnown] = useState({});
-  const [bookmarkState, setBookmarkState] = useState('');
+  const [bookmarkStates, setBookmarkStates] = useState({});
   const lastSent = useRef(-1);
   const client = useQueryClient();
   const query = useQuery({
@@ -211,18 +211,18 @@ export default function LessonPlayer() {
     mutationFn: (body) => updatePlaybackPosition(lessonId, body),
   });
   const saveGrammar = useMutation({
-    mutationFn: bookmarkGrammar,
-    onMutate: () => setBookmarkState('saving'),
-    onSuccess: (res) => {
-      setBookmarkState('saved');
+    mutationFn: ({ id }) => bookmarkGrammar(id),
+    onMutate: ({ key }) => setBookmarkStates((cur) => ({ ...cur, [key]: 'saving' })),
+    onSuccess: (res, { key }) => {
+      setBookmarkStates((cur) => ({ ...cur, [key]: 'saved' }));
       if (res?.alreadyExists || res?.isExisting) {
         notify.info(tr('Mẫu ngữ pháp đã có trong sổ tay.'), '', { key: 'lesson-grammar-bm-dup' });
       } else {
         notify.success(tr('Đã lưu mẫu ngữ pháp vào sổ tay.'), '', { key: 'lesson-grammar-bm' });
       }
     },
-    onError: (err) => {
-      setBookmarkState('error');
+    onError: (err, { key }) => {
+      setBookmarkStates((cur) => ({ ...cur, [key]: 'error' }));
       notify.apiError(err, tr('Chưa lưu được mẫu ngữ pháp'), { key: 'lesson-grammar-bm-err' });
     },
   });
@@ -230,6 +230,8 @@ export default function LessonPlayer() {
   const items = lesson?.[PARTS.find((item) => item.id === part).key] || [];
   const deck = queue || items;
   const current = deck[cursor];
+  const currentCardKey = current ? itemKey(part, current) : '';
+  const currentBookmarkState = bookmarkStates[currentCardKey] || '';
 
   // Switching lesson or part restarts the deck (state adjusted during render, not in an effect).
   const deckKey = `${lessonId}|${part}`;
@@ -243,7 +245,6 @@ export default function LessonPlayer() {
     setShowList(false);
     setKnown({});
     setPick(null);
-    setBookmarkState('');
   }
   useEffect(() => {
     lastSent.current = -1;
@@ -392,13 +393,15 @@ export default function LessonPlayer() {
               </div>
               {items.length > 0 && (
                 <div className="flex rounded-xl bg-rp-brand-soft p-1">
-                  {[{ id: 'learn', label: tr('Học') }, { id: 'quiz', label: tr('Ôn') }].map((item) => (
+                  {[{ id: 'learn', label: tr('Học'), disabled: false }, { id: 'quiz', label: tr('Ôn'), disabled: items.length < 2 }].map((item) => (
                     <button
                       key={item.id}
                       type="button"
+                      disabled={item.disabled}
+                      title={item.disabled ? tr('Cần tối thiểu 2 mục để tạo trắc nghiệm') : undefined}
                       aria-pressed={mode === item.id}
                       onClick={() => { setMode(item.id); setPick(null); setRevealed(false); setDone(false); setCursor(0); setQueue(null); setShowList(false); }}
-                      className={`h-8 rounded-lg px-3 text-[12px] font-medium ${mode === item.id ? 'bg-white text-rp-brand-strong shadow-sm' : 'text-rp-text-muted'} ${focus}`}
+                      className={`h-8 rounded-lg px-3 text-[12px] font-medium disabled:cursor-not-allowed disabled:opacity-45 ${mode === item.id ? 'bg-white text-rp-brand-strong shadow-sm' : 'text-rp-text-muted'} ${focus}`}
                     >
                       {tr(item.label)}
                     </button>
@@ -481,8 +484,8 @@ export default function LessonPlayer() {
                         item={current}
                         revealed={revealed}
                         onReveal={() => setRevealed(true)}
-                        bookmarkState={bookmarkState}
-                        onBookmark={() => current.grammarPatternId && saveGrammar.mutate(current.grammarPatternId)}
+                        bookmarkState={currentBookmarkState}
+                        onBookmark={() => current.grammarPatternId && saveGrammar.mutate({ id: current.grammarPatternId, key: currentCardKey })}
                       />
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         <button

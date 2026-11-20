@@ -32,7 +32,7 @@ import {
 } from '@/components/ui';
 import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLookups.js';
 import { statuses } from '@/features/content-author/utils/contentModel.js';
-import { definitions } from '@/pages/content-author/ManualContentPage.jsx';
+import { definitions } from '@/features/content-author/utils/contentDefinitions.js';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 

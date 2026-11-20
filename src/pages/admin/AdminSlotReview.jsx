@@ -249,7 +249,7 @@ export default function AdminSlotReview() {
     {
       key: 'kind',
       header: tr('Loại yêu cầu'),
-      render: (row) => (
+      render: () => (
         <Badge tone={tab === 'cancel' ? 'danger' : tab === 'change' ? 'warning' : 'brand'} size="sm" icon={false}>
           {tab === 'cancel' ? tr('Xin hủy khung giờ') : tab === 'change' ? tr('Xin đổi giờ dạy') : tr('Đăng ký khung giờ')}
         </Badge>

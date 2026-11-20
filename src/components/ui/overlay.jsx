@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Toaster as HotToaster, toast as hotToast } from 'react-hot-toast';
-import { CircleAlert, Info, TriangleAlert, X } from 'lucide-react';
+import { CircleAlert, Info, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import { Button } from './core.jsx';
 import { cx } from './cx.js';
 import { useFocusTrap } from './hooks.js';
@@ -150,8 +150,8 @@ export function AlertDialog({ open, title, description, confirmLabel = 'Xác nh�
             </div>
           </div>
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button ref={cancelRef} variant="secondary" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
-            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={busy}>{confirmLabel}</Button>
+            <Button ref={cancelRef} variant="secondary" onClick={onCancel} disabled={busy}>{tr(cancelLabel)}</Button>
+            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={busy}>{tr(confirmLabel)}</Button>
           </div>
         </div>
       </div>
@@ -279,9 +279,28 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
       document.removeEventListener('keydown', onKey);
     };
   }, [open, setOpen]);
+  const triggerAriaProps = {
+    'data-popover-trigger': true,
+    'aria-expanded': open,
+    'aria-controls': panelId,
+    'aria-haspopup': 'dialog',
+  };
+  const toggleOpen = () => setOpen((v) => !v);
+  const renderedTrigger =
+    typeof trigger === 'function'
+      ? trigger({ open, toggle: toggleOpen, props: triggerAriaProps })
+      : isValidElement(trigger)
+        ? cloneElement(trigger, {
+            ...triggerAriaProps,
+            onClick: (e) => {
+              trigger.props?.onClick?.(e);
+              if (!e.defaultPrevented) toggleOpen();
+            },
+          })
+        : null;
   return (
     <div ref={rootRef} className={cx('relative', className)}>
-      {trigger({ open, toggle: () => setOpen((v) => !v), props: { 'data-popover-trigger': true, 'aria-expanded': open, 'aria-controls': panelId, 'aria-haspopup': 'dialog' } })}
+      {renderedTrigger}
       {open && (
         <div
           id={panelId}
@@ -298,6 +317,68 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
       )}
     </div>
   );
+}
+
+/** Reusable toolbar FilterPopover wrapping Popover with active count badge and reset link. */
+export function FilterPopover({
+  label = 'Bộ lọc',
+  activeCount = 0,
+  onReset,
+  align = 'end',
+  panelClassName,
+  children,
+}) {
+  const { tr } = useLocale();
+  return (
+    <Popover
+      align={align}
+      label={tr(label)}
+      panelClassName={cx('w-[min(340px,calc(100vw-24px))] p-4', panelClassName)}
+      trigger={({ open, toggle, props }) => (
+        <Button
+          {...props}
+          variant={activeCount > 0 ? 'soft' : 'secondary'}
+          size="sm"
+          icon={SlidersHorizontal}
+          onClick={toggle}
+          aria-pressed={open}
+        >
+          <span>{tr(label)}</span>
+          {activeCount > 0 && (
+            <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rp-brand-pressed px-1.5 text-[11px] font-bold text-white">
+              {activeCount}
+            </span>
+          )}
+        </Button>
+      )}
+    >
+      {({ close }) => (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-rp-line pb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-rp-text-muted">{tr(label)}</p>
+            {onReset && activeCount > 0 && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="rp-link text-xs font-semibold text-rp-brand-strong"
+              >
+                {tr('Xóa bộ lọc')}
+              </button>
+            )}
+          </div>
+          <div>{typeof children === 'function' ? children({ close }) : children}</div>
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+/** Accessible SegmentedControl backed by sliding-pill Tabs for compact view/filter switchers. */
+export function SegmentedControl({ options = [], value, onChange, label, className }) {
+  const mapped = options.map((opt) =>
+    typeof opt === 'object' ? opt : { value: String(opt), label: String(opt) },
+  );
+  return <Tabs variant="pill" tabs={mapped} value={value} onChange={onChange} label={label} className={className} />;
 }
 
 /** Floating tooltip rendered via Portal so scroll containers (sidebar) never overflow horizontally. */
@@ -444,7 +525,7 @@ export function Tabs({ tabs = [], value, onChange, label, className, variant = '
   }, [updateIndicator]);
 
   const onKeyDown = (event) => {
-    const idx = tabs.findIndex((t) => t.value === value);
+    const idx = tabs.findIndex((t, i) => (t.value ?? t.id ?? i) === value);
     let next = null;
     if (event.key === 'ArrowRight') next = (idx + 1) % tabs.length;
     if (event.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
@@ -452,7 +533,7 @@ export function Tabs({ tabs = [], value, onChange, label, className, variant = '
     if (event.key === 'End') next = tabs.length - 1;
     if (next == null) return;
     event.preventDefault();
-    onChange(tabs[next].value);
+    onChange(tabs[next].value ?? tabs[next].id ?? next);
     listRef.current?.querySelectorAll('[role="tab"]')[next]?.focus();
   };
   return (
@@ -472,31 +553,33 @@ export function Tabs({ tabs = [], value, onChange, label, className, variant = '
         <span
           aria-hidden="true"
           className={cx(
-            'pointer-events-none absolute top-1 bottom-1 left-0 z-0 rounded-[10px] bg-rp-tab-active-bg ring-1 ring-inset ring-rp-brand-border/70',
+            'pointer-events-none absolute top-0 left-0 z-0 rounded-[10px] bg-rp-tab-active-bg ring-1 ring-inset ring-rp-brand-border/70',
             ready
               ? 'transition-[transform,width] duration-200 motion-reduce:transition-none'
               : 'opacity-0',
           )}
           style={{
-            transform: `translate3d(${indicator.left}px, 0, 0)`,
+            transform: `translate3d(${indicator.left}px, ${indicator.top}px, 0)`,
             width: `${indicator.width}px`,
+            height: `${indicator.height}px`,
             transitionTimingFunction: 'var(--rp-ease, cubic-bezier(0.16, 1, 0.3, 1))',
           }}
         />
       )}
 
-      {tabs.map((tab) => {
-        const active = tab.value === value;
+      {tabs.map((tab, idx) => {
+        const tabValue = tab.value ?? tab.id ?? idx;
+        const active = tabValue === value;
         return (
           <button
-            key={tab.value}
+            key={tabValue}
             type="button"
             role="tab"
-            id={`tab-${tab.value}`}
+            id={`tab-${tabValue}`}
             aria-selected={active}
             aria-controls={tab.panelId}
             tabIndex={active ? 0 : -1}
-            onClick={() => onChange(tab.value)}
+            onClick={() => onChange(tabValue)}
             className={cx(
               'rp-focus relative z-10 inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-sm font-semibold transition-colors duration-150',
               variant === 'line'

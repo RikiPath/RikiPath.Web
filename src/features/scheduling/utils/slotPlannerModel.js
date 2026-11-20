@@ -479,7 +479,7 @@ export function expandRecurrenceSeries({
     return { ...empty, error: 'Ngày kết thúc lặp phải từ ngày bắt đầu trở đi.' };
   }
   if (endKey > shiftDateKey(startDate, 366)) {
-    return { ...empty, error: 'Hạn lặp tối đa 1 năm (366 ngày) theo quy định Backend.' };
+    return { ...empty, error: 'Hạn lặp tối đa 1 năm (366 ngày).' };
   }
 
   const weekdaySet = new Set(weekdays.map(Number));

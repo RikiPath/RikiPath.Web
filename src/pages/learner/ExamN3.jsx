@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LearnerShell } from '@/layouts';
 import { getSession } from '@/app/auth/session.js';
 import { notify } from '@/components/ui/feedbackStore.js';
-import { SakuraLoader } from '@/components/ui';
+import { Button, Modal, SakuraLoader } from '@/components/ui';
 import {
   getPlacementResultActions,
   loadAssessment,
@@ -26,6 +26,7 @@ const chartLevelsByTarget = {
   N4: ['N5', 'N4'],
   N3: ['N4', 'N3'],
   N2: ['N3', 'N2'],
+  N1: ['N2', 'N1'],
 };
 
 function placementAnswer(questionId, value) {
@@ -140,13 +141,36 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
             <p role="status" className="text-sm text-rp-text-muted">
               {pending ? tr('Đã hết giờ. Đang tự động nộp bài…') : tr('Đã hết thời gian làm bài.')}
             </p>
-            {!pending && <button type="button" className={buttonClass} onClick={submit}>{tr('Thử nộp lại')}</button>}
-          </> : confirmSubmit ? <>
-            <span className="text-sm">{trf('Bạn đã trả lời {0}/{1} câu.', { 0: answeredCount, 1: attempt.totalQuestions })}</span>
-            <button type="button" onClick={() => setConfirmSubmit(false)} className="text-sm text-rp-brand-strong underline">{tr('Quay lại')}</button>
-            <button type="button" className={buttonClass} disabled={pending} onClick={submit}>{tr('Xác nhận nộp bài')}</button>
-          </> : <button type="button" className={buttonClass} disabled={pending} onClick={() => setConfirmSubmit(true)}>{pending ? tr('Đang xử lý…') : tr('Nộp bài đánh giá')}</button>}
+            {!pending && <Button variant="primary" onClick={submit}>{tr('Thử nộp lại')}</Button>}
+          </> : (
+            <Button variant="primary" loading={pending} disabled={pending} onClick={() => setConfirmSubmit(true)}>
+              {tr('Nộp bài đánh giá')}
+            </Button>
+          )}
         </div>
+        <Modal
+          open={confirmSubmit}
+          onClose={() => !pending && setConfirmSubmit(false)}
+          title="Xác nhận nộp bài đánh giá?"
+          description={trf('Bạn đã trả lời {0}/{1} câu.', { 0: answeredCount, 1: attempt.totalQuestions })}
+          size="sm"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setConfirmSubmit(false)} disabled={pending}>
+                {tr('Quay lại')}
+              </Button>
+              <Button variant="primary" loading={pending} disabled={pending} onClick={submit}>
+                {tr('Xác nhận nộp bài')}
+              </Button>
+            </>
+          )}
+        >
+          <p className="text-sm text-rp-text-2">
+            {answeredCount < attempt.totalQuestions
+              ? tr('Vẫn còn câu chưa trả lời. Sau khi nộp, hệ thống sẽ chấm điểm và hiển thị kết quả ngay.')
+              : tr('Bạn đã hoàn thành toàn bộ câu hỏi. Bấm xác nhận để nhận kết quả.')}
+          </p>
+        </Modal>
       </div>
     </div>
   </>;
@@ -253,11 +277,11 @@ export default function ExamN3() {
   }
 
   return <LearnerShell pathname={pathname} breadcrumb={tr('Đánh giá năng lực')}>
-    <main className="min-h-full bg-rp-brand-tint py-6 text-rp-text lg:py-8">
+    <main className="min-h-full py-6 text-rp-text lg:py-8">
       <div className={`${attempt ? 'rp-container' : 'rp-container-reading'} space-y-4`}>
         <header className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}>
           <h1 className="text-xl font-semibold">{tr('Đánh giá năng lực JLPT')}</h1>
-          <Link to="/onboarding" className="text-sm font-semibold text-rp-brand-strong underline">{tr('Đổi mục tiêu học tập')}</Link>
+          <Link to="/onboarding" className="text-sm font-semibold rp-link">{tr('Đổi mục tiêu học tập')}</Link>
         </header>
         {!session?.accessToken && <Link to="/auth" className={buttonClass}>{tr('Đăng nhập để làm bài')}</Link>}
         {visibleError && <div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">

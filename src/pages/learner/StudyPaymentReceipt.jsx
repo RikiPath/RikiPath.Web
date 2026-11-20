@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { CircleCheck, Clock, RefreshCw, XCircle } from 'lucide-react';
@@ -7,6 +7,27 @@ import { LearnerShell } from '@/layouts';
 import { getStudyPurchaseStatus } from '@/features/checkout/api/subscriptionApi.js';
 import { Badge, Banner, Button, Card, EmptyState, ErrorState, SakuraLoader, notify } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+
+const PENDING_PURCHASE_STORAGE_KEY = 'rikipath.pendingStudyPurchaseId';
+const MAX_PENDING_POLLS = 24;
+
+function readStoredPurchaseId() {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_PURCHASE_STORAGE_KEY);
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredPurchaseId() {
+  try {
+    window.sessionStorage.removeItem(PENDING_PURCHASE_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
 
 /**
  * PayOS return for self-study plans. The status always comes from the Backend
@@ -17,15 +38,28 @@ export default function StudyPaymentReceipt() {
   const { tr, trf } = useLocale();
   const { state } = useLocation();
   const payment = state?.payment;
-  const purchaseId = payment?.kind === 'study' ? payment.id : null;
+  const [storedId] = useState(() => readStoredPurchaseId());
+  const purchaseId = payment?.kind === 'study' ? payment.id : storedId;
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const pollCountRef = useRef(0);
+  const [pollExhausted, setPollExhausted] = useState(false);
 
   const query = useQuery({
     queryKey: ['study-purchase', user?.userId, purchaseId],
-    queryFn: () => getStudyPurchaseStatus(purchaseId),
+    queryFn: async () => {
+      pollCountRef.current += 1;
+      return getStudyPurchaseStatus(purchaseId);
+    },
     enabled: Boolean(purchaseId),
-    refetchInterval: (q) => (q.state.data === 'Pending' ? 5000 : false),
+    refetchInterval: (q) => {
+      if (q.state.data !== 'Pending') return false;
+      if (pollCountRef.current >= MAX_PENDING_POLLS) {
+        setPollExhausted(true);
+        return false;
+      }
+      return 5000;
+    },
   });
   const status = query.data;
   const announcedRef = useRef(null);
@@ -34,6 +68,7 @@ export default function StudyPaymentReceipt() {
     if (!purchaseId || !status || announcedRef.current === status) return;
     announcedRef.current = status;
     if (status === 'Paid') {
+      clearStoredPurchaseId();
       void queryClient.invalidateQueries({ queryKey: ['study-subscription'] });
       notify.success('Thanh toán thành công', 'Quyền sử dụng gói tự học đã được kích hoạt.', {
         key: `study-receipt-${purchaseId}-paid`,
@@ -43,11 +78,18 @@ export default function StudyPaymentReceipt() {
         key: `study-receipt-${purchaseId}-pending`,
       });
     } else {
+      clearStoredPurchaseId();
       notify.warning('Thanh toán chưa hoàn tất', 'Chưa ghi nhận thanh toán thành công cho đơn này.', {
         key: `study-receipt-${purchaseId}-other`,
       });
     }
   }, [status, purchaseId, queryClient]);
+
+  function handleManualRecheck() {
+    pollCountRef.current = 0;
+    setPollExhausted(false);
+    void query.refetch();
+  }
 
   let view;
   if (!purchaseId) {
@@ -58,8 +100,12 @@ export default function StudyPaymentReceipt() {
         description={tr('Trang biên lai chỉ hiển thị giao dịch do hệ thống tạo. Bạn có thể xem gói tự học hoặc lớp học nhóm của mình.')}
         action={
           <>
-            <Link to="/plans/" className="rp-focus inline-flex h-10 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white rp-press">{tr('Gói tự học')}</Link>
-            <Link to="/my-courses/" className="rp-focus inline-flex h-10 items-center rounded-rp-input border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text">{tr('Lớp học nhóm')}</Link>
+            <Link to="/plans/" className="rp-focus inline-flex h-10 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white rp-press">
+              {tr('Gói tự học')}
+            </Link>
+            <Link to="/my-courses/" className="rp-focus inline-flex h-10 items-center rounded-rp-input border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text">
+              {tr('Lớp học nhóm')}
+            </Link>
           </>
         }
       />
@@ -67,31 +113,63 @@ export default function StudyPaymentReceipt() {
   } else if (query.isPending) {
     view = <SakuraLoader variant="section" context="payment" label={tr('Đang xác minh thanh toán với máy chủ')} />;
   } else if (query.isError) {
-    view = <ErrorState error={query.error} title={tr('Chưa xác nhận được thanh toán')} onRetry={() => query.refetch()} retrying={query.isFetching} />;
+    view = (
+      <ErrorState
+        error={query.error}
+        title={tr('Chưa xác nhận được thanh toán')}
+        onRetry={handleManualRecheck}
+        retrying={query.isFetching}
+      />
+    );
   } else {
     const paid = status === 'Paid';
     const pending = status === 'Pending';
-    const Icon = paid ? CircleCheck : pending ? Clock : XCircle;
+    const StatusIcon = paid ? CircleCheck : pending ? Clock : XCircle;
     view = (
       <div className="text-center">
-        <span className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${paid ? 'bg-rp-success-bg text-rp-success' : pending ? 'bg-rp-warning-bg text-rp-warning' : 'bg-rp-muted text-rp-text-2'}`}>
-          <Icon aria-hidden="true" className="h-7 w-7" />
+        <span
+          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${
+            paid ? 'bg-rp-success-bg text-rp-success' : pending ? 'bg-rp-warning-bg text-rp-warning' : 'bg-rp-muted text-rp-text-2'
+          }`}
+        >
+          <StatusIcon aria-hidden="true" className="h-7 w-7" />
         </span>
         <h1 className="mt-4 text-xl font-bold text-rp-text">
           {paid ? tr('Thanh toán thành công') : pending ? tr('Đang chờ PayOS xác nhận') : tr('Thanh toán chưa hoàn tất')}
         </h1>
         <div className="mt-2 flex justify-center">
-          <Badge tone={paid ? 'success' : pending ? 'warning' : 'neutral'}>{trf('Đơn gói tự học #{0}', { 0: purchaseId })}</Badge>
+          <Badge tone={paid ? 'success' : pending ? 'warning' : 'neutral'}>
+            {trf('Đơn gói tự học #{0}', { 0: purchaseId })}
+          </Badge>
         </div>
-        {paid && <Banner tone="success" className="mt-5 text-left">{tr('Quyền sử dụng gói đã được cấp vào tài khoản của bạn.')}</Banner>}
-        {pending && <Banner tone="info" className="mt-5 text-left">{tr('Trang tự kiểm tra lại mỗi 5 giây. Bạn có thể đóng trang; quyền sử dụng sẽ được cấp khi máy chủ xác minh xong.')}</Banner>}
-        {!paid && !pending && <Banner tone="warning" className="mt-5 text-left">{tr('Bạn đã hủy hoặc chưa hoàn tất thanh toán. Không có khoản nào được ghi nhận cho đơn này.')}</Banner>}
+        {paid && (
+          <Banner tone="success" className="mt-5 text-left">
+            {tr('Quyền sử dụng gói đã được cấp vào tài khoản của bạn.')}
+          </Banner>
+        )}
+        {pending && (
+          <Banner tone={pollExhausted ? 'warning' : 'info'} className="mt-5 text-left">
+            {pollExhausted
+              ? tr('PayOS xác nhận chậm hơn bình thường. Vui lòng bấm Kiểm tra lại để cập nhật trạng thái đơn hàng.')
+              : tr('Trang tự kiểm tra lại mỗi 5 giây. Bạn có thể đóng trang; quyền sử dụng sẽ được cấp khi máy chủ xác minh xong.')}
+          </Banner>
+        )}
+        {!paid && !pending && (
+          <Banner tone="warning" className="mt-5 text-left">
+            {tr('Bạn đã hủy hoặc chưa hoàn tất thanh toán. Không có khoản nào được ghi nhận cho đơn này.')}
+          </Banner>
+        )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link to={paid ? '/app/' : '/plans/'} className="rp-focus inline-flex h-10 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand hover:bg-rp-brand-strong rp-press">
+          <Link
+            to={paid ? '/app/' : '/plans/'}
+            className="rp-focus inline-flex h-10 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand hover:bg-rp-brand-strong rp-press"
+          >
             {paid ? tr('Bắt đầu học') : tr('Về gói tự học')}
           </Link>
           {!paid && (
-            <Button variant="secondary" icon={RefreshCw} onClick={() => query.refetch()} loading={query.isFetching}>{tr('Kiểm tra lại')}</Button>
+            <Button variant="secondary" icon={RefreshCw} onClick={handleManualRecheck} loading={query.isFetching}>
+              {tr('Kiểm tra lại')}
+            </Button>
           )}
         </div>
       </div>

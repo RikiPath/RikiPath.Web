@@ -18,11 +18,14 @@ import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   Badge,
+  Banner,
+  Button,
   Card,
   CardHeader,
   ContextualEmptyState,
   ContextualErrorState,
   FeatureIcon,
+  PageContainer,
   PageHeader,
   ProgressBar,
   SakuraLoader,
@@ -51,7 +54,7 @@ export default function GroupLearningOverviewPage() {
   const calendar = useWorkspaceCalendar({ roleKey: 'Learner', includeSrs: false });
 
   const { courses, coursesQuery } = workspace;
-  const { nowMs, summary, isLoading: calendarLoading } = calendar;
+  const { nowMs, summary, isLoading: calendarLoading, isError: calendarError, refetch: refetchCalendar } = calendar;
   const { liveSessions, upcomingSessions, pendingHomeworks } = summary;
 
   const activeCourses = useMemo(
@@ -62,28 +65,15 @@ export default function GroupLearningOverviewPage() {
 
   return (
     <LearnerShell breadcrumb={tr('Học cùng Giáo viên')}>
-      <div className="rp-container space-y-6 py-6 lg:py-8">
+      <PageContainer width="default" className="space-y-6">
         <PageHeader
           eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
           title={tr('Học cùng Giáo viên')}
           description={tr('Điểm điều phối trung tâm cho lớp học của bạn: buổi học sắp tới, bài tập cần nộp, lịch học và tiến độ chuyên cần.')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to="/calendar"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/40"
-              >
-                <CalendarDays className="h-4 w-4 text-rp-brand-strong" />
-                {tr('Lịch học')}
-              </Link>
-              <Link
-                to="/cohorts"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white hover:bg-rp-brand-deep"
-              >
-                {tr('Khám phá lớp học')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+            <Button as={Link} to="/cohorts" variant="primary" size="sm" iconRight={ArrowRight}>
+              {tr('Khám phá lớp học')}
+            </Button>
           }
         />
 
@@ -110,6 +100,19 @@ export default function GroupLearningOverviewPage() {
           })}
         </section>
 
+        {calendarError && (
+          <Banner
+            tone="warning"
+            actions={
+              <Button variant="ghost" size="sm" onClick={() => refetchCalendar?.()}>
+                {tr('Thử lại')}
+              </Button>
+            }
+          >
+            {tr('Chưa đồng bộ được lịch học và bài tập mới nhất.')}
+          </Banner>
+        )}
+
         {/* Overview Content */}
         {coursesQuery.isPending ? (
           <Card className="p-8">
@@ -131,7 +134,7 @@ export default function GroupLearningOverviewPage() {
               <CardHeader
                 title={tr('Buổi học sắp tới & Lớp đang tham gia')}
                 actions={
-                  <Link to="/my-courses" className="text-xs font-semibold rp-link">
+                  <Link to="/my-courses" className="rp-link text-xs font-semibold">
                     {tr('Tất cả lớp')} ({courses.length})
                   </Link>
                 }
@@ -155,7 +158,7 @@ export default function GroupLearningOverviewPage() {
                     {nextSession.canJoin ? (
                       <Link
                         to={nextSession.roomHref}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#0F766E] px-3.5 text-xs font-semibold text-white hover:bg-[#115E59]"
+                        className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-success px-3.5 text-xs font-semibold text-white hover:opacity-95"
                       >
                         <Video className="h-3.5 w-3.5" />
                         {tr('Vào phòng học ngay')}
@@ -168,7 +171,7 @@ export default function GroupLearningOverviewPage() {
                     {nextSession.secondaryHref && (
                       <Link
                         to={nextSession.secondaryHref}
-                        className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-rp-surface px-3 text-xs font-semibold text-rp-text hover:bg-rp-muted"
+                        className="rp-focus inline-flex h-9 items-center rounded-xl border border-rp-line bg-rp-surface px-3 text-xs font-semibold text-rp-text hover:bg-rp-muted"
                       >
                         {tr('Không gian lớp')}
                       </Link>
@@ -204,7 +207,9 @@ export default function GroupLearningOverviewPage() {
                           <span className="truncate text-sm font-bold text-rp-text">
                             {displayCourseTitle(course, tr('Lớp học nhóm'))}
                           </span>
-                          <Badge tone={badge.tone} size="sm">{tr(badge.label)}</Badge>
+                          <Badge tone={badge.tone} size="sm">
+                            {tr(badge.label)}
+                          </Badge>
                         </div>
                         <p className="mt-0.5 text-xs text-rp-text-muted">
                           {tr('Giáo viên')}: {course.mentorName || tr('Chưa phân công')}
@@ -214,7 +219,7 @@ export default function GroupLearningOverviewPage() {
                           <div className="mt-2">
                             <div className="mb-1 flex justify-between text-[11px] text-rp-text-muted">
                               <span>{tr('Chuyên cần')}</span>
-                              <span className="tabular-nums font-semibold text-rp-text">
+                              <span className="font-semibold tabular-nums text-rp-text">
                                 {trf('{0}/{1} buổi', { 0: attended, 1: total })}
                               </span>
                             </div>
@@ -233,7 +238,7 @@ export default function GroupLearningOverviewPage() {
               <CardHeader
                 title={tr('Bài tập về nhà sắp tới')}
                 actions={
-                  <Link to="/homework" className="text-xs font-semibold rp-link">
+                  <Link to="/homework" className="rp-link text-xs font-semibold">
                     {tr('Mở trang bài tập')}
                   </Link>
                 }
@@ -247,7 +252,7 @@ export default function GroupLearningOverviewPage() {
                   action={
                     <Link
                       to="/homework"
-                      className="inline-flex h-9 items-center gap-1 rounded-xl border border-rp-line bg-rp-surface px-3.5 text-xs font-semibold text-rp-text hover:bg-rp-muted"
+                      className="rp-focus inline-flex h-9 items-center gap-1 rounded-xl border border-rp-line bg-rp-surface px-3.5 text-xs font-semibold text-rp-text hover:bg-rp-muted"
                     >
                       {tr('Xem lịch sử bài tập')}
                     </Link>
@@ -269,7 +274,9 @@ export default function GroupLearningOverviewPage() {
                               {hw.dueAt ? trf('Hạn nộp: {0}', { 0: formatVnDateTime(hw.dueAt) }) : tr('Chưa đặt hạn nộp')}
                             </p>
                           </div>
-                          <Badge tone={meta.tone} size="sm">{tr(meta.label)}</Badge>
+                          <Badge tone={meta.tone} size="sm">
+                            {tr(meta.label)}
+                          </Badge>
                         </Link>
                       </li>
                     );
@@ -281,14 +288,14 @@ export default function GroupLearningOverviewPage() {
                 <span className="text-rp-text-muted">
                   {tr('Theo dõi tỷ lệ chuyên cần và hoàn thành bài tập toàn khóa.')}
                 </span>
-                <Link to="/group-learning/progress" className="shrink-0 font-semibold rp-link">
+                <Link to="/group-learning/progress" className="rp-link shrink-0 font-semibold">
                   {tr('Xem tiến độ')}
                 </Link>
               </div>
             </Card>
           </div>
         )}
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

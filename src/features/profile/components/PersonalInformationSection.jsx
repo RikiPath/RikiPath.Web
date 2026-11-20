@@ -42,14 +42,15 @@ export default function PersonalInformationSection({
   const [errors, setErrors] = useState({});
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
-  // Keep local form synchronized whenever profile reloads while not editing
-  useEffect(() => {
+  const [lastSource, setLastSource] = useState({ profile, editing });
+  if (profile !== lastSource.profile || editing !== lastSource.editing) {
+    setLastSource({ profile, editing });
     if (!editing) {
       setFullName(initialFullName);
       setPhoneNumber(initialPhone);
       setErrors({});
     }
-  }, [editing, initialFullName, initialPhone]);
+  }
 
   const isDirty = editing && (
     fullName.trim() !== initialFullName ||

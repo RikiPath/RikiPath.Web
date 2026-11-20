@@ -22,7 +22,7 @@ export const ONBOARDING_STEPS = [
     stepNumber: 3,
     shortTitle: 'Thời gian',
     title: 'Bạn muốn học bao lâu mỗi ngày?',
-    subtitle: 'Thiết lập thời lượng phù hợp giúp hệ thống AI điều phối bài học đều đặn mỗi ngày.',
+    subtitle: 'Thiết lập thời lượng phù hợp giúp hệ thống sắp xếp bài học đều đặn mỗi ngày.',
     tip: 'Duy trì nhịp học ổn định mỗi ngày hiệu quả hơn học dồn trong một buổi ngắn hạn.',
   },
   {
@@ -62,6 +62,7 @@ export const LEVEL_FALLBACKS = {
   N4: { title: 'Sơ cấp nâng cao', desc: 'Củng cố kiến thức cơ bản và tình huống giao tiếp quen thuộc.' },
   N3: { title: 'Trung cấp', desc: 'Mở rộng từ vựng học thuật, luyện đọc hiểu và nghe hiểu.' },
   N2: { title: 'Trung – cao cấp', desc: 'Đọc hiểu văn bản dài, tin tức và chủ đề chuyên sâu.' },
+  N1: { title: 'Cao cấp', desc: 'Đọc hiểu học thuật, phân tích văn bản phức tạp và diễn đạt tự nhiên.' },
 };
 
 export function validateStep1Certificate({ activeCertId, loadingTypes, typesError }) {

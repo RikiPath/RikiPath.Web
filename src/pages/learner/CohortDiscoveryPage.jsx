@@ -4,7 +4,7 @@ import { LearnerShell } from '@/layouts';
 import LearnerCohortDiscoveryPanel from '@/features/cohorts/components/LearnerCohortDiscoveryPanel';
 import { useLearnerCohortWorkspace } from '@/features/cohorts/hooks/useLearnerCohortWorkspace.js';
 import { useLocale } from '@/locales/locale.js';
-import { Banner, Card, ContextualErrorState, PageHeader, SakuraLoader } from '@/components/ui';
+import { Banner, Button, Card, ContextualErrorState, PageContainer, PageHeader, SakuraLoader } from '@/components/ui';
 import '@/pages/shared/studyCourses.css';
 
 export default function CohortDiscoveryPage() {
@@ -13,31 +13,36 @@ export default function CohortDiscoveryPage() {
   const [searchParams] = useSearchParams();
   const workspace = useLearnerCohortWorkspace({ includeCohorts: true, includeEntitlements: true });
 
-  const { courses, cohorts, entitlements, cohortsQuery, busy, actionError, actionNotice, setActionError, setActionNotice, runAction } = workspace;
+  const {
+    courses,
+    cohorts,
+    entitlements,
+    cohortsQuery,
+    entitlementsQuery,
+    busy,
+    actionError,
+    actionNotice,
+    setActionError,
+    setActionNotice,
+    runAction,
+  } = workspace;
   const initialMentorId = searchParams.get('mentorId') || '';
 
   return (
     <LearnerShell breadcrumb={tr('Khám phá lớp học')}>
-      <div className="rp-container space-y-5 py-6 lg:py-8">
+      <PageContainer width="default" className="space-y-5">
         <PageHeader
           eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
           title={tr('Khám phá lớp học nhóm JLPT')}
-          description={tr('So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng gói hoặc thanh toán PayOS.')}
+          description={tr('So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán PayOS.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to="/mentors"
-                className="rp-focus inline-flex h-10 items-center rounded-xl border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text hover:bg-rp-muted"
-              >
+              <Button as={Link} to="/mentors" variant="secondary" size="sm">
                 {tr('Tìm Giáo viên')}
-              </Link>
-              <Link
-                to="/my-courses"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white hover:bg-rp-brand-deep"
-              >
+              </Button>
+              <Button as={Link} to="/my-courses" variant="primary" size="sm" iconRight={ArrowRight}>
                 {tr('Lớp của tôi')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              </Button>
             </div>
           }
         />
@@ -47,9 +52,23 @@ export default function CohortDiscoveryPage() {
             {actionError}
           </Banner>
         )}
+
         {actionNotice && (
           <Banner tone="success" title={tr('Thông báo')} onDismiss={() => setActionNotice('')}>
             {actionNotice}
+          </Banner>
+        )}
+
+        {entitlementsQuery.isError && (
+          <Banner
+            tone="warning"
+            actions={
+              <Button variant="ghost" size="sm" onClick={() => entitlementsQuery.refetch()} loading={entitlementsQuery.isFetching}>
+                {tr('Thử lại')}
+              </Button>
+            }
+          >
+            {tr('Chưa tải được quyền ghi danh hiện tại của tài khoản. Nếu bạn có quyền miễn phí hoặc ôn lại, hãy thử tải lại.')}
           </Banner>
         )}
 
@@ -69,15 +88,17 @@ export default function CohortDiscoveryPage() {
         ) : (
           <div className="course-page" style={{ padding: 0 }}>
             <div className="mb-3 flex justify-end">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => cohortsQuery.refetch()}
                 disabled={cohortsQuery.isFetching}
-                className="rp-focus inline-flex items-center gap-1.5 rounded-xl border border-rp-line bg-rp-surface px-3 py-1.5 text-xs font-semibold text-rp-text hover:bg-rp-muted"
+                loading={cohortsQuery.isFetching}
+                icon={RefreshCw}
               >
-                <RefreshCw className={cohortsQuery.isFetching ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
                 {tr('Làm mới danh sách')}
-              </button>
+              </Button>
             </div>
             <LearnerCohortDiscoveryPanel
               cohorts={cohorts}
@@ -93,7 +114,7 @@ export default function CohortDiscoveryPage() {
             />
           </div>
         )}
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

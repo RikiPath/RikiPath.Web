@@ -86,6 +86,7 @@ export function useSmartNotebook({ enabled = true } = {}) {
   }, [notePages, entriesByPageId]);
 
   const loadingEntries = entryQueries.some((q) => q.isPending);
+  const entriesError = entryQueries.find((q) => q.isError)?.error || null;
 
   const invalidateAll = useCallback(async (pageId = null) => {
     await queryClient.invalidateQueries({ queryKey: [NOTEBOOK_LISTS_QUERY_KEY, uid] });
@@ -315,6 +316,7 @@ export function useSmartNotebook({ enabled = true } = {}) {
     entriesByPageId,
     allEntries,
     loadingEntries,
+    entriesError,
     saveState,
     refetchAll: invalidateAll,
     createNotePage,

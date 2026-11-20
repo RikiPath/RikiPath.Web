@@ -11,7 +11,9 @@ import {
   FolderPlus,
   Highlighter,
   Loader2,
+  MapPin,
   NotebookPen,
+  Pencil,
   Plus,
   Repeat,
   Save,
@@ -22,8 +24,15 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
-import { confirmAction, notify } from '@/components/ui/feedbackStore.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
+import {
+  Button,
+  ContextualErrorState,
+  CustomSelect,
+  Drawer,
+  SakuraLoader,
+  confirmAction,
+  notify,
+} from '@/components/ui';
 import { searchKanji } from '@/features/content-author/api/sharedBankApi.js';
 import { useSmartNotebook } from '@/features/notebook/hooks/useSmartNotebook.js';
 import {
@@ -32,7 +41,6 @@ import {
   groupNotePagesByFolder,
   HIGHLIGHT_COLORS,
   NOTEBOOK_CONTENT_KINDS,
-  sanitizeNotebookText,
 } from '@/features/notebook/utils/notebookModel.js';
 import { SakuraFolderIcon, SakuraNotebookBubbleIcon, SakuraNotePageIcon } from './SakuraNotebookIcons.jsx';
 import SafeRichNoteRenderer from './SafeRichNoteRenderer.jsx';
@@ -122,14 +130,14 @@ export default function SmartNotebookWorkspace() {
       });
     }, 1100);
     return () => window.clearTimeout(timer);
-  }, [activeNotePage, editorBody, editorSummary, editorTags, editorDirty]);
+  }, [activeNotePage, editorBody, editorSummary, editorTags, editorDirty, nb.updateNotePage]);
 
   // Folder groups
   const folderGroups = useMemo(() => groupNotePagesByFolder(notePages), [notePages]);
 
   // Visible entries across selected scope (specific Note Page, Special filter Favorite/All/Folder)
   const visibleEntries = useMemo(() => {
-    let base = [];
+    let base;
     if (selectedFolderFilter === '__ALL__' && !pickedNoteId) {
       base = nb.allEntries;
     } else if (selectedFolderFilter === '__FAVORITES__') {
@@ -145,13 +153,13 @@ export default function SmartNotebookWorkspace() {
       base = nb.allEntries;
     }
 
-    const q = search.trim().toLocaleLowerCase('vi-VN');
+    const q = search.trim().toLowerCase();
     const filtered = base.filter((e) => {
       if (kindFilter !== 'all' && e.kind !== kindFilter) return false;
       if (!q) return true;
       return [e.term, e.reading, e.meaning, e.personalNote, e.sourceTitle, e.notePageTitle, ...(e.tags || [])]
         .join(' ')
-        .toLocaleLowerCase('vi-VN')
+        .toLowerCase()
         .includes(q);
     });
 
@@ -180,9 +188,10 @@ export default function SmartNotebookWorkspace() {
     setEntryMeaningDraft(activeEntry.meaning || '');
   }
 
-  // Legacy Kanji Search & Save integration inside "Tra cứu Kanji" mode
+  // Kanji Search & Save integration inside "Tra cứu Kanji" mode
   const [kanjiKeyword, setKanjiKeyword] = useState('');
   const [kanjiSubmitted, setKanjiSubmitted] = useState('');
+  const [selectedKanjiDetail, setSelectedKanjiDetail] = useState(null);
   const kanjiSearchQuery = useQuery({
     queryKey: ['kanji-search', kanjiSubmitted],
     queryFn: () => searchKanji(kanjiSubmitted),
@@ -328,10 +337,10 @@ export default function SmartNotebookWorkspace() {
     return <SakuraLoader variant="section" context="writing" label={tr('Đang tải Sổ tay thông minh…')} delay={150} />;
   }
 
-  if (nb.listsQuery.isError) {
+  if (nb.listsQuery.isError || (nb.entriesError && !nb.allEntries.length)) {
     return (
       <ContextualErrorState
-        error={nb.listsQuery.error}
+        error={nb.listsQuery.error || nb.entriesError}
         title={tr('Chưa tải được dữ liệu Sổ tay')}
         onRetry={() => nb.refetchAll()}
       />
@@ -419,15 +428,15 @@ export default function SmartNotebookWorkspace() {
             </button>
           </div>
           <div className="grid gap-2.5 sm:grid-cols-4">
-            <select
+            <CustomSelect
+              size="sm"
               value={quickDraft.kind}
-              onChange={(e) => setQuickDraft((d) => ({ ...d, kind: e.target.value }))}
-              className="h-9 rounded-xl border border-rp-line bg-white px-2.5 text-[12.5px]"
-            >
-              {NOTEBOOK_CONTENT_KINDS.filter((k) => k.id !== 'all').map((k) => (
-                <option key={k.id} value={k.id}>{tr(k.label)}</option>
-              ))}
-            </select>
+              onChange={(val) => setQuickDraft((d) => ({ ...d, kind: val }))}
+              options={NOTEBOOK_CONTENT_KINDS.filter((k) => k.id !== 'all').map((k) => ({
+                value: k.id,
+                label: tr(k.label),
+              }))}
+            />
             <input
               required
               placeholder={tr('Từ / Nội dung *')}
@@ -510,36 +519,109 @@ export default function SmartNotebookWorkspace() {
           </div>
 
           {kanjiSearchQuery.isPending && kanjiSubmitted && <SakuraLoader variant="section" context="writing" delay={140} />}
-          {kanjiSearchQuery.isSuccess && (
+          {kanjiSearchQuery.isError && (
+            <ContextualErrorState
+              variant="inline"
+              compact
+              error={kanjiSearchQuery.error}
+              title={tr('Chưa tìm được dữ liệu Kanji')}
+              onRetry={() => kanjiSearchQuery.refetch()}
+              retrying={kanjiSearchQuery.isFetching}
+            />
+          )}
+          {kanjiSearchQuery.isSuccess && (kanjiSearchQuery.data?.items || []).length === 0 && (
+            <p className="py-4 text-center text-sm text-rp-text-muted">{tr('Không tìm thấy chữ Kanji phù hợp.')}</p>
+          )}
+          {kanjiSearchQuery.isSuccess && (kanjiSearchQuery.data?.items || []).length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(kanjiSearchQuery.data?.items || []).map((item) => {
                 const stored = savedKanjiIds.has(item.id);
                 return (
                   <div key={item.id} className="flex gap-3 rounded-2xl border border-rp-line p-3.5">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-[32px] font-bold text-rp-brand-deep">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedKanjiDetail(item)}
+                      className="rp-focus flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-[32px] font-bold text-rp-brand-deep hover:bg-rp-brand-soft"
+                      aria-label={trf('Xem chi tiết chữ {0}', { 0: item.character })}
+                    >
                       {item.character}
-                    </div>
+                    </button>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-bold text-rp-text">{item.meaning}</p>
                       <p className="mt-0.5 truncate text-[12px] text-rp-text-muted">
                         {[item.onYomi && `On: ${item.onYomi}`, item.kunYomi && `Kun: ${item.kunYomi}`].filter(Boolean).join(' · ')}
                       </p>
-                      <button
-                        type="button"
-                        disabled={stored || saveKanjiBookmark.isPending}
-                        onClick={() => saveKanjiBookmark.mutate(item)}
-                        className={`mt-2 h-7.5 rounded-full px-3 text-[11.5px] font-semibold ${
-                          stored ? 'bg-emerald-50 text-emerald-700' : 'border border-rp-brand-border text-rp-brand-strong hover:bg-rp-brand-tint'
-                        }`}
-                      >
-                        {stored ? tr('Đã có trong sổ') : tr('Lưu Kanji')}
-                      </button>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedKanjiDetail(item)}>
+                          {tr('Chi tiết')}
+                        </Button>
+                        <button
+                          type="button"
+                          disabled={stored || saveKanjiBookmark.isPending}
+                          onClick={() => saveKanjiBookmark.mutate(item)}
+                          className={`h-7.5 rounded-full px-3 text-[11.5px] font-semibold ${
+                            stored ? 'bg-emerald-50 text-emerald-700' : 'border border-rp-brand-border text-rp-brand-strong hover:bg-rp-brand-tint'
+                          }`}
+                        >
+                          {stored ? tr('Đã có trong sổ') : tr('Lưu Kanji')}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+          <Drawer
+            open={Boolean(selectedKanjiDetail)}
+            onClose={() => setSelectedKanjiDetail(null)}
+            title={selectedKanjiDetail ? `Kanji: ${selectedKanjiDetail.character}` : ''}
+            width="w-[min(420px,100vw)]"
+          >
+            {selectedKanjiDetail && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 rounded-xl border border-rp-line bg-rp-bg-2 p-4">
+                  <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-rp-brand-tint text-5xl font-bold text-rp-brand-deep">
+                    {selectedKanjiDetail.character}
+                  </span>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-base font-bold text-rp-text">{selectedKanjiDetail.meaning}</p>
+                    {selectedKanjiDetail.sinoVietnamese && (
+                      <p className="text-xs text-rp-text-2">{tr('Hán Việt')}: {selectedKanjiDetail.sinoVietnamese}</p>
+                    )}
+                    {selectedKanjiDetail.jlptLevelName && (
+                      <span className="inline-block rounded-full bg-rp-brand-tint px-2 py-0.5 text-xs font-semibold text-rp-brand-strong">
+                        JLPT {selectedKanjiDetail.jlptLevelName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <dl className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
+                    <dt className="text-rp-text-muted">Onyomi</dt>
+                    <dd className="mt-0.5 font-semibold text-rp-text">{selectedKanjiDetail.onYomi || '—'}</dd>
+                  </div>
+                  <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
+                    <dt className="text-rp-text-muted">Kunyomi</dt>
+                    <dd className="mt-0.5 font-semibold text-rp-text">{selectedKanjiDetail.kunYomi || '—'}</dd>
+                  </div>
+                </dl>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={savedKanjiIds.has(selectedKanjiDetail.id) || saveKanjiBookmark.isPending}
+                    onClick={() => saveKanjiBookmark.mutate(selectedKanjiDetail)}
+                  >
+                    {savedKanjiIds.has(selectedKanjiDetail.id) ? tr('Đã có trong sổ') : tr('Lưu vào Sổ tay')}
+                  </Button>
+                  <Button variant="secondary" size="sm" icon={Volume2} onClick={() => speakJapanese(selectedKanjiDetail.character)}>
+                    {tr('Nghe')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Drawer>
         </section>
       ) : (
         /* 3-Column Smart Notebook Workspace */
@@ -627,7 +709,7 @@ export default function SmartNotebookWorkspace() {
                                 onChange={(e) => setRenamingNoteValue(e.target.value)}
                                 className="h-7 min-w-0 flex-1 rounded-lg border border-rp-brand-border px-2 text-[12px]"
                               />
-                              <button type="submit" className="rounded-lg bg-rp-brand-pressed px-2 text-[11px] font-semibold text-white">OK</button>
+                              <button type="submit" className="rounded-lg bg-rp-brand-pressed px-2 text-[11px] font-semibold text-white">{tr('Lưu')}</button>
                             </form>
                           ) : (
                             <>
@@ -651,9 +733,9 @@ export default function SmartNotebookWorkspace() {
                                 type="button"
                                 title={tr('Đổi tên trang')}
                                 onClick={() => { setRenamingNoteId(page.id); setRenamingNoteValue(page.title); }}
-                                className="hidden rounded p-1 text-[11px] text-rp-text-muted hover:bg-rp-bg-2 group-hover:inline-flex"
+                                className="hidden rounded p-1 text-rp-text-muted hover:bg-rp-bg-2 group-hover:inline-flex"
                               >
-                                ✎
+                                <Pencil className="h-3 w-3" aria-hidden="true" />
                               </button>
                               <button
                                 type="button"
@@ -704,15 +786,19 @@ export default function SmartNotebookWorkspace() {
                   className="h-9 w-full rounded-xl border border-rp-line bg-[#FCFAFB] pl-8.5 pr-3 text-[12.5px]"
                 />
               </label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="h-9 rounded-xl border border-rp-line bg-white px-2 text-[12px] font-medium text-rp-text-2"
-              >
-                <option value="recent">{tr('Mới nhất')}</option>
-                <option value="alpha">{tr('Theo chữ')}</option>
-                <option value="srs">{tr('Ưu tiên SRS')}</option>
-              </select>
+              <div className="w-32 shrink-0">
+                <CustomSelect
+                  size="sm"
+                  aria-label={tr('Sắp xếp')}
+                  value={sortBy}
+                  onChange={setSortBy}
+                  options={[
+                    { value: 'recent', label: tr('Mới nhất') },
+                    { value: 'alpha', label: tr('Theo chữ') },
+                    { value: 'srs', label: tr('Ưu tiên SRS') },
+                  ]}
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-1">
@@ -757,7 +843,7 @@ export default function SmartNotebookWorkspace() {
                         {entry.reading && <span className="ml-1.5 text-[11.5px] text-rp-brand-strong">{entry.reading}</span>}
                       </div>
                       <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone.bgClass} ${tone.borderClass} ${tone.textClass}`}>
-                        {entry.kind}
+                        {tr(NOTEBOOK_CONTENT_KINDS.find((k) => k.id === entry.kind)?.label || entry.kind)}
                       </span>
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-[12px] text-rp-text-2">{entry.meaning}</p>
@@ -767,7 +853,12 @@ export default function SmartNotebookWorkspace() {
                           <Repeat className="h-2.5 w-2.5" /> SRS
                         </span>
                       )}
-                      {entry.sourceTitle && <span className="truncate">📍 {entry.sourceTitle}</span>}
+                      {entry.sourceTitle && (
+                        <span className="inline-flex items-center gap-1 truncate">
+                          <MapPin className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{entry.sourceTitle}</span>
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -802,16 +893,15 @@ export default function SmartNotebookWorkspace() {
                     >
                       <Star className="h-3.5 w-3.5" />
                     </button>
-                    <select
-                      aria-label={tr('Di chuyển trang sang thư mục')}
-                      value={activeNotePage.folder}
-                      onChange={(e) => nb.updateNotePage.mutate({ ...activeNotePage, summary: editorSummary, body: editorBody, folder: e.target.value })}
-                      className="h-8 rounded-lg border border-rp-line bg-white px-2 text-[11.5px]"
-                    >
-                      {folderGroups.map((f) => (
-                        <option key={f.name} value={f.name}>{tr('Thư mục')}: {f.name}</option>
-                      ))}
-                    </select>
+                    <div className="w-40 shrink-0">
+                      <CustomSelect
+                        size="sm"
+                        aria-label={tr('Di chuyển trang sang thư mục')}
+                        value={activeNotePage.folder}
+                        onChange={(val) => nb.updateNotePage.mutate({ ...activeNotePage, summary: editorSummary, body: editorBody, folder: val })}
+                        options={folderGroups.map((f) => ({ value: f.name, label: `${tr('Thư mục')}: ${f.name}` }))}
+                      />
+                    </div>
                     <button
                       type="button"
                       disabled={nb.updateNotePage.isPending}
@@ -830,7 +920,7 @@ export default function SmartNotebookWorkspace() {
                     <button type="button" onClick={() => applyEditorFormat('## ', '', 'Tiêu đề')} className="rounded px-2 py-1 font-bold hover:bg-white">H2</button>
                     <button type="button" onClick={() => applyEditorFormat('**', '**', 'chữ đậm')} className="rounded px-2 py-1 font-bold hover:bg-white">B</button>
                     <button type="button" onClick={() => applyEditorFormat('*', '*', 'chữ nghiêng')} className="rounded px-2 py-1 italic hover:bg-white">I</button>
-                    <button type="button" onClick={() => applyEditorFormat('==', '==', 'nội dung quan trọng')} className="rounded bg-[#FCE8EF] px-2 py-1 font-semibold text-[#8C2D4B] hover:brightness-95">HL</button>
+                    <button type="button" title={tr('Đánh dấu nổi bật')} aria-label={tr('Đánh dấu nổi bật')} onClick={() => applyEditorFormat('==', '==', 'nội dung quan trọng')} className="inline-flex items-center gap-1 rounded bg-[#FCE8EF] px-2 py-1 font-semibold text-[#8C2D4B] hover:brightness-95"><Highlighter className="h-3 w-3" aria-hidden="true" /><span>{tr('Đánh dấu')}</span></button>
                     <button type="button" onClick={() => applyEditorFormat('`', '`', '日本語')} className="rounded px-2 py-1 font-semibold text-rp-brand-strong hover:bg-white">あ/漢</button>
                     <button type="button" onClick={() => applyEditorFormat('- ', '', 'Ý chính')} className="rounded px-2 py-1 hover:bg-white">• List</button>
                     <button type="button" onClick={() => applyEditorFormat('1. ', '', 'Bước 1')} className="rounded px-2 py-1 hover:bg-white">1. List</button>
@@ -976,21 +1066,23 @@ export default function SmartNotebookWorkspace() {
                     ))}
                   </div>
 
-                  <select
-                    aria-label={tr('Chuyển sang trang ghi chú khác')}
-                    value={activeEntry.learnerNoteId || ''}
-                    onChange={(e) => nb.updateEntry.mutate({
-                      noteEntryId: activeEntry.noteEntryId,
-                      learnerNoteId: Number(e.target.value),
-                      personalNote: entryPersonalNoteDraft,
-                      meta: activeEntry,
-                    })}
-                    className="h-8 rounded-lg border border-rp-line bg-white px-2.5 text-[12px]"
-                  >
-                    {notePages.map((p) => (
-                      <option key={p.id} value={p.id}>{tr('Chuyển tới')}: {p.folder} / {p.title}</option>
-                    ))}
-                  </select>
+                  <div className="w-56 shrink-0">
+                    <CustomSelect
+                      size="sm"
+                      aria-label={tr('Chuyển sang trang ghi chú khác')}
+                      value={String(activeNotePage?.id || activeEntry.learnerNoteId || '')}
+                      onChange={(val) => nb.updateEntry.mutate({
+                        noteEntryId: activeEntry.noteEntryId,
+                        learnerNoteId: Number(val),
+                        personalNote: entryPersonalNoteDraft,
+                        meta: activeEntry,
+                      })}
+                      options={notePages.map((p) => ({
+                        value: String(p.id),
+                        label: `${tr('Chuyển tới')}: ${p.folder} / ${p.title}`,
+                      }))}
+                    />
+                  </div>
                 </div>
 
                 <label className="block text-[12px] font-semibold text-rp-text-2">

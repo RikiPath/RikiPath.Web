@@ -44,6 +44,14 @@ const LEVELS = {
     reading: 'Văn bản dài, lập luận và quan điểm tác giả.',
     listening: 'Thông tin chi tiết và ý định người nói.',
   },
+  N1: {
+    label: 'Cao cấp',
+    description: 'Luyện đọc hiểu học thuật, phân tích cấu trúc phức tạp và làm đề JLPT N1.',
+    vocabulary: 'Từ vựng học thuật, từ ghép và sắc thái văn bản.',
+    grammar: 'Mẫu câu N1, liên kết logic và văn viết trang trọng.',
+    reading: 'Bài luận, phê bình và phân tích quan điểm.',
+    listening: 'Hội thoại tốc độ tự nhiên và tổng hợp thông tin.',
+  },
 };
 
 function getStages(level) {
@@ -141,7 +149,7 @@ function getStages(level) {
         {
           icon: 'groups',
           title: 'Học nhóm cùng Giáo viên',
-          description: 'Lớp 1–4 học viên, 10 tuần, chọn cường độ phù hợp.',
+          description: 'Luyện giao tiếp và sửa bài trực tiếp cùng Giáo viên.',
           to: '/mentors',
         },
       ],

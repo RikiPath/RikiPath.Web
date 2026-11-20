@@ -26,6 +26,7 @@ import { splitSrsQueue, weekBloomStates } from '@/features/dashboard/hooks/useLe
 import { JapanScene, sceneForHour } from '@/assets/illustrations';
 import {
   Badge,
+  Button,
   Card,
   CardHeader,
   ContextualEmptyState,
@@ -51,11 +52,17 @@ const PRACTICE = [
   { feature: 'speaking', to: '/speech', title: 'Luyện nói', note: 'Phát âm & phản xạ' },
 ];
 
-const SKILLS = [
+const BASE_SKILLS = [
   { key: 'vocabulary', label: 'Từ vựng', feature: 'vocabulary' },
   { key: 'grammar', label: 'Ngữ pháp', feature: 'grammar' },
   { key: 'reading', label: 'Đọc hiểu', feature: 'reading' },
   { key: 'listening', label: 'Nghe hiểu', feature: 'listening' },
+];
+
+const EXTENDED_SKILLS = [
+  ...BASE_SKILLS,
+  { key: 'writing', label: 'Luyện viết', feature: 'writing' },
+  { key: 'speaking', label: 'Luyện nói', feature: 'speaking' },
 ];
 
 const WEEK_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -88,7 +95,7 @@ function StatTile({ icon: Icon, tone, label, value, unit, loading, error, onRetr
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-rp-text-muted">{tr(label)}</p>
+          <p className="text-xs font-medium leading-snug text-rp-text-muted">{tr(label)}</p>
           {loading ? (
             <div className="mt-1 flex min-h-[2rem] items-center">
               <SakuraLoader variant="inline" size={18} context="data" delay={160} />
@@ -136,7 +143,7 @@ function StreakWeek({ days, activeToday }) {
             {(state === 'done' || state === 'today') && <Flame aria-hidden="true" className="h-3 w-3" />}
             <span className="sr-only">{state === 'done' || state === 'today' ? tr('Đã học') : state === 'pending' ? tr('Hôm nay chưa học') : state === 'future' ? tr('Chưa tới') : tr('Chưa học')}</span>
           </span>
-          <span className="text-[10px] font-medium text-rp-text-muted">{WEEK_LABELS[i]}</span>
+          <span className="text-[10px] font-medium text-rp-text-muted">{tr(WEEK_LABELS[i])}</span>
         </li>
       ))}
     </ol>
@@ -154,7 +161,7 @@ function GroupLearningWidget() {
         <CardHeader
           icon={<FeatureIcon feature="group" size="sm" />}
           title={tr('Học nhóm cùng Giáo viên')}
-          description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
+          description={tr('Lịch buổi học nhóm, bài tập và tương tác cùng Giáo viên')}
         />
         <ContextualEmptyState compact icon={School} title={tr('Chế độ xem trước')} description={tr('Lớp học nhóm chỉ hiển thị với dữ liệu thật.')} />
       </Card>
@@ -214,7 +221,7 @@ function GroupLearningWidget() {
             <CardHeader
               icon={<FeatureIcon feature="group" size="sm" />}
               title={tr('Học nhóm cùng Giáo viên')}
-              description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
+              description={tr('Lịch buổi học nhóm, bài tập và tương tác cùng Giáo viên')}
               actions={
                 <div className="flex items-center gap-2">
                   <RefreshingIndicator active={calendar.isFetching && !calendar.isLoading} />
@@ -232,10 +239,10 @@ function GroupLearningWidget() {
             {nextSession && (
               <div className={cx(
                 'rounded-rp-input border p-3',
-                nextSession.canJoin ? 'border-[#99F6E4] bg-[#F0FDFA]' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
+                nextSession.canJoin ? 'border-rp-success-line bg-rp-success-bg' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
               )}>
                 <div className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className={cx('font-bold uppercase tracking-wide', nextSession.canJoin ? 'text-[#0F766E]' : 'text-rp-brand-strong')}>
+                  <span className={cx('font-bold uppercase tracking-wide', nextSession.canJoin ? 'text-rp-success' : 'text-rp-brand-strong')}>
                     {nextSession.canJoin ? tr('Phòng đang mở') : tr('Buổi sắp tới')}
                   </span>
                   <span className="flex items-center gap-1 text-rp-text-muted">
@@ -246,11 +253,8 @@ function GroupLearningWidget() {
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="truncate text-xs text-rp-text-muted">{nextSession.mentorName}</span>
                   {nextSession.canJoin ? (
-                    <Link
-                      to={nextSession.roomHref}
-                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-[#0F766E] px-3 text-xs font-semibold text-white hover:bg-[#115E59]"
-                    >
-                      <Video className="h-3.5 w-3.5" /> {tr('Vào phòng')}
+                    <Link to={nextSession.roomHref}>
+                      <Button variant="primary" size="sm" icon={Video}>{tr('Vào phòng')}</Button>
                     </Link>
                   ) : (
                     <Link
@@ -342,7 +346,7 @@ function GroupLearningWidget() {
 }
 
 export default function HomeLearner({ data = null }) {
-  const { locale, tr } = useLocale();
+  const { locale, tr, trf } = useLocale();
   const scene = useMemo(() => sceneForHour(), []);
   const copy = SCENE_COPY[scene];
   const lightText = scene === 'dusk' || scene === 'night';
@@ -352,7 +356,8 @@ export default function HomeLearner({ data = null }) {
   const streak = isNum(data?.streakDays) ? data.streakDays : null;
   const completed = isNum(data?.completedExercises) ? data.completedExercises : null;
   const skillScores = data?.skillScores ?? {};
-  const hasSkillData = SKILLS.some(({ key }) => isNum(skillScores[key]));
+  const visibleSkills = isNum(skillScores.writing) || isNum(skillScores.speaking) ? EXTENDED_SKILLS : BASE_SKILLS;
+  const hasSkillData = visibleSkills.some(({ key }) => isNum(skillScores[key]));
   const srsItems = Array.isArray(data?.srsItems) ? data.srsItems : [];
   const srsBreakdown = splitSrsQueue(srsItems);
   const loading = data?.loading ?? {};
@@ -403,7 +408,7 @@ export default function HomeLearner({ data = null }) {
                 ) : (
                   <p className={cx('text-sm leading-6', lightText ? 'text-white/90' : 'text-rp-text-2')}>
                     {targetLevel
-                      ? tr(`Mục tiêu của bạn: JLPT ${targetLevel}. Mỗi buổi học ngắn đều đưa bạn gần hơn tới kỳ thi.`)
+                      ? trf('Mục tiêu của bạn: JLPT {0}. Mỗi buổi học ngắn đều đưa bạn gần hơn tới kỳ thi.', { 0: targetLevel })
                       : tr('Đặt mục tiêu JLPT để RikiPath gợi ý lộ trình và bài luyện phù hợp với trình độ.')}
                   </p>
                 )}
@@ -436,7 +441,7 @@ export default function HomeLearner({ data = null }) {
                   className={cx('rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border px-4 text-sm font-semibold backdrop-blur transition-colors', lightText ? 'border-white/40 bg-white/15 text-white hover:bg-white/25' : 'border-rp-line bg-white/85 text-rp-text hover:border-rp-brand-border')}
                 >
                   <SrsLoopIcon className="h-4 w-4" />
-                  {dueCards ? `${tr('Ôn')} ${dueCards} ${tr('thẻ đến hạn')}` : tr('Ôn tập SRS')}
+                  {dueCards ? trf('Ôn {0} thẻ đến hạn', { 0: dueCards }) : tr('Ôn tập SRS')}
                 </Link>
               </div>
             </div>
@@ -485,7 +490,7 @@ export default function HomeLearner({ data = null }) {
             icon={Target}
             tone="bg-rp-brand-tint text-rp-brand-strong"
             label={tr('Mục tiêu JLPT')}
-            value={targetLevel}
+            value={targetLevel ? `JLPT ${targetLevel}` : null}
             loading={loading.profile}
             error={errors.profile}
             onRetry={onRetry.profile}
@@ -518,7 +523,7 @@ export default function HomeLearner({ data = null }) {
               <CardHeader
                 title={tr('Năng lực theo kỹ năng')}
                 description={tr('Điểm trung bình từ các bài bạn đã làm')}
-                actions={<Link to="/exam-result/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch sử & kết quả')}</Link>}
+                actions={hasSkillData ? <Link to="/exam-result/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch sử & kết quả')}</Link> : null}
               />
               <OptionalDashboardWidget
                 name="HomeLearner.SkillMastery"
@@ -548,7 +553,7 @@ export default function HomeLearner({ data = null }) {
               >
                 {() => (
                   <ul className="grid gap-4 sm:grid-cols-2">
-                    {SKILLS.map(({ key, label, feature }) => {
+                    {visibleSkills.map(({ key, label, feature }) => {
                       const v = skillScores[key];
                       return (
                         <li key={key} className="rounded-rp-input border border-rp-line/70 bg-rp-bg-2/50 p-3.5">

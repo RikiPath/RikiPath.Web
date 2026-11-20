@@ -118,7 +118,6 @@ export const jaAppCore = {
   'Tài khoản của bạn đã sẵn sàng.': 'アカウントを利用できます。',
   'Dùng email khác để xác thực': '別のメールアドレスで確認する',
   'Tài khoản chưa xác thực có thể đổi email. Nhập lại mật khẩu đăng ký để bảo vệ tài khoản.': '未確認のアカウントではメールアドレスを変更できます。保護のため登録時のパスワードを再入力してください。',
-  'Email mới': '新しいメールアドレス',
   'Mật khẩu đã đăng ký': '登録時のパスワード',
   'Cập nhật email và gửi mã': 'メールアドレスを更新してコードを送信',
   'Vui lòng nhập một email mới hợp lệ.': '有効な新しいメールアドレスを入力してください。',

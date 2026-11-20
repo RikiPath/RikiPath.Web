@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-
+import { ArrowLeft } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
@@ -13,13 +13,21 @@ import {
   submitLessonExercise,
   submitQuizExercise,
 } from '@/features/practice/api/practiceExerciseApi.js';
-import { notify } from '@/components/ui/feedbackStore.js';
 import { describeApiError } from '@/api/apiErrors.js';
-import { ContextualEmptyState, ContextualErrorState, SakuraLoader } from '@/components/ui';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  PageContainer,
+  Radio,
+  SakuraLoader,
+  Textarea,
+  notify,
+} from '@/components/ui';
 import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
-
-const focus =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
 
 export default function LessonPractice() {
   const { tr } = useLocale();
@@ -67,12 +75,18 @@ export default function LessonPractice() {
     onError: (err) => notify.apiError(err, tr('Không mở được bài tập'), { key: 'lesson-ex-start-err' }),
   });
 
+  const hasAllRequiredAnswers = useMemo(() => {
+    const qs = attempt?.questions || [];
+    if (qs.length === 0) return false;
+    return qs.every((q) => (q.options?.length > 0 ? Boolean(picks[q.id]) : Boolean(texts[q.id]?.trim())));
+  }, [attempt, picks, texts]);
+
   const submit = useMutation({
     mutationFn: () => {
       const answers = (attempt.questions || []).map((question) => ({
         questionId: question.id,
         selectedOptionId: picks[question.id] ?? null,
-        ...(texts[question.id] ? { textAnswer: texts[question.id] } : {}),
+        ...(texts[question.id]?.trim() ? { textAnswer: texts[question.id].trim() } : {}),
       }));
       notify.loading(tr('Đang nộp bài tập…'), '', { key: 'lesson-ex-submit', maxWaitMs: 30000 });
       return source === 'quiz'
@@ -88,159 +102,210 @@ export default function LessonPractice() {
 
   const primary = Array.isArray(listQuery.data) ? listQuery.data : [];
   const quizzes = Array.isArray(quizQuery.data) ? quizQuery.data : [];
-  const exercises = primary.length ? primary.map((item) => ({ ...item, kind: 'lesson' })) : quizzes.map((item) => ({ ...item, kind: 'quiz' }));
+  const exercises = primary.length
+    ? primary.map((item) => ({ ...item, kind: 'lesson' }))
+    : quizzes.map((item) => ({ ...item, kind: 'quiz' }));
   const loadError = listQuery.isError ? listQuery.error : quizQuery.isError ? quizQuery.error : null;
   const actionError = start.error || submit.error;
 
+  const questionLookup = useMemo(() => {
+    const map = new Map();
+    (attempt?.questions || []).forEach((q, idx) => map.set(q.id, { ...q, number: idx + 1 }));
+    return map;
+  }, [attempt]);
+
   return (
     <LearnerShell pathname="/lesson-practice" breadcrumb={tr('Bài tập')}>
-      <main className="rp-container-reading py-6 text-rp-text lg:py-8">
-        <Link to={lessonId ? `/lesson-player/?lessonId=${lessonId}` : '/lessons/'} className={`text-[13px] font-medium rp-link ${focus}`}>
-          {tr('Về bài học')}
-        </Link>
-        <header className="mt-3">
-          <p className="text-[11px] font-medium tracking-[0.14em] text-rp-brand-strong">{tr('BÀI TẬP CỦA BÀI HỌC')}</p>
-          <h1 className="mt-1 text-[26px] font-semibold tracking-tight">{tr('Làm bài rồi xem đáp án')}</h1>
-        </header>
+      <PageContainer width="reading" density="comfortable" className="text-rp-text space-y-4">
+        <div>
+          <Link to={lessonId ? `/lesson-player/?lessonId=${lessonId}` : '/lessons/'} className="rp-link inline-flex items-center gap-1 text-[13px] font-medium">
+            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Về bài học')}
+          </Link>
+          <header className="mt-3">
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-rp-brand-strong">{tr('Bài tập của bài học')}</p>
+            <h1 className="mt-1 rp-type-page-title text-rp-text">{tr('Làm bài rồi xem đáp án')}</h1>
+          </header>
+        </div>
 
-        {actionError && (
-          <p role="alert" className="mt-4 rounded-xl bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">
-            {tr(describeApiError(actionError).message)}
-          </p>
-        )}
+        {actionError && <Banner tone="danger">{tr(describeApiError(actionError).message)}</Banner>}
+
         {loadError && (
           <ContextualErrorState
             variant="inline"
-            className="mt-4"
             error={loadError}
             title={tr('Chưa tải được bài tập của bài học')}
             onRetry={() => (listQuery.isError ? listQuery.refetch() : quizQuery.refetch())}
             retrying={listQuery.isFetching || quizQuery.isFetching}
           />
         )}
-        {!lessonId && <p className="mt-4 text-[13px] text-rp-text-muted">{tr('Mở bài tập từ một bài học.')}</p>}
+
+        {!lessonId && (
+          <Card>
+            <ContextualEmptyState
+              compact
+              title="Chưa chọn bài học"
+              message="Vui lòng mở bài tập từ một bài học cụ thể."
+              action={<Link to="/lessons/"><Button variant="primary" size="sm">{tr('Mở danh sách bài học')}</Button></Link>}
+            />
+          </Card>
+        )}
+
         {(listQuery.isLoading || quizQuery.isLoading) && lessonId > 0 && (
-          <SakuraLoader variant="section" context="homework" label={tr('Đang tải bài tập…')} delay={160} className="mt-4" />
+          <SakuraLoader variant="section" context="homework" label={tr('Đang tải bài tập…')} delay={160} />
         )}
 
         {!attempt && exercises.length === 0 && listQuery.isSuccess && !quizQuery.isLoading && !quizQuery.isError && (
-          <ContextualEmptyState
-            className="mt-4 rounded-2xl border border-rp-line bg-white px-5"
-            compact
-            title={tr('Bài học này chưa có bài tập.')}
-            description={tr('Bạn có thể quay lại bài học để tiếp tục phần nội dung khác.')}
-          />
+          <Card>
+            <ContextualEmptyState
+              compact
+              title="Bài học này chưa có bài tập"
+              message="Bạn có thể quay lại bài học để tiếp tục phần nội dung khác."
+            />
+          </Card>
         )}
 
         {!attempt && exercises.length > 0 && (
-          <ul className="mt-4 space-y-3">
+          <ul className="space-y-3">
             {exercises.map((exercise) => (
-              <li key={exercise.id} className="rounded-2xl border border-rp-line bg-white px-5 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] text-rp-brand-strong">{exercise.languageSkillName || tr('Luyện tập')}</p>
-                    <h2 className="mt-1 text-[16px] font-semibold">{tr(exercise.title)}</h2>
+              <li key={exercise.id}>
+                <Card density="compact" className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Badge tone="brand" icon={false} size="sm">{exercise.languageSkillName || tr('Luyện tập')}</Badge>
+                    <h2 className="mt-2 text-base font-semibold text-rp-text">{tr(exercise.title)}</h2>
                     {exercise.description && <p className="mt-1 text-[13px] leading-6 text-rp-text-muted">{tr(exercise.description)}</p>}
-                    <p className="mt-2 text-[12px] text-rp-text-muted">
+                    <p className="mt-2 text-xs text-rp-text-muted">
                       {exercise.questionCount} {tr('câu')}
                       {typeof exercise.bestScorePercent === 'number' ? ` · ${tr('Điểm cao nhất')} ${Math.round(exercise.bestScorePercent)}%` : ''}
                     </p>
                   </div>
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     disabled={start.isPending}
                     onClick={() => start.mutate({ id: exercise.id, kind: exercise.kind })}
-                    className={`h-9 rounded-lg bg-rp-brand-strong px-3 text-[12px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-50 ${focus}`}
                   >
                     {exercise.latestAttempt && !exercise.latestAttempt.isCompleted ? tr('Làm tiếp') : tr('Bắt đầu')}
-                  </button>
-                </div>
+                  </Button>
+                </Card>
               </li>
             ))}
           </ul>
         )}
 
         {attempt && !result && (
-          <section data-notebook-ignore="true" className="mt-4 rounded-2xl border border-rp-line bg-white px-5 py-5">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[18px] font-semibold">{tr(attempt.title)}</h2>
-              <button type="button" onClick={() => setAttempt(null)} className={`text-[12px] text-rp-text-muted ${focus}`}>{tr('Danh sách')}</button>
+          <Card data-notebook-ignore="true" className="space-y-5">
+            <div className="flex items-center justify-between gap-3 border-b border-rp-line pb-3">
+              <h2 className="text-lg font-semibold text-rp-text">{tr(attempt.title)}</h2>
+              <Button variant="ghost" size="sm" onClick={() => setAttempt(null)}>{tr('Danh sách')}</Button>
             </div>
-            <ol className="mt-4 space-y-5">
+            <ol className="space-y-5">
               {(attempt.questions || []).map((question, index) => (
-                <li key={question.id}>
-                  <p className="text-[14px] font-medium">{index + 1}. {question.questionText}</p>
+                <li key={question.id} className="space-y-2.5">
+                  <p className="text-sm font-medium text-rp-text">{index + 1}. {question.questionText}</p>
                   {question.options?.length > 0 ? (
-                    <div className="mt-2 space-y-2">
+                    <div className="space-y-2">
                       {question.options.map((option) => (
-                        <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded-xl border border-rp-line px-3 py-2 text-[13px] hover:bg-rp-brand-tint">
-                          <input
-                            type="radio"
+                        <div
+                          key={option.id}
+                          className={`rounded-xl border px-3 py-2 transition-colors ${
+                            picks[question.id] === option.id
+                              ? 'border-rp-brand bg-rp-brand-tint/60'
+                              : 'border-rp-line hover:bg-rp-brand-tint/30'
+                          }`}
+                        >
+                          <Radio
                             name={`q-${question.id}`}
                             checked={picks[question.id] === option.id}
                             onChange={() => setPicks((prev) => ({ ...prev, [question.id]: option.id }))}
+                            label={option.optionText}
                           />
-                          <span>{option.optionText}</span>
-                        </label>
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <textarea
+                    <Textarea
                       value={texts[question.id] || ''}
                       onChange={(event) => setTexts((prev) => ({ ...prev, [question.id]: event.target.value }))}
                       rows={3}
-                      className="mt-2 w-full rounded-xl border border-rp-line px-3 py-2 text-[13px] outline-none focus:border-rp-brand-strong"
+                      placeholder={tr('Nhập câu trả lời của bạn…')}
                     />
                   )}
                 </li>
               ))}
             </ol>
-            <button
-              type="button"
-              disabled={submit.isPending}
-              onClick={() => submit.mutate()}
-              className={`mt-5 h-10 rounded-xl bg-rp-brand-strong px-4 text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-50 ${focus}`}
-            >
-              {submit.isPending ? tr('Đang chấm…') : tr('Nộp bài')}
-            </button>
-          </section>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
+              {!hasAllRequiredAnswers && (
+                <span className="text-xs text-rp-text-muted">{tr('Vui lòng hoàn thành tất cả câu hỏi trước khi nộp bài.')}</span>
+              )}
+              <Button
+                variant="primary"
+                loading={submit.isPending}
+                disabled={submit.isPending || !hasAllRequiredAnswers}
+                onClick={() => submit.mutate()}
+              >
+                {tr('Nộp bài')}
+              </Button>
+            </div>
+          </Card>
         )}
 
         {result && (
-          <section className="mt-4 rounded-2xl border border-rp-line bg-white px-5 py-5">
-            <p className="text-[11px] font-medium tracking-[0.14em] text-rp-brand-strong">{tr('KẾT QUẢ')}</p>
-            <p className="mt-2 text-[32px] font-semibold text-rp-brand-strong">{Math.round(result.scorePercent)}%</p>
-            <p className="text-[13px] text-rp-text-muted">
-              {result.correctCount}/{result.gradedQuestions || result.totalQuestions} {tr('câu đúng')}
-            </p>
-            <ul className="mt-4 space-y-3">
-              {(result.results || []).map((item) => (
-                <li key={item.questionId} className="rounded-xl bg-rp-brand-tint px-3 py-3 text-[13px]">
-                  <p className={item.isCorrect ? 'text-rp-success' : 'text-rp-brand-strong'}>
-                    {item.isCorrect == null ? tr('Câu tự luận đã lưu') : item.isCorrect ? tr('Đúng') : tr('Chưa đúng')}
-                  </p>
-                  {item.explanation && (
-                    <p className="mt-1 leading-6 text-rp-text-2">
-                      <HighlightableText
-                        text={item.explanation}
-                        contentId={`practice-exp-${item.questionId}`}
-                        sourceTitle={tr('Giải thích bài tập')}
-                      />
-                    </p>
-                  )}
-                </li>
-              ))}
+          <Card className="space-y-4">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-rp-brand-strong">{tr('Kết quả')}</p>
+              <p className="mt-1 text-[32px] font-semibold text-rp-brand-strong">{Math.round(result.scorePercent)}%</p>
+              <p className="text-xs text-rp-text-muted">
+                {result.correctCount}/{result.gradedQuestions || result.totalQuestions} {tr('câu đúng')}
+              </p>
+            </div>
+            <ul className="space-y-3">
+              {(result.results || []).map((item) => {
+                const q = questionLookup.get(item.questionId);
+                const selectedOptText = q?.options?.find((o) => o.id === picks[item.questionId])?.optionText || texts[item.questionId];
+                return (
+                  <li key={item.questionId} className="rounded-xl border border-rp-line bg-rp-bg-2 px-4 py-3 text-[13px] space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {q && (
+                        <p className="font-medium text-rp-text">
+                          {q.number}. {q.questionText}
+                        </p>
+                      )}
+                      <Badge tone={item.isCorrect == null ? 'info' : item.isCorrect ? 'success' : 'danger'} size="sm">
+                        {item.isCorrect == null ? tr('Câu tự luận đã lưu') : item.isCorrect ? tr('Đúng') : tr('Chưa đúng')}
+                      </Badge>
+                    </div>
+                    {selectedOptText && (
+                      <p className="text-xs text-rp-text-2">
+                        <span className="font-medium">{tr('Câu trả lời của bạn:')}</span> {selectedOptText}
+                      </p>
+                    )}
+                    {item.explanation && (
+                      <p className="leading-6 text-rp-text-2">
+                        <HighlightableText
+                          text={item.explanation}
+                          contentId={`practice-exp-${item.questionId}`}
+                          sourceTitle={tr('Giải thích bài tập')}
+                        />
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
-            <button
-              type="button"
-              onClick={() => { setAttempt(null); setResult(null); listQuery.refetch(); quizQuery.refetch(); }}
-              className={`mt-4 h-9 rounded-lg border border-rp-line px-3 text-[12px] ${focus}`}
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setAttempt(null);
+                setResult(null);
+                listQuery.refetch();
+                quizQuery.refetch();
+              }}
             >
               {tr('Chọn bài khác')}
-            </button>
-          </section>
+            </Button>
+          </Card>
         )}
-      </main>
+      </PageContainer>
     </LearnerShell>
   );
 }

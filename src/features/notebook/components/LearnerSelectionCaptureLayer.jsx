@@ -8,7 +8,7 @@ import {
   HIGHLIGHT_COLORS,
   suggestKindForSelection,
 } from '@/features/notebook/utils/notebookModel.js';
-import { useOptionalSmartNotebook } from '@/features/notebook/context/SmartNotebookContext.jsx';
+import { useOptionalSmartNotebook } from '@/features/notebook/context/smartNotebookState.js';
 import NotebookQuickSavePopover from './NotebookQuickSavePopover.jsx';
 
 function isNodeBlockedForCapture(node) {
@@ -66,10 +66,11 @@ export default function LearnerSelectionCaptureLayer() {
   const detailEntryId = detail?.entry?.noteEntryId ?? null;
   const detailPersonalNote = detail?.entry?.personalNote || '';
   const [editingNote, setEditingNote] = useState('');
-
-  useEffect(() => {
+  const [lastDetail, setLastDetail] = useState({ id: detailEntryId, note: detailPersonalNote });
+  if (lastDetail.id !== detailEntryId || lastDetail.note !== detailPersonalNote) {
+    setLastDetail({ id: detailEntryId, note: detailPersonalNote });
     setEditingNote(detailPersonalNote);
-  }, [detailEntryId, detailPersonalNote]);
+  }
 
   useEffect(() => {
     if (!nb?.isLearner || !nb?.notebookAvailable || !nb?.policy?.selectionAllowed) {

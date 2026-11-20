@@ -1,50 +1,85 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { LearnerShell } from '@/layouts';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { describeApiError } from '@/api/apiErrors.js';
 import { getSession } from '@/app/auth/session.js';
+import { PenLine } from 'lucide-react';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  PageContainer,
+  PageHeader,
+  SakuraLoader,
+} from '@/components/ui';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import {
   getPracticeHistory,
   getPracticeSubmission,
   regradePracticeSubmission,
 } from '@/features/practice/api/practiceSubmissionApi.js';
-import { notify } from '@/components/ui/feedbackStore.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
+import { LearnerShell } from '@/layouts';
+import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
-
-const focus =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
 
 function formatWhen(value) {
   if (!value) return '';
   const date = parseUtcDate(value);
   if (!date || Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(currentIntlTag(), { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString(currentIntlTag(), {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default function AIScoringResult() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
+  const { pathname } = useLocation();
   const [params, setParams] = useSearchParams();
   const submissionId = Number(params.get('submissionId')) || 0;
   const session = getSession();
   const signedIn = Boolean(session?.accessToken);
   const uid = session?.userId ?? 'anon';
   const client = useQueryClient();
+  const studyAccess = useStudyAccess();
+  const subscription = studyAccess.data;
+  const totalAiQuota = subscription
+    ? (Number(subscription.writingUsesRemaining ?? 0) +
+       Number(subscription.speakingUsesRemaining ?? 0) +
+       Number(subscription.aiGradingUsesRemaining ?? 0))
+    : null;
 
   const historyQuery = useQuery({
     queryKey: ['practice-history', uid],
     queryFn: getPracticeHistory,
     enabled: signedIn,
   });
+
+  const history = useMemo(() => Array.isArray(historyQuery.data) ? historyQuery.data : [], [historyQuery.data]);
+
+  useEffect(() => {
+    if (!submissionId && history.length > 0 && history[0]?.id) {
+      setParams({ submissionId: String(history[0].id) }, { replace: true });
+    }
+  }, [submissionId, history, setParams]);
+
   const detailQuery = useQuery({
     queryKey: ['practice-submission', uid, submissionId],
     queryFn: () => getPracticeSubmission(submissionId),
     enabled: signedIn && submissionId > 0,
   });
+
   const regrade = useMutation({
     mutationFn: () => {
-      notify.loading(tr('Đang chấm lại bài viết…'), '', { key: 'ai-regrade', maxWaitMs: 30000 });
+      notify.loading(tr('Đang chấm lại bài luyện…'), '', { key: 'ai-regrade', maxWaitMs: 30000 });
       return regradePracticeSubmission(submissionId);
     },
     onSuccess: async () => {
@@ -53,125 +88,277 @@ export default function AIScoringResult() {
       await client.invalidateQueries({ queryKey: ['practice-history', uid] });
     },
     onError: (err) => notify.apiError(err, tr('Chưa chấm lại được bài'), { key: 'ai-regrade', replace: true }),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: ['study-subscription'] });
+    },
   });
 
-  const history = Array.isArray(historyQuery.data) ? historyQuery.data : [];
   const detail = detailQuery.data;
   const grading = detail?.grading;
+  const isSpeaking = String(detail?.type || '').toLowerCase() === 'speaking';
+  const isQuotaError = Boolean(
+    regrade.isError &&
+      (regrade.error?.status === 403 ||
+        ['AI_CREDIT_REQUIRED', 'WRITING_PACKAGE_REQUIRED', 'SPEAKING_PACKAGE_REQUIRED', 'SELF_STUDY_PACKAGE_REQUIRED'].includes(
+          regrade.error?.data?.errorCode || regrade.error?.errorCode,
+        )),
+  );
 
   return (
     <LearnerShell pathname="/ai-scoring" breadcrumb={tr('Kết quả chấm')}>
-      <main className="rp-container rp-cq grid gap-[var(--rp-space-section)] py-[var(--rp-space-page-y)] text-rp-text lg:grid-cols-[minmax(260px,0.34fr)_minmax(0,1fr)]">
-        <aside className="rounded-2xl border border-rp-line bg-white px-4 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-semibold">{tr('Bài đã nộp')}</h2>
-            <Link to="/sentence-studio/" className={`text-[12px] text-rp-brand-strong ${focus}`}>{tr('Viết mới')}</Link>
-          </div>
-          {historyQuery.isLoading && (
-            <SakuraLoader variant="inline" context="writing" label={tr('Đang tải lịch sử bài viết')} delay={160} />
-          )}
-          {historyQuery.isError && (
-            <ContextualErrorState
-              variant="inline"
-              compact
-              className="mt-3"
-              error={historyQuery.error}
-              title={tr('Chưa tải được lịch sử')}
-              onRetry={() => historyQuery.refetch()}
-              retrying={historyQuery.isFetching}
-            />
-          )}
-          {history.length === 0 && historyQuery.isSuccess && (
-            <p className="mt-3 text-[13px] text-rp-text-muted">{tr('Chưa có bài nào.')}</p>
-          )}
-          <ul className="mt-3 space-y-2">
-            {history.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => setParams({ submissionId: String(item.id) })}
-                  className={`w-full rounded-xl px-3 py-2 text-left ${focus} ${
-                    item.id === submissionId ? 'bg-rp-brand-tint' : 'hover:bg-rp-brand-tint'
-                  }`}
-                >
-                  <span className="block text-[13px] font-medium">{item.certificateLevelCode || item.type} · {item.isGraded ? `${Math.round(item.overallScore || 0)}` : tr('Chưa chấm')}</span>
-                  <span className="mt-0.5 block text-[11px] text-rp-text-muted">{formatWhen(item.submittedAt)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+      <PageContainer width="default">
+        <PageHeader
+          eyebrow={tr('LỊCH SỬ CHẤM ĐIỂM AI')}
+          title={tr('Kết quả luyện viết & nói')}
+          description={tr('Xem lại các bài đã nộp, tiêu chí đánh giá và yêu cầu chấm lại khi cần.')}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {totalAiQuota !== null && (
+                <Badge tone={totalAiQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                  {trf('Lượt AI còn: {0}', { 0: totalAiQuota })}
+                </Badge>
+              )}
+              <Button as={Link} to="/sentence-studio/" variant="primary" size="sm" icon={PenLine}>
+                {tr('Viết bài mới')}
+              </Button>
+            </div>
+          }
+        />
 
-        <section className="rounded-2xl border border-rp-line bg-white px-5 py-5">
-          {!submissionId && <p className="text-[14px] text-rp-text-muted">{tr('Chọn một bài ở cột bên để xem nhận xét.')}</p>}
-          {detailQuery.isLoading && submissionId > 0 && (
-            <SakuraLoader variant="section" context="writing" label={tr('Đang tải nhận xét bài viết')} delay={160} />
-          )}
-          {detailQuery.isError && (
-            <ContextualErrorState
-              variant="inline"
-              error={detailQuery.error}
-              title={tr('Chưa tải được nhận xét bài viết')}
-              onRetry={() => detailQuery.refetch()}
-              retrying={detailQuery.isFetching}
-            />
-          )}
-          {detail && (
-            <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-medium tracking-[0.14em] text-rp-brand-strong">{detail.certificateLevelCode}</p>
-                  <h1 className="mt-1 text-[22px] font-semibold">{tr('Nhận xét bài viết')}</h1>
-                </div>
-                <p className="text-[32px] font-semibold text-rp-brand-strong">
-                  {grading ? Math.round(grading.overallScore) : '—'}
-                </p>
+        {!signedIn ? (
+          <Banner
+            tone="info"
+            actions={
+              <Link to="/auth" state={{ from: { pathname } }} className="rp-link text-xs font-semibold">
+                {tr('Đăng nhập')}
+              </Link>
+            }
+          >
+            {tr('Đăng nhập để xem lịch sử các bài đã nộp và nhận xét AI.')}
+          </Banner>
+        ) : (
+          <div className="grid items-start gap-5 lg:grid-cols-[minmax(250px,0.34fr)_minmax(0,1fr)]">
+            <Card className="p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-rp-text">{tr('Bài đã nộp')}</h2>
+                <Badge tone="neutral" size="sm" icon={false}>
+                  {history.length}
+                </Badge>
               </div>
-              {detail.textContent && (
-                <p className="mt-3 whitespace-pre-wrap rounded-xl bg-rp-brand-tint px-4 py-3 text-[14px] leading-7" style={{ fontFamily: '"Yu Gothic", "Yu Gothic UI", sans-serif' }}>
-                  {detail.textContent}
-                </p>
+
+              {historyQuery.isLoading && (
+                <SakuraLoader variant="inline" context="writing" label={tr('Đang tải lịch sử bài viết')} delay={160} />
               )}
-              {detailQuery.data && !grading && (
-                <p className="mt-3 text-[13px] text-rp-text-muted">{tr('Bài đã lưu. Có thể nhờ chấm lại.')}</p>
+
+              {historyQuery.isError && (
+                <ContextualErrorState
+                  variant="inline"
+                  compact
+                  className="mt-3"
+                  error={historyQuery.error}
+                  title={tr('Chưa tải được lịch sử')}
+                  onRetry={() => historyQuery.refetch()}
+                  retrying={historyQuery.isFetching}
+                />
               )}
-              {grading?.criteria?.length > 0 && (
-                <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {grading.criteria.map((item) => (
-                    <li key={item.name} className="rounded-xl border border-rp-line px-3 py-3">
-                      <p className="text-[12px] text-rp-text-muted">{item.name}</p>
-                      <p className="mt-1 text-[18px] font-semibold">{item.score}/10</p>
-                      {item.comment && <p className="mt-1 text-[12px] leading-5 text-rp-text-2">{item.comment}</p>}
+
+              {history.length === 0 && historyQuery.isSuccess && (
+                <p className="mt-3 text-xs text-rp-text-muted">{tr('Chưa có bài nào được nộp.')}</p>
+              )}
+
+              <ul className="mt-3 max-h-[60vh] space-y-1.5 overflow-y-auto">
+                {history.map((item) => {
+                  const active = item.id === submissionId;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => setParams({ submissionId: String(item.id) })}
+                        className={`rp-focus w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                          active
+                            ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong'
+                            : 'border-transparent hover:bg-rp-brand-tint/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-xs font-semibold text-rp-text">
+                            {item.certificateLevelCode || tr(item.type)}
+                          </span>
+                          <Badge tone={item.isGraded ? 'brand' : 'neutral'} size="sm" icon={false}>
+                            {item.isGraded ? `${Math.round(item.overallScore || 0)}/100` : tr('Chưa chấm')}
+                          </Badge>
+                        </div>
+                        <span className="mt-1 block text-[11px] text-rp-text-muted">{formatWhen(item.submittedAt)}</span>
+                      </button>
                     </li>
-                  ))}
-                </ul>
+                  );
+                })}
+              </ul>
+            </Card>
+
+            <Card>
+              {!submissionId && !historyQuery.isLoading && (
+                <ContextualEmptyState
+                  title={tr('Chưa chọn bài luyện')}
+                  description={tr('Chọn một bài ở cột bên hoặc bắt đầu viết bài mới để xem nhận xét.')}
+                  action={
+                    <Button as={Link} to="/sentence-studio/" variant="primary" size="sm">
+                      {tr('Viết bài mới')}
+                    </Button>
+                  }
+                />
               )}
-              {grading?.strengths?.length > 0 && <p className="mt-4 text-[13px] text-rp-success">{grading.strengths.join(' · ')}</p>}
-              {grading?.improvements?.length > 0 && <p className="mt-1 text-[13px] text-rp-brand-strong">{grading.improvements.join(' · ')}</p>}
-              {grading?.corrections?.length > 0 && (
-                <ul className="mt-4 space-y-2">
-                  {grading.corrections.map((item) => (
-                    <li key={`${item.original}-${item.suggestion}`} className="rounded-xl bg-rp-brand-tint px-3 py-3 text-[13px]">
-                      <p className="text-rp-brand-strong">{item.original}</p>
-                      <p className="mt-1 text-rp-success">{item.suggestion}</p>
-                      {item.reason && <p className="mt-1 text-rp-text-muted">{tr(item.reason)}</p>}
-                    </li>
-                  ))}
-                </ul>
+
+              {detailQuery.isLoading && submissionId > 0 && (
+                <SakuraLoader variant="section" context="writing" label={tr('Đang tải nhận xét bài viết')} delay={160} />
               )}
-              {(regrade.isError) && <p role="alert" className="mt-3 text-[13px] text-rp-brand-strong">{tr(regrade.error.message)}</p>}
-              <button
-                type="button"
-                disabled={regrade.isPending}
-                onClick={() => regrade.mutate()}
-                className={`mt-4 h-9 rounded-lg border border-rp-line px-3 text-[12px] disabled:opacity-50 ${focus}`}
-              >
-                {regrade.isPending ? tr('Đang chấm lại…') : tr('Chấm lại')}
-              </button>
-            </>
-          )}
-        </section>
-      </main>
+
+              {detailQuery.isError && (
+                <ContextualErrorState
+                  variant="inline"
+                  error={detailQuery.error}
+                  title={tr('Chưa tải được nhận xét bài viết')}
+                  onRetry={() => detailQuery.refetch()}
+                  retrying={detailQuery.isFetching}
+                />
+              )}
+
+              {detail && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-rp-line pb-4">
+                    <div>
+                      <Badge tone="brand" size="sm" icon={false}>
+                        {detail.certificateLevelCode || (isSpeaking ? tr('Nói') : tr('Viết'))}
+                      </Badge>
+                      <h2 className="mt-2 text-lg font-semibold text-rp-text">
+                        {isSpeaking ? tr('Nhận xét bài nói') : tr('Nhận xét bài viết')}
+                      </h2>
+                      {detail.submittedAt && (
+                        <p className="mt-0.5 text-xs text-rp-text-muted">{formatWhen(detail.submittedAt)}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-rp-text-muted">{tr('Điểm tổng quan')}</p>
+                      <p className="text-3xl font-bold tabular-nums text-rp-brand-strong">
+                        {grading ? `${Math.round(grading.overallScore)}/100` : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {detail.textContent && (
+                    <div className="rounded-xl border border-rp-line bg-rp-bg-2 px-4 py-3">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rp-text-muted">
+                        {isSpeaking ? tr('Bản chép lời') : tr('Nội dung bài viết')}
+                      </p>
+                      <p lang="ja" className="whitespace-pre-wrap text-sm leading-7 text-rp-text">
+                        {detail.textContent}
+                      </p>
+                    </div>
+                  )}
+
+                  {detailQuery.data && !grading && (
+                    <Banner tone="info">
+                      {tr('Bài đã lưu nhưng chưa có điểm AI. Bạn có thể chọn Chấm lại bên dưới.')}
+                    </Banner>
+                  )}
+
+                  {grading?.criteria?.length > 0 && (
+                    <ul className="grid gap-3 sm:grid-cols-2">
+                      {grading.criteria.map((item, idx) => (
+                        <li key={item.name || idx} className="rounded-xl border border-rp-line bg-rp-bg-2/70 px-3.5 py-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-rp-text">{item.name}</p>
+                            <Badge tone="neutral" size="sm" icon={false}>
+                              {item.score}/10
+                            </Badge>
+                          </div>
+                          {item.comment && <p className="mt-1.5 text-xs leading-5 text-rp-text-2">{item.comment}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {grading?.strengths?.length > 0 && (
+                    <div className="rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
+                      <h3 className="text-xs font-semibold text-rp-success">{tr('Điểm mạnh')}</h3>
+                      <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-5 text-rp-text-2">
+                        {grading.strengths.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {grading?.improvements?.length > 0 && (
+                    <div className="rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
+                      <h3 className="text-xs font-semibold text-rp-brand-strong">{tr('Cần cải thiện')}</h3>
+                      <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-5 text-rp-text-2">
+                        {grading.improvements.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {grading?.corrections?.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold text-rp-text">{tr('Gợi ý sửa câu')}</h3>
+                      <ul className="space-y-2">
+                        {grading.corrections.map((item, idx) => (
+                          <li key={idx} className="rounded-xl border border-rp-line bg-rp-brand-tint/50 px-3.5 py-3 text-xs">
+                            <p lang="ja" className="text-rp-brand-strong line-through">{item.original}</p>
+                            <p lang="ja" className="mt-1 font-semibold text-rp-success">{item.suggestion}</p>
+                            {item.reason && <p className="mt-1 text-rp-text-2">{item.reason}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {regrade.isError && (
+                    <Banner
+                      tone="danger"
+                      actions={
+                        isQuotaError ? (
+                          <Link
+                            to="/plans/"
+                            state={{ from: { pathname }, requiredFeatureLabel: tr('Chấm bài AI') }}
+                            className="rp-link text-xs font-semibold"
+                          >
+                            {tr('Xem gói & lượt AI')}
+                          </Link>
+                        ) : null
+                      }
+                    >
+                      {describeApiError(regrade.error, tr('Chưa chấm lại được bài này.'))}
+                    </Banner>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
+                    <Link
+                      to={isSpeaking ? '/speech/' : '/sentence-studio/'}
+                      className="rp-link text-xs font-semibold"
+                    >
+                      {isSpeaking ? tr('← Luyện nói câu mới') : tr('← Viết bài mới')}
+                    </Link>
+
+                    <Button
+                      type="button"
+                      variant={grading ? 'secondary' : 'primary'}
+                      size="sm"
+                      disabled={regrade.isPending}
+                      loading={regrade.isPending}
+                      onClick={() => regrade.mutate()}
+                    >
+                      {regrade.isPending ? tr('Đang chấm lại…') : tr('Chấm lại')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </PageContainer>
     </LearnerShell>
   );
 }

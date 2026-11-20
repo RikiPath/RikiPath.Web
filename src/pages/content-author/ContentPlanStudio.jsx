@@ -107,14 +107,7 @@ export default function ContentPlanStudio() {
   const [notice, setNotice] = useState('');
   const [batchId, setBatchId] = useState('');
 
-  useEffect(() => {
-    if (!levelId && levels.length > 0) {
-      const defaultLvl = levels.find((l) => l.code === 'N4') || levels[0];
-      setLevelId(String(defaultLvl.id));
-    }
-  }, [levels, levelId]);
-
-  const effectiveLevelId = Number(levelId || levels[0]?.id || 1);
+  const effectiveLevelId = Number(levelId || (levels.find((l) => l.code === 'N4') || levels[0])?.id || 1);
 
   const planMutation = useMutation({
     mutationFn: (input) => {

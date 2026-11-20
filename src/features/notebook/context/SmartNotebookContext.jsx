@@ -1,11 +1,11 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ACCESS } from '@/features/entitlements/featureAccess.js';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import { useSmartNotebook } from '@/features/notebook/hooks/useSmartNotebook.js';
 import { isNotebookCaptureSupportedOnPath } from '@/features/notebook/utils/notebookModel.js';
 
-const SmartNotebookContext = createContext(null);
+import { SmartNotebookContext } from './smartNotebookState.js';
 
 export function SmartNotebookProvider({ roleKey = '', children }) {
   const location = useLocation();
@@ -69,8 +69,4 @@ export function SmartNotebookProvider({ roleKey = '', children }) {
       {children}
     </SmartNotebookContext.Provider>
   );
-}
-
-export function useOptionalSmartNotebook() {
-  return useContext(SmartNotebookContext);
 }
