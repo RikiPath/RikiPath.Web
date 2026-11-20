@@ -1,6 +1,6 @@
 import { api } from '@/api/client.js';
 import { unwrapApiList, unwrapApiResult } from '@/features/admin/api/adminApi.js';
-import { translateTemplate, currentIntlTag } from '@/locales/locale.js';
+import { translateTemplate, translateText, currentIntlTag } from '@/locales/locale.js';
 
 export const SUPPORTED_JLPT_LEVELS = Object.freeze(['N5', 'N4', 'N3', 'N2', 'N1']);
 
@@ -32,18 +32,18 @@ export function formatVnd(amount) {
 
 export function formatMinutesVi(totalMinutes) {
   const num = Number(totalMinutes);
-  if (!Number.isFinite(num) || num <= 0) return '0 phút';
+  if (!Number.isFinite(num) || num <= 0) return translateTemplate('{0} phút', { 0: 0 });
   const hours = Math.floor(num / 60);
   const mins = Math.round(num % 60);
   if (hours <= 0) return translateTemplate('{0} phút', { 0: mins });
   if (mins === 0) return translateTemplate('{0} giờ', { 0: hours });
-  return `${hours}g ${mins}p`;
+  return translateTemplate('{0}g {1}p', { 0: hours, 1: mins });
 }
 
 export function formatTurnaroundVi(minutes) {
-  if (minutes === null || minutes === undefined) return 'Chưa đủ dữ liệu';
+  if (minutes === null || minutes === undefined) return translateText('Chưa đủ dữ liệu');
   const num = Number(minutes);
-  if (!Number.isFinite(num) || num < 0) return 'Chưa đủ dữ liệu';
+  if (!Number.isFinite(num) || num < 0) return translateText('Chưa đủ dữ liệu');
   if (num < 60) return translateTemplate('{0} phút', { 0: Math.round(num) });
   const hours = Math.round((num / 60) * 10) / 10;
   return translateTemplate('{0} giờ ({1} phút)', { 0: hours, 1: Math.round(num) });

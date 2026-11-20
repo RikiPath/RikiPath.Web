@@ -1,4 +1,4 @@
-export const jlptLevels = ['N5', 'N4', 'N3', 'N2'];
+export const jlptLevels = ['N5', 'N4', 'N3', 'N2', 'N1'];
 export const examSkills = [
   { code: 'vocabulary', label: 'Từ vựng', aliases: /vocab|tu vung|語彙/ },
   { code: 'grammar', label: 'Ngữ pháp', aliases: /grammar|ngu phap|文法/ },

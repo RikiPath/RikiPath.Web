@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { CalendarCheck, CalendarClock, CalendarPlus } from 'lucide-react';
+import { CalendarCheck, CalendarClock } from 'lucide-react';
 import { cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 

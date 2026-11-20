@@ -4,6 +4,24 @@ import { getPracticeLevelId, gradeSpeaking } from '@/features/practice/api/pract
 import { createSpeechStreamingSession } from '@/features/speaking/api/speechApi.js';
 import { encodeAudioEvent, decodeEventStream, Pcm16Resampler, TranscribeTranscript } from '@/features/speaking/utils/transcribeEventStream.js';
 import { notify } from '@/components/ui/feedbackStore.js';
+import { translateText } from '@/locales/locale.js';
+
+function describeMicrophoneError(err, fallback = 'Không thể bắt đầu thu âm.') {
+  const name = err?.name;
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return translateText('Bạn chưa cấp quyền sử dụng micro. Hãy cho phép truy cập micro trong trình duyệt rồi thử lại.');
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return translateText('Không tìm thấy micro. Hãy kiểm tra thiết bị thu âm rồi thử lại.');
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError') {
+    return translateText('Micro đang được ứng dụng khác sử dụng hoặc không thể mở.');
+  }
+  if (name === 'SecurityError') {
+    return translateText('Trình duyệt yêu cầu kết nối an toàn (HTTPS) để sử dụng micro.');
+  }
+  return err?.message || translateText(fallback);
+}
 
 const workletSource = `
 class RikiPathPcmCapture extends AudioWorkletProcessor {
@@ -148,7 +166,10 @@ export function useSpeechToText({ language = 'ja-JP', onTranscript } = {}) {
       setIsListening(true);
     } catch (err) {
       close(session);
-      if (generation.current === current) { setError(err.name === 'NotAllowedError' ? 'Bạn chưa cấp quyền sử dụng micro.' : err.message || 'Không thể bắt đầu nhận dạng.'); setIsListening(false); }
+      if (generation.current === current) {
+        setError(describeMicrophoneError(err, 'Không thể bắt đầu nhận dạng.'));
+        setIsListening(false);
+      }
     } finally { if (generation.current === current) setLoading(false); }
   }, [language, close, stopListening]);
 
@@ -187,14 +208,14 @@ export function useSpeakingGrading() {
     let stream;
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)
-        throw new Error('Trình duyệt chưa hỗ trợ thu âm.');
+        throw new Error(translateText('Trình duyệt chưa hỗ trợ thu âm.'));
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (!mounted.current) {
         stream.getTracks().forEach(track => track.stop());
         return;
       }
       const mimeType = ['audio/webm;codecs=opus', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type));
-      if (!mimeType) throw new Error('Trình duyệt chưa hỗ trợ định dạng thu âm của hệ thống.');
+      if (!mimeType) throw new Error(translateText('Trình duyệt chưa hỗ trợ định dạng thu âm của hệ thống.'));
       const recorder = new MediaRecorder(stream, { mimeType });
       const chunks = [];
       recorder.ondataavailable = event => {
@@ -209,7 +230,7 @@ export function useSpeakingGrading() {
         const extension = mime.includes('mp4') ? 'mp4' : 'webm';
         const file = new File(chunks, `speaking.${extension}`, { type: mime });
         if (file.size) setAudioFile(file);
-        else setError('Bản thu âm trống. Vui lòng thử lại.');
+        else setError(translateText('Bản thu âm trống. Vui lòng thử lại.'));
       };
       recording.current = recorder;
       recorder.start();
@@ -217,7 +238,7 @@ export function useSpeakingGrading() {
     } catch (err) {
       recording.current = null;
       stream?.getTracks().forEach(track => track.stop());
-      if (mounted.current) setError(err.message);
+      if (mounted.current) setError(describeMicrophoneError(err));
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -229,7 +250,7 @@ export function useSpeakingGrading() {
     setLoading(true);
     setError(null);
     const toastKey = 'speech-grade';
-    notify.loading('Đang tải bản ghi & chấm phát âm…', '', { key: toastKey, maxWaitMs: 35000 });
+    notify.loading(translateText('Đang tải bản ghi & chấm phát âm…'), '', { key: toastKey, maxWaitMs: 35000 });
     try {
       const levelId = await getPracticeLevelId(levelCode);
       const result = await gradeSpeaking(audioFile, levelId, topic);
@@ -240,15 +261,15 @@ export function useSpeakingGrading() {
       setTranscript(result?.transcript ?? '');
       setGrading(result?.grading ?? null);
       if (result?.grading) {
-        notify.success('Đã có kết quả chấm bài nói.', '', { key: toastKey, replace: true });
+        notify.success(translateText('Đã có kết quả chấm bài nói.'), '', { key: toastKey, replace: true });
       } else {
-        const note = result?.gradingNote || 'Chưa chấm được bài nói.';
+        const note = result?.gradingNote || translateText('Chưa chấm được bài nói.');
         setError(note);
-        notify.warning('Chưa chấm được bài nói', note, { key: toastKey, replace: true });
+        notify.warning(translateText('Chưa chấm được bài nói'), note, { key: toastKey, replace: true });
       }
     } catch (err) {
-      if (mounted.current) setError(err.message);
-      notify.apiError(err, 'Chưa chấm được bài nói', { key: toastKey, replace: true });
+      if (mounted.current) setError(err);
+      notify.apiError(err, translateText('Chưa chấm được bài nói'), { key: toastKey, replace: true });
     } finally {
       gradingInProgress.current = false;
       if (mounted.current) setLoading(false);

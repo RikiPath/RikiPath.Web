@@ -10,11 +10,14 @@ import { classifyHomeworkItem, displayCourseTitle } from '@/features/calendar/ut
 import { useLocale } from '@/locales/locale.js';
 import {
   Badge,
+  Banner,
+  Button,
   Card,
   CardHeader,
   ContextualEmptyState,
   ContextualErrorState,
   FeatureIcon,
+  PageContainer,
   PageHeader,
   ProgressBar,
   SakuraLoader,
@@ -71,30 +74,46 @@ export default function GroupLearningProgressPage() {
 
   return (
     <LearnerShell breadcrumb={tr('Tiến độ học nhóm')}>
-      <div className="rp-container space-y-6 py-6 lg:py-8">
+      <PageContainer width="default" className="space-y-6">
         <PageHeader
           eyebrow={tr('Học nhóm')}
           title={tr('Tiến độ học nhóm & chuyên cần')}
           description={tr('Tổng hợp tỷ lệ tham gia buổi học, bài tập đã nộp và tiến độ hoàn thành theo từng lớp nhóm (trong 90 ngày gần nhất & toàn khóa).')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to="/homework"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text hover:bg-rp-muted"
-              >
-                <BookCheck className="h-4 w-4 text-[#4F46E5]" />
-                {tr('Bài tập về nhà')}
+              <Link to="/homework">
+                <Button variant="secondary" size="sm" icon={BookCheck}>
+                  {tr('Bài tập về nhà')}
+                </Button>
               </Link>
-              <Link
-                to="/my-courses"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white hover:bg-rp-brand-deep"
-              >
-                {tr('Lớp của tôi')}
-                <ArrowRight className="h-4 w-4" />
+              <Link to="/my-courses">
+                <Button variant="primary" size="sm" iconRight={ArrowRight}>
+                  {tr('Lớp của tôi')}
+                </Button>
               </Link>
             </div>
           }
         />
+
+        {(reportQuery.isError || homeworksQuery.isError) && (
+          <Banner
+            tone="warning"
+            actions={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (reportQuery.isError) void reportQuery.refetch();
+                  if (homeworksQuery.isError) void homeworksQuery.refetch();
+                }}
+              >
+                {tr('Thử lại')}
+              </Button>
+            }
+          >
+            {tr('Chưa tải được đầy đủ số liệu bài tập hoặc báo cáo 90 ngày. Một số chỉ số tạm hiển thị — cho đến khi tải lại thành công.')}
+          </Banner>
+        )}
 
         {/* KPI Cards */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -106,7 +125,7 @@ export default function GroupLearningProgressPage() {
                 {reportQuery.isPending ? (
                   <SakuraLoader variant="inline" size={18} context="data" delay={140} />
                 ) : reportQuery.isError ? (
-                  <p className="mt-1 text-xs text-rp-text-muted">—</p>
+                  <p className="mt-1 text-base font-bold text-rp-text-muted">—</p>
                 ) : (
                   <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
                     {report?.attendancePercent != null ? `${Math.round(report.attendancePercent)}%` : '—'}
@@ -129,7 +148,7 @@ export default function GroupLearningProgressPage() {
                 {reportQuery.isPending ? (
                   <SakuraLoader variant="inline" size={18} context="data" delay={140} />
                 ) : reportQuery.isError ? (
-                  <p className="mt-1 text-xs text-rp-text-muted">—</p>
+                  <p className="mt-1 text-base font-bold text-rp-text-muted">—</p>
                 ) : (
                   <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
                     {report?.homeworkPercent != null ? `${Math.round(report.homeworkPercent)}%` : '—'}
@@ -151,10 +170,14 @@ export default function GroupLearningProgressPage() {
                 <p className="text-xs font-medium text-rp-text-muted">{tr('Bài đã chấm / Điểm TB')}</p>
                 {homeworksQuery.isPending ? (
                   <SakuraLoader variant="inline" size={18} context="data" delay={140} />
+                ) : homeworksQuery.isError ? (
+                  <p className="mt-1 text-base font-bold text-rp-text-muted">—</p>
                 ) : (
                   <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
                     {hwStats.graded}
-                    {hwStats.avgScore != null && <span className="ml-1.5 text-sm font-semibold text-rp-brand-strong">({hwStats.avgScore}/100)</span>}
+                    {hwStats.avgScore != null && (
+                      <span className="ml-1.5 text-sm font-semibold text-rp-brand-strong">({hwStats.avgScore}/100)</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -173,6 +196,8 @@ export default function GroupLearningProgressPage() {
                 <p className="text-xs font-medium text-rp-text-muted">{tr('Lớp học đã tham gia')}</p>
                 {coursesQuery.isPending ? (
                   <SakuraLoader variant="inline" size={18} context="data" delay={140} />
+                ) : coursesQuery.isError ? (
+                  <p className="mt-1 text-base font-bold text-rp-text-muted">—</p>
                 ) : (
                   <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">{activeOrCompleted.length}</p>
                 )}
@@ -205,7 +230,7 @@ export default function GroupLearningProgressPage() {
               action={
                 <Link
                   to="/cohorts"
-                  className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white"
+                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white"
                 >
                   {tr('Khám phá lớp học')}
                 </Link>
@@ -222,8 +247,9 @@ export default function GroupLearningProgressPage() {
                 const total = sessions.length;
                 const pct = total > 0 ? Math.round((present / total) * 100) : 0;
                 const courseHws = homeworks.filter(
-                  (hw) => (course.cohortId && Number(hw.cohortId) === Number(course.cohortId))
-                    || Number(hw.studyCourseId) === Number(course.id),
+                  (hw) =>
+                    (course.cohortId && Number(hw.cohortId) === Number(course.cohortId)) ||
+                    Number(hw.studyCourseId) === Number(course.id),
                 );
                 const submittedHws = courseHws.filter((h) => Boolean(h.submission) || h.status === 'Graded').length;
                 return (
@@ -235,15 +261,21 @@ export default function GroupLearningProgressPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
                           to={`/my-courses/${course.id}?section=progress`}
-                          className="truncate text-sm font-bold text-rp-text hover:text-rp-brand-strong"
+                          className="rp-focus truncate text-sm font-bold text-rp-text hover:text-rp-brand-strong"
                         >
                           {displayCourseTitle(course, tr('Lớp học nhóm'))}
                         </Link>
-                        {course.level && <Badge tone="brand" size="sm">JLPT {course.level}</Badge>}
+                        {course.level && (
+                          <Badge tone="brand" size="sm">
+                            JLPT {course.level}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-rp-text-muted">
                         {tr('Giáo viên:')} {course.mentorName || tr('Chưa phân công')} ·{' '}
-                        {trf('Bài tập đã nộp: {0}/{1}', { 0: submittedHws, 1: courseHws.length })}
+                        {homeworksQuery.isError
+                          ? tr('Bài tập: —')
+                          : trf('Bài tập đã nộp: {0}/{1}', { 0: submittedHws, 1: courseHws.length })}
                       </p>
                       <div>
                         <div className="mb-1 flex justify-between text-[11px] text-rp-text-muted">
@@ -268,7 +300,7 @@ export default function GroupLearningProgressPage() {
             </div>
           </Card>
         )}
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useOptionalSmartNotebook } from '@/features/notebook/context/SmartNotebookContext.jsx';
+import { useOptionalSmartNotebook } from '@/features/notebook/context/smartNotebookState.js';
 import {
   getHighlightColorMeta,
   matchHighlightAnchorInText,
@@ -72,7 +72,7 @@ export default function HighlightableText({
       parts.push({ type: 'text', value: strText.slice(pos) });
     }
     return parts;
-  }, [strText, nb?.isLearner, nb?.pageHighlights, contentId]);
+  }, [strText, nb, contentId]);
 
   if (!strText) return null;
 

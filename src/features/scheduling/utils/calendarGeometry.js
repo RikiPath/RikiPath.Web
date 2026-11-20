@@ -254,7 +254,7 @@ export function stepAnchorKey(anchorKey, view, delta) {
   return shiftDateKey(anchorKey, delta * 7);
 }
 
-export function getViewDateRange(anchorKey, view) {
+export function getViewDateRange(anchorKey, view, audience = 'mentor') {
   if (view === 'day') {
     return {
       startKey: anchorKey,
@@ -269,7 +269,7 @@ export function getViewDateRange(anchorKey, view) {
       startKey: matrix.cells[0]?.key || anchorKey,
       endKey: matrix.cells[matrix.cells.length - 1]?.key || anchorKey,
       title: matrix.title,
-      subtitle: 'Theo dõi phân bố buổi dạy và khung trống',
+      subtitle: audience === 'learner' ? 'Tổng quan lịch học theo tháng' : 'Theo dõi phân bố buổi dạy và khung trống',
     };
   }
   if (view === 'agenda') {

@@ -51,6 +51,7 @@ export function ContextualEmptyState({
   context,
   title,
   description,
+  message,
   icon: Icon = Inbox,
   mascot,
   art,
@@ -61,7 +62,8 @@ export function ContextualEmptyState({
   const { tr } = useLocale();
   const preset = context ? getContextualEmptyCopy(context) : null;
   const resolvedTitle = tr(title || preset?.title || 'Chưa có dữ liệu');
-  const resolvedDesc = description !== undefined ? (description ? tr(description) : '') : (preset?.description ? tr(preset.description) : '');
+  const descInput = description !== undefined ? description : message;
+  const resolvedDesc = descInput !== undefined ? (descInput ? tr(descInput) : '') : (preset?.description ? tr(preset.description) : '');
 
   return (
     <div

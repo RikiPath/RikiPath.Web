@@ -22,17 +22,13 @@ import InteractiveSlotCalendar from './InteractiveSlotCalendar';
 import { useMentorScheduleWorkspace } from '@/features/scheduling/hooks/useMentorScheduleWorkspace.js';
 import {
   mondayOfDateKey,
-  shiftDateKey,
   toVnDateKey,
   toVnTimeParts,
 } from '@/features/scheduling/utils/calendarGeometry.js';
 import '@/pages/shared/studyCourses.css';
 import './availabilityPlanner.css';
 import {
-  CalendarDays,
-  RefreshCw,
   Info,
-  Link2,
   AlertCircle,
   CheckCircle2,
   XCircle,
@@ -79,7 +75,7 @@ function findConflicts(slots) {
 }
 
 function MentorInteractiveAvailabilityWorkspace({ embedded = false }) {
-  const { tr, trf, fmt } = useLocale();
+  const { tr, trf } = useLocale();
   const Shell = embedded ? Fragment : MentorShell;
   const workspace = useMentorScheduleWorkspace({ includeCalendarStatus: false });
   const {

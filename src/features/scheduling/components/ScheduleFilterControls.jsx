@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowDownUp,
   Calendar as CalendarIcon,
-  Check,
-  ChevronDown,
   Clock,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { Popover } from '@/components/ui/overlay.jsx';
-import { CustomSelect } from '@/components/ui/core.jsx';
+import { CustomSelect, DateInput, TimeInput } from '@/components/ui/core.jsx';
 import { useLocale } from '@/locales/locale.js';
 import {
   SCHEDULE_EVENT_TYPE_OPTIONS,
@@ -85,7 +83,7 @@ export function ScheduleMoreFiltersPopover({
   onResetAll,
   activeFilterCount = 0,
 }) {
-  const { tr, trf } = useLocale();
+  const { tr } = useLocale();
   const [open, setOpen] = useState(false);
 
   const dayparts = useMemo(() => {
@@ -210,23 +208,22 @@ export function ScheduleMoreFiltersPopover({
             <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2">
               <label className="block text-[11px] font-medium text-rp-text-2">
                 {tr('Từ ngày')}
-                <input
-                  type="date"
+                <DateInput
                   data-testid="custom-date-from"
                   value={customFromDate}
+                  max={customToDate || undefined}
                   onChange={(e) => onDateFilterChange?.({ mode: 'custom', from: e.target.value, to: customToDate })}
-                  className="mt-0.5 h-8 w-full rounded-lg border border-rp-line bg-white px-2 text-[11.5px]"
+                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px]"
                 />
               </label>
               <label className="block text-[11px] font-medium text-rp-text-2">
                 {tr('Đến ngày')}
-                <input
-                  type="date"
+                <DateInput
                   data-testid="custom-date-to"
                   min={customFromDate || undefined}
                   value={customToDate}
                   onChange={(e) => onDateFilterChange?.({ mode: 'custom', from: customFromDate, to: e.target.value })}
-                  className="mt-0.5 h-8 w-full rounded-lg border border-rp-line bg-white px-2 text-[11.5px]"
+                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px]"
                 />
               </label>
             </div>
@@ -292,22 +289,20 @@ export function ScheduleMoreFiltersPopover({
             <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2">
               <label className="block text-[11px] font-medium text-rp-text-2">
                 {tr('Từ giờ')}
-                <input
-                  type="time"
+                <TimeInput
                   data-testid="custom-time-start"
                   value={customStartTime}
                   onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: e.target.value, end: customEndTime })}
-                  className="mt-0.5 h-8 w-full rounded-lg border border-rp-line bg-white px-2 text-[11.5px] tabular-nums"
+                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px] tabular-nums"
                 />
               </label>
               <label className="block text-[11px] font-medium text-rp-text-2">
                 {tr('Đến giờ')}
-                <input
-                  type="time"
+                <TimeInput
                   data-testid="custom-time-end"
                   value={customEndTime}
                   onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: e.target.value })}
-                  className="mt-0.5 h-8 w-full rounded-lg border border-rp-line bg-white px-2 text-[11.5px] tabular-nums"
+                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px] tabular-nums"
                 />
               </label>
             </div>
@@ -322,17 +317,15 @@ export function ScheduleMoreFiltersPopover({
               <span>{tr('Thứ tự sắp xếp (Danh sách)')}</span>
             </label>
             <div className="flex items-center gap-1.5">
-              <select
-                aria-label={tr('Tiêu chí sắp xếp')}
-                data-testid="schedule-sort-by-select"
+              <CustomSelect
+                size="sm"
+                label={tr('Tiêu chí sắp xếp')}
+                dataTestId="schedule-sort-by-select"
                 value={sortBy}
-                onChange={(e) => onSortChange({ sortBy: e.target.value, sortDirection })}
-                className="h-8.5 flex-1 rounded-xl border border-rp-line bg-white px-2.5 text-[12px] font-medium text-rp-text focus:border-rp-brand-border focus:outline-none"
-              >
-                {SCHEDULE_SORT_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{tr(opt.label)}</option>
-                ))}
-              </select>
+                onChange={(val) => onSortChange({ sortBy: val, sortDirection })}
+                options={SCHEDULE_SORT_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
+                className="flex-1"
+              />
               {sortBy !== 'smart' && sortBy !== 'newest' && sortBy !== 'oldest' && (
                 <button
                   type="button"

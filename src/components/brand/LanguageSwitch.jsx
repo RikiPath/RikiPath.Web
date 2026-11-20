@@ -25,7 +25,7 @@ function Flag({ src }) {
 
 /** `variant="icon"` renders the circular Globe trigger with a red language tag badge; `variant="pill"` keeps the wider flag+code pill for auth/public headers. */
 export default function LanguageSwitch({ className, variant = 'pill' }) {
-  const { tr, locale, setLocale, t } = useLocale();
+  const { locale, setLocale, t } = useLocale();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
@@ -124,7 +124,15 @@ export default function LanguageSwitch({ className, variant = 'pill' }) {
         >
           <p className="flex items-center gap-2 px-2 pb-2 pt-1 text-xs font-semibold text-rp-text">
             <Globe aria-hidden="true" className="h-4 w-4 text-rp-brand" />
-            {tr('Ngôn ngữ')}{' '}<span aria-hidden="true" className="text-rp-text-disabled">/</span> <span lang="ja">言語</span>
+            {locale === 'ja' ? (
+              <>
+                <span lang="ja">言語</span> <span aria-hidden="true" className="text-rp-text-disabled">/</span> Tiếng Việt
+              </>
+            ) : (
+              <>
+                Ngôn ngữ <span aria-hidden="true" className="text-rp-text-disabled">/</span> <span lang="ja">言語</span>
+              </>
+            )}
           </p>
           <div className="mb-1 h-px bg-rp-line" />
           <ul id={listId} ref={listRef} role="listbox" aria-label={t('langLabel')} onKeyDown={onListKeyDown} className="space-y-0.5">

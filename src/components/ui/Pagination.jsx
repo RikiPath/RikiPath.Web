@@ -4,6 +4,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
+import { CustomSelect } from './core.jsx';
 import { useLocale } from '@/locales/locale.js';
 
 /**
@@ -68,7 +69,7 @@ export default function Pagination({
   variant = 'sakura', // 'sakura' | 'admin' | 'neutral'
   className = '',
 }) {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const pages = getPaginationRange(currentPage, totalPages);
   const startItem = totalItems ? Math.min((currentPage - 1) * pageSize + 1, totalItems) : 0;
   const endItem = totalItems ? Math.min(currentPage * pageSize, totalItems) : 0;
@@ -76,46 +77,44 @@ export default function Pagination({
   const isSakura = variant === 'sakura';
   const isAdmin = variant === 'admin';
 
-  const activeBtnClass = isSakura
+  const activeBtnClass = isSakura || isAdmin
     ? 'bg-rp-brand-pressed text-white shadow-sm shadow-rp-brand/25 font-bold border-transparent'
-    : isAdmin
-    ? 'bg-primary text-on-primary font-bold shadow-xs border-transparent'
-    : 'bg-gray-900 text-white font-bold border-transparent';
+    : 'bg-rp-text text-white font-bold border-transparent';
 
   const idleBtnClass =
-    'bg-white text-[#2D282A] border border-[#E8E1E3] hover:bg-[#FFF4F7] hover:text-[#CC4B6B] hover:border-[#F2CCD7] transition-all font-medium';
+    'bg-rp-surface text-rp-text border border-rp-line hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border transition-all font-medium';
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-center justify-between gap-4 py-3.5 px-4 bg-white/90 backdrop-blur-sm border-t border-[#EADFD9] text-xs ${className}`}
+      className={`flex flex-col sm:flex-row items-center justify-between gap-4 py-3.5 px-4 bg-rp-surface/95 backdrop-blur-sm border-t border-rp-line text-xs ${className}`}
       data-component="Pagination"
     >
       {/* Left: Total Records Info & Page Size */}
-      <div className="flex flex-wrap items-center gap-3 text-[#6E686A]">
+      <div className="flex flex-wrap items-center gap-3 text-rp-text-2">
         {showTotal && totalItems !== undefined && (
           <span className="font-medium">
             {tr('Hiển thị')}{' '}
-            <strong className="text-[#2D282A] font-bold">
+            <strong className="text-rp-text font-bold">
               {totalItems === 0 ? 0 : `${startItem} - ${endItem}`}
             </strong>{' '}
-            {tr('trong tổng số')}{' '}<strong className="text-[#2D282A] font-bold">{totalItems}</strong> {itemLabel}
+            {tr('trong tổng số')}{' '}<strong className="text-rp-text font-bold">{totalItems}</strong> {tr(itemLabel)}
           </span>
         )}
 
         {showPageSize && onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <span className="text-[#8E8488]">{tr('| Mỗi trang:')}</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="py-1 px-2.5 bg-[#FAF8F6] border border-[#E8E1E3] rounded-lg text-xs font-semibold text-[#2D282A] focus:outline-none focus:border-rp-brand focus:ring-1 focus:ring-rp-brand/35 transition-colors cursor-pointer"
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt} / trang
-                </option>
-              ))}
-            </select>
+            <span className="text-rp-text-muted">{tr('| Mỗi trang:')}</span>
+            <CustomSelect
+              size="sm"
+              className="w-auto min-w-[118px]"
+              label={tr('Số dòng mỗi trang')}
+              value={String(pageSize)}
+              onChange={(val) => onPageSizeChange(Number(val))}
+              options={pageSizeOptions.map((opt) => ({
+                value: String(opt),
+                label: trf('{0} / trang', { 0: opt }),
+              }))}
+            />
           </div>
         )}
       </div>
@@ -128,7 +127,7 @@ export default function Pagination({
             onClick={() => onPageChange(1)}
             disabled={currentPage <= 1}
             title={tr('Trang đầu')}
-            className="hidden sm:inline-flex p-1.5 rounded-lg border border-[#EADFD9] bg-white text-[#6E686A] hover:bg-[#FAF7F5] hover:text-[#2D282A] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            className="hidden sm:inline-flex p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
             <ChevronsLeft className="w-4 h-4" />
           </button>
@@ -139,7 +138,7 @@ export default function Pagination({
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
           title={tr('Trang trước')}
-          className="p-1.5 rounded-lg border border-[#EADFD9] bg-white text-[#6E686A] hover:bg-[#FAF7F5] hover:text-[#2D282A] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          className="p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -151,7 +150,7 @@ export default function Pagination({
               return (
                 <span
                   key={`ellipsis-${idx}`}
-                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-[#9E8E93] font-medium select-none"
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-rp-text-disabled font-medium select-none"
                 >
                   ...
                 </span>
@@ -178,8 +177,8 @@ export default function Pagination({
           type="button"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          title="Trang sau"
-          className="p-1.5 rounded-lg border border-[#EADFD9] bg-white text-[#6E686A] hover:bg-[#FAF7F5] hover:text-[#2D282A] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          title={tr('Trang sau')}
+          className="p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -190,7 +189,7 @@ export default function Pagination({
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage >= totalPages}
             title={tr('Trang cuối')}
-            className="hidden sm:inline-flex p-1.5 rounded-lg border border-[#EADFD9] bg-white text-[#6E686A] hover:bg-[#FAF7F5] hover:text-[#2D282A] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            className="hidden sm:inline-flex p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
             <ChevronsRight className="w-4 h-4" />
           </button>

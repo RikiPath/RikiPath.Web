@@ -14,14 +14,14 @@ import {
   X,
 } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
-import { notify } from '@/components/ui/feedbackStore.js';
+import { CustomSelect, notify } from '@/components/ui';
 import {
   computeContentVersionHash,
   DEFAULT_FOLDER_NAME,
   getHighlightColorMeta,
   groupNotePagesByFolder,
 } from '@/features/notebook/utils/notebookModel.js';
-import { useOptionalSmartNotebook } from '@/features/notebook/context/SmartNotebookContext.jsx';
+import { useOptionalSmartNotebook } from '@/features/notebook/context/smartNotebookState.js';
 import { SakuraNotebookBubbleIcon } from './SakuraNotebookIcons.jsx';
 
 /**
@@ -42,18 +42,18 @@ export default function FloatingNotebookWidget() {
   const [targetFolder, setTargetFolder] = useState(DEFAULT_FOLDER_NAME);
   const [targetNoteId, setTargetNoteId] = useState('');
 
-  const notePages = nb?.notePages || [];
+  const notePages = useMemo(() => nb?.notePages || [], [nb?.notePages]);
   const folders = useMemo(() => groupNotePagesByFolder(notePages), [notePages]);
   const selectedPageId = targetNoteId || (notePages[0]?.id ? String(notePages[0].id) : '');
 
   const recentEntries = useMemo(() => {
-    const q = quickSearch.trim().toLocaleLowerCase('vi-VN');
+    const q = quickSearch.trim().toLowerCase();
     const items = nb?.allEntries || [];
     if (!q) return items.slice(0, 12);
     return items.filter((e) =>
       [e.term, e.reading, e.meaning, e.personalNote, e.sourceTitle, e.notePageTitle]
         .join(' ')
-        .toLocaleLowerCase('vi-VN')
+        .toLowerCase()
         .includes(q)
     ).slice(0, 18);
   }, [nb?.allEntries, quickSearch]);
@@ -74,7 +74,7 @@ export default function FloatingNotebookWidget() {
       const versionStale = Boolean(h.contentVersion && liveHash && liveHash !== h.contentVersion);
       return { ...h, versionStale };
     });
-  }, [nb?.pageHighlights, nb?.drawerOpen]);
+  }, [nb?.pageHighlights]);
 
   if (!nb?.isLearner || !nb?.notebookAvailable || !nb?.policy?.bubbleAllowed) return null;
 
@@ -221,35 +221,28 @@ export default function FloatingNotebookWidget() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="block">
-                        <span className="text-[11px] font-semibold text-rp-text-muted">{tr('Thư mục')}</span>
-                        <select
+                      <div>
+                        <span className="mb-1 block text-[11px] font-semibold text-rp-text-muted">{tr('Thư mục')}</span>
+                        <CustomSelect
+                          size="sm"
                           value={targetFolder}
-                          onChange={(e) => {
-                            const f = e.target.value;
+                          onChange={(f) => {
                             setTargetFolder(f);
                             const first = folders.find((x) => x.name === f)?.pages?.[0];
                             setTargetNoteId(first?.id ? String(first.id) : '');
                           }}
-                          className="mt-1 h-8.5 w-full rounded-xl border border-rp-line bg-white px-2 text-[12px]"
-                        >
-                          {folders.map((f) => (
-                            <option key={f.name} value={f.name}>{tr(f.name)}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-semibold text-rp-text-muted">{tr('Trang ghi chú')}</span>
-                        <select
+                          options={folders.map((f) => ({ value: f.name, label: tr(f.name) }))}
+                        />
+                      </div>
+                      <div>
+                        <span className="mb-1 block text-[11px] font-semibold text-rp-text-muted">{tr('Trang ghi chú')}</span>
+                        <CustomSelect
+                          size="sm"
                           value={selectedPageId}
-                          onChange={(e) => setTargetNoteId(e.target.value)}
-                          className="mt-1 h-8.5 w-full rounded-xl border border-rp-line bg-white px-2 text-[12px]"
-                        >
-                          {notePages.map((p) => (
-                            <option key={p.id} value={String(p.id)}>{p.title}</option>
-                          ))}
-                        </select>
-                      </label>
+                          onChange={(val) => setTargetNoteId(val)}
+                          options={notePages.map((p) => ({ value: String(p.id), label: p.title }))}
+                        />
+                      </div>
                     </div>
 
                     <input

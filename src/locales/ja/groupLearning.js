@@ -18,7 +18,6 @@ export const jaGroupLearning = {
   'Đánh giá Giáo viên: Chưa có đánh giá': '教師の評価はまだありません',
   'Đánh giá Giáo viên:': '教師の評価：',
   'Giáo viên lớp nhóm': 'グループクラスの教師',
-  'Giáo viên': '教師',
   'Giáo viên:': '教師：',
   'Tất cả Giáo viên': 'すべての教師',
   'Hãy thử thay đổi bộ lọc hoặc chọn Giáo viên khác.': '絞り込み条件を変えるか、別の教師を選んでください。',

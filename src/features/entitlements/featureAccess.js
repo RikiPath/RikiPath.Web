@@ -31,10 +31,26 @@ export const ACCESS = Object.freeze({
 /** Statuses that are a confirmed "you do not own it" answer from the Backend. */
 const LOCKING = new Set([ACCESS.FREE, ACCESS.EXPIRED, ACCESS.PENDING_PAYMENT]);
 
-// Mirrors SubscriptionAccessService.IsStudy (plan ids 1–6 are self-study plans; 81xx are AI/credit packs).
 function isSelfStudyPlan(purchase) {
-  const id = Number(purchase?.subscriptionPlanId);
-  return Number.isInteger(id) && id >= 1 && id <= 6;
+  if (!purchase) return false;
+  const kind = String(purchase.kind ?? purchase.planKind ?? purchase.category ?? '').toLowerCase();
+  if (kind) {
+    if (kind === 'mentor' || kind.includes('ai') || kind.includes('credit')) return false;
+    if (kind.includes('study') || kind === 'bundle' || kind === 'subscription') return true;
+  }
+  if (purchase.durationDays != null) {
+    return Number(purchase.durationDays) > 0;
+  }
+  if (purchase.endDate != null) {
+    return true;
+  }
+  const name = String(purchase.planName || '');
+  if (/(lượt ai|gói ai|chấm ai|lộ trình ai|credit|speaking|writing|learning path)/i.test(name)) {
+    return false;
+  }
+  if (purchase.isSelfStudy != null) return Boolean(purchase.isSelfStudy);
+  const id = Number(purchase.planId ?? purchase.subscriptionPlanId);
+  return Number.isInteger(id) && id > 0 && (purchase.aiUsesRemaining ?? 0) === 0;
 }
 
 function isPendingPurchase(purchase) {
@@ -56,7 +72,7 @@ export function studyAccessStatus({ enabled = true, isPending = false, isError =
   if (data.active === true) return ACCESS.ACTIVE;
   const studyPurchases = (Array.isArray(data.purchases) ? data.purchases : []).filter(isSelfStudyPlan);
   if (studyPurchases.some(isPendingPurchase)) return ACCESS.PENDING_PAYMENT;
-  if (studyPurchases.some((p) => p.isActive === false || p.endDate)) return ACCESS.EXPIRED;
+  if (studyPurchases.some((p) => (p.active ?? p.isActive) === false || p.endDate)) return ACCESS.EXPIRED;
   return ACCESS.FREE;
 }
 

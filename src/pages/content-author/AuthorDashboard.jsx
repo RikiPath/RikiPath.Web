@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
@@ -41,10 +41,10 @@ import { statuses } from '@/features/content-author/utils/contentModel.js';
 import {
   ContentForm,
   ContentPreviewPanel,
-  definitions,
 } from '@/pages/content-author/ManualContentPage.jsx';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { definitions } from '@/features/content-author/utils/contentDefinitions.js';
 
 const STATUS_TABS = [
   { id: 'all', label: 'Tất cả' },
@@ -90,12 +90,11 @@ export default function AuthorDashboard() {
   const [submitTarget, setSubmitTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  useEffect(() => {
-    const paramStatus = searchParams.get('status');
-    if (paramStatus && STATUS_TABS.some((t) => t.id === paramStatus) && paramStatus !== statusFilter) {
-      setStatusFilter(paramStatus);
-    }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [lastUrlStatus, setLastUrlStatus] = useState(initialStatus);
+  if (initialStatus !== lastUrlStatus) {
+    setLastUrlStatus(initialStatus);
+    setStatusFilter(STATUS_TABS.some((t) => t.id === initialStatus) ? initialStatus : 'all');
+  }
 
   const { lookups, levels, levelById } = useAuthorLookups();
 

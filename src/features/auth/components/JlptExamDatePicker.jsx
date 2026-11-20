@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CalendarCheck2, CalendarClock, CalendarOff, Check, ChevronRight } from 'lucide-react';
 import { jlptExamDate } from '@/features/learning-path/utils/learningGoal.js';
-import { cx } from '@/components/ui';
+import { Input, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 
 const MONTHS = [
@@ -143,7 +143,7 @@ export default function JlptExamDatePicker({
 
         <label className="flex items-center gap-2 text-[12px] text-rp-text-muted">
           <span>{tr('Năm khác')}</span>
-          <input
+          <Input
             type="number"
             min={baseYear}
             max={baseYear + 10}
@@ -159,7 +159,7 @@ export default function JlptExamDatePicker({
               }
             }}
             aria-label={tr('Nhập năm dự thi')}
-            className="h-8 w-20 rounded-xl border border-rp-line bg-white px-2.5 text-center text-[13px] font-semibold text-rp-text tabular-nums"
+            className="h-8 w-20 px-2.5 text-center text-[13px] font-semibold tabular-nums"
           />
         </label>
       </div>

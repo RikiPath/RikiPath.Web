@@ -7,18 +7,21 @@ import { paymentStateMessage } from '@/api/apiErrors.js';
 import { reconcileCoursePayment } from '@/features/cohorts/api/cohortApi';
 import { useLearnerCohortWorkspace } from '@/features/cohorts/hooks/useLearnerCohortWorkspace.js';
 import { displayCourseTitle, getSessionJoinState } from '@/features/calendar/utils/calendarEventsModel.js';
-import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
 import { useNow } from '@/hooks/useNow.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   Badge,
   Banner,
+  Button,
   Card,
   ContextualEmptyState,
   ContextualErrorState,
+  PageContainer,
   PageHeader,
   ProgressBar,
   SakuraLoader,
+  Tabs,
   cx,
   notify,
 } from '@/components/ui';
@@ -59,7 +62,18 @@ export default function LearnerMyCoursesPage() {
   const reconcileRanRef = useRef(false);
 
   const workspace = useLearnerCohortWorkspace({ includeHomework: true });
-  const { courses, homeworks, coursesQuery, busy, actionError, actionNotice, setActionError, setActionNotice, invalidateAll, runAction } = workspace;
+  const {
+    courses,
+    homeworks,
+    coursesQuery,
+    busy,
+    actionError,
+    actionNotice,
+    setActionError,
+    setActionNotice,
+    invalidateAll,
+    runAction,
+  } = workspace;
 
   // Backward-compatible PayOS callback auto-reconciliation.
   useEffect(() => {
@@ -97,11 +111,14 @@ export default function LearnerMyCoursesPage() {
         notify.info(msg, '', { key: 'cohort-payos-return' });
       }
       await invalidateAll();
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        PAYOS_RETURN_KEYS.forEach((k) => next.delete(k));
-        return next;
-      }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          PAYOS_RETURN_KEYS.forEach((k) => next.delete(k));
+          return next;
+        },
+        { replace: true },
+      );
       if (returnedCourseId > 0) {
         navigate(`/my-courses/${returnedCourseId}`, { replace: true });
       }
@@ -142,27 +159,19 @@ export default function LearnerMyCoursesPage() {
 
   return (
     <LearnerShell breadcrumb={tr('Lớp của tôi')}>
-      <div className="rp-container space-y-6 py-6 lg:py-8">
+      <PageContainer width="default" className="space-y-6">
         <PageHeader
           eyebrow={tr('Học nhóm')}
           title={tr('Lớp học của tôi')}
           description={tr('Mỗi lớp có không gian riêng với lịch học, bài tập, điểm danh và hỗ trợ theo đúng ngữ cảnh.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to="/calendar"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text hover:bg-rp-muted"
-              >
-                <CalendarDays className="h-4 w-4 text-rp-brand-strong" />
+              <Button as={Link} to="/calendar" variant="secondary" size="sm" icon={CalendarDays}>
                 {tr('Lịch học')}
-              </Link>
-              <Link
-                to="/cohorts"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-4 text-sm font-semibold text-white hover:bg-rp-brand-strong"
-              >
-                <Compass className="h-4 w-4" />
+              </Button>
+              <Button as={Link} to="/cohorts" variant="primary" size="sm" icon={Compass}>
                 {tr('Khám phá thêm lớp')}
-              </Link>
+              </Button>
             </div>
           }
         />
@@ -178,40 +187,30 @@ export default function LearnerMyCoursesPage() {
           </Banner>
         )}
 
-        {/* Filter Chips */}
         {courses.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[
-                { id: 'ALL', label: 'Tất cả' },
-                { id: 'ACTIVE', label: 'Đang học & Sắp khai giảng' },
-                { id: 'PENDING', label: 'Chờ thanh toán' },
-                { id: 'COMPLETED', label: 'Đã hoàn thành / Đã hủy' },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setFilter(item.id)}
-                  className={cx(
-                    'rp-focus rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                    filter === item.id
-                      ? 'bg-rp-brand-pressed text-white'
-                      : 'border border-rp-line bg-rp-surface text-rp-text-2 hover:border-rp-brand-border',
-                  )}
-                >
-                  {tr(item.label)}
-                </button>
-              ))}
-            </div>
-            <button
+            <Tabs
+              variant="pill"
+              value={filter}
+              onChange={setFilter}
+              tabs={[
+                { value: 'ALL', label: tr('Tất cả') },
+                { value: 'ACTIVE', label: tr('Đang học & Sắp khai giảng') },
+                { value: 'PENDING', label: tr('Chờ thanh toán') },
+                { value: 'COMPLETED', label: tr('Đã hoàn thành / Đã hủy') },
+              ]}
+            />
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => coursesQuery.refetch()}
               disabled={coursesQuery.isFetching}
-              className="rp-focus inline-flex items-center gap-1.5 rounded-xl border border-rp-line bg-rp-surface px-3 py-1.5 text-xs font-semibold text-rp-text hover:bg-rp-muted"
+              loading={coursesQuery.isFetching}
+              icon={RefreshCw}
             >
-              <RefreshCw className={cx('h-3.5 w-3.5', coursesQuery.isFetching && 'animate-spin')} />
               {tr('Làm mới')}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -233,11 +232,15 @@ export default function LearnerMyCoursesPage() {
             <ContextualEmptyState
               context="cohort"
               title={courses.length === 0 ? tr('Bạn chưa tham gia lớp nhóm nào') : tr('Không có lớp nào trong bộ lọc này')}
-              description={courses.length === 0 ? tr('Khám phá các lớp JLPT theo cấp độ phù hợp để học trực tiếp cùng Giáo viên.') : tr('Chọn bộ lọc Tất cả để xem toàn bộ lịch sử đăng ký lớp của bạn.')}
+              description={
+                courses.length === 0
+                  ? tr('Khám phá các lớp JLPT theo cấp độ phù hợp để học trực tiếp cùng Giáo viên.')
+                  : tr('Chọn bộ lọc Tất cả để xem toàn bộ lịch sử đăng ký lớp của bạn.')
+              }
               action={
                 <Link
                   to="/cohorts"
-                  className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-4 text-sm font-semibold text-white hover:bg-rp-brand-strong"
+                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-4 text-sm font-semibold text-white hover:bg-rp-brand-strong"
                 >
                   {tr('Khám phá lớp học')}
                   <ArrowRight className="h-4 w-4" />
@@ -253,9 +256,11 @@ export default function LearnerMyCoursesPage() {
               const sessions = Array.isArray(course.sessions) ? course.sessions : [];
               const attended = sessions.filter((s) => s.status === 'Present').length;
               const pct = sessions.length > 0 ? Math.round((attended / sessions.length) * 100) : 0;
-              const nextSession = sessions.find(
-                (s) => s.status === 'Scheduled' && new Date(s.scheduledAt).getTime() + (course.sessionMinutes || 90) * 60_000 >= nowMs - 30 * 60_000,
-              );
+              const nextSession = sessions.find((s) => {
+                if (s.status !== 'Scheduled') return false;
+                const startMs = parseUtcDate(s.scheduledAt)?.getTime() ?? 0;
+                return startMs + (course.sessionMinutes || 90) * 60_000 >= nowMs - 30 * 60_000;
+              });
               const joinState = nextSession ? getSessionJoinState(nextSession, course, nowMs) : null;
               const hwPending = course.cohortId ? pendingHomeworkByCohort.get(course.cohortId) || 0 : 0;
 
@@ -265,14 +270,27 @@ export default function LearnerMyCoursesPage() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge tone={status.tone} size="sm">{tr(status.label)}</Badge>
-                          {course.level && <Badge tone="brand" size="sm">JLPT {course.level}</Badge>}
-                          {joinState?.isLive && <Badge tone="success" size="sm">{tr('Phòng đang mở')}</Badge>}
+                          <Badge tone={status.tone} size="sm">
+                            {tr(status.label)}
+                          </Badge>
+                          {course.level && (
+                            <Badge tone="brand" size="sm">
+                              JLPT {course.level}
+                            </Badge>
+                          )}
+                          {joinState?.isLive && (
+                            <Badge tone="success" size="sm">
+                              {tr('Phòng đang mở')}
+                            </Badge>
+                          )}
                         </div>
                         <h2 className="mt-2 text-lg font-bold text-rp-text">{title}</h2>
                         <p className="mt-0.5 text-xs text-rp-text-muted">
                           {tr('Giáo viên:')} {course.mentorName || tr('Chưa phân công')} ·{' '}
-                          {trf('{0} buổi · {1} phút/buổi', { 0: sessions.length || course.totalSessions || 0, 1: course.sessionMinutes || 90 })}
+                          {trf('{0} buổi · {1} phút/buổi', {
+                            0: sessions.length || course.totalSessions || 0,
+                            1: course.sessionMinutes || 90,
+                          })}
                         </p>
                       </div>
                     </div>
@@ -316,12 +334,14 @@ export default function LearnerMyCoursesPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <a
                           href={course.checkoutUrl}
-                          className="inline-flex h-9 items-center rounded-xl bg-rp-warning px-3.5 text-xs font-semibold text-white hover:opacity-90"
+                          className="rp-focus inline-flex h-9 items-center rounded-xl bg-rp-warning px-3.5 text-xs font-semibold text-white hover:opacity-90"
                         >
                           {tr('Tiếp tục thanh toán')}
                         </a>
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="sm"
                           disabled={busy}
                           onClick={() =>
                             runAction(
@@ -332,19 +352,20 @@ export default function LearnerMyCoursesPage() {
                                   : paymentStateMessage(res?.paymentState) || 'Đang chờ xác nhận thanh toán.',
                             )
                           }
-                          className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-rp-surface px-3 text-xs font-semibold text-rp-text hover:bg-rp-muted"
                         >
                           {tr('Kiểm tra thanh toán')}
-                        </button>
+                        </Button>
                       </div>
                     ) : joinState?.canJoin ? (
                       <Link
                         to={joinState.roomHref}
-                        className="inline-flex h-9 items-center gap-1 rounded-xl bg-[#0F766E] px-3.5 text-xs font-semibold text-white hover:bg-[#115E59]"
+                        className="rp-focus inline-flex h-9 items-center gap-1 rounded-xl bg-rp-success px-3.5 text-xs font-semibold text-white hover:opacity-95"
                       >
                         {tr('Vào phòng học')}
                       </Link>
-                    ) : <span />}
+                    ) : (
+                      <span />
+                    )}
 
                     <Link
                       to={`/my-courses/${course.id}`}
@@ -359,7 +380,7 @@ export default function LearnerMyCoursesPage() {
             })}
           </div>
         )}
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

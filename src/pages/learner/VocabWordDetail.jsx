@@ -1,14 +1,36 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Bookmark, Repeat, Search, Volume2 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
-import { ArrowLeft, Bookmark, Repeat, Search } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, ErrorState, Input, SakuraLoader, notify } from '@/components/ui';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  CustomSelect,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
+  PageContainer,
+  SakuraLoader,
+  notify,
+} from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { getSession } from '@/app/auth/session.js';
 import { bookmarkVocabulary, createNotebookList, getNotebookLists } from '@/features/notebook/api/notebookApi.js';
 import { getVocabulary, searchVocabulary } from '@/features/content-author/api/sharedBankApi.js';
 import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
+
+function speakJapanese(text) {
+  if (typeof window === 'undefined' || !window.speechSynthesis || !text) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'ja-JP';
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
 
 export default function VocabWordDetail() {
   const { tr } = useLocale();
@@ -19,14 +41,26 @@ export default function VocabWordDetail() {
   const wordId = Number(params.get('id')) || 0;
   const [keyword, setKeyword] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedListId, setSelectedListId] = useState('');
+
+  const listsQuery = useQuery({
+    queryKey: ['notebook-lists', getSession()?.userId ?? 'anon'],
+    queryFn: getNotebookLists,
+    enabled: signedIn && pickerOpen,
+  });
 
   const save = useMutation({
-    mutationFn: async () => {
-      const lists = await getNotebookLists();
-      const learnerNoteId = lists[0]?.id || (await createNotebookList({ name: 'Từ vựng' }))?.id;
+    mutationFn: async (chosenListId) => {
+      let learnerNoteId = chosenListId ? Number(chosenListId) : 0;
+      if (!learnerNoteId) {
+        const lists = await getNotebookLists();
+        learnerNoteId = lists[0]?.id || (await createNotebookList({ name: 'Từ vựng' }))?.id;
+      }
       return bookmarkVocabulary({ learnerNoteId, vocabularyId: wordId });
     },
     onSuccess: (res) => {
+      setPickerOpen(false);
       if (res?.alreadyExists || res?.isExisting) {
         notify.info(tr('Từ này đã có trong sổ từ'), '', { key: 'vocab-bm-dup' });
       } else {
@@ -63,11 +97,29 @@ export default function VocabWordDetail() {
 
   const word = detailQuery.data;
   const items = searchQuery.data?.items || [];
+  const lists = listsQuery.data || [];
+
+  const handleOpenSave = async () => {
+    if (!signedIn) {
+      navigate('/auth/');
+      return;
+    }
+    const existingLists = await client.fetchQuery({
+      queryKey: ['notebook-lists', getSession()?.userId ?? 'anon'],
+      queryFn: getNotebookLists,
+    }).catch(() => []);
+    if (existingLists.length > 1) {
+      setSelectedListId(String(existingLists[0].id));
+      setPickerOpen(true);
+    } else {
+      save.mutate(existingLists[0]?.id || null);
+    }
+  };
 
   return (
     <LearnerShell breadcrumb={word?.word || tr('Chi tiết từ')}>
-      <div className="rp-container-reading py-6 lg:py-8">
-        <Link to="/vocabulary/" className="rp-focus inline-flex items-center gap-1.5 rounded text-sm font-semibold rp-link">
+      <PageContainer width="reading" density="comfortable" className="text-rp-text">
+        <Link to="/vocabulary/" className="rp-focus rp-link inline-flex items-center gap-1.5 rounded text-sm font-semibold">
           <ArrowLeft aria-hidden="true" className="h-4 w-4" /> {tr('Về sổ từ')}
         </Link>
 
@@ -100,11 +152,32 @@ export default function VocabWordDetail() {
                   <h1 id="word-title" lang="ja" className="rp-kanji mt-1 text-[44px] font-semibold leading-tight text-rp-text">{word.word}</h1>
                   {word.jlptLevelName && <Badge tone="brand" icon={false} className="mt-2">JLPT {word.jlptLevelName}</Badge>}
                 </div>
-                <Button variant="soft" icon={Bookmark} loading={save.isPending} disabled={!signedIn} onClick={() => save.mutate()}>
-                  {tr('Lưu vào sổ')}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {!word.audioUrl && (
+                    <Button variant="secondary" size="sm" icon={Volume2} onClick={() => speakJapanese(word.word)}>
+                      {tr('Nghe')}
+                    </Button>
+                  )}
+                  <Button variant="soft" icon={Bookmark} loading={save.isPending} onClick={handleOpenSave}>
+                    {signedIn ? tr('Lưu vào sổ') : tr('Đăng nhập để lưu')}
+                  </Button>
+                </div>
               </div>
+
               <div className="space-y-5 px-6 py-5">
+                {!signedIn && (
+                  <Banner tone="info" actions={<Link to="/auth/"><Button variant="primary" size="sm">{tr('Đăng nhập')}</Button></Link>}>
+                    {tr('Đăng nhập tài khoản để lưu từ vào Sổ tay cá nhân và ôn tập SRS.')}
+                  </Banner>
+                )}
+
+                {word.audioUrl && (
+                  <section>
+                    <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Phát âm chuẩn')}</h2>
+                    <audio controls className="mt-2 w-full" src={word.audioUrl} />
+                  </section>
+                )}
+
                 <section>
                   <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Nghĩa')}</h2>
                   <p className="mt-1.5 text-[17px] leading-7 text-rp-text">
@@ -115,6 +188,7 @@ export default function VocabWordDetail() {
                     />
                   </p>
                 </section>
+
                 {word.exampleSentence && (
                   <section>
                     <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Ví dụ')}</h2>
@@ -127,8 +201,11 @@ export default function VocabWordDetail() {
                     </p>
                   </section>
                 )}
+
                 <div className="flex flex-wrap gap-2 border-t border-rp-line pt-4">
-                  <Link to="/daily-srs/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input border border-rp-line px-3 text-[13px] font-semibold text-rp-text hover:border-rp-brand-border"><Repeat aria-hidden="true" className="h-4 w-4 text-tone-vocab" /> {tr('Ôn tập SRS')}</Link>
+                  <Link to="/daily-srs/">
+                    <Button variant="secondary" size="sm" icon={Repeat}>{tr('Ôn tập SRS')}</Button>
+                  </Link>
                 </div>
               </div>
             </Card>
@@ -162,7 +239,30 @@ export default function VocabWordDetail() {
             </ul>
           )}
         </div>
-      </div>
+
+        <Modal
+          open={pickerOpen}
+          onClose={() => !save.isPending && setPickerOpen(false)}
+          title="Chọn sổ từ để lưu"
+          size="sm"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setPickerOpen(false)} disabled={save.isPending}>{tr('Hủy')}</Button>
+              <Button variant="primary" loading={save.isPending} onClick={() => save.mutate(selectedListId)}>
+                {tr('Lưu vào sổ')}
+              </Button>
+            </>
+          )}
+        >
+          <Field label="Sổ tay từ vựng">
+            <CustomSelect
+              value={selectedListId}
+              onChange={setSelectedListId}
+              options={lists.map((l) => ({ value: String(l.id), label: `${l.name} (${l.entryCount ?? 0})` }))}
+            />
+          </Field>
+        </Modal>
+      </PageContainer>
     </LearnerShell>
   );
 }

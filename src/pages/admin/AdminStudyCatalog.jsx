@@ -108,7 +108,7 @@ export default function AdminStudyCatalog() {
   const types = useMemo(() => {
     const raw = Array.isArray(data?.types) ? data.types : [];
     return [...raw].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
-  }, [data?.types]);
+  }, [data]);
 
   const certById = useMemo(() => {
     const map = new Map();
@@ -127,7 +127,7 @@ export default function AdminStudyCatalog() {
       }
       return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id;
     });
-  }, [data?.levels, certById]);
+  }, [data, certById]);
 
   const siblingsByCertId = useMemo(() => {
     const map = new Map();

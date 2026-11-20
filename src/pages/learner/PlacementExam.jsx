@@ -1,22 +1,33 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-
+import { ArrowLeft, Clock } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 import { getActivePlacement, savePlacementAnswer, submitPlacement } from '@/features/placement/api/placementApi.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { recordDiagnostic } from '@/api/diagnostics.js';
-import { notify } from '@/components/ui/feedbackStore.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
-
-const focus =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
+import { parseUtcDate } from '@/utils/vnDateTime.js';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualErrorState,
+  Modal,
+  PageContainer,
+  Radio,
+  SakuraLoader,
+  notify,
+  useUnsavedGuard,
+} from '@/components/ui';
 
 function remainingSeconds(expiresAt) {
   if (!expiresAt) return null;
-  return Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+  const parsed = parseUtcDate(expiresAt);
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+  return Math.max(0, Math.floor((parsed.getTime() - Date.now()) / 1000));
 }
 
 function clock(total) {
@@ -28,11 +39,12 @@ function clock(total) {
 export default function PlacementExam() {
   const { pathname, state } = useLocation();
   const navigate = useNavigate();
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const seeded = state?.attempt || null;
   const [answers, setAnswers] = useState({});
   const [left, setLeft] = useState(() => remainingSeconds(seeded?.expiresAt));
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const autoSubmitted = useRef(false);
   const submitRef = useRef(null);
 
@@ -46,7 +58,6 @@ export default function PlacementExam() {
   const attempt = seeded || activeQuery.data;
   const questions = useMemo(() => attempt?.questions || [], [attempt]);
 
-  // Restore saved answers and the server deadline whenever a (new) attempt arrives.
   const [syncedAttempt, setSyncedAttempt] = useState(null);
   if (attempt?.questions && attempt !== syncedAttempt) {
     setSyncedAttempt(attempt);
@@ -58,7 +69,6 @@ export default function PlacementExam() {
     setLeft(remainingSeconds(attempt.expiresAt));
   }
 
-  // One ticking interval while a deadline exists (restarted only when the timer starts/stops).
   const hasDeadline = left != null;
   useEffect(() => {
     if (!hasDeadline) return undefined;
@@ -98,6 +108,7 @@ export default function PlacementExam() {
       return submitPlacement(attempt.attemptId, payload());
     },
     onSuccess: (result) => {
+      setConfirmOpen(false);
       notify.success(tr('Đã hoàn thành bài đánh giá năng lực!'), '', { key: 'placement-submit', replace: true });
       navigate(`/placement/result/${result.attemptId}`, { replace: true });
     },
@@ -109,6 +120,8 @@ export default function PlacementExam() {
   useLayoutEffect(() => {
     submitRef.current = submit;
   }, [submit]);
+
+  useUnsavedGuard(Boolean(attempt && !submit.isSuccess && Object.keys(answers).length > 0));
 
   const choose = (question, optionId) => {
     setAnswers((current) => ({ ...current, [question.questionId]: optionId }));
@@ -122,115 +135,137 @@ export default function PlacementExam() {
   };
 
   const answered = Object.keys(answers).length;
+  const totalQuestions = questions.length || attempt?.totalQuestions || 0;
 
   return (
     <LearnerShell pathname={pathname} breadcrumb={tr('Đánh giá năng lực')}>
-      <main
-        data-page="PlacementExam"
-        className="rp-container-reading py-6 text-rp-text lg:py-8"
-      >
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <PageContainer data-page="PlacementExam" width="reading" density="comfortable" className="text-rp-text">
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-medium tracking-[0.14em] text-rp-brand-strong">
-              {tr('ĐANG LÀM BÀI')}
-            </p>
-            <h1 className="mt-2 text-[24px] font-semibold tracking-tight">
-              {tr('Bài đánh giá năng lực')}
-            </h1>
-            <p className="mt-1 text-[13px] text-rp-text-muted">
-              {answered}/{questions.length || attempt?.totalQuestions || 0} {tr('câu đã chọn')}
+            <Link to="/placement/" className="rp-link inline-flex items-center gap-1 text-xs font-semibold">
+              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Về trang đánh giá')}
+            </Link>
+            <h1 className="mt-1 text-xl font-semibold text-rp-text">{tr('Bài đánh giá năng lực')}</h1>
+            <p className="mt-0.5 text-xs text-rp-text-muted">
+              {answered}/{totalQuestions} {tr('câu đã chọn')}
             </p>
           </div>
           {left != null && (
-            <p className="rounded-xl bg-rp-brand-tint px-3 py-2 text-[14px] font-semibold text-rp-brand-strong">
+            <Badge tone={left < 60 ? 'danger' : 'brand'} icon={Clock} size="md">
               {clock(left)}
-            </p>
+            </Badge>
           )}
-        </header>
+        </Card>
 
         {activeQuery.isPending && !seeded && (
           <SakuraLoader variant="section" context="assessment" label={tr('Đang tải bài đánh giá')} delay={160} />
         )}
         {activeQuery.isError && !attempt && (
-          <ContextualErrorState
-            className="mb-4 rounded-2xl border border-rp-line bg-white px-5"
-            compact
-            error={activeQuery.error}
-            title={tr('Chưa tải được bài đánh giá')}
-            onRetry={() => activeQuery.refetch()}
-            retrying={activeQuery.isFetching}
-          />
+          <Card className="mb-4">
+            <ContextualErrorState
+              compact
+              error={activeQuery.error}
+              title={tr('Chưa tải được bài đánh giá')}
+              onRetry={() => activeQuery.refetch()}
+              retrying={activeQuery.isFetching}
+            />
+          </Card>
         )}
         {!activeQuery.isPending && !activeQuery.isError && !attempt && (
-          <p className="rounded-2xl border border-rp-line bg-white px-5 py-6 text-[13px] text-rp-text-muted">
-            {tr('Không có lượt đang làm. Hãy bắt đầu từ trang đánh giá.')}
-          </p>
+          <Card className="space-y-3 text-sm text-rp-text-muted">
+            <p>{tr('Không có lượt đang làm. Hãy bắt đầu từ trang đánh giá.')}</p>
+            <Link to="/placement/">
+              <Button variant="primary" size="sm">{tr('Quay lại trang đánh giá')}</Button>
+            </Link>
+          </Card>
         )}
 
         <div className="space-y-4">
           {sections.map((section) => (
-            <section key={section.title} className="rounded-2xl border border-rp-line bg-white px-5 py-4">
-              <h2 className="text-[14px] font-semibold">
-                {tr(section.title)}
-                {section.level ? <span className="ml-2 text-[12px] font-medium text-rp-brand-strong">{section.level}</span> : null}
-              </h2>
-              <ol className="mt-3 space-y-5">
+            <Card key={section.title} className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 border-b border-rp-line pb-2.5">
+                <h2 className="text-sm font-semibold text-rp-text">{tr(section.title)}</h2>
+                {section.level && <Badge tone="brand" icon={false} size="sm">{section.level}</Badge>}
+              </div>
+              <ol className="space-y-5">
                 {section.items.map((question, index) => (
                   <li key={question.questionId}>
-                    <p className="text-[14px] leading-6">
-                      <span className="mr-2 text-rp-brand-strong">{index + 1}.</span>
+                    <p className="text-sm leading-6 text-rp-text">
+                      <span className="mr-2 font-semibold text-rp-brand-strong">{index + 1}.</span>
                       {question.content}
                     </p>
                     {question.audioUrl && <audio className="mt-2 w-full" controls src={question.audioUrl} />}
                     {question.imageUrl && (
                       <img alt="" src={question.imageUrl} className="mt-2 max-h-48 rounded-xl" />
                     )}
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2.5 space-y-2">
                       {question.options.map((option) => {
                         const selected = answers[question.questionId] === option.optionId;
                         return (
-                          <label
+                          <div
                             key={option.optionId}
-                            className={`flex cursor-pointer items-start gap-2 rounded-xl border px-3 py-2 text-[13px] leading-5 ${
-                              selected ? 'border-rp-brand-strong bg-rp-brand-tint' : 'border-rp-line'
+                            className={`rounded-xl border px-3 py-2 transition-colors ${
+                              selected ? 'border-rp-brand bg-rp-brand-tint/60' : 'border-rp-line bg-rp-surface hover:border-rp-brand-border'
                             }`}
                           >
-                            <input
-                              type="radio"
-                              className="mt-1"
+                            <Radio
                               name={`q-${question.questionId}`}
                               checked={selected}
                               onChange={() => choose(question, option.optionId)}
+                              label={option.content}
                             />
-                            <span>{option.content}</span>
-                          </label>
+                          </div>
                         );
                       })}
                     </div>
                   </li>
                 ))}
               </ol>
-            </section>
+            </Card>
           ))}
         </div>
 
         {attempt && (
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            {error && <p role="alert" className="text-[13px] text-rp-brand-strong">{error}</p>}
-            <button
-              type="button"
+          <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+            {error && <Banner tone="danger" className="w-full">{error}</Banner>}
+            <Button
+              variant="primary"
+              loading={submit.isPending}
               disabled={submit.isPending}
               onClick={() => {
                 setError('');
-                submit.mutate();
+                setConfirmOpen(true);
               }}
-              className={`h-11 rounded-xl bg-rp-brand-strong px-5 text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-50 ${focus}`}
             >
-              {submit.isPending ? tr('Đang nộp bài…') : tr('Nộp bài')}
-            </button>
+              {tr('Nộp bài')}
+            </Button>
           </div>
         )}
-      </main>
+
+        <Modal
+          open={confirmOpen}
+          onClose={() => !submit.isPending && setConfirmOpen(false)}
+          title="Xác nhận nộp bài đánh giá?"
+          description={trf('Bạn đã chọn {0}/{1} câu hỏi.', { 0: answered, 1: totalQuestions })}
+          size="sm"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={submit.isPending}>
+                {tr('Làm tiếp')}
+              </Button>
+              <Button variant="primary" loading={submit.isPending} onClick={() => submit.mutate()}>
+                {tr('Xác nhận nộp bài')}
+              </Button>
+            </>
+          )}
+        >
+          <p className="text-sm text-rp-text-2">
+            {answered < totalQuestions
+              ? tr('Vẫn còn câu chưa trả lời. Sau khi nộp, hệ thống sẽ chấm điểm và hiển thị kết quả ngay.')
+              : tr('Bạn đã hoàn thành toàn bộ câu hỏi. Bấm xác nhận để nhận kết quả.')}
+          </p>
+        </Modal>
+      </PageContainer>
     </LearnerShell>
   );
 }

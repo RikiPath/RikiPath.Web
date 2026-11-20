@@ -5,10 +5,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Eye,
   List,
-  MoreHorizontal,
   RefreshCw,
   X,
 } from 'lucide-react';
@@ -221,6 +219,7 @@ function MiniMonthPicker({ anchorKey, todayKey, eventsByDay, onPickDay }) {
  */
 export default function SakuraCalendar({
   events = [],
+  audience = 'mentor', // 'mentor' | 'learner'
   anchorKey: controlledAnchorKey,
   onAnchorChange,
   view: controlledView,
@@ -250,7 +249,6 @@ export default function SakuraCalendar({
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [monthDayModal, setMonthDayModal] = useState(null);
   const [miniOpen, setMiniOpen] = useState(false);
-  const [openRowMenuId, setOpenRowMenuId] = useState(null);
 
   const anchorKey = controlledAnchorKey ?? uncontrolledAnchor;
   const view = controlledView ?? uncontrolledView;
@@ -293,7 +291,7 @@ export default function SakuraCalendar({
     return map;
   }, [filteredEvents]);
 
-  const range = useMemo(() => getViewDateRange(anchorKey, view), [anchorKey, view]);
+  const range = useMemo(() => getViewDateRange(anchorKey, view, audience), [anchorKey, view, audience]);
   const weekDays = useMemo(
     () => (view === 'day'
       ? buildWeekDays(anchorKey, todayKey).filter((d) => d.key === anchorKey)
@@ -800,14 +798,62 @@ export default function SakuraCalendar({
           </div>
         )}
 
-        {/* LIST VIEW (Danh sách — Smart Compact 5-Column Table with Direct Action Buttons) */}
+        {/* LIST VIEW (Danh sách — Mobile Cards + Desktop 5-Column Compact Table) */}
         {view === 'agenda' && agendaGroups.length > 0 && (
-          <div className="max-h-[calc(100dvh-196px)] min-h-[460px] overflow-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
-              <thead className="sticky top-0 z-10 border-b border-rp-line bg-[#FAF7F9] text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
+          <div className="max-h-[calc(100dvh-196px)] min-h-[320px] overflow-auto">
+            {/* Mobile Compact Cards */}
+            <div className="divide-y divide-rp-line md:hidden">
+              {agendaGroups.flatMap((group) => group.items.map((ev) => ({ group, ev }))).map(({ group, ev }) => {
+                const meta = getToneMeta(ev.tone);
+                const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort || ev.eventType === 'session' || ev.eventType === 'live';
+                const typeLabel = audience === 'learner'
+                  ? (ev.eventType === 'homework' ? 'Bài tập' : ev.eventType === 'srs' ? 'Ôn tập SRS' : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
+                  : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
+                return (
+                  <div key={`m-${ev.id}`} className="space-y-2 p-3.5 text-[13px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-rp-text-muted">{L.fullDay(group.dayKey, todayKey)}</span>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                        {tr(ev.statusLabel || meta.label)}
+                      </span>
+                    </div>
+                    <p className={`font-bold text-rp-text ${ev.tone === 'cancelled' ? 'line-through opacity-75' : ''}`}>
+                      {tr(ev.fullTitle || ev.title)}
+                    </p>
+                    <p className="text-xs font-medium tabular-nums text-rp-text-2">
+                      {timeRangeText(ev)} · {L.duration(durationMinutes(ev))} · {tr(typeLabel)}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => (ev.onClick ? ev.onClick(ev) : setSelectedEvent(ev))}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>{tr('Xem')}</span>
+                      </button>
+                      {ev.href && (
+                        <Link
+                          to={ev.href}
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2.5 text-xs font-semibold text-rp-brand-strong"
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          <span>{tr(ev.hrefLabel || 'Mở lớp')}</span>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table */}
+            <table className="hidden w-full border-collapse text-left text-[13px] md:table">
+              <thead className="sticky top-0 z-10 border-b border-rp-line bg-rp-table-head text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
                 <tr>
                   <th className="px-4 py-2.5">{tr('Ngày')}</th>
-                  <th className="px-4 py-2.5">{tr('Giờ dạy')}</th>
+                  <th className="px-4 py-2.5">{tr(audience === 'learner' ? 'Giờ học' : 'Giờ dạy')}</th>
                   <th className="px-4 py-2.5">{tr('Loại lịch')}</th>
                   <th className="px-4 py-2.5">{tr('Trạng thái')}</th>
                   <th className="px-4 py-2.5 text-right">{tr('Thao tác')}</th>
@@ -816,8 +862,10 @@ export default function SakuraCalendar({
               <tbody className="divide-y divide-rp-line/70">
                 {agendaGroups.flatMap((group) => group.items.map((ev) => ({ group, ev }))).map(({ group, ev }) => {
                   const meta = getToneMeta(ev.tone);
-                  const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort;
-                  const typeLabel = isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký';
+                  const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort || ev.eventType === 'session' || ev.eventType === 'live';
+                  const typeLabel = audience === 'learner'
+                    ? (ev.eventType === 'homework' ? 'Bài tập' : ev.eventType === 'srs' ? 'Ôn tập SRS' : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
+                    : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
                   const typeBadgeClass = isCohort
                     ? 'border-[#F2CCD7] bg-[#FFF5F7] text-[#9E3350]'
                     : 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]';

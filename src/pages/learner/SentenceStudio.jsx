@@ -1,35 +1,82 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { describeApiError } from '@/api/apiErrors.js';
+import { History } from 'lucide-react';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  Field,
+  Input,
+  PageContainer,
+  PageHeader,
+  useUnsavedGuard,
+} from '@/components/ui';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
+import { getCertificateTypes, getLevelsByCertificate } from '@/features/learning-path/api/certificateApi.js';
+import { getPracticeLevelId } from '@/features/practice/api/practiceGradingApi.js';
+import { submitPracticeWriting } from '@/features/practice/api/practiceSubmissionApi.js';
+import RomajiJapaneseInput from '@/features/writing/components/RomajiJapaneseInput.jsx';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
-import { submitPracticeWriting } from '@/features/practice/api/practiceSubmissionApi.js';
-import { notify } from '@/components/ui/feedbackStore.js';
 
-const LEVELS = [
-  { id: 1, name: 'N5' },
-  { id: 2, name: 'N4' },
-  { id: 3, name: 'N3' },
-  { id: 4, name: 'N2' },
-];
-
-const focus =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
+const JLPT_ORDER = ['N5', 'N4', 'N3', 'N2', 'N1'];
 
 export default function SentenceStudio() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [levelId, setLevelId] = useState(3);
+  const queryClient = useQueryClient();
+
+  const [selectedCode, setSelectedCode] = useState('N3');
   const [topic, setTopic] = useState('');
   const [text, setText] = useState('');
+  const [speechBusy, setSpeechBusy] = useState(false);
+
+  const studyAccess = useStudyAccess();
+  const subscription = studyAccess.data;
+  const writingQuota = subscription
+    ? (Number(subscription.writingUsesRemaining ?? 0) + Number(subscription.aiGradingUsesRemaining ?? 0))
+    : null;
+
+  const levelsQuery = useQuery({
+    queryKey: ['jlpt-certificate-levels'],
+    queryFn: async () => {
+      const types = await getCertificateTypes();
+      const jlpt = (Array.isArray(types) ? types : []).find(
+        (type) => type.name?.trim().toUpperCase() === 'JLPT',
+      );
+      const raw = jlpt ? await getLevelsByCertificate(jlpt.id) : [];
+      return Array.isArray(raw) ? raw : [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const levelOptions = useMemo(() => {
+    const map = new Map();
+    for (const item of levelsQuery.data ?? []) {
+      const code = item?.code?.trim().toUpperCase();
+      if (code) map.set(code, item.id);
+    }
+    return JLPT_ORDER.map((code) => ({
+      code,
+      id: map.get(code) ?? null,
+    }));
+  }, [levelsQuery.data]);
+
+  const selectedLevel = levelOptions.find((item) => item.code === selectedCode) ?? levelOptions[2];
 
   const submit = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       notify.loading(tr('Đang gửi bài luyện viết…'), '', { key: 'sentence-submit', maxWaitMs: 30000 });
+      const resolvedId = selectedLevel?.id ?? (await getPracticeLevelId(selectedCode));
       return submitPracticeWriting({
         textContent: text.trim(),
-        certificateLevelId: levelId,
+        certificateLevelId: resolvedId,
         topic: topic.trim(),
       });
     },
@@ -41,79 +88,155 @@ export default function SentenceStudio() {
       navigate(`/ai-scoring/?submissionId=${data.submissionId}`);
     },
     onError: (err) => notify.apiError(err, tr('Không gửi được bài viết'), { key: 'sentence-submit', replace: true }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['study-subscription'] });
+    },
   });
+
+  useUnsavedGuard(Boolean(text.trim() || topic.trim()) && !submit.isPending && !submit.isSuccess);
+
+  const isQuotaError = Boolean(
+    submit.isError &&
+      (submit.error?.status === 403 ||
+        ['AI_CREDIT_REQUIRED', 'WRITING_PACKAGE_REQUIRED', 'SELF_STUDY_PACKAGE_REQUIRED'].includes(
+          submit.error?.data?.errorCode || submit.error?.errorCode,
+        )),
+  );
 
   return (
     <LearnerShell pathname="/sentence-studio" breadcrumb={tr('Chấm bài viết')}>
-      <main className="rp-container rp-cq rp-cq-two-col py-[var(--rp-space-page-y)] text-rp-text">
-        <section className="rounded-2xl border border-rp-line bg-white px-5 py-5 sm:px-6">
-          <p className="text-[11px] font-medium tracking-[0.14em] text-rp-brand-strong">{tr('LUYỆN VIẾT')}</p>
-          <h1 className="mt-1 text-[26px] font-semibold tracking-tight">{tr('Viết rồi nhận nhận xét')}</h1>
-          <p className="mt-2 text-[13px] leading-6 text-rp-text-muted">
-            {tr('Bài được lưu và chấm theo cấp độ bạn chọn. Việc chấm có thể mất vài giây.')}
-          </p>
+      <PageContainer width="default">
+        <PageHeader
+          eyebrow={tr('LUYỆN VIẾT')}
+          title={tr('Viết câu & nhận nhận xét')}
+          description={tr('Chọn cấp độ JLPT N5–N1, nhập đoạn văn tiếng Nhật để lưu bài và chấm gợi ý bằng AI.')}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {writingQuota !== null && (
+                <Badge tone={writingQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                  {trf('Lượt AI viết: {0}', { 0: writingQuota })}
+                </Badge>
+              )}
+              <Button as={Link} to="/ai-scoring/" variant="secondary" size="sm" icon={History}>
+                {tr('Xem các bài đã nộp')}
+              </Button>
+            </div>
+          }
+        />
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {LEVELS.map((level) => (
-              <button
-                key={level.id}
-                type="button"
-                aria-pressed={levelId === level.id}
-                onClick={() => setLevelId(level.id)}
-                className={`h-9 rounded-lg border px-3 text-[13px] ${focus} ${
-                  levelId === level.id
-                    ? 'border-rp-brand-strong bg-rp-brand-tint text-rp-brand-strong'
-                    : 'border-rp-line text-rp-text-2'
-                }`}
+        {writingQuota === 0 && (
+          <Banner
+            tone="warning"
+            className="mb-4"
+            actions={
+              <Link
+                to="/plans/"
+                state={{ from: { pathname }, requiredFeatureLabel: tr('Chấm bài viết AI') }}
+                className="rp-link text-xs font-semibold"
               >
-                {level.name}
-              </button>
-            ))}
-          </div>
-
-          <label className="mt-4 block text-[12px] text-rp-text-muted">
-            {tr('Đề bài')}
-            <input
-              value={topic}
-              onChange={(event) => setTopic(event.target.value)}
-              placeholder={tr('Ví dụ: kể một ngày nghỉ')}
-              className="mt-1 h-10 w-full rounded-xl border border-rp-line px-3 text-[13px] text-rp-text outline-none focus:border-rp-brand-strong"
-            />
-          </label>
-
-          <label className="mt-4 block text-[12px] text-rp-text-muted">
-            {tr('Bài viết tiếng Nhật')}
-            <textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              rows={10}
-              className="mt-1 w-full rounded-xl border border-rp-line px-3 py-3 text-[15px] leading-7 text-rp-text outline-none focus:border-rp-brand-strong"
-              style={{ fontFamily: '"Yu Gothic", "Yu Gothic UI", "Segoe UI", sans-serif' }}
-            />
-          </label>
-
-          {submit.isError && <p role="alert" className="mt-3 text-[13px] text-rp-brand-strong">{tr(submit.error.message)}</p>}
-
-          <button
-            type="button"
-            disabled={submit.isPending || text.trim().length < 8}
-            onClick={() => submit.mutate()}
-            className={`mt-4 h-10 rounded-xl bg-rp-brand-strong px-4 text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-50 ${focus}`}
+                {tr('Xem gói & lượt AI')}
+              </Link>
+            }
           >
-            {submit.isPending ? tr('Đang chấm…') : tr('Nộp bài')}
-          </button>
-        </section>
+            {tr('Bạn đã hết lượt chấm viết AI. Hãy nạp thêm lượt để nhận phân tích chi tiết cho bài nộp mới.')}
+          </Banner>
+        )}
 
-        <aside className="rounded-2xl border border-rp-line bg-rp-brand-tint px-5 py-5">
-          <h2 className="text-[15px] font-semibold">{tr('Sau khi nộp')}</h2>
-          <p className="mt-2 text-[13px] leading-6 text-rp-text-muted">
-            {tr('Điểm, điểm mạnh, chỗ cần sửa và câu gợi ý hiện ở trang kết quả.')}
-          </p>
-          <Link to="/ai-scoring/" className={`mt-4 inline-flex h-9 items-center text-[13px] font-medium text-rp-brand-strong ${focus}`}>
-            {tr('Xem các bài đã nộp')}
-          </Link>
-        </aside>
-      </main>
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <Card className="space-y-4">
+            <div>
+              <span className="mb-2 block text-xs font-semibold text-rp-text-muted">
+                {tr('Cấp độ mục tiêu')}
+              </span>
+              <div className="flex flex-wrap gap-2" role="group" aria-label={tr('Chọn cấp độ JLPT')}>
+                {levelOptions.map((level) => {
+                  const active = selectedCode === level.code;
+                  return (
+                    <button
+                      key={level.code}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setSelectedCode(level.code)}
+                      className={`rp-focus h-9 rounded-lg border px-3.5 text-sm font-semibold transition-colors ${
+                        active
+                          ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong'
+                          : 'border-rp-line bg-rp-surface text-rp-text-2 hover:bg-rp-brand-tint/50'
+                      }`}
+                    >
+                      {level.code}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Field label={tr('Đề bài (tuỳ chọn)')}>
+              <Input
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                placeholder={tr('Ví dụ: Kể về một ngày cuối tuần đáng nhớ')}
+                disabled={submit.isPending}
+              />
+            </Field>
+
+            <RomajiJapaneseInput
+              value={text}
+              onChange={setText}
+              disabled={submit.isPending}
+              onSpeechBusyChange={setSpeechBusy}
+            />
+
+            {submit.isError && (
+              <Banner
+                tone="danger"
+                actions={
+                  isQuotaError ? (
+                    <Link
+                      to="/plans/"
+                      state={{ from: { pathname }, requiredFeatureLabel: tr('Chấm bài viết AI') }}
+                      className="rp-link text-xs font-semibold"
+                    >
+                      {tr('Xem gói & lượt AI')}
+                    </Link>
+                  ) : null
+                }
+              >
+                {describeApiError(submit.error, tr('Không gửi được bài viết.'))}
+              </Banner>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
+              <p className="text-xs text-rp-text-muted">
+                {tr('Nhập tối thiểu 8 ký tự để hệ thống có đủ ngữ cảnh nhận xét.')}
+              </p>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={submit.isPending || speechBusy || text.trim().length < 8}
+                loading={submit.isPending}
+                onClick={() => submit.mutate()}
+              >
+                {submit.isPending ? tr('Đang chấm…') : tr('Nộp bài')}
+              </Button>
+            </div>
+          </Card>
+
+          <Card tone="muted" className="space-y-3">
+            <h2 className="text-sm font-semibold text-rp-text">{tr('Sau khi nộp')}</h2>
+            <p className="text-xs leading-6 text-rp-text-muted">
+              {tr('Bài viết được lưu vào lịch sử kèm điểm tổng quan, điểm mạnh, lỗi cần chỉnh và gợi ý câu tự nhiên hơn.')}
+            </p>
+            <div className="flex flex-col gap-2 border-t border-rp-line pt-3">
+              <Link to="/ai-scoring/" className="rp-link text-xs font-semibold">
+                {tr('Mở danh sách bài đã nộp →')}
+              </Link>
+              <Link to="/riki/essay/" className="rp-link text-xs font-semibold">
+                {tr('Chuyển sang luyện viết & quét ảnh →')}
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BookMarked, Check, FolderPlus, Repeat, Sparkles, X } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
-import { notify } from '@/components/ui/feedbackStore.js';
+import { CustomSelect, notify } from '@/components/ui';
 import {
   DEFAULT_FOLDER_NAME,
   groupNotePagesByFolder,
@@ -9,13 +9,13 @@ import {
   NOTEBOOK_CONTENT_KINDS,
   suggestKindForSelection,
 } from '@/features/notebook/utils/notebookModel.js';
-import { useOptionalSmartNotebook } from '@/features/notebook/context/SmartNotebookContext.jsx';
+import { useOptionalSmartNotebook } from '@/features/notebook/context/smartNotebookState.js';
 
 export default function NotebookQuickSavePopover({ request, onClose }) {
   const { tr } = useLocale();
   const nb = useOptionalSmartNotebook();
 
-  const notePages = nb?.notePages || [];
+  const notePages = useMemo(() => nb?.notePages || [], [nb?.notePages]);
   const folders = useMemo(() => groupNotePagesByFolder(notePages), [notePages]);
 
   const initialKind = request?.kind || suggestKindForSelection(request?.selectedText || '', request?.contextHint || '');
@@ -232,36 +232,33 @@ export default function NotebookQuickSavePopover({ request, onClose }) {
                 className="h-9 w-full rounded-xl border border-rp-line bg-white px-3 text-[13px]"
               />
             ) : (
-              <select
+              <CustomSelect
+                size="sm"
                 value={selectedFolder}
-                onChange={(e) => {
-                  const nextF = e.target.value;
+                onChange={(nextF) => {
                   setSelectedFolder(nextF);
                   const first = folders.find((f) => f.name === nextF)?.pages?.[0];
                   setTargetNoteId(first?.id ? String(first.id) : '__new__');
                 }}
-                className="h-9 w-full rounded-xl border border-rp-line bg-white px-2.5 text-[13px]"
-              >
-                {folders.map((f) => (
-                  <option key={f.name} value={f.name}>
-                    {tr(f.name)} ({f.pages.length} {tr('trang')})
-                  </option>
-                ))}
-              </select>
+                options={folders.map((f) => ({
+                  value: f.name,
+                  label: `${tr(f.name)} (${f.pages.length} ${tr('trang')})`,
+                }))}
+              />
             )}
 
-            <select
+            <CustomSelect
+              size="sm"
               value={isCreatingNewPage ? '__new__' : targetNoteId}
-              onChange={(e) => setTargetNoteId(e.target.value)}
-              className="h-9 w-full rounded-xl border border-rp-line bg-white px-2.5 text-[13px]"
-            >
-              {!creatingFolder && pagesInFolder.map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.title} ({p.entryCount})
-                </option>
-              ))}
-              <option value="__new__">{tr('+ Tạo trang ghi chú mới')}</option>
-            </select>
+              onChange={(val) => setTargetNoteId(val)}
+              options={[
+                ...(!creatingFolder ? pagesInFolder.map((p) => ({
+                  value: String(p.id),
+                  label: `${p.title} (${p.entryCount})`,
+                })) : []),
+                { value: '__new__', label: tr('+ Tạo trang ghi chú mới') },
+              ]}
+            />
 
             {isCreatingNewPage && (
               <input

@@ -27,7 +27,6 @@ import {
   PageHeader,
   RefreshingIndicator,
   SakuraLoader,
-  Select,
   StaleDataBar,
   Textarea,
 } from '@/components/ui';
@@ -128,7 +127,7 @@ export default function AdminCertificateSections() {
     },
   });
 
-  const allRows = Array.isArray(sections.data) ? sections.data : [];
+  const allRows = useMemo(() => Array.isArray(sections.data) ? sections.data : [], [sections.data]);
 
   const levelOptions = useMemo(() => {
     const map = new Map();
@@ -144,7 +143,7 @@ export default function AdminCertificateSections() {
       }
     });
     return [...map.entries()].map(([id, code]) => ({ id, code }));
-  }, [allRows, catalog.data?.levels, trf]);
+  }, [allRows, catalog.data, trf]);
 
   const filterLevelOptions = useMemo(
     () =>

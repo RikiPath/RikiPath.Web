@@ -278,7 +278,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
       syncPeersState();
       return peerEntry;
     },
-    [invokeHub, syncPeersState]
+    [invokeHub, syncPeersState, trf]
   );
 
   const flushIce = async (peerEntry) => {
@@ -589,7 +589,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         hub.stop().catch(() => { });
       }
     };
-  }, [roomId, invalidRoom, createPeerConnection, syncPeersState, invokeHub, broadcastMedia]);
+  }, [roomId, invalidRoom, createPeerConnection, syncPeersState, invokeHub, broadcastMedia, trf]);
 
   const toggleMic = useCallback(() => {
     const stream = localStreamRef.current;
@@ -700,7 +700,7 @@ export function useWebRtcMeeting(roomId, currentUser = {}) {
         setError(trf('Không thể chia sẻ màn hình: {0}', { 0: err.message }));
       }
     }
-  }, [broadcastMedia, stopScreenSharing, invokeHub, renegotiatePeer]);
+  }, [broadcastMedia, stopScreenSharing, invokeHub, renegotiatePeer, trf]);
 
   const toggleHandRaise = useCallback(() => {
     const next = !isHandRaised;

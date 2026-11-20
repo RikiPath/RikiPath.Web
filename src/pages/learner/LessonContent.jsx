@@ -11,17 +11,14 @@ import {
   startAssessmentRoadmapPractice, submitAssessmentRoadmapPractice,
 } from '@/features/learning-path/api/learningPathApi.js';
 import { notify } from '@/components/ui/feedbackStore.js';
-import { SakuraLoader } from '@/components/ui';
+import { Badge, Banner, Button, SakuraLoader } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 
 function LessonLoadError({ message, retry }) {
   const { tr } = useLocale();
-  return <div role="alert" className="rounded-xl border border-rose-200 bg-white p-4 text-sm">
-    <p>{tr(message)}</p>
-    <button type="button" onClick={retry} className="mt-2 font-semibold text-primary underline">
-      {tr('Thử lại')}
-    </button>
-  </div>;
+  return <Banner tone="danger" actions={<Button variant="secondary" size="sm" onClick={retry}>{tr('Thử lại')}</Button>}>
+    {tr(message)}
+  </Banner>;
 }
 
 function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fromAssessmentRoadmap }) {
@@ -84,12 +81,13 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
     : availableExercises;
   const error = mark.error || start.error || submit.error || exercises.error;
   const busy = mark.isPending || start.isPending || submit.isPending;
-  const button = 'rounded-lg border border-card-border px-3 py-2 font-semibold text-primary disabled:opacity-50';
 
-  return <section className="mt-5 space-y-3 border-t border-card-border pt-4 text-sm">
-    {!studied && <button type="button" className={button} disabled={busy} onClick={() => mark.mutate()}>
-      {mark.isPending ? tr('Đang lưu…') : tr('Đã học xong')}
-    </button>}
+  return <section className="mt-5 space-y-3 border-t border-rp-line pt-4 text-sm">
+    {!studied && (
+      <Button variant="primary" size="sm" loading={mark.isPending} disabled={busy} onClick={() => mark.mutate()}>
+        {tr('Đã học xong')}
+      </Button>
+    )}
     {studied && !lesson.hasPracticeExercise && <p>
       {fromAssessmentRoadmap
         ? tr('Bài này chưa có bài luyện tập hợp lệ. Bài kế tiếp sẽ mở khi bạn đạt bài luyện tập.')
@@ -105,35 +103,37 @@ function LessonPractice({ lesson, studied, skill, userId, onStudied, refresh, fr
       const isRetry = exercise.passed || result?.practiceExerciseId === exercise.practiceExerciseId;
       const label = isRetry ? 'Làm lại bài luyện tập' : 'Bắt đầu làm bài';
       return <div key={exercise.practiceExerciseId}
-        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-card-border p-3">
+        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-surface p-3">
         <div>
-          <p className="font-semibold">{tr(exercise.title)}</p>
+          <p className="font-semibold text-rp-text">{tr(exercise.title)}</p>
           <p className="mt-1 text-xs text-rp-text-2">
-            {exercise.passed ? tr('Đã đạt') : 'Điểm đạt ' + exercise.minimumPassingScorePercent + '%'}
+            {exercise.passed ? <Badge tone="success" size="sm">{tr('Đã đạt')}</Badge> : `${tr('Điểm đạt')} ${exercise.minimumPassingScorePercent}%`}
           </p>
         </div>
-        <button type="button" className={button} disabled={busy}
-          aria-label={label + ' – ' + exercise.title}
+        <Button variant="soft" size="sm" disabled={busy}
+          aria-label={`${label} – ${exercise.title}`}
           onClick={() => start.mutate(exercise.practiceExerciseId)}>
           {tr(label)}
-        </button>
+        </Button>
       </div>;
     })}
     {attempt && <div className="space-y-3">
-      <h4 className="font-semibold">{attempt.exerciseTitle}</h4>
-      <PracticeQuestionFields name={'catalog-practice-' + attempt.attemptId} questions={attempt.questions}
+      <h4 className="font-semibold text-rp-text">{attempt.exerciseTitle}</h4>
+      <PracticeQuestionFields name={`catalog-practice-${attempt.attemptId}`} questions={attempt.questions}
         answers={answers} disabled={busy}
         onAnswer={(questionId, optionId) => setAnswers(previous => ({ ...previous, [questionId]: optionId }))} />
-      <button type="button" className={button} onClick={() => submit.mutate()}
+      <Button variant="primary" size="sm" loading={submit.isPending} onClick={() => submit.mutate()}
         disabled={busy || attempt.questions.some(question => !answers[question.questionId])}>
-        {submit.isPending ? tr('Đang chấm…') : tr('Nộp bài luyện tập')}
-      </button>
+        {tr('Nộp bài luyện tập')}
+      </Button>
     </div>}
-    {result && <p role="status">{result.scorePercent}% · {result.correctCount}/{result.totalQuestions}{' '}{tr('câu đúng ·')}{' '}{result.passed
-      ? tr('Đã đạt bài luyện tập.')
-      : tr('Chưa đạt. Bạn có thể làm lại.')}</p>}
-    {error && <p role="alert" className="text-rose-700">{tr(error.message)}</p>}
-    {exercises.isError && <button type="button" className={button} onClick={() => exercises.refetch()}>{tr('Tải lại bài luyện tập')}</button>}
+    {result && <Banner tone={result.passed ? 'success' : 'warning'} role="status">
+      {result.scorePercent}% · {result.correctCount}/{result.totalQuestions} {tr('câu đúng ·')} {result.passed
+        ? tr('Đã đạt bài luyện tập.')
+        : tr('Chưa đạt. Bạn có thể làm lại.')}
+    </Banner>}
+    {error && <Banner tone="danger">{tr(error.message)}</Banner>}
+    {exercises.isError && <Button variant="secondary" size="sm" onClick={() => exercises.refetch()}>{tr('Tải lại bài luyện tập')}</Button>}
   </section>;
 }
 

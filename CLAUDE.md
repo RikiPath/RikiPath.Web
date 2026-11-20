@@ -7,7 +7,7 @@ Follow the standards in `docs/standards/` (single source; do not restate them el
 - `UI_DESIGN_SYSTEM.md` — tokens, Sakura surfaces per role, shared primitives, and UI Sizing, Spacing & Density Standards.
 - `INTERACTION_AND_MOTION.md` — durations, transform/opacity only, reduced motion, no needless WebGL.
 - `WORKSPACE_ARCHITECTURE.md` — multi-role workspace navigation, sidebar hierarchy, and route contracts.
-- `WORKSPACE_LAYOUT_AND_INTERACTION_STANDARDS.md` — mandatory 12 rules for compact workspaces, one-primary-view-at-a-time (`Lịch | Danh sách`), modal/drawer/popover selection, multi-select calendar UX, and user-first terminology.
+- `WORKSPACE_LAYOUT_AND_INTERACTION_STANDARDS.md` — mandatory 12 rules for compact workspaces, one-primary-view-at-a-time (`Lịch | Danh sách`), modal/drawer/popover selection, multi-select calendar UX, user-first terminology, and the **Complete Workspace UX Review Standard**.
 - `AUTHENTICATION_FLOW.md` — Login, registration OTP, recovery, Google identity, and anti-abuse boundaries.
 
 Every new screen ships with Vietnamese + Japanese text (no hard-coded strings), uses shared components and

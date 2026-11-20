@@ -25,6 +25,7 @@ import {
   Banner,
   Button,
   Checkbox,
+  CustomSelect,
   Input,
   SakuraLoader,
   cx,
@@ -393,21 +394,18 @@ export function Step2LevelPanel({
                   <label htmlFor="held-jlpt-cert-select" className="block text-[12px] font-semibold text-rp-text-2">
                     {tr('Bạn đã có chứng chỉ nào? Chọn cấp cao nhất.')}
                   </label>
-                  <select
+                  <CustomSelect
                     id="held-jlpt-cert-select"
                     value={heldCode}
                     disabled={busy}
-                    aria-invalid={needsCertificateChoice || undefined}
-                    onChange={(event) => onSelectHeldCode(event.target.value)}
-                    className="w-full rounded-xl border border-rp-line bg-white px-3 py-2 text-sm text-rp-text"
-                  >
-                    <option value="">{tr('Chọn chứng chỉ')}</option>
-                    {heldOptions.map((code) => (
-                      <option key={code} value={code}>
-                        JLPT {code}
-                      </option>
-                    ))}
-                  </select>
+                    invalid={needsCertificateChoice}
+                    onChange={(val) => onSelectHeldCode(val)}
+                    placeholder={tr('Chọn chứng chỉ')}
+                    options={[
+                      { value: '', label: tr('Chọn chứng chỉ') },
+                      ...heldOptions.map((code) => ({ value: code, label: `JLPT ${code}` })),
+                    ]}
+                  />
                   {needsCertificateChoice && (
                     <p className="text-[12px] font-medium text-rp-danger" role="alert">
                       {tr('Vui lòng chọn chứng chỉ JLPT cao nhất bạn đã có.')}
@@ -740,7 +738,7 @@ export function Step3StudyPlanPanel({
           </div>
 
           <p className="text-[12px] leading-5 text-rp-text-muted">
-            {tr('Tự nhập khoảng thời gian từ 15 đến 480 phút. AI dùng mức tối thiểu cho nội dung cốt lõi và phần còn lại cho ôn luyện tùy chọn.')}
+            {tr('Tự nhập khoảng thời gian từ 15 đến 480 phút. Hệ thống dùng mức tối thiểu cho nội dung cốt lõi và phần còn lại cho ôn luyện tùy chọn.')}
           </p>
         </div>
       )}
@@ -809,7 +807,7 @@ export function Step4ExamSchedulePanel({
       )}
 
       <div className="rounded-xl border border-rp-line bg-white px-3.5 py-2.5 text-[12px] leading-5 text-rp-text-muted">
-        {tr('Ngày thi và thời gian học được lưu để AI lập đề xuất lộ trình tiếp theo. Lộ trình hiện tại chưa tự động thay đổi.')}
+        {tr('Ngày thi và thời gian học được lưu để hệ thống đề xuất lộ trình học tiếp theo. Lộ trình hiện tại chưa tự động thay đổi.')}
       </div>
     </div>
   );

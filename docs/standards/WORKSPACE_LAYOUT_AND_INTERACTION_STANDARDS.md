@@ -144,3 +144,17 @@ Mọi cải tiến về bố cục và thao tác phải bảo toàn 100% quy t�
 12. **Universal Account & Settings Workspace Standards (All Roles)**:
    - **Không chuyển hướng thô ra ngoài AppShell cho thao tác tài khoản thường nhật**: Người dùng ở mọi vai trò mở `/profile` (hoặc menu Avatar ở góc trên bên phải) để chỉnh hồ sơ, tải/xóa avatar, bật/tắt thông báo, đổi ngôn ngữ, đổi mật khẩu hoặc đổi email ngay trong shell làm việc của mình; không trùng lặp `DisplayName` và không dùng `LEVEL_BY_ID` cứng.
    - **An toàn phiên & xác nhận thay đổi chưa lưu**: Khi rời form đang sửa hồ sơ phải hỏi qua `AlertDialog`; sau khi đổi/tạo mật khẩu hoặc hoàn tất xác thực `PendingEmail` phải đăng xuất có thông báo để buộc đăng nhập lại bằng phiên mới (`TokenVersion`).
+
+---
+
+## 4. Complete Workspace UX Review Standard (Mandatory for All Future UI Tasks)
+
+Mọi task xây dựng hoặc nâng cấp giao diện trong `RikiPath.Web` (Learner, Giáo viên, Content Author, Admin) phải tuân thủ đầy đủ quy chuẩn rà soát toàn diện:
+
+1. **Rà soát trọn vẹn mọi màn hình & chi tiết lồng nhau**: Kiểm tra toàn bộ route công khai/ẩn, nested detail, tabs, modal, drawer và popover thuộc phạm vi tính năng trước khi chỉnh sửa; không sửa rời rạc vài trang mẫu.
+2. **Dùng Shared UI Primitives (`@/components/ui`)**: Mọi control (`Button`, `Input`, `SearchInput`, `Textarea`, `CustomSelect`/`Select`, `StatusDotListbox`, `DateRangePicker`, `FilterPopover`, `SegmentedControl`, `Tabs`, `DataTable`, `Pagination`, `Modal`, `Drawer`, `AlertDialog`, `Badge`, `Banner`, `ContextualEmptyState`/`ContextualErrorState`/`QueryState`) dùng thống nhất Design System; không dùng `<select>` thô hay dựng lại component trùng lặp.
+3. **Không nhồi nhét & không trùng lặp luồng**: Đưa tác vụ tạo/sửa/xem chi tiết/xác nhận vào `Modal`/`Drawer`/`Tabs`/`Popover` theo Rule 05; không xếp inline form dài dưới bảng/lịch hoặc kéo dài trang với nội dung hướng dẫn thừa.
+4. **Ngôn ngữ tự nhiên VI/JA, không jargon**: Không đưa thuật ngữ kỹ thuật (`API`, `backend`, `OCR`, `policy`, `sync`, `snap`, `#id` nội bộ) hay tên vai trò nội bộ `Mentor` vào giao diện người dùng (dùng `Giáo viên`); mọi nhãn/thông báo qua `tr()`/`trf()` và `fmt` với múi giờ `Asia/Ho_Chi_Minh`.
+5. **Trung thực mọi trạng thái & dữ liệu thật**: Phân biệt rõ đang tải, rỗng, không khớp lọc, hết lượt/chưa mở khóa, không đủ quyền và lỗi máy chủ; tuyệt đối không hard-code giá, chính sách, tiến độ giả, hoặc tự suy diễn trạng thái hoàn thành từ đồng hồ cục bộ.
+6. **Responsive & Quyền hạn**: Xác minh hiển thị sạch trên Desktop (`1920`, `1440`, `1366`), Tablet (`1024`, `768`) và Mobile (`390`, `375`) không tràn ngang; bảo toàn nguyên vẹn kiểm soát quyền ở cả Frontend và Backend.
+7. **Chỉ báo cáo hoàn tất sau xác minh thực tế**: Kiểm tra từng màn hình, modal, bộ lọc, validation, locale VI/JA và console trình duyệt trước khi tổng kết.
