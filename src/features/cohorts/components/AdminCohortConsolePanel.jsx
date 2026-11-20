@@ -1,5 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  CheckCircle2,
+  KeyRound,
+  Pencil,
+  Plus,
+  Search,
+  ShieldAlert,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
+  AlertDialog,
+  Badge,
+  Banner,
+  Button,
+  Card,
+  Checkbox,
+  ContextualEmptyState,
+  ContextualErrorState,
+  CustomSelect,
+  DataTable,
+  Drawer,
+  Field,
+  Input,
+  Modal,
+  SakuraLoader,
+} from '@/components/ui';
+import {
   getCohortEntitlements,
   grantCohortEntitlement,
   previewCohortSchedule,
@@ -7,23 +34,35 @@ import {
   saveCohort,
 } from '@/features/cohorts/api/cohortApi';
 import { describeApiError } from '@/api/apiErrors';
-import { ContextualEmptyState, ContextualErrorState, SakuraLoader } from '@/components/ui';
 import ScheduleConflictList from '@/features/scheduling/components/ScheduleConflictList';
 import { formatVnDateTime, formatVnSlotWindow, parseUtcDate } from '@/utils/vnDateTime.js';
-import { useLocale, translateTemplate } from '@/locales/locale.js';
+import { translateTemplate, useLocale } from '@/locales/locale.js';
 
 const PREVIEW_DEBOUNCE_MS = 400;
-const ENTITLEMENT_STATUS_LABELS = Object.freeze({
-  Active: 'Đang hiệu lực',
-  Consumed: 'Đã sử dụng',
-  Revoked: 'Đã thu hồi',
-  Expired: 'Hết hạn',
+
+const ENTITLEMENT_STATUS_META = Object.freeze({
+  Active: { label: 'Đang hiệu lực', tone: 'success' },
+  Consumed: { label: 'Đã sử dụng', tone: 'warning' },
+  Revoked: { label: 'Đã thu hồi', tone: 'danger' },
+  Expired: { label: 'Hết hạn', tone: 'neutral' },
 });
+
 const ENTITLEMENT_SOURCE_LABELS = Object.freeze({
   AdminManualGrant: 'Admin cấp quyền trực tiếp',
   OfficialJlptSupport: 'Hỗ trợ sau JLPT',
-  PlacementTopScore: 'Đặc cách Placement',
+  PlacementTopScore: 'Đặc cách xếp lớp',
+  ScholarshipGrant: 'Học bổng / Tài trợ nhóm',
+  RemediationApproved: 'Quyền ôn lại JLPT đã duyệt',
+  PartnerSponsor: 'Đối tác tài trợ',
 });
+
+const SOURCE_TYPES = [
+  { value: 'AdminManualGrant', label: 'Admin cấp quyền trực tiếp' },
+  { value: 'ScholarshipGrant', label: 'Học bổng / Tài trợ nhóm' },
+  { value: 'RemediationApproved', label: 'Quyền ôn lại JLPT đã duyệt' },
+  { value: 'PartnerSponsor', label: 'Đối tác tài trợ' },
+];
+
 const planLabel = (p) =>
   [
     p.name,
@@ -32,39 +71,39 @@ const planLabel = (p) =>
     p.sessionsPerWeek ? translateTemplate('{0} buổi/tuần', { 0: p.sessionsPerWeek }) : null,
     translateTemplate('{0} buổi', { 0: p.totalSessions ?? '?' }),
     p.totalTeachingHours != null ? translateTemplate('{0} giờ', { 0: p.totalTeachingHours }) : null,
-    `max ${p.capacity}`,
+    `tối đa ${p.capacity}`,
   ]
     .filter(Boolean)
     .join(' · ');
 
 const fmtDate = (v) => (v ? formatVnDateTime(v, '—') : '—');
-const SOURCE_TYPES = [
-  { value: 'AdminManualGrant', label: 'Admin cấp quyền trực tiếp' },
-  { value: 'ScholarshipGrant', label: 'Học bổng / Tài trợ nhóm' },
-  { value: 'RemediationApproved', label: 'Quyền ôn lại JLPT đã duyệt' },
-  { value: 'PartnerSponsor', label: 'Đối tác tài trợ' },
-];
 
 export default function AdminCohortConsolePanel({
   plans = [],
   cohorts = [],
   mentors = [],
   adminSlots = [],
+  groupPolicy = null,
   busy = false,
   onRun,
 }) {
   const { tr, trf } = useLocale();
   const groupPlans = useMemo(() => plans.filter((p) => p.sessionType === 'Group'), [plans]);
-  const [editingCohort, setEditingCohort] = useState(null);
+  const defaultPolicyCap = Number(groupPolicy?.maxLearners) || 4;
+
   const [cohortSearch, setCohortSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [cohortModalOpen, setCohortModalOpen] = useState(false);
+  const [editingCohort, setEditingCohort] = useState(null);
   const [planId, setPlanId] = useState('');
   const [name, setName] = useState('');
   const [mentorId, setMentorId] = useState('');
-  const [capacity, setCapacity] = useState(4);
+  const [capacity, setCapacity] = useState(defaultPolicyCap);
   const [publish, setPublish] = useState(true);
   const [pickedSlots, setPickedSlots] = useState([]);
+  const [formErrors, setFormErrors] = useState({});
 
-  const [selectedCohortId, setSelectedCohortId] = useState('');
+  const [entitlementCohort, setEntitlementCohort] = useState(null);
   const [entitlements, setEntitlements] = useState([]);
   const [entitlementsLoading, setEntitlementsLoading] = useState(false);
   const [entitlementsError, setEntitlementsError] = useState(null);
@@ -72,6 +111,7 @@ export default function AdminCohortConsolePanel({
   const [learnerId, setLearnerId] = useState('');
   const [sourceType, setSourceType] = useState('AdminManualGrant');
   const [note, setNote] = useState('');
+  const [revokeTarget, setRevokeTarget] = useState(null);
 
   const availableMentorSlots = useMemo(() => {
     const selectedPlan = groupPlans.find((p) => String(p.id) === String(planId));
@@ -95,36 +135,44 @@ export default function AdminCohortConsolePanel({
 
   const filteredCohorts = useMemo(() => {
     const q = cohortSearch.trim().toLowerCase();
-    if (!q) return cohorts;
-    return cohorts.filter((c) =>
-      String(c.name || '').toLowerCase().includes(q)
-      || String(c.level || '').toLowerCase().includes(q)
-      || String(c.mentorName || '').toLowerCase().includes(q),
-    );
-  }, [cohorts, cohortSearch]);
+    return cohorts.filter((c) => {
+      if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        String(c.name || '').toLowerCase().includes(q) ||
+        String(c.level || '').toLowerCase().includes(q) ||
+        String(c.mentorName || '').toLowerCase().includes(q)
+      );
+    });
+  }, [cohorts, cohortSearch, statusFilter]);
+
+  function openCreateCohort() {
+    setEditingCohort(null);
+    setPlanId('');
+    setName('');
+    setMentorId('');
+    setCapacity(defaultPolicyCap);
+    setPublish(true);
+    setPickedSlots([]);
+    setFormErrors({});
+    setCohortModalOpen(true);
+  }
 
   function startEditCohort(c) {
     setEditingCohort(c);
     setPlanId(c.planId ? String(c.planId) : '');
     setName(c.name || '');
     setMentorId(c.mentorId ? String(c.mentorId) : '');
-    setCapacity(c.capacity ?? 4);
+    setCapacity(c.capacity ?? defaultPolicyCap);
     setPublish(c.status === 'Published');
     setPickedSlots((c.sessions || []).map((s) => s.availabilityId).filter(Boolean));
+    setFormErrors({});
+    setCohortModalOpen(true);
   }
 
-  function resetCohortForm() {
-    setEditingCohort(null);
-    setPlanId('');
-    setName('');
-    setMentorId('');
-    setCapacity(4);
-    setPublish(true);
-    setPickedSlots([]);
-  }
-
+  const selectedCohortId = entitlementCohort?.id;
   useEffect(() => {
-    if (!selectedCohortId) return;
+    if (!selectedCohortId) return undefined;
     let alive = true;
     Promise.resolve()
       .then(() => {
@@ -145,8 +193,10 @@ export default function AdminCohortConsolePanel({
     };
   }, [selectedCohortId, cohorts, entitlementTick]);
 
-  // Xem trước xung đột lịch của Mentor với các khung đã chọn (debounce); máy chủ vẫn kiểm tra lại khi lưu.
-  const previewKey = mentorId && pickedSlots.length ? `${mentorId}|${editingCohort?.id || ''}|${[...pickedSlots].sort((a, b) => a - b).join(',')}` : '';
+  const previewKey =
+    cohortModalOpen && mentorId && pickedSlots.length
+      ? `${mentorId}|${editingCohort?.id || ''}|${[...pickedSlots].sort((a, b) => a - b).join(',')}`
+      : '';
   const [scheduleReport, setScheduleReport] = useState(null);
   useEffect(() => {
     if (!previewKey) return undefined;
@@ -166,31 +216,41 @@ export default function AdminCohortConsolePanel({
       clearTimeout(timer);
     };
   }, [previewKey]);
+
   const activeReport = previewKey && scheduleReport?.key === previewKey ? scheduleReport : null;
   const scheduleConflicts = activeReport?.conflicts || [];
   const hasScheduleConflict = scheduleConflicts.length > 0 || activeReport?.isValid === false;
   const checkingSchedule = Boolean(previewKey) && !activeReport;
   const selectedPlan = groupPlans.find((p) => String(p.id) === String(planId)) || null;
   const requiredSessionCount = selectedPlan?.totalSessions ? Number(selectedPlan.totalSessions) : null;
+
   const slotMaxCap = useMemo(() => {
     const pickedMax = availableMentorSlots
       .filter((s) => pickedSlots.includes(s.id) && Number(s.maxLearners) > 0)
       .map((s) => Number(s.maxLearners));
     if (pickedMax.length > 0) return Math.min(...pickedMax);
-    return Number(selectedPlan?.capacity) || 4;
-  }, [availableMentorSlots, pickedSlots, selectedPlan]);
+    return Number(selectedPlan?.capacity) || defaultPolicyCap;
+  }, [availableMentorSlots, pickedSlots, selectedPlan, defaultPolicyCap]);
+
   const sessionCountMismatch = Boolean(requiredSessionCount && pickedSlots.length !== requiredSessionCount);
   const capacityInvalid = Boolean(Number(capacity) < 1 || Number(capacity) > slotMaxCap);
-
-  const visibleEntitlements = selectedCohortId ? entitlements : [];
 
   const toggleSlot = (id) => {
     setPickedSlots((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   };
 
-  const handleSaveCohort = (e) => {
+  function handleSaveCohort(e) {
     e.preventDefault();
-    if (publish && hasScheduleConflict) return;
+    const errs = {};
+    if (!planId) errs.planId = tr('Vui lòng chọn gói học nhóm.');
+    if (!name.trim()) errs.name = tr('Vui lòng nhập tên lớp học.');
+    if (!mentorId) errs.mentorId = tr('Vui lòng chọn Giáo viên phụ trách.');
+    if (capacityInvalid) errs.capacity = trf('Sĩ số lớp phải từ 1 đến {0}.', { 0: slotMaxCap });
+    if (pickedSlots.length === 0) errs.slots = tr('Hãy chọn khung giờ học đã duyệt cho lớp.');
+    else if (sessionCountMismatch) errs.slots = trf('Cần chọn đúng {0} buổi theo cấu hình gói.', { 0: requiredSessionCount });
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0 || (publish && hasScheduleConflict)) return;
+
     onRun(async () => {
       await saveCohort({
         id: editingCohort?.id,
@@ -202,305 +262,410 @@ export default function AdminCohortConsolePanel({
         publish,
         revision: editingCohort?.revision ?? 1,
       });
-      resetCohortForm();
-    }, editingCohort ? 'Đã cập nhật thông tin lớp nhóm.' : (publish ? 'Đã lưu và công bố lớp nhóm.' : 'Đã lưu nháp lớp nhóm.'));
-  };
+      setCohortModalOpen(false);
+      setEditingCohort(null);
+    }, editingCohort ? 'Đã cập nhật thông tin lớp nhóm.' : publish ? 'Đã lưu và công bố lớp nhóm.' : 'Đã lưu nháp lớp nhóm.');
+  }
 
   const refreshSelectedEntitlements = async (cid) => {
     const rows = await getCohortEntitlements(cid);
     setEntitlements(rows);
   };
 
+  const columns = [
+    {
+      key: 'name',
+      header: tr('Tên lớp'),
+      render: (row) => <span className="font-semibold text-rp-text">{row.name}</span>,
+    },
+    {
+      key: 'level',
+      header: tr('Cấp độ'),
+      render: (row) => <Badge tone="neutral" size="sm" icon={false}>{row.level}</Badge>,
+    },
+    {
+      key: 'mentorName',
+      header: tr('Giáo viên'),
+      render: (row) => <span className="text-sm text-rp-text-2">{row.mentorName || `#${row.mentorId}`}</span>,
+    },
+    {
+      key: 'capacity',
+      header: tr('Sĩ số'),
+      render: (row) => (
+        <span className="tabular-nums text-sm font-medium text-rp-text">
+          {row.enrolledCount ?? 0}/{row.capacity}
+        </span>
+      ),
+    },
+    {
+      key: 'startsAt',
+      header: tr('Khai giảng'),
+      render: (row) => <span className="whitespace-nowrap text-xs text-rp-text-2">{fmtDate(row.startsAt)}</span>,
+    },
+    {
+      key: 'status',
+      header: tr('Trạng thái'),
+      render: (row) => (
+        <Badge tone={row.status === 'Published' ? 'success' : 'neutral'} size="sm" icon={false}>
+          {row.status === 'Published' ? tr('Đang mở') : row.status === 'Draft' ? tr('Nháp') : row.status}
+        </Badge>
+      ),
+    },
+  ];
+
+  const hasFilters = cohortSearch.trim() !== '' || statusFilter !== 'ALL';
+
   return (
-    <>
-      <section className="course-box space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2>{trf('Danh sách lớp nhóm hiện có ({0})', { 0: cohorts.length })}</h2>
-            <p className="course-meta">{tr('Xem sĩ số, trạng thái công bố và chỉnh sửa thông tin lớp hoặc quản lý quyền ghi danh.')}</p>
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="min-w-[220px] flex-1">
+            <Input
+              type="search"
+              icon={Search}
+              value={cohortSearch}
+              onChange={(e) => setCohortSearch(e.target.value)}
+              placeholder={tr('Tìm lớp theo tên, cấp độ, Giáo viên…')}
+              aria-label={tr('Tìm lớp nhóm')}
+            />
           </div>
-          <input
-            type="search"
-            value={cohortSearch}
-            onChange={(e) => setCohortSearch(e.target.value)}
-            placeholder={tr('Tìm lớp theo tên, cấp độ, Giáo viên…')}
-            className="h-9 min-w-[240px] rounded-xl border border-rp-line bg-rp-bg-2 px-3 text-xs text-rp-text focus:border-rp-brand focus:bg-white focus:outline-none"
-          />
-        </div>
-        {filteredCohorts.length === 0 ? (
-          <ContextualEmptyState compact title={tr('Chưa có lớp nhóm nào phù hợp.')} />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left' }}>
-                  <th>{tr('Tên lớp')}</th>
-                  <th>{tr('Cấp độ')}</th>
-                  <th>{tr('Giáo viên')}</th>
-                  <th>{tr('Sĩ số')}</th>
-                  <th>{tr('Khai giảng')}</th>
-                  <th>{tr('Trạng thái')}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCohorts.map((c) => (
-                  <tr key={c.id} style={{ borderTop: '1px solid #f0e3e8', background: editingCohort?.id === c.id ? '#fff8fb' : undefined }}>
-                    <td style={{ padding: '8px 6px', fontWeight: 600 }}>{c.name}</td>
-                    <td style={{ padding: '8px 6px' }}>{c.level}</td>
-                    <td style={{ padding: '8px 6px' }}>{c.mentorName || `#${c.mentorId}`}</td>
-                    <td style={{ padding: '8px 6px' }}>{c.enrolledCount ?? 0}/{c.capacity}</td>
-                    <td style={{ padding: '8px 6px' }}>{fmtDate(c.startsAt)}</td>
-                    <td style={{ padding: '8px 6px' }}>
-                      <span className={`course-badge ${c.status === 'Published' ? 'ok' : 'muted'}`}>
-                        {c.status === 'Published' ? tr('Đang mở') : c.status === 'Draft' ? tr('Nháp') : c.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '8px 6px' }}>
-                      <div className="flex flex-wrap gap-1.5">
-                        <button type="button" onClick={() => startEditCohort(c)}>{tr('Sửa lớp')}</button>
-                        <button type="button" onClick={() => setSelectedCohortId(String(c.id))}>{tr('Quyền ghi danh')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="w-full sm:w-[175px]">
+            <CustomSelect
+              value={statusFilter}
+              aria-label={tr('Lọc theo trạng thái lớp')}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'ALL', label: tr('Tất cả trạng thái') },
+                { value: 'Published', label: tr('Đang mở'), dot: '#22c55e' },
+                { value: 'Draft', label: tr('Bản nháp'), dot: '#94a3b8' },
+              ]}
+            />
           </div>
-        )}
-      </section>
 
-      <section className="course-box">
-        <h2>{tr('Quản trị lớp học nhóm cố định')}</h2>
-        <p className="course-meta">
-          {tr('Chỉ sử dụng khung giờ đã được Admin duyệt, cùng thời lượng và sĩ số theo chính sách lớp nhóm hiện hành.')}
-        </p>
-        <form className="course-form" onSubmit={handleSaveCohort}>
-          <div className="flex flex-wrap items-center justify-between gap-2" style={{ width: '100%' }}>
-            <h3 style={{ margin: 0 }}>{editingCohort ? trf('Chỉnh sửa lớp: {0}', { 0: editingCohort.name }) : tr('Tạo & mở lớp nhóm mới')}</h3>
-            {editingCohort && (
-              <button type="button" onClick={resetCohortForm}>{tr('Hủy sửa / Tạo mới')}</button>
-            )}
-          </div>
-          <fieldset disabled={busy}>
-            <label className="course-field">
-              <span>{tr('Gói học nhóm')}</span>
-              <select required value={planId} onChange={(e) => { setPlanId(e.target.value); setPickedSlots([]); }}>
-                <option value="">{tr('Chọn gói Group')}</option>
-                {groupPlans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {planLabel(p)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {selectedPlan && (
-              <p className="course-meta" style={{ flexBasis: '100%' }}>
-                {selectedPlan.intensityLabel && <span className="course-badge">{selectedPlan.intensityLabel}</span>}{' '}
-                {selectedPlan.isRecommendedIntensity && <span className="course-badge ok">{tr('Khuyến nghị')}</span>}{' '}
-                {selectedPlan.sessionsPerWeek ?? '—'}{' '}{tr('buổi/tuần ·')}{' '}{selectedPlan.totalSessions ?? '—'}{' '}{tr('buổi ·')}{' '}
-                {selectedPlan.sessionMinutes ?? '—'}{' '}{tr('phút/buổi')}
-                {selectedPlan.totalTeachingHours != null ? trf(' · tổng {0} giờ học', { 0: selectedPlan.totalTeachingHours }) : ''}
-              </p>
-            )}
-            <label className="course-field">
-              <span>{tr('Tên lớp')}</span>
-              <input required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: N3 Evening Cohort A" />
-            </label>
-            <label className="course-field">
-              <span>{tr('Giáo viên')}</span>
-              <select required value={mentorId} onChange={(e) => { setMentorId(e.target.value); setPickedSlots([]); }}>
-                <option value="">{tr('Chọn Giáo viên')}</option>
-                {mentors.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name} (#{m.id})</option>
-                ))}
-              </select>
-            </label>
-            <label className="course-field" style={{ maxWidth: 160 }}>
-              <span>{trf('Sĩ số lớp (1–{0})', { 0: slotMaxCap })}</span>
-              <input type="number" required min={1} max={slotMaxCap} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
-            </label>
-            <label>
-              <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} />{' '}{tr('Công bố ngay (bị chặn khi còn xung đột lịch)')}
-            </label>
-            <div style={{ flexBasis: '100%' }}>
-              <p className="course-meta">
-                {requiredSessionCount
-                  ? trf('Chọn khung giờ rảnh đã duyệt ({0}/{1} buổi theo gói):', { 0: pickedSlots.length, 1: requiredSessionCount })
-                  : trf('Chọn khung giờ rảnh đã duyệt ({0} đã chọn):', { 0: pickedSlots.length })}
-              </p>
-              <div className="course-buttons" style={{ maxHeight: 160, overflowY: 'auto', padding: '6px 0' }}>
-                {availableMentorSlots.length === 0 ? (
-                  <span className="course-meta">{tr('Chưa có khung giờ trống phù hợp cho Giáo viên / gói đã chọn.')}</span>
-                ) : (
-                  availableMentorSlots.map((s) => (
-                    <label
-                      key={s.id}
-                      className={`course-badge ${pickedSlots.includes(s.id) ? '' : 'muted'}`}
-                      style={{ cursor: 'pointer' }}
-                      title={`Slot #${s.id}`}
-                    >
-                      <input type="checkbox" checked={pickedSlots.includes(s.id)} onChange={() => toggleSlot(s.id)} />
-                      {formatVnSlotWindow(s.startTime, s.endTime)}{' '}{tr('· tối đa')}{' '}{s.maxLearners}
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-            <div style={{ flexBasis: '100%' }}>
-              {checkingSchedule && (
-                <SakuraLoader
-                  variant="inline"
-                  size={16}
-                  context="cohort"
-                  label={tr('Đang kiểm tra xung đột lịch của Giáo viên')}
-                  delay={160}
-                />
-              )}
-              {activeReport?.error && (
-                <p className="course-meta" style={{ color: '#8a5a10' }}>
-                  {trf('Chưa kiểm tra được xung đột: {0} Máy chủ vẫn kiểm tra lại khi lưu.', { 0: activeReport.error })}
-                </p>
-              )}
-              {activeReport && !activeReport.error && !hasScheduleConflict && (
-                <p className="course-meta" style={{ color: '#1e5c36' }}>{tr('✓ Không phát hiện xung đột với lịch dạy hiện có của Giáo viên.')}</p>
-              )}
-              {capacityInvalid && (
-                <p className="course-error">
-                  {trf('Sĩ số lớp phải từ 1 đến {0} học viên theo chính sách hiện hành.', { 0: slotMaxCap })}
-                </p>
-              )}
-              {sessionCountMismatch && (
-                <p className="course-meta" style={{ color: '#8a5a10' }}>
-                  {trf('Gói đang chọn yêu cầu đúng {0} buổi (hiện đang chọn {1}/{0}).', { 0: requiredSessionCount, 1: pickedSlots.length })}
-                </p>
-              )}
-              <ScheduleConflictList
-                conflicts={scheduleConflicts}
-                title={trf('Phát hiện {0} xung đột lịch – không thể công bố lớp', { 0: scheduleConflicts.length })}
-              />
-            </div>
-            <button
-              className="course-primary"
-              type="submit"
-              disabled={busy || pickedSlots.length === 0 || sessionCountMismatch || capacityInvalid || (publish && hasScheduleConflict)}
-              title={publish && hasScheduleConflict ? tr('Còn xung đột lịch – vui lòng chọn khung giờ khác.') : undefined}
-            >
-              {publish ? tr('Lưu & Công bố') : tr('Lưu nháp lớp nhóm')}
-            </button>
-          </fieldset>
-        </form>
-      </section>
-
-      <section className="course-box">
-        <h2>{tr('Cấp và quản lý quyền ghi danh lớp nhóm')}</h2>
-        <p className="course-meta">
-          {tr('Admin cấp quyền ghi danh cho từng lớp từ các nguồn hợp lệ như ôn lại JLPT, học bổng hoặc đổi lớp; mỗi quyền chỉ dùng cho một lớp.')}
-        </p>
-        <label className="course-field" style={{ maxWidth: 380, marginTop: 10 }}>
-          <span>{tr('Chọn lớp nhóm cần quản lý quyền')}</span>
-          <select value={selectedCohortId} onChange={(e) => setSelectedCohortId(e.target.value)}>
-            <option value="">{tr('Chọn lớp')}</option>
-            {cohorts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.level} · {trf('{0}/{1} học viên', { 0: c.enrolledCount ?? 0, 1: c.capacity })})
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {selectedCohortId && (
-          <>
-            <form
-              className="course-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                onRun(async () => {
-                  const cid = Number(selectedCohortId);
-                  await grantCohortEntitlement(cid, {
-                    learnerId: Number(learnerId),
-                    sourceType,
-                    note: note.trim() || null,
-                  });
-                  setLearnerId('');
-                  setNote('');
-                  await refreshSelectedEntitlements(cid);
-                }, 'Đã cấp quyền ghi danh lớp nhóm cho học viên.');
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={X}
+              onClick={() => {
+                setCohortSearch('');
+                setStatusFilter('ALL');
               }}
             >
-              <h3>{trf('Cấp quyền mới cho lớp {0}', { 0: cohorts.find((c) => String(c.id) === String(selectedCohortId))?.name || tr('đã chọn') })}</h3>
-              <fieldset disabled={busy}>
-                <label className="course-field" style={{ maxWidth: 160 }}>
-                  <span>Learner ID</span>
-                  <input type="number" required min={1} value={learnerId} onChange={(e) => setLearnerId(e.target.value)} />
-                </label>
-                <label className="course-field">
-                  <span>{tr('Nguồn quyền ghi danh')}</span>
-                  <select value={sourceType} onChange={(e) => setSourceType(e.target.value)}>
-                    {SOURCE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{tr(t.label)}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="course-field">
-                  <span>{tr('Ghi chú')}</span>
-                  <input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr('VD: Đủ điều kiện khai giảng đợt tháng 11')} />
-                </label>
-                <button className="course-primary" type="submit" disabled={busy}>
-                  {tr('Cấp quyền ghi danh')}
-                </button>
-              </fieldset>
-            </form>
+              {tr('Xóa bộ lọc')}
+            </Button>
+          )}
 
-            {entitlementsLoading && visibleEntitlements.length === 0 ? (
-              <SakuraLoader variant="section" size={30} context="cohort" className="min-h-[80px] py-3" delay={160} />
-            ) : entitlementsError ? (
-              <ContextualErrorState
-                compact
-                error={entitlementsError}
-                title={tr('Chưa tải được danh sách quyền ghi danh')}
-                onRetry={() => setEntitlementTick((t) => t + 1)}
-                retrying={entitlementsLoading}
+          <div className="ml-auto">
+            <Button icon={Plus} onClick={openCreateCohort}>
+              {tr('Tạo lớp nhóm')}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Cohorts Table */}
+      {filteredCohorts.length === 0 ? (
+        <ContextualEmptyState
+          title={hasFilters ? tr('Không có lớp nhóm nào khớp bộ lọc') : tr('Chưa có lớp nhóm nào')}
+          description={tr('Nhấn Tạo lớp nhóm để gán gói học, Giáo viên và khung giờ đã duyệt.')}
+          action={
+            <Button icon={Plus} onClick={openCreateCohort}>{tr('Tạo lớp nhóm')}</Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={filteredCohorts}
+          rowKey={(r) => r.id}
+          rowActions={(row) => (
+            <div className="flex items-center justify-end gap-1.5">
+              <Button size="sm" variant="outline" icon={Pencil} onClick={() => startEditCohort(row)}>
+                {tr('Sửa lớp')}
+              </Button>
+              <Button size="sm" variant="ghost" icon={KeyRound} onClick={() => setEntitlementCohort(row)}>
+                {tr('Quyền ghi danh')}
+              </Button>
+            </div>
+          )}
+        />
+      )}
+
+      {/* Create / Edit Cohort Modal */}
+      <Modal
+        open={cohortModalOpen}
+        onClose={() => !busy && setCohortModalOpen(false)}
+        title={editingCohort ? trf('Sửa lớp nhóm: {0}', { 0: editingCohort.name }) : tr('Tạo lớp học nhóm mới')}
+        size="xl"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" disabled={busy} onClick={() => setCohortModalOpen(false)}>
+              {tr('Hủy')}
+            </Button>
+            <Button
+              loading={busy}
+              disabled={busy || (publish && hasScheduleConflict)}
+              onClick={handleSaveCohort}
+            >
+              {editingCohort ? tr('Lưu thay đổi') : publish ? tr('Lưu và mở lớp') : tr('Lưu bản nháp')}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveCohort} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={tr('Gói học nhóm')} required error={formErrors.planId}>
+              <CustomSelect
+                value={planId}
+                aria-label={tr('Chọn gói lớp nhóm')}
+                onChange={(nextPlanId) => {
+                  setPlanId(nextPlanId);
+                  setPickedSlots([]);
+                  const p = groupPlans.find((item) => String(item.id) === String(nextPlanId));
+                  if (p?.capacity) setCapacity(Math.min(Number(p.capacity), defaultPolicyCap));
+                }}
+                options={[
+                  { value: '', label: tr('Chọn gói lớp nhóm') },
+                  ...groupPlans.map((p) => ({ value: String(p.id), label: planLabel(p) })),
+                ]}
               />
-            ) : visibleEntitlements.length === 0 ? (
-              <ContextualEmptyState compact title={tr('Chưa có quyền ghi danh nào được cấp cho lớp này.')} />
+            </Field>
+
+            <Field label={tr('Tên lớp học')} required error={formErrors.name}>
+              <Input
+                maxLength={200}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={tr('Ví dụ: JLPT N4 Tối thứ 2-4')}
+                invalid={Boolean(formErrors.name)}
+              />
+            </Field>
+
+            <Field label={tr('Giáo viên phụ trách')} required error={formErrors.mentorId}>
+              <CustomSelect
+                value={mentorId}
+                disabled={Boolean(editingCohort)}
+                aria-label={tr('Chọn Giáo viên')}
+                onChange={(val) => {
+                  setMentorId(val);
+                  setPickedSlots([]);
+                }}
+                options={[
+                  { value: '', label: tr('Chọn Giáo viên') },
+                  ...mentors.map((m) => ({ value: String(m.id), label: m.name || m.fullName || m.email })),
+                ]}
+              />
+            </Field>
+
+            <Field label={trf('Sĩ số lớp (1–{0})', { 0: slotMaxCap })} required error={formErrors.capacity}>
+              <Input
+                type="number"
+                min={1}
+                max={slotMaxCap}
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                invalid={Boolean(formErrors.capacity)}
+              />
+            </Field>
+          </div>
+
+          <div className="space-y-2 rounded-2xl border border-rp-line bg-rp-bg-2/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-rp-text">
+                {trf('Chọn khung giờ rảnh đã duyệt ({0}/{1} buổi)', { 0: pickedSlots.length, 1: requiredSessionCount || '?' })}
+              </p>
+              {formErrors.slots && <span className="text-xs font-medium text-rp-brand-strong">{formErrors.slots}</span>}
+            </div>
+
+            {availableMentorSlots.length === 0 ? (
+              <p className="text-xs text-rp-text-muted">
+                {tr('Chưa có khung giờ trống phù hợp cho Giáo viên và thời lượng buổi của gói đã chọn.')}
+              </p>
             ) : (
-              visibleEntitlements.map((ent) => (
-                <article className="course-row" key={ent.id}>
-                  <div className="course-buttons" style={{ justifyContent: 'space-between' }}>
-                    <div>
-                      <strong>{ent.learnerName || tr('Học viên')}</strong> ({ent.learnerEmail}) ·{' '}
-                      <code>{ent.entitlementReference}</code>
-                    </div>
-                    <span className={`course-badge ${ent.status === 'Active' ? 'ok' : ent.status === 'Consumed' ? 'warn' : 'muted'}`}>
-                      {tr(ENTITLEMENT_STATUS_LABELS[ent.status] || ent.status)}
-                    </span>
-                  </div>
-                  <p className="course-meta">
-                    {tr('Nguồn:')}{' '}{ENTITLEMENT_SOURCE_LABELS[ent.sourceType] || ent.sourceType}{' '}{tr('· Cấp lúc:')}{' '}{fmtDate(ent.grantedAtUtc)}
-                    {ent.consumedByCourseId ? trf(' · Đã dùng cho khóa #{0}', { 0: ent.consumedByCourseId }) : ''}
-                    {ent.revocationReason ? trf(' · Lý do thu hồi: {0}', { 0: ent.revocationReason }) : ''}
-                  </p>
-                  {ent.status === 'Active' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        onRun(async () => {
-                          await revokeCohortEntitlement(ent.id, 'Thu hồi bởi quản trị viên.');
-                          await refreshSelectedEntitlements(Number(selectedCohortId));
-                        }, 'Đã thu hồi quyền ghi danh.')
-                      }
+              <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {availableMentorSlots.map((s) => {
+                  const checked = pickedSlots.includes(s.id);
+                  return (
+                    <label
+                      key={s.id}
+                      className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 text-xs transition-colors ${
+                        checked ? 'border-rp-brand-strong bg-white' : 'border-rp-line bg-white/70 hover:border-rp-brand-border'
+                      }`}
                     >
-                      {tr('Thu hồi quyền Active')}
-                    </button>
-                  )}
-                </article>
-              ))
+                      <Checkbox checked={checked} onChange={() => toggleSlot(s.id)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-rp-text">
+                          {formatVnSlotWindow(s.startTime, s.endTime)}
+                        </span>
+                        <span className="block text-rp-text-muted">{s.mentorName}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             )}
-          </>
+          </div>
+
+          {checkingSchedule && <Banner tone="info">{tr('Đang kiểm tra xung đột lịch của Giáo viên…')}</Banner>}
+          {activeReport?.error && <Banner tone="warning">{activeReport.error}</Banner>}
+          {activeReport && !checkingSchedule && !hasScheduleConflict && !activeReport.error && (
+            <Banner tone="success" icon={CheckCircle2}>
+              {tr('Không phát hiện xung đột với lịch dạy hiện có của Giáo viên.')}
+            </Banner>
+          )}
+          {hasScheduleConflict && (
+            <Banner tone="danger" icon={ShieldAlert} title={tr('Phát hiện xung đột lịch')}>
+              <ScheduleConflictList conflicts={scheduleConflicts} compact />
+            </Banner>
+          )}
+
+          <Checkbox
+            checked={publish}
+            onChange={(e) => setPublish(e.target.checked)}
+            label={tr('Mở lớp ngay sau khi lưu (cần chọn đủ tổng buổi và không xung đột lịch)')}
+          />
+        </form>
+      </Modal>
+
+      {/* Entitlements Drawer */}
+      <Drawer
+        open={Boolean(entitlementCohort)}
+        onClose={() => setEntitlementCohort(null)}
+        title={entitlementCohort ? `${tr('Quyền ghi danh')}: ${entitlementCohort.name}` : ''}
+        width="w-[min(560px,100vw)]"
+      >
+        {entitlementCohort && (
+          <div className="space-y-5">
+            <Card className="space-y-3 p-4">
+              <h3 className="text-sm font-bold text-rp-text">{tr('Cấp quyền ghi danh mới')}</h3>
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cid = Number(entitlementCohort.id);
+                  if (!learnerId) return;
+                  onRun(async () => {
+                    await grantCohortEntitlement(cid, {
+                      learnerId: Number(learnerId),
+                      sourceType,
+                      note: note.trim() || null,
+                    });
+                    setLearnerId('');
+                    setNote('');
+                    await refreshSelectedEntitlements(cid);
+                  }, 'Đã cấp quyền ghi danh lớp nhóm cho học viên.');
+                }}
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={tr('Mã học viên (ID)')} required>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={learnerId}
+                      onChange={(e) => setLearnerId(e.target.value)}
+                      placeholder={tr('Ví dụ: 900001')}
+                    />
+                  </Field>
+                  <Field label={tr('Nguồn quyền ghi danh')}>
+                    <CustomSelect
+                      value={sourceType}
+                      aria-label={tr('Nguồn quyền ghi danh')}
+                      onChange={setSourceType}
+                      options={SOURCE_TYPES.map((t) => ({ value: t.value, label: tr(t.label) }))}
+                    />
+                  </Field>
+                </div>
+                <Field label={tr('Ghi chú')}>
+                  <Input
+                    maxLength={500}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder={tr('VD: Đủ điều kiện khai giảng đợt mới')}
+                  />
+                </Field>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={busy || !learnerId}>
+                    {tr('Cấp quyền ghi danh')}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+
+            <div className="space-y-2.5">
+              <h3 className="text-sm font-bold text-rp-text">{tr('Danh sách quyền đã cấp')}</h3>
+              {entitlementsLoading && entitlements.length === 0 ? (
+                <SakuraLoader variant="section" context="cohort" delay={140} />
+              ) : entitlementsError ? (
+                <ContextualErrorState
+                  compact
+                  error={entitlementsError}
+                  title={tr('Chưa tải được danh sách quyền ghi danh')}
+                  onRetry={() => setEntitlementTick((t) => t + 1)}
+                />
+              ) : entitlements.length === 0 ? (
+                <ContextualEmptyState compact title={tr('Chưa có quyền ghi danh nào được cấp cho lớp này.')} />
+              ) : (
+                <div className="space-y-2.5">
+                  {entitlements.map((ent) => {
+                    const meta = ENTITLEMENT_STATUS_META[ent.status] || ENTITLEMENT_STATUS_META.Expired;
+                    return (
+                      <Card key={ent.id} className="space-y-2 p-3.5 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-rp-text">
+                              {ent.learnerName || tr('Học viên')} <span className="text-xs font-normal text-rp-text-muted">({ent.learnerEmail})</span>
+                            </p>
+                            <p className="text-xs text-rp-text-muted">
+                              {tr(ENTITLEMENT_SOURCE_LABELS[ent.sourceType] || ent.sourceType)} · {fmtDate(ent.grantedAtUtc)}
+                            </p>
+                          </div>
+                          <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>
+                        </div>
+                        {ent.revocationReason && (
+                          <p className="text-xs text-rose-700">{tr('Lý do thu hồi')}: {ent.revocationReason}</p>
+                        )}
+                        {ent.status === 'Active' && (
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              icon={Trash2}
+                              disabled={busy}
+                              onClick={() => setRevokeTarget(ent)}
+                            >
+                              {tr('Thu hồi quyền')}
+                            </Button>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </section>
-    </>
+      </Drawer>
+
+      <AlertDialog
+        open={Boolean(revokeTarget)}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={() => {
+          const target = revokeTarget;
+          setRevokeTarget(null);
+          if (!target || !entitlementCohort) return;
+          onRun(async () => {
+            await revokeCohortEntitlement(target.id, 'Thu hồi bởi quản trị viên.');
+            await refreshSelectedEntitlements(Number(entitlementCohort.id));
+          }, 'Đã thu hồi quyền ghi danh.');
+        }}
+        tone="danger"
+        title={tr('Thu hồi quyền ghi danh này?')}
+        description={revokeTarget ? trf('Học viên "{0}" sẽ không còn sử dụng được mã quyền này.', { 0: revokeTarget.learnerName || revokeTarget.learnerEmail }) : ''}
+        confirmLabel={tr('Thu hồi quyền')}
+      />
+    </div>
   );
 }

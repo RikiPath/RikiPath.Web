@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
-import { MentorShell } from '@/layouts';
-import { ContextualErrorState, RefreshingIndicator, SakuraLoader } from '@/components/ui';
+import { AdminShell, MentorShell } from '@/layouts';
+import { Avatar, ContextualErrorState, RefreshingIndicator, SakuraLoader } from '@/components/ui';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
   getMyMentorProfile,
@@ -56,6 +57,7 @@ function displayName(profile) {
 export default function MentorProfile() {
   const { tr } = useLocale();
   const { pathname } = useLocation();
+  const { primaryRole } = useAuth();
   const uid = getSession()?.userId ?? 'anon';
   const profileKey = ['my-mentor-profile', uid];
   const client = useQueryClient();
@@ -143,8 +145,10 @@ export default function MentorProfile() {
   const name = displayName(profile);
   const statusTone = STATUS_TONE[profile?.verificationStatus] || STATUS_TONE.Unverified;
 
+  const Shell = primaryRole === 'Admin' ? AdminShell : MentorShell;
+
   return (
-    <MentorShell pathname={pathname} breadcrumb={tr('Hồ sơ chuyên gia')}>
+    <Shell pathname={pathname} breadcrumb={tr('Hồ sơ chuyên gia')}>
       <div className="rp-container py-6 text-rp-text lg:py-8">
         <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -185,15 +189,16 @@ export default function MentorProfile() {
         <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className={`${card} p-5`}>
             <div className="flex items-center gap-3">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-rp-brand-tint text-[20px] font-semibold text-rp-brand-strong">
-                {profile?.avatarUrl
-                  ? <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
-                  : name.slice(0, 1).toUpperCase()}
-              </span>
+              <Avatar src={profile?.avatarUrl} name={name} size={56} className="rounded-2xl" />
               <div className="min-w-0">
                 <p className="truncate text-[16px] font-semibold">{name}</p>
                 <p className="truncate text-[12px] text-rp-text-muted">{profile?.email || tr('Chưa có email')}</p>
               </div>
+            </div>
+            <div className="mt-3">
+              <Link to="/profile" className="rp-focus inline-flex items-center gap-1 rounded-lg border border-[#EAE3E4] bg-[#FAF7F8] px-2.5 py-1 text-[11.5px] font-medium text-rp-brand-strong hover:bg-[#FFF0F4]">
+                {tr('Cập nhật họ tên, ảnh & bảo mật →')}
+              </Link>
             </div>
             <span className={`mt-4 inline-flex rounded-full px-3 py-1 text-[12px] font-medium ${statusTone}`}>
               {profile?.verificationStatusDescription || profile?.verificationStatus || tr('Chưa có hồ sơ')}
@@ -327,6 +332,6 @@ export default function MentorProfile() {
         </div>
         )}
       </div>
-    </MentorShell>
+    </Shell>
   );
 }

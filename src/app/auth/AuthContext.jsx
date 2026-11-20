@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AuthContext } from './authContext.js';
-import { getSession, saveSession, clearSession, patchSession } from './session.js';
+import { getSession, saveSession, clearSession, patchSession, saveAuthRedirectNotice, saveRememberedLogin } from './session.js';
 import { extractUserFromToken, normalizeRole } from './jwt.js';
-import { homePathForRole } from '@/features/auth/api/authApi.js';
+import { homePathForRole, getAuthMe } from '@/features/auth/api/authApi.js';
 import { queryClient } from '@/api/queryClient.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 
@@ -38,23 +38,57 @@ export function AuthProvider({ children }) {
   // No role claim → no privileged role is assumed (falls back to the least-privileged Learner home).
   const primaryRole = roles[0] || 'Learner';
 
-  // Merge stored user details with JWT claims
+  // Merge stored user details with JWT claims (session values win for mutable profile fields)
   const user = useMemo(() => {
     if (!token && !session?.user && !session?.userId) return null;
+    const resolvedName = session?.fullName || session?.user?.fullName || decodedUser?.fullName || decodedUser?.name || 'User';
     return {
-      userId: decodedUser?.userId || session?.userId || session?.user?.id || '0',
-      email: decodedUser?.email || session?.email || session?.user?.email || '',
-      fullName: session?.fullName || session?.user?.fullName || decodedUser?.fullName || decodedUser?.name || 'User',
-      name: session?.fullName || session?.user?.fullName || decodedUser?.name || 'User',
-      roles,
-      primaryRole,
-      avatarUrl: session?.avatarUrl || session?.user?.avatarUrl || null,
       ...session?.user,
       ...decodedUser,
+      userId: decodedUser?.userId || session?.userId || session?.user?.id || '0',
+      email: session?.email || decodedUser?.email || session?.user?.email || '',
+      pendingEmail: session?.pendingEmail ?? null,
+      fullName: resolvedName,
+      name: resolvedName,
+      phoneNumber: session?.phoneNumber ?? null,
+      avatarUrl: session?.avatarUrl ?? session?.user?.avatarUrl ?? null,
+      isEmailVerified: typeof session?.isEmailVerified === 'boolean' ? session.isEmailVerified : true,
+      hasPassword: typeof session?.hasPassword === 'boolean' ? session.hasPassword : true,
+      googleLinked: Boolean(session?.googleLinked),
+      roles,
+      primaryRole,
     };
   }, [decodedUser, session, roles, primaryRole, token]);
 
   const isAuthenticated = Boolean(token && (!decodedUser || !decodedUser.isExpired));
+
+  useEffect(() => {
+    if (!isAuthenticated || !token || session?.isPreview || session?._meSynced) return undefined;
+    let active = true;
+    getAuthMe()
+      .then((res) => {
+        if (!active) return;
+        const me = res?.result;
+        if (!me) return;
+        const updated = patchSession({
+          fullName: me.fullName || session?.fullName,
+          avatarUrl: me.avatarUrl ?? null,
+          phoneNumber: me.phoneNumber ?? null,
+          pendingEmail: me.pendingEmail ?? null,
+          isEmailVerified: Boolean(me.isEmailVerified),
+          hasPassword: typeof me.hasPassword === 'boolean' ? me.hasPassword : true,
+          googleLinked: Boolean(me.googleLinked),
+          _meSynced: true,
+        });
+        if (updated) setSessionState(updated);
+      })
+      .catch(() => {
+        // Silent best-effort hydration on reload; explicit errors surface in Account pages.
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, token, session?.isPreview, session?._meSynced, session?.fullName]);
 
   const hasRole = useCallback(
     (roleToCheck) => {
@@ -90,14 +124,32 @@ export function AuthProvider({ children }) {
     setSessionState(sessionData);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((options = {}) => {
     clearSession();
     if (getSession()) {
       notify.error('Chưa đăng xuất được', 'Vui lòng thử lại.', { key: 'auth-logout-error' });
       return;
     }
     queryClient.clear();
-    notify.flash('success', 'Bạn đã đăng xuất thành công.', '', { key: 'auth-logout-success' });
+    if (options?.email) {
+      saveRememberedLogin({ email: options.email, remember: true });
+    }
+    if (options?.notice) {
+      saveAuthRedirectNotice({
+        notice: options.notice,
+        tone: options.tone || 'success',
+        email: options.email || '',
+        focusPassword: Boolean(options.focusPassword),
+      });
+    }
+    if (!options?.skipDefaultToast) {
+      notify.flash(
+        options?.tone || 'success',
+        options?.flashTitle || 'Bạn đã đăng xuất thành công.',
+        options?.flashDescription || '',
+        { key: options?.flashKey || 'auth-logout-success' },
+      );
+    }
     // Hard redirect immediately without triggering ProtectedRoute's `<Navigate state={{ from }}>` stashing the previous role's path.
     window.location.replace('/auth/');
   }, []);

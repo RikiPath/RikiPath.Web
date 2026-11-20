@@ -101,5 +101,46 @@ Mọi cải tiến về bố cục và thao tác phải bảo toàn 100% quy t�
 12. **Tối ưu hiệu năng không đánh đổi toàn vẹn dữ liệu**: Mọi tối ưu UI/render phải giữ nguyên kiểm tra xung đột, xử lý lỗi từng mục khi gửi batch và dọn dẹp sạch `requestAnimationFrame` / event listeners khi unmount.
 13. **Calendar Always Renders the Calendar Grid (No Big Empty State Above/Inside Calendar)**:
     - Khi không có lịch trong ngày/tuần/tháng đang xem, **luôn hiển thị lưới Calendar bình thường** (đầy đủ Header, trục giờ, 7 cột ngày, đường kẻ giờ và khả năng click/drag). Tuyệt đối không chèn khối `ContextualEmptyState` lớn phía trên hoặc bên trong làm đẩy lưới lịch xuống hay thay thế mất Calendar.
+    - Các thẻ đang chọn tạm (`isSelectedDraft`) luôn giữ hiển thị trên lưới lịch ngay cả khi người dùng đang lọc theo trạng thái đã lưu (`Chờ duyệt`, `Đã duyệt`, v.v.), trừ khi bộ lọc `Loại lịch` loại trừ rõ ràng nhóm `Khung đang chọn`.
     - Nếu người dùng đang bật bộ lọc mà không có kết quả, giữ nguyên lưới lịch và chỉ hiển thị thanh gợi ý nhỏ 1 dòng (`ActiveScheduleFilterBar` / `calendar-empty-filter-hint`) kèm nút **Xóa bộ lọc**, không che vùng thao tác.
     - Chế độ **Danh sách (`List` / `Table` / `agenda`)** được phép hiển thị `ContextualEmptyState` khi không có dòng dữ liệu nào vì không có lưới thời gian.
+
+---
+
+## 3. Quy chuẩn màn hình CRUD Quản trị (Admin CRUD Workspace Standards)
+
+Áp dụng cho các trang quản trị danh mục (`AdminStudyCatalog`, `AdminCertificateSections`, `AdminUsers` và các danh sách cấu hình tương tự):
+
+1. **Page Header + Primary CTA**: Tiêu đề, mô tả 1 dòng ngắn gọn và nút hành động chính (`+ Thêm ...`) nằm gọn bên phải `PageHeader` bằng `Button variant="primary"`.
+2. **Segmented Tabs chỉ dành cho nhóm dữ liệu**: Dùng `Tabs` (`variant="pill"`) để chuyển giữa các thực thể ngang hàng (ví dụ: `Chứng chỉ` | `Cấp độ`). **Tuyệt đối không** biến `Tạo mới` thành một Tab riêng hoặc đặt form tạo/sửa cố định chiếm phần đầu trang.
+3. **Compact Management Table trên Desktop + Compact List trên Mobile**:
+   - Hiển thị danh sách dạng Table 1 hàng mỗi bản ghi với tỷ lệ cột cân đối, `Badge` trạng thái semantic nhẹ (`Hoạt động` / `Ngừng sử dụng`), và nút `Sửa` ở cột `Thao tác` cuối hàng.
+   - Không render mỗi bản ghi thành một Card cao lặp lại tiêu đề/mô tả và nút đặt bên dưới.
+   - Không hiển thị ID kỹ thuật từ database (như `#1`, `Sửa #1`) trừ khi nghiệp vụ đối soát thực sự cần.
+   - Trên màn hình nhỏ (`< md`), tự động chuyển sang Compact Card List không gây scroll ngang.
+4. **Contextual Create / Edit Modal với Unsaved Guard**:
+   - Nhấn `+ Thêm ...` hoặc `Sửa` mở `Modal` (`size="md"`), bố cục form dọc dùng `Field` (`label` phía trên `Input`/`Select`/`Textarea`), footer chuẩn `Hủy` + `Lưu thay đổi`.
+   - Hiển thị lỗi validation ngay dưới field tương ứng; tự đóng Modal và làm mới dữ liệu khi lưu thành công.
+   - Khi Modal có thay đổi chưa lưu (`isDirty`), đóng bằng `Hủy` / `X` / `Escape` phải hỏi xác nhận qua `AlertDialog` (`Bỏ thay đổi chưa lưu?`).
+5. **Chỉ thêm filter / search / pagination khi dữ liệu thực sự cần**: Danh mục ít bản ghi (1–15 dòng) ưu tiên giao diện sạch, không nhồi filter bar hay KPI card thừa; chỉ hiện bộ lọc (như lọc theo chứng chỉ cha) khi thực sự có từ 2 nhóm trở lên.
+6. **Bảo toàn dữ liệu lịch sử**: Thao tác vô hiệu hóa (`isActive = false`) hoặc lưu trữ (`Lưu trữ`) phải giải thích rõ không làm mất dữ liệu khóa học/bài học lịch sử và xác nhận trước khi lưu trữ.
+7. **Dropdown / Select chuẩn thay thế native select**: Toàn bộ thanh lọc (Toolbar filters) và biểu mẫu (Form Modals) phải sử dụng `CustomSelect` (`Select` từ `@/components/ui`) thay cho thẻ `<select>` native của trình duyệt. Dropdown hiển thị qua Popover nền trắng mềm mại, viền nhẹ, hover Sakura, tick chọn `Check` cho mục đang kích hoạt, mũi tên `ChevronDown` xoay 180° tinh tế, hỗ trợ phím điều hướng (ArrowUp/Down, Enter, Space, Escape) và không bị cắt bởi viền container.
+8. **Admin CRUD & Data Integrity Standards (Thứ tự hiển thị, Validation & Concurrency)**:
+   - **Frontend validate inline, Backend & PostgreSQL là tuyến bảo vệ cuối cùng**: Mọi thao tác tạo/sửa phải validate ngay dưới field (bắt buộc, trim/chuẩn hóa khoảng trắng, giới hạn độ dài, số nguyên dương `>= 1`), focus vào field lỗi đầu tiên, disable nút Lưu khi đang gửi và giữ nguyên dữ liệu form khi API trả lỗi.
+   - **Phạm vi duy nhất & liên tục rõ ràng**: Danh mục có thứ tự (như `Chứng chỉ` 1..N toàn cục, `Cấp độ` 1..N theo từng chứng chỉ cha) phải tự động gợi ý vị trí tiếp theo khi tạo mới, cung cấp thao tác `Di chuyển lên` / `Di chuyển xuống` (khóa trong phạm vi danh sách cha), và hiển thị preview dịch chuyển nếu Admin đổi số thủ công vào vị trí đã có mục khác.
+   - **Atomic Reordering & Concurrency**: Đổi thứ tự phải thực thi nguyên tử trong transaction kèm kiểm tra `ExpectedRevision` / `OrderToken` (trả `409 Conflict` với mã `ORDER_REVISION_CONFLICT`, `DISPLAY_ORDER_CONFLICT`, `CERTIFICATE_ALREADY_EXISTS`, `LEVEL_ALREADY_EXISTS`, hoặc `400` `DISPLAY_ORDER_INVALID` / `404` `CERTIFICATE_NOT_FOUND` — không trả `500` cho lỗi validation). PostgreSQL bảo vệ bằng `CHECK ("SortOrder" >= 1)`, `UNIQUE (...) DEFERRABLE INITIALLY DEFERRED` và functional unique index chuẩn hóa chữ hoa/thường + khoảng trắng.
+   - **Bảo toàn quan hệ lịch sử**: Không tự đổi khóa định danh lịch sử (`CertificateTypeId`, `Code`) sau khi đã tạo và không xóa bản ghi đang có tham chiếu chỉ để sửa trùng thứ tự.
+9. **Centralized Business Configuration & Payment Read-Only Transparency (`/admin/plans`, `/admin/payments`, `/admin/policies`)**:
+   - **Quản lý bảng giá thật qua Admin (`AdminPlansWorkspace`)**: Không hard-code giá gói học hay dải ID trên Frontend hoặc Backend; Modal tạo/sửa gói tự học/lượt AI phải hiển thị live Learner card preview và yêu cầu xác nhận khi thay đổi giá/tạm ngừng bán gói đang có người mua (`AlertDialog`), bảo toàn snapshot đơn cũ.
+   - **Đối soát thanh toán chỉ đọc (`AdminPaymentsWorkspace`)**: Hiển thị trạng thái cấu hình cổng PayOS qua các cờ boolean và URL công khai (tuyệt đối không lộ secret key), tổng hợp đủ các luồng thanh toán kèm bộ lọc/chi tiết `OrderSnapshot`; không đặt nút chuyển trạng thái sang `Paid` thủ công.
+   - **Cấu hình chính sách theo phiên bản (`AdminLearningPolicies`)**: Quản lý các quy tắc kinh doanh có thể điều chỉnh qua hệ thống phiên bản hiệu lực (`MentorGroupPolicy`), tách biệt rõ với ranh giới vận hành cố định chỉ đọc.
+10. **Content Author Studio Lifecycle & Shared Primitive Standards**:
+   - **Lifecycle hoàn chỉnh (End-to-End)**: Tác giả nội dung đi xuyên suốt `Tạo mới -> Lưu bản nháp -> Xem trước -> Chỉnh sửa -> Gửi duyệt -> Xử lý mục bị từ chối (xem góp ý Admin + sửa & gửi lại) / Xóa bản nháp -> Tra cứu Kho đã duyệt`; mọi màn hình phải kết nối trực tiếp bằng deep-link (`?editId=`, `?type=`, `?status=`, `?batchId=`) và Modal `ContentForm` / `ContentPreviewPanel` dùng chung.
+   - **Đồng bộ UI Sakura**: Toàn bộ màn hình Content Author sử dụng `@/components/ui` (`PageHeader`, `Card`, `DataTable`, `CustomSelect`, `Checkbox`, `Radio`, `Input`, `Textarea`, `Modal`, `AlertDialog`, `Tabs`, `Badge`, `Pagination`), validation hiển thị inline dưới trường lỗi và không có nút hay form tĩnh giả ("Bố cục mẫu", "Nháp cục bộ").
+11. **Admin Control Center Workspace Standards (Anti-Wall-of-Controls & Case Queues)**:
+   - **Không nhồi Form tạo/sửa cố định bên dưới Bảng**: Bảng dữ liệu (`DataTable`) luôn nằm ở vùng chính (`Primary Content First`). Biểu mẫu Tạo/Sửa (tài khoản, giáo viên, lớp nhóm, gói học) mở qua `Modal` (`size="md"`/`"xl"`), còn chi tiết xem xét / cấp quyền / đổi giáo viên mở qua `Drawer`.
+   - **Quản lý chính sách nhiều tham số qua Summary -> History -> Drawer Wizard (`AdminMentorGroupPolicy`)**: Tách màn hình thành KPI tóm tắt phiên bản hiệu lực + Bảng lịch sử kèm `Modal` so sánh diff; chỉnh sửa/ban hành phiên bản mới nằm trong `Drawer` chia thành 6 bước `Tabs` (`variant="pill"`) có bước xem lại diff trước khi lưu.
+   - **Tình trạng Rỗng đơn nhất & Nhất quán thuật ngữ**: Khi danh sách hoặc hàng đợi không có dữ liệu, chỉ hiển thị **một** `ContextualEmptyState` / `EmptyState` rõ ràng; toàn bộ UI dùng thuật ngữ **`Giáo viên`** (chỉ giữ `"mentor"` trong URL/route kỹ thuật hoặc payload API).
+12. **Universal Account & Settings Workspace Standards (All Roles)**:
+   - **Không chuyển hướng thô ra ngoài AppShell cho thao tác tài khoản thường nhật**: Người dùng ở mọi vai trò mở `/profile` (hoặc menu Avatar ở góc trên bên phải) để chỉnh hồ sơ, tải/xóa avatar, bật/tắt thông báo, đổi ngôn ngữ, đổi mật khẩu hoặc đổi email ngay trong shell làm việc của mình; không trùng lặp `DisplayName` và không dùng `LEVEL_BY_ID` cứng.
+   - **An toàn phiên & xác nhận thay đổi chưa lưu**: Khi rời form đang sửa hồ sơ phải hỏi qua `AlertDialog`; sau khi đổi/tạo mật khẩu hoặc hoàn tất xác thực `PendingEmail` phải đăng xuất có thông báo để buộc đăng nhập lại bằng phiên mới (`TokenVersion`).

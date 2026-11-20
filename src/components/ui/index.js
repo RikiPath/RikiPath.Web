@@ -11,6 +11,7 @@ export * from './states.jsx';
 export * from './SmartDataBoundary.jsx';
 export * from './dataStateLogic.js';
 export * from './data.jsx';
+export { default as Pagination } from './Pagination.jsx';
 export { notify, pushToast, dismissToast, clearToasts, confirmAction, consumeFlashToast } from './feedbackStore.js';
 export * from './hooks.js';
 export * from './logic.js';

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, LockKeyhole, LogIn, Mail } from 'lucide-react';
 import AuthLayout from '@/layouts/AuthLayout.jsx';
 import AuthPromptLinks from '@/features/auth/components/AuthPromptLinks.jsx';
 import { useLocale } from '@/locales/locale.js';
 import { useAuth } from '@/app/auth/authContext.js';
-import { getRememberedLogin } from '@/app/auth/session.js';
+import { consumeAuthRedirectNotice, getRememberedLogin, savePendingVerify } from '@/app/auth/session.js';
 import { useLoginMutation } from '@/features/auth/hooks/useAuthMutations.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { homeForRole } from '@/app/routes/routeTable.js';
@@ -24,15 +24,24 @@ export default function Auth() {
   const loginMutation = useLoginMutation();
   // Remember-me: restore the last choice and (only if it was on) the last email; never the password.
   const [remembered] = useState(getRememberedLogin);
-  const [email, setEmail] = useState(() => location.state?.email || remembered.email);
+  const [redirectBanner] = useState(() => consumeAuthRedirectNotice());
+  const passwordInputRef = useRef(null);
+  const [email, setEmail] = useState(() => location.state?.email || redirectBanner?.email || remembered.email);
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(remembered.remember);
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState(null);
-  const [notice] = useState(location.state?.notice || '');
+  const [notice] = useState(() => location.state?.notice || redirectBanner?.notice || '');
+  const [noticeTone] = useState(() => location.state?.noticeTone || redirectBanner?.tone || 'info');
   const [googlePending, setGooglePending] = useState(false);
   const loading = loginMutation.isPending || googlePending;
+
+  useEffect(() => {
+    if ((location.state?.focusPassword || redirectBanner?.focusPassword) && passwordInputRef.current) {
+      window.requestAnimationFrame(() => passwordInputRef.current?.focus({ preventScroll: true }));
+    }
+  }, [location.state?.focusPassword, redirectBanner?.focusPassword]);
 
   // Already signed in (e.g. back button): go to the role home instead of showing the form.
   if (isAuthenticated && !loginMutation.isPending && !loginMutation.isSuccess) {
@@ -71,7 +80,9 @@ export default function Auth() {
             : isConnectivity
               ? tr('Không thể kết nối đến hệ thống. Vui lòng thử lại.')
               : info.message;
-          setError({ message, unverified: /xác thực email|chưa xác thực|verify/i.test(err.message || '') });
+          const unverified = /xác thực email|chưa xác thực|verify/i.test(err.message || '');
+          if (unverified) savePendingVerify({ email: email.trim() });
+          setError({ message, unverified });
           if (isConnectivity) {
             notify.warning(tr('Chưa kết nối được'), message, { key: 'auth-login-network' });
           } else {
@@ -89,7 +100,7 @@ export default function Auth() {
       footer={<>{t('agreeContinue')} {t('terms')} · {t('privacy')} {t('ofRiki')}</>}
     >
       <form className="space-y-4" noValidate onSubmit={handleLogin} data-purpose="login-form">
-        {notice && <Banner tone="info">{notice}</Banner>}
+        {notice && <Banner tone={noticeTone}>{tr(notice)}</Banner>}
         {!online && <Banner tone="warning" title={tr('Bạn đang ngoại tuyến')}>{tr('Kết nối mạng để đăng nhập.')}</Banner>}
         {error && (
           <Banner tone="danger" title={tr('Chưa đăng nhập được')}>
@@ -112,7 +123,7 @@ export default function Auth() {
           {({ id, describedBy, invalid }) => (
             <div className="relative">
               <LockKeyhole aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
-              <Input id={id} aria-describedby={describedBy} invalid={invalid} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder={t('passwordPlaceholder')} className="pl-10 pr-11" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input ref={passwordInputRef} id={id} aria-describedby={describedBy} invalid={invalid} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder={t('passwordPlaceholder')} className="pl-10 pr-11" value={password} onChange={(e) => setPassword(e.target.value)} />
               <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={t('togglePassword')} aria-pressed={showPassword} className="rp-focus absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-rp-text-muted hover:text-rp-text">
                 {showPassword ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
               </button>
@@ -134,16 +145,7 @@ export default function Auth() {
         <GoogleSignIn mode="login" disabled={loginMutation.isPending} onPendingChange={setGooglePending} onSuccess={(data) => completeSignIn(data, remember)} />
       </div>
 
-      <AuthPromptLinks
-        items={[
-          { question: t('noAccount'), label: tr('Đăng ký'), to: '/register/' },
-          {
-            question: tr('Chưa xác thực tài khoản?'),
-            label: t('verifyEmail'),
-            to: email ? `/verify-email?email=${encodeURIComponent(email.trim())}` : '/verify-email/',
-          },
-        ]}
-      />
+      <AuthPromptLinks items={[{ question: t('noAccount'), label: tr('Đăng ký'), to: '/register/' }]} />
     </AuthLayout>
   );
 }

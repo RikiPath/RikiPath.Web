@@ -1,15 +1,50 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { getAdminMentorAvailabilities, getPendingMentorSlots, reviewMentorSlot, reviewMentorSlotCancels, reviewMentorSlots, unwrapApiList } from '@/features/admin/api/adminApi.js';
+import {
+  CalendarClock,
+  CheckCircle2,
+  Eye,
+  Search,
+  X,
+  XCircle,
+} from 'lucide-react';
+import {
+  getAdminMentorAvailabilities,
+  getPendingMentorSlots,
+  reviewMentorSlot,
+  reviewMentorSlotCancels,
+  reviewMentorSlots,
+  unwrapApiList,
+} from '@/features/admin/api/adminApi.js';
 import { resolveSlotChange } from '@/features/scheduling/api/mentorScheduleApi.js';
-import { describeApiError } from '@/api/apiErrors.js';
+import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { AdminShell } from '@/layouts';
-import { ContextualEmptyState, ContextualErrorState, SakuraLoader } from '@/components/ui';
-import { notify } from '@/components/ui/feedbackStore.js';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  Checkbox,
+  ContextualEmptyState,
+  ContextualErrorState,
+  CustomSelect,
+  DataTable,
+  Drawer,
+  FeatureIcon,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  PageHeader,
+  RefreshingIndicator,
+  SakuraLoader,
+  Tabs,
+  Textarea,
+  notify,
+} from '@/components/ui';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { currentIntlTag, useLocale } from '@/locales/locale.js';
 
 const TABS = [
   { id: 'review', label: 'Chờ duyệt' },
@@ -17,186 +52,483 @@ const TABS = [
   { id: 'change', label: 'Xin đổi tiết' },
 ];
 
-function when(value) {
-  if (!value) return '';
+function formatSlotTime(value) {
+  if (!value) return '—';
   const date = parseUtcDate(value);
-  if (!date || Number.isNaN(date.getTime())) return '';
+  if (!date || Number.isNaN(date.getTime())) return '—';
   return date.toLocaleString(currentIntlTag(), {
     timeZone: 'Asia/Ho_Chi_Minh',
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
 }
 
 export default function AdminSlotReview() {
-  const { trf, tr } = useLocale();
+  const { tr, trf } = useLocale();
   const { pathname } = useLocation();
   const queryClient = useQueryClient();
+
   const [tab, setTab] = useState('review');
+  const [search, setSearch] = useState('');
+  const [mentorFilter, setMentorFilter] = useState('ALL');
   const [picked, setPicked] = useState([]);
+  const [detailSlot, setDetailSlot] = useState(null);
+  const [modalAction, setModalAction] = useState(null); // { mode: 'reject-one' | 'reject-batch' | 'reject-cancel' | 'resolve-change', ids: [], cancelSlot?: bool }
   const [reason, setReason] = useState('');
-  const [notice, setNotice] = useState('');
-  const pending = useQuery({ queryKey: ['admin-pending-slots'], queryFn: getPendingMentorSlots });
+  const [reasonError, setReasonError] = useState('');
+
+  const pending = useQuery({ queryKey: ADMIN_KEYS.pendingSlots, queryFn: getPendingMentorSlots });
   const all = useQuery({
-    queryKey: ['admin-mentor-slots'],
+    queryKey: ADMIN_KEYS.mentorSlots,
     queryFn: async () => unwrapApiList(await getAdminMentorAvailabilities()),
   });
-  const refresh = () => {
+
+  const refreshAll = async () => {
     setPicked([]);
-    queryClient.invalidateQueries({ queryKey: ['admin-pending-slots'] });
-    queryClient.invalidateQueries({ queryKey: ['admin-mentor-slots'] });
+    setDetailSlot(null);
+    await invalidateAdminDomains(queryClient, ['schedules']);
   };
+
   const reviewOne = useMutation({
-    mutationFn: ({ id, approve }) => reviewMentorSlot(id, approve, approve ? undefined : reason.trim()),
-    onSuccess: (_, vars) => {
-      const msg = vars.approve ? 'Đã phê duyệt khung giờ.' : 'Đã từ chối khung giờ.';
-      setNotice(msg);
-      notify.success(msg, '', { key: 'admin-slot-review-one' });
+    mutationFn: ({ id, approve, note }) => reviewMentorSlot(id, approve, note),
+    onSuccess: async (_, vars) => {
+      setModalAction(null);
       setReason('');
-      refresh();
+      await refreshAll();
+      notify.success(vars.approve ? tr('Đã phê duyệt khung giờ.') : tr('Đã từ chối khung giờ.'), '', { key: 'admin-slot-review-one', replace: true });
     },
-    onError: (err) => notify.apiError(err, 'Chưa xử lý được khung giờ', { key: 'admin-slot-review-one-err' }),
+    onError: (err) => notify.apiError(err, tr('Chưa xử lý được khung giờ'), { key: 'admin-slot-review-one-err', replace: true }),
   });
-  const review = useMutation({
-    mutationFn: ({ ids, approve }) => reviewMentorSlots(ids, approve, approve ? undefined : reason.trim()),
-    onSuccess: (_, vars) => {
-      const msg = vars.approve ? 'Đã phê duyệt các khung giờ đã chọn.' : 'Đã từ chối các khung giờ đã chọn.';
-      setNotice(msg);
-      notify.success(msg, '', { key: 'admin-slot-review-batch' });
+
+  const reviewBatch = useMutation({
+    mutationFn: ({ ids, approve, note }) => reviewMentorSlots(ids, approve, note),
+    onSuccess: async (_, vars) => {
+      setModalAction(null);
       setReason('');
-      refresh();
+      await refreshAll();
+      notify.success(
+        vars.approve ? tr('Đã phê duyệt các khung giờ đã chọn.') : tr('Đã từ chối các khung giờ đã chọn.'),
+        '',
+        { key: 'admin-slot-review-batch', replace: true },
+      );
     },
-    onError: (err) => notify.apiError(err, 'Chưa xử lý được khung giờ chờ duyệt', { key: 'admin-slot-review-batch-err' }),
+    onError: (err) => notify.apiError(err, tr('Chưa xử lý được khung giờ chờ duyệt'), { key: 'admin-slot-review-batch-err', replace: true }),
   });
-  const cancel = useMutation({
-    mutationFn: ({ ids, approve }) => reviewMentorSlotCancels(ids, approve, approve ? undefined : reason.trim()),
-    onSuccess: (_, vars) => {
-      const msg = vars.approve ? 'Đã chấp thuận yêu cầu hủy khung giờ.' : 'Đã từ chối yêu cầu hủy khung giờ.';
-      setNotice(msg);
-      notify.success(msg, '', { key: 'admin-slot-cancel-review' });
+
+  const cancelBatch = useMutation({
+    mutationFn: ({ ids, approve, note }) => reviewMentorSlotCancels(ids, approve, note),
+    onSuccess: async (_, vars) => {
+      setModalAction(null);
       setReason('');
-      refresh();
+      await refreshAll();
+      notify.success(
+        vars.approve ? tr('Đã chấp thuận yêu cầu hủy khung giờ.') : tr('Đã từ chối yêu cầu hủy khung giờ.'),
+        '',
+        { key: 'admin-slot-cancel-review', replace: true },
+      );
     },
-    onError: (err) => notify.apiError(err, 'Chưa xử lý được yêu cầu hủy', { key: 'admin-slot-cancel-review-err' }),
+    onError: (err) => notify.apiError(err, tr('Chưa xử lý được yêu cầu hủy'), { key: 'admin-slot-cancel-review-err', replace: true }),
   });
-  const change = useMutation({
-    mutationFn: ({ id, cancelSlot }) => resolveSlotChange(id, { cancelSlot, reason: reason.trim() }),
-    onSuccess: (_, vars) => {
-      const msg = vars.cancelSlot ? 'Đã chấp thuận hủy tiết theo yêu cầu.' : 'Đã từ chối yêu cầu đổi tiết.';
-      setNotice(msg);
-      notify.success(msg, '', { key: 'admin-slot-change-review' });
+
+  const changeResolve = useMutation({
+    mutationFn: ({ id, cancelSlot, note }) => resolveSlotChange(id, { cancelSlot, reason: note }),
+    onSuccess: async () => {
+      setModalAction(null);
       setReason('');
-      refresh();
+      await refreshAll();
+      notify.success(tr('Đã phản hồi yêu cầu đổi tiết.'), '', { key: 'admin-slot-change-review', replace: true });
     },
-    onError: (err) => notify.apiError(err, 'Chưa xử lý được yêu cầu đổi tiết', { key: 'admin-slot-change-review-err' }),
+    onError: (err) => notify.apiError(err, tr('Chưa xử lý được yêu cầu đổi tiết'), { key: 'admin-slot-change-review-err', replace: true }),
   });
-  const pendingRows = Array.isArray(pending.data) ? pending.data : [];
-  const allRows = Array.isArray(all.data) ? all.data : [];
-  const cancelRows = allRows.filter((row) => row.cancelRequestedAt && !row.cancelRejectedAt);
-  const changeRows = allRows.filter((row) => row.changeRequestedAt && !row.changeResolution);
-  const rows = tab === 'review' ? pendingRows : tab === 'cancel' ? cancelRows : changeRows;
+
+  const pendingRows = useMemo(() => (Array.isArray(pending.data) ? pending.data : []), [pending.data]);
+  const allRows = useMemo(() => (Array.isArray(all.data) ? all.data : []), [all.data]);
+  const cancelRows = useMemo(() => allRows.filter((row) => row.cancelRequestedAt && !row.cancelRejectedAt), [allRows]);
+  const changeRows = useMemo(() => allRows.filter((row) => row.changeRequestedAt && !row.changeResolution), [allRows]);
+
+  const tabRows = tab === 'review' ? pendingRows : tab === 'cancel' ? cancelRows : changeRows;
+  const mentorOptions = useMemo(() => {
+    const map = new Map();
+    tabRows.forEach((r) => {
+      if (r.mentorId && !map.has(String(r.mentorId))) {
+        map.set(String(r.mentorId), r.mentorName || trf('Giáo viên #{0}', { 0: r.mentorId }));
+      }
+    });
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [tabRows, trf]);
+
+  const visibleRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tabRows.filter((r) => {
+      if (mentorFilter !== 'ALL' && String(r.mentorId) !== mentorFilter) return false;
+      if (!q) return true;
+      return `${r.mentorName || ''} ${r.cancelReason || ''} ${r.changeReason || ''}`.toLowerCase().includes(q);
+    });
+  }, [tabRows, mentorFilter, search]);
+
   const counts = { review: pendingRows.length, cancel: cancelRows.length, change: changeRows.length };
-  const busy = review.isPending || reviewOne.isPending || cancel.isPending || change.isPending;
-  const actionError = review.error || reviewOne.error || cancel.error || change.error;
-  const listLoading = tab === 'review' ? pending.isLoading : all.isLoading;
+  const busy = reviewBatch.isPending || reviewOne.isPending || cancelBatch.isPending || changeResolve.isPending;
+  const listLoading = tab === 'review' ? pending.isPending : all.isPending;
   const listError = tab === 'review' ? pending.error : all.error;
-  const retryTab = () => (tab === 'review' ? pending.refetch() : all.refetch());
-  const listFetching = tab === 'review' ? pending.isFetching : all.isFetching;
-  const toggle = (id) => setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  const hasFilters = search.trim() !== '' || mentorFilter !== 'ALL';
+
+  const togglePick = (id) =>
+    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+
+  const toggleAllVisible = () => {
+    if (visibleRows.length > 0 && visibleRows.every((r) => picked.includes(r.id))) {
+      setPicked([]);
+    } else {
+      setPicked(visibleRows.map((r) => r.id));
+    }
+  };
+
+  function submitModalReason(e) {
+    e.preventDefault();
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setReasonError(tr('Vui lòng nhập lý do xử lý.'));
+      return;
+    }
+    setReasonError('');
+    if (modalAction.mode === 'reject-one') {
+      reviewOne.mutate({ id: modalAction.ids[0], approve: false, note: trimmed });
+    } else if (modalAction.mode === 'reject-batch') {
+      reviewBatch.mutate({ ids: modalAction.ids, approve: false, note: trimmed });
+    } else if (modalAction.mode === 'reject-cancel') {
+      cancelBatch.mutate({ ids: modalAction.ids, approve: false, note: trimmed });
+    } else if (modalAction.mode === 'resolve-change') {
+      changeResolve.mutate({ id: modalAction.ids[0], cancelSlot: false, note: trimmed });
+    }
+  }
+
+  const columns = [
+    ...(tab !== 'change'
+      ? [
+          {
+            key: 'select',
+            header: (
+              <Checkbox
+                checked={visibleRows.length > 0 && visibleRows.every((r) => picked.includes(r.id))}
+                onChange={toggleAllVisible}
+                aria-label={tr('Chọn tất cả')}
+              />
+            ),
+            render: (row) => (
+              <Checkbox
+                checked={picked.includes(row.id)}
+                onChange={() => togglePick(row.id)}
+                aria-label={trf('Chọn khung giờ #{0}', { 0: row.id })}
+              />
+            ),
+          },
+        ]
+      : []),
+    {
+      key: 'mentorName',
+      header: tr('Giáo viên'),
+      render: (row) => (
+        <span className="font-semibold text-rp-text">
+          {row.mentorName || trf('Giáo viên #{0}', { 0: row.mentorId })}
+        </span>
+      ),
+    },
+    {
+      key: 'startTime',
+      header: tr('Thời gian (GMT+7)'),
+      render: (row) => (
+        <span className="whitespace-nowrap text-xs font-medium text-rp-text-2">
+          {formatSlotTime(row.startTime)}
+        </span>
+      ),
+    },
+    {
+      key: 'kind',
+      header: tr('Loại yêu cầu'),
+      render: (row) => (
+        <Badge tone={tab === 'cancel' ? 'danger' : tab === 'change' ? 'warning' : 'brand'} size="sm" icon={false}>
+          {tab === 'cancel' ? tr('Xin hủy khung giờ') : tab === 'change' ? tr('Xin đổi giờ dạy') : tr('Đăng ký khung giờ')}
+        </Badge>
+      ),
+    },
+    {
+      key: 'reason',
+      header: tr('Lý do / Ghi chú'),
+      render: (row) => (
+        <span className="line-clamp-2 max-w-[260px] text-xs text-rp-text-muted">
+          {row.cancelReason || row.changeReason || tr('Đăng ký lịch mới')}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Duyệt khung giờ')}>
-      <main className="rp-container rp-cq py-[var(--rp-space-page-y)] text-rp-text">
-        <h1 className="rp-type-page-title">{tr('Duyệt khung giờ')}</h1>
-        <p className="rp-type-secondary mt-1 text-rp-text-muted">{tr('Khung giờ giảng dạy theo chính sách Admin chờ phê duyệt hoặc điều chỉnh.')}</p>
+    <AdminShell pathname={pathname} breadcrumb={tr('Yêu cầu đổi/hủy lịch')}>
+      <main data-page="AdminSlotReview" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
+        <PageHeader
+          eyebrow={tr('Vận hành & lịch dạy')}
+          title={
+            <span className="inline-flex items-center gap-2.5">
+              <FeatureIcon feature="calendar" icon={CalendarClock} size="lg" />
+              <span>{tr('Yêu cầu đổi / hủy & duyệt khung giờ')}</span>
+            </span>
+          }
+          description={tr('Kiểm tra xung đột lịch, khoảng nghỉ giữa buổi và phê duyệt hoặc phản hồi yêu cầu từ Giáo viên.')}
+          actions={<RefreshingIndicator active={pending.isFetching || all.isFetching} />}
+        />
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {TABS.map((item) => {
-            const tabFailed = item.id === 'review' ? pending.isError : all.isError;
-            const tabLoading = item.id === 'review' ? pending.isPending : all.isPending;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => { setTab(item.id); setPicked([]); setReason(''); }}
-                className={`h-9 rounded-lg px-3 text-[13px] ${tab === item.id ? 'bg-rp-brand-tint font-medium text-rp-brand-strong' : 'bg-white text-rp-text-2 hover:bg-rp-brand-tint'}`}
-              >
-                {tr(item.label)}
-                {!tabFailed && !tabLoading && <span className="ml-1.5 text-[12px]">{counts[item.id]}</span>}
-              </button>
-            );
-          })}
-        </div>
+        <Tabs
+          variant="pill"
+          label={tr('Phân loại yêu cầu lịch')}
+          value={tab}
+          onChange={(nextTab) => {
+            setTab(nextTab);
+            setPicked([]);
+            setMentorFilter('ALL');
+            setSearch('');
+          }}
+          tabs={TABS.map((t) => ({ value: t.id, label: tr(t.label), count: counts[t.id] }))}
+        />
 
-        {actionError && (
-          <p role="alert" className="mt-4 rounded-xl bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">
-            {tr(describeApiError(actionError).message)}
-          </p>
-        )}
-        {notice && <p className="mt-4 rounded-xl bg-rp-success-bg px-4 py-3 text-[13px] text-rp-success">{notice}</p>}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="min-w-[200px] flex-1">
+              <Input
+                type="search"
+                icon={Search}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={tr('Tìm theo tên Giáo viên hoặc lý do yêu cầu…')}
+                aria-label={tr('Tìm kiếm yêu cầu')}
+              />
+            </div>
 
-        <section className="mt-4 overflow-hidden rounded-2xl border border-rp-line bg-white">
-          {listLoading && <SakuraLoader variant="section" context="cohort" delay={160} />}
-          {listError && !listLoading && (
-            <ContextualErrorState
-              compact
-              error={listError}
-              title={tr('Chưa tải được danh sách yêu cầu')}
-              onRetry={retryTab}
-              retrying={listFetching}
-            />
-          )}
-          {!listLoading && !listError && rows.length === 0 && (
-            <ContextualEmptyState compact title={tr('Không có yêu cầu trong mục này.')} />
-          )}
-          {rows.map((row) => (
-            <div key={row.id} className="flex items-start gap-3 border-b border-rp-line px-5 py-3 last:border-b-0">
-              {tab !== 'change' && (
-                <input type="checkbox" className="mt-1" checked={picked.includes(row.id)} onChange={() => toggle(row.id)} />
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium">{row.mentorName || trf('Giáo viên #{0}', { 0: row.mentorId })}</span>
-                <span className="mt-0.5 block text-[12px] text-rp-text-muted">{when(row.startTime)} – {when(row.endTime)}</span>
-                {(row.cancelReason || row.changeRequestReason) && (
-                  <span className="mt-1 block text-[12px] leading-5 text-rp-text-2">{row.cancelReason || row.changeRequestReason}</span>
+            <div className="w-full sm:w-[210px]">
+              <CustomSelect
+                value={mentorFilter}
+                aria-label={tr('Lọc theo Giáo viên')}
+                onChange={setMentorFilter}
+                options={[{ value: 'ALL', label: tr('Tất cả Giáo viên') }, ...mentorOptions]}
+              />
+            </div>
+
+            {hasFilters && (
+              <Button variant="ghost" size="sm" icon={X} onClick={() => { setSearch(''); setMentorFilter('ALL'); }}>
+                {tr('Xóa bộ lọc')}
+              </Button>
+            )}
+
+            {picked.length > 0 && tab === 'review' && (
+              <div className="ml-auto flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  icon={CheckCircle2}
+                  disabled={busy}
+                  onClick={() => reviewBatch.mutate({ ids: picked, approve: true })}
+                >
+                  {trf('Duyệt ({0})', { 0: picked.length })}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  icon={XCircle}
+                  disabled={busy}
+                  onClick={() => {
+                    setReason('');
+                    setReasonError('');
+                    setModalAction({ mode: 'reject-batch', ids: picked });
+                  }}
+                >
+                  {trf('Từ chối ({0})', { 0: picked.length })}
+                </Button>
+              </div>
+            )}
+
+            {picked.length > 0 && tab === 'cancel' && (
+              <div className="ml-auto flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  icon={CheckCircle2}
+                  disabled={busy}
+                  onClick={() => cancelBatch.mutate({ ids: picked, approve: true })}
+                >
+                  {trf('Chấp thuận hủy ({0})', { 0: picked.length })}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  icon={XCircle}
+                  disabled={busy}
+                  onClick={() => {
+                    setReason('');
+                    setReasonError('');
+                    setModalAction({ mode: 'reject-cancel', ids: picked });
+                  }}
+                >
+                  {trf('Từ chối hủy ({0})', { 0: picked.length })}
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {listLoading ? (
+          <SakuraLoader variant="section" context="cohort" delay={140} />
+        ) : listError ? (
+          <ContextualErrorState
+            error={listError}
+            title={tr('Chưa tải được danh sách yêu cầu')}
+            onRetry={() => (tab === 'review' ? pending.refetch() : all.refetch())}
+          />
+        ) : visibleRows.length === 0 ? (
+          <ContextualEmptyState
+            title={hasFilters ? tr('Không có yêu cầu nào khớp bộ lọc') : tr('Hiện không có yêu cầu nào trong mục này')}
+            description={tr('Mọi khung giờ hoặc yêu cầu mới từ Giáo viên sẽ tự động hiển thị tại đây.')}
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={visibleRows}
+            rowKey={(r) => r.id}
+            rowActions={(row) => (
+              <div className="flex items-center justify-end gap-1.5">
+                <IconButton
+                  icon={Eye}
+                  size="sm"
+                  variant="ghost"
+                  label={tr('Xem chi tiết')}
+                  onClick={() => setDetailSlot(row)}
+                />
+                {tab === 'review' && (
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => reviewOne.mutate({ id: row.id, approve: true })}
+                    >
+                      {tr('Duyệt')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => {
+                        setReason('');
+                        setReasonError('');
+                        setModalAction({ mode: 'reject-one', ids: [row.id] });
+                      }}
+                    >
+                      {tr('Từ chối')}
+                    </Button>
+                  </>
                 )}
-              </span>
-              {tab === 'review' && (
-                <span className="flex shrink-0 gap-2">
-                  <button type="button" disabled={busy} onClick={() => reviewOne.mutate({ id: row.id, approve: true })} className="h-8 rounded-lg bg-rp-brand-strong px-3 text-[12px] text-white disabled:opacity-50 rp-press">{tr('Duyệt')}</button>
-                  <button type="button" disabled={busy || !reason.trim()} onClick={() => reviewOne.mutate({ id: row.id, approve: false })} className="h-8 rounded-lg border border-rp-line px-3 text-[12px] disabled:opacity-50">{tr('Từ chối')}</button>
-                </span>
-              )}
-              {tab === 'change' && (
-                <span className="flex shrink-0 gap-2">
-                  <button type="button" disabled={busy || !reason.trim()} onClick={() => change.mutate({ id: row.id, cancelSlot: false })} className="h-8 rounded-lg bg-rp-brand-strong px-3 text-[12px] text-white disabled:opacity-50 rp-press">{tr('Giữ')}</button>
-                  <button type="button" disabled={busy || !reason.trim()} onClick={() => change.mutate({ id: row.id, cancelSlot: true })} className="h-8 rounded-lg border border-rp-line px-3 text-[12px] disabled:opacity-50">{tr('Hủy tiết')}</button>
-                </span>
-              )}
-            </div>
-          ))}
-          {rows.length > 0 && (
-            <div className="flex flex-wrap items-end gap-2 border-t border-rp-line bg-rp-brand-tint px-5 py-3">
-              <label className="min-w-0 flex-1 basis-[200px] text-[12px] font-medium text-rp-text-2">
-                {tab === 'change' ? tr('Lý do xử lý') : tr('Lý do khi từ chối')}
-                <input maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-rp-line bg-white px-3 text-[13px] font-normal outline-none focus:border-rp-brand-strong" />
-              </label>
-              {tab !== 'change' && (
-                <>
-                  <button type="button" disabled={busy || picked.length === 0} onClick={() => (tab === 'review' ? review : cancel).mutate({ ids: picked, approve: true })} className="h-10 rounded-lg bg-rp-brand-strong px-4 text-[13px] font-medium text-white disabled:opacity-50 rp-press">
-                    {tr('Duyệt')}{' '}{picked.length || ''}
-                  </button>
-                  <button type="button" disabled={busy || picked.length === 0 || !reason.trim()} onClick={() => (tab === 'review' ? review : cancel).mutate({ ids: picked, approve: false })} className="h-10 rounded-lg border border-rp-line bg-white px-4 text-[13px] disabled:opacity-50">
-                    {tr('Từ chối')}
-                  </button>
-                </>
+                {tab === 'cancel' && (
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => cancelBatch.mutate({ ids: [row.id], approve: true })}
+                    >
+                      {tr('Duyệt hủy')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => {
+                        setReason('');
+                        setReasonError('');
+                        setModalAction({ mode: 'reject-cancel', ids: [row.id] });
+                      }}
+                    >
+                      {tr('Từ chối')}
+                    </Button>
+                  </>
+                )}
+                {tab === 'change' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      setReason('');
+                      setReasonError('');
+                      setModalAction({ mode: 'resolve-change', ids: [row.id] });
+                    }}
+                  >
+                    {tr('Phản hồi đổi tiết')}
+                  </Button>
+                )}
+              </div>
+            )}
+          />
+        )}
+
+        {/* Slot Detail Drawer */}
+        <Drawer
+          open={Boolean(detailSlot)}
+          onClose={() => setDetailSlot(null)}
+          title={detailSlot ? `${tr('Chi tiết khung giờ')} #${detailSlot.id}` : ''}
+          description={detailSlot?.mentorName || ''}
+          size="md"
+        >
+          {detailSlot && (
+            <div className="space-y-4 text-sm">
+              <Card className="space-y-2 bg-rp-bg-2/40 p-4">
+                <p><strong>{tr('Giáo viên')}:</strong> {detailSlot.mentorName || `#${detailSlot.mentorId}`}</p>
+                <p><strong>{tr('Bắt đầu')}:</strong> {formatSlotTime(detailSlot.startTime)}</p>
+                <p><strong>{tr('Kết thúc')}:</strong> {formatSlotTime(detailSlot.endTime)}</p>
+                {detailSlot.cohortName && <p><strong>{tr('Lớp gắn kèm')}:</strong> {detailSlot.cohortName}</p>}
+              </Card>
+              {(detailSlot.cancelReason || detailSlot.changeReason) && (
+                <Banner tone="warning" title={tr('Lý do Giáo viên gửi')}>
+                  {detailSlot.cancelReason || detailSlot.changeReason}
+                </Banner>
               )}
             </div>
           )}
-        </section>
+        </Drawer>
+
+        {/* Reason Modal */}
+        <Modal
+          open={Boolean(modalAction)}
+          onClose={() => !busy && setModalAction(null)}
+          title={
+            modalAction?.mode === 'resolve-change'
+              ? tr('Phản hồi yêu cầu đổi tiết')
+              : modalAction?.mode === 'reject-cancel'
+                ? tr('Từ chối yêu cầu hủy khung giờ')
+                : tr('Từ chối khung giờ dạy')
+          }
+          size="md"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" disabled={busy} onClick={() => setModalAction(null)}>
+                {tr('Hủy')}
+              </Button>
+              <Button variant="danger" loading={busy} onClick={submitModalReason}>
+                {tr('Xác nhận')}
+              </Button>
+            </div>
+          }
+        >
+          <form onSubmit={submitModalReason}>
+            <Field label={tr('Lý do / ghi chú gửi Giáo viên')} required error={reasonError}>
+              <Textarea
+                rows={4}
+                maxLength={1000}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={tr('Nhập lý do rõ ràng để Giáo viên điều chỉnh lại lịch…')}
+                invalid={Boolean(reasonError)}
+              />
+            </Field>
+          </form>
+        </Modal>
       </main>
     </AdminShell>
   );

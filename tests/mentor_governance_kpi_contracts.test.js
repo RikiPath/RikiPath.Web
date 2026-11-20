@@ -18,13 +18,13 @@ import {
 } from '@/features/mentor/api/mentorGovernanceApi.js';
 
 describe('Mentor Governance & JLPT N5-N2 Policy', () => {
-  it('supports only N5-N2 for Mentor Group Learning and rejects N1', () => {
-    assert.deepEqual(SUPPORTED_JLPT_LEVELS, ['N5', 'N4', 'N3', 'N2']);
+  it('supports JLPT N5-N1 and rejects unsupported levels', () => {
+    assert.deepEqual(SUPPORTED_JLPT_LEVELS, ['N5', 'N4', 'N3', 'N2', 'N1']);
     assert.equal(normalizeJlptLevel(' n3 '), 'N3');
     assert.equal(isSupportedJlptLevel('N5'), true);
-    assert.equal(isSupportedJlptLevel('n2'), true);
-    assert.equal(isSupportedJlptLevel('N1'), false);
-    assert.throws(() => assertSupportedJlptLevel('N1'), /không hỗ trợ N1/i);
+    assert.equal(isSupportedJlptLevel('n1'), true);
+    assert.equal(isSupportedJlptLevel('N6'), false);
+    assert.throws(() => assertSupportedJlptLevel('N6'), /N5, N4, N3, N2 và N1/i);
   });
 
   it('formats durations, completion ratio and null turnaround without faking 0', () => {
@@ -73,10 +73,6 @@ describe('Admin & Mentor Governance + KPI API Contracts', () => {
       'updateAdminMentorPlan',
       'getAdminBookingAttendanceDetail',
       'getBookingAttendance',
-      'getAdminMentorQualifications',
-      'grantAdminMentorQualification',
-      'revokeAdminMentorQualification',
-      'getMentorQualifications',
     ];
     for (const name of retired) {
       assert.equal(name in governanceApi, false, `${name} should be removed`);

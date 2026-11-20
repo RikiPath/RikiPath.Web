@@ -1,8 +1,11 @@
-import { forwardRef, useId, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
+  Check,
+  ChevronDown,
   CircleAlert,
   CircleCheck,
   Info,
+  Search,
   TriangleAlert,
   X,
 } from 'lucide-react';
@@ -282,24 +285,446 @@ export const Textarea = forwardRef(function Textarea({ invalid, className, rows 
   );
 });
 
-export const Select = forwardRef(function Select({ invalid, className, children, style, ...rest }, ref) {
+/* ------------------------------------------------------------------ Select & CustomSelect */
+
+/**
+ * Premium Sakura Custom Select / Dropdown Listbox.
+ * Supports single-select, search filtering, option icons, status color dots,
+ * count badges, selected checkmarks, keyboard navigation (ArrowUp/Down, Home/End, Enter, Space, Escape),
+ * auto-flip positioning, and full ARIA combobox/listbox accessibility.
+ */
+export const CustomSelect = forwardRef(function CustomSelect(
+  {
+    value,
+    onChange,
+    options = [],
+    placeholder = 'Chọn...',
+    label,
+    size = 'md',
+    align = 'start',
+    disabled = false,
+    readOnly = false,
+    loading = false,
+    invalid = false,
+    error = null,
+    clearable = false,
+    searchable = false,
+    searchPlaceholder = 'Tìm kiếm...',
+    className,
+    triggerClassName,
+    menuClassName,
+    dataTestId,
+    'data-testid': dataTestIdProp,
+    testIdPrefix = 'select-option',
+    icon: LeadIcon,
+    id: propId,
+    name,
+    'aria-describedby': ariaDescribedBy,
+    children,
+    ...rest
+  },
+  forwardedRef,
+) {
+  const { tr } = useLocale();
+  const generatedId = useId();
+  const selectId = propId || generatedId;
+  const listboxId = `${selectId}-listbox`;
+
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [flipUp, setFlipUp] = useState(false);
+
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const itemRefs = useRef([]);
+
+  // Normalize options: handles array of objects, primitives, or React <option> children
+  const normalizedOptions = useMemo(() => {
+    if (options && options.length > 0) {
+      return options.map((opt) => {
+        if (opt == null) return { value: '', label: '' };
+        if (typeof opt !== 'object') return { value: String(opt), label: String(opt) };
+        return {
+          value: opt.value != null ? String(opt.value) : opt.id != null ? String(opt.id) : '',
+          label: opt.label != null ? String(opt.label) : opt.name != null ? String(opt.name) : String(opt.value ?? opt.id ?? ''),
+          icon: opt.icon,
+          dotClass: opt.dotClass,
+          count: opt.count,
+          description: opt.description,
+          disabled: Boolean(opt.disabled),
+        };
+      });
+    }
+    // Fallback if <option> children are passed
+    if (children) {
+      const list = [];
+      const iterate = (nodes) => {
+        if (!nodes) return;
+        (Array.isArray(nodes) ? nodes : [nodes]).forEach((child) => {
+          if (!child || !child.props) return;
+          if (child.type === 'option') {
+            list.push({
+              value: String(child.props.value ?? ''),
+              label: String(child.props.children ?? child.props.value ?? ''),
+              disabled: Boolean(child.props.disabled),
+            });
+          }
+        });
+      };
+      iterate(children);
+      return list;
+    }
+    return [];
+  }, [options, children]);
+
+  // Find currently selected option
+  const selectedOption = useMemo(() => {
+    if (value === undefined || value === null) return null;
+    return normalizedOptions.find((opt) => String(opt.value) === String(value)) || null;
+  }, [normalizedOptions, value]);
+
+  // Filter options when searchable is enabled
+  const filteredOptions = useMemo(() => {
+    if (!searchable || !searchQuery.trim()) return normalizedOptions;
+    const q = searchQuery.toLowerCase().trim();
+    return normalizedOptions.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(q) ||
+        (opt.description && opt.description.toLowerCase().includes(q)),
+    );
+  }, [normalizedOptions, searchable, searchQuery]);
+
+  // Check collision with window bottom on open to flip upwards if needed
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    setFlipUp(spaceBelow < 220 && spaceAbove > spaceBelow);
+
+    if (searchable && searchInputRef.current) {
+      searchInputRef.current.focus();
+    } else {
+      const idx = Math.max(0, filteredOptions.findIndex((opt) => String(opt.value) === String(value)));
+      setActiveIndex(idx);
+      const timer = setTimeout(() => {
+        itemRefs.current[idx]?.focus();
+      }, 16);
+      return () => clearTimeout(timer);
+    }
+  }, [open, searchable, filteredOptions, value]);
+
+  // Close on outside pointerdown
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (!rootRef.current?.contains(e.target)) {
+        setOpen(false);
+        setSearchQuery('');
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setSearchQuery('');
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  // Select an option and notify parent
+  const handleSelect = (opt) => {
+    if (opt.disabled || disabled || readOnly) return;
+    const nextVal = opt.value;
+    if (onChange) {
+      const event = {
+        target: { value: nextVal, name },
+        currentTarget: { value: nextVal, name },
+      };
+      onChange(nextVal, event);
+    }
+    setOpen(false);
+    setSearchQuery('');
+    triggerRef.current?.focus();
+  };
+
+  const handleKeyDown = (e) => {
+    if (disabled || readOnly) return;
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((prev) => {
+        const next = (prev + 1) % (filteredOptions.length || 1);
+        itemRefs.current[next]?.focus();
+        return next;
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((prev) => {
+        const next = (prev - 1 + (filteredOptions.length || 1)) % (filteredOptions.length || 1);
+        itemRefs.current[next]?.focus();
+        return next;
+      });
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActiveIndex(0);
+      itemRefs.current[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      const last = Math.max(0, filteredOptions.length - 1);
+      setActiveIndex(last);
+      itemRefs.current[last]?.focus();
+    } else if (e.key === 'Enter' || (e.key === ' ' && !searchable)) {
+      e.preventDefault();
+      const picked = filteredOptions[activeIndex];
+      if (picked) handleSelect(picked);
+    }
+  };
+
+  const isInvalid = invalid || Boolean(error);
+  const sizeClasses =
+    size === 'sm'
+      ? 'h-8.5 px-3 text-[12.5px] rounded-xl font-semibold'
+      : size === 'lg'
+        ? 'h-12 px-4 text-[15px] rounded-rp-input font-medium'
+        : 'min-h-11 h-11 px-3.5 text-sm rounded-rp-input font-medium';
+
   return (
-    <select
-      ref={ref}
-      aria-invalid={invalid || undefined}
-      className={cx(CONTROL, 'min-h-11 py-2.5 leading-snug cursor-pointer appearance-none overflow-hidden text-ellipsis whitespace-nowrap bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
-      style={{
-        WebkitAppearance: 'none',
-        appearance: 'none',
-        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23776C70' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
-        ...style,
-      }}
-      {...rest}
+    <div
+      ref={rootRef}
+      className={cx('relative inline-block w-full text-left', className)}
     >
-      {children}
-    </select>
+      <button
+        ref={(el) => {
+          triggerRef.current = el;
+          if (typeof forwardedRef === 'function') forwardedRef(el);
+          else if (forwardedRef) forwardedRef.current = el;
+        }}
+        id={selectId}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-label={label}
+        aria-invalid={isInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled && !readOnly) setOpen((prev) => !prev);
+        }}
+        onKeyDown={handleKeyDown}
+        data-testid={dataTestIdProp || dataTestId}
+        className={cx(
+          'rp-focus flex w-full items-center justify-between gap-2 border bg-rp-surface text-rp-text transition-[border-color,box-shadow,background-color] duration-150',
+          sizeClasses,
+          isInvalid
+            ? 'border-rp-danger focus-visible:ring-2 focus-visible:ring-rp-danger/30'
+            : 'border-rp-line hover:border-rp-brand-border focus-visible:border-rp-brand focus-visible:shadow-[0_0_0_3px_rgba(224,90,122,0.18)]',
+          disabled && 'cursor-not-allowed bg-rp-muted opacity-60 text-rp-text-disabled',
+          triggerClassName,
+        )}
+        {...rest}
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-left">
+          {LeadIcon && <LeadIcon className="h-4 w-4 shrink-0 text-rp-text-muted" />}
+          {selectedOption?.dotClass && (
+            <span
+              aria-hidden="true"
+              className={cx('h-2 w-2 shrink-0 rounded-full', selectedOption.dotClass)}
+            />
+          )}
+          {selectedOption?.icon && (
+            <selectedOption.icon className="h-4 w-4 shrink-0 text-rp-text-muted" />
+          )}
+          <span className={cx('truncate', !selectedOption && 'text-rp-text-disabled')}>
+            {selectedOption ? tr(selectedOption.label) : tr(placeholder)}
+          </span>
+          {selectedOption?.count != null && (
+            <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
+              {selectedOption.count}
+            </span>
+          )}
+        </span>
+
+        <span className="flex items-center gap-1.5 shrink-0 pl-1">
+          {clearable && selectedOption && !disabled && (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label={tr('Xóa lựa chọn')}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onChange) onChange('', { target: { value: '', name } });
+              }}
+              className="rounded p-0.5 text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown
+            aria-hidden="true"
+            className={cx(
+              'h-4 w-4 shrink-0 text-rp-text-muted transition-transform duration-200',
+              open && 'rotate-180',
+            )}
+          />
+        </span>
+      </button>
+
+      {/* Popover Menu */}
+      {open && (
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label={label || tr(placeholder)}
+          tabIndex={-1}
+          className={cx(
+            'rp-anim-pop absolute z-[120] min-w-[200px] w-full rounded-rp-card border border-rp-line bg-rp-surface py-1 shadow-rp-pop focus:outline-none',
+            flipUp ? 'bottom-[calc(100%+6px)]' : 'top-[calc(100%+6px)]',
+            align === 'end' ? 'right-0' : 'left-0',
+            menuClassName,
+          )}
+        >
+          {searchable && (
+            <div className="border-b border-rp-line p-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-rp-text-muted" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={tr(searchPlaceholder)}
+                  className="w-full rounded-lg border border-rp-line bg-rp-bg-2 py-1.5 pl-8 pr-2.5 text-xs text-rp-text placeholder:text-rp-text-disabled focus:border-rp-brand focus:outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="hide-scrollbar max-h-60 overflow-y-auto">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-center text-xs text-rp-text-muted">
+                {tr(emptyMessage)}
+              </div>
+            ) : (
+              filteredOptions.map((opt, idx) => {
+                const isSelected = selectedOption && String(selectedOption.value) === String(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    ref={(el) => {
+                      itemRefs.current[idx] = el;
+                    }}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    aria-disabled={opt.disabled || undefined}
+                    disabled={opt.disabled}
+                    data-testid={`${testIdPrefix}-${opt.value}`}
+                    onClick={() => handleSelect(opt)}
+                    className={cx(
+                      'flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-[12.5px] transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-40',
+                      isSelected
+                        ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
+                        : 'font-medium text-rp-text hover:bg-rp-bg-2 focus:bg-rp-bg-2',
+                    )}
+                  >
+                    <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
+                      {opt.dotClass && (
+                        <span
+                          aria-hidden="true"
+                          className={cx('h-2 w-2 shrink-0 rounded-full', opt.dotClass)}
+                        />
+                      )}
+                      {opt.icon && <opt.icon className="h-4 w-4 shrink-0 text-rp-text-muted" />}
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="block truncate">{tr(opt.label)}</span>
+                        {opt.description && (
+                          <span className="block text-[11px] font-normal text-rp-text-muted truncate">
+                            {tr(opt.description)}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      {opt.count != null && (
+                        <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
+                          {opt.count}
+                        </span>
+                      )}
+                      {isSelected && (
+                        <Check className="h-4 w-4 shrink-0 text-rp-brand-strong" />
+                      )}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 });
+
+export const Select = forwardRef(function Select({ native = false, invalid, className, children, options, style, ...rest }, ref) {
+  if (native) {
+    return (
+      <select
+        ref={ref}
+        aria-invalid={invalid || undefined}
+        className={cx(CONTROL, 'min-h-11 py-2.5 leading-snug cursor-pointer appearance-none overflow-hidden text-ellipsis whitespace-nowrap bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
+        style={{
+          WebkitAppearance: 'none',
+          appearance: 'none',
+          backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23776C70' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+          ...style,
+        }}
+        {...rest}
+      >
+        {children}
+      </select>
+    );
+  }
+  return <CustomSelect ref={ref} invalid={invalid} className={className} options={options} {...rest}>{children}</CustomSelect>;
+});
+
+export function Radio({ label, description, className, ...rest }) {
+  const { tr } = useLocale();
+  const id = useId();
+  return (
+    <label htmlFor={id} className={cx('flex cursor-pointer items-start gap-2.5 text-sm text-rp-text', className)}>
+      <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+        <input id={id} type="radio" className="rp-radio peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
+        <span aria-hidden="true" className="rp-radio-box pointer-events-none flex h-full w-full items-center justify-center rounded-full border-[1.5px] border-rp-line-strong bg-rp-surface peer-checked:border-rp-brand peer-focus-visible:ring-2 peer-focus-visible:ring-rp-brand/40">
+          <span className="h-2 w-2 rounded-full bg-rp-brand opacity-0 transition-opacity peer-checked:opacity-100" />
+        </span>
+      </span>
+      <span>
+        {label && <span className="font-medium">{tr(label)}</span>}
+        {description && <span className="block text-xs text-rp-text-muted">{tr(description)}</span>}
+      </span>
+    </label>
+  );
+}
 
 export function Checkbox({ label, description, className, ...rest }) {
   const { tr } = useLocale();
@@ -433,6 +858,9 @@ function initialsOf(name) {
 /** Image avatar with an initials fallback when the URL is missing or fails to load (no layout shift). */
 export function Avatar({ src, name, size = 40, className }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
   const style = { width: size, height: size, fontSize: Math.max(11, Math.round(size * 0.34)) };
   if (src && !failed) {
     return <img src={src} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(true)} style={style} className={cx('shrink-0 rounded-full object-cover', className)} />;

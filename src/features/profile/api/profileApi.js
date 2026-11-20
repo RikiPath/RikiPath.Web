@@ -10,8 +10,16 @@ export async function setJlptGoal(payload) {
   return data.result;
 }
 
-export async function updateProfile({ fullName }) {
-  const data = await api.put('/UserProfile/me', { fullName });
+export async function updateProfile({ fullName, phoneNumber, updatePhoneNumber = false, studyTimePreference }) {
+  const payload = { fullName };
+  if (updatePhoneNumber || phoneNumber !== undefined) {
+    payload.phoneNumber = phoneNumber ?? null;
+    payload.updatePhoneNumber = Boolean(updatePhoneNumber);
+  }
+  if (studyTimePreference !== undefined) {
+    payload.studyTimePreference = studyTimePreference;
+  }
+  const data = await api.put('/UserProfile/me', payload);
   return data.result;
 }
 
@@ -27,6 +35,11 @@ export async function updateAvatar(file) {
   return data.result;
 }
 
+export async function deleteAvatar() {
+  const data = await api.delete('/UserProfile/me/avatar');
+  return data.result;
+}
+
 export async function setStudyLevel({ currentStudyLevelId }) {
   const data = await api.put('/UserProfile/me/study-level', {
     currentStudyLevelId,
@@ -35,10 +48,18 @@ export async function setStudyLevel({ currentStudyLevelId }) {
   return data.result;
 }
 
-export async function updateNotificationSettings({ emailNotificationsEnabled, systemNotificationsEnabled }) {
-  const data = await api.put('/UserProfile/me/notification-settings', {
+export async function updateNotificationSettings({
+  emailNotificationsEnabled,
+  systemNotificationsEnabled,
+  notificationCategories,
+}) {
+  const payload = {
     emailNotificationsEnabled,
     systemNotificationsEnabled,
-  });
+  };
+  if (notificationCategories && typeof notificationCategories === 'object') {
+    payload.notificationCategories = notificationCategories;
+  }
+  const data = await api.put('/UserProfile/me/notification-settings', payload);
   return data.result;
 }

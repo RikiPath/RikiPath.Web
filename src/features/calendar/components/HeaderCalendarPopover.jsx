@@ -58,17 +58,17 @@ function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMa
   const weekdays = MINI_WEEKDAYS[locale] || MINI_WEEKDAYS.vi;
 
   return (
-    <div className="border-b border-rp-line bg-rp-bg-2/50 px-3.5 py-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[12.5px] font-bold capitalize text-rp-text">{monthLabel}</p>
-        <div className="flex items-center gap-1">
+    <div className="border-b border-rp-line bg-rp-bg-2/50 px-3 py-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[13px] font-bold capitalize text-rp-text">{monthLabel}</p>
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={() => {
               onChangeMonth(todayKey);
               onSelectDay(todayKey);
             }}
-            className="rp-focus rounded-lg px-2 py-0.5 text-[11px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint"
+            className="rp-focus inline-flex h-7 items-center rounded-lg px-2 text-[11.5px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint"
           >
             {tr('Hôm nay')}
           </button>
@@ -76,7 +76,7 @@ function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMa
             type="button"
             onClick={() => onChangeMonth(shiftMonthKey(monthAnchorKey, -1))}
             aria-label={tr('Tháng trước')}
-            className="rp-focus rounded-lg p-1 text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+            className="rp-focus inline-flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -84,19 +84,19 @@ function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMa
             type="button"
             onClick={() => onChangeMonth(shiftMonthKey(monthAnchorKey, 1))}
             aria-label={tr('Tháng sau')}
-            className="rp-focus rounded-lg p-1 text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+            className="rp-focus inline-flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-rp-text-muted">
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[10.5px] font-semibold text-rp-text-muted">
         {weekdays.map((d) => (
           <span key={d} className="py-0.5">{d}</span>
         ))}
       </div>
-      <div className="mt-1 grid grid-cols-7 gap-0.5">
+      <div className="mt-0.5 grid grid-cols-7 gap-0.5">
         {cells.map((cell) => {
           const tones = dayTonesMap.get(cell.key);
           const isToday = cell.key === todayKey;
@@ -107,17 +107,19 @@ function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMa
               type="button"
               onClick={() => onSelectDay(cell.key)}
               className={cx(
-                'rp-focus flex h-8 flex-col items-center justify-center rounded-lg text-[11.5px] transition-colors',
+                'rp-focus flex h-[30px] flex-col items-center justify-center rounded-lg text-[11.5px] transition-colors',
                 !cell.inCurrentMonth && 'opacity-40',
-                isSelected
-                  ? 'bg-rp-brand-pressed font-bold text-white shadow-rp-xs'
-                  : isToday
-                    ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
-                    : 'font-medium text-rp-text hover:bg-rp-muted/80',
+                isSelected && isToday
+                  ? 'bg-rp-brand-pressed font-bold text-white shadow-rp-xs ring-2 ring-rp-brand-border/70'
+                  : isSelected
+                    ? 'bg-rp-brand-pressed font-bold text-white shadow-rp-xs'
+                    : isToday
+                      ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
+                      : 'font-medium text-rp-text hover:bg-rp-muted/80',
               )}
             >
               <span className="leading-none tabular-nums">{cell.dateNum}</span>
-              <span className="mt-0.5 flex h-1.5 items-center gap-0.5">
+              <span className="mt-px flex h-1 items-center gap-0.5">
                 {tones && [...tones].slice(0, 3).map((tone) => (
                   <span
                     key={tone}
@@ -254,14 +256,14 @@ function CalendarPopoverBody({ calendar, onClose }) {
   return (
     <div className="flex max-h-[82vh] flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-rp-line px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-rp-line px-3.5 py-2.5">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rp-brand-strong">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-rp-brand-strong">
             {tr(roleCalendarTitle(roleKey))}
           </p>
-          <p className="truncate text-sm font-bold capitalize text-rp-text">{todayFormatted}</p>
+          <p className="truncate text-[13.5px] font-bold capitalize text-rp-text">{todayFormatted}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1">
           <span className="inline-flex items-center gap-1 rounded-full bg-rp-brand-tint px-2 py-0.5 text-[10.5px] font-semibold text-rp-brand-strong">
             <Clock className="h-3 w-3" /> GMT+7
           </span>
@@ -270,7 +272,7 @@ function CalendarPopoverBody({ calendar, onClose }) {
             onClick={refetchAll}
             disabled={isFetching}
             aria-label={tr('Làm mới lịch')}
-            className="rp-focus rounded-full p-1.5 text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+            className="rp-focus inline-flex h-7 w-7 items-center justify-center rounded-full text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
           >
             <RefreshCw className={cx('h-3.5 w-3.5', isFetching && 'animate-spin')} />
           </button>
@@ -292,18 +294,18 @@ function CalendarPopoverBody({ calendar, onClose }) {
       )}
 
       {/* Body */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-[13px]">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3.5 py-2.5 text-[12.5px]">
         {isLoading ? (
-          <div className="flex min-h-[140px] items-center justify-center">
+          <div className="flex min-h-[96px] items-center justify-center">
             <SakuraLoader variant="inline" size={24} context="data" />
           </div>
         ) : hardError ? (
-          <div className="rounded-xl border border-rp-danger/25 bg-rp-danger-bg/40 p-3 text-center">
-            <p className="text-xs font-semibold text-rp-danger">{tr('Chưa tải được lịch học lúc này.')}</p>
+          <div className="flex items-center justify-between gap-2.5 rounded-xl border border-rp-danger-line bg-rp-danger-bg/60 px-3 py-2">
+            <p className="min-w-0 text-xs font-semibold leading-4 text-rp-danger">{tr('Chưa tải được lịch học lúc này.')}</p>
             <button
               type="button"
               onClick={refetchAll}
-              className="rp-focus mt-2 inline-flex items-center gap-1 rounded-lg bg-rp-surface px-3 py-1 text-xs font-semibold text-rp-text shadow-rp-xs hover:bg-rp-muted"
+              className="rp-focus inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-rp-line bg-rp-surface px-2.5 text-xs font-semibold text-rp-text shadow-rp-xs transition-colors hover:border-rp-brand-border hover:text-rp-brand-strong"
             >
               <RefreshCw className="h-3 w-3" /> {tr('Thử lại')}
             </button>
@@ -662,7 +664,7 @@ function CalendarPopoverBody({ calendar, onClose }) {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between gap-2 border-t border-rp-line bg-rp-bg-2/70 px-4 py-2.5">
+      <div className="flex items-center justify-between gap-2 border-t border-rp-line bg-rp-bg-2/70 px-3.5 py-2">
         {roleKey === 'Learner' ? (
           <Link
             to="/homework"
@@ -699,7 +701,7 @@ function CalendarPopoverBody({ calendar, onClose }) {
         <Link
           to={fullCalendarRoute}
           onClick={onClose}
-          className="rp-focus inline-flex items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-rp-brand-strong"
+          className="rp-focus inline-flex h-8 items-center gap-1.5 rounded-[10px] bg-rp-brand-pressed px-3 text-xs font-semibold text-white transition-colors hover:bg-rp-brand-strong"
         >
           {roleKey === 'Learner'
             ? tr('Xem lịch đầy đủ')
@@ -765,7 +767,7 @@ export default function HeaderCalendarPopover({ roleKey }) {
     <Popover
       label={baseTitle}
       align="end"
-      panelClassName="w-[410px] max-w-[calc(100vw-24px)] overflow-hidden p-0"
+      panelClassName="w-[328px] sm:w-[340px] max-w-[calc(100vw-24px)] overflow-hidden p-0"
       trigger={({ toggle, props }) => (
         <IconButton
           {...props}

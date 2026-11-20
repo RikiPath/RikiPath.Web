@@ -249,21 +249,21 @@ export default function DailySRS() {
                         onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }}
                         autoComplete="off" autoCapitalize="none" spellCheck={false}
                         placeholder={tr('Ví dụ: みず hoặc mizu')} maxLength={200}
-                        className="mt-2 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-lg outline-none focus:border-primary" />
-                      <button type="submit" disabled={!typedAnswer.trim()} className="mt-4 w-full rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary disabled:opacity-40">{tr('Kiểm tra')}</button>
+                        className="mt-2 h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3.5 text-base outline-none focus:border-primary" />
+                      <button type="submit" disabled={!typedAnswer.trim()} className="mt-3.5 flex h-[42px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-40">{tr('Kiểm tra')}</button>
                     </form> : <div className="mx-auto max-w-xl">
                       <div role="status" className={`rounded-xl border p-4 ${typedResult.correct ? 'border-tertiary/30 bg-tertiary/10 text-tertiary' : 'border-error/30 bg-error-container/40 text-error'}`}>
                         <p className="font-semibold">{typedResult.correct ? tr('Đúng rồi!') : tr('Chưa đúng. Thẻ sẽ được ôn lại cuối phiên.')}</p>
                         <p className="mt-1 text-sm">{trf('Bạn đã nhập: {0}', { 0: typedAnswer })}</p>
                         <p className="mt-1 text-sm">{trf('Cách đọc: {0}', { 0: currentCard.reading })}</p>
                       </div>
-                      <button type="button" disabled={isSubmitting} onClick={() => submitAnswer(typedResult.correct ? 4 : 1)} className="mt-4 w-full rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary disabled:opacity-40">{isSubmitting ? tr('Đang lưu…') : tr('Tiếp tục')}</button>
+                      <button type="button" disabled={isSubmitting} onClick={() => submitAnswer(typedResult.correct ? 4 : 1)} className="mt-3.5 flex h-[42px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary disabled:opacity-40">{isSubmitting ? tr('Đang lưu…') : tr('Tiếp tục')}</button>
                     </div>
                   ) : !revealed ? (
                     <button
                       type="button"
                       onClick={() => setRevealed(true)}
-                      className="mx-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-7 py-3 font-semibold text-on-primary shadow-sm transition hover:bg-primary-hover"
+                      className="mx-auto flex h-[42px] items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-on-primary shadow-sm transition hover:bg-primary-hover"
                     >
                       <Icon name="flip" />
                       {tr('Lật thẻ xem đáp án')}
@@ -274,7 +274,7 @@ export default function DailySRS() {
                         type="button"
                         disabled={isSubmitting}
                         onClick={() => submitAnswer(1)}
-                        className="flex items-center justify-center gap-2 rounded-xl border border-error/30 bg-error-container/40 px-5 py-3 font-semibold text-error transition hover:bg-error-container disabled:cursor-wait disabled:opacity-60"
+                        className="flex h-[42px] items-center justify-center gap-2 rounded-xl border border-error/30 bg-error-container/40 px-4 text-sm font-semibold text-error transition hover:bg-error-container disabled:cursor-wait disabled:opacity-60"
                       >
                         <Icon name="replay" />
                         {tr('Chưa nhớ · lặp cuối phiên')}
@@ -283,7 +283,7 @@ export default function DailySRS() {
                         type="button"
                         disabled={isSubmitting}
                         onClick={() => submitAnswer(4)}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-tertiary px-5 py-3 font-semibold text-on-tertiary transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                        className="flex h-[42px] items-center justify-center gap-2 rounded-xl bg-tertiary px-4 text-sm font-semibold text-on-tertiary transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
                       >
                         <Icon name="check_circle" />
                         {tr('Đã nhớ · thẻ tiếp theo')}
@@ -303,7 +303,7 @@ export default function DailySRS() {
               )}
             </section>
           ) : loadError ? (
-            <section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
+            <section className="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
               <ContextualErrorState
                 error={loadError}
                 title={tr('Không tải được hàng ôn')}
@@ -313,44 +313,44 @@ export default function DailySRS() {
             </section>
           ) : (
             <>
-              <section className="relative overflow-hidden rounded-2xl bg-surface-container-lowest p-6 shadow-sm md:p-9">
+              <section className="relative overflow-hidden rounded-2xl bg-surface-container-lowest p-5 shadow-sm md:p-6">
                 <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-secondary-container/25 blur-3xl" />
-                <div className="relative z-10 flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+                <div className="relative z-10 flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
                   <div className="max-w-2xl">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-secondary-container/40 px-4 py-2 text-sm font-semibold text-primary">
-                      <Icon name="notifications_active" className="text-[18px]" />
+                    <span className="inline-flex items-center gap-2 rounded-full bg-secondary-container/40 px-3 py-1 text-xs font-semibold text-primary">
+                      <Icon name="notifications_active" className="text-[16px]" />
                       {tr('Hàng đợi ôn tập hôm nay')}
                     </span>
-                    <h2 className="mt-5 text-2xl font-bold leading-snug md:text-3xl">
+                    <h2 className="mt-3.5 text-2xl font-bold leading-snug md:text-[26px]">
                       {queue.length > 0 ? (
                         <>{locale === 'ja' ? '今日は' : tr('Hôm nay có')} <span className="text-primary">{queue.length} {locale === 'ja' ? '枚' : tr('thẻ')}</span> {locale === 'ja' ? 'が復習期限です。' : tr('đến hạn ôn.')}</>
                       ) : tr('Bạn không có thẻ nào đến hạn hôm nay.')}
                     </h2>
-                    <p className="mt-3 text-sm leading-6 text-on-surface-variant">
+                    <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                       {studyMode === 'type' ? tr('Nhập cách đọc bằng Kana hoặc Romaji, xem kết quả rồi bấm Tiếp tục để lưu lịch ôn.') : tr('Phiên ôn hiển thị từng thẻ, cho xem đáp án rồi ghi nhận bạn đã nhớ hay cần ôn lại.')}
                     </p>
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      <div className="rounded-xl bg-surface-container-low px-4 py-3">
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <div className="rounded-xl bg-surface-container-low px-4 py-2.5">
                         <p className="text-xs font-medium text-on-surface-variant">{tr('Thẻ đến hạn')}</p>
-                        <p className="mt-1 text-2xl font-bold text-primary">{queue.length}</p>
+                        <p className="mt-0.5 text-xl font-bold text-primary">{queue.length}</p>
                       </div>
-                      <div className="rounded-xl bg-surface-container-low px-4 py-3">
+                      <div className="rounded-xl bg-surface-container-low px-4 py-2.5">
                         <p className="text-xs font-medium text-on-surface-variant">{tr('Thời gian dự kiến')}</p>
-                        <p className="mt-1 text-sm font-semibold text-on-surface">{tr('Tùy tốc độ ôn của bạn')}</p>
+                        <p className="mt-0.5 text-sm font-semibold text-on-surface">{tr('Tùy tốc độ ôn của bạn')}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="w-full rounded-2xl bg-surface-container-low p-6 text-center shadow-sm lg:max-w-xs">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-container text-on-primary shadow-md">
-                      <Icon name="style" className="text-3xl" />
+                  <div className="w-full rounded-2xl bg-surface-container-low p-5 text-center shadow-sm lg:max-w-xs">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-container text-on-primary shadow-md">
+                      <Icon name="style" className="text-2xl" />
                     </div>
-                    <h3 className="mt-4 text-lg font-bold">{tr('Sẵn sàng ôn tập?')}</h3>
-                    <p className="mt-1 text-sm text-on-surface-variant">{tr('Thẻ sai được đưa về cuối phiên để thử lại.')}</p>
+                    <h3 className="mt-3 text-base font-bold">{tr('Sẵn sàng ôn tập?')}</h3>
+                    <p className="mt-1 text-xs leading-5 text-on-surface-variant">{tr('Thẻ sai được đưa về cuối phiên để thử lại.')}</p>
                     <button
                       type="button"
                       onClick={startSession}
                       disabled={queue.length === 0 || isLoading}
-                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-4 flex h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {locale === 'ja' ? `復習を始める（${queue.length} 枚）` : trf('Bắt đầu phiên ôn ({0} thẻ)', { 0: queue.length })}
                       <Icon name="arrow_forward" />

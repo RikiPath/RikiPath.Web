@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getSession, patchSession, savePendingVerify } from '@/app/auth/session.js';
+import { getSession, savePendingVerify } from '@/app/auth/session.js';
 import BrandMark from '@/components/brand/BrandMark.jsx';
 import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
 import { useUpdateEmailMutation } from '@/features/auth/hooks/useAuthMutations.js';
@@ -13,12 +13,13 @@ export default function UpdateEmail() {
   const session = getSession();
   const mutation = useUpdateEmailMutation();
   const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [error, setError] = useState('');
   const loading = mutation.isPending;
   const currentEmail = session?.email || tr('chưa đăng nhập');
 
   function goToVerify(email, notice) {
-    savePendingVerify({ email, userId: session?.userId });
+    savePendingVerify({ email, userId: session?.userId, purpose: 'changeEmail' });
     navigate(`/verify-email?email=${encodeURIComponent(email)}&userId=${session?.userId || ''}`, {
       state: notice ? { notice } : undefined,
     });
@@ -31,22 +32,19 @@ export default function UpdateEmail() {
       navigate('/auth', { replace: true, state: { notice: tr('Đăng nhập để đổi email.') } });
       return;
     }
+    if (!currentPassword) {
+      setError(tr('Vui lòng nhập mật khẩu hiện tại để xác nhận.'));
+      return;
+    }
     mutation.mutate(
-      { userId: session.userId, newEmail: newEmail.trim() },
+      { userId: session.userId, newEmail: newEmail.trim(), currentPassword },
       {
         onSuccess: () => {
-          patchSession({ email: newEmail.trim() });
-          notify.info(tr('Đã cập nhật email mới'), tr('Kiểm tra hộp thư mới để nhập mã xác thực.'), { key: 'auth-update-email' });
+          notify.info(tr('Đã gửi mã xác thực email mới'), tr('Kiểm tra hộp thư mới để nhập mã xác thực.'), { key: 'auth-update-email' });
           goToVerify(newEmail.trim());
         },
         onError: (err) => {
           const msg = err.message || tr('Cập nhật email thất bại.');
-          if (msg.includes('Đã cập nhật email')) {
-            patchSession({ email: newEmail.trim() });
-            notify.info(tr('Đã cập nhật email mới'), msg, { key: 'auth-update-email' });
-            goToVerify(newEmail.trim(), msg);
-            return;
-          }
           setError(msg);
           notify.apiError(err, tr('Cập nhật email thất bại.'), { key: 'auth-update-email-err' });
         },
@@ -95,19 +93,19 @@ export default function UpdateEmail() {
           </ol>
         </aside>
 
-        <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
-          <div className="mb-5 flex justify-end">
+        <section className="px-5 py-5 sm:p-6 lg:px-8 lg:py-6">
+          <div className="mb-4 flex justify-end">
             <LanguageSwitch />
           </div>
 
           <p className="text-[12px] font-medium text-rp-brand-strong">{tr('Email hiện tại')}</p>
-          <p className="mt-2 break-all rounded-xl bg-rp-brand-tint px-4 py-3 text-[14px] font-medium text-rp-brand-strong">
+          <p className="mt-1.5 break-all rounded-xl bg-rp-brand-tint px-3.5 py-2.5 text-[13.5px] font-medium text-rp-brand-strong">
             {currentEmail}
           </p>
 
-          <form className="mt-6" onSubmit={handleSubmit}>
+          <form className="mt-5" onSubmit={handleSubmit}>
             {error ? (
-              <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
+              <p role="alert" className="mb-3.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
                 {tr(error)}
               </p>
             ) : null}
@@ -123,16 +121,29 @@ export default function UpdateEmail() {
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="ten.moi@email.com"
-              className="mt-2 block w-full rounded-xl border border-rp-line bg-white px-4 py-3 text-sm text-rp-text outline-none focus:border-rp-brand focus:ring-2 focus:ring-rp-brand/20"
+              className="mt-1.5 block h-10 w-full rounded-xl border border-rp-line bg-white px-3.5 text-sm text-rp-text outline-none focus:border-rp-brand focus:ring-2 focus:ring-rp-brand/20"
+            />
+            <label className="mt-3.5 block text-[12px] font-medium text-rp-text-muted" htmlFor="currentPassword">
+              {tr('Mật khẩu hiện tại')}
+            </label>
+            <input
+              id="currentPassword"
+              required
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder={tr('Nhập mật khẩu hiện tại')}
+              className="mt-1.5 block h-10 w-full rounded-xl border border-rp-line bg-white px-3.5 text-sm text-rp-text outline-none focus:border-rp-brand focus:ring-2 focus:ring-rp-brand/20"
             />
             <p className="mt-2 text-[11px] leading-5 text-rp-text-muted">
-              {tr('Mã được gửi tới email mới, không gửi lại email cũ.')}
+              {tr('Mã được gửi tới email mới, email hiện tại giữ nguyên đến khi xác thực xong.')}
             </p>
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-5 flex h-11 w-full items-center justify-center rounded-[10px] bg-rp-brand-pressed text-[14px] font-semibold text-white hover:bg-rp-brand disabled:cursor-wait disabled:opacity-60 rp-press"
+              className="mt-4 flex h-[42px] w-full items-center justify-center rounded-[10px] bg-rp-brand-pressed text-[14px] font-semibold text-white hover:bg-rp-brand disabled:cursor-wait disabled:opacity-60 rp-press"
             >
               {loading ? tr('Đang cập nhật...') : tr('Cập nhật email')}
             </button>
@@ -141,7 +152,7 @@ export default function UpdateEmail() {
           <p className="mt-5 text-center text-[12px] text-rp-text-muted">
             <Link className="font-medium rp-link" to="/change-password">{tr('Đổi mật khẩu')}</Link>
             {' · '}
-            <Link className="font-medium rp-link" to="/settings">{tr('Cài đặt')}</Link>
+            <Link className="font-medium rp-link" to="/profile?tab=security">{tr('Quay lại hồ sơ')}</Link>
           </p>
         </section>
       </main>

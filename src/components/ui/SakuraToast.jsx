@@ -11,7 +11,7 @@ import { cx } from './cx.js';
  */
 function GlyphBadge({ cls, children }) {
   return (
-    <span className={cx('rp-toast-glyph flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-bold leading-none text-white', cls)}>
+    <span className={cx('rp-toast-glyph flex h-[22px] w-[22px] items-center justify-center rounded-full text-[13px] font-bold leading-none text-white', cls)}>
       {children}
     </span>
   );
@@ -40,21 +40,21 @@ export default function SakuraToast({ t, item, onDismiss }) {
       aria-atomic="true"
       data-toast-tone={item?.tone || 'info'}
       className={cx(
-        'rp-toast group pointer-events-auto flex w-max max-w-[min(440px,calc(100vw-32px))] gap-2.5 rounded-[10px] bg-white py-2 pl-3 pr-1.5 text-[#363636]',
+        'rp-toast group pointer-events-auto flex w-max min-w-[260px] max-w-[min(480px,calc(100vw-32px))] gap-3 rounded-xl bg-white py-3 pl-4 pr-2.5 text-[#363636]',
         detail || item?.action ? 'items-start' : 'items-center',
         t?.visible ? 'rp-toast-enter' : 'rp-toast-leave',
       )}
     >
-      <span aria-hidden="true" className={cx('flex h-5 w-5 shrink-0 items-center justify-center', (detail || item?.action) && 'mt-px')}>
+      <span aria-hidden="true" className={cx('flex h-6 w-6 shrink-0 scale-110 items-center justify-center', (detail || item?.action) && 'mt-px')}>
         {meta.icon()}
       </span>
 
-      <div className="min-w-0 py-0.5 [overflow-wrap:break-word] [text-wrap:pretty]">
-        <p className={cx('text-sm leading-5', detail ? 'font-semibold' : 'font-medium')}>
+      <div className="min-w-0 flex-1 py-0.5 [overflow-wrap:break-word] [text-wrap:pretty]">
+        <p className={cx('text-[15px] leading-[22px]', detail ? 'font-semibold' : 'font-medium')}>
           <span className="sr-only">{tr(statusLabel)}: </span>
           {headline}
         </p>
-        {detail && <p className="mt-0.5 text-[13px] leading-5 text-[#5f5a5c]">{detail}</p>}
+        {detail && <p className="mt-0.5 text-[13.5px] leading-5 text-[#5f5a5c]">{detail}</p>}
         {item?.action && (
           <button
             type="button"
@@ -62,7 +62,7 @@ export default function SakuraToast({ t, item, onDismiss }) {
               item.action.onClick?.();
               onDismiss(item.id);
             }}
-            className="rp-focus rp-link mt-1 rounded-sm text-[13px]"
+            className="rp-focus rp-link mt-1 rounded-sm text-[13.5px]"
           >
             {tr(item.action.label)}
           </button>
@@ -74,11 +74,11 @@ export default function SakuraToast({ t, item, onDismiss }) {
         onClick={() => onDismiss(item.id)}
         aria-label={tr('Đóng thông báo')}
         className={cx(
-          'rp-focus flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#9a9396] opacity-60 transition-opacity hover:bg-black/5 hover:text-[#363636] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100',
+          'rp-focus flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#9a9396] opacity-70 transition-opacity hover:bg-black/5 hover:text-[#363636] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100',
           (detail || item?.action) && 'self-start',
         )}
       >
-        <X aria-hidden="true" className="h-3.5 w-3.5" />
+        <X aria-hidden="true" className="h-4 w-4" />
       </button>
     </div>
   );

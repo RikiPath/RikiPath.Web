@@ -33,7 +33,7 @@ export const deleteAdminMentorAvailability = missingApi('xóa khung giờ admin'
 
 // Mentors and overview
 export const createAdminMentor = (data) => api.post('/admin/mentors', data);
-export const getAdminMentors = () => api.get('/admin/mentors');
+export const getAdminMentors = (params) => api.get('/admin/mentors', { params });
 export const setAdminMentorActive = (mentorId, isActive) => api.put(`/admin/mentors/${mentorId}/active`, null, { params: { isActive } });
 export const getAdminDashboard = () => api.get('/admin/dashboard');
 
@@ -163,4 +163,47 @@ export async function getMentorGroupPolicyHistory() {
 export async function createMentorGroupPolicyVersion(payload) {
   const data = await api.post('/admin/mentor-group-policies', payload);
   return data?.result ?? data;
+}
+
+// ── Business Configuration: Subscription Plans, Payments & Audit Logs ────────
+
+export async function getAdminSubscriptionPlans() {
+  const data = await api.get('/admin/subscription-plans');
+  return data?.result ?? data;
+}
+
+export async function createAdminSubscriptionPlan(payload) {
+  const data = await api.post('/admin/subscription-plans', payload);
+  return data?.result ?? data;
+}
+
+export async function updateAdminSubscriptionPlan(id, payload) {
+  const data = await api.put(`/admin/subscription-plans/${id}`, payload);
+  return data?.result ?? data;
+}
+
+export async function getAdminPayments(params = {}) {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+  );
+  const data = await api.get('/admin/payments', { params: cleanParams });
+  return data?.result ?? data;
+}
+
+export async function getAdminPaymentDetail(stream, id) {
+  const data = await api.get(`/admin/payments/${encodeURIComponent(stream)}/${id}`);
+  return data?.result ?? data;
+}
+
+export async function getPayOsGatewayStatus() {
+  const data = await api.get('/admin/payments/gateway-status');
+  return data?.result ?? data;
+}
+
+export async function getAdminAuditLogs(params = {}) {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+  );
+  const data = await api.get('/admin/audit-logs', { params: cleanParams });
+  return unwrapApiList(data);
 }

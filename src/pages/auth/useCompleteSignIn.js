@@ -32,8 +32,14 @@ export function useCompleteSignIn() {
       accessToken: result.accessToken,
       userId: result.userId,
       email: result.email,
+      pendingEmail: result.pendingEmail || null,
       fullName: result.fullName,
+      phoneNumber: result.phoneNumber || null,
+      avatarUrl: result.avatarUrl || null,
       role: result.role,
+      isEmailVerified: Boolean(result.isEmailVerified),
+      hasPassword: typeof result.hasPassword === 'boolean' ? result.hasPassword : true,
+      googleLinked: Boolean(result.googleLinked),
     };
     login(nextSession, remember);
     saveRememberedLogin({ email: result.email, remember });

@@ -100,8 +100,8 @@ export default function StudyPaymentReceipt() {
 
   return (
     <LearnerShell breadcrumb={tr('Biên lai thanh toán')}>
-      <div className="mx-auto max-w-xl px-4 py-10">
-        <Card className="p-6 sm:p-8">{view}</Card>
+      <div className="mx-auto max-w-xl px-4 py-6">
+        <Card className="p-5 sm:p-6">{view}</Card>
       </div>
     </LearnerShell>
   );

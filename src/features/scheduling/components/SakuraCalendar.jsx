@@ -544,7 +544,7 @@ export default function SakuraCalendar({
             type="button"
             data-testid="calendar-clear-tone-filter-btn"
             onClick={() => setActiveToneFilter('ALL')}
-            className="font-semibold text-rp-brand-strong hover:underline"
+            className="rp-link font-semibold text-rp-brand-strong"
           >
             {tr('Xóa bộ lọc')}
           </button>
@@ -571,7 +571,7 @@ export default function SakuraCalendar({
               {/* Fixed Day Headers — sits OUTSIDE the vertical scroll container and shares stable scrollbar-gutter */}
               <div
                 data-testid="calendar-header-grid"
-                className="grid border-b border-rp-line bg-white"
+                className="rp-cal-scroll grid border-b border-rp-line bg-white"
                 style={{
                   gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))`,
                   scrollbarGutter: 'stable',
@@ -630,7 +630,7 @@ export default function SakuraCalendar({
               {/* Time-Grid Hour Body — ONLY the Body scrolls vertically; shares scrollbarGutter: stable with Header */}
               <div
                 data-testid="calendar-body-grid"
-                className="grid max-h-[calc(100dvh-242px)] min-h-[490px] overflow-y-scroll bg-white"
+                className="rp-cal-scroll grid max-h-[calc(100dvh-242px)] min-h-[490px] overflow-y-scroll bg-white"
                 style={{
                   gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))`,
                   scrollbarGutter: 'stable',

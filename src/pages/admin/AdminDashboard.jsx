@@ -1,31 +1,92 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, BadgeCheck, CalendarCheck, CreditCard, GraduationCap, Layers, School, ShieldCheck, UserCog, UsersRound } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  ArrowRight,
+  BadgeCheck,
+  CalendarCheck,
+  CalendarClock,
+  CreditCard,
+  GraduationCap,
+  Layers,
+  School,
+  ShieldCheck,
+  UserCog,
+  UsersRound,
+} from 'lucide-react';
 import { getAdminDashboard } from '@/features/admin/api/adminApi.js';
-import { getSession } from '@/app/auth/session.js';
+import { ADMIN_KEYS } from '@/features/admin/api/adminQueryKeys.js';
 import { AdminShell } from '@/layouts';
-import { Card, CardHeader, ErrorState, PageHeader, RefreshingIndicator, SakuraLoader } from '@/components/ui';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import {
+  Badge,
+  Card,
+  ContextualErrorState,
+  FeatureIcon,
+  PageHeader,
+  RefreshingIndicator,
+  SakuraLoader,
+} from '@/components/ui';
+import { currentIntlTag, useLocale } from '@/locales/locale.js';
 
-// Figures come only from GET /admin/dashboard (AdminDashboardResponse). No payout, revenue
-// or invented trend data. The legacy 1-1 booking count is intentionally not shown.
-const ATTENTION = [
-  { key: 'pendingContent', label: 'Nội dung chờ duyệt', hint: 'Bài học, từ vựng, câu hỏi đã gửi', to: '/admin/content-review/', icon: ShieldCheck },
-  { key: 'pendingMentorSchedules', label: 'Khung giờ dạy chờ duyệt', hint: 'Giáo viên đăng ký lịch dạy lớp nhóm', to: '/admin/mentor-schedules/', icon: CalendarCheck },
+const ACTION_QUEUES = [
+  {
+    key: 'pendingVerifications',
+    label: 'Hồ sơ Giáo viên chờ duyệt',
+    hint: 'Xem hồ sơ, chứng chỉ và phê duyệt',
+    to: '/admin/mentor-verifications/?status=Pending',
+    icon: BadgeCheck,
+    tone: 'bg-amber-50 text-amber-700',
+  },
+  {
+    key: 'pendingMentorSchedules',
+    label: 'Lịch dạy chờ duyệt',
+    hint: 'Khung giờ Giáo viên đăng ký mở lớp',
+    to: '/admin/mentor-schedules/',
+    icon: CalendarCheck,
+    tone: 'bg-sky-50 text-sky-700',
+  },
+  {
+    key: 'pendingContent',
+    label: 'Học liệu chờ phê duyệt',
+    hint: 'Bài học, từ vựng, Hán tự, ngữ pháp và đề thi',
+    to: '/admin/content-review/',
+    icon: ShieldCheck,
+    tone: 'bg-rp-brand-tint text-rp-brand-strong',
+  },
+  {
+    key: 'openComplaints',
+    label: 'Khiếu nại đang mở',
+    hint: 'Cần xem xét và ra quyết định',
+    to: '/admin/mentor-cases/',
+    icon: AlertTriangle,
+    tone: 'bg-rose-50 text-rose-700',
+  },
+  {
+    key: 'pendingTransferRequests',
+    label: 'Yêu cầu chuyển lớp',
+    hint: 'Kiểm tra điều kiện và lịch học',
+    to: '/admin/mentor-cases/?tab=transfers',
+    icon: ArrowLeftRight,
+    tone: 'bg-violet-50 text-violet-700',
+  },
+  {
+    key: 'slotChangeTotal',
+    label: 'Yêu cầu đổi / hủy lịch',
+    hint: 'Đổi giờ hoặc hủy khung rảnh & lịch lớp',
+    to: '/admin/slot-review/',
+    icon: CalendarClock,
+    tone: 'bg-emerald-50 text-emerald-700',
+  },
 ];
 
-const FIGURES = [
-  { key: 'totalUsers', label: 'Tài khoản hoạt động', to: '/admin/users/', icon: UserCog, tone: 'bg-tone-reading-bg text-tone-reading' },
-  { key: 'learners', label: 'Học viên', to: '/admin/users/', icon: GraduationCap, tone: 'bg-tone-vocab-bg text-tone-vocab' },
-  { key: 'mentors', label: 'Giáo viên', to: '/admin/mentors/', icon: UsersRound, tone: 'bg-tone-mentor-bg text-tone-mentor' },
-  { key: 'activePlans', label: 'Gói tự học mở bán', to: '/admin/study-courses/', icon: Layers, tone: 'bg-tone-grammar-bg text-tone-grammar' },
-  { key: 'paidSubscriptions', label: 'Lượt mua đã thanh toán', to: '/admin/study-courses/', icon: CreditCard, tone: 'bg-rp-brand-tint text-rp-brand-strong' },
-];
-
-const SHORTCUTS = [
-  { to: '/admin/study-courses/', label: 'Gói học, lớp & ghi danh', icon: School },
-  { to: '/admin/mentor-verifications/', label: 'Xét duyệt hồ sơ Giáo viên', icon: BadgeCheck },
-  { to: '/admin/slot-review/', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarCheck },
+const SYSTEM_SNAPSHOT = [
+  { key: 'totalUsers', label: 'Tài khoản hoạt động', to: '/admin/users/', icon: UserCog, tone: 'bg-rp-brand-tint text-rp-brand-strong' },
+  { key: 'learners', label: 'Học viên', to: '/admin/users/?role=Learner', icon: GraduationCap, tone: 'bg-sky-50 text-sky-700' },
+  { key: 'mentors', label: 'Giáo viên', to: '/admin/mentors/', icon: UsersRound, tone: 'bg-emerald-50 text-emerald-700' },
+  { key: 'publishedCohorts', label: 'Lớp nhóm đang mở', to: '/admin/study-courses/', icon: School, tone: 'bg-violet-50 text-violet-700' },
+  { key: 'activePlans', label: 'Gói học đang bán', to: '/admin/plans/', icon: Layers, tone: 'bg-amber-50 text-amber-700' },
+  { key: 'paidSubscriptions', label: 'Gói đã thanh toán', to: '/admin/payments/', icon: CreditCard, tone: 'bg-rose-50 text-rose-700' },
 ];
 
 function fmt(n) {
@@ -33,99 +94,135 @@ function fmt(n) {
 }
 
 export default function AdminDashboard() {
-  const { tr } = useLocale();
-  const session = getSession();
-  const uid = session?.userId ?? 'anon';
+  const { tr, trf } = useLocale();
   const query = useQuery({
-    queryKey: ['admin-dashboard', uid, session?.isPreview ? 'preview' : 'live'],
+    queryKey: ADMIN_KEYS.dashboard,
     queryFn: async () => {
-      if (session?.isPreview) {
-        return {
-          totalUsers: 0,
-          learners: 0,
-          mentors: 0,
-          activePlans: 0,
-          paidSubscriptions: 0,
-          pendingContent: 0,
-          pendingMentorSchedules: 0,
-        };
-      }
       const data = await getAdminDashboard();
-      return data?.result ?? data;
+      const raw = data?.result ?? data ?? {};
+      return {
+        ...raw,
+        slotChangeTotal:
+          (raw.pendingSlotCancelRequests || 0) +
+          (raw.pendingSlotChangeRequests || 0) +
+          (raw.pendingCohortScheduleRequests || 0),
+      };
     },
   });
+
   const stats = query.data || {};
-  const value = (key) => (typeof stats[key] === 'number' ? stats[key] : null);
+  const val = (key) => (typeof stats[key] === 'number' ? stats[key] : null);
+  const totalAttention = ACTION_QUEUES.reduce((sum, q) => sum + (val(q.key) || 0), 0);
 
   return (
     <AdminShell breadcrumb={tr('Tổng quan')}>
-      <div className="rp-container rp-cq py-[var(--rp-space-page-y)]">
+      <main data-page="AdminDashboard" className="rp-container py-[var(--rp-space-page-y)] space-y-6 text-rp-text">
         <PageHeader
-          title={tr('Tổng quan hệ thống')}
-          description={tr('Việc cần xử lý và số liệu hiện tại lấy trực tiếp từ máy chủ.')}
+          eyebrow={tr('Trung tâm điều hành')}
+          title={
+            <span className="inline-flex items-center gap-2.5">
+              <FeatureIcon feature="stats" size="lg" />
+              <span>{tr('Tổng quan vận hành')}</span>
+            </span>
+          }
+          description={tr('Theo dõi nhanh các hàng đợi cần Admin xử lý và tình trạng vận hành trực tiếp từ máy chủ.')}
           actions={<RefreshingIndicator active={query.isFetching && !query.isPending} />}
         />
 
         {query.isPending ? (
-          <SakuraLoader variant="section" context="dashboard" label={tr('Đang tải tổng quan hệ thống')} delay={160} />
+          <SakuraLoader variant="section" context="dashboard" label={tr('Đang tải tổng quan hệ thống')} delay={140} />
         ) : query.isError ? (
-          <Card><ErrorState error={query.error} title={tr('Chưa tải được số liệu')} onRetry={() => query.refetch()} retrying={query.isFetching} /></Card>
+          <ContextualErrorState
+            error={query.error}
+            title={tr('Chưa tải được số liệu điều hành')}
+            onRetry={() => query.refetch()}
+          />
         ) : (
           <>
-            <section aria-label={tr('Việc cần xử lý')} style={{ '--rp-grid-min': '18rem' }} className="rp-fluid-grid">
-              {ATTENTION.map((card) => {
-                const n = value(card.key);
-                return (
-                  <Link key={card.key} to={card.to} className="rp-focus rp-card-hover rp-interactive group flex min-w-0 items-center gap-4 rounded-rp-card border border-rp-line bg-rp-surface p-[var(--rp-space-card-pad)] transition-colors hover:border-rp-brand-border">
-                    <span aria-hidden="true" className="rp-icon-tilt flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-rp-brand-strong"><card.icon className="h-5 w-5" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block rp-type-card text-rp-text">{tr(card.label)}</span>
-                      <span className="block rp-type-caption text-rp-text-muted">{tr(card.hint)}</span>
-                    </span>
-                    <span className={`rp-type-kpi ${n > 0 ? 'text-rp-brand-strong' : 'text-rp-text-muted'}`}>{fmt(n)}</span>
-                    <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-text-muted transition-transform group-hover:translate-x-0.5" />
+            {/* Priority Action Queues */}
+            <section aria-label={tr('Cần xử lý')} className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-rp-text">{tr('Cần xử lý')}</h2>
+                  <Badge tone={totalAttention > 0 ? 'warning' : 'success'} size="sm" icon={false}>
+                    {totalAttention > 0 ? trf('{0} đầu việc', { 0: totalAttention }) : tr('Không có tồn đọng')}
+                  </Badge>
+                </div>
+                {val('paymentReviewCourses') > 0 && (
+                  <Link
+                    to="/admin/payments/?status=PaymentReview"
+                    className="rp-link text-xs font-semibold text-rp-brand-strong"
+                  >
+                    {trf('{0} đơn đang kiểm tra thanh toán', { 0: val('paymentReviewCourses') })} →
                   </Link>
-                );
-              })}
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {ACTION_QUEUES.map((queue) => {
+                  const count = val(queue.key);
+                  const QueueIcon = queue.icon;
+                  const urgent = (count || 0) > 0;
+                  return (
+                    <Link key={queue.key} to={queue.to} className="rp-focus group block rounded-rp-card">
+                      <Card
+                        className={`flex h-full items-center gap-3.5 p-4 transition-colors ${
+                          urgent ? 'border-rp-brand-border bg-white hover:border-rp-brand-strong' : 'hover:border-rp-brand-border'
+                        }`}
+                      >
+                        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${queue.tone}`}>
+                          <QueueIcon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-rp-text">{tr(queue.label)}</p>
+                          <p className="mt-0.5 truncate text-xs text-rp-text-muted">{tr(queue.hint)}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <span className={`text-xl font-bold tabular-nums ${urgent ? 'text-rp-brand-strong' : 'text-rp-text-muted'}`}>
+                            {fmt(count)}
+                          </span>
+                          <ArrowRight className="h-4 w-4 text-rp-text-muted transition-transform group-hover:translate-x-0.5" />
+                        </div>
+                      </Card>
+                    </Link>
+                  );
+                })}
+              </div>
             </section>
 
-            <div className="mt-[var(--rp-space-section)] rp-cq-two-col">
-              <Card>
-                <CardHeader title={tr('Số liệu')} description={tr('Tổng hợp tại thời điểm tải trang')} />
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                  {FIGURES.map((f) => (
-                    <Link
-                      key={f.key}
-                      to={f.to}
-                      className="rp-focus rp-card-hover rp-interactive group flex flex-col justify-between rounded-rp-input border border-rp-line bg-rp-surface p-4 transition-all hover:border-rp-brand-border"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="rp-type-caption font-medium text-rp-text-muted">{tr(f.label)}</span>
-                        <span aria-hidden="true" className={`rp-icon-tilt flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${f.tone}`}>
-                          <f.icon className="h-4 w-4" />
+            {/* Real-time System Snapshot */}
+            <section aria-label={tr('Quy mô vận hành')} className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-bold text-rp-text">{tr('Quy mô hệ thống')}</h2>
+                {(val('draftCohorts') || 0) > 0 && (
+                  <Link to="/admin/study-courses/" className="rp-link text-xs font-medium text-rp-text-2">
+                    {trf('{0} lớp nháp chưa mở bán', { 0: val('draftCohorts') })} →
+                  </Link>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                {SYSTEM_SNAPSHOT.map((tile) => {
+                  const TileIcon = tile.icon;
+                  return (
+                    <Link key={tile.key} to={tile.to} className="rp-focus block rounded-rp-card">
+                      <Card className="flex h-full items-center justify-between gap-3 p-4 transition-colors hover:border-rp-brand-border">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-rp-text-muted">{tr(tile.label)}</p>
+                          <p className="mt-1 text-xl font-bold tabular-nums text-rp-text">{fmt(val(tile.key))}</p>
+                        </div>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tile.tone}`}>
+                          <TileIcon className="h-4 w-4" />
                         </span>
-                      </div>
-                      <p className="mt-3 rp-type-kpi text-rp-text">{fmt(value(f.key))}</p>
+                      </Card>
                     </Link>
-                  ))}
-                </div>
-              </Card>
-              <Card>
-                <CardHeader title={tr('Lối tắt')} />
-                <ul className="space-y-1">
-                  {SHORTCUTS.map((s) => (
-                    <li key={s.to}>
-                      <Link to={s.to} className="rp-focus flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-rp-text-2 hover:bg-rp-muted hover:text-rp-text">
-                        <s.icon aria-hidden="true" className="h-4 w-4" /> {tr(s.label)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </div>
+                  );
+                })}
+              </div>
+            </section>
           </>
         )}
-      </div>
+      </main>
     </AdminShell>
   );
 }

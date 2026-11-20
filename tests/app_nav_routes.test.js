@@ -70,4 +70,35 @@ describe('active state and breadcrumbs', () => {
     const trail = buildBreadcrumbs('Admin', '/admin/users/', '', 'Người dùng & vai trò');
     assert.deepEqual(trail.map((c) => c.label), ['Quản trị', 'Điều hành', 'Người dùng & vai trò']);
   });
+
+  it('builds Admin Cấu hình & Điều hành breadcrumbs and covers new admin routes', () => {
+    const catalogTrail = buildBreadcrumbs('Admin', '/admin/study-catalog/', '', 'Chứng chỉ & cấp độ');
+    assert.deepEqual(catalogTrail.map((c) => c.label), ['Quản trị', 'Cấu hình', 'Chứng chỉ & cấp độ']);
+
+    const plansTrail = buildBreadcrumbs('Admin', '/admin/plans/', '', 'Gói học & bảng giá');
+    assert.deepEqual(plansTrail.map((c) => c.label), ['Quản trị', 'Cấu hình', 'Gói học & bảng giá']);
+
+    const paymentsTrail = buildBreadcrumbs('Admin', '/admin/payments/', '', 'Thanh toán & giao dịch');
+    assert.deepEqual(paymentsTrail.map((c) => c.label), ['Quản trị', 'Điều hành', 'Thanh toán & giao dịch']);
+
+    const policiesTrail = buildBreadcrumbs('Admin', '/admin/policies/', '', 'Chính sách học tập');
+    assert.deepEqual(policiesTrail.map((c) => c.label), ['Quản trị', 'Cấu hình', 'Chính sách học tập']);
+
+    const adminTargets = flattenNavItems(ROLE_NAV.Admin.groups.flatMap((g) => g.items)).map((i) => i.to);
+    assert.ok(adminTargets.includes('/admin/plans'));
+    assert.ok(adminTargets.includes('/admin/payments'));
+    assert.ok(adminTargets.includes('/admin/policies'));
+    assert.ok(!ROLE_NAV.Admin.groups.some((g) => g.label === 'Nội dung'));
+  });
+
+  it('builds ContentAuthor Studio VNext labels and breadcrumbs', () => {
+    const manualTrail = buildBreadcrumbs('ContentAuthor', '/content-manual/', '', 'Biên soạn nội dung');
+    assert.deepEqual(manualTrail.map((c) => c.label), ['Tác giả nội dung', 'Biên soạn học liệu', 'Biên soạn nội dung']);
+
+    const planTrail = buildBreadcrumbs('ContentAuthor', '/content-plan/', '', 'Trợ lý biên soạn');
+    assert.deepEqual(planTrail.map((c) => c.label), ['Tác giả nội dung', 'Biên soạn học liệu', 'Trợ lý biên soạn']);
+
+    const historyTrail = buildBreadcrumbs('ContentAuthor', '/bulk-import/', '?view=history', 'Lịch sử nhập liệu');
+    assert.deepEqual(historyTrail.map((c) => c.label), ['Tác giả nội dung', 'Nhập liệu', 'Lịch sử nhập liệu']);
+  });
 });

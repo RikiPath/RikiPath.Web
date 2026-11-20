@@ -134,3 +134,30 @@ export function getPendingVerify() {
 export function clearPendingVerify() {
   remove('sessionStorage', PENDING_KEY);
 }
+
+const AUTH_NOTICE_KEY = 'rikipath.authRedirectNotice';
+let cachedRedirectNotice;
+
+export function saveAuthRedirectNotice(payload) {
+  cachedRedirectNotice = undefined;
+  if (!payload?.notice) return;
+  write('sessionStorage', AUTH_NOTICE_KEY, JSON.stringify(payload));
+}
+
+export function consumeAuthRedirectNotice() {
+  // Memoize across React StrictMode double-renders on initial mount.
+  if (cachedRedirectNotice !== undefined) return cachedRedirectNotice;
+  const raw = read('sessionStorage', AUTH_NOTICE_KEY);
+  remove('sessionStorage', AUTH_NOTICE_KEY);
+  if (!raw) {
+    cachedRedirectNotice = null;
+    return null;
+  }
+  try {
+    cachedRedirectNotice = JSON.parse(raw);
+    return cachedRedirectNotice;
+  } catch {
+    cachedRedirectNotice = null;
+    return null;
+  }
+}

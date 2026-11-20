@@ -12,5 +12,6 @@ import { jaAuthor } from './author.js';
 import { jaPublicPages } from './publicPages.js';
 import { jaLearnerScreens } from './learnerScreens.js';
 import { jaTemplates } from './templates.js';
+import { jaAccountProfile } from './accountProfile.js';
 
-export const JA_DICTIONARIES = [jaAppCore, jaErrors, jaLanding, jaWorkspace, jaGroupLearning, jaCourses, jaMentor, jaAdmin, jaAuthor, jaPublicPages, jaLearnerScreens, jaTemplates];
+export const JA_DICTIONARIES = [jaAppCore, jaErrors, jaLanding, jaWorkspace, jaGroupLearning, jaCourses, jaMentor, jaAdmin, jaAuthor, jaPublicPages, jaLearnerScreens, jaTemplates, jaAccountProfile];

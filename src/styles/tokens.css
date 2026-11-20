@@ -23,10 +23,14 @@
   /* Neutral foundations — Warm Ivory & Crisp White */
   --color-rp-bg: #FAF8F6;
   --color-rp-bg-2: #FCFBFA;
+  --color-rp-admin-bg: #F8F6F4;
+  --color-rp-table-head: #FAF7F8;
+  --color-rp-row-hover: #FFF9FA;
+  --color-rp-tab-active-bg: #FFF0F4;
   --color-rp-surface: #FFFFFF;
   --color-rp-muted: #F5F2F3;
   --color-rp-muted-strong: #EDE8EA;
-  --color-rp-line: #E8E1E3;
+  --color-rp-line: #EAE3E4;
   --color-rp-line-strong: #DEC9CE;
 
   /* Text — muted is darkened from Mobile #9E9397 to reach WCAG AA (4.5:1) on white */
@@ -367,7 +371,7 @@
 @media (min-width: 1024px) {
   .rp-auth-card[data-variant='login'],
   .rp-auth-card[data-variant='register'] { grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr); }
-  .rp-auth-card[data-variant='verify'] { grid-template-columns: minmax(0, 1.35fr) minmax(400px, 1fr); }
+  .rp-auth-card[data-variant='verify'] { grid-template-columns: minmax(0, 1.45fr) minmax(420px, 0.85fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -564,6 +568,10 @@
 .rp-sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(180, 165, 170, 0.65); }
 aside[data-collapsed='true'] .rp-sidebar-scroll { scrollbar-gutter: auto; scrollbar-width: none; }
 aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: none; }
+
+/* Edge-to-edge calendar header/body scroll: prevents native scrollbar gutter from breaking column/header borders while keeping wheel/touch scroll. */
+.rp-cal-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.rp-cal-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* Text link (auth + inline actions): Sakura Primary with an underline that sweeps in left→right on hover/focus. */
 .rp-link {

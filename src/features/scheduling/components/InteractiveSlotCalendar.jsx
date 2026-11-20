@@ -18,7 +18,6 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  RefreshCw,
   Send,
   ShieldAlert,
   Sparkles,
@@ -160,8 +159,8 @@ function MiniDateJump({ anchorKey, todayKey, eventsByDay, onPickDay }) {
   const headers = locale === 'ja' ? ['月', '火', '水', '木', '金', '土', '日'] : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
   return (
-    <div className="w-[264px] select-none p-2">
-      <div className="mb-2 flex items-center justify-between gap-1">
+    <div className="w-[252px] select-none p-2">
+      <div className="mb-1.5 flex items-center justify-between gap-1">
         <button
           type="button"
           aria-label={tr('Tháng trước')}
@@ -170,7 +169,7 @@ function MiniDateJump({ anchorKey, todayKey, eventsByDay, onPickDay }) {
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-[13px] font-semibold text-rp-text">
+        <span className="text-[12.5px] font-semibold text-rp-text">
           {locale === 'vi' ? matrix.title : fmt.monthYear(new Date(`${cursorKey}T12:00:00+07:00`))}
         </span>
         <button
@@ -182,8 +181,8 @@ function MiniDateJump({ anchorKey, todayKey, eventsByDay, onPickDay }) {
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-rp-text-muted">
-        {headers.map((h) => <span key={h} className="py-1">{h}</span>)}
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[10.5px] font-semibold text-rp-text-muted">
+        {headers.map((h) => <span key={h} className="py-0.5">{h}</span>)}
       </div>
       <div className="mt-0.5 grid grid-cols-7 gap-0.5">
         {matrix.cells.map((cell) => {
@@ -194,14 +193,16 @@ function MiniDateJump({ anchorKey, todayKey, eventsByDay, onPickDay }) {
               key={cell.key}
               type="button"
               onClick={() => onPickDay(cell.key)}
-              className={`relative flex h-8 flex-col items-center justify-center rounded-lg text-[12px] transition-colors ${
-                isSelected
-                  ? 'bg-rp-brand-pressed font-bold text-white shadow-xs'
-                  : cell.isToday
-                    ? 'bg-rp-brand-tint font-bold text-rp-brand-strong'
-                    : cell.inCurrentMonth
-                      ? 'text-rp-text hover:bg-rp-brand-tint/70'
-                      : 'text-rp-text-muted/50 hover:bg-rp-bg-2'
+              className={`relative flex h-7 flex-col items-center justify-center rounded-lg text-[11.5px] transition-colors ${
+                isSelected && cell.isToday
+                  ? 'bg-rp-brand-pressed font-bold text-white shadow-xs ring-2 ring-rp-brand-border/70'
+                  : isSelected
+                    ? 'bg-rp-brand-pressed font-bold text-white shadow-xs'
+                    : cell.isToday
+                      ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
+                      : cell.inCurrentMonth
+                        ? 'text-rp-text hover:bg-rp-brand-tint/70'
+                        : 'text-rp-text-muted/50 hover:bg-rp-bg-2'
               }`}
             >
               <span>{cell.dateNum}</span>
@@ -992,15 +993,43 @@ export default function InteractiveSlotCalendar({
     setTablePage(1);
   }, []);
 
+  // Unsent working selections (isSelectedDraft / pendingMove / draftGhost) stay visible on the
+  // Interactive Calendar grid regardless of saved statusFilter unless EventType excludes Drafts.
+  const calendarDisplayEvents = useMemo(() => {
+    const allowDraftsOnGrid = eventTypeFilter === 'ALL' || eventTypeFilter === 'Draft';
+    if (!allowDraftsOnGrid) return filteredEvents;
+    const seen = new Set(filteredEvents.map((e) => e.id));
+    const activeWorkItems = calendarEvents.filter((ev) => {
+      if (seen.has(ev.id)) return false;
+      if (!(ev.isSelectedDraft || ev.sourceKind === 'pendingMove' || ev.sourceKind === 'draftGhost')) {
+        return false;
+      }
+      if (dateFilterMode !== 'view') {
+        if (effectiveDateRange?.startKey && ev.dayKey < effectiveDateRange.startKey) return false;
+        if (effectiveDateRange?.endKey && ev.dayKey > effectiveDateRange.endKey) return false;
+      }
+      if (effectiveTimeRange && (effectiveTimeRange.startMin != null || effectiveTimeRange.endMin != null)) {
+        const fStart = effectiveTimeRange.startMin ?? 0;
+        const fEnd = effectiveTimeRange.endMin ?? 24 * 60;
+        const evStart = (ev.startHour || 0) * 60 + (ev.startMinute || 0);
+        let evEnd = (ev.endHour || 0) * 60 + (ev.endMinute || 0);
+        if (evEnd <= evStart) evEnd = Math.min(24 * 60, evStart + 90);
+        if (!(evStart < fEnd && evEnd > fStart)) return false;
+      }
+      return true;
+    });
+    return activeWorkItems.length > 0 ? [...filteredEvents, ...activeWorkItems] : filteredEvents;
+  }, [filteredEvents, calendarEvents, eventTypeFilter, dateFilterMode, effectiveDateRange, effectiveTimeRange]);
+
   const eventsByDay = useMemo(() => {
     const map = new Map();
-    for (const ev of filteredEvents) {
+    for (const ev of calendarDisplayEvents) {
       if (!ev.dayKey) continue;
       if (!map.has(ev.dayKey)) map.set(ev.dayKey, []);
       map.get(ev.dayKey).push(ev);
     }
     return map;
-  }, [filteredEvents]);
+  }, [calendarDisplayEvents]);
 
   const packedByDay = useMemo(() => {
     const out = new Map();
@@ -1014,7 +1043,7 @@ export default function InteractiveSlotCalendar({
   const { firstHour, hours, gridHeight } = useMemo(() => {
     let minH = policy?.gridStartHour ?? 7;
     let maxH = policy?.gridEndHour ?? 22;
-    for (const ev of filteredEvents) {
+    for (const ev of calendarDisplayEvents) {
       if (!visibleColKeys.has(ev.dayKey)) continue;
       const { start, end } = minutesOfEvent(ev);
       minH = Math.min(minH, Math.floor(start / 60));
@@ -1024,7 +1053,7 @@ export default function InteractiveSlotCalendar({
     const clampedLast = Math.max(clampedFirst + 1, Math.min(maxH, 24));
     const arr = Array.from({ length: clampedLast - clampedFirst }, (_, idx) => clampedFirst + idx);
     return { firstHour: clampedFirst, hours: arr, gridHeight: arr.length * HOUR_HEIGHT };
-  }, [filteredEvents, visibleColKeys, policy?.gridStartHour, policy?.gridEndHour]);
+  }, [calendarDisplayEvents, visibleColKeys, policy?.gridStartHour, policy?.gridEndHour]);
 
   // Cached column layout geometry during an active drag session (zero getBoundingClientRect thrashing per frame)
   const dragMetricsCacheRef = useRef(null);
@@ -1765,18 +1794,6 @@ export default function InteractiveSlotCalendar({
               <Plus className="h-3.5 w-3.5 text-rp-brand-strong" />
               <span>{tr('Đăng ký giờ')}</span>
             </button>
-
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={refreshing}
-                aria-label={tr('Làm mới dữ liệu lịch')}
-                className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-rp-line bg-white text-rp-text-muted hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
-            )}
           </div>
         </div>
 
@@ -1944,7 +1961,7 @@ export default function InteractiveSlotCalendar({
                 {/* Fixed Day Header Row — sits OUTSIDE the vertical scroll container and shares stable scrollbar-gutter */}
                 <div
                   data-testid="calendar-header-grid"
-                  className="grid border-b border-rp-line bg-white"
+                  className="rp-cal-scroll grid border-b border-rp-line bg-white"
                   style={{
                     gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))`,
                     scrollbarGutter: 'stable',
@@ -2022,7 +2039,7 @@ export default function InteractiveSlotCalendar({
                 <div
                   ref={gridScrollRef}
                   data-testid="calendar-body-grid"
-                  className={`grid bg-white select-none overflow-y-scroll ${
+                  className={`rp-cal-scroll grid bg-white select-none overflow-y-scroll ${
                     selectedSlots.length > 0
                       ? 'max-h-[calc(100dvh-286px)] min-h-[466px]'
                       : 'max-h-[calc(100dvh-242px)] min-h-[510px]'
@@ -2048,9 +2065,12 @@ export default function InteractiveSlotCalendar({
                   {/* Clean Uniform White Day Columns (Mon–Sun share identical white surface) */}
                   {weekDays.map((day, colIndex) => {
                     const dayEvents = packedByDay.get(day.key) || [];
+                    const allowDraftRestBands = eventTypeFilter === 'ALL' || eventTypeFilter === 'Draft';
                     const restBands = computeDayRestWindows({
                       dayKey: day.key,
-                      occupiedItems: [...occupiedItems, ...buildProposedFromSelection(null)],
+                      occupiedItems: allowDraftRestBands
+                        ? [...occupiedItems, ...buildProposedFromSelection(null)]
+                        : occupiedItems,
                       policy,
                     });
                     const isDragTargetCol = dragVisual?.dayKey === day.key;

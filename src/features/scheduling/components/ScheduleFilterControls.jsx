@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { Popover } from '@/components/ui/overlay.jsx';
+import { CustomSelect } from '@/components/ui/core.jsx';
 import { useLocale } from '@/locales/locale.js';
 import {
   SCHEDULE_EVENT_TYPE_OPTIONS,
@@ -21,6 +22,7 @@ import { formatShortDateVn } from '@/features/scheduling/utils/calendarGeometry.
 /**
  * Accessible Custom Listbox for Status Filter with semantic color dots, checkmark,
  * keyboard navigation (ArrowUp/ArrowDown/Home/End/Enter/Escape), and count badges.
+ * Built on the unified shared CustomSelect component.
  */
 export function StatusDotListbox({
   value = 'ALL',
@@ -29,144 +31,32 @@ export function StatusDotListbox({
   countsByStatus = null,
 }) {
   const { tr } = useLocale();
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const listboxId = useId();
-  const itemRefs = useRef([]);
 
-  const selectedOption = useMemo(
-    () => options.find((opt) => opt.id === value) || options[0],
-    [options, value]
+  const formattedOptions = useMemo(
+    () =>
+      options.map((opt) => ({
+        value: opt.id,
+        label: opt.label,
+        dotClass: opt.dotClass,
+        count: countsByStatus ? countsByStatus[opt.id] : null,
+      })),
+    [options, countsByStatus],
   );
 
-  const handleOpenChange = useCallback((nextOpen) => {
-    setOpen(nextOpen);
-    if (nextOpen) {
-      const idx = Math.max(0, options.findIndex((opt) => opt.id === value));
-      setActiveIndex(idx);
-    }
-  }, [options, value]);
-
-  useEffect(() => {
-    if (!open) return;
-    const el = itemRefs.current[activeIndex];
-    if (el && typeof el.focus === 'function') {
-      el.focus();
-    }
-  }, [open, activeIndex]);
-
-  const handleKeyDown = (e) => {
-    if (!open) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex((i) => (i + 1) % options.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex((i) => (i - 1 + options.length) % options.length);
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      setActiveIndex(0);
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      setActiveIndex(options.length - 1);
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      const picked = options[activeIndex];
-      if (picked) {
-        onChange?.(picked.id);
-        setOpen(false);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setOpen(false);
-    }
-  };
-
-  const selectedCount = countsByStatus && selectedOption
-    ? countsByStatus[selectedOption.id]
-    : null;
-
   return (
-    <Popover
-      open={open}
-      onOpenChange={handleOpenChange}
-      align="end"
+    <CustomSelect
+      value={value}
+      onChange={(nextVal) => onChange?.(nextVal)}
+      options={formattedOptions}
       label={tr('Lọc theo trạng thái')}
-      trigger={({ props, toggle }) => (
-        <button
-          {...props}
-          type="button"
-          data-testid="status-filter-listbox-trigger"
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? listboxId : undefined}
-          onClick={toggle}
-          className="inline-flex h-8.5 items-center gap-2 rounded-xl border border-rp-line bg-white px-3 text-[12px] font-semibold text-rp-text transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand/40"
-        >
-          <span
-            aria-hidden="true"
-            className={`h-2 w-2 shrink-0 rounded-full ${selectedOption?.dotClass || 'bg-[#CE476D]'}`}
-          />
-          <span className="truncate max-w-[155px]">
-            {tr(selectedOption?.label || 'Tất cả trạng thái')}
-          </span>
-          {selectedCount != null && (
-            <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
-              {selectedCount}
-            </span>
-          )}
-          <ChevronDown
-            aria-hidden="true"
-            className={`h-3.5 w-3.5 shrink-0 text-rp-text-muted transition-transform ${open ? 'rotate-180' : ''}`}
-          />
-        </button>
-      )}
-    >
-      <div
-        id={listboxId}
-        role="listbox"
-        aria-label={tr('Lọc theo trạng thái')}
-        onKeyDown={handleKeyDown}
-        className="w-56 py-1 text-[12.5px] focus:outline-none"
-      >
-        {options.map((opt, idx) => {
-          const isSelected = opt.id === value;
-          const count = countsByStatus ? countsByStatus[opt.id] : null;
-          return (
-            <button
-              key={opt.id}
-              ref={(el) => { itemRefs.current[idx] = el; }}
-              role="option"
-              type="button"
-              data-testid={`status-filter-option-${opt.id}`}
-              aria-selected={isSelected}
-              onClick={() => {
-                onChange?.(opt.id);
-                setOpen(false);
-              }}
-              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors focus:outline-none ${
-                isSelected
-                  ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
-                  : 'font-medium text-rp-text hover:bg-rp-bg-2 focus:bg-rp-bg-2'
-              }`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${opt.dotClass}`} />
-                <span className="truncate">{tr(opt.label)}</span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1.5">
-                {count != null && (
-                  <span className="text-[11px] font-semibold tabular-nums text-rp-text-muted">
-                    {count}
-                  </span>
-                )}
-                {isSelected && <Check aria-hidden="true" className="h-3.5 w-3.5 text-rp-brand-strong" />}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </Popover>
+      size="sm"
+      align="end"
+      dataTestId="status-filter-listbox-trigger"
+      testIdPrefix="status-filter-option"
+      className="!w-auto shrink-0"
+      triggerClassName="!w-auto max-w-[220px]"
+      menuClassName="w-56"
+    />
   );
 }
 
@@ -550,7 +440,7 @@ export function ActiveScheduleFilterBar({
         type="button"
         data-testid="clear-all-active-filters-btn"
         onClick={onResetAll}
-        className="font-semibold text-rp-brand-strong hover:underline"
+        className="rp-link font-semibold text-rp-brand-strong"
       >
         {tr('Xóa bộ lọc')}
       </button>

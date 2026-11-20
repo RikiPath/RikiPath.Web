@@ -2,7 +2,7 @@ import { api } from '@/api/client.js';
 import { unwrapApiList, unwrapApiResult } from '@/features/admin/api/adminApi.js';
 import { translateTemplate, currentIntlTag } from '@/locales/locale.js';
 
-export const SUPPORTED_JLPT_LEVELS = Object.freeze(['N5', 'N4', 'N3', 'N2']);
+export const SUPPORTED_JLPT_LEVELS = Object.freeze(['N5', 'N4', 'N3', 'N2', 'N1']);
 
 export function normalizeJlptLevel(level) {
   return String(level ?? '').trim().toUpperCase();
@@ -15,7 +15,7 @@ export function isSupportedJlptLevel(level) {
 export function assertSupportedJlptLevel(level) {
   const normalized = normalizeJlptLevel(level);
   if (!isSupportedJlptLevel(normalized)) {
-    throw new Error('Hệ thống lớp học nhóm chỉ hỗ trợ trình độ JLPT N5, N4, N3 và N2 (không hỗ trợ N1).');
+    throw new Error('Hệ thống hỗ trợ trình độ JLPT N5, N4, N3, N2 và N1.');
   }
   return normalized;
 }
@@ -69,3 +69,14 @@ export const getAdminMentorKpiByMentor = async (mentorId, params) =>
 
 export const getRoomAttendance = async (roomId) =>
   unwrapApiList(await api.get(`/mentor-meetings/rooms/${roomId}/attendance`));
+
+// —— Admin JLPT Teaching Qualification Governance ——
+
+export const getAdminMentorQualifications = async () =>
+  unwrapApiResult(await api.get('/admin/mentors/qualifications'));
+
+export const grantAdminMentorQualification = async (mentorId, payload) =>
+  unwrapApiResult(await api.post(`/admin/mentors/${mentorId}/qualifications`, payload));
+
+export const revokeAdminMentorQualification = async (mentorId, certificateLevelId, payload) =>
+  unwrapApiResult(await api.post(`/admin/mentors/${mentorId}/qualifications/${certificateLevelId}/revoke`, payload));

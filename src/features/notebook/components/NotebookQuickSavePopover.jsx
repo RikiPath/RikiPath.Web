@@ -216,7 +216,7 @@ export default function NotebookQuickSavePopover({ request, onClose }) {
               <button
                 type="button"
                 onClick={() => setCreatingFolder((v) => !v)}
-                className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-rp-brand-strong hover:underline"
+                className="rp-link inline-flex items-center gap-1 text-[11.5px] font-semibold text-rp-brand-strong"
               >
                 <FolderPlus className="h-3.5 w-3.5" />
                 {creatingFolder ? tr('Chọn thư mục có sẵn') : tr('+ Thư mục mới')}

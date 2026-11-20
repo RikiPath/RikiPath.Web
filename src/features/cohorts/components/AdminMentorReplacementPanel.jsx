@@ -1,12 +1,22 @@
 import { useRef, useState } from 'react';
+import { Eye, UserCheck } from 'lucide-react';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  Checkbox,
+  CustomSelect,
+  Field,
+  Input,
+  Textarea,
+} from '@/components/ui';
 import { previewMentorReplacement, replaceCohortMentor } from '@/features/cohorts/api/cohortApi';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
 const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
 
-// Thay giáo viên chính cho các buổi CÒN LẠI của lớp (khác với giáo viên dạy thay một buổi riêng lẻ).
-// Buổi đã diễn ra giữ giáo viên thực dạy, điểm danh và KPI; sĩ số và ghi danh không thay đổi.
 export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, onRun }) {
   const { tr, trf } = useLocale();
   const [cohortId, setCohortId] = useState('');
@@ -14,13 +24,16 @@ export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, on
   const [fromSession, setFromSession] = useState('');
   const [preview, setPreview] = useState(null);
   const [reason, setReason] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
   const keyRef = useRef(null);
+
   const cohort = cohorts.find((c) => c.id === Number(cohortId));
 
   const runPreview = () => {
     setError('');
     setPreview(null);
+    setConfirmed(false);
     keyRef.current = null;
     previewMentorReplacement(Number(cohortId), Number(mentorId), fromSession ? Number(fromSession) : null)
       .then(setPreview)
@@ -28,112 +41,159 @@ export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, on
   };
 
   return (
-    <section className="course-box">
-      <h2>{tr('Thay giáo viên chính của lớp')}</h2>
-      <p className="course-meta">
-        {tr('Chọn lớp → chọn giáo viên thay thế → xem trước tác động → xác nhận. Chỉ các buổi tương lai (đủ thời gian báo trước theo chính sách) được chuyển.')}
-      </p>
-      {error && <p role="alert" className="course-error">{error}</p>}
-      <div className="course-form">
-        <fieldset disabled={busy}>
-          <label className="course-field">
-            <span>{tr('Lớp')}</span>
-            <select value={cohortId} onChange={(e) => { setCohortId(e.target.value); setPreview(null); }}>
-              <option value="">{tr('Chọn lớp')}</option>
-              {cohorts.filter((c) => c.status === 'Published' || c.status === 'Draft').map((c) => (
-                <option key={c.id} value={c.id}>{c.name} · {c.level} · {trf('Giáo viên {0}', { 0: c.mentorName || '—' })}</option>
-              ))}
-            </select>
-          </label>
-          <label className="course-field">
-            <span>{tr('Giáo viên thay thế')}</span>
-            <select value={mentorId} onChange={(e) => { setMentorId(e.target.value); setPreview(null); }}>
-              <option value="">{tr('Chọn giáo viên')}</option>
-              {mentors.filter((m) => m.id !== cohort?.mentorId).map((m) => <option key={m.id} value={m.id}>{m.name} (#{m.id})</option>)}
-            </select>
-          </label>
-          <label className="course-field">
-            <span>{tr('Từ buổi số (để trống = buổi tương lai đầu tiên)')}</span>
-            <input type="number" min={1} value={fromSession} onChange={(e) => setFromSession(e.target.value)} />
-          </label>
-          <button type="button" disabled={!cohortId || !mentorId} onClick={runPreview}>{tr('Xem trước tác động')}</button>
-        </fieldset>
+    <Card className="space-y-4 p-5">
+      <div>
+        <h2 className="text-base font-bold text-rp-text">{tr('Thay Giáo viên chính của lớp')}</h2>
+        <p className="mt-1 text-xs text-rp-text-muted">
+          {tr('Chỉ chuyển các buổi tương lai đủ thời gian báo trước theo chính sách; các buổi đã dạy giữ nguyên lịch sử và KPI.')}
+        </p>
+      </div>
+
+      {error && <Banner tone="danger">{error}</Banner>}
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label={tr('Lớp nhóm')} required>
+          <CustomSelect
+            value={cohortId}
+            aria-label={tr('Chọn lớp')}
+            onChange={(val) => {
+              setCohortId(val);
+              setPreview(null);
+            }}
+            options={[
+              { value: '', label: tr('Chọn lớp') },
+              ...cohorts
+                .filter((c) => c.status === 'Published' || c.status === 'Draft')
+                .map((c) => ({
+                  value: String(c.id),
+                  label: `${c.name} · ${c.level} · ${c.mentorName || '—'}`,
+                })),
+            ]}
+          />
+        </Field>
+
+        <Field label={tr('Giáo viên thay thế')} required>
+          <CustomSelect
+            value={mentorId}
+            aria-label={tr('Chọn Giáo viên thay thế')}
+            onChange={(val) => {
+              setMentorId(val);
+              setPreview(null);
+            }}
+            options={[
+              { value: '', label: tr('Chọn Giáo viên') },
+              ...mentors
+                .filter((m) => m.id !== cohort?.mentorId)
+                .map((m) => ({ value: String(m.id), label: `${m.name || m.fullName || m.email}` })),
+            ]}
+          />
+        </Field>
+
+        <Field label={tr('Từ buổi số')} hint={tr('Để trống = buổi tương lai đầu tiên')}>
+          <Input
+            type="number"
+            min={1}
+            value={fromSession}
+            onChange={(e) => setFromSession(e.target.value)}
+            placeholder={tr('Tự động')}
+          />
+        </Field>
+      </div>
+
+      <div className="flex justify-end">
+        <Button variant="outline" icon={Eye} disabled={busy || !cohortId || !mentorId} onClick={runPreview}>
+          {tr('Xem trước tác động')}
+        </Button>
       </div>
 
       {preview && (
-        <div className="course-form">
-          <h3>
-            {preview.name}: {preview.currentMentorName} → {preview.replacementMentorName || `#${preview.replacementMentorId}`}{' '}
-            <span className={`course-badge ${preview.eligible ? 'ok' : 'muted'}`}>{preview.eligible ? tr('Có thể thay') : tr('Chưa thể thay')}</span>
-          </h3>
-          <p className="course-meta">
-            {tr('Từ buổi')}{' '}{preview.fromSessionNumber || '—'}{' '}{tr('· Giữ nguyên')}{' '}{preview.impact.retainedSessionCount}{' '}{tr('buổi với giáo viên hiện tại · Chuyển')}{' '}
-            {preview.impact.affectedSessionCount}{' '}{tr('buổi ·')}{' '}{preview.impact.activeLearnerCount}{' '}{tr('học viên đang học · Sĩ số')}{' '}{preview.capacity}{' '}{tr('(không đổi)')}
-            {preview.policyVersion ? trf(' · chính sách v{0}, báo trước {1} giờ', { 0: preview.policyVersion, 1: preview.leadHours }) : ''}
+        <div className="space-y-4 border-t border-rp-line pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-rp-text">
+              {preview.name}: {preview.currentMentorName} → {preview.replacementMentorName || `#${preview.replacementMentorId}`}
+            </h3>
+            <Badge tone={preview.eligible ? 'success' : 'danger'} size="sm" icon={false}>
+              {preview.eligible ? tr('Có thể thay') : tr('Chưa thể thay')}
+            </Badge>
+          </div>
+
+          <p className="text-xs text-rp-text-muted">
+            {trf('Từ buổi {0} · Giữ {1} buổi lịch sử · Chuyển {2} buổi tương lai · {3} học viên đang học', {
+              0: preview.fromSessionNumber || '—',
+              1: preview.impact.retainedSessionCount,
+              2: preview.impact.affectedSessionCount,
+              3: preview.impact.activeLearnerCount,
+            })}
           </p>
-          <ul style={{ paddingLeft: 18 }}>
+
+          <ul className="space-y-1 text-xs">
             {preview.checks.map((c) => (
-              <li key={c.code} className="course-meta" style={{ color: c.passed ? '#1e5c36' : '#a42222' }}>{c.passed ? '✓' : '✗'} {tr(c.message)}</li>
+              <li key={c.code} className={c.passed ? 'text-emerald-700' : 'text-rose-700'}>
+                {c.passed ? '✓' : '✗'} {tr(c.message)}
+              </li>
             ))}
           </ul>
+
           {preview.conflicts.length > 0 && (
-            <div className="course-error">
-              <strong>{tr('Lịch trùng của giáo viên thay thế')}</strong>
-              <ul>{preview.conflicts.map((c, i) => <li key={i}>{trf('Buổi {0}: {1} #{2} ({3})', { 0: c.sessionNumber, 1: c.kind, 2: c.conflictId, 3: date(c.startTime) })}</li>)}</ul>
-            </div>
-          )}
-          <div className="course-grid">
-            <div>
-              <h3>{tr('Giữ nguyên (lịch sử)')}</h3>
-              <ul>{preview.retainedSessions.map((s) => <li key={s.number} className="course-meta">{trf('Buổi {0} · {1} · Giáo viên #{2}', { 0: s.number, 1: date(s.startTime), 2: s.actualMentorId })}</li>)}</ul>
-            </div>
-            <div>
-              <h3>{tr('Chuyển cho giáo viên mới')}</h3>
-              <ul>{preview.affectedSessions.map((s) => <li key={s.number} className="course-meta">{trf('Buổi {0} · {1}', { 0: s.number, 1: date(s.startTime) })}</li>)}</ul>
-            </div>
-          </div>
-          <form
-            className="course-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              keyRef.current ||= crypto.randomUUID();
-              onRun(async () => {
-                await replaceCohortMentor(preview.cohortId, {
-                  mentorId: preview.replacementMentorId,
-                  reason,
-                  idempotencyKey: keyRef.current,
-                  expectedCohortRevision: preview.revision,
-                  fromSessionNumber: fromSession ? Number(fromSession) : null,
-                });
-                keyRef.current = null;
-                setReason('');
-                setPreview(null);
-              }, 'Đã thay giáo viên chính cho các buổi còn lại; học viên và giáo viên sẽ nhận thông báo.');
-            }}
-          >
-            <fieldset disabled={busy || !preview.eligible}>
-              <label className="course-field" style={{ flexBasis: '100%' }}>
-                <span>{tr('Lý do thay giáo viên (bắt buộc, 10–1000 ký tự; được lưu kiểm toán)')}</span>
-                <textarea required minLength={10} maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />
-              </label>
-              <label><input type="checkbox" required />{' '}{tr('Tôi đã xem tác động và xác nhận thay giáo viên chính')}</label>
-              <button className="course-primary" type="submit">{tr('Xác nhận thay giáo viên')}</button>
-            </fieldset>
-          </form>
-          {preview.history.length > 0 && (
-            <details>
-              <summary>{trf('Lịch sử phân công giáo viên ({0})', { 0: preview.history.length })}</summary>
-              <ul>
-                {preview.history.map((h) => (
-                  <li key={h.id} className="course-meta">
-                    {trf('{0} · #{1} → #{2} từ buổi {3} ({4} buổi): {5}', { 0: date(h.createdAtUtc), 1: h.previousMentorId, 2: h.mentorId, 3: h.effectiveFromSessionNumber, 4: h.affectedSessionCount, 5: h.reason })}
-                  </li>
+            <Banner tone="danger" title={tr('Lịch trùng của Giáo viên thay thế')}>
+              <ul className="space-y-0.5 text-xs">
+                {preview.conflicts.map((c, i) => (
+                  <li key={i}>{trf('Buổi {0}: {1} #{2} ({3})', { 0: c.sessionNumber, 1: c.kind, 2: c.conflictId, 3: date(c.startTime) })}</li>
                 ))}
               </ul>
-            </details>
+            </Banner>
+          )}
+
+          {preview.eligible && (
+            <form
+              className="space-y-3 rounded-2xl border border-rp-line bg-rp-bg-2/40 p-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!confirmed || reason.trim().length < 10) return;
+                keyRef.current ||= crypto.randomUUID();
+                onRun(async () => {
+                  await replaceCohortMentor(preview.cohortId, {
+                    mentorId: preview.replacementMentorId,
+                    reason: reason.trim(),
+                    idempotencyKey: keyRef.current,
+                    expectedCohortRevision: preview.revision,
+                    fromSessionNumber: fromSession ? Number(fromSession) : null,
+                  });
+                  keyRef.current = null;
+                  setReason('');
+                  setConfirmed(false);
+                  setPreview(null);
+                }, 'Đã thay Giáo viên chính cho các buổi còn lại; học viên và Giáo viên sẽ nhận thông báo.');
+              }}
+            >
+              <Field label={tr('Lý do thay Giáo viên (10–1000 ký tự)')} required>
+                <Textarea
+                  rows={3}
+                  minLength={10}
+                  maxLength={1000}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={tr('Nêu rõ lý do thay đổi phân công giảng dạy…')}
+                />
+              </Field>
+              <Checkbox
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                label={tr('Tôi đã xem tác động và xác nhận thay Giáo viên chính')}
+              />
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  icon={UserCheck}
+                  disabled={busy || !confirmed || reason.trim().length < 10}
+                >
+                  {tr('Xác nhận thay Giáo viên')}
+                </Button>
+              </div>
+            </form>
           )}
         </div>
       )}
-    </section>
+    </Card>
   );
 }

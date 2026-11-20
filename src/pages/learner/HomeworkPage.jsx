@@ -7,7 +7,7 @@ import { AdminShell, MentorShell, LearnerShell } from '@/layouts';
 import { courseGet, getCohorts, getCohortHomework } from '@/features/cohorts/api/cohortApi';
 import { describeApiError } from '@/api/apiErrors.js';
 import CohortHomeworkPanel from '@/features/homework/components/CohortHomeworkPanel';
-import { Banner, Card, EmptyState, ErrorState, PageHeader, SakuraLoader, Select, cx, notify } from '@/components/ui';
+import { Banner, Card, CustomSelect, EmptyState, ErrorState, PageHeader, SakuraLoader, Tabs, notify } from '@/components/ui';
 import { classifyHomeworkItem } from '@/features/calendar/utils/calendarEventsModel.js';
 import '@/pages/shared/studyCourses.css';
 import { useLocale } from '@/locales/locale.js';
@@ -126,20 +126,21 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
           description={description}
           actions={
             (canQueryAllCohorts ? cohorts.length >= 1 : cohorts.length > 1) && (
-              <label className="block w-full sm:w-80">
-                <span className="sr-only">{tr('Chọn lớp')}</span>
-                <Select
-                  value={cohortId ?? ''}
-                  onChange={(e) => {
-                    const nextVal = e.target.value;
+              <div className="w-full sm:w-80">
+                <CustomSelect
+                  label={tr('Chọn lớp')}
+                  searchable={cohorts.length > 6}
+                  value={String(cohortId ?? '')}
+                  onChange={(nextVal) => {
                     if (!nextVal || nextVal === 'ALL') setParams({});
                     else setParams({ cohortId: nextVal });
                   }}
-                >
-                  {canQueryAllCohorts && <option value="ALL">{tr('Tất cả lớp')}</option>}
-                  {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.level ? ` · ${c.level}` : ''}</option>)}
-                </Select>
-              </label>
+                  options={[
+                    ...(canQueryAllCohorts ? [{ value: 'ALL', label: tr('Tất cả lớp') }] : []),
+                    ...cohorts.map((c) => ({ value: String(c.id), label: `${c.name}${c.level ? ` · ${c.level}` : ''}` })),
+                  ]}
+                />
+              </div>
             )
           }
         />
@@ -168,28 +169,18 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  { id: 'ALL', label: 'Tất cả' },
-                  { id: 'PENDING', label: 'Cần làm' },
-                  { id: 'SUBMITTED', label: 'Đã nộp' },
-                  { id: 'GRADED', label: 'Đã chấm' },
-                ].map((chip) => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    onClick={() => setStatusFilter(chip.id)}
-                    className={cx(
-                      'rp-focus rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                      statusFilter === chip.id
-                        ? 'bg-rp-brand-strong text-white'
-                        : 'border border-rp-line bg-rp-surface text-rp-text-2 hover:border-rp-brand-border',
-                    )}
-                  >
-                    {tr(chip.label)}
-                  </button>
-                ))}
-              </div>
+              <Tabs
+                variant="pill"
+                label={tr('Lọc trạng thái bài tập')}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                tabs={[
+                  { value: 'ALL', label: tr('Tất cả') },
+                  { value: 'PENDING', label: tr('Cần làm') },
+                  { value: 'SUBMITTED', label: tr('Đã nộp') },
+                  { value: 'GRADED', label: tr('Đã chấm') },
+                ]}
+              />
               {effectiveCohortId && cohortMap.get(effectiveCohortId)?.courseId && role === 'Learner' && (
                 <Link
                   to={`/my-courses/${cohortMap.get(effectiveCohortId).courseId}?section=homework`}

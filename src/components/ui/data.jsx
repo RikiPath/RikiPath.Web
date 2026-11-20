@@ -210,12 +210,12 @@ export function DataTable({
   return (
     <div
       data-density={resolvedDensity}
-      className={cx('min-w-0 overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface', className)}
+      className={cx('w-full max-w-full min-w-0 overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface', className)}
     >
       <div className="rp-scroll-x">
         <table className={cx('w-full border-collapse text-left rp-type-body', minTableWidth)}>
           {caption && <caption className="sr-only">{tr(caption)}</caption>}
-          <thead className="bg-rp-bg-2">
+          <thead className="bg-rp-table-head">
             <tr>
               {allColumns.map((col) => {
                 const sortable = col.sortable !== false && col.key !== '__actions' && !serverPaged;
@@ -269,7 +269,7 @@ export function DataTable({
               <tr><td colSpan={allColumns.length}>{empty || <EmptyState compact />}</td></tr>
             )}
             {!loading && !error && visible.map((row) => (
-              <tr key={rowKey(row)} className="border-b border-rp-line transition-colors last:border-0 hover:bg-rp-bg-2">
+              <tr key={rowKey(row)} className="border-b border-rp-line transition-colors duration-150 last:border-0 hover:bg-rp-row-hover">
                 {allColumns.map((col) => (
                   <td
                     key={col.key}
@@ -289,24 +289,22 @@ export function DataTable({
         </table>
       </div>
       {!loading && !error && totalItems > pageSize && (
-        <div className="border-t border-rp-line px-4 py-3">
-          <Pagination
-            currentPage={safePage}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            itemLabel={itemLabel}
-            variant="neutral"
-            onPageChange={(p) => (serverPaged ? onPageChange(p) : setLocalPage(p))}
-            onPageSizeChange={(size) => {
-              if (onPageSizeChange) onPageSizeChange(size);
-              else {
-                setLocalSize(size);
-                setLocalPage(1);
-              }
-            }}
-          />
-        </div>
+        <Pagination
+          currentPage={safePage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          itemLabel={itemLabel}
+          variant="neutral"
+          onPageChange={(p) => (serverPaged ? onPageChange(p) : setLocalPage(p))}
+          onPageSizeChange={(size) => {
+            if (onPageSizeChange) onPageSizeChange(size);
+            else {
+              setLocalSize(size);
+              setLocalPage(1);
+            }
+          }}
+        />
       )}
     </div>
   );

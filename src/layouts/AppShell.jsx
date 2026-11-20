@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   KeyRound,
+  Layers,
   LockKeyhole,
   LogOut,
   Menu,
@@ -23,7 +24,7 @@ import { useLocale } from '@/locales/locale.js';
 import NotificationCenter from '@/features/notifications/components/NotificationCenter.jsx';
 import HeaderCalendarPopover from '@/features/calendar/components/HeaderCalendarPopover.jsx';
 import BackHomeLink from '@/components/brand/BackHomeLink.jsx';
-import { Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, Tooltip, cx } from '@/components/ui';
+import { Avatar, Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, Tooltip, cx } from '@/components/ui';
 import { ROLE_NAV, buildBreadcrumbs, flattenNavItems, isNavItemActive } from './appNav.js';
 import { StudyUnlockProvider } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { LOCK_REASON, useStudyUnlock } from '@/features/entitlements/studyUnlock.js';
@@ -648,17 +649,20 @@ function ProfileMenu({ roleKey }) {
   const { user, primaryRole, logout } = useAuth();
   const { tr } = useLocale();
   const name = user?.fullName || user?.name || user?.email || tr('Tài khoản');
-  const initial = String(name).trim().charAt(0).toUpperCase() || 'R';
   const role = ROLE_LABEL[primaryRole] || primaryRole;
   const links = [
+    { to: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
     ...(roleKey === 'Learner'
-      ? [
-          { to: '/settings', label: 'Tài khoản của tôi', icon: Settings },
-          { to: '/onboarding', label: 'Mục tiêu học tập', icon: Target },
-        ]
+      ? [{ to: '/profile?tab=goals', label: 'Mục tiêu học tập', icon: Target }]
       : []),
-    ...(roleKey === 'Mentor' ? [{ to: '/mentor-profile', label: 'Hồ sơ chuyên môn', icon: UserRound }] : []),
-    { to: '/change-password', label: 'Đổi mật khẩu', icon: KeyRound },
+    ...(roleKey === 'Mentor'
+      ? [{ to: '/mentor-profile', label: 'Hồ sơ giảng dạy', icon: UserRound }]
+      : []),
+    ...(roleKey === 'ContentAuthor'
+      ? [{ to: '/cms-studio', label: 'Biên soạn nội dung', icon: Layers }]
+      : []),
+    { to: '/profile?tab=notifications', label: 'Thông báo & tùy chọn', icon: Settings },
+    { to: '/profile?tab=security', label: 'Bảo mật & đăng nhập', icon: KeyRound },
   ];
   return (
     <Popover
@@ -672,13 +676,7 @@ function ProfileMenu({ roleKey }) {
           aria-label={`${tr('Tài khoản')}: ${name}`}
           className="rp-focus flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-1 transition-colors hover:border-rp-line hover:bg-rp-surface/90 md:pr-2.5"
         >
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover ring-1 ring-rp-line" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-          ) : (
-            <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-rp-brand-tint text-[13px] font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border">
-              {initial}
-            </span>
-          )}
+          <Avatar src={user?.avatarUrl} name={name} size={32} className="ring-1 ring-rp-line" />
           <span className="hidden max-w-[148px] text-left leading-tight md:block">
             <span className="block truncate text-[13px] font-semibold text-rp-text">{name}</span>
             <span className="block truncate text-[11px] text-rp-text-muted">{tr(role)}</span>

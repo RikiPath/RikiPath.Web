@@ -72,7 +72,7 @@ export default function NotificationCenter() {
   return (
     <Popover
       label={tr('Thông báo')}
-      panelClassName="max-sm:fixed max-sm:left-3 max-sm:right-3 max-sm:top-[calc(var(--spacing-rp-topbar)+6px)] sm:w-[360px]"
+      panelClassName="max-sm:fixed max-sm:left-3 max-sm:right-3 max-sm:top-[calc(var(--spacing-rp-topbar)+6px)] sm:w-[348px]"
       onOpenChange={setOpen}
       trigger={({ toggle, props }) => {
         return (
@@ -96,7 +96,7 @@ export default function NotificationCenter() {
     >
       {({ close }) => (
         <div>
-          <div className="flex items-center justify-between border-b border-rp-line px-4 py-3">
+          <div className="flex items-center justify-between border-b border-rp-line px-3.5 py-2.5">
             <p className="text-sm font-bold text-rp-text">{tr('Thông báo')}</p>
             {unreadCount > 0 && (
               <button
@@ -130,7 +130,7 @@ export default function NotificationCenter() {
                   <button
                     type="button"
                     onClick={() => openItem(item, close)}
-                    className="rp-focus flex w-full items-start gap-3 border-b border-rp-line px-4 py-3 text-left last:border-0 hover:bg-rp-bg-2"
+                    className="rp-focus flex w-full items-start gap-2.5 border-b border-rp-line px-3.5 py-2.5 text-left last:border-0 hover:bg-rp-bg-2"
                   >
                     <span aria-hidden="true" className={cx('mt-1.5 h-2 w-2 shrink-0 rounded-full', item.isRead ? 'bg-transparent' : 'bg-rp-brand')} />
                     <span className="min-w-0 flex-1">

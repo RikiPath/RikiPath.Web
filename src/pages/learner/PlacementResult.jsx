@@ -31,7 +31,7 @@ export default function PlacementResult() {
           <div className="space-y-5">
             <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
               <div className="rp-pattern-seigaiha absolute inset-0 opacity-60" aria-hidden="true" />
-              <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+              <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rp-brand">{tr('Kết quả đánh giá năng lực')}</p>
                   <p className="mt-3 text-sm text-rp-text-muted">{tr('Trình độ ước tính')}</p>

@@ -902,7 +902,7 @@ export default function SmartNotebookWorkspace() {
                     {activeEntry.sourcePath && (
                       <Link
                         to={activeEntry.sourcePath}
-                        className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-rp-brand-strong hover:underline"
+                        className="rp-link mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-rp-brand-strong"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                         <span>{tr('Quay lại nguồn học')}: {activeEntry.sourceTitle || activeEntry.sourcePath}</span>

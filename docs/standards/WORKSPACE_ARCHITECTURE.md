@@ -85,3 +85,42 @@ Tài liệu quy chuẩn kiến trúc lâu dài cho không gian học tập **Rik
 ## 7. Adaptive Desktop Width & Form Interaction Rules
 - Các màn hình làm việc dạng bảng/biểu mẫu/công cụ (`MentorGrading`, `AdminSlotReview`, `AdminConsultants`, `AdminContentReview`, `CmsLessonDetail`) sử dụng `rp-container` hoặc khung Modal đủ rộng (`size="xl"` / `max-w-[1160px]`) thay cho giới hạn cột đọc văn bản (`rp-container-reading`).
 - Giữ ổn định bố cục cho bảng dữ liệu & form thao tác nghiệp vụ (không gắn animation dịch chuyển gây giật cho dòng bảng hay ô nhập liệu trên Mentor/Admin/Content Author).
+
+---
+
+## 8. Admin Navigation & Business Configuration Hierarchy
+- Nhóm Sidebar **Điều hành** của Admin gồm: `Tổng quan` (`/admin/dashboard`), `Người dùng & vai trò` (`/admin/users`) và `Thanh toán & giao dịch` (`/admin/payments`).
+- Nhóm Sidebar **Cấu hình** (đổi tên từ *Nội dung*, bố cục phẳng một cấp) gồm: `Chứng chỉ & cấp độ` (`/admin/study-catalog`, đổi tên từ *Cấu hình JLPT*), `Phần thi` (`/admin/certificate-sections`), `Gói học & bảng giá` (`/admin/plans`), `Chính sách học tập` (`/admin/policies`, hỗ trợ deep link cũ `/admin/mentor-group-policy`) và `Duyệt nội dung` (`/admin/content-review`).
+- Mọi breadcrumb tự động bám theo `ROLE_NAV.Admin` (ví dụ `Quản trị › Cấu hình › Chứng chỉ & cấp độ`), đồng bộ hai ngôn ngữ VI/JA.
+
+---
+
+## 9. Content Author Studio VNext Architecture
+- Quy tắc cốt lõi: **Every Content Author screen must be designed and validated as part of a complete content lifecycle, not as an isolated page.**
+- Điều hướng vai trò `ContentAuthor` (`area: 'Tác giả nội dung'`) gồm 3 nhóm trong `ROLE_NAV.ContentAuthor`:
+  1. **Tổng quan**: `Studio` (`/cms-studio`), `Nội dung của tôi` (`/author-dashboard`).
+  2. **Biên soạn & Kho học liệu**: `Biên soạn học liệu` (`Biên soạn nội dung` `/content-manual`, `Bài học` `/lesson-cms`, `Đề thi thử` `/exam-builder`, `Trợ lý biên soạn` `/content-plan`) và `Kho đã duyệt` (`Từ vựng` `/vocabulary-editor`, `Hán tự` `/kanji-editor`, `Ngữ pháp` `/content-library`, `Ngân hàng câu hỏi` `/question-bank`).
+  3. **Nhập liệu**: `Nhập Excel` (`/bulk-import`), `Lịch sử nhập liệu` (`/bulk-import?view=history`).
+- Cấp độ chứng chỉ được đồng bộ động từ `GET /api/content-author/manual/lookups` qua `useAuthorLookups()` (hỗ trợ đầy đủ `N5`–`N1` và mọi cấp độ mới do Admin cấu hình; tuyệt đối không hard-code `N5..N2`).
+- Tất cả trang kho đã duyệt (bao gồm `Ngân hàng câu hỏi`) đọc dữ liệu thật từ `/api/SharedBank/*` có phân trang và Modal chi tiết; tuyệt đối không dùng dữ liệu mẫu hay lưu nháp cục bộ trình duyệt giả.
+
+---
+
+## 10. Admin Control Center VNext Architecture
+- **Canonical Query & Invalidation (`src/features/admin/api/adminQueryKeys.js`)**: Toàn bộ màn hình Admin dùng chung `ADMIN_KEYS` và `invalidateAdminDomains(queryClient, domains)` (`users`, `mentors`, `schedules`, `policy`, `cohorts`, `plans`, `content`, `catalog`) để số liệu Dashboard, danh sách và phân quyền luôn đồng bộ sau mutation.
+- **Không trùng lặp navigation nội bộ**: `AdminMentorHub` sử dụng trực tiếp Sidebar + Sub-menu của `ROLE_NAV.Admin`; không render thanh `<nav>` card lặp lại trên đầu trang.
+- **Phân biệt Quyền giảng dạy JLPT & Chứng chỉ cá nhân (`/admin/mentor-qualifications`)**: Hỗ trợ đầy đủ cấp độ JLPT `N5`–`N1` động, đồng bộ thật với `/api/admin/mentors/qualifications` và kiểm tra hồ sơ đã duyệt + trần trình độ đã xác minh trước khi cấp quyền.
+- **Quản trị an toàn dữ liệu & Kiểm toán Backend**: Các thao tác nhạy cảm của Admin (quản lý tài khoản/vai trò, hồ sơ/quyền Giáo viên, lịch dạy, lớp nhóm, phần thi, chính sách, duyệt nội dung) thực thi trong transaction, bảo vệ tài khoản/lớp/lịch đang hoạt động bằng `409 Conflict` và ghi `AdminAuditLogs`.
+
+---
+
+## 11. Universal Profile & Settings Architecture (All Roles)
+- Nguyên tắc cốt lõi: **One Account Identity — Shared Profile Experience — Role-Aware Extensions.**
+- Một không gian tài khoản dùng chung (`/profile`, đồng bộ `/settings`) phục vụ tất cả 4 vai trò (`Learner`, `Mentor`, `ContentAuthor`, `Admin`) bên trong đúng `AppShell` của từng vai trò (`RoleAccountShell`), tránh nhân bản màn hình cài đặt rời rạc hoặc trả `403`.
+- **Shared Core (`ProfileWorkspace`)**:
+  - `ProfileHeader`: avatar đồng bộ Header + modal tải/cắt/xóa ảnh (`AvatarUploaderModal`, kiểm tra magic bytes JPEG/PNG/WebP `<= 5 MB` trên Backend), hiển thị một `FullName` duy nhất, huy hiệu vai trò, trạng thái xác thực email, `PendingEmail` và phương thức đăng nhập (`Mật khẩu nội bộ` / `Google`).
+  - `PersonalInformationSection`: xem/sửa `FullName` và `PhoneNumber` có dirty-check, đọc thông tin mở rộng theo vai trò (Học viên -> Mục tiêu học tập; Giáo viên -> trạng thái kiểm duyệt & liên kết `/mentor-profile`; Tác giả -> `/cms-studio`; Admin -> khóa tự sửa phân quyền).
+  - `AccountSecuritySection`: đổi mật khẩu có đo độ mạnh, hỗ trợ thiết lập mật khẩu lần đầu cho tài khoản Google chưa có mật khẩu (`POST /api/Auth/set-password`), quy trình đổi email an toàn 2 bước giữ `Email` cũ tới khi xác nhận OTP qua `PendingEmail`, và thu hồi toàn bộ phiên cũ bằng `TokenVersion`.
+  - `NotificationPreferencesSection`: công tắc kênh (Email / In-App), danh mục thông báo riêng từng vai trò (`NotificationCategories`), khóa bắt buộc `securityAlerts`, thực thi thật khi phát sinh thông báo/email ở Backend.
+  - `PreferencesSection`: ngôn ngữ VI/JA và khung giờ học ưu tiên (`studyTimePreference`, Learner).
+- **Learner Extension (`LearningGoalsSection`)**: đồng bộ cấp độ động `N5`–`N1` từ API chứng chỉ (tuyệt đối không hard-code danh sách tĩnh `1..4`), phân tách rõ Mục tiêu đang chọn, Trình độ đánh giá đầu vào, Chứng chỉ tự khai báo và Cấp độ đang học.

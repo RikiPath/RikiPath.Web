@@ -6,6 +6,7 @@
 .rp-paper-bg {
   position: relative;
   isolation: isolate;
+  overflow-x: clip;
   /* Deeper washi tone + clearer dot grain (matches the IeltsWithHarry paper weight). */
   background-color: #f5f3ee;
 }
@@ -38,12 +39,21 @@
 @media (min-width: 1280px) {
   .rp-paper-bg::after { display: block; }
 }
-/* Workspaces (Mentor / Admin / Content Author): lighter, neutral, no motifs. */
+/* Workspaces (Mentor / Content Author): lighter, subtle grain, no motifs. */
 .rp-paper-bg[data-paper='quiet']::before {
-  background-image: radial-gradient(circle, rgba(110, 100, 92, 0.13) 0.9px, transparent 1.3px);
-  background-size: 24px 24px;
+  background-image: radial-gradient(circle, rgba(110, 100, 92, 0.08) 0.8px, transparent 1.2px);
+  background-size: 28px 28px;
 }
 .rp-paper-bg[data-paper='quiet']::after { display: none; }
+
+/* Admin Control Center: clean warm ivory canvas (#F8F6F4), zero distracting background dots. */
+.rp-paper-bg[data-shell='admin'] {
+  background-color: var(--color-rp-admin-bg, #F8F6F4);
+}
+.rp-paper-bg[data-shell='admin']::before,
+.rp-paper-bg[data-shell='admin']::after {
+  display: none;
+}
 
 /* ======================================================= Header sky */
 .rp-sky-header { overflow: visible; }

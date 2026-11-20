@@ -139,7 +139,7 @@ export default function LanguageSwitch({ className, variant = 'pill' }) {
                     lang={option.id}
                     onClick={() => choose(option.id)}
                     className={cx(
-                      'rp-focus flex min-h-11 w-full items-center gap-2.5 rounded-rp-sm px-2 text-left text-[13.5px] transition-colors duration-150',
+                      'rp-focus flex min-h-10 w-full items-center gap-2.5 rounded-rp-sm px-2 text-left text-[13.5px] transition-colors duration-150',
                       selected ? 'font-bold text-rp-brand-pressed' : 'font-medium text-rp-text hover:bg-rp-brand-tint',
                     )}
                   >

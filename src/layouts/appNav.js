@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Compass,
+  CreditCard,
   FileCheck2,
   FileQuestion,
   FolderUp,
@@ -24,10 +25,12 @@ import {
   ListChecks,
   Mic,
   NotebookPen,
+  Package,
   PenLine,
   Repeat,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   SpellCheck,
   Star,
   UserCog,
@@ -111,7 +114,7 @@ export const ROLE_NAV = {
         label: 'Tiện ích & Tài khoản',
         items: [
           { to: '/plans', label: 'Gói tự học', icon: Layers, tone: 'neutral', alsoActive: ['/study-payment'] },
-          { to: '/settings', label: 'Cài đặt', icon: Settings, tone: 'neutral' },
+          { to: '/settings', label: 'Cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/profile'] },
         ],
       },
     ],
@@ -183,6 +186,7 @@ export const ROLE_NAV = {
             ],
           },
           { to: '/mentor-profile', label: 'Hồ sơ chuyên môn', icon: UserRound, tone: 'neutral', alsoActive: ['/mentor/profile'] },
+          { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings'] },
         ],
       },
     ],
@@ -209,10 +213,10 @@ export const ROLE_NAV = {
             tone: 'writing',
             defaultOpen: true,
             children: [
-              { to: '/content-manual', label: 'Soạn thảo tổng hợp', icon: PenLine, tone: 'writing' },
+              { to: '/content-manual', label: 'Biên soạn nội dung', icon: PenLine, tone: 'writing' },
               { to: '/lesson-cms', label: 'Bài học', icon: BookOpen, tone: 'lesson', alsoActive: ['/lesson-cms-detail'] },
               { to: '/exam-builder', label: 'Đề thi thử', icon: FileCheck2, tone: 'mock' },
-              { to: '/content-plan', label: 'Soạn với AI', icon: Wand2, tone: 'haru' },
+              { to: '/content-plan', label: 'Trợ lý biên soạn', icon: Wand2, tone: 'haru' },
             ],
           },
           {
@@ -233,8 +237,14 @@ export const ROLE_NAV = {
       {
         label: 'Nhập liệu',
         items: [
-          { to: '/bulk-import', label: 'Import Excel', icon: FolderUp, tone: 'neutral', alsoActive: ['/content-studio'], excludeQuery: { view: 'history' } },
-          { to: '/bulk-import?view=history', label: 'Lịch sử lô nhập', icon: History, tone: 'neutral' },
+          { to: '/bulk-import', label: 'Nhập Excel', icon: FolderUp, tone: 'neutral', alsoActive: ['/content-studio'], excludeQuery: { view: 'history' } },
+          { to: '/bulk-import?view=history', label: 'Lịch sử nhập liệu', icon: History, tone: 'neutral' },
+        ],
+      },
+      {
+        label: 'Tài khoản',
+        items: [
+          { to: '/profile', label: 'Hồ sơ & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings'] },
         ],
       },
     ],
@@ -248,6 +258,7 @@ export const ROLE_NAV = {
         items: [
           { to: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard, tone: 'neutral' },
           { to: '/admin/users', label: 'Người dùng & vai trò', icon: UserCog, tone: 'neutral', alsoActive: ['/admin/users/detail'] },
+          { to: '/admin/payments', label: 'Thanh toán & giao dịch', icon: CreditCard, tone: 'payment' },
         ],
       },
       {
@@ -263,7 +274,6 @@ export const ROLE_NAV = {
             children: [
               { to: '/admin/study-courses', label: 'Gói học, lớp & ghi danh', icon: GroupClassIcon, tone: 'group' },
               { to: '/admin/mentor-cases', label: 'Ngoại lệ & khiếu nại', icon: Gavel, tone: 'neutral' },
-              { to: '/admin/mentor-group-policy', label: 'Chính sách lớp nhóm', icon: ClipboardList, tone: 'mentor' },
               { to: '/admin/mentor-homework', label: 'Bài tập về nhà', icon: ClipboardCheck, tone: 'writing' },
             ],
           },
@@ -288,25 +298,34 @@ export const ROLE_NAV = {
           {
             id: 'admin-mentor-ops',
             to: '/admin/mentor-schedules',
-            label: 'Lịch dạy & chất lượng',
+            label: 'Vận hành & lịch dạy',
             icon: CalendarCheck,
             tone: 'calendar',
             defaultOpen: true,
             children: [
               { to: '/admin/mentor-schedules', label: 'Duyệt lịch dạy', icon: CalendarCheck, tone: 'calendar' },
               { to: '/admin/slot-review', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarDays, tone: 'calendar' },
-              { to: '/admin/mentor-template', label: 'Mẫu ca', icon: Repeat, tone: 'calendar' },
+              { to: '/admin/mentor-template', label: 'Lịch cố định tuần', icon: Repeat, tone: 'calendar' },
               { to: '/admin/mentor-quality', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'reading' },
             ],
           },
         ],
       },
       {
-        label: 'Nội dung',
+        label: 'Cấu hình',
         items: [
-          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'reading', alsoActive: ['/admin/approval-content'] },
-          { to: '/admin/study-catalog', label: 'Cấu hình JLPT', icon: GraduationCap, tone: 'reading' },
+          { to: '/admin/study-catalog', label: 'Chứng chỉ & cấp độ', icon: GraduationCap, tone: 'reading' },
           { to: '/admin/certificate-sections', label: 'Phần thi', icon: Library, tone: 'reading' },
+          { to: '/admin/plans', label: 'Gói học & bảng giá', icon: Package, tone: 'payment' },
+          {
+            to: '/admin/policies',
+            label: 'Chính sách học tập',
+            icon: SlidersHorizontal,
+            tone: 'mentor',
+            alsoActive: ['/admin/mentor-group-policy'],
+          },
+          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'reading', alsoActive: ['/admin/approval-content'] },
+          { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings'] },
         ],
       },
     ],

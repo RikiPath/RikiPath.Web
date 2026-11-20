@@ -88,13 +88,15 @@ describe('Fluid Design Tokens & CSS Container Queries', () => {
     assert.equal(registerSrc.includes("t('firstName')"), false);
     assert.equal(registerSrc.includes("t('lastName')"), false);
 
-    const settingsSrc = readSrc('src/pages/learner/LearnerSettings.jsx');
-    assert.ok(settingsSrc.includes('name="fullName"'), 'LearnerSettings should render single fullName input');
-    assert.equal(settingsSrc.includes('name="firstName"'), false);
-    assert.equal(settingsSrc.includes('name="lastName"'), false);
+    const personalInfoSrc = readSrc('src/features/profile/components/PersonalInformationSection.jsx');
+    assert.ok(personalInfoSrc.includes('value={fullName}'), 'PersonalInformationSection should render single fullName input');
+    assert.equal(personalInfoSrc.includes('name="firstName"'), false);
+    assert.equal(personalInfoSrc.includes('name="lastName"'), false);
 
     const profileApiSrc = readSrc('src/features/profile/api/profileApi.js');
-    assert.match(profileApiSrc, /updateProfile\(\{\s*fullName\s*\}\)/);
+    assert.match(profileApiSrc, /updateProfile\(\{\s*fullName\b/);
+    assert.equal(profileApiSrc.includes('firstName'), false);
+    assert.equal(profileApiSrc.includes('lastName'), false);
   });
 
   it('removes colliding fixed sidebar/topbar tokens from index.css', () => {

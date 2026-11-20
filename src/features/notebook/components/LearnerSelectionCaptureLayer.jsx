@@ -72,7 +72,7 @@ export default function LearnerSelectionCaptureLayer() {
   }, [detailEntryId, detailPersonalNote]);
 
   useEffect(() => {
-    if (!nb?.isLearner || !nb?.policy?.selectionAllowed) {
+    if (!nb?.isLearner || !nb?.notebookAvailable || !nb?.policy?.selectionAllowed) {
       return undefined;
     }
 
@@ -152,9 +152,9 @@ export default function LearnerSelectionCaptureLayer() {
       document.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [nb?.isLearner, nb?.policy?.selectionAllowed, nb?.currentUrlKey]);
+  }, [nb?.isLearner, nb?.notebookAvailable, nb?.policy?.selectionAllowed, nb?.currentUrlKey]);
 
-  if (!nb?.isLearner) return null;
+  if (!nb?.isLearner || !nb?.notebookAvailable) return null;
 
   async function quickHighlightWithColor(colorId) {
     if (!selectionPopup || nb.quickSaveCapture.isPending) return;

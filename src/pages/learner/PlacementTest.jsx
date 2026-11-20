@@ -72,7 +72,7 @@ export default function PlacementTest() {
       <div data-page="PlacementTest" className="rp-container-reading rp-cq py-[var(--rp-space-page-y)]">
         <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
           <div className="rp-pattern-seigaiha absolute inset-0 opacity-70" aria-hidden="true" />
-          <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+          <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rp-brand">{tr('Đánh giá năng lực')}</p>
               <h1 className="mt-2 text-2xl font-bold tracking-[-0.01em] text-rp-text sm:text-[28px]">{tr('Biết mình đang ở đâu trước khi ôn')}</h1>

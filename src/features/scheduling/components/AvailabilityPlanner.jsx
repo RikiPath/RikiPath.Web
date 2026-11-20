@@ -1,9 +1,21 @@
 import { backendUtcDate } from '@/utils/mentorSchedule';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AdminShell, MentorShell } from '@/layouts';
 import { api } from '@/api/client';
 import { describeApiError } from '@/api/apiErrors.js';
-import { ContextualErrorState, Modal, SakuraLoader } from '@/components/ui';
+import { invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
+import {
+  Banner,
+  Button,
+  Checkbox,
+  ContextualErrorState,
+  CustomSelect,
+  Field,
+  Input,
+  Modal,
+  SakuraLoader,
+} from '@/components/ui';
 import { notify } from '@/components/ui/feedbackStore.js';
 import SakuraCalendar from './SakuraCalendar';
 import InteractiveSlotCalendar from './InteractiveSlotCalendar';
@@ -204,9 +216,11 @@ function MentorInteractiveAvailabilityWorkspace({ embedded = false }) {
 
 function AdminAvailabilityWorkspace({ embedded = false }) {
   const { tr, trf, locale, fmt } = useLocale();
+  const queryClient = useQueryClient();
   const labels = locale === 'ja' ? JA_DAYS : VI_DAYS;
   const Shell = embedded ? Fragment : AdminShell;
   const [slots, setSlots] = useState([]);
+  const [mentorFilter, setMentorFilter] = useState('ALL');
   const [selected, setSelected] = useState([]);
   const [week, setWeek] = useState(monday);
   const [error, setError] = useState('');
@@ -246,6 +260,7 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
     try {
       await work();
       await load();
+      await invalidateAdminDomains(queryClient, ['schedules']);
       if (message !== null) {
         setNotice(message);
         notify[tone](message, '', { key: toastKey, replace: true });
@@ -258,11 +273,31 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
     }
   }
 
+  const mentorOptions = useMemo(() => {
+    const map = new Map();
+    for (const s of slots) {
+      const key = String(s.mentorId ?? s.mentorName ?? '');
+      if (key && !map.has(key)) {
+        map.set(key, s.mentorName || tr('Giáo viên'));
+      }
+    }
+    const items = [...map.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1], 'vi'))
+      .map(([value, label]) => ({ value, label }));
+    return [{ value: 'ALL', label: tr('Tất cả Giáo viên') }, ...items];
+  }, [slots, tr]);
+
+  const filteredSlots = useMemo(() => (
+    mentorFilter === 'ALL'
+      ? slots
+      : slots.filter((s) => String(s.mentorId ?? s.mentorName ?? '') === mentorFilter)
+  ), [slots, mentorFilter]);
+
   const sessionMinutes = Number(splitMinutes);
   const sessionMinutesOk = Number.isInteger(sessionMinutes) && sessionMinutes >= 15 && sessionMinutes <= 240;
   const canSplit = (slot) => sessionMinutesOk && slot.isApproved && !slot.rejectedAt && !slot.changeRequestedAt && slot.bookedCount === 0 && slot.maxLearners === 1 && backendUtcDate(slot.startTime) > new Date() && (backendUtcDate(slot.endTime) - backendUtcDate(slot.startTime)) / 60000 > sessionMinutes;
-  const splittable = slots.filter(canSplit);
-  const pending = slots.filter((s) => !s.isApproved && !s.rejectedAt && backendUtcDate(s.startTime) > new Date());
+  const splittable = filteredSlots.filter(canSplit);
+  const pending = filteredSlots.filter((s) => !s.isApproved && !s.rejectedAt && backendUtcDate(s.startTime) > new Date());
   const pendingBatchGroups = useMemo(() => {
     const groups = new Map();
     for (const s of pending) {
@@ -282,7 +317,7 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
   const conflictIds = useMemo(() => findConflicts(slots), [slots]);
   const shortDate = (key) => key.split('-').reverse().slice(0, 2).join('/');
 
-  const allCalendarEvents = useMemo(() => slots.map((s) => {
+  const allCalendarEvents = useMemo(() => filteredSlots.map((s) => {
     const st = statusOf(s, conflictIds);
     const minutes = Math.round((backendUtcDate(s.endTime) - backendUtcDate(s.startTime)) / 60000);
     const startParts = toVnTimeParts(s.startTime);
@@ -309,7 +344,7 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
         s.rejectionReason && { label: 'Lý do từ chối', value: s.rejectionReason },
       ].filter(Boolean),
     };
-  }), [slots, conflictIds, tr, trf, fmt]);
+  }), [filteredSlots, conflictIds, tr, trf, fmt]);
 
   const review = (approve, ids, explicitReason) => action(async () => {
     const useReason = explicitReason ?? reason;
@@ -342,7 +377,10 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
       setError(describeApiError(e).message);
       notify.apiError(e, tr('Chia khung giờ chưa hoàn tất'), { key: toastKey, replace: true });
     } finally {
-      try { await load(); } catch (e) { setError((cur) => cur || describeApiError(e).message); }
+      try {
+        await load();
+        await invalidateAdminDomains(queryClient, ['schedules']);
+      } catch (e) { setError((cur) => cur || describeApiError(e).message); }
       setBusy(false);
     }
   }
@@ -354,56 +392,58 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
           <header className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h1 className="text-[20px] font-bold tracking-tight text-rp-text">{tr('Duyệt lịch Giáo viên')}</h1>
-              <p className="text-[12.5px] text-rp-text-muted">{tr('Kiểm tra đăng ký và duyệt khung giờ 90 phút cho Giáo viên.')}</p>
+              <p className="text-[12.5px] text-rp-text-muted">{tr('Kiểm tra đăng ký và duyệt khung giờ dạy học cho Giáo viên.')}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <div className="w-[220px]">
+                <CustomSelect
+                  size="sm"
+                  searchable
+                  label={tr('Lọc theo Giáo viên')}
+                  value={mentorFilter}
+                  onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
+                  options={mentorOptions}
+                />
+              </div>
               {splittable.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSplitModalOpen(true)}
-                  className="inline-flex h-8.5 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[12px] font-semibold text-rp-text-2 hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-                >
-                  <Scissors className="h-3.5 w-3.5" />
-                  <span>{trf('Chia khung gộp ({0})', { 0: splittable.length })}</span>
-                </button>
+                <Button variant="secondary" size="sm" icon={Scissors} onClick={() => setSplitModalOpen(true)}>
+                  {trf('Chia khung gộp ({0})', { 0: splittable.length })}
+                </Button>
               )}
-              <button
-                type="button"
-                onClick={() => setBatchReviewModalOpen(true)}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>{trf('Duyệt hàng loạt ({0})', { 0: pending.length })}</span>
-              </button>
+              <Button variant="primary" size="sm" icon={CheckCircle2} onClick={() => setBatchReviewModalOpen(true)}>
+                {trf('Duyệt hàng loạt ({0})', { 0: pending.length })}
+              </Button>
             </div>
           </header>
         )}
 
         {embedded && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {splittable.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSplitModalOpen(true)}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[12px] font-semibold text-rp-text-2 hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-              >
-                <Scissors className="h-3.5 w-3.5" />
-                <span>{trf('Chia khung gộp ({0})', { 0: splittable.length })}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setBatchReviewModalOpen(true)}
-              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>{trf('Duyệt hàng loạt ({0})', { 0: pending.length })}</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="w-[220px]">
+              <CustomSelect
+                size="sm"
+                searchable
+                label={tr('Lọc theo Giáo viên')}
+                value={mentorFilter}
+                onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
+                options={mentorOptions}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {splittable.length > 0 && (
+                <Button variant="secondary" size="sm" icon={Scissors} onClick={() => setSplitModalOpen(true)}>
+                  {trf('Chia khung gộp ({0})', { 0: splittable.length })}
+                </Button>
+              )}
+              <Button variant="primary" size="sm" icon={CheckCircle2} onClick={() => setBatchReviewModalOpen(true)}>
+                {trf('Duyệt hàng loạt ({0})', { 0: pending.length })}
+              </Button>
+            </div>
           </div>
         )}
 
-        {error && <div className="av-alert av-alert-error" role="alert"><AlertCircle size={18} /><span>{error}</span></div>}
-        {notice && <div className="av-alert av-alert-success" role="status"><Info size={18} /><span>{notice}</span></div>}
+        {error && <Banner tone="danger">{error}</Banner>}
+        {notice && <Banner tone="success">{notice}</Banner>}
         {initialLoading ? (
           <div className="av-card p-6"><SakuraLoader variant="section" context="calendar" label={tr('Đang tải lịch dạy')} className="min-h-[180px]" delay={160} /></div>
         ) : loadError && slots.length === 0 ? (
@@ -423,30 +463,28 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
                 <div className="space-y-3 border-t border-rp-line pt-3">
                   {!s.isApproved && !s.rejectedAt && isFuture && (
                     <div className="space-y-2">
-                      <label className="block text-[12px] font-medium text-rp-text-2">
-                        {tr('Lý do nếu từ chối')}
-                        <input
+                      <Field label={tr('Lý do nếu từ chối')}>
+                        <Input
                           value={adminRejectNote}
                           onChange={(e) => setAdminRejectNote(e.target.value)}
                           maxLength={500}
                           placeholder={tr('Nhập lý do từ chối khung giờ...')}
-                          className="mt-1 h-9 w-full rounded-lg border border-rp-line px-3 text-[13px]"
                         />
-                      </label>
+                      </Field>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" disabled={busy} onClick={() => { close(); review(true, [s.id]); }} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-[12px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                          <CheckCircle2 className="h-4 w-4" />{' '}{tr('Duyệt khung này')}
-                        </button>
-                        <button type="button" disabled={busy || !adminRejectNote.trim()} onClick={() => { close(); review(false, [s.id], adminRejectNote); setAdminRejectNote(''); }} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong disabled:opacity-50">
-                          <XCircle className="h-4 w-4" />{' '}{tr('Từ chối')}
-                        </button>
+                        <Button size="sm" variant="primary" icon={CheckCircle2} disabled={busy} onClick={() => { close(); review(true, [s.id]); }}>
+                          {tr('Duyệt khung này')}
+                        </Button>
+                        <Button size="sm" variant="danger" icon={XCircle} disabled={busy || !adminRejectNote.trim()} onClick={() => { close(); review(false, [s.id], adminRejectNote); setAdminRejectNote(''); }}>
+                          {tr('Từ chối')}
+                        </Button>
                       </div>
                     </div>
                   )}
                   {canSplit(s) && (
-                    <button type="button" disabled={busy} onClick={() => { close(); action(() => api.post(`/admin/mentor-availabilities/${s.id}/split`, { sessionMinutes }), trf('Đã chia khung giờ thành các buổi {0} phút.', { 0: sessionMinutes })); }} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-brand-border bg-rp-brand-tint px-3.5 text-[12px] font-semibold text-rp-brand-strong hover:bg-rp-brand-soft disabled:opacity-50">
-                      <Scissors className="h-4 w-4" />{' '}{trf('Chia thành buổi {0} phút', { 0: sessionMinutes })}
-                    </button>
+                    <Button size="sm" variant="secondary" icon={Scissors} disabled={busy} onClick={() => { close(); action(() => api.post(`/admin/mentor-availabilities/${s.id}/split`, { sessionMinutes }), trf('Đã chia khung giờ thành các buổi {0} phút.', { 0: sessionMinutes })); }}>
+                      {trf('Chia thành buổi {0} phút', { 0: sessionMinutes })}
+                    </Button>
                   )}
                 </div>
               );
@@ -465,45 +503,45 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
           >
             <div className="space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-2">
-                <label className="min-w-0 flex-1 text-[12px] font-medium text-rp-text-2">
-                  {tr('Lý do từ chối (khi từ chối)')}
-                  <input
-                    value={reason}
-                    maxLength={1000}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder={tr('Nhập lý do nếu từ chối các khung đã chọn…')}
-                    className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px]"
-                  />
-                </label>
+                <div className="min-w-[200px] flex-1">
+                  <Field label={tr('Lý do từ chối (khi từ chối)')}>
+                    <Input
+                      value={reason}
+                      maxLength={1000}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder={tr('Nhập lý do nếu từ chối các khung đã chọn…')}
+                    />
+                  </Field>
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     disabled={busy || !selected.length}
                     onClick={() => review(true, selected)}
-                    className="inline-flex h-9 items-center rounded-xl bg-emerald-600 px-3.5 text-[12px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
                     {tr('Duyệt đã chọn')}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
                     disabled={busy || !selected.length || !reason.trim()}
                     onClick={() => review(false, selected)}
-                    className="inline-flex h-9 items-center rounded-xl border border-red-200 bg-red-50 px-3.5 text-[12px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                   >
                     {tr('Từ chối đã chọn')}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
                     disabled={busy || !pending.length}
                     onClick={() => action(async () => {
                       for (let i = 0; i < pending.length; i += 50) {
                         await api.post('/admin/mentor-availabilities/review?approve=true', pending.slice(i, i + 50).map((s) => s.id));
                       }
                     })}
-                    className="inline-flex h-9 items-center rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong disabled:opacity-50"
                   >
                     {trf('Duyệt tất cả ({0})', { 0: pending.length })}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -516,9 +554,9 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
                   return (
                     <div key={group.key} className="overflow-hidden rounded-xl border border-rp-line bg-white">
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line/80 bg-[#FAF7F9] px-3.5 py-2 text-[12px]">
-                        <label className="inline-flex cursor-pointer items-center gap-2 font-semibold text-rp-text">
-                          <input
-                            type="checkbox"
+                        <div className="inline-flex items-center gap-2 font-semibold text-rp-text">
+                          <Checkbox
+                            label={group.mentorName}
                             checked={allGroupSelected}
                             onChange={(e) => {
                               if (e.target.checked) {
@@ -527,35 +565,29 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
                                 setSelected((cur) => cur.filter((id) => !groupIds.includes(id)));
                               }
                             }}
-                            className="accent-rp-brand-strong"
                           />
-                          <span>{group.mentorName}</span>
                           <span className="rounded-full bg-rp-brand-tint px-2 py-0.5 text-[11px] font-semibold text-rp-brand-strong">
                             {trf('Đợt gửi {0} khung giờ', { 0: group.items.length })}
                           </span>
-                        </label>
-                        <button
-                          type="button"
+                        </div>
+                        <Button
+                          size="xs"
+                          variant="secondary"
                           disabled={busy}
                           onClick={() => review(true, groupIds)}
-                          className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
                           {trf('Duyệt cả đợt ({0})', { 0: groupIds.length })}
-                        </button>
+                        </Button>
                       </div>
-                      <div className="divide-y divide-rp-line/60">
+                      <div className="divide-y divide-rp-line/60 px-3.5 py-1.5">
                         {group.items.map((s) => (
-                          <label key={s.id} className="flex cursor-pointer items-center gap-3 px-3.5 py-2 text-[13px] hover:bg-rp-bg-2/50">
-                            <input
-                              type="checkbox"
+                          <div key={s.id} className="py-1.5">
+                            <Checkbox
                               checked={selected.includes(s.id)}
                               onChange={(e) => setSelected(e.target.checked ? [...selected, s.id] : selected.filter((x) => x !== s.id))}
-                              className="accent-rp-brand-strong"
+                              label={`${labels[new Date(`${dayKey(s.startTime)}T12:00:00+07:00`).getUTCDay()]} ${shortDate(dayKey(s.startTime))} · ${clock(s.startTime)}–${clock(s.endTime)}`}
                             />
-                            <span className="font-medium text-rp-text">
-                              {labels[new Date(`${dayKey(s.startTime)}T12:00:00+07:00`).getUTCDay()]} {shortDate(dayKey(s.startTime))} · {clock(s.startTime)}–{clock(s.endTime)}
-                            </span>
-                          </label>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -572,31 +604,31 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
             open={splitModalOpen}
             onClose={() => setSplitModalOpen(false)}
             title={tr('Chia khung rảnh theo thời lượng buổi')}
-            description={tr('Áp dụng cho các khung đã duyệt, chưa xếp lớp và dài hơn 90 phút.')}
+            description={tr('Áp dụng cho các khung đã duyệt, chưa xếp lớp và dài hơn thời lượng buổi.')}
             size="md"
           >
             <div className="space-y-4">
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <label className="text-[12.5px] font-medium text-rp-text-2">
-                  {tr('Phút / buổi')}
-                  <input
-                    type="number"
-                    required
-                    min="15"
-                    max="240"
-                    value={splitMinutes}
-                    onChange={(e) => setSplitMinutes(e.target.value)}
-                    className="ml-2 h-9 w-24 rounded-xl border border-rp-line px-3 text-[13px]"
-                  />
-                </label>
-                <button
-                  type="button"
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="w-36">
+                  <Field label={tr('Phút / buổi')}>
+                    <Input
+                      type="number"
+                      required
+                      min="15"
+                      max="240"
+                      value={splitMinutes}
+                      onChange={(e) => setSplitMinutes(e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Button
+                  size="sm"
+                  variant="primary"
                   disabled={busy || !sessionMinutesOk || !splittable.length}
                   onClick={splitAll}
-                  className="inline-flex h-9 items-center rounded-xl bg-rp-brand-pressed px-4 text-[12.5px] font-semibold text-white hover:bg-rp-brand-strong disabled:opacity-50"
                 >
                   {trf('Chia tất cả ({0})', { 0: splittable.length })}
-                </button>
+                </Button>
               </div>
               <div className="max-h-[42vh] divide-y divide-rp-line overflow-y-auto rounded-xl border border-rp-line">
                 {splittable.map((s) => (
@@ -604,14 +636,14 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
                     <span>
                       {s.mentorName || tr('Giáo viên')} · {labels[new Date(`${dayKey(s.startTime)}T12:00:00+07:00`).getUTCDay()]} {shortDate(dayKey(s.startTime))} · {clock(s.startTime)}–{clock(s.endTime)}
                     </span>
-                    <button
-                      type="button"
+                    <Button
+                      size="xs"
+                      variant="outline"
                       disabled={busy || !sessionMinutesOk}
                       onClick={() => action(() => api.post(`/admin/mentor-availabilities/${s.id}/split`, { sessionMinutes }))}
-                      className="rounded-lg border border-rp-line bg-white px-2.5 py-1 text-[11.5px] font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
                     >
                       {tr('Chia khung này')}
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>

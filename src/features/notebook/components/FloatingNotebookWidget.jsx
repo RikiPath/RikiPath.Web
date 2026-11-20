@@ -76,7 +76,7 @@ export default function FloatingNotebookWidget() {
     });
   }, [nb?.pageHighlights, nb?.drawerOpen]);
 
-  if (!nb?.isLearner || !nb?.policy?.bubbleAllowed) return null;
+  if (!nb?.isLearner || !nb?.notebookAvailable || !nb?.policy?.bubbleAllowed) return null;
 
   // Hide inside Full Notebook itself so we don't float over the workspace
   const cleanPath = String(pathname || '').replace(/\/+$/, '') || '/';
@@ -342,7 +342,7 @@ export default function FloatingNotebookWidget() {
                               <Link
                                 to={item.sourcePath}
                                 onClick={() => nb.setDrawerOpen(false)}
-                                className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-rp-brand-strong hover:underline"
+                                className="rp-link mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-rp-brand-strong"
                               >
                                 <ExternalLink className="h-2.5 w-2.5" />
                                 <span className="truncate">{item.sourceTitle || tr('Mở nguồn bài học')}</span>

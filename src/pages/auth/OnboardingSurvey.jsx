@@ -77,7 +77,7 @@ export default function OnboardingSurvey() {
   } = useCertificateLevelsQuery(activeCertId);
 
   const levels = isJlpt
-    ? certificateLevels.filter((level) => ['N5', 'N4', 'N3', 'N2'].includes(level.code?.trim().toUpperCase()))
+    ? certificateLevels.filter((level) => ['N5', 'N4', 'N3', 'N2', 'N1'].includes(level.code?.trim().toUpperCase()))
     : certificateLevels;
 
   const [selectedLevelIdState, setSelectedLevelIdState] = useState(null);
@@ -89,8 +89,8 @@ export default function OnboardingSurvey() {
   const targetCode = selectedLevel?.code?.trim().toUpperCase();
 
   // Prior self-declared JLPT certificate dependency
-  const comparisonLevel = { N2: 'N3', N3: 'N4', N4: 'N5' }[targetCode];
-  const heldOptionsByTarget = { N2: ['N5', 'N4', 'N3'], N3: ['N5', 'N4'], N4: ['N5'] };
+  const comparisonLevel = { N1: 'N2', N2: 'N3', N3: 'N4', N4: 'N5' }[targetCode];
+  const heldOptionsByTarget = { N1: ['N5', 'N4', 'N3', 'N2'], N2: ['N5', 'N4', 'N3'], N3: ['N5', 'N4'], N4: ['N5'] };
   const heldOptions = isJlpt ? (heldOptionsByTarget[targetCode] ?? []) : [];
   const [heldOverride, setHeldOverride] = useState(null);
   const savedCertificate = profile?.declaredJlptCertificateCode;
