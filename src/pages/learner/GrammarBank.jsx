@@ -72,6 +72,7 @@ export default function GrammarBank() {
   });
 
   const pattern = detailQuery.data;
+  const queryError = searchQuery.error || detailQuery.error;
 
   function runSearch(value) {
     const next = value.trim();

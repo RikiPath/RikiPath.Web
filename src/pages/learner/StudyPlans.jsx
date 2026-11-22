@@ -48,7 +48,7 @@ function isCreditPack(plan) {
 
 export default function StudyPlans() {
   const { trf, tr } = useLocale();
-  const { pathname, state } = useLocation();
+  const { pathname } = useLocation();
   const session = getSession();
   const [groupTab, setGroupTab] = useState('all');
 
@@ -66,7 +66,8 @@ export default function StudyPlans() {
   const mineQuery = useQuery({
     queryKey: ['study-subscription', session?.userId],
     enabled: Boolean(session?.accessToken),
-    refetchInterval: (query) => (query.state.data?.active ? 60000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.active ? 60000 : false,
     queryFn: getMySubscription,
     retry: false,
   });
@@ -223,7 +224,12 @@ export default function StudyPlans() {
         )}
 
         {plansQuery.isPending && plans.length === 0 && (
-          <SakuraLoader variant="section" context="payment" label={tr('Đang tải các gói tự học')} delay={160} />
+          <SakuraLoader
+            variant="section"
+            context="payment"
+            label={tr('Đang tải các gói tự học')}
+            delay={160}
+          />
         )}
 
         {plansQuery.isError && (
@@ -248,7 +254,9 @@ export default function StudyPlans() {
             <article
               key={plan.id}
               className={`rp-card-hover flex flex-col rounded-rp-card border bg-rp-surface p-5 ${
-                plan.isPopular ? 'border-rp-brand-strong shadow-rp-card' : 'border-rp-line'
+                plan.isPopular
+                  ? 'border-rp-brand-strong shadow-rp-card'
+                  : 'border-rp-line'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -269,15 +277,20 @@ export default function StudyPlans() {
                 {plan.durationDays > 0 && plan.aiUses > 0 ? trf(' · {0} lượt AI', { 0: plan.aiUses }) : ''}
               </p>
               {plan.description && (
-                <p className="mt-3 text-[13px] leading-6 text-rp-text-2">{tr(plan.description)}</p>
+                <p className="mt-3 text-[13px] leading-6 text-rp-text-2">
+                  {tr(plan.description)}
+                </p>
               )}
-              {Array.isArray(plan.features) && plan.features.length > 0 && (
-                <ul className="mt-3 space-y-1 text-xs text-rp-text-muted">
-                  {plan.features.map((feature) => (
-                    <li key={feature}>• {feature}</li>
-                  ))}
-                </ul>
-              )}
+
+              {Array.isArray(plan.features) &&
+                plan.features.length > 0 && (
+                  <ul className="mt-3 space-y-1 text-xs text-rp-text-muted">
+                    {plan.features.map((feature) => (
+                      <li key={feature}>• {feature}</li>
+                    ))}
+                  </ul>
+                )}
+
               <div className="mt-auto pt-4">
                 <Link
                   to={session?.accessToken ? `/study-payment?planId=${plan.id}` : '/auth'}

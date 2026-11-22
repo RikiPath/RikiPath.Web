@@ -67,7 +67,7 @@ export default function LessonPractice() {
       }));
       const saved = Object.fromEntries((data.savedAnswers || []).map((item) => [item.questionId, item]));
       setSource(variables.kind);
-      setAttempt({ ...data, title: data.title || data.exerciseTitle, questions });
+      setAttempt({ ...data, feedbackExerciseId: variables.id, title: data.title || data.exerciseTitle, questions });
       setResult(null);
       setPicks(Object.fromEntries(Object.entries(saved).filter(([, item]) => item.selectedOptionId).map(([id, item]) => [id, item.selectedOptionId])));
       setTexts(Object.fromEntries(Object.entries(saved).filter(([, item]) => item.textAnswer).map(([id, item]) => [id, item.textAnswer])));

@@ -7,7 +7,7 @@ import {
 /** Step 1 - xem trước file Excel (không lưu gì). Dùng: preview.mutate({ file, entityType }). */
 export function usePreviewContentImportMutation() {
     return useMutation({
-        mutationFn: ({ file, entityType }) => previewContentImport(file, entityType),
+        mutationFn: ({ file, entityType, audioFiles, imageFiles }) => previewContentImport(file, entityType, audioFiles, imageFiles),
     });
 }
 

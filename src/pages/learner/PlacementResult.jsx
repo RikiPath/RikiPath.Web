@@ -1,4 +1,5 @@
-import { Link, useParams } from 'react-router-dom';
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, RotateCcw } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
@@ -55,43 +56,36 @@ export default function PlacementResult() {
               </div>
             </section>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              {result.levelBreakdowns?.length > 0 && (
-                <Card>
-                  <CardHeader title={tr('Theo cấp độ')} />
-                  <ul className="space-y-4">
-                    {result.levelBreakdowns.map((item) => (
-                      <li key={item.jlptLevelId}>
-                        <div className="mb-1.5 flex items-center justify-between text-sm">
-                          <span className="font-semibold text-rp-text">{item.jlptLevelName}</span>
-                          <span className="tabular-nums text-rp-text-muted">{item.correctCount}/{item.totalCount} · {Math.round(item.scorePercent)}%</span>
-                        </div>
-                        <ProgressBar value={item.scorePercent} max={100} label={`${item.jlptLevelName}`} />
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              )}
-              {result.sections?.length > 0 && (
-                <Card>
-                  <CardHeader title={tr('Theo phần thi')} />
-                  <ul className="space-y-4">
-                    {result.sections.map((item) => {
-                      const pct = item.totalCount ? (item.correctCount / item.totalCount) * 100 : 0;
-                      return (
-                        <li key={item.mockTestSectionId}>
-                          <div className="mb-1.5 flex items-center justify-between text-sm">
-                            <span className="font-semibold text-rp-text">{item.sectionTitle || item.languageSkillName}</span>
-                            <span className="tabular-nums text-rp-text-muted">{item.correctCount}/{item.totalCount}</span>
-                          </div>
-                          <ProgressBar value={pct} max={100} label={item.sectionTitle || item.languageSkillName} />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </Card>
-              )}
-            </div>
+            <LearnerFeedbackPanel type="placement" id={Number(attemptId)} label="Phản hồi về bài đánh giá năng lực" />
+            {result.levelBreakdowns?.length > 0 && (
+              <section className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-4">
+                <h2 className="text-[15px] font-semibold">{tr('Theo cấp độ')}</h2>
+                <ul className="mt-3 space-y-2">
+                  {result.levelBreakdowns.map((item) => (
+                    <li key={item.jlptLevelId} className="flex items-center justify-between text-[13px]">
+                      <span>{item.jlptLevelName}</span>
+                      <span className="text-[#8C7782]">
+                        {item.correctCount}/{item.totalCount} · {Math.round(item.scorePercent)}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {result.sections?.length > 0 && (
+              <section className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-4">
+                <h2 className="text-[15px] font-semibold">{tr('Theo phần')}</h2>
+                <ul className="mt-3 space-y-2">
+                  {result.sections.map((item) => (
+                    <li key={item.mockTestSectionId} className="flex items-center justify-between text-[13px]">
+                      <span>{item.sectionTitle || item.languageSkillName}</span>
+                      <span className="text-[#8C7782]">{item.correctCount}/{item.totalCount}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         )}
       </PageContainer>

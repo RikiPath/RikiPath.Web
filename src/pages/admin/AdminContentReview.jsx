@@ -138,6 +138,7 @@ function QuestionBlock({ q, index }) {
   const answerKey = pick(q, 'AnswerKey', 'answerKey');
   const audio = pick(q, 'AudioUrl', 'audioUrl');
   const image = pick(q, 'ImageUrl', 'imageUrl');
+  const interaction = pick(q, 'InteractionData', 'interactionData');
 
   return (
     <div className="rounded-lg border border-rp-line bg-white p-3">
@@ -147,9 +148,15 @@ function QuestionBlock({ q, index }) {
         </span>
         <p className="flex-1 text-[13px] font-medium break-words">{pick(q, 'QuestionText', 'questionText')}</p>
         <span className="shrink-0 text-[10px] text-rp-text-muted">{pick(q, 'QuestionType', 'questionType')}</span>
+        <span className="shrink-0 text-[10px] text-[#A59B9E]">{interaction?.jlptItemType || pick(q, 'QuestionType', 'questionType')}</span>
       </div>
 
       {image && <img src={image} alt="" className="mt-2 max-h-40 rounded-md border border-rp-line" />}
+      {interaction?.passage && <p className="mt-2 whitespace-pre-wrap text-[13px]">{interaction.passage}</p>}
+      {interaction?.secondPassage && <p className="mt-2 whitespace-pre-wrap text-[13px]">{interaction.secondPassage}</p>}
+      {interaction?.starPosition && <p className="mt-2 text-[12px]">Vị trí dấu ★ · {interaction.starPosition}</p>}
+      {interaction?.optionsInAudio && <p className="mt-2 text-[12px]">Lựa chọn phát trong audio</p>}
+      {image && <img src={image} alt="" className="mt-2 max-h-40 rounded-md border border-[#eadfd9]" />}
       {audio && <audio controls src={audio} className="mt-2 h-8 w-full" />}
 
       {options.length > 0 && (
@@ -311,10 +318,12 @@ function LessonRelatedContent({ items = [] }) {
                           {questions.map((question, questionIndex) => (
                             <li key={question.sortOrder ?? question.SortOrder ?? questionIndex}>
                               <p className="whitespace-pre-wrap">{question.questionText ?? question.QuestionText}</p>
+                              {(question.imageUrl ?? question.ImageUrl) && <img src={question.imageUrl ?? question.ImageUrl} alt="Ảnh câu hỏi" loading="lazy" className="mt-2 max-h-64 max-w-full object-contain" />}
                               <ul className="mt-1 list-disc pl-4">
                                 {(question.options ?? question.Options ?? []).map((option, optionIndex) => (
                                   <li key={option.sortOrder ?? option.SortOrder ?? optionIndex} className={option.isCorrect ?? option.IsCorrect ? 'font-semibold text-emerald-700' : ''}>
                                     {option.optionText ?? option.OptionText}
+                                    {(option.imageUrl ?? option.ImageUrl) && <img src={option.imageUrl ?? option.ImageUrl} alt="Ảnh đáp án" loading="lazy" className="mt-1 max-h-40 max-w-full object-contain" />}
                                   </li>
                                 ))}
                               </ul>
@@ -612,7 +621,8 @@ export default function AdminContentReview() {
     mutationFn: (batchItems) => {
       notify.loading(trf('Đang xử lý {0} yêu cầu duyệt…', { 0: batchItems.length }), '', {
         key: 'admin-review-batch',
-        maxWaitMs: 45000,
+        // Batch lớn được FE chia thành các nhóm 10 mục nên có thể mất vài phút.
+        maxWaitMs: 600000,
       });
       return batchReviewContentRequests(batchItems);
     },

@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,7 +41,7 @@ function faceOf(part, item) {
         item.strokeCount ? { label: 'Nét', value: String(item.strokeCount), vi: true } : null,
       ].filter(Boolean),
       audio: item.audioUrl,
-      image: item.strokeOrderImageUrl,
+      image: item.imageUrl ?? item.strokeOrderImageUrl,
     };
   }
   if (part === 'grammar') {
@@ -53,6 +54,7 @@ function faceOf(part, item) {
       noteVi: true,
       example: item.exampleSentence,
       exampleMeaning: item.exampleSentenceMeaning,
+      image: item.imageUrl,
     };
   }
   return {
@@ -63,6 +65,7 @@ function faceOf(part, item) {
     example: item.exampleSentence,
     exampleMeaning: item.exampleSentenceMeaning,
     audio: item.audioUrl,
+    image: item.imageUrl,
   };
 }
 
@@ -511,6 +514,7 @@ export default function LessonPlayer() {
               )}
             </>
           )}
+          {lesson && <LearnerFeedbackPanel type="lesson" id={lessonId} label="Phản hồi về bài học" />}
         </main>
       </div>
     </LearnerShell>

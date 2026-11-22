@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import AudioTranscriptPanel from '../../components/AudioTranscriptPanel.jsx';
+import { useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
@@ -11,7 +12,7 @@ import { CustomSelect, FeatureIcon, PageHeader, SakuraLoader } from '@/component
 import { FilePlus2, History } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
-    CONTENT_IMPORT_TYPES, editExcelWorkbook, previewExcelWorkbook, submitAuthorImportBatch, uploadListeningAudio,
+    CONTENT_IMPORT_TYPES, editExcelWorkbook, previewExcelWorkbook, submitAuthorImportBatch, uploadContentImage, uploadListeningAudio,
 } from '@/features/content-author/api/contentImportApi.js';
 import {
     usePreviewContentImportMutation,
@@ -348,6 +349,11 @@ function DiffModal({ row, entityType, onClose }) {
                                                             )}
                                                         </div>
 
+                                                        {q.InteractionData?.jlptItemType && <p className="font-medium text-sky-700">{q.InteractionData.jlptItemType}</p>}
+                                                        {q.InteractionData?.passage && <p className="whitespace-pre-wrap">{q.InteractionData.passage}</p>}
+                                                        {q.InteractionData?.secondPassage && <p className="whitespace-pre-wrap">{q.InteractionData.secondPassage}</p>}
+                                                        {q.InteractionData?.starPosition && <p>Vị trí ★ · {q.InteractionData.starPosition}</p>}
+                                                        {q.ImageUrl && <img src={q.ImageUrl} alt="Ảnh câu hỏi" className="max-h-40 max-w-full rounded-md object-contain" />}
                                                         {Array.isArray(q.Options) && q.Options.length > 0 && (
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
                                                                 {q.Options.map((opt, oIdx) => (
@@ -594,8 +600,50 @@ function ListeningAudioUpload() {
                     ? <p role="alert" className="mt-1 text-rose-700">{file.error}</p>
                     : <input readOnly aria-label={'AudioUrl của ' + file.name} value={file.url}
                         onFocus={(event) => event.target.select()} className="mt-1 w-full rounded border border-slate-300 bg-white p-2" />}
+                {file.url && <AudioTranscriptPanel audioUrl={file.url} />}
             </li>)}
         </ul>}
+    </section>;
+}
+
+function mediaUrlsFromSheets(sheets, kind) {
+    const urls = new Set();
+    function visit(value) {
+        if (!value || typeof value !== 'object') return;
+        for (const [key, item] of Object.entries(value)) {
+            if ((kind === 'audio' ? key.toLowerCase() === 'audiourl' : key.toLowerCase().endsWith('imageurl')) && typeof item === 'string' && item) urls.add(item);
+            else if (item && typeof item === 'object') visit(item);
+        }
+    }
+    for (const sheet of sheets) for (const row of sheet.rows ?? []) {
+        try { visit(typeof row.payloadJson === 'string' ? JSON.parse(row.payloadJson) : row.payloadJson); }
+        catch { /* Invalid payloads already appear in the row's import errors. */ }
+    }
+    return [...urls];
+}
+
+function MediaUploadSelectors({ audioFiles, audioUploads, imageFiles, imageUploads, onAudioChange, onImageChange, disabled, tr, trf }) {
+    return <section className="rounded-xl border border-rp-line bg-white p-5">
+        <h2 className="font-semibold text-rp-text">{tr('Tải media cho file Excel')}</h2>
+        <p className="mt-1 text-sm text-slate-600">{tr('Chọn MP3 và hình ảnh trước khi import. Sau khi xem trước, hệ thống sẽ trả về URL lưu trữ để gắn vào dữ liệu.')}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                {tr('File MP3 nghe hiểu')}
+                <input type="file" accept="audio/mpeg,.mp3" disabled={disabled} onChange={onAudioChange} className="mt-2 block w-full text-sm" />
+                <span className="mt-1 block break-all text-xs font-normal text-slate-500">{audioFiles.length ? audioUploads?.[0]?.url || tr('Đang tải URL…') : tr('Mỗi lần chỉ tải một file MP3.')}</span>
+                {audioUploads?.[0]?.url && <audio controls preload="metadata" src={audioUploads[0].url} className="mt-2 w-full" />}
+            </label>
+            <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                {tr('Hình ảnh nội dung')}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={disabled} onChange={onImageChange} className="mt-2 block w-full text-sm" />
+                <span className="mt-1 block break-all text-xs font-normal text-slate-500">{imageFiles.length ? imageUploads.length ? imageUploads.map(item => item.url).join(', ') : tr('Đang tải URL ảnh…') : tr('Ảnh câu hỏi hoặc ảnh đáp án, tối đa 10 MB mỗi ảnh.')}</span>
+                {imageUploads?.length > 0 && <div className="mt-2 grid grid-cols-3 gap-2">
+                    {imageUploads.map(item => <figure key={item.url} className="overflow-hidden rounded-lg border border-slate-200 bg-white p-1">
+                        <img src={item.url} alt={item.name} className="h-20 w-full object-contain" loading="lazy" />
+                    </figure>)}
+                </div>}
+            </label>
+        </div>
     </section>;
 }
 
@@ -607,6 +655,10 @@ function ContentImportPreviewPage() {
     const [batchId, setBatchId] = useState(null);
     const inputRef = useRef(null);
     const [file, setFile] = useState(null);
+    const [audioFiles, setAudioFiles] = useState([]);
+    const [audioUploads, setAudioUploads] = useState([]);
+    const [imageFiles, setImageFiles] = useState([]);
+    const [imageUploads, setImageUploads] = useState([]);
     const [entityType, setEntityType] = useState(''); // '' = Bulk (mọi sheet)
     const [fileError, setFileError] = useState('');
     const [dragOver, setDragOver] = useState(false);
@@ -744,6 +796,8 @@ function ContentImportPreviewPage() {
     const rawData = preview.data;
     const result = rawData?.result ?? rawData;
     const sheets = result?.sheets ?? [];
+    const importedAudioUrls = mediaUrlsFromSheets(sheets, 'audio');
+    const importedImageUrls = mediaUrlsFromSheets(sheets, 'image');
     const sheet = sheets[activeSheet];
 
     const totals = Object.fromEntries(
@@ -797,6 +851,62 @@ function ContentImportPreviewPage() {
         setFile(f);
     }
 
+    function selectAudioFiles(event) {
+        const selected = Array.from(event.target.files ?? []).filter(item => /\.mp3$/i.test(item.name)).slice(0, 1);
+        event.target.value = '';
+        if (selected.length === 0) {
+            setFileError('Vui lòng chọn một file MP3.');
+            return;
+        }
+        setAudioFiles(selected);
+        setAudioUploads([]);
+        setFileError('');
+        notify.loading('Đang tải file MP3 lên và tạo URL…', '', { key: 'import-audio-upload', maxWaitMs: 300000 });
+        uploadListeningAudio(selected[0]).then(result => {
+            setAudioUploads([{ name: selected[0].name, url: result.url }]);
+            notify.success('Đã tải MP3 thành công.', '', { key: 'import-audio-upload', replace: true });
+        }).catch(error => {
+            setAudioUploads([]);
+            setFileError(getErrorMessage(error));
+            notify.apiError(error, 'Không tải được file MP3', { key: 'import-audio-upload', replace: true });
+        });
+        preview.reset();
+        confirmImport.reset();
+        submitReview.reset();
+        setBatchId(null);
+        setConfirmResult(null);
+        setConfirmError('');
+    }
+
+    function selectImageFiles(event) {
+        const selected = Array.from(event.target.files ?? []).filter(item => /\.(jpe?g|png|webp|gif)$/i.test(item.name));
+        event.target.value = '';
+        if (selected.length > 200 || selected.reduce((sum, item) => sum + item.size, 0) + audioFiles.reduce((sum, item) => sum + item.size, 0) > 250 * 1024 * 1024) {
+            setFileError('Mỗi lần tối đa 200 ảnh; tổng ảnh và MP3 tối đa 250 MB.');
+            return;
+        }
+        if (selected.some(item => item.size < 12 || item.size > 10 * 1024 * 1024)) {
+            setFileError('Mỗi ảnh phải có dữ liệu và tối đa 10 MB.');
+            return;
+        }
+        setImageFiles(selected);
+        setImageUploads([]);
+        setFileError('');
+        preview.reset();
+        confirmImport.reset();
+        submitReview.reset();
+        setBatchId(null);
+        setConfirmResult(null);
+        setConfirmError('');
+        if (selected.length) {
+            notify.loading('Đang tải hình ảnh lên Supabase…', '', { key: 'import-image-upload', maxWaitMs: 120000 });
+            Promise.all(selected.map(file => uploadContentImage(file).then(result => ({ name: file.name, url: result.url }))))
+                .then(setImageUploads)
+                .then(() => notify.success('Đã tải hình ảnh lên Supabase.', '', { key: 'import-image-upload', replace: true }))
+                .catch(error => { setImageUploads([]); setFileError(getErrorMessage(error)); notify.apiError(error, 'Không tải được hình ảnh', { key: 'import-image-upload', replace: true }); });
+        }
+    }
+
     function handleSubmit(e) {
         e.preventDefault();
         if (!file || busy || hasChanges) return;
@@ -807,7 +917,7 @@ function ContentImportPreviewPage() {
         submitReview.reset();
         notify.loading('Đang phân tích và đối chiếu tệp Excel…', '', { key: 'import-preview', maxWaitMs: 45000 });
         preview.mutate(
-            { file, entityType },
+            { file, entityType, audioFiles, imageFiles },
             {
                 onSuccess: () => {
                     setBatchId(crypto.randomUUID());
@@ -821,38 +931,28 @@ function ContentImportPreviewPage() {
     }
 
     return (
-        <ContentAuthorShell pathname={pathname} breadcrumb={tr('Nhập Excel')}>
-        <div className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
-            <PageHeader
-                eyebrow={tr('Nhập học liệu hàng loạt')}
-                title={
-                    <span className="inline-flex items-center gap-2.5">
-                        <FeatureIcon feature="overview" size="lg" />
-                        <span>{tr('Nhập Excel')}</span>
-                    </span>
-                }
-                description={tr('Tải tệp .xlsx để đối chiếu dữ liệu, chỉnh sửa trực tiếp nếu cần, lưu lô nháp hoặc gửi Admin duyệt.')}
-                actions={
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                            to="?view=history"
-                            className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input border border-rp-line bg-white px-3.5 text-sm font-medium text-rp-text hover:border-rp-brand-border"
-                        >
-                            <History className="h-4 w-4" />
-                            <span>{tr('Lịch sử nhập liệu')}</span>
-                        </Link>
-                        <Link
-                            to="/content-manual/"
-                            className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white hover:bg-rp-brand-deep"
-                        >
-                            <FilePlus2 className="h-4 w-4" />
-                            <span>{tr('Biên soạn nội dung')}</span>
-                        </Link>
-                    </div>
-                }
-            />
+        <ContentAuthorShell pathname={pathname} breadcrumb={tr('Xem trước import')}>
+        <div className="rp-container space-y-6 py-6 lg:py-8">
+            <header>
+                <h1 className="text-[22px] font-medium tracking-tight text-rp-text">{tr('Nhập Excel')}</h1>
+                <p className="mt-1 text-[13px] text-rp-text-muted">{tr('Tải file .xlsx để kiểm tra, lưu bản nháp hoặc gửi admin duyệt.')}</p>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold text-rp-brand-strong underline">
+                    <Link to="?view=history">{tr('Lô Excel đã lưu')}</Link>
+                    <Link to="/content-manual/">{tr('Tạo và sửa học liệu trực tiếp')}</Link>
+                </div>
+            </header>
 
-            {(!entityType || entityType === 'MockTest') && <ListeningAudioUpload />}
+            <MediaUploadSelectors
+                audioFiles={audioFiles}
+                audioUploads={audioUploads}
+                imageFiles={imageFiles}
+                imageUploads={imageUploads}
+                onAudioChange={selectAudioFiles}
+                onImageChange={selectImageFiles}
+                disabled={busy}
+                tr={tr}
+                trf={trf}
+            />
 
             {/* ---- Upload Card ---- */}
             <form onSubmit={handleSubmit} className="rounded-xl border border-rp-line bg-white p-5">
@@ -954,6 +1054,25 @@ function ContentImportPreviewPage() {
                     </div>
                 )}
             </form>
+
+            {importedImageUrls.length > 0 && <details className="rounded-xl border border-[#E8DFDC] bg-white p-4 text-sm">
+                <summary className="cursor-pointer font-semibold text-primary">Ảnh đã gắn trong Excel ({importedImageUrls.length})</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    {importedImageUrls.map(url => <figure key={url} className="rounded-lg border border-card-border p-2">
+                        <img src={url} alt="Ảnh nội dung import" loading="lazy" className="max-h-48 w-full object-contain" />
+                        <figcaption className="mt-1 break-all text-xs text-slate-500">{url}</figcaption>
+                    </figure>)}
+                </div>
+            </details>}
+
+            {importedAudioUrls.length > 0 && <details className="rounded-xl border border-[#E8DFDC] bg-white p-4 text-sm">
+                <summary className="cursor-pointer font-semibold text-primary">Bản chép lời audio trong Excel ({importedAudioUrls.length})</summary>
+                <p className="mt-2 text-slate-600">Bản chép lời được lưu theo câu nghe để AI phân tích và giải thích đáp án.</p>
+                {importedAudioUrls.map(url => <div key={url} className="mt-3">
+                    <p className="break-all text-xs text-slate-500">{url}</p>
+                    <AudioTranscriptPanel audioUrl={url} />
+                </div>)}
+            </details>}
 
             <div hidden={!showWorkbook}>
                 {workbookPreview.isPending && <p role="status" className="text-sm text-slate-600">{tr('Đang đọc các sheet…')}</p>}

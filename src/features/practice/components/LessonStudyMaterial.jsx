@@ -1,3 +1,4 @@
+
 import { useLocale } from '@/locales/locale.js';
 import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
 

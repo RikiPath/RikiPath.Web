@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -437,6 +438,65 @@ function MockAttempt({ attempt, onComplete }) {
   );
 }
 
+function MockReviewQuestion({ attemptId, question, number }) {
+  const queryClient = useQueryClient();
+  const ai = useMutation({
+    mutationFn: () => getMockQuestionExplanation(attemptId, question.questionId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['study-subscription'] }),
+  });
+  const selectedOptions = new Set(question.questionType?.toLowerCase() === 'multiplechoice' && Array.isArray(question.response)
+    ? question.response : [question.selectedOptionId]);
+  const reasons = new Map((ai.data?.options ?? []).map(option => [option.optionId, option.reason]));
+  const star = question.interactionData?.starPosition;
+  const hasStarAnswer = Boolean(star && Array.isArray(question.answerKey));
+
+  return <article className={card + ' space-y-3 text-sm'}>
+    <h3 className="flex flex-wrap items-center justify-between gap-2">
+      <span className="font-semibold">Câu {number}</span>
+      <span className={question.isCorrect ? 'font-semibold text-emerald-800' : 'font-semibold text-rose-800'}>
+        {question.isCorrect ? 'Đúng' : 'Sai hoặc bỏ trống'}
+      </span>
+    </h3>
+    <MockQuestionContext question={question} />
+    {question.questionText && <p className="whitespace-pre-wrap font-semibold">{question.questionText}</p>}
+    {hasStarAnswer && <>
+      <p><strong>Dấu ★</strong> · {question.answerKey[star - 1]}</p>
+      <p><strong>Thứ tự đúng</strong> · {question.answerKey.join(' / ')}</p>
+      {Array.isArray(question.response) && question.response.length > 0 &&
+        <p><strong>Thứ tự bạn chọn</strong> · {question.response.join(' / ')}</p>}
+    </>}
+    {question.answerKey != null && !hasStarAnswer && !question.options?.length && <p>
+      <strong>Đáp án đúng</strong> · {Array.isArray(question.answerKey) && question.answerKey.every(value => typeof value === 'string')
+        ? question.answerKey.join(' / ') : typeof question.answerKey === 'string' ? question.answerKey : JSON.stringify(question.answerKey)}
+    </p>}
+    {question.explanation && <p className="whitespace-pre-wrap text-[#765E6B]">{question.explanation}</p>}
+    {ai.data && <div className="space-y-2 rounded-lg border border-[#EADFE5] bg-[#FCF8FA] p-3" aria-live="polite">
+      <h4 className="font-semibold text-[#AD3155]">Giải thích của AI</h4>
+      <p className="font-medium">Điểm câu hỏi · {ai.data.score}/{ai.data.maxScore}</p>
+      <p className="whitespace-pre-wrap">{ai.data.explanation}</p>
+    </div>}
+    {Boolean(question.options?.length) && <ul className="grid gap-2">
+      {question.options.map((option, index) => <li key={option.optionId}
+        className={'space-y-2 rounded-lg border p-3 ' + (option.isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-[#EADFE5]')}>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span className="font-semibold">Đáp án {index + 1}</span>
+          {option.isCorrect && <span className="text-emerald-800">Đáp án đúng</span>}
+          {selectedOptions.has(option.optionId) && <span className="text-[#AD3155]">Bạn chọn</span>}
+        </div>
+        {!question.interactionData?.optionsInAudio && optionContent(option, 'Hình đáp án ' + (index + 1))}
+        {reasons.has(option.optionId) && <p className="whitespace-pre-wrap">{reasons.get(option.optionId)}</p>}
+      </li>)}
+    </ul>}
+    {!ai.data && <button className={button} type="button" disabled={ai.isPending} onClick={() => ai.mutate()}>
+      {ai.isPending ? 'AI đang phân tích…' : 'Chấm và giải thích câu này · 1 lượt khi tạo'}
+    </button>}
+    {ai.isError && <p role="alert" className="text-rose-800">
+      {ai.error.message}{' '}
+      {ai.error.data?.errorCode === 'AI_CREDIT_REQUIRED' && <Link className={linkClass} to="/plans/">Xem gói ôn luyện</Link>}
+    </p>}
+  </article>;
+}
+
 function MockResult({ result, userId, returnToList }) {
   const { tr, trf } = useLocale();
   const [showReview, setShowReview] = useState(false);
@@ -555,6 +615,8 @@ export default function MockTestPage() {
   const queryClient = useQueryClient();
   const attemptId = Number(params.get('attemptId')) || null;
   const levelCode = params.get('level');
+  const unfinished = params.get('view') === 'unfinished';
+  const viewParams = unfinished ? { view: 'unfinished' } : {};
   const attemptKey = ['mock-test-page', user?.userId, attemptId];
 
   const levels = useQuery({ queryKey: ['mock-test-levels'], queryFn: getMockTestLevels, enabled: !attemptId });
@@ -600,7 +662,7 @@ export default function MockTestPage() {
 
   const returnToList = () => {
     start.reset();
-    setParams(levelCode ? { level: levelCode } : {});
+    setParams({ ...viewParams, ...(levelCode ? { level: levelCode } : {}) });
   };
 
   const blockingError = !attemptId

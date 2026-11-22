@@ -1,5 +1,4 @@
-import OrderingAnswer from '@/features/mock-test/components/OrderingAnswer.jsx';
-import SkillAssessmentChart from '@/features/mock-test/components/SkillAssessmentChart.jsx';
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -335,6 +334,7 @@ export default function ExamN3() {
           {showCurrentAssessment && <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={returnToCurrentAssessment}>{isDifferentGoal && status?.targetJlptLevelName ? trf('Quay về đánh giá {0}', { 0: target }) : tr('Quay về đánh giá hiện tại')}</button>}
           {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && <Link className="mt-4 inline-block text-sm font-semibold text-rp-brand-strong underline" to="/onboarding">{tr('Kiểm tra mục tiêu học tập')}</Link>}
         </section>}
+        {result && <LearnerFeedbackPanel type="placement" id={result.attemptId} label="Phản hồi về bài đánh giá năng lực" />}
         {status && !attempt && !result && <section className={cardClass}>
           <h2 className="font-semibold">{trf('Mục tiêu {0}', { 0: target })}</h2>
           <p className="mt-2 text-sm">{tr('Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.')}</p>

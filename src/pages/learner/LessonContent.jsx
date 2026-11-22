@@ -1,3 +1,4 @@
+import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -166,6 +167,7 @@ export default function LessonContent({ lesson, userId, skill, refresh, fromAsse
   const studied = detail.data.isCompleted || lesson.practicePassed;
   return <div className="space-y-4 text-sm leading-relaxed">
     <LessonStudyMaterial detail={detail.data} />
+    <LearnerFeedbackPanel type="lesson" id={lessonId} label="Phản hồi về bài học" />
     <LessonPractice lesson={lesson} userId={userId} studied={studied} skill={skill} refresh={refresh}
       fromAssessmentRoadmap={fromAssessmentRoadmap}
       onStudied={async updated => {
