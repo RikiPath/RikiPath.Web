@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../auth/AuthContext.jsx';
+import { useAuth } from '../app/auth/authContext.js';
 import { getMyFeedback, saveMyFeedback } from '../api/learnerFeedbackApi.js';
 
 const action = 'rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50';

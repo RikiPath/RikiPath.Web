@@ -2,13 +2,16 @@ import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LearnerShell } from '../../components/shells';
-import { completeLesson, getLessonDetail, updatePlaybackPosition } from '../../api/lessons.js';
-import { bookmarkGrammar } from '../../api/notebookApi.js';
-import { useLocale } from '../../i18n/locale.js';
+import { LearnerShell } from '@/layouts';
+import { completeLesson, getLessonDetail, updatePlaybackPosition } from '@/features/lessons/api/lessonApi.js';
+import { bookmarkGrammar } from '@/features/notebook/api/notebookApi.js';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { describeApiError } from '@/api/apiErrors.js';
+import { ContextualErrorState, SakuraLoader } from '@/components/ui';
+import { useLocale } from '@/locales/locale.js';
 
 const focus =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#AD3155]/35 focus-visible:ring-offset-2';
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
 const jp = { fontFamily: '"Yu Gothic", "Yu Gothic UI", "Segoe UI", sans-serif' };
 const vi = { fontFamily: '"Segoe UI", Nunito, sans-serif' };
 
@@ -92,40 +95,40 @@ function StudyCard({ part, item, revealed, onReveal, onBookmark, bookmarkState }
   const { tr } = useLocale();
   const face = faceOf(part, item);
   return (
-    <div className="overflow-hidden rounded-3xl border border-[#F0E4EA] bg-white shadow-[0_12px_32px_rgba(90,40,60,0.06)]">
+    <div className="overflow-hidden rounded-3xl border border-rp-line bg-white shadow-[0_12px_32px_rgba(90,40,60,0.06)]">
       <button type="button" onClick={onReveal} className={`block w-full px-6 py-8 text-center ${focus}`}>
-        <p className="text-[12px] font-medium text-[#A08B96]">{revealed ? tr('Nghĩa') : tr('Bấm để lật nghĩa')}</p>
-        <span className={`mx-auto mt-5 flex items-center justify-center rounded-3xl bg-[#FCF4F8] text-[#AD3155] ${face.large ? 'h-36 w-36 text-[76px]' : 'min-h-28 px-6 text-[36px] leading-tight'}`} style={jp}>
+        <p className="text-[12px] font-medium text-rp-text-muted">{revealed ? tr('Nghĩa') : tr('Bấm để lật nghĩa')}</p>
+        <span className={`mx-auto mt-5 flex items-center justify-center rounded-3xl bg-rp-brand-tint text-rp-brand-strong ${face.large ? 'h-36 w-36 text-[76px]' : 'min-h-28 px-6 text-[36px] leading-tight'}`} style={jp}>
           {face.front}
         </span>
-        {face.note && !face.chips ? <p className="mt-4 text-[15px] text-[#AD3155]" style={face.noteVi ? vi : jp}>{face.note}</p> : null}
+        {face.note && !face.chips ? <p className="mt-4 text-[15px] text-rp-brand-strong" style={face.noteVi ? vi : jp}>{tr(face.note)}</p> : null}
         {revealed && (
-          <div className="mt-6 border-t border-[#F6EEF2] pt-5">
+          <div className="mt-6 border-t border-rp-line pt-5">
             {face.chips?.length ? (
               <div className="flex flex-wrap justify-center gap-2">
                 {face.chips.map((chip) => (
-                  <span key={chip.label} className="rounded-full bg-[#FCF4F8] px-3 py-1 text-[12px] text-[#8B2344]">
+                  <span key={chip.label} className="rounded-full bg-rp-brand-tint px-3 py-1 text-[12px] text-rp-brand-deep">
                     {tr(chip.label)}: <span style={chip.vi ? vi : jp}>{chip.value}</span>
                   </span>
                 ))}
               </div>
             ) : null}
-            {face.answer ? <p className="mt-3 text-[18px] font-medium leading-7 text-[#3F3038]" style={face.answerVi ? vi : jp}>{face.answer}</p> : null}
-            {part === 'grammar' && face.note ? <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-[#8C7782]" style={vi}>{face.note}</p> : null}
-            {face.example ? <p className="mt-4 text-[15px] leading-7 text-[#3F3038]" style={jp}>{face.example}</p> : null}
-            {face.exampleMeaning ? <p className="mt-1 text-[13px] leading-6 text-[#95828C]" style={vi}>{face.exampleMeaning}</p> : null}
-            {face.image ? <img src={face.image} alt="" className="mx-auto mt-4 max-h-28 rounded-xl border border-[#F0E7EC]" /> : null}
+            {face.answer ? <p className="mt-3 text-[18px] font-medium leading-7 text-rp-text" style={face.answerVi ? vi : jp}>{tr(face.answer)}</p> : null}
+            {part === 'grammar' && face.note ? <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-rp-text-muted" style={vi}>{tr(face.note)}</p> : null}
+            {face.example ? <p className="mt-4 text-[15px] leading-7 text-rp-text" style={jp}>{face.example}</p> : null}
+            {face.exampleMeaning ? <p className="mt-1 text-[13px] leading-6 text-rp-text-muted" style={vi}>{face.exampleMeaning}</p> : null}
+            {face.image ? <img src={face.image} alt="" className="mx-auto mt-4 max-h-28 rounded-xl border border-rp-line" /> : null}
           </div>
         )}
       </button>
       {face.audio ? <div className="px-6 pb-5"><audio className="w-full" controls src={face.audio} /></div> : null}
       {part === 'grammar' && item.grammarPatternId ? (
-        <div className="border-t border-[#F6EEF2] px-6 py-3">
+        <div className="border-t border-rp-line px-6 py-3">
           <button
             type="button"
             disabled={bookmarkState === 'saving' || bookmarkState === 'saved'}
             onClick={onBookmark}
-            className={`text-[12px] font-medium text-[#AD3155] disabled:text-[#8C7782] ${focus}`}
+            className={`text-[12px] font-medium text-rp-brand-strong disabled:text-rp-text-muted ${focus}`}
           >
             {bookmarkState === 'saved' ? tr('Đã đưa vào ôn SRS') : bookmarkState === 'saving' ? tr('Đang lưu…') : tr('Đưa ngữ pháp vào ôn SRS')}
           </button>
@@ -141,9 +144,9 @@ function QuizCard({ part, item, items, cursor, pick, onPick }) {
   const choices = quizChoices(items, part, item, cursor);
   const correct = itemKey(part, item);
   return (
-    <div className="rounded-3xl border border-[#F0E4EA] bg-white px-6 py-7 shadow-[0_12px_32px_rgba(90,40,60,0.06)]">
-      <p className="text-center text-[12px] font-medium text-[#A08B96]">{tr('Chọn đáp án đúng')}</p>
-      <p className="mx-auto mt-3 max-w-md text-center text-[20px] font-medium leading-8 text-[#3F3038]" style={vi}>{prompt}</p>
+    <div className="rounded-3xl border border-rp-line bg-white px-6 py-7 shadow-[0_12px_32px_rgba(90,40,60,0.06)]">
+      <p className="text-center text-[12px] font-medium text-rp-text-muted">{tr('Chọn đáp án đúng')}</p>
+      <p className="mx-auto mt-3 max-w-md text-center text-[20px] font-medium leading-8 text-rp-text" style={vi}>{prompt}</p>
       <div className="mt-6 grid gap-2">
         {choices.map((choice) => {
           const key = itemKey(part, choice);
@@ -151,12 +154,12 @@ function QuizCard({ part, item, items, cursor, pick, onPick }) {
           const isCorrect = key === correct;
           const isPick = key === pick;
           const tone = !chosen
-            ? 'border-[#EADFE5] bg-white text-[#49353F] hover:border-[#E7C9D6] hover:bg-[#FCF8FA]'
+            ? 'border-rp-line bg-white text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint'
             : isCorrect
-              ? 'border-[#2F6B45] bg-[#E7F6EC] text-[#1E5C36]'
+              ? 'border-rp-success bg-rp-success-bg text-rp-success'
               : isPick
-                ? 'border-[#C45B78] bg-[#FCEEF3] text-[#8B2344]'
-                : 'border-[#F3EDF0] bg-white text-[#C4B4BC]';
+                ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-deep'
+                : 'border-rp-line bg-white text-rp-text-muted';
           return (
             <button
               key={key}
@@ -179,7 +182,7 @@ export default function LessonPlayer() {
   const { pathname } = useLocation();
   const [params] = useSearchParams();
   const lessonId = Number(params.get('lessonId')) || null;
-  const { locale, tr } = useLocale();
+  const { trf, locale, tr } = useLocale();
   const [part, setPart] = useState('vocab');
   const [mode, setMode] = useState('learn');
   const [pick, setPick] = useState(null);
@@ -202,7 +205,9 @@ export default function LessonPlayer() {
     onSuccess: (data) => {
       client.setQueryData(['lesson-detail', lessonId], data);
       client.invalidateQueries({ queryKey: ['learning-lessons'] });
+      notify.success(tr('Đã đánh dấu hoàn thành bài học!'), '', { key: `lesson-complete-${lessonId}` });
     },
+    onError: (err) => notify.apiError(err, tr('Chưa lưu tiến độ bài học'), { key: `lesson-complete-err-${lessonId}` }),
   });
   const playback = useMutation({
     mutationFn: (body) => updatePlaybackPosition(lessonId, body),
@@ -210,15 +215,29 @@ export default function LessonPlayer() {
   const saveGrammar = useMutation({
     mutationFn: bookmarkGrammar,
     onMutate: () => setBookmarkState('saving'),
-    onSuccess: () => setBookmarkState('saved'),
-    onError: () => setBookmarkState('error'),
+    onSuccess: (res) => {
+      setBookmarkState('saved');
+      if (res?.alreadyExists || res?.isExisting) {
+        notify.info(tr('Mẫu ngữ pháp đã có trong sổ tay.'), '', { key: 'lesson-grammar-bm-dup' });
+      } else {
+        notify.success(tr('Đã lưu mẫu ngữ pháp vào sổ tay.'), '', { key: 'lesson-grammar-bm' });
+      }
+    },
+    onError: (err) => {
+      setBookmarkState('error');
+      notify.apiError(err, tr('Chưa lưu được mẫu ngữ pháp'), { key: 'lesson-grammar-bm-err' });
+    },
   });
   const lesson = query.data;
   const items = lesson?.[PARTS.find((item) => item.id === part).key] || [];
   const deck = queue || items;
   const current = deck[cursor];
 
-  useEffect(() => {
+  // Switching lesson or part restarts the deck (state adjusted during render, not in an effect).
+  const deckKey = `${lessonId}|${part}`;
+  const [activeDeckKey, setActiveDeckKey] = useState(deckKey);
+  if (activeDeckKey !== deckKey) {
+    setActiveDeckKey(deckKey);
     setCursor(0);
     setQueue(null);
     setRevealed(false);
@@ -227,8 +246,10 @@ export default function LessonPlayer() {
     setKnown({});
     setPick(null);
     setBookmarkState('');
+  }
+  useEffect(() => {
     lastSent.current = -1;
-  }, [part, lessonId]);
+  }, [deckKey]);
 
   const rememberVideo = (video) => {
     const duration = Math.floor(video.duration || 0);
@@ -280,31 +301,39 @@ export default function LessonPlayer() {
   const missedCount = items.filter((item) => known[itemKey(part, item)] === false).length;
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Bài học">
-      <div className="min-h-screen bg-[#FAF8F7] font-['Nunito',sans-serif] text-[#3F3038]">
-        <main className="mx-auto w-full max-w-[1120px] px-5 py-6 lg:px-7">
-          <Link to="/lessons/" className={`text-[13px] font-medium text-[#AD3155] hover:underline ${focus}`}>{tr('Về danh sách bài')}</Link>
+    <LearnerShell pathname={pathname} breadcrumb={tr('Bài học')}>
+      <div className="min-h-dvh bg-rp-bg-2 text-rp-text">
+        <main className="rp-container rp-cq py-[var(--rp-space-page-y)]">
+          <Link to="/lessons/" className={`text-[13px] font-medium rp-link ${focus}`}>{tr('Về danh sách bài')}</Link>
           {!lessonId && (
-            <div className="mt-5 rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
-              <p className="text-[15px] font-medium text-[#806371]">{tr('Chọn một bài từ danh sách')}</p>
-              <p className="mt-1 text-[13px] leading-6 text-[#A18B97]">{tr('Mỗi bài mở ra từ vựng, Kanji và ngữ pháp đã được duyệt cùng nhau.')}</p>
+            <div className="mt-5 rounded-2xl border border-rp-line bg-white px-5 py-8">
+              <p className="text-[15px] font-medium text-rp-text-2">{tr('Chọn một bài từ danh sách')}</p>
+              <p className="mt-1 text-[13px] leading-6 text-rp-text-muted">{tr('Mỗi bài mở ra từ vựng, Kanji và ngữ pháp đã được duyệt cùng nhau.')}</p>
             </div>
           )}
-          {query.isPending && lessonId && <p className="mt-5 text-[13px] text-[#9A8390]">{tr('Đang tải bài…')}</p>}
-          {query.isError && <p role="alert" className="mt-5 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{query.error.message}</p>}
+          {query.isPending && lessonId && <SakuraLoader variant="section" context="lesson" delay={160} />}
+          {query.isError && (
+            <ContextualErrorState
+              className="mt-5 rounded-2xl border border-rp-line bg-white px-5"
+              compact
+              error={query.error}
+              title={tr('Chưa tải được nội dung bài học')}
+              onRetry={() => query.refetch()}
+              retrying={query.isFetching}
+            />
+          )}
           {lesson && (
             <>
               <header className="mb-5 mt-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-[12px] text-[#AD3155]">{lesson.levelCode}</p>
-                  <h1 className="mt-1 text-[26px] font-medium leading-tight">{lesson.title}</h1>
-                  {lesson.imageUrl && <img src={lesson.imageUrl} alt={lesson.title} loading="lazy" className="mt-3 max-h-80 max-w-full rounded-xl object-contain" />}
-                  {lesson.content && <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[#95828C]">{lesson.content}</p>}
+                  <p className="text-[12px] text-rp-brand-strong">{lesson.levelCode}</p>
+                  <h1 className="mt-1 text-[26px] font-medium leading-tight">{tr(lesson.title)}</h1>
+                  {lesson.content && <p className="mt-2 max-w-2xl text-[13px] leading-6 text-rp-text-muted">{lesson.content}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                 <Link
                   to={`/lesson-practice/?lessonId=${lessonId}`}
-                  className={`inline-flex h-9 items-center rounded-lg border border-[#E7D7DF] px-3 text-[12px] font-medium text-[#A47186] hover:bg-[#FFF3F7] ${focus}`}
+                  className={`inline-flex h-9 items-center rounded-lg border border-rp-line px-3 text-[12px] font-medium text-rp-brand-strong hover:bg-rp-brand-tint ${focus}`}
                 >
                   {tr('Làm bài tập')}
                 </Link>
@@ -312,7 +341,7 @@ export default function LessonPlayer() {
                   type="button"
                   disabled={complete.isPending || lesson.isCompleted}
                   onClick={() => complete.mutate()}
-                  className={`inline-flex h-9 items-center rounded-lg px-3 text-[12px] font-medium ${lesson.isCompleted ? 'bg-[#F3F8F4] text-[#2F6B45]' : 'bg-[#AD3155] text-white hover:bg-[#982B4B]'} disabled:opacity-70 ${focus}`}
+                  className={`inline-flex h-9 items-center rounded-lg px-3 text-[12px] font-medium ${lesson.isCompleted ? 'bg-[#F3F8F4] text-rp-success' : 'bg-rp-brand-strong text-white hover:bg-rp-brand-deep'} disabled:opacity-70 ${focus}`}
                 >
                   {lesson.isCompleted ? tr('Đã hoàn thành') : complete.isPending ? tr('Đang lưu…') : tr('Đánh dấu đã học')}
                 </button>
@@ -335,8 +364,8 @@ export default function LessonPlayer() {
                   }}
                 />
               )}
-              {complete.isError && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{complete.error.message}</p>}
-              {saveGrammar.isError && <p role="alert" className="mb-4 rounded-xl bg-[#FCF4F8] px-4 py-3 text-[13px] text-[#A33357]">{saveGrammar.error.message}</p>}
+              {complete.isError && <p role="alert" className="mb-4 rounded-xl bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">{tr(describeApiError(complete.error).message)}</p>}
+              {saveGrammar.isError && <p role="alert" className="mb-4 rounded-xl bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">{tr(describeApiError(saveGrammar.error).message)}</p>}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 {PARTS.map((item) => {
@@ -348,7 +377,7 @@ export default function LessonPlayer() {
                       type="button"
                       aria-pressed={active}
                       onClick={() => setPart(item.id)}
-                      className={`rounded-lg px-3 py-1.5 text-[12px] font-medium ${active ? 'bg-[#AD3155] text-white' : 'border border-[#EADFE5] bg-white text-[#826271] hover:bg-[#FCF3F7]'} ${focus}`}
+                      className={`rounded-lg px-3 py-1.5 text-[12px] font-medium ${active ? 'bg-rp-brand-strong text-white' : 'border border-rp-line bg-white text-rp-text-2 hover:bg-rp-brand-tint'} ${focus}`}
                     >
                       {tr(item.label)} ({count})
                     </button>
@@ -356,30 +385,30 @@ export default function LessonPlayer() {
                 })}
               </div>
               {items.length > 0 && (
-                <div className="flex rounded-xl bg-[#F6EEF2] p-1">
+                <div className="flex rounded-xl bg-rp-brand-soft p-1">
                   {[{ id: 'learn', label: tr('Học') }, { id: 'quiz', label: tr('Ôn') }].map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       aria-pressed={mode === item.id}
                       onClick={() => { setMode(item.id); setPick(null); setRevealed(false); setDone(false); setCursor(0); setQueue(null); setShowList(false); }}
-                      className={`h-8 rounded-lg px-3 text-[12px] font-medium ${mode === item.id ? 'bg-white text-[#AD3155] shadow-sm' : 'text-[#8C7782]'} ${focus}`}
+                      className={`h-8 rounded-lg px-3 text-[12px] font-medium ${mode === item.id ? 'bg-white text-rp-brand-strong shadow-sm' : 'text-rp-text-muted'} ${focus}`}
                     >
-                      {item.label}
+                      {tr(item.label)}
                     </button>
                   ))}
                 </div>
               )}
               </div>
               {!items.length ? (
-                <div className="rounded-2xl border border-[#EADFE5] bg-white px-5 py-8">
-                  <p className="text-[15px] font-medium text-[#806371]">{tr('Phần này chưa có nội dung trong bài')}</p>
+                <div className="rounded-2xl border border-rp-line bg-white px-5 py-8">
+                  <p className="text-[15px] font-medium text-rp-text-2">{tr('Phần này chưa có nội dung trong bài')}</p>
                 </div>
               ) : showList ? (
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-[13px] text-[#8C7782]">{locale === 'ja' ? `${knownCount}/${items.length} 覚えた` : `Đã nhớ ${knownCount}/${items.length}`}</p>
-                    <button type="button" onClick={() => openAt(0)} className={`h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>{tr('Học từ đầu')}</button>
+                    <p className="text-[13px] text-rp-text-muted">{locale === 'ja' ? `${knownCount}/${items.length} 覚えた` : trf('Đã nhớ {0}/{1}', { 0: knownCount, 1: items.length })}</p>
+                    <button type="button" onClick={() => openAt(0)} className={`h-9 rounded-lg bg-rp-brand-strong px-3 text-[12px] font-medium text-white hover:bg-rp-brand-deep ${focus}`}>{tr('Học từ đầu')}</button>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {items.map((item, index) => {
@@ -390,10 +419,10 @@ export default function LessonPlayer() {
                           key={key}
                           type="button"
                           onClick={() => openAt(index)}
-                          className={`flex items-center justify-between gap-3 rounded-2xl border bg-white px-4 py-3 text-left hover:border-[#E7C9D6] ${focus} ${state === true ? 'border-[#D7E8DC]' : 'border-[#EADFE5]'}`}
+                          className={`flex items-center justify-between gap-3 rounded-2xl border bg-white px-4 py-3 text-left hover:border-rp-brand-border ${focus} ${state === true ? 'border-[#D7E8DC]' : 'border-rp-line'}`}
                         >
-                          <span className="truncate text-[18px] text-[#593B48]" style={jp}>{faceOf(part, item).front}</span>
-                          <span className={`shrink-0 text-[11px] ${state === true ? 'text-[#2F6B45]' : state === false ? 'text-[#8A5A10]' : 'text-[#A08B96]'}`}>
+                          <span className="truncate text-[18px] text-rp-brand-deep" style={jp}>{faceOf(part, item).front}</span>
+                          <span className={`shrink-0 text-[11px] ${state === true ? 'text-rp-success' : state === false ? 'text-rp-warning' : 'text-rp-text-muted'}`}>
                             {state === true ? tr('Đã nhớ') : state === false ? tr('Học lại') : tr('Học')}
                           </span>
                         </button>
@@ -404,27 +433,27 @@ export default function LessonPlayer() {
               ) : (
                 <div className="mx-auto max-w-[640px]">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-[13px] text-[#8C7782]">
-                      {done ? (locale === 'ja' ? `${knownCount}/${items.length} 覚えた` : `Đã nhớ ${knownCount}/${items.length}`) : `${Math.min(cursor + 1, deck.length)}/${deck.length}`}
+                    <p className="text-[13px] text-rp-text-muted">
+                      {done ? (locale === 'ja' ? `${knownCount}/${items.length} 覚えた` : trf('Đã nhớ {0}/{1}', { 0: knownCount, 1: items.length })) : `${Math.min(cursor + 1, deck.length)}/${deck.length}`}
                     </p>
-                    <button type="button" onClick={() => setShowList(true)} className={`h-9 rounded-lg px-3 text-[12px] text-[#8C6070] hover:bg-white ${focus}`}>{tr('Danh sách')}</button>
+                    <button type="button" onClick={() => setShowList(true)} className={`h-9 rounded-lg px-3 text-[12px] text-rp-brand-strong hover:bg-white ${focus}`}>{tr('Danh sách')}</button>
                   </div>
-                  <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-[#F3E8ED]">
-                    <div className="h-full rounded-full bg-[#AD3155]" style={{ width: `${items.length ? (knownCount / items.length) * 100 : 0}%` }} />
+                  <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-rp-brand-soft">
+                    <div className="h-full rounded-full bg-rp-brand-strong" style={{ width: `${items.length ? (knownCount / items.length) * 100 : 0}%` }} />
                   </div>
                   {done ? (
-                    <div className="rounded-3xl border border-[#EADFE5] bg-white px-6 py-8 text-center">
-                      <p className="text-[20px] font-medium">{locale === 'ja' ? `${knownCount}/${items.length} 覚えました` : `Bạn nhớ ${knownCount}/${items.length} mục`}</p>
-                      <p className="mt-2 text-[13px] leading-6 text-[#8C7782]">
-                        {missedCount ? (locale === 'ja' ? `${missedCount} 項目を見直します。` : `${missedCount} mục cần xem lại.`) : tr('Bạn đã nhớ hết phần này.')}
+                    <div className="rounded-3xl border border-rp-line bg-white px-6 py-8 text-center">
+                      <p className="text-[20px] font-medium">{locale === 'ja' ? `${knownCount}/${items.length} 覚えました` : trf('Bạn nhớ {0}/{1} mục', { 0: knownCount, 1: items.length })}</p>
+                      <p className="mt-2 text-[13px] leading-6 text-rp-text-muted">
+                        {missedCount ? (locale === 'ja' ? `${missedCount} 項目を見直します。` : trf('{0} mục cần xem lại.', { 0: missedCount })) : tr('Bạn đã nhớ hết phần này.')}
                       </p>
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
                         {missedCount > 0 && (
-                          <button type="button" onClick={reviewMissed} className={`h-10 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] ${focus}`}>
-                            {locale === 'ja' ? `未習得 ${missedCount} 項目を復習` : `Ôn ${missedCount} mục chưa nhớ`}
+                          <button type="button" onClick={reviewMissed} className={`h-10 rounded-xl bg-rp-brand-strong px-4 text-[13px] font-medium text-white hover:bg-rp-brand-deep ${focus}`}>
+                            {locale === 'ja' ? `未習得 ${missedCount} 項目を復習` : trf('Ôn {0} mục chưa nhớ', { 0: missedCount })}
                           </button>
                         )}
-                        <button type="button" onClick={restart} className={`h-10 rounded-xl border border-[#E7DAE1] bg-white px-4 text-[13px] text-[#6E5360] ${focus}`}>{tr('Học lại từ đầu')}</button>
+                        <button type="button" onClick={restart} className={`h-10 rounded-xl border border-rp-line bg-white px-4 text-[13px] text-rp-text-2 ${focus}`}>{tr('Học lại từ đầu')}</button>
                       </div>
                     </div>
                   ) : current && mode === 'quiz' ? (
@@ -434,7 +463,7 @@ export default function LessonPlayer() {
                         type="button"
                         disabled={!pick}
                         onClick={() => grade(pick === itemKey(part, current))}
-                        className={`mt-4 h-11 w-full rounded-xl bg-[#AD3155] text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-40 ${focus}`}
+                        className={`mt-4 h-11 w-full rounded-xl bg-rp-brand-strong text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-40 ${focus}`}
                       >
                         {tr('Tiếp')}
                       </button>
@@ -454,7 +483,7 @@ export default function LessonPlayer() {
                           type="button"
                           disabled={!revealed}
                           onClick={() => grade(false)}
-                          className={`h-11 rounded-xl border border-[#E7DAE1] bg-white text-[13px] font-medium text-[#8A5A10] hover:bg-[#FFF6E8] disabled:opacity-40 ${focus}`}
+                          className={`h-11 rounded-xl border border-rp-line bg-white text-[13px] font-medium text-rp-warning hover:bg-rp-warning-bg disabled:opacity-40 ${focus}`}
                         >
                           {tr('Chưa nhớ')}
                         </button>
@@ -462,7 +491,7 @@ export default function LessonPlayer() {
                           type="button"
                           disabled={!revealed}
                           onClick={() => grade(true)}
-                          className={`h-11 rounded-xl bg-[#AD3155] text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-40 ${focus}`}
+                          className={`h-11 rounded-xl bg-rp-brand-strong text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-40 ${focus}`}
                         >
                           {tr('Nhớ rồi')}
                         </button>

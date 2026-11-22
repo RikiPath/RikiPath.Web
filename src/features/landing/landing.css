@@ -1,0 +1,313 @@
+/*
+ * Landing page motion & 3D scene. Loaded with the HomeLanding route chunk only.
+ * Uses the shared motion tokens from styles/design-system.css. Everything animates transform /
+ * opacity / background-size / stroke-dashoffset (composited or paint-only), never layout.
+ */
+
+.rp-landing {
+  --lp-ease: var(--rp-ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+  --lp-spring: var(--rp-ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+  --lp-rise: 0.7s;
+}
+
+/* ------------------------------------------------------------ First-visit intro (once per session) */
+@keyframes lp-rise { from { opacity: 0; transform: translate3d(0, 14px, 0); } }
+@keyframes lp-fade { from { opacity: 0; } }
+@keyframes lp-pop { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.92); } }
+@keyframes lp-swipe { from { background-size: 0% 38%; } }
+@keyframes lp-stage-in { from { opacity: 0; transform: translate3d(0, 22px, 0) scale(0.97); } }
+
+.rp-intro-play [data-intro] { animation: lp-rise var(--lp-rise) var(--lp-ease) both; animation-delay: var(--d, 0ms); }
+.rp-intro-play [data-intro="fade"] { animation-name: lp-fade; }
+.rp-intro-play [data-intro="pop"] { animation-name: lp-pop; animation-timing-function: var(--lp-spring); }
+.rp-intro-play [data-intro="stage"] { animation-name: lp-stage-in; animation-duration: 0.8s; }
+.rp-intro-play .lp-highlight { animation: lp-swipe 0.9s var(--lp-ease) 0.42s both; }
+
+/* Sakura highlight behind a key phrase (static when the intro does not play). */
+.lp-highlight {
+  background-image: linear-gradient(transparent 62%, rgba(242, 162, 184, 0.55) 62%, rgba(242, 162, 184, 0.55) 96%, transparent 96%);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 100% 100%;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* ------------------------------------------------------------ Scroll reveal (armed by JS only) */
+[data-reveal] {
+  transition: opacity 0.7s var(--lp-ease), transform 0.7s var(--lp-ease);
+  transition-delay: var(--d, 0ms);
+}
+.rp-reveal-on [data-reveal]:not(.is-in) { opacity: 0; transform: translate3d(0, 18px, 0); }
+.rp-reveal-on [data-reveal="scale"]:not(.is-in) { transform: translate3d(0, 18px, 0) scale(0.96); }
+
+/* Roadmap path draws itself once revealed. */
+.lp-path { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.rp-reveal-on .lp-draw:not(.is-in) .lp-path { stroke-dashoffset: 1; }
+.lp-draw .lp-path { transition: stroke-dashoffset 1.4s var(--lp-ease) 0.15s; }
+
+/* ------------------------------------------------------------ Hero 3D stage */
+.lp-stage {
+  --rx: 0deg;
+  --ry: 0deg;
+  perspective: 1400px;
+}
+.lp-stage-inner {
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.6s var(--lp-ease);
+  will-change: transform;
+}
+.lp-depth-1 { transform: translateZ(30px); }
+.lp-depth-2 { transform: translateZ(60px); }
+.lp-depth-3 { transform: translateZ(90px); }
+
+/* Gentle idle float; paused when the scene is off-screen (data-paused) or the tab is hidden. */
+@keyframes lp-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+.lp-bob { animation: lp-bob 6.5s ease-in-out infinite; animation-delay: var(--bob, 0s); }
+[data-paused] .lp-bob,
+[data-paused] .rp-petal-drift { animation-play-state: paused; }
+
+/* Flip flashcard */
+.lp-flip { perspective: 900px; }
+.lp-flip-inner {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 0.6s var(--lp-ease);
+}
+.lp-flip-inner > * { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.lp-flip-back { transform: rotateY(180deg); }
+.lp-flip[data-flipped="true"] .lp-flip-inner { transform: rotateY(180deg); }
+
+/* ------------------------------------------------------------ Cards & tool icons */
+.lp-card {
+  transition: transform var(--rp-dur-standard, 200ms) var(--lp-ease), box-shadow var(--rp-dur-standard, 200ms) var(--lp-ease), border-color var(--rp-dur-standard, 200ms) var(--lp-ease);
+}
+.lp-card:hover,
+.lp-card:focus-within {
+  transform: translate3d(0, -4px, 0);
+  box-shadow: 0 22px 44px -24px rgba(120, 40, 70, 0.32), 0 2px 6px rgba(45, 40, 42, 0.05);
+  border-color: rgba(224, 90, 122, 0.35);
+}
+
+.lp-icon { transition: transform 0.45s var(--lp-spring); }
+.lp-icon .lp-icon-glyph { transition: transform 0.45s var(--lp-spring); transform-origin: 50% 50%; transform-box: fill-box; }
+.lp-card:hover .lp-icon { transform: translate3d(0, -3px, 0) scale(1.05); }
+.lp-card[data-fx="flip"]:hover .lp-icon-glyph { transform: rotateY(180deg); }
+.lp-card[data-fx="spin"]:hover .lp-icon-glyph { transform: rotate(180deg); }
+.lp-card[data-fx="stack"]:hover .lp-icon-glyph { transform: translateY(-2px) scale(1.08); }
+.lp-card[data-fx="tick"]:hover .lp-icon-glyph { transform: scale(1.14); }
+.lp-icon-stroke { stroke-dasharray: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.6s var(--lp-ease); }
+.lp-card[data-fx="draw"]:hover .lp-icon-stroke { animation: lp-redraw 0.7s var(--lp-ease); }
+@keyframes lp-redraw { from { stroke-dashoffset: 1; } }
+
+/* Level node pulse on hover */
+.lp-level-node { transition: transform 0.35s var(--lp-spring), box-shadow 0.25s var(--lp-ease); }
+.lp-card:hover .lp-level-node { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(224, 90, 122, 0.14); }
+
+/* Journey connector draws on reveal */
+.lp-connector { transform-origin: left center; transition: transform 1s var(--lp-ease) 0.2s; }
+.rp-reveal-on .lp-journey:not(.is-in) .lp-connector { transform: scaleX(0); }
+@media (max-width: 1023px) {
+  .lp-connector { transform-origin: center top; }
+  .rp-reveal-on .lp-journey:not(.is-in) .lp-connector { transform: scaleY(0); }
+}
+
+/* ------------------------------------------------------------ Reduced motion & small screens */
+@media (prefers-reduced-motion: reduce) {
+  .rp-landing *, .rp-landing *::before, .rp-landing *::after { animation: none !important; transition: none !important; }
+  .lp-stage-inner { transform: none !important; }
+}
+@media (hover: none), (pointer: coarse) {
+  .lp-stage-inner { transform: none; }
+}
+
+/* ============================================================ Sakura Wonderland (V3/V4) */
+/* Hero container — its own surface: Sakura → ivory → mint gradient, dotted paper, soft depth. */
+.lp-hero {
+  background-color: #fbf7f4;
+  background:
+    radial-gradient(900px 520px at 88% 6%, rgba(252, 233, 238, 0.95), transparent 64%),
+    radial-gradient(760px 480px at 4% 96%, rgba(230, 247, 243, 0.95), transparent 62%),
+    linear-gradient(135deg, #fff6f8 0%, #faf9f6 48%, #f1fbf8 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 40px 90px -60px rgba(23, 36, 58, 0.45), 0 0 0 1px rgba(194, 67, 98, 0.08);
+}
+.lp-hero-dots {
+  background-image: radial-gradient(circle, rgba(194, 67, 98, 0.13) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(120% 90% at 30% 40%, #000 30%, transparent 85%);
+  mask-image: radial-gradient(120% 90% at 30% 40%, #000 30%, transparent 85%);
+}
+.lp-hero-orb { background: radial-gradient(circle, rgba(241, 235, 255, 0.9), transparent 70%); }
+
+/* Section bands — a visual rhythm instead of one long white page. */
+.lp-band-white { background: #ffffff; }
+.lp-band-ivory {
+  background:
+    radial-gradient(circle, rgba(140, 108, 118, 0.1) 0.9px, transparent 1.3px) 0 0 / 22px 22px,
+    linear-gradient(180deg, #faf9f6, #fdf6f0);
+}
+.lp-band-mint {
+  background:
+    radial-gradient(800px 420px at 100% 0%, rgba(234, 244, 255, 0.9), transparent 60%),
+    linear-gradient(180deg, #f1fbf8 0%, #e6f7f3 100%);
+}
+.lp-band-peach {
+  background:
+    radial-gradient(900px 480px at 0% 0%, rgba(252, 233, 238, 0.95), transparent 62%),
+    linear-gradient(180deg, #fff3ee 0%, #fde9e6 100%);
+}
+
+/* Bento tones (pastel field per skill; text stays on high-contrast ink). */
+.lp-tone-vocabulary { background: linear-gradient(150deg, #effbf4, #ddf5e7); }
+.lp-tone-srs { background: linear-gradient(160deg, #f5efff, #e9dbff); }
+.lp-tone-grammar { background: linear-gradient(150deg, #fff6ec, #ffe8d1); }
+.lp-tone-kanji { background: linear-gradient(150deg, #f8f3fb, #ece2f4); }
+.lp-tone-kana { background: linear-gradient(150deg, #fff3f6, #ffe1e9); }
+.lp-tone-reading { background: linear-gradient(150deg, #f0f6ff, #dfecff); }
+.lp-tone-listening { background: linear-gradient(150deg, #f4f2ff, #e5e0ff); }
+.lp-tone-writing { background: linear-gradient(150deg, #fffaf0, #fdeccc); }
+.lp-tone-speaking { background: linear-gradient(150deg, #effaf8, #d9f1ec); }
+.lp-tone-mock { background: linear-gradient(150deg, #f4f6fb, #e3e8f4); }
+
+/* Clay illustrations: one gentle lift on hover/focus, contact shadow reacts (no permanent motion). */
+.rp-clay .rp-clay-body, .rp-clay .rp-clay-shadow { transition: transform 0.45s var(--lp-spring, cubic-bezier(0.34, 1.56, 0.64, 1)), opacity 0.3s ease; transform-box: fill-box; transform-origin: 50% 100%; }
+.lp-card:is(:hover, :focus-visible, :focus-within) .rp-clay .rp-clay-body,
+.lp-step:hover .rp-clay .rp-clay-body { transform: translate3d(0, -4px, 0) rotate(-4deg) scale(1.04); }
+.lp-card:is(:hover, :focus-visible, :focus-within) .rp-clay .rp-clay-shadow,
+.lp-step:hover .rp-clay .rp-clay-shadow { transform: scale(0.82); opacity: 0.7; }
+@keyframes lp-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+.lp-float { animation: lp-float 7s ease-in-out infinite; }
+
+/* Journey milestone cards: extra detail appears on hover/focus without changing card height on desktop. */
+.lp-level-more { transition: opacity 0.3s ease, transform 0.3s var(--lp-ease); }
+@media (hover: hover) and (min-width: 1024px) {
+  .lp-level .lp-level-more { opacity: 0.55; transform: translate3d(0, 4px, 0); }
+  .lp-level:is(:hover, :focus-visible) .lp-level-more { opacity: 1; transform: none; }
+}
+.lp-connector-v { transform-origin: center top; transition: transform 1.2s var(--lp-ease) 0.2s; }
+.rp-reveal-on .lp-draw:not(.is-in) .lp-connector-v { transform: scaleY(0); }
+
+/* Illustrative bars / rings fill when revealed (paint-only; static values without JS). */
+.lp-bar { width: var(--w, 50%); transform-origin: left center; transition: transform 1s var(--lp-ease) var(--d, 200ms); }
+.rp-reveal-on [data-reveal]:not(.is-in) .lp-bar { transform: scaleX(0); }
+.lp-ring { stroke-dashoffset: calc(100 - var(--p, 60)); transition: stroke-dashoffset 1.2s var(--lp-ease) 0.3s; }
+.rp-reveal-on [data-reveal]:not(.is-in) .lp-ring { stroke-dashoffset: 100; }
+.lp-seat { transition: transform 0.4s var(--lp-spring) var(--d, 0ms), opacity 0.4s ease var(--d, 0ms); }
+.rp-reveal-on [data-reveal]:not(.is-in) .lp-seat { opacity: 0; transform: scale(0.85); }
+
+/* Invisible scenic slideshow (HeroScenicSlideshow): crossfade + slow Ken Burns; no controls in the DOM.
+   Track is taller than the frame so the desktop scroll parallax (--lp-par, px) never reveals an edge. */
+.lp-slides { position: absolute; inset: 0; overflow: hidden; background: #f3dfe6; }
+.lp-slides-track { position: absolute; inset: -70px 0 0 0; transform: translate3d(0, var(--lp-par, 0px), 0); will-change: transform; }
+.lp-slide { position: absolute; inset: 0; display: block; overflow: hidden; }
+.lp-slide img { width: 100%; height: 100%; object-fit: cover; object-position: var(--pos-sm, center); transform-origin: 60% 50%; animation: lp-kb-a 11s ease-out both; }
+.lp-slide img[data-kb="b"] { transform-origin: 40% 45%; animation-name: lp-kb-b; }
+.lp-slide img[data-kb="c"] { transform-origin: 55% 60%; animation-name: lp-kb-c; }
+@media (min-width: 1024px) { .lp-slide img { object-position: var(--pos-lg, center); } }
+.lp-slide-base { z-index: 0; }
+/* Incoming layer stays invisible until its own image has loaded, then fades over the (still mounted) old one. */
+.lp-slide-enter { z-index: 1; opacity: 0; }
+.lp-slide-enter.is-loaded { animation: lp-slide-fade 1.6s cubic-bezier(0.4, 0, 0.2, 1) both; }
+@keyframes lp-slide-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lp-kb-a { from { transform: scale(1.03); } to { transform: scale(1.09) translate3d(-1%, -0.6%, 0); } }
+@keyframes lp-kb-b { from { transform: scale(1.04) translate3d(-0.8%, 0, 0); } to { transform: scale(1.09) translate3d(0.8%, -0.5%, 0); } }
+@keyframes lp-kb-c { from { transform: scale(1.09); } to { transform: scale(1.03) translate3d(0.6%, 0.4%, 0); } }
+.lp-slides[data-paused] img, .lp-slides[data-paused] .lp-slide-enter { animation-play-state: paused; }
+
+/* Closing CTA photo — continuous gentle Ken Burns. */
+@keyframes lp-kenburns { from { transform: scale(1.02) translate3d(0, 0, 0); } to { transform: scale(1.08) translate3d(-1.2%, -0.8%, 0); } }
+.lp-kenburns img { animation: lp-kenburns 22s ease-in-out infinite alternate; }
+
+/* ============================================================ Full-width cinematic hero */
+.lp-hero-shell {
+  --lp-pad: clamp(1.25rem, 0.6rem + 2.4vw, 3rem);
+  display: grid;
+  grid-template-columns: [full-start] var(--lp-pad) [content-start] minmax(0, 1fr) [content-end] var(--lp-pad) [full-end];
+  grid-template-rows: auto auto;
+}
+.lp-hero-copy { grid-column: content; grid-row: 1; padding-block: 2.5rem 1.5rem; position: relative; z-index: 2; }
+.lp-hero-stage { grid-column: content; grid-row: 2; padding-block: 1.5rem 2.5rem; position: relative; z-index: 2; }
+/* Small screens: the landscape lives only behind the stage row (not stretched behind the copy, which would
+   crop a 3:2 photo to a thin, blurry slice). */
+.lp-hero-bg, .lp-hero-scrim { grid-column: full; grid-row: 2; position: relative; z-index: 0; }
+.lp-hero-bg > .lp-slides { inset: 0; }
+.lp-hero-scrim {
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, #fbf7f4 0%, rgba(251, 247, 244, 0.55) 14%, rgba(251, 247, 244, 0) 34%),
+    linear-gradient(0deg, rgba(40, 18, 30, 0.28) 0%, rgba(40, 18, 30, 0) 30%);
+}
+@media (min-width: 640px) {
+  .lp-hero-copy { padding-block: 3.5rem 1.5rem; }
+}
+@media (min-width: 1024px) {
+  .lp-hero-shell {
+    grid-template-columns: [full-start] minmax(var(--lp-pad), 1fr) [content-start] minmax(0, 620px) minmax(0, 640px) [content-end] minmax(var(--lp-pad), 1fr) [full-end];
+    grid-template-rows: 1fr;
+    min-height: clamp(640px, 82vh, 860px);
+    align-items: center;
+  }
+  .lp-hero-copy { grid-column: 2; grid-row: 1; padding-block: 4.5rem 5.5rem; padding-right: 2rem; }
+  .lp-hero-stage { grid-column: 3; grid-row: 1; padding-block: 4rem; }
+  .lp-hero-bg, .lp-hero-scrim { grid-column: full; grid-row: 1; align-self: stretch; }
+  /* Asymmetric scrim: enough contrast for the copy on the left, the landscape stays vivid on the right. */
+  .lp-hero-scrim {
+    background:
+      radial-gradient(700px 420px at 0% 100%, rgba(230, 247, 243, 0.55), transparent 70%),
+      linear-gradient(90deg, rgba(255, 249, 250, 0.93) 0%, rgba(255, 248, 249, 0.86) 30%, rgba(255, 246, 248, 0.42) 48%, rgba(255, 246, 248, 0) 66%),
+      linear-gradient(0deg, rgba(40, 18, 30, 0.22) 0%, rgba(40, 18, 30, 0) 28%);
+  }
+}
+@media (min-width: 1536px) {
+  .lp-hero-scrim {
+    background:
+      radial-gradient(700px 420px at 0% 100%, rgba(230, 247, 243, 0.55), transparent 70%),
+      linear-gradient(90deg, rgba(255, 249, 250, 0.93) 0%, rgba(255, 248, 249, 0.86) 34%, rgba(255, 246, 248, 0.42) 50%, rgba(255, 246, 248, 0) 64%),
+      linear-gradient(0deg, rgba(40, 18, 30, 0.22) 0%, rgba(40, 18, 30, 0) 28%);
+  }
+}
+/* Decorative patterns stay on the copy side, never over the photo. */
+.lp-hero-deco { -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 30%, transparent 52%); mask-image: linear-gradient(90deg, #000 0%, #000 30%, transparent 52%); }
+@media (max-width: 1023px) {
+  .lp-hero-deco { -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 60%); mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 60%); }
+}
+.lp-hero-vertical { text-shadow: 0 1px 2px rgba(40, 18, 30, 0.55), 0 0 18px rgba(40, 18, 30, 0.35); }
+.lp-hero-note { background: rgba(255, 255, 255, 0.78); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* Sakura branch sways very gently from its left end. */
+@keyframes lp-sway { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(1.6deg); } }
+.lp-branch { transform-origin: 0 10%; animation: lp-sway 9s ease-in-out infinite; filter: drop-shadow(0 6px 10px rgba(90, 30, 55, 0.25)); }
+[data-paused] .lp-branch { animation-play-state: paused; }
+
+/* ============================================================ Full-bleed closing CTA */
+.lp-closing { min-height: clamp(420px, 62vh, 620px); }
+.lp-closing .lp-closing-photo img { object-position: 50% 42% !important; } /* overrides ScenicPhoto inline default */
+@media (min-width: 1024px) { .lp-closing .lp-closing-photo img { object-position: 62% 40% !important; } }
+.lp-closing-scrim {
+  background:
+    linear-gradient(180deg, rgba(23, 36, 58, 0.25) 0%, rgba(23, 36, 58, 0.72) 55%, rgba(40, 18, 34, 0.9) 100%);
+}
+@media (min-width: 768px) {
+  .lp-closing-scrim {
+    background:
+      linear-gradient(100deg, rgba(23, 36, 58, 0.88) 0%, rgba(45, 24, 44, 0.7) 38%, rgba(60, 24, 46, 0.32) 62%, rgba(194, 67, 98, 0.08) 100%),
+      linear-gradient(0deg, rgba(23, 36, 58, 0.45) 0%, transparent 40%);
+  }
+}
+/* Soft light sweep across the banner (transform + opacity only). */
+@keyframes lp-sweep { 0% { transform: translate3d(-60%, 0, 0) skewX(-18deg); opacity: 0; } 20% { opacity: 1; } 60%, 100% { transform: translate3d(260%, 0, 0) skewX(-18deg); opacity: 0; } }
+.lp-sweep { opacity: 0; background: linear-gradient(90deg, transparent, rgba(255, 236, 242, 0.16), transparent); animation: lp-sweep 9s ease-in-out 1.5s infinite; }
+.lp-closing-ghost { background: rgba(23, 36, 58, 0.45); border: 1px solid rgba(255, 255, 255, 0.6); color: #fff; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.lp-closing-ghost:hover { background: rgba(23, 36, 58, 0.62); border-color: #fff; color: #fff; }
+
+/* CTA arrow nudge */
+.lp-cta svg { transition: transform 0.2s var(--lp-ease); }
+.lp-cta:hover svg:last-child { transform: translateX(2px); }
+
+/* Fewer decorative layers on small screens */
+@media (max-width: 639px) {
+  .lp-float { animation: none; }
+  .lp-hero-orb { display: none; }
+}

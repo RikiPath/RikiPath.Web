@@ -1,20 +1,24 @@
 import AudioTranscriptPanel from '../../components/AudioTranscriptPanel.jsx';
 import { useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
-import { api } from '../../api/client.js';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../../auth/AuthContext.jsx';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/app/auth/authContext.js';
 import AuthorImportHistory from './AuthorImportHistory.jsx';
-import WorkbookPreview, { workbookEditKey } from './WorkbookPreview.jsx';
+import WorkbookPreview from './WorkbookPreview.jsx';
+import { workbookEditKey } from '@/features/content-author/utils/workbookModel.js';
 
-import { CmsShell } from '../../components/shells';
+import { ContentAuthorShell } from '@/layouts';
+import { SakuraLoader } from '@/components/ui';
+import { describeApiError } from '@/api/apiErrors.js';
 import {
-    CONTENT_IMPORT_TYPES, editExcelWorkbook, getMyAudioUploads, previewExcelWorkbook, submitAuthorImportBatch, uploadListeningAudio,
-} from '../../api/contentImportApi.js';
+    CONTENT_IMPORT_TYPES, editExcelWorkbook, previewExcelWorkbook, submitAuthorImportBatch, uploadContentImage, uploadListeningAudio,
+} from '@/features/content-author/api/contentImportApi.js';
 import {
     usePreviewContentImportMutation,
     useConfirmContentImportMutation,
-} from '../../hooks/usePreviewContentImport.js';
+} from '@/features/content-author/hooks/usePreviewContentImport.js';
+import { confirmAction, notify } from '@/components/ui/feedbackStore.js';
+import { useLocale } from '@/locales/locale.js';
 
 const ACTIONS = ['New', 'Modified', 'Unchanged', 'Error'];
 
@@ -82,13 +86,7 @@ function splitChange(text) {
 }
 
 function getErrorMessage(err) {
-    return (
-        err?.response?.data?.errorMessage ??
-        err?.data?.errorMessage ??
-        err?.errorMessage ??
-        err?.message ??
-        'Không thể xem trước file này.'
-    );
+    return describeApiError(err).message || 'Không thể xem trước file này.';
 }
 
 function ActionBadge({ action }) {
@@ -104,6 +102,7 @@ function ActionBadge({ action }) {
 
 /** Component modal/drawer hiển thị so sánh chi tiết giữa Hệ thống (DB) và File Excel */
 function DiffModal({ row, entityType, onClose }) {
+  const { tr, trf } = useLocale();
     if (!row) return null;
 
     const changes = Object.entries(row.changedFields ?? {});
@@ -122,12 +121,12 @@ function DiffModal({ row, entityType, onClose }) {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h3 className="text-base font-bold text-slate-900">
-                                    So sánh dữ liệu: <span className="text-sky-700">{row.rowKey}</span>
+                                    {tr('So sánh dữ liệu:')}{' '}<span className="text-sky-700">{row.rowKey}</span>
                                 </h3>
                                 <ActionBadge action={row.action} />
                             </div>
                             <p className="text-xs text-slate-500">
-                                Dòng {row.sourceRowNumber} trong file • Sheet {ENTITY_LABELS[entityType] ?? entityType}
+                                {tr('Dòng')}{' '}{row.sourceRowNumber} trong file • Sheet {ENTITY_LABELS[entityType] ?? entityType}
                                 {row.targetEntityId && (
                                     <span className="ml-2 font-mono text-slate-400">
                                         (Entity ID trong DB: #{row.targetEntityId})
@@ -139,7 +138,7 @@ function DiffModal({ row, entityType, onClose }) {
                     <button
                         onClick={onClose}
                         className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
-                        title="Đóng (Esc)"
+                        title={tr('Đóng (Esc)')}
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -156,7 +155,7 @@ function DiffModal({ row, entityType, onClose }) {
                                 <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                 </svg>
-                                <span>Phát hiện lỗi không thể import:</span>
+                                <span>{tr('Phát hiện lỗi không thể import:')}</span>
                             </div>
                             <ul className="list-disc list-inside text-sm text-rose-700 space-y-0.5 pl-2">
                                 {row.errors.map((err, i) => (
@@ -172,10 +171,10 @@ function DiffModal({ row, entityType, onClose }) {
                             <div className="flex items-center justify-between mb-3">
                                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                                     <span className="flex h-2 w-2 rounded-full bg-amber-500"></span>
-                                    Các trường có sự thay đổi ({changes.length})
+                                    {tr('Các trường có sự thay đổi (')}{changes.length})
                                 </h4>
                                 <span className="text-xs text-slate-500">
-                                    Giá trị từ DB sẽ được cập nhật bằng giá trị từ File Excel
+                                    {tr('Giá trị từ DB sẽ được cập nhật bằng giá trị từ File Excel')}
                                 </span>
                             </div>
 
@@ -183,17 +182,17 @@ function DiffModal({ row, entityType, onClose }) {
                                 <table className="w-full text-left text-sm">
                                     <thead>
                                         <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                            <th className="w-36 px-4 py-3">Trường dữ liệu</th>
+                                            <th className="w-36 px-4 py-3">{tr('Trường dữ liệu')}</th>
                                             <th className="px-4 py-3 bg-slate-100/70 border-r border-slate-200 text-slate-700">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
-                                                    Hiện tại trong DB (Cũ)
+                                                    {tr('Hiện tại trong DB (Cũ)')}
                                                 </div>
                                             </th>
                                             <th className="px-4 py-3 bg-amber-50/50 text-amber-900">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
-                                                    Trong file Excel (Mới)
+                                                    {tr('Trong file Excel (Mới)')}
                                                 </div>
                                             </th>
                                         </tr>
@@ -212,7 +211,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                                 {from}
                                                             </span>
                                                         ) : (
-                                                            <span className="italic text-slate-400 font-sans">(Trống)</span>
+                                                            <span className="italic text-slate-400 font-sans">{tr('(Trống)')}</span>
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 align-top bg-amber-50/20 font-mono text-xs text-amber-900 font-semibold break-words whitespace-pre-wrap">
@@ -221,7 +220,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                                 {to}
                                                             </span>
                                                         ) : (
-                                                            <span className="italic text-slate-400 font-sans">(Trống)</span>
+                                                            <span className="italic text-slate-400 font-sans">{tr('(Trống)')}</span>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -233,18 +232,18 @@ function DiffModal({ row, entityType, onClose }) {
                         </div>
                     ) : row.action === 'New' ? (
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-sm text-emerald-800">
-                            <strong>Mục mới:</strong> Bản ghi này chưa tồn tại trong cơ sở dữ liệu. Sau khi import sẽ được thêm mới toàn bộ.
+                            <strong>{tr('Mục mới:')}</strong>{' '}{tr('Bản ghi này chưa tồn tại trong cơ sở dữ liệu. Sau khi import sẽ được thêm mới toàn bộ.')}
                         </div>
                     ) : row.action === 'Unchanged' ? (
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                            <strong>Không đổi:</strong> Dữ liệu trong file Excel hoàn toàn trùng khớp với cơ sở dữ liệu hiện tại.
+                            <strong>{tr('Không đổi:')}</strong>{' '}{tr('Dữ liệu trong file Excel hoàn toàn trùng khớp với cơ sở dữ liệu hiện tại.')}
                         </div>
                     ) : null}
 
                     {/* Toàn bộ dữ liệu được parse từ file Excel */}
                     <div>
                         <h4 className="text-sm font-bold text-slate-800 mb-2">
-                            Toàn bộ trường dữ liệu đọc từ file Excel ({Object.keys(parsedFields).length})
+                           {trf('Toàn bộ trường dữ liệu đọc từ file Excel ({0})', { 0: Object.keys(parsedFields).length })}
                         </h4>
                         <div className="rounded-xl border border-slate-200 bg-slate-50/30 p-4">
                             <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -262,7 +261,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                 <span>{fieldLabel(k)}</span>
                                                 {isChanged && (
                                                     <span className="text-[10px] font-semibold text-amber-700 uppercase bg-amber-100 rounded px-1">
-                                                        Đổi
+                                                        {tr('Đổi')}
                                                     </span>
                                                 )}
                                             </dt>
@@ -270,7 +269,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                 {v !== null && v !== undefined && String(v) !== '' ? (
                                                     String(v)
                                                 ) : (
-                                                    <span className="text-slate-400 italic font-sans font-normal">(Trống)</span>
+                                                    <span className="text-slate-400 italic font-sans font-normal">{tr('(Trống)')}</span>
                                                 )}
                                             </dd>
                                         </div>
@@ -304,10 +303,10 @@ function DiffModal({ row, entityType, onClose }) {
                                         <svg className="w-4 h-4 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                         </svg>
-                                        Nội dung đề/bài tập chi tiết ({sections.length} phần · {totalQuestions} câu hỏi)
+                                        {tr('Nội dung đề/bài tập chi tiết (')}{sections.length}{' '}{tr('phần ·')}{' '}{totalQuestions}{' '}{tr('câu hỏi)')}
                                     </h4>
                                     <span className="text-xs text-slate-500">
-                                        Trích xuất từ Payload JSON tạo bản nháp
+                                        {tr('Trích xuất từ Payload JSON tạo bản nháp')}
                                     </span>
                                 </div>
 
@@ -319,7 +318,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                     <span className="flex h-5 w-5 items-center justify-center rounded bg-sky-100 text-sky-700 text-[11px] font-bold">
                                                         {sIdx + 1}
                                                     </span>
-                                                    <span>{section.Title || `Phần ${sIdx + 1}`}</span>
+                                                    <span>{section.Title || trf('Phần {0}', { 0: sIdx + 1 })}</span>
                                                     {section.LanguageSkillName && (
                                                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
                                                             {section.LanguageSkillName}
@@ -327,7 +326,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                     )}
                                                 </div>
                                                 <span className="text-[11px] text-slate-400">
-                                                    {section.Questions?.length ?? 0} câu
+                                                    {section.Questions?.length ?? 0}{' '}{tr('câu')}
                                                 </span>
                                             </div>
 
@@ -336,7 +335,7 @@ function DiffModal({ row, entityType, onClose }) {
                                                     <div key={qIdx} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-2">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="font-semibold text-slate-900 leading-snug">
-                                                                <span className="text-sky-600 mr-1.5">Câu {q.SortOrder ?? (qIdx + 1)}:</span>
+                                                                <span className="text-sky-600 mr-1.5">{tr('Câu')}{' '}{q.SortOrder ?? (qIdx + 1)}:</span>
                                                                 {q.QuestionText}
                                                             </div>
                                                             {q.AudioUrl && (
@@ -369,12 +368,12 @@ function DiffModal({ row, entityType, onClose }) {
                                                                                 {String.fromCharCode(65 + oIdx)}
                                                                             </span>
                                                                             <span>{opt.OptionText}
-                                                                                {(opt.ImageUrl ?? opt.imageUrl) && <img src={opt.ImageUrl ?? opt.imageUrl} alt="Hình đáp án" className="max-h-32 max-w-full rounded-md" />}
+                                                                                {(opt.ImageUrl ?? opt.imageUrl) && <img src={opt.ImageUrl ?? opt.imageUrl} alt={tr('Hình đáp án')} className="max-h-32 max-w-full rounded-md" />}
                                                                             </span>
                                                                         </div>
                                                                         {opt.IsCorrect && (
                                                                             <span className="text-[10px] text-emerald-600 font-bold uppercase">
-                                                                                Đáp án
+                                                                                {tr('Đáp án')}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -384,7 +383,7 @@ function DiffModal({ row, entityType, onClose }) {
 
                                                         {q.Explanation && (
                                                             <div className="text-[11px] text-slate-500 bg-white rounded p-1.5 border border-slate-100">
-                                                                <strong className="text-slate-600">Giải thích:</strong> {q.Explanation}
+                                                                <strong className="text-slate-600">{tr('Giải thích:')}</strong> {q.Explanation}
                                                             </div>
                                                         )}
                                                     </div>
@@ -404,7 +403,7 @@ function DiffModal({ row, entityType, onClose }) {
                         onClick={onClose}
                         className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition"
                     >
-                        Đóng
+                        {tr('Đóng')}
                     </button>
                 </div>
             </div>
@@ -414,6 +413,7 @@ function DiffModal({ row, entityType, onClose }) {
 
 /** Hiển thị tóm tắt ngắn gọn các trường đã thay đổi trong cột Chi tiết */
 function RowDetail({ row, onOpenDiff }) {
+  const { tr, trf } = useLocale();
     const changes = Object.entries(row.changedFields ?? {});
     const fields = Object.entries(row.parsedFields ?? {}).filter(([, v]) => v);
 
@@ -439,15 +439,15 @@ function RowDetail({ row, onOpenDiff }) {
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                             </svg>
-                            So sánh DB ➔ Excel ({changes.length} thay đổi):
+                            {tr('So sánh DB ➔ Excel (')}{changes.length}{' '}{tr('thay đổi):')}
                         </span>
                         {onOpenDiff && (
                             <button
                                 type="button"
                                 onClick={onOpenDiff}
-                                className="font-bold text-sky-700 hover:text-sky-900 hover:underline inline-flex items-center gap-1"
+                                className="font-bold text-sky-700 hover:text-sky-900 rp-underline inline-flex items-center gap-1"
                             >
-                                So sánh đầy đủ
+                                {tr('So sánh đầy đủ')}
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
@@ -464,11 +464,11 @@ function RowDetail({ row, onOpenDiff }) {
                                     </span>
                                     <div className="flex flex-wrap items-baseline gap-1 break-words">
                                         <span className="rounded bg-slate-200/70 px-1 py-0.5 text-slate-500 line-through">
-                                            {from || '(trống)'}
+                                            {from || tr('(trống)')}
                                         </span>
                                         <span className="text-amber-600 font-bold">➔</span>
                                         <span className="rounded bg-amber-100 px-1 py-0.5 font-semibold text-amber-900">
-                                            {to || '(trống)'}
+                                            {to || tr('(trống)')}
                                         </span>
                                     </div>
                                 </div>
@@ -483,7 +483,7 @@ function RowDetail({ row, onOpenDiff }) {
                 <div className="flex items-center gap-3">
                     <details className="group">
                         <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-700 select-none">
-                            Xem dữ liệu trong file ({fields.length} trường)
+                           {trf('Xem dữ liệu trong file ({0} trường)', { 0: fields.length })}
                         </summary>
                         <dl className="mt-1.5 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs bg-slate-50 p-2 rounded border border-slate-100">
                             {fields.map(([k, v]) => (
@@ -498,22 +498,23 @@ function RowDetail({ row, onOpenDiff }) {
                         <button
                             type="button"
                             onClick={onOpenDiff}
-                            className="text-xs text-sky-600 hover:text-sky-800 hover:underline"
+                            className="text-xs text-sky-600 hover:text-sky-800 rp-underline"
                         >
-                            Xem chi tiết
+                            {tr('Xem chi tiết')}
                         </button>
                     )}
                 </div>
             )}
 
             {row.action === 'Unchanged' && (
-                <p className="text-xs text-slate-500">Đã có trong cơ sở dữ liệu, giá trị giống hệt trong file Excel.</p>
+                <p className="text-xs text-slate-500">{tr('Đã có trong cơ sở dữ liệu, giá trị giống hệt trong file Excel.')}</p>
             )}
         </div>
     );
 }
 
 function SummaryCard({ action, value, active, onClick }) {
+  const { tr } = useLocale();
     const meta = ACTION_META[action];
     return (
         <button
@@ -525,7 +526,7 @@ function SummaryCard({ action, value, active, onClick }) {
                 }`}
         >
             <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500">{meta.label}</span>
+                <span className="text-xs font-medium text-slate-500">{tr(meta.label)}</span>
                 <span className={`h-2.5 w-2.5 rounded-full ${action === 'New'
                     ? 'bg-emerald-500'
                     : action === 'Modified'
@@ -541,18 +542,7 @@ function SummaryCard({ action, value, active, onClick }) {
 }
 
 function ListeningAudioUpload() {
-    const { user } = useAuth();
-    const client = useQueryClient();
-    const savedUploads = useQuery({
-        queryKey: ['content-audio-uploads', user?.userId],
-        queryFn: getMyAudioUploads, enabled: Boolean(user?.userId), retry: false,
-    });
-    const [showFormats, setShowFormats] = useState(false);
-    const formatLookup = useQuery({
-        queryKey: ['manual-content-lookups'],
-        queryFn: () => api.get('/content-author/manual/lookups'),
-        enabled: showFormats,
-    });
+  const { trf, tr } = useLocale();
     const [uploading, setUploading] = useState(false);
     const [files, setFiles] = useState([]);
 
@@ -561,58 +551,49 @@ function ListeningAudioUpload() {
         event.target.value = '';
         if (!selected.length || uploading) return;
         setUploading(true);
+        const toastKey = 'import-audio-upload';
+        notify.loading(trf('Đang tải {0} tệp âm thanh MP3…', { 0: selected.length }), '', { key: toastKey, maxWaitMs: 45000 });
+        let okCount = 0;
+        let failCount = 0;
         try {
             for (const file of selected) {
                 try {
                     const { url } = await uploadListeningAudio(file);
                     setFiles((current) => [...current, { name: file.name, url }]);
-                    void client.invalidateQueries({ queryKey: ['content-audio-uploads', user?.userId] });
+                    okCount += 1;
                 } catch (error) {
                     setFiles((current) => [...current, { name: file.name, error: getErrorMessage(error) }]);
+                    failCount += 1;
                 }
+            }
+            if (okCount && !failCount) {
+                notify.success(trf('Đã tải xong {0} tệp âm thanh.', { 0: okCount }), '', { key: toastKey, replace: true });
+            } else if (okCount && failCount) {
+                notify.warning('Tải tệp âm thanh hoàn tất một phần', trf('Thành công {0}, lỗi {1}.', { 0: okCount, 1: failCount }), {
+                    key: toastKey,
+                    replace: true,
+                });
+            } else {
+                notify.error('Tải tệp âm thanh thất bại', '', { key: toastKey, replace: true });
             }
         } finally {
             setUploading(false);
         }
     }
 
-    const visibleUploads = [...new Map([
-        ...(savedUploads.data ?? []).map(entry => [entry.audioUrl, {
-            url: entry.audioUrl, name: decodeURIComponent(entry.audioUrl.split('/').at(-1)),
-        }]),
-        ...files.map((file, index) => [file.url ?? 'error-' + index, file]),
-    ]).values()];
-
-    return <section className="rounded-xl border border-[#E8DFDC] bg-white p-5">
-        <h2 className="font-semibold text-[#2D282A]">Định dạng đề JLPT N5–N2</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-            <li>Gắn mã dạng câu ở JlptItemType. Ví dụ ReadingShort kèm nội dung ở Passage, hoặc ReadingIntegrated kèm thêm SecondPassage.</li>
-            <li>Với SentenceComposition, nhập bốn cụm đúng thứ tự vào OrderingParts, ngăn bằng |, rồi điền vị trí ★ từ 1 đến 4 vào StarPosition.</li>
-            <li>Với lựa chọn phát qua audio, đặt OptionsInAudio thành true, điền số vào Option1 đến Option4 và đánh dấu đáp án bằng CorrectOptionNumber.</li>
-        </ul>
+    return <section className="rounded-xl border border-rp-line bg-white p-5">
+        <h2 className="font-semibold text-rp-text">{tr('Audio Nghe hiểu cho đề JLPT N5–N2')}</h2>
         <p className="mt-1 text-sm text-slate-600">
-            Trong sheet Mock Test, dùng AudioUrl cho MP3, ImageUrl cho ảnh câu hỏi và Option1ImageUrl đến Option4ImageUrl cho ảnh đáp án.
+            {tr('Đề cần đủ Từ vựng, Ngữ pháp, Đọc hiểu và Nghe hiểu. Tải MP3 lên rồi dán đường dẫn của từng câu nghe vào cột AudioUrl trong sheet Mock Test. Dùng ImageUrl cho ảnh câu hỏi và Option1ImageUrl đến Option4ImageUrl cho ảnh đáp án.')}
         </p>
-        <details className="mt-3 text-sm" onToggle={event => setShowFormats(event.currentTarget.open)}>
-            <summary className="cursor-pointer font-medium text-[#AD3155]">Mã JlptItemType theo cấp độ</summary>
-            {showFormats && formatLookup.isPending && <p className="mt-2">Đang tải mã dạng câu…</p>}
-            {formatLookup.isError && <p className="mt-2 text-rose-700">{formatLookup.error.message}</p>}
-            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                {(formatLookup.data?.jlptQuestionFormats ?? []).map(format => <li key={format.code}>
-                    <code className="font-semibold">{format.code}</code> · {format.label} · {format.levels.join(', ')}
-                </li>)}
-            </ul>
-        </details>
         <label className="mt-3 block text-sm font-medium text-slate-700">
-            Chọn file MP3
+            {tr('Chọn file MP3')}
             <input type="file" accept=".mp3,audio/mpeg" multiple disabled={uploading}
                 onChange={uploadSelected} className="ml-3 max-w-full text-sm" />
         </label>
-        {uploading && <p role="status" className="mt-2 text-sm text-slate-600">Đang tải audio…</p>}
-        <p className="mt-2 text-sm text-slate-600">MP3 tối đa 25 MB. Hệ thống tự tạo bản chép lời tiếng Nhật để giải thích câu nghe.</p>
-        {savedUploads.isError && <p role="alert" className="mt-2 text-sm text-rose-700">Chưa tải được danh sách audio đã lưu.</p>}
-        {visibleUploads.length > 0 && <ul className="mt-3 space-y-2 text-sm">
-            {visibleUploads.map((file, index) => <li key={index} className="rounded-lg bg-[#FBF8F7] p-2">
+        {uploading && <SakuraLoader variant="inline" size={16} context="data" label={tr('Đang tải audio…')} className="mt-2" />}
+        {files.length > 0 && <ul className="mt-3 space-y-2 text-sm">
+            {files.map((file, index) => <li key={index} className="rounded-lg bg-rp-brand-tint p-2">
                 <span className="font-medium">{file.name}</span>
                 {file.error
                     ? <p role="alert" className="mt-1 text-rose-700">{file.error}</p>
@@ -640,7 +621,33 @@ function mediaUrlsFromSheets(sheets, kind) {
     return [...urls];
 }
 
+function MediaUploadSelectors({ audioFiles, audioUploads, imageFiles, imageUploads, onAudioChange, onImageChange, disabled, tr, trf }) {
+    return <section className="rounded-xl border border-rp-line bg-white p-5">
+        <h2 className="font-semibold text-rp-text">{tr('Tải media cho file Excel')}</h2>
+        <p className="mt-1 text-sm text-slate-600">{tr('Chọn MP3 và hình ảnh trước khi import. Sau khi xem trước, hệ thống sẽ trả về URL lưu trữ để gắn vào dữ liệu.')}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                {tr('File MP3 nghe hiểu')}
+                <input type="file" accept="audio/mpeg,.mp3" disabled={disabled} onChange={onAudioChange} className="mt-2 block w-full text-sm" />
+                <span className="mt-1 block break-all text-xs font-normal text-slate-500">{audioFiles.length ? audioUploads?.[0]?.url || tr('Đang tải URL…') : tr('Mỗi lần chỉ tải một file MP3.')}</span>
+                {audioUploads?.[0]?.url && <audio controls preload="metadata" src={audioUploads[0].url} className="mt-2 w-full" />}
+            </label>
+            <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                {tr('Hình ảnh nội dung')}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={disabled} onChange={onImageChange} className="mt-2 block w-full text-sm" />
+                <span className="mt-1 block break-all text-xs font-normal text-slate-500">{imageFiles.length ? imageUploads.length ? imageUploads.map(item => item.url).join(', ') : tr('Đang tải URL ảnh…') : tr('Ảnh câu hỏi hoặc ảnh đáp án, tối đa 10 MB mỗi ảnh.')}</span>
+                {imageUploads?.length > 0 && <div className="mt-2 grid grid-cols-3 gap-2">
+                    {imageUploads.map(item => <figure key={item.url} className="overflow-hidden rounded-lg border border-slate-200 bg-white p-1">
+                        <img src={item.url} alt={item.name} className="h-20 w-full object-contain" loading="lazy" />
+                    </figure>)}
+                </div>}
+            </label>
+        </div>
+    </section>;
+}
+
 function ContentImportPreviewPage() {
+  const { tr, trf } = useLocale();
     const { pathname } = useLocation();
     const { user } = useAuth();
     const queryClient = useQueryClient();
@@ -648,7 +655,9 @@ function ContentImportPreviewPage() {
     const inputRef = useRef(null);
     const [file, setFile] = useState(null);
     const [audioFiles, setAudioFiles] = useState([]);
+    const [audioUploads, setAudioUploads] = useState([]);
     const [imageFiles, setImageFiles] = useState([]);
+    const [imageUploads, setImageUploads] = useState([]);
     const [entityType, setEntityType] = useState(''); // '' = Bulk (mọi sheet)
     const [fileError, setFileError] = useState('');
     const [dragOver, setDragOver] = useState(false);
@@ -672,11 +681,24 @@ function ContentImportPreviewPage() {
     }
 
     const submitReview = useMutation({
-        mutationFn: submitAuthorImportBatch,
-        onSuccess: (_, savedBatchId) => refreshAuthorContent(savedBatchId),
+        mutationFn: (id) => {
+            notify.loading('Đang gửi nội dung để xét duyệt…', '', { key: 'import-submit-review', maxWaitMs: 30000 });
+            return submitAuthorImportBatch(id);
+        },
+        onSuccess: (_, savedBatchId) => {
+            refreshAuthorContent(savedBatchId);
+            notify.success('Đã gửi nội dung để Admin xét duyệt.', '', { key: 'import-submit-review', replace: true });
+        },
+        onError: (err) => notify.apiError(err, 'Không gửi được nội dung để duyệt', {
+            key: 'import-submit-review',
+            replace: true,
+        }),
     });
     const applyWorkbook = useMutation({
-        mutationFn: () => editExcelWorkbook(file, Object.values(changes)),
+        mutationFn: () => {
+            notify.loading('Đang áp dụng chỉnh sửa file Excel…', '', { key: 'import-apply-workbook', maxWaitMs: 30000 });
+            return editExcelWorkbook(file, Object.values(changes));
+        },
         onSuccess: (edited) => {
             setFile(edited);
             setHasEditedFile(true);
@@ -689,7 +711,12 @@ function ContentImportPreviewPage() {
             confirmImport.reset();
             submitReview.reset();
             workbookPreview.mutate(edited);
+            notify.success('Đã áp dụng chỉnh sửa file Excel.', '', { key: 'import-apply-workbook', replace: true });
         },
+        onError: (err) => notify.apiError(err, 'Chưa áp dụng được chỉnh sửa Excel', {
+            key: 'import-apply-workbook',
+            replace: true,
+        }),
     });
     const hasChanges = Object.keys(changes).length > 0;
     const busy = preview.isPending || confirmImport.isPending || submitReview.isPending ||
@@ -725,6 +752,7 @@ function ContentImportPreviewPage() {
         if (!canSaveDraft) return;
 
         setConfirmError('');
+        notify.loading('Đang lưu bản nháp vào hệ thống…', '', { key: 'import-confirm-save', maxWaitMs: 45000 });
         confirmImport.mutate(
             {
                 batchId,
@@ -736,9 +764,14 @@ function ContentImportPreviewPage() {
                     const saved = data?.result ?? data;
                     setConfirmResult(saved);
                     refreshAuthorContent(saved.batchId);
+                    notify.success('Đã lưu bản nháp vào hệ thống.', '', { key: 'import-confirm-save', replace: true });
                     if (sendForReview) submitReview.mutate(saved.batchId);
                 },
-                onError: (err) => setConfirmError(getErrorMessage(err)),
+                onError: (err) => {
+                    const msg = getErrorMessage(err);
+                    setConfirmError(msg);
+                    notify.apiError(err, 'Chưa lưu được bản nháp', { key: 'import-confirm-save', replace: true });
+                },
             }
         );
     }
@@ -785,9 +818,9 @@ function ContentImportPreviewPage() {
     const canSendForReview = !busy && !hasChanges && !submitReview.isSuccess &&
         (Boolean(confirmResult?.batchId) || canSaveDraft);
 
-    function pickFile(f) {
+    async function pickFile(f) {
         if (busy) return;
-        if (hasChanges && !window.confirm('Đổi file sẽ bỏ các ô chưa áp dụng. Tiếp tục?')) return;
+        if (hasChanges && !(await confirmAction({ title: 'Đổi tệp Excel?', description: 'Các ô bạn đã sửa nhưng chưa áp dụng sẽ bị bỏ.', confirmLabel: 'Đổi tệp', tone: 'warning' }))) return;
         setChanges({});
         setHasEditedFile(false);
         applyWorkbook.reset();
@@ -809,18 +842,24 @@ function ContentImportPreviewPage() {
     }
 
     function selectAudioFiles(event) {
-        const selected = Array.from(event.target.files ?? []).filter(item => /\.mp3$/i.test(item.name));
+        const selected = Array.from(event.target.files ?? []).filter(item => /\.mp3$/i.test(item.name)).slice(0, 1);
         event.target.value = '';
-        if (selected.length > 100 || selected.reduce((sum, item) => sum + item.size, 0) + imageFiles.reduce((sum, item) => sum + item.size, 0) > 250 * 1024 * 1024) {
-            setFileError('Mỗi lần import tối đa 100 MP3, tổng dung lượng tối đa 250 MB.');
-            return;
-        }
-        if (selected.some(item => item.size < 4 || item.size > 25 * 1024 * 1024)) {
-            setFileError('Mỗi file MP3 phải có dữ liệu và tối đa 25 MB.');
+        if (selected.length === 0) {
+            setFileError('Vui lòng chọn một file MP3.');
             return;
         }
         setAudioFiles(selected);
+        setAudioUploads([]);
         setFileError('');
+        notify.loading('Đang tải file MP3 lên và tạo URL…', '', { key: 'import-audio-upload', maxWaitMs: 300000 });
+        uploadListeningAudio(selected[0]).then(result => {
+            setAudioUploads([{ name: selected[0].name, url: result.url }]);
+            notify.success('Đã tải MP3 thành công.', '', { key: 'import-audio-upload', replace: true });
+        }).catch(error => {
+            setAudioUploads([]);
+            setFileError(getErrorMessage(error));
+            notify.apiError(error, 'Không tải được file MP3', { key: 'import-audio-upload', replace: true });
+        });
         preview.reset();
         confirmImport.reset();
         submitReview.reset();
@@ -841,6 +880,7 @@ function ContentImportPreviewPage() {
             return;
         }
         setImageFiles(selected);
+        setImageUploads([]);
         setFileError('');
         preview.reset();
         confirmImport.reset();
@@ -848,6 +888,13 @@ function ContentImportPreviewPage() {
         setBatchId(null);
         setConfirmResult(null);
         setConfirmError('');
+        if (selected.length) {
+            notify.loading('Đang tải hình ảnh lên Supabase…', '', { key: 'import-image-upload', maxWaitMs: 120000 });
+            Promise.all(selected.map(file => uploadContentImage(file).then(result => ({ name: file.name, url: result.url }))))
+                .then(setImageUploads)
+                .then(() => notify.success('Đã tải hình ảnh lên Supabase.', '', { key: 'import-image-upload', replace: true }))
+                .catch(error => { setImageUploads([]); setFileError(getErrorMessage(error)); notify.apiError(error, 'Không tải được hình ảnh', { key: 'import-image-upload', replace: true }); });
+        }
     }
 
     function handleSubmit(e) {
@@ -858,6 +905,7 @@ function ContentImportPreviewPage() {
         setConfirmResult(null);
         setConfirmError('');
         submitReview.reset();
+        notify.loading('Đang phân tích và đối chiếu tệp Excel…', '', { key: 'import-preview', maxWaitMs: 45000 });
         preview.mutate(
             { file, entityType, audioFiles, imageFiles },
             {
@@ -865,67 +913,39 @@ function ContentImportPreviewPage() {
                     setBatchId(crypto.randomUUID());
                     setActiveSheet(0);
                     setActionFilter('All');
+                    notify.success('Đã xem trước dữ liệu nhập.', '', { key: 'import-preview', replace: true });
                 },
+                onError: (err) => notify.apiError(err, 'Không xem trước được tệp Excel', { key: 'import-preview', replace: true }),
             }
         );
     }
 
     return (
-        <CmsShell pathname={pathname} breadcrumb="Xem trước import">
-        <div className="mx-auto max-w-6xl space-y-6 px-6 py-7 sm:px-8">
+        <ContentAuthorShell pathname={pathname} breadcrumb={tr('Xem trước import')}>
+        <div className="rp-container space-y-6 py-6 lg:py-8">
             <header>
-                <h1 className="text-[22px] font-medium tracking-tight text-[#2D282A]">Nhập Excel</h1>
-                <p className="mt-1 text-[13px] text-[#967F8A]">Tải file .xlsx để kiểm tra, lưu bản nháp hoặc gửi admin duyệt.</p>
-                <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold text-[#AD3155] underline">
-                    <Link to="?view=history">Lô Excel đã lưu</Link>
-                    <Link to="/content-manual/">Tạo và sửa học liệu trực tiếp</Link>
+                <h1 className="text-[22px] font-medium tracking-tight text-rp-text">{tr('Nhập Excel')}</h1>
+                <p className="mt-1 text-[13px] text-rp-text-muted">{tr('Tải file .xlsx để kiểm tra, lưu bản nháp hoặc gửi admin duyệt.')}</p>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold text-rp-brand-strong underline">
+                    <Link to="?view=history">{tr('Lô Excel đã lưu')}</Link>
+                    <Link to="/content-manual/">{tr('Tạo và sửa học liệu trực tiếp')}</Link>
                 </div>
             </header>
 
-            {(!entityType || entityType === 'MockTest') && <ListeningAudioUpload />}
+            <MediaUploadSelectors
+                audioFiles={audioFiles}
+                audioUploads={audioUploads}
+                imageFiles={imageFiles}
+                imageUploads={imageUploads}
+                onAudioChange={selectAudioFiles}
+                onImageChange={selectImageFiles}
+                disabled={busy}
+                tr={tr}
+                trf={trf}
+            />
 
             {/* ---- Upload Card ---- */}
-            <form onSubmit={handleSubmit} className="rounded-xl border border-[#E8DFDC] bg-white p-5">
-                <section className="mb-5 space-y-3 rounded-xl bg-[#FBF8F7] p-4 text-sm">
-                    <h2 className="font-semibold text-[#2D282A]">Ảnh và audio đi kèm file Excel</h2>
-                    <p className="text-slate-600">Trong AudioUrl, nhập URL S3 hoặc đường dẫn/tên file MP3. Bạn cũng có thể dùng hai cột AudioDirectory và AudioFileName.</p>
-                    <p className="text-slate-600">Nếu dùng file trên máy, chọn thư mục hoặc các MP3 bên dưới. Khi xem trước, hệ thống tự lấy đúng file được nhắc trong Excel, tải lên S3 và tạo bản chép lời tiếng Nhật.</p>
-                    <div className="flex flex-wrap gap-4">
-                        <label className="font-medium">Chọn thư mục MP3
-                            <input type="file" webkitdirectory="" directory="" multiple disabled={busy}
-                                onChange={selectAudioFiles} className="mt-1 block max-w-full text-sm" />
-                        </label>
-                        <label className="font-medium">Hoặc chọn các file MP3
-                            <input type="file" accept=".mp3,audio/mpeg" multiple disabled={busy}
-                                onChange={selectAudioFiles} className="mt-1 block max-w-full text-sm" />
-                        </label>
-                    </div>
-                    {audioFiles.length > 0 && <div className="flex items-center gap-3 text-slate-600">
-                        <span>Đã chọn {audioFiles.length} MP3 · {(audioFiles.reduce((sum, item) => sum + item.size, 0) / 1024 / 1024).toFixed(1)} MB</span>
-                        <button type="button" disabled={busy} className="font-semibold text-primary underline"
-                            onClick={() => { setAudioFiles([]); preview.reset(); setBatchId(null); setConfirmResult(null); }}>Bỏ chọn</button>
-                    </div>}
-                    <div className="border-t border-[#E8DFDC] pt-3">
-                        <p className="text-slate-600">Ảnh dùng ImageUrl hoặc ImageDirectory + ImageFileName. Ảnh đáp án dùng Option1ImageUrl đến Option4ImageUrl; ảnh chung của bài tập dùng ExerciseImageUrl. Các cột này dùng được trên các sheet tương ứng.</p>
-                        <div className="mt-3 flex flex-wrap gap-4">
-                            <label className="font-medium">Chọn thư mục ảnh
-                                <input type="file" webkitdirectory="" directory="" multiple disabled={busy}
-                                    onChange={selectImageFiles} className="mt-1 block max-w-full text-sm" />
-                            </label>
-                            <label className="font-medium">Hoặc chọn các file ảnh
-                                <input type="file" accept=".jpg,.jpeg,.png,.webp,.gif" multiple disabled={busy}
-                                    onChange={selectImageFiles} className="mt-1 block max-w-full text-sm" />
-                            </label>
-                        </div>
-                        {imageFiles.length > 0 && <div className="mt-2 flex items-center gap-3 text-slate-600">
-                            <span>Đã chọn {imageFiles.length} ảnh · {(imageFiles.reduce((sum, item) => sum + item.size, 0) / 1024 / 1024).toFixed(1)} MB</span>
-                            <button type="button" disabled={busy} className="font-semibold text-primary underline"
-                                onClick={() => { setImageFiles([]); preview.reset(); setBatchId(null); setConfirmResult(null); }}>Bỏ chọn ảnh</button>
-                        </div>}
-                        <p className="mt-2 text-slate-600">Khi xem trước, ảnh được tự tải lên Supabase; MP3 được tự tải lên AWS S3. File dùng nhiều lần chỉ tải một lần trong lô import.</p>
-                    </div>
-                    <p className="text-xs text-slate-500">Tối đa 100 MP3 (25 MB/file), 200 ảnh JPG/PNG/WebP/GIF (10 MB/file); tổng mỗi lần tối đa 250 MB. URL ảnh đã có sẵn được giữ lại.</p>
-                </section>
+            <form onSubmit={handleSubmit} className="rounded-xl border border-rp-line bg-white p-5">
                 <div className="grid gap-4 md:grid-cols-[1fr_240px]">
                     <div
                         role="button"
@@ -942,7 +962,7 @@ function ContentImportPreviewPage() {
                             setDragOver(false);
                             pickFile(e.dataTransfer.files?.[0]);
                         }}
-                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors ${dragOver ? 'border-[#AD3155] bg-[#FFF7F9]' : 'border-[#E8DFDC] bg-[#FBF8F7]'
+                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors ${dragOver ? 'border-rp-brand-strong bg-rp-brand-tint' : 'border-rp-line bg-rp-brand-tint'
                             }`}
                     >
                         <input
@@ -963,7 +983,7 @@ function ContentImportPreviewPage() {
                                     </svg>
                                 </div>
                                 <div className="text-sm font-semibold text-slate-900">{file.name}</div>
-                                <div className="mt-0.5 text-xs text-slate-500">{(file.size / 1024).toFixed(0)} KB · Bấm để đổi file khác</div>
+                                <div className="mt-0.5 text-xs text-slate-500">{trf('{0} KB · Bấm để đổi file khác', { 0: (file.size / 1024).toFixed(0) })}</div>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center">
@@ -972,15 +992,15 @@ function ContentImportPreviewPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                     </svg>
                                 </div>
-                                <div className="text-sm font-medium text-slate-700">Kéo thả file .xlsx vào đây</div>
-                                <div className="mt-0.5 text-xs text-slate-500">hoặc bấm vào khung để duyệt file từ máy tính</div>
+                                <div className="text-sm font-medium text-slate-700">{tr('Kéo thả file .xlsx vào đây')}</div>
+                                <div className="mt-0.5 text-xs text-slate-500">{tr('hoặc bấm vào khung để duyệt file từ máy tính')}</div>
                             </div>
                         )}
                     </div>
 
                     <div className="flex flex-col justify-between gap-3">
                         <label className="text-sm">
-                            <span className="mb-1 block font-medium text-slate-700">Loại nội dung</span>
+                            <span className="mb-1 block font-medium text-slate-700">{tr('Loại nội dung')}</span>
                             <select
                                 disabled={busy}
                                 value={entityType}
@@ -990,10 +1010,10 @@ function ContentImportPreviewPage() {
                                 }}
                                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-sm"
                             >
-                                <option value="">Tất cả sheet trong file</option>
+                                <option value="">{tr('Tất cả sheet trong file')}</option>
                                 {CONTENT_IMPORT_TYPES.map((t) => (
                                     <option key={t.value} value={t.value}>
-                                        Chỉ {t.label}
+                                       {trf('Chỉ {0}', { 0: t.label })}
                                     </option>
                                 ))}
                             </select>
@@ -1003,18 +1023,18 @@ function ContentImportPreviewPage() {
                             disabled={!file || busy || hasChanges}
                             className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300 shadow-sm"
                         >
-                            {preview.isPending ? 'Đang kiểm tra & so sánh…' : 'Xem trước & So sánh'}
+                            {preview.isPending ? tr('Đang kiểm tra & so sánh…') : tr('Xem trước & So sánh')}
                         </button>
                         <button type="button" disabled={!file || busy} aria-expanded={showWorkbook}
                             onClick={() => showWorkbook ? setShowWorkbook(false) : openWorkbook()}
-                            className="w-full rounded-xl border border-[#E7D7DF] bg-white px-4 py-2.5 text-sm font-semibold text-[#9E2A4B] disabled:opacity-50">
-                            {showWorkbook ? 'Ẩn nội dung Excel' : 'Xem nội dung Excel'}
+                            className="w-full rounded-xl border border-rp-line bg-white px-4 py-2.5 text-sm font-semibold text-rp-brand-strong disabled:opacity-50">
+                            {showWorkbook ? tr('Ẩn nội dung Excel') : tr('Xem nội dung Excel')}
                         </button>
                         {hasEditedFile && <button type="button" disabled={hasChanges || busy} onClick={downloadEditedFile}
-                            className="w-full rounded-xl border border-[#E7D7DF] px-4 py-2 text-sm font-semibold text-[#9E2A4B] disabled:opacity-50">
-                            Tải file đã sửa
+                            className="w-full rounded-xl border border-rp-line px-4 py-2 text-sm font-semibold text-rp-brand-strong disabled:opacity-50">
+                            {tr('Tải file đã sửa')}
                         </button>}
-                        {hasChanges && !showWorkbook && <p className="text-sm text-amber-800">Mở nội dung Excel để áp dụng các ô đã sửa.</p>}
+                        {hasChanges && !showWorkbook && <p className="text-sm text-amber-800">{tr('Mở nội dung Excel để áp dụng các ô đã sửa.')}</p>}
                     </div>
                 </div>
 
@@ -1045,10 +1065,10 @@ function ContentImportPreviewPage() {
             </details>}
 
             <div hidden={!showWorkbook}>
-                {workbookPreview.isPending && <p role="status" className="text-sm text-slate-600">Đang đọc các sheet…</p>}
+                {workbookPreview.isPending && <p role="status" className="text-sm text-slate-600">{tr('Đang đọc các sheet…')}</p>}
                 {workbookPreview.isError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
                     {getErrorMessage(workbookPreview.error)}
-                    <button type="button" onClick={openWorkbook} className="ml-2 font-semibold underline">Thử lại</button>
+                    <button type="button" onClick={openWorkbook} className="ml-2 font-semibold underline">{tr('Thử lại')}</button>
                 </div>}
                 {workbookPreview.data && <WorkbookPreview workbook={workbookPreview.data} changes={changes} onCellChange={changeCell}
                     busy={busy} applyError={applyWorkbook.error} onApply={() => applyWorkbook.mutate()}
@@ -1064,15 +1084,15 @@ function ContentImportPreviewPage() {
                             <div className="flex items-center gap-2">
                                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
                                 <h2 className="text-base font-bold text-slate-900">
-                                    Kết quả kiểm tra: <span className="text-sky-700">{result.fileName}</span>
+                                    {tr('Kết quả kiểm tra:')}{' '}<span className="text-sky-700">{result.fileName}</span>
                                 </h2>
                             </div>
                             <p className="mt-0.5 text-xs text-slate-500">
-                                Tổng số {sheets.length} sheet được phân tích • Mã xem trước: <span className="font-mono">{result.previewId?.slice(0, 8)}</span>
+                                {tr('Tổng số')}{' '}{sheets.length}{' '}{tr('sheet được phân tích • Mã xem trước:')}{' '}<span className="font-mono">{result.previewId?.slice(0, 8)}</span>
                             </p>
                         </div>
                         <span className="inline-flex items-center rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                            {submitReview.isSuccess ? 'Đã gửi duyệt' : confirmResult ? 'Đã lưu bản nháp' : 'Chưa lưu bản nháp'}
+                            {submitReview.isSuccess ? tr('Đã gửi duyệt') : confirmResult ? tr('Đã lưu bản nháp') : tr('Chưa lưu bản nháp')}
                         </span>
                     </div>
 
@@ -1093,10 +1113,9 @@ function ContentImportPreviewPage() {
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-sm font-bold text-slate-900">Lưu vào học liệu của tôi</h3>
+                                <h3 className="text-sm font-bold text-slate-900">{tr('Lưu vào học liệu của tôi')}</h3>
                                 <p className="mt-1 text-xs text-slate-500">
-                                    {confirmableRows.length} dòng mới hoặc thay đổi đủ điều kiện lưu bản nháp.
-                                    Các dòng lỗi và không đổi được bỏ qua.
+                                   {trf('{0} dòng mới hoặc thay đổi đủ điều kiện lưu bản nháp. Các dòng lỗi và không đổi được bỏ qua.', { 0: confirmableRows.length })}
                                 </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -1104,17 +1123,17 @@ function ContentImportPreviewPage() {
                                     type="button"
                                     onClick={() => saveDraft()}
                                     disabled={!canSaveDraft}
-                                    className="rounded-xl border border-[#E7D7DF] px-4 py-2.5 text-sm font-semibold text-[#9E2A4B] hover:bg-[#FFF7F9] disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="rounded-xl border border-rp-line px-4 py-2.5 text-sm font-semibold text-rp-brand-strong hover:bg-rp-brand-tint disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    {confirmImport.isPending ? 'Đang lưu…' : 'Lưu bản nháp'}
+                                    {confirmImport.isPending ? tr('Đang lưu…') : tr('Lưu bản nháp')}
                                 </button>}
                                 {!submitReview.isSuccess && <button
                                     type="button"
                                     onClick={sendForReview}
                                     disabled={!canSendForReview}
-                                    className="rounded-xl bg-[#AD3155] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#932844] disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="rounded-xl bg-rp-brand-strong px-4 py-2.5 text-sm font-semibold text-white hover:bg-rp-brand-strong disabled:cursor-not-allowed disabled:opacity-50 rp-press"
                                 >
-                                    {submitReview.isPending ? 'Đang gửi duyệt…' : 'Gửi admin duyệt'}
+                                    {submitReview.isPending ? tr('Đang gửi duyệt…') : tr('Gửi admin duyệt')}
                                 </button>}
                             </div>
                         </div>
@@ -1125,7 +1144,7 @@ function ContentImportPreviewPage() {
                         )}
                         {submitReview.isError && (
                             <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                                Đã lưu bản nháp. Gửi duyệt chưa thành công. {getErrorMessage(submitReview.error)}
+                               {trf('Đã lưu bản nháp. Gửi duyệt chưa thành công. {0}', { 0: getErrorMessage(submitReview.error) })}
                             </div>
                         )}
                         {confirmResult && (
@@ -1134,12 +1153,12 @@ function ContentImportPreviewPage() {
                                     {submitReview.isSuccess
                                         ? submitReview.data > 0
                                             ? 'Đã gửi ' + submitReview.data + ' nội dung cho admin duyệt.'
-                                            : 'Lô này đã được gửi duyệt.'
+                                            : tr('Lô này đã được gửi duyệt.')
                                         : 'Đã lưu ' + (confirmResult.draftsCreatedCount ?? 0) + ' bản nháp.'}
                                     {confirmResult.skippedCount > 0 && ' Đã bỏ qua ' + confirmResult.skippedCount + ' dòng khi lưu.'}
                                 </p>
                                 <Link to={'?view=history&batchId=' + confirmResult.batchId} className="mt-2 inline-block font-semibold underline">
-                                    Mở lô và xem trạng thái
+                                    {tr('Mở lô và xem trạng thái')}
                                 </Link>
                             </div>
                         )}
@@ -1169,12 +1188,12 @@ function ContentImportPreviewPage() {
                                     </span>
                                     {s.errorCount > 0 && (
                                         <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700">
-                                            {s.errorCount} lỗi
+                                           {trf('{0} lỗi', { 0: s.errorCount })}
                                         </span>
                                     )}
                                     {s.modifiedCount > 0 && (
                                         <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">
-                                            {s.modifiedCount} đổi
+                                           {trf('{0} đổi', { 0: s.modifiedCount })}
                                         </span>
                                     )}
                                 </button>
@@ -1201,13 +1220,13 @@ function ContentImportPreviewPage() {
                                                     : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
                                                     }`}
                                             >
-                                                {a === 'All' ? 'Tất cả' : ACTION_META[a].label} · {count}
+                                                {a === 'All' ? tr('Tất cả') : ACTION_META[a].label} · {count}
                                             </button>
                                         );
                                     })}
                                 </div>
                                 <div className="text-xs text-slate-500">
-                                    Đang hiển thị {visibleRows.length}/{sheet.totalRows} dòng
+                                   {trf('Đang hiển thị {0}/{1} dòng', { 0: visibleRows.length, 1: sheet.totalRows })}
                                 </div>
                             </div>
 
@@ -1217,11 +1236,11 @@ function ContentImportPreviewPage() {
                                     <table className="w-full text-left text-sm">
                                         <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600">
                                             <tr>
-                                                <th className="w-16 px-4 py-3 text-center">Dòng</th>
-                                                <th className="w-44 px-4 py-3">Mã / Khóa</th>
-                                                <th className="w-28 px-4 py-3">Trạng thái</th>
-                                                <th className="px-4 py-3">So sánh DB ➔ File Excel / Chi tiết</th>
-                                                <th className="w-24 px-4 py-3 text-right">Thao tác</th>
+                                                <th className="w-16 px-4 py-3 text-center">{tr('Dòng')}</th>
+                                                <th className="w-44 px-4 py-3">{tr('Mã / Khóa')}</th>
+                                                <th className="w-28 px-4 py-3">{tr('Trạng thái')}</th>
+                                                <th className="px-4 py-3">{tr('So sánh DB ➔ File Excel / Chi tiết')}</th>
+                                                <th className="w-24 px-4 py-3 text-right">{tr('Thao tác')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -1266,7 +1285,7 @@ function ContentImportPreviewPage() {
                                                                 onClick={() => setSelectedDiffRow(row)}
                                                                 className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-sky-700 shadow-2xs"
                                                             >
-                                                                So sánh
+                                                                {tr('So sánh')}
                                                             </button>
                                                         </td>
                                                     </tr>
@@ -1275,7 +1294,7 @@ function ContentImportPreviewPage() {
                                             {visibleRows.length === 0 && (
                                                 <tr>
                                                     <td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">
-                                                        Không có dòng nào phù hợp với bộ lọc này.
+                                                        {tr('Không có dòng nào phù hợp với bộ lọc này.')}
                                                     </td>
                                                 </tr>
                                             )}
@@ -1297,7 +1316,7 @@ function ContentImportPreviewPage() {
                 />
             )}
         </div>
-        </CmsShell>
+        </ContentAuthorShell>
     );
 }
 

@@ -2,8 +2,8 @@ import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import ExamSkillRadar from '../../components/ExamSkillRadar.jsx';
-import { summarizeSkills } from '../../utils/examSkillScores.js';
+import ExamSkillRadar from '../../features/mock-test/components/ExamSkillRadar.jsx';
+import { summarizeSkills } from '../../features/mock-test/utils/examSkillScores.js';
 import {
   answerHomeworkDispute, closeHomeworkDispute, createHomeworkDispute, draftHomeworkGrades, evaluateHomeworkBooking,
   getHomeworkDisputes, getMentorPracticeProgress, loadHomeworkAudio, loadHomeworkScan, publishHomeworkGrade, recordMentorPractice,

@@ -1,286 +1,117 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { MarketingShell } from '../../components/shells';
+import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { ArrowRight, CalendarCheck, Map as MapIcon, Repeat, UsersRound } from 'lucide-react';
+import { PublicShell } from '@/layouts';
+import { useAuth } from '@/app/auth/authContext.js';
+import { useLocale } from '@/locales/locale.js';
+import { homeForRole } from '@/app/routes/routeTable.js';
+import HeroLearningScene from '@/features/landing/components/HeroLearningScene.jsx';
+import HeroScenicSlideshow from '@/features/landing/components/HeroScenicSlideshow.jsx';
+import {
+  ClosingCta,
+  CtaLink,
+  FaqSection,
+  GroupLearningSection,
+  JourneySection,
+  PersonalizedSection,
+  RoadmapSection,
+  ToolsSection,
+} from '@/features/landing/components/LandingSections.jsx';
+import { HERO_POINTS } from '@/features/landing/constants/landingContent.js';
+import { useLandingMotion } from '@/features/landing/hooks/useLandingMotion.js';
+import '@/features/landing/landing.css';
 
-function DashPreview() {
-  const days = Array.from({ length: 42 }, (_, i) => {
-    const n = (i * 7) % 11;
-    return n > 7 ? 'bg-[#D94B68]' : n > 4 ? 'bg-[#F8BBD0]' : 'bg-[#FFF0F5]';
-  });
+// Content is descriptive only: no user counts, ratings, testimonials or progress figures, because
+// RikiPath has no verified public numbers. Hero cards are labelled illustrations of the product UI.
 
-  return (
-    <div className="overflow-hidden rounded-[28px] border border-[#dfbfc1]/50 bg-white shadow-[0_24px_60px_-28px_rgba(158,42,75,0.35)]">
-      <div className="border-b border-[#fff0f5] px-4 py-2.5 text-[11px] text-[#A59B9E]">riki.path / student / dashboard</div>
-      <div className="grid grid-cols-[168px_1fr]">
-        <aside className="hidden space-y-1 border-r border-[#fff0f5] p-3 sm:block">
-          <div className="mb-3 flex items-center gap-2 px-2 py-1">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] text-[11px] font-bold text-white">R</span>
-            <span className="text-[12px] font-bold">RikiPath</span>
-          </div>
-          {[
-            ['Bảng điều khiển', true],
-            ['Luyện tập JLPT', false],
-            ['Thi thử', false],
-            ['Kết quả', false],
-            ['Từ vựng', false],
-            ['Ngữ pháp', false],
-            ['Đọc hiểu', false],
-            ['Nghe hiểu', false],
-          ].map(([label, on]) => (
-            <div
-              key={label}
-              className={on ? 'rounded-xl bg-[#D94B68] px-2.5 py-2 text-[11px] font-semibold text-white' : 'px-2.5 py-2 text-[11px] text-[#6F6669]'}
-            >
-              {label}
-            </div>
-          ))}
-        </aside>
-        <div className="space-y-3 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] text-[#A59B9E]">Kế hoạch ôn tập mỗi ngày</div>
-              <div className="text-[18px] font-extrabold leading-tight">Hôm nay ôn đúng phần còn yếu.</div>
-            </div>
-            <div className="rounded-full bg-[#fff0f5] px-2.5 py-1 text-[10px] font-semibold text-[#D94B68]">3 ngày liên tiếp</div>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-2xl bg-gradient-to-br from-[#D94B68] to-[#9E2A4B] p-4 text-white">
-              <div className="text-[11px] text-white/70">Việc tiếp theo</div>
-              <div className="mt-2 text-[20px] font-extrabold">Ôn lỗi đọc N3</div>
-              <p className="mt-2 text-[12px] leading-relaxed text-white/80">Xem lại câu sai ở lượt thi trước, rồi luyện thêm 15 phút.</p>
-            </div>
-            <div className="rounded-2xl border border-[#dfbfc1]/40 p-4">
-              <div className="mb-2 flex items-center justify-between text-[11px] text-[#6F6669]">
-                <span>Tiến độ ôn luyện</span>
-                <span>3 tháng gần nhất</span>
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {days.map((tone, i) => (
-                  <span key={i} className={`h-2.5 rounded-sm ${tone}`} />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              ['Từ vựng N3', '10 phút · theo chủ đề'],
-              ['Đọc hiểu', '20 phút · đoạn vừa'],
-              ['Nghe hiểu', '15 phút · hội thoại'],
-            ].map(([title, sub]) => (
-              <div key={title} className="rounded-2xl border border-[#dfbfc1]/40 p-3">
-                <div className="text-[13px] font-bold">{title}</div>
-                <div className="mt-1 text-[11px] text-[#A59B9E]">{sub}</div>
-                <div className="mt-3 text-[11px] font-semibold text-[#D94B68]">Luyện tập →</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const PARTS = [
-  {
-    id: 'vocab',
-    tab: 'Từ vựng',
-    title: 'Từ vựng',
-    lead: 'Kanji, cách đọc và từ đúng ngữ cảnh đề.',
-    items: [
-      ['Kanji', 'Mặt chữ, âm đọc và nghĩa.'],
-      ['Từ trong câu', 'Chọn từ hợp ngữ cảnh.'],
-      ['Từ gần nghĩa', 'Phân biệt cách dùng hay bị tráo.'],
-    ],
-  },
-  {
-    id: 'grammar',
-    tab: 'Ngữ pháp',
-    title: 'Ngữ pháp',
-    lead: 'Mẫu câu hay ra đề, kèm lỗi thường gặp.',
-    items: [
-      ['Chọn mẫu đúng', 'Điền cấu trúc hợp với câu.'],
-      ['Sắp xếp câu', 'Ghép thứ tự từ thành câu.'],
-      ['Theo cấp độ', 'Bài luyện tập tăng dần N5–N2.'],
-    ],
-  },
-  {
-    id: 'reading',
-    tab: 'Đọc hiểu',
-    title: 'Đọc hiểu',
-    lead: 'Đoạn ngắn đến bài dài. Bắt ý chính, rồi xem câu sai.',
-    items: [
-      ['Đoạn ngắn', 'Một ý, một câu hỏi.'],
-      ['Bài vừa', 'Theo mạch và từ nối.'],
-      ['Bài dài', 'Ý chính, chi tiết, suy luận.'],
-    ],
-  },
-  {
-    id: 'listening',
-    tab: 'Nghe hiểu',
-    title: 'Nghe hiểu',
-    lead: 'Hội thoại và bài nói, đúng nhịp từng dạng đề.',
-    items: [
-      ['Hội thoại ngắn', 'Bắt thông tin chính.'],
-      ['Tình huống', 'Ai nói gì, làm gì tiếp.'],
-      ['Bài dài', 'Ý chính và thái độ người nói.'],
-    ],
-  },
-];
-
-const LEVELS = [
-  ['N5', 'Nền tảng'],
-  ['N4', 'Sơ cấp'],
-  ['N3', 'Trung cấp'],
-  ['N2', 'Nâng cao'],
-];
-
-const FAQ = [
-  ['Nội dung ôn luyện JLPT gồm những gì?', 'Từ vựng, ngữ pháp, đọc hiểu và nghe hiểu. Nói và viết cùng Haru là kỹ năng bổ trợ, không nằm trong đề thi thử JLPT.'],
-  ['Thi thử diễn ra thế nào?', 'Chọn cấp độ, làm đề có giới hạn thời gian, rồi xem kết quả từng phần và lỗi cần ôn lại.'],
-  ['Haru có thay Sensei không?', 'Không. Haru góp ý nhanh khi luyện nói và viết. Sensei tư vấn lộ trình ôn luyện khi bạn cần người thật.'],
-  ['Nên bắt đầu từ đâu?', 'Chọn nội dung cần ôn, luyện tập, xem kết quả, rồi ôn lại lỗi sai.'],
-];
+const POINT_ICONS = { levels: MapIcon, srs: Repeat, group: UsersRound };
 
 export default function HomeLanding() {
-  const [partId, setPartId] = useState(PARTS[0].id);
-  const part = PARTS.find((item) => item.id === partId) ?? PARTS[0];
+  const rootRef = useRef(null);
+  useLandingMotion(rootRef);
+  const { hash, key } = useLocation();
+
+  // Router links like "/#group-learning" (header, footer, other pages) don't scroll by themselves.
+  useEffect(() => {
+    if (!hash) return;
+    const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+    if (!target) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  }, [hash, key]);
+  const { isAuthenticated, primaryRole } = useAuth();
+  const { tr, locale } = useLocale();
+  const startTo = isAuthenticated ? homeForRole(primaryRole) : '/register';
+  const startLabel = isAuthenticated ? 'Vào trang học tập' : 'Bắt đầu học';
 
   return (
-    <MarketingShell>
-      <div className="bg-[#FFF8F8] text-[#2D282A]" data-page="HomeLanding">
-        <section className="mx-auto grid max-w-[1200px] items-center gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[1fr_1.15fr]">
-          <div>
-            <div className="mb-4 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#D94B68]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#D94B68]" />
-              Nền tảng ôn luyện JLPT
-            </div>
-            <h1 className="text-[40px] font-extrabold leading-[1.08] tracking-tight sm:text-[48px]">
-              Ôn đúng trọng tâm, vững vàng trước kỳ thi JLPT.
-            </h1>
-            <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-[#6F6669]">
-              Ôn tập từ vựng, ngữ pháp, luyện đọc và nghe theo cấp độ. Thi thử có giới hạn thời gian, xem lại lỗi sai và theo dõi tiến bộ qua từng lần luyện tập.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link
-                to="/register"
-                className="inline-flex rounded-full bg-gradient-to-r from-[#D94B68] to-[#9E2A4B] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-[#D94B68]/25"
-              >
-                Bắt đầu ôn luyện
-              </Link>
-              <Link to="/register" className="px-2 text-[14px] font-semibold text-[#D94B68]">
-                Thi thử ngay
-              </Link>
-            </div>
-            <p className="mt-5 text-[13px] font-medium text-[#6F6669]">Chọn nội dung → Luyện tập → Xem kết quả → Ôn lại lỗi sai</p>
+    <PublicShell>
+      <div ref={rootRef} className="rp-landing overflow-x-clip">
+        {/* Hero */}
+        <section className="px-2 pb-6 pt-2 sm:px-3 sm:pt-3" aria-labelledby="hero-title">
+          {/* Full-width cinematic hero: the Japanese landscape slideshow is the background of the whole banner
+              (grid "full" track), copy and stage sit in a centred content track (landing.css .lp-hero-shell). */}
+          <div className="lp-hero lp-hero-shell relative isolate overflow-hidden rounded-[24px] sm:rounded-[32px]">
+          <HeroScenicSlideshow sizes="100vw" className="lp-hero-bg" />
+          <div aria-hidden="true" className="lp-hero-scrim" />
+          <div aria-hidden="true" className="lp-hero-deco pointer-events-none absolute inset-0 z-[1]">
+            <div className="lp-hero-dots absolute inset-0 opacity-70" />
+            <div className="rp-pattern-seigaiha absolute inset-x-0 bottom-0 h-40 opacity-35 [mask-image:linear-gradient(to_top,black,transparent)]" />
           </div>
-          <DashPreview />
-        </section>
-
-        <section className="mx-auto max-w-[1200px] scroll-mt-24 px-5 py-6 sm:px-8" id="pathway">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#D94B68]">Nội dung ôn luyện</div>
-          <h2 className="mt-2 text-[32px] font-extrabold leading-tight">Từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.</h2>
-          <p className="mt-2 max-w-2xl text-[15px] text-[#6F6669]">Chọn một phần, luyện theo cấp độ, rồi xem câu sai để ôn lại.</p>
-          <div className="mt-4 rounded-[28px] border border-[#dfbfc1]/45 bg-white p-5 sm:p-6">
-            <div className="flex flex-wrap gap-2">
-              {PARTS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setPartId(item.id)}
-                  className={
-                    item.id === part.id
-                      ? 'rounded-full bg-[#D94B68] px-4 py-2 text-[13px] font-semibold text-white'
-                      : 'rounded-full border border-[#dfbfc1]/70 px-4 py-2 text-[13px] font-semibold text-[#6F6669] hover:text-[#D94B68]'
-                  }
-                >
-                  {item.tab}
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-              <div>
-                <h3 className="text-[22px] font-extrabold">{part.title}</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-[#6F6669]">{part.lead}</p>
-                <Link to="/register" className="mt-3 inline-flex text-[14px] font-semibold text-[#D94B68]">
-                  Xem bài luyện tập
-                </Link>
+            <div className="lp-hero-copy min-w-0 max-w-[600px]">
+              <p data-intro style={{ '--d': '80ms' }} className="inline-flex items-center gap-2 rounded-full border border-rp-brand-soft bg-white/85 px-3 py-1.5 text-[13px] font-semibold text-rp-brand-strong shadow-rp-xs">
+                <span lang="ja" className="rp-kanji">日本語能力試験</span>
+                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-rp-brand" />
+                JLPT N5–N2
+              </p>
+              <h1 id="hero-title" className="mt-6 text-[clamp(2.05rem,1.45rem+1.85vw,3.15rem)] font-extrabold leading-[1.12] tracking-[-0.03em] text-rp-text">
+                <span data-intro className="block text-balance" style={{ '--d': '140ms' }}>{tr('Học tiếng Nhật bài bản,')}</span>
+                <span data-intro className="block" style={{ '--d': '230ms' }}>
+                  {/* Word order differs per language, so the highlighted phrase is placed per locale (no concatenated sentence). */}
+                  {locale === 'ja' ? (
+                    <>JLPTに<span className="lp-highlight text-rp-brand-pressed">自信</span>を持って挑もう</>
+                  ) : (
+                    <><span className="lp-highlight text-rp-brand-pressed">{tr('tự tin')}</span>{' '}{tr('bước vào kỳ thi JLPT')}</>
+                  )}
+                </span>
+              </h1>
+              <p data-intro style={{ '--d': '330ms' }} className="mt-6 max-w-[540px] rp-type-body leading-8 text-rp-text-2 sm:text-[17px]">
+                {tr('Lộ trình theo cấp độ, ôn tập lặp ngắt quãng, đề thi thử có tính giờ và lớp nhóm nhỏ cùng Mentor — trong một nền tảng, đồng bộ giữa Web và ứng dụng RikiPath.')}
+              </p>
+              <div data-intro style={{ '--d': '420ms' }} className="mt-8 flex flex-wrap gap-3">
+                <CtaLink to={startTo}>{tr(startLabel)} <ArrowRight aria-hidden="true" className="h-4 w-4" /></CtaLink>
+                <CtaLink to="/thi-thu" variant="secondary">{tr('Xem đề thi thử')}</CtaLink>
               </div>
-              <ol className="space-y-2">
-                {part.items.map(([title, desc], index) => (
-                  <li key={title} className="flex gap-3 rounded-2xl bg-[#FFF8F8] p-4">
-                    <span className="text-[13px] font-extrabold text-[#D94B68]">{String(index + 1).padStart(2, '0')}</span>
-                    <div>
-                      <div className="text-[14px] font-bold">{title}</div>
-                      <p className="mt-0.5 text-[13px] text-[#6F6669]">{desc}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <ul data-intro style={{ '--d': '500ms' }} className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium text-rp-text-2">
+                {HERO_POINTS.map((point) => {
+                  const Icon = POINT_ICONS[point.key] || CalendarCheck;
+                  return (
+                    <li key={point.key} className="flex items-center gap-2">
+                      <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-rp-brand-pressed shadow-rp-xs ring-1 ring-rp-line"><Icon className="h-4 w-4" /></span>
+                      {tr(point.label)}
+                    </li>
+                  );
+                })}
+              </ul>
+              <a href="#roadmap" data-intro style={{ '--d': '560ms' }} className="rp-focus rp-underline mt-8 inline-flex items-center gap-1.5 rounded-sm text-[14px] font-semibold text-rp-text-2 hover:text-rp-brand-strong">
+                {tr('Khám phá lộ trình JLPT')} <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 rotate-90" />
+              </a>
+            </div>
+
+            <div className="lp-hero-stage min-w-0">
+              <HeroLearningScene />
             </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-[1200px] px-5 py-6 sm:px-8">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#D94B68]">Thi thử JLPT</div>
-          <h2 className="mt-2 text-[32px] font-extrabold leading-tight">Chọn cấp độ, làm đề, xem kết quả.</h2>
-          <p className="mt-2 max-w-2xl text-[15px] text-[#6F6669]">Đề có giới hạn thời gian. Sau mỗi lượt, xem phần sai và đưa vào kế hoạch ôn tập.</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {LEVELS.map(([level, label]) => (
-              <Link key={level} to="/register" className="rounded-2xl border border-[#dfbfc1]/45 bg-white p-5 hover:border-[#D94B68]/35">
-                <div className="text-[13px] font-extrabold text-[#D94B68]">{level}</div>
-                <div className="mt-1 text-[16px] font-bold">{label}</div>
-                <div className="mt-3 text-[13px] font-semibold text-[#D94B68]">Thi thử ngay</div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-[1200px] px-5 py-6 sm:px-8" id="plans">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#D94B68]">Công cụ hỗ trợ</div>
-          <h2 className="mt-2 text-[32px] font-extrabold leading-tight">AI Haru và tư vấn Sensei.</h2>
-          <p className="mt-2 max-w-2xl text-[15px] text-[#6F6669]">Nói và viết cùng Haru là luyện kỹ năng bổ trợ, tách khỏi nội dung thi thử JLPT.</p>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <article className="rounded-[28px] border border-[#dfbfc1]/45 bg-white p-6">
-              <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#D94B68]">Kỹ năng bổ trợ</div>
-              <h3 className="mt-2 text-[20px] font-extrabold">Luyện nói và viết với Haru</h3>
-              <p className="mt-2 text-[14px] leading-relaxed text-[#6F6669]">Haru góp ý pitch, câu viết và gợi ý nội dung cần ôn tiếp. Không tính vào điểm đề thi thử.</p>
-              <Link to="/register" className="mt-4 inline-flex text-[14px] font-semibold text-[#D94B68]">
-                Xem phản hồi Haru
-              </Link>
-            </article>
-            <article className="rounded-[28px] border border-[#dfbfc1]/45 bg-white p-6">
-              <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#D94B68]">Người thật</div>
-              <h3 className="mt-2 text-[20px] font-extrabold">Tư vấn cùng Sensei</h3>
-              <p className="mt-2 text-[14px] leading-relaxed text-[#6F6669]">Trao đổi mục tiêu, chỗ còn yếu và lộ trình ôn luyện khi bạn cần người hướng dẫn.</p>
-              <Link to="/register" className="mt-4 inline-flex text-[14px] font-semibold text-[#D94B68]">
-                Xem gói tư vấn
-              </Link>
-            </article>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-[1200px] px-5 py-6 sm:px-8" id="faq">
-          <h2 className="text-[32px] font-extrabold leading-tight">Câu hỏi thường gặp.</h2>
-          <div className="mt-4 divide-y divide-[#dfbfc1]/50 rounded-[28px] border border-[#dfbfc1]/45 bg-white">
-            {FAQ.map(([q, a]) => (
-              <details key={q} className="px-5 py-4 sm:px-6">
-                <summary className="cursor-pointer list-none text-[15px] font-bold">{q}</summary>
-                <p className="mt-2 text-[14px] leading-relaxed text-[#6F6669]">{a}</p>
-              </details>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-[1200px] px-5 pb-10 pt-4 sm:px-8">
-          <div className="rounded-[28px] bg-gradient-to-br from-[#D94B68] via-[#ab2848] to-[#9E2A4B] px-6 py-8 text-white sm:px-8">
-            <h2 className="max-w-xl text-[32px] font-extrabold leading-tight">Bắt đầu ôn luyện.</h2>
-            <p className="mt-2 max-w-xl text-[15px] text-white/85">Chọn nội dung, luyện tập, xem kết quả và ôn lại lỗi sai.</p>
-            <Link to="/register" className="mt-5 inline-flex rounded-full bg-white px-5 py-2.5 text-[13px] font-semibold text-[#9E2A4B]">
-              Bắt đầu ôn luyện
-            </Link>
-          </div>
-        </section>
+        <RoadmapSection />
+        <ToolsSection />
+        <PersonalizedSection />
+        <GroupLearningSection ctaTo={startTo} ctaLabel={isAuthenticated ? tr('Vào trang học tập') : tr('Đăng ký để xem lớp đang mở')} />
+        <JourneySection />
+        <FaqSection />
+        <ClosingCta primaryTo={startTo} primaryLabel={isAuthenticated ? tr('Vào trang học tập') : tr('Tạo tài khoản')} />
       </div>
-    </MarketingShell>
+    </PublicShell>
   );
 }

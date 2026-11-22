@@ -1,0 +1,31 @@
+import { api } from '@/api/client.js';
+
+export async function getJlptLevels() {
+  const data = await api.get('/CertificateLevel/jlpt');
+  return data?.result ?? data ?? [];
+}
+
+export async function getLearningLessons(certificateLevelId) {
+  const data = await api.get('/LessonProgress/lessons', {
+    params: { certificateLevelId },
+  });
+  return data?.result ?? data;
+}
+
+export async function getLessonDetail(lessonId) {
+  const data = await api.get(`/LessonProgress/lessons/${lessonId}`);
+  return data?.result ?? data;
+}
+
+export async function completeLesson(lessonId) {
+  const data = await api.post(`/LessonProgress/lessons/${lessonId}/complete`);
+  return data?.result ?? data;
+}
+
+export async function updatePlaybackPosition(lessonId, { positionSeconds, durationSeconds }) {
+  const data = await api.patch(`/LessonProgress/lessons/${lessonId}/playback-position`, {
+    positionSeconds,
+    durationSeconds,
+  });
+  return data?.result ?? data;
+}

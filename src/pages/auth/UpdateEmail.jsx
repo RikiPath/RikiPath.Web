@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getSession, patchSession, savePendingVerify } from '../../auth/session.js';
-import BrandMark from '../../components/BrandMark.jsx';
-import LanguageSwitch from '../../components/LanguageSwitch.jsx';
-import { useUpdateEmailMutation } from '../../hooks/useAuth.js';
-import { useLocale } from '../../i18n/locale.js';
+import { getSession, patchSession, savePendingVerify } from '@/app/auth/session.js';
+import BrandMark from '@/components/brand/BrandMark.jsx';
+import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
+import { useUpdateEmailMutation } from '@/features/auth/hooks/useAuthMutations.js';
+import { useLocale } from '@/locales/locale.js';
+import { notify } from '@/components/ui/feedbackStore.js';
 
 export default function UpdateEmail() {
   const navigate = useNavigate();
@@ -35,16 +36,19 @@ export default function UpdateEmail() {
       {
         onSuccess: () => {
           patchSession({ email: newEmail.trim() });
+          notify.info(tr('Đã cập nhật email mới'), tr('Kiểm tra hộp thư mới để nhập mã xác thực.'), { key: 'auth-update-email' });
           goToVerify(newEmail.trim());
         },
         onError: (err) => {
           const msg = err.message || tr('Cập nhật email thất bại.');
           if (msg.includes('Đã cập nhật email')) {
             patchSession({ email: newEmail.trim() });
+            notify.info(tr('Đã cập nhật email mới'), msg, { key: 'auth-update-email' });
             goToVerify(newEmail.trim(), msg);
             return;
           }
           setError(msg);
+          notify.apiError(err, tr('Cập nhật email thất bại.'), { key: 'auth-update-email-err' });
         },
       },
     );
@@ -59,10 +63,10 @@ export default function UpdateEmail() {
   return (
     <div
       data-page="UpdateEmail"
-      className="flex min-h-screen items-center justify-center bg-[#F8F5F4] px-4 py-6 font-['Be_Vietnam_Pro',sans-serif] text-[#352C31] sm:px-6"
+      className="flex min-h-dvh items-center justify-center bg-rp-brand-tint px-[var(--rp-space-page-x)] py-[var(--rp-space-page-y)] text-rp-text"
     >
-      <main className="grid w-full max-w-[920px] overflow-hidden rounded-[24px] border border-[#EEE4E7] bg-white shadow-[0_12px_48px_rgba(75,42,55,0.06)] lg:grid-cols-[0.82fr_1.18fr]">
-        <aside className="relative flex flex-col overflow-hidden bg-[#92344F] px-7 py-7 text-white sm:px-9 lg:p-9">
+      <main className="grid w-full max-w-[960px] overflow-hidden rounded-[24px] border border-rp-line bg-white shadow-[0_12px_48px_rgba(75,42,55,0.06)] lg:grid-cols-[0.82fr_1.18fr]">
+        <aside className="relative flex flex-col overflow-hidden bg-rp-brand-strong p-[var(--rp-space-card-pad)] text-white lg:p-9">
           <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/[0.07]" />
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full border border-white/[0.07]" />
 
@@ -85,7 +89,7 @@ export default function UpdateEmail() {
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 text-[11px] text-[#EBC7D2]">
                   {number}
                 </span>
-                <p className="text-[13px] font-medium">{label}</p>
+                <p className="text-[13px] font-medium">{tr(label)}</p>
               </li>
             ))}
           </ol>
@@ -93,11 +97,11 @@ export default function UpdateEmail() {
 
         <section className="px-5 py-6 sm:p-8 lg:px-9 lg:py-8">
           <div className="mb-5 flex justify-end">
-            <LanguageSwitch className="inline-flex items-center gap-1 rounded-lg border border-[#EAE2E6] bg-[#FCF7F9] px-2.5 py-1 text-xs font-semibold text-[#6F5C66]" />
+            <LanguageSwitch />
           </div>
 
-          <p className="text-[12px] font-medium text-[#AD526F]">{tr('Email hiện tại')}</p>
-          <p className="mt-2 break-all rounded-xl bg-[#FAF5F7] px-4 py-3 text-[14px] font-medium text-[#9E3658]">
+          <p className="text-[12px] font-medium text-rp-brand-strong">{tr('Email hiện tại')}</p>
+          <p className="mt-2 break-all rounded-xl bg-rp-brand-tint px-4 py-3 text-[14px] font-medium text-rp-brand-strong">
             {currentEmail}
           </p>
 
@@ -108,7 +112,7 @@ export default function UpdateEmail() {
               </p>
             ) : null}
 
-            <label className="block text-[12px] font-medium text-[#8A7A82]" htmlFor="newEmail">
+            <label className="block text-[12px] font-medium text-rp-text-muted" htmlFor="newEmail">
               {tr('Email mới')}
             </label>
             <input
@@ -119,25 +123,25 @@ export default function UpdateEmail() {
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="ten.moi@email.com"
-              className="mt-2 block w-full rounded-xl border border-[#EAE2E6] bg-white px-4 py-3 text-sm text-[#352C31] outline-none focus:border-[#D94B68] focus:ring-2 focus:ring-[#D94B68]/20"
+              className="mt-2 block w-full rounded-xl border border-rp-line bg-white px-4 py-3 text-sm text-rp-text outline-none focus:border-rp-brand focus:ring-2 focus:ring-rp-brand/20"
             />
-            <p className="mt-2 text-[11px] leading-5 text-[#A08E97]">
+            <p className="mt-2 text-[11px] leading-5 text-rp-text-muted">
               {tr('Mã được gửi tới email mới, không gửi lại email cũ.')}
             </p>
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-5 flex h-11 w-full items-center justify-center rounded-[10px] bg-[#D94B68] text-[14px] font-semibold text-white hover:bg-[#C43E5C] disabled:cursor-wait disabled:opacity-60"
+              className="mt-5 flex h-11 w-full items-center justify-center rounded-[10px] bg-rp-brand-pressed text-[14px] font-semibold text-white hover:bg-rp-brand disabled:cursor-wait disabled:opacity-60 rp-press"
             >
               {loading ? tr('Đang cập nhật...') : tr('Cập nhật email')}
             </button>
           </form>
 
-          <p className="mt-5 text-center text-[12px] text-[#94858C]">
-            <Link className="font-medium text-[#AD3155] hover:underline" to="/change-password">{tr('Đổi mật khẩu')}</Link>
+          <p className="mt-5 text-center text-[12px] text-rp-text-muted">
+            <Link className="font-medium rp-link" to="/change-password">{tr('Đổi mật khẩu')}</Link>
             {' · '}
-            <Link className="font-medium text-[#AD3155] hover:underline" to="/settings">{tr('Cài đặt')}</Link>
+            <Link className="font-medium rp-link" to="/settings">{tr('Cài đặt')}</Link>
           </p>
         </section>
       </main>

@@ -1,11 +1,11 @@
 import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
-import OrderingAnswer from '../../components/OrderingAnswer.jsx';
-import SkillAssessmentChart from '../../components/SkillAssessmentChart.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LearnerShell } from '../../components/shells';
-import { getSession } from '../../auth/session.js';
+import { LearnerShell } from '@/layouts';
+import { getSession } from '@/app/auth/session.js';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { SakuraLoader } from '@/components/ui';
 import {
   getPlacementResultActions,
   loadAssessment,
@@ -14,10 +14,11 @@ import {
   savePlacementAnswers,
   startPlacementAttempt,
   submitPlacementAttempt,
-} from '../../api/placementApi.js';
+} from '@/features/placement/api/placementApi.js';
+import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
-const buttonClass = 'inline-flex items-center justify-center rounded-lg bg-[#AD3155] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#982B4B] disabled:opacity-50';
-const cardClass = 'rounded-xl border border-[#EADFE5] bg-white p-5';
+const buttonClass = 'inline-flex items-center justify-center rounded-lg bg-rp-brand-strong px-4 py-2.5 text-sm font-semibold text-white hover:bg-rp-brand-deep disabled:opacity-50';
+const cardClass = 'rounded-xl border border-rp-line bg-white p-5';
 const assessmentUrl = '/app/placement-test';
 const chartLevelsByTarget = {
   N5: ['N5'],
@@ -31,6 +32,7 @@ function placementAnswer(questionId, value) {
 }
 
 function AttemptForm({ attempt, pending, onSubmit, reportError }) {
+  const { tr, trf } = useLocale();
   const [answers, setAnswers] = useState(() => Object.fromEntries(attempt.questions
     .filter(question => question.selectedOptionId != null || Array.isArray(question.response))
     .map(question => [question.questionId, question.selectedOptionId ?? question.response])));
@@ -91,41 +93,41 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
         <h2 className="font-semibold">
           {[attempt.isShortenedAssessment ? 'Bài đánh giá rút gọn' : 'Bài đánh giá năng lực', levels.join(' + ')].filter(Boolean).join(' ')}
         </h2>
-        <p className="mt-1 text-xs text-[#967F8A]">{attempt.totalQuestions} câu · {attempt.timeLimitMinutes} phút · Đã trả lời {answeredCount}/{attempt.totalQuestions}{saving && ' · Đang lưu đáp án…'}</p>
+        <p className="mt-1 text-xs text-rp-text-muted">{attempt.totalQuestions}{' '}{tr('câu ·')}{' '}{attempt.timeLimitMinutes}{' '}{tr('phút · Đã trả lời')}{' '}{answeredCount}/{attempt.totalQuestions}{saving && tr(' · Đang lưu đáp án…')}</p>
       </div>
     </section>
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-      <aside aria-label="Thông tin lượt làm bài" className={`${cardClass} lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto`}>
-        <div className="flex items-center justify-between gap-2 border-b border-[#EADFE5] pb-3">
-          <span className="text-sm font-semibold">Thời gian còn lại</span>
-        <span className="rounded-lg bg-[#FFF0F5] px-3 py-2 font-semibold tabular-nums text-[#AD3155]" aria-label="Thời gian còn lại">{clock}</span>
+      <aside aria-label={tr('Thông tin lượt làm bài')} className={`${cardClass} lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto`}>
+        <div className="flex items-center justify-between gap-2 border-b border-rp-line pb-3">
+          <span className="text-sm font-semibold">{tr('Thời gian còn lại')}</span>
+        <span className="rounded-lg bg-rp-brand-tint px-3 py-2 font-semibold tabular-nums text-rp-brand-strong" aria-label={tr('Thời gian còn lại')}>{clock}</span>
         </div>
-        <p className="mt-3 text-sm font-semibold">Danh sách câu hỏi</p>
-        <nav aria-label="Chuyển đến câu hỏi" className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-2">
+        <p className="mt-3 text-sm font-semibold">{tr('Danh sách câu hỏi')}</p>
+        <nav aria-label={tr('Chuyển đến câu hỏi')} className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-2">
           {questions.map((question, index) => (
-            <button key={question.questionId} type="button" aria-label={`Câu ${index + 1}, ${isAnswered(question) ? 'đã trả lời' : 'chưa trả lời'}`}
+            <button key={question.questionId} type="button" aria-label={trf('Câu {0}, {1}', { 0: index + 1, 1: isAnswered(question) ? 'đã trả lời' : 'chưa trả lời' })}
               onClick={() => document.getElementById(`placement-question-${question.questionId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
-              className={`h-9 min-w-0 rounded-lg border text-sm ${isAnswered(question) ? 'border-[#D28DA4] bg-[#FFF0F5] text-[#AD3155]' : 'border-[#EADFE5]'}`}>{index + 1}</button>
+              className={`h-9 min-w-0 rounded-lg border text-sm ${isAnswered(question) ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong' : 'border-rp-line'}`}>{index + 1}</button>
           ))}
         </nav>
       </aside>
       <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1">
         {questions.map((question, index) => (
           <fieldset id={`placement-question-${question.questionId}`} key={question.questionId} disabled={pending || seconds === 0} className={`${cardClass} scroll-mt-36`}>
-            <legend className="px-2 text-xs font-semibold text-[#AD3155]">Câu {index + 1}</legend>
+            <legend className="px-2 text-xs font-semibold text-rp-brand-strong">{trf('Câu {0}', { 0: index + 1 })}</legend>
             <p className="whitespace-pre-wrap text-sm font-medium">{question.content}</p>
-            {question.imageUrl && <img src={question.imageUrl} alt="Hình minh họa câu hỏi" className="mt-3 max-h-80 max-w-full rounded-lg" />}
+            {question.imageUrl && <img src={question.imageUrl} alt={tr('Hình minh họa câu hỏi')} className="mt-3 max-h-80 max-w-full rounded-lg" />}
             {question.audioUrl && <audio controls preload="none" src={question.audioUrl} className="mt-3 w-full" />}
             {question.questionType === 'Ordering'
               ? <OrderingAnswer question={question} value={answers[question.questionId]}
                   onChange={value => choose(question.questionId, value)} />
               : <div className="mt-4 grid gap-2">
               {question.options.map((option, optionIndex) => (
-                <label key={option.optionId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#EADFE5] px-3 py-2.5 text-sm has-checked:border-[#AD3155] has-checked:bg-[#FFF0F5]">
-                  <input type="radio" className="mt-1 accent-[#AD3155]" name={`question-${question.questionId}`} checked={answers[question.questionId] === option.optionId} onChange={() => choose(question.questionId, option.optionId)} />
+                <label key={option.optionId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-rp-line px-3 py-2.5 text-sm has-checked:border-rp-brand-strong has-checked:bg-rp-brand-tint">
+                  <input type="radio" className="mt-1" name={`question-${question.questionId}`} checked={answers[question.questionId] === option.optionId} onChange={() => choose(question.questionId, option.optionId)} />
                   <span className="min-w-0 whitespace-pre-wrap">
                     {option.content}
-                    {option.imageUrl && <img src={option.imageUrl} alt={`Hình đáp án ${optionIndex + 1}`} className="max-h-48 max-w-full rounded-md" />}
+                    {option.imageUrl && <img src={option.imageUrl} alt={trf('Hình đáp án {0}', { 0: optionIndex + 1 })} className="max-h-48 max-w-full rounded-md" />}
                   </span>
                 </label>
               ))}
@@ -134,15 +136,15 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
         ))}
         <div className="flex items-center justify-end gap-3">
           {seconds === 0 ? <>
-            <p role="status" className="text-sm text-[#967F8A]">
-              {pending ? 'Đã hết giờ. Đang tự động nộp bài…' : 'Đã hết thời gian làm bài.'}
+            <p role="status" className="text-sm text-rp-text-muted">
+              {pending ? tr('Đã hết giờ. Đang tự động nộp bài…') : tr('Đã hết thời gian làm bài.')}
             </p>
-            {!pending && <button type="button" className={buttonClass} onClick={submit}>Thử nộp lại</button>}
+            {!pending && <button type="button" className={buttonClass} onClick={submit}>{tr('Thử nộp lại')}</button>}
           </> : confirmSubmit ? <>
-            <span className="text-sm">Bạn đã trả lời {answeredCount}/{attempt.totalQuestions} câu.</span>
-            <button type="button" onClick={() => setConfirmSubmit(false)} className="text-sm text-[#AD3155] underline">Quay lại</button>
-            <button type="button" className={buttonClass} disabled={pending} onClick={submit}>Xác nhận nộp bài</button>
-          </> : <button type="button" className={buttonClass} disabled={pending} onClick={() => setConfirmSubmit(true)}>{pending ? 'Đang xử lý…' : 'Nộp bài đánh giá'}</button>}
+            <span className="text-sm">{trf('Bạn đã trả lời {0}/{1} câu.', { 0: answeredCount, 1: attempt.totalQuestions })}</span>
+            <button type="button" onClick={() => setConfirmSubmit(false)} className="text-sm text-rp-brand-strong underline">{tr('Quay lại')}</button>
+            <button type="button" className={buttonClass} disabled={pending} onClick={submit}>{tr('Xác nhận nộp bài')}</button>
+          </> : <button type="button" className={buttonClass} disabled={pending} onClick={() => setConfirmSubmit(true)}>{pending ? tr('Đang xử lý…') : tr('Nộp bài đánh giá')}</button>}
         </div>
       </div>
     </div>
@@ -150,6 +152,7 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
 }
 
 export default function ExamN3() {
+  const { tr, trf } = useLocale();
   const { pathname, search, state } = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -190,15 +193,26 @@ export default function ExamN3() {
     navigate(`${assessmentUrl}?attemptId=${id}`, { replace: true });
   }
 
-  async function run(action) {
+  async function run(action, { loadingMessage, successMessage, errorTitle, toastKey } = {}) {
     if (inFlight.current) return;
     inFlight.current = true;
     setPending(true);
     setError('');
+    if (loadingMessage) {
+      notify.loading(loadingMessage, '', { key: toastKey || 'placement-n3-action', maxWaitMs: 30000 });
+    }
     try {
       await action();
+      if (successMessage) {
+        notify.success(successMessage, '', { key: toastKey || 'placement-n3-action', replace: Boolean(loadingMessage) });
+      }
     } catch (err) {
-      setError(err.message || 'Chưa thực hiện được. Vui lòng thử lại.');
+      const msg = err.message || 'Chưa thực hiện được. Vui lòng thử lại.';
+      setError(msg);
+      notify.apiError(err, errorTitle || 'Chưa thực hiện được', {
+        key: toastKey || 'placement-n3-action',
+        replace: Boolean(loadingMessage),
+      });
     } finally {
       inFlight.current = false;
       setPending(false);
@@ -209,7 +223,7 @@ export default function ExamN3() {
     return run(async () => {
       const next = await startPlacementAttempt({ retakeTargetAssessment });
       openAttempt(next.attemptId, { status, attempt: next });
-    });
+    }, { errorTitle: 'Không thể bắt đầu bài đánh giá', toastKey: 'placement-n3-start' });
   }
 
   function returnToCurrentAssessment() {
@@ -217,7 +231,7 @@ export default function ExamN3() {
       const current = await loadAssessment(null);
       queryClient.setQueryData(keyFor(null), current);
       navigate(assessmentUrl, { replace: true });
-    });
+    }, { errorTitle: 'Không tải được lượt đánh giá hiện tại', toastKey: 'placement-n3-resume' });
   }
 
   function submit(id, saved, answers) {
@@ -229,73 +243,82 @@ export default function ExamN3() {
       // Refresh eligibility separately so a status failure never loses a submitted result.
       const latestStatus = await getPlacementStatus();
       queryClient.setQueryData(keyFor(completed.attemptId), { status: latestStatus, result: completed });
+    }, {
+      loadingMessage: 'Đang nộp bài đánh giá…',
+      successMessage: 'Đã nộp bài đánh giá thành công!',
+      errorTitle: 'Chưa nộp được bài đánh giá',
+      toastKey: `placement-n3-submit-${id}`,
     });
   }
 
-  return <LearnerShell pathname={pathname} breadcrumb="Đánh giá năng lực">
-    <main className="min-h-full bg-[#FCF8FA] px-4 py-6 text-[#49353F]">
-      <div className={`mx-auto space-y-4 ${attempt ? 'max-w-6xl' : 'max-w-4xl'}`}>
+  return <LearnerShell pathname={pathname} breadcrumb={tr('Đánh giá năng lực')}>
+    <main className="min-h-full bg-rp-brand-tint py-6 text-rp-text lg:py-8">
+      <div className={`${attempt ? 'rp-container' : 'rp-container-reading'} space-y-4`}>
         <header className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}>
-          <h1 className="text-xl font-semibold">Đánh giá năng lực JLPT</h1>
-          <Link to="/onboarding" className="text-sm font-semibold text-[#AD3155] underline">Đổi mục tiêu học tập</Link>
+          <h1 className="text-xl font-semibold">{tr('Đánh giá năng lực JLPT')}</h1>
+          <Link to="/onboarding" className="text-sm font-semibold text-rp-brand-strong underline">{tr('Đổi mục tiêu học tập')}</Link>
         </header>
-        {!session?.accessToken && <Link to="/auth" className={buttonClass}>Đăng nhập để làm bài</Link>}
+        {!session?.accessToken && <Link to="/auth" className={buttonClass}>{tr('Đăng nhập để làm bài')}</Link>}
         {visibleError && <div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
           {visibleError}
-          {(query.error || (result && !status)) && <button type="button" disabled={pending || query.isFetching} onClick={() => { setError(''); query.refetch(); }} className="ml-3 font-semibold underline">Thử tải lại</button>}
+          {(query.error || (result && !status)) && <button type="button" disabled={pending || query.isFetching} onClick={() => { setError(''); query.refetch(); }} className="ml-3 font-semibold underline">{tr('Thử tải lại')}</button>}
         </div>}
         {state?.placementMessage && <p className={cardClass}>{state.placementMessage}</p>}
         {notice && <p className={cardClass}>{notice}</p>}
-        {query.isLoading && <p className={cardClass}>Đang tải trạng thái đánh giá…</p>}
+        {query.isLoading && (
+          <div className={cardClass}>
+            <SakuraLoader variant="section" context="assessment" label={tr('Đang tải bài đánh giá')} delay={160} />
+          </div>
+        )}
         {attempt && <AttemptForm key={attempt.attemptId} attempt={attempt} pending={pending} onSubmit={submit} reportError={setError} />}
         {result && <section className={cardClass}>
           <h2 className="text-lg font-semibold">
-            Kết quả {result.isShortenedAssessment ? 'đánh giá rút gọn' : 'đánh giá năng lực'} {result.levelBreakdowns?.map(level => level.jlptLevelName).filter(Boolean).join(' + ') || result.screeningLevelName}
+            {tr('Kết quả')}{' '}{result.isShortenedAssessment ? tr('đánh giá rút gọn') : tr('đánh giá năng lực')} {result.levelBreakdowns?.map(level => level.jlptLevelName).filter(Boolean).join(' + ') || result.screeningLevelName}
           </h2>
-          <p className="mt-2 text-2xl font-bold text-[#AD3155]">{Number(result.totalScore).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%</p>
-          <p className="mt-1 text-sm">{result.correctCount}/{result.totalQuestions} câu đúng</p>
-          {allowance && matchesTarget && <p className="mt-1 text-sm text-[#765E6B]">
-            Còn {allowance.remaining}/{allowance.limit} lượt đánh giá cho mục tiêu {target}
+          <p className="mt-2 text-2xl font-bold text-rp-brand-strong">{Number(result.totalScore).toLocaleString(currentIntlTag(), { maximumFractionDigits: 2 })}%</p>
+          <p className="mt-1 text-sm">{trf('{0}/{1} câu đúng', { 0: result.correctCount, 1: result.totalQuestions })}</p>
+          {allowance && matchesTarget && <p className="mt-1 text-sm text-rp-text-2">
+            {trf('Còn {0}/{1} lượt đánh giá cho mục tiêu {2}', { 0: allowance.remaining, 1: allowance.limit, 2: target })}
           </p>}
-          {result.notStudiedCount > 0 && <p className="mt-1 text-sm text-[#765E6B]">
-            Chưa học hoặc không biết · {result.notStudiedCount} câu
+          {result.notStudiedCount > 0 && <p className="mt-1 text-sm text-rp-text-2">
+            {trf('Chưa học hoặc không biết · {0} câu', { 0: result.notStudiedCount })}
           </p>}
           <SkillAssessmentChart key={result.attemptId} result={result} targetLevel={chartTarget}
             visibleLevels={chartLevelsByTarget[chartTarget]} />
           {result.sections?.length > 0 && <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            {result.sections.map((section, index) => <li key={section.mockTestSectionId ?? index} className="rounded-lg bg-[#FAF4F7] p-2">{section.sectionTitle || section.sectionName || section.languageSkillName} · {section.correctCount}/{section.totalQuestions ?? section.totalCount} câu</li>)}
+            {result.sections.map((section, index) => <li key={section.mockTestSectionId ?? index} className="rounded-lg bg-rp-brand-tint p-2">{section.sectionTitle || section.sectionName || section.languageSkillName} · {section.correctCount}/{section.totalQuestions ?? section.totalCount}{' '}{tr('câu')}</li>)}
           </ul>}
           {canStartUpdatedAssessment && <>
-            <p className="mt-3 text-sm">Bạn có thể làm lượt đánh giá mới cho mục tiêu {target}.</p>
-            <button type="button" className={`${buttonClass} mt-4 mr-2`} disabled={pending} onClick={() => start()}>Bắt đầu bài đánh giá {target} mới</button>
+            <p className="mt-3 text-sm">{trf('Bạn có thể làm lượt đánh giá mới cho mục tiêu {0}.', { 0: target })}</p>
+            <button type="button" className={`${buttonClass} mt-4 mr-2`} disabled={pending} onClick={() => start()}>{trf('Bắt đầu bài đánh giá {0} mới', { 0: target })}</button>
           </>}
           {result.assessmentMessage && <p className="mt-3 text-sm">{result.assessmentMessage}</p>}
-          {isDifferentGoal && <p className="mt-3 rounded-lg bg-[#FAF4F7] p-3 text-sm">
-            Kết quả này thuộc bài đánh giá trước đó. Hãy quay về bài đánh giá dành cho thiết lập mục tiêu <strong>{target}</strong> hiện tại để tiếp tục.
+          {isDifferentGoal && <p className="mt-3 rounded-lg bg-rp-brand-tint p-3 text-sm">
+            {tr('Kết quả này thuộc bài đánh giá trước đó. Hãy quay về bài đánh giá dành cho thiết lập mục tiêu')}{' '}<strong>{target}</strong>{' '}{tr('hiện tại để tiếp tục.')}
           </p>}
           {!showCurrentAssessment && (canSelfStudy || canRetake) && <div className="mt-4 flex flex-wrap items-center gap-3">
             {canSelfStudy && <>
-              <Link className={buttonClass} to="/roadmap/#self-study-roadmap-title">Xem lộ trình tự học</Link>
-              <Link className="text-sm font-semibold text-[#AD3155] underline"
-                to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}>Tự ôn với audio</Link>
-              <Link className="text-sm font-semibold text-[#AD3155] underline" to="/booking-schedule/">Tìm mentor phù hợp</Link>
+              <Link className={buttonClass} to="/roadmap/#self-study-roadmap-title">{tr('Xem lộ trình tự học')}</Link>
+              <Link className="text-sm font-semibold text-rp-brand-strong underline"
+                to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}>{tr('Tự ôn với audio')}</Link>
+              <Link className="text-sm font-semibold text-rp-brand-strong underline" to="/mentors/">{tr('Tìm lớp nhóm cùng Mentor')}</Link>
             </>}
-            {canRetake && <button type="button" className="text-sm font-semibold text-[#AD3155] underline" disabled={pending} onClick={() => start(true)}>
-              Làm lại bài đánh giá {resultTarget}
+            {canRetake && <button type="button" className="text-sm font-semibold text-rp-brand-strong underline" disabled={pending} onClick={() => start(true)}>
+              {trf('Làm lại bài đánh giá {0}', { 0: resultTarget })}
             </button>}
           </div>}
-          {showCurrentAssessment && <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={returnToCurrentAssessment}>{isDifferentGoal && status?.targetJlptLevelName ? `Quay về đánh giá ${target}` : 'Quay về đánh giá hiện tại'}</button>}
-          {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && <Link className="mt-4 inline-block text-sm font-semibold text-[#AD3155] underline" to="/onboarding">Kiểm tra mục tiêu học tập</Link>}
+          {showCurrentAssessment && <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={returnToCurrentAssessment}>{isDifferentGoal && status?.targetJlptLevelName ? trf('Quay về đánh giá {0}', { 0: target }) : tr('Quay về đánh giá hiện tại')}</button>}
+          {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && <Link className="mt-4 inline-block text-sm font-semibold text-rp-brand-strong underline" to="/onboarding">{tr('Kiểm tra mục tiêu học tập')}</Link>}
         </section>}
         {result && <LearnerFeedbackPanel type="placement" id={result.attemptId} label="Phản hồi về bài đánh giá năng lực" />}
         {status && !attempt && !result && <section className={cardClass}>
-          <h2 className="font-semibold">Mục tiêu {target}</h2>
-          <p className="mt-2 text-sm">Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.</p>
-          {allowance && <p className="mt-2 text-sm">Còn {allowance.remaining}/{allowance.limit} lượt đánh giá.</p>}
+          <h2 className="font-semibold">{trf('Mục tiêu {0}', { 0: target })}</h2>
+          <p className="mt-2 text-sm">{tr('Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.')}</p>
+          {allowance && <p className="mt-2 text-sm">{trf('Còn {0}/{1} lượt đánh giá.', { 0: allowance.remaining, 1: allowance.limit })}</p>}
           {status.canStartNewAttempt !== false
-            ? <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={() => start()}>Bắt đầu bài đánh giá</button>
-            : allowance?.remaining === 0 ? <p className="mt-2 text-sm">Bạn đã dùng hết lượt cho mục tiêu này.</p>
-              : <Link className={`${buttonClass} mt-4 inline-block`} to="/onboarding">Chọn mục tiêu và ngày thi</Link>}
+            ? <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={() => start()}>{tr('Bắt đầu bài đánh giá')}</button>
+            : allowance?.remaining === 0 ? <p className="mt-2 text-sm">{tr('Bạn đã dùng hết lượt cho mục tiêu này.')}</p>
+              : <Link className={`${buttonClass} mt-4 inline-block`} to="/onboarding">{tr('Chọn mục tiêu và ngày thi')}</Link>}
         </section>}
       </div>
     </main>

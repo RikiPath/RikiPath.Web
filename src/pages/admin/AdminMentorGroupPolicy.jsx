@@ -4,8 +4,11 @@ import {
   createMentorGroupPolicyVersion,
   getCurrentMentorGroupPolicy,
   getMentorGroupPolicyHistory,
-} from '../../api/admin.js';
-import { describeApiError } from '../../api/apiErrors.js';
+} from '@/features/admin/api/adminApi.js';
+import { describeApiError } from '@/api/apiErrors.js';
+import { ContextualErrorState, SakuraLoader } from '@/components/ui';
+import { notify } from '@/components/ui/feedbackStore.js';
+import { useLocale } from '@/locales/locale.js';
 
 function nextVnMidnightIso(daysAhead = 1) {
   const vnToday = new Intl.DateTimeFormat('en-CA', {
@@ -46,6 +49,7 @@ function parsePatterns(jsonText) {
 }
 
 export default function AdminMentorGroupPolicy() {
+  const { tr, trf } = useLocale();
   const client = useQueryClient();
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -134,12 +138,18 @@ export default function AdminMentorGroupPolicy() {
           ? parsePatterns(current?.recurringWeekdayPatternsJson)
           : [[1, 3, 5], [2, 4, 6]],
       };
+      notify.loading('Đang ban hành chính sách lớp nhóm mới…', '', { key: 'admin-group-policy-save', maxWaitMs: 30000 });
       return createMentorGroupPolicyVersion(payload);
     },
     onSuccess: async (saved) => {
       setError('');
       setForm(null);
-      setNotice(`Đã ban hành chính sách phiên bản v${saved?.version ?? ''}. Lớp và buổi đã công bố vẫn giữ snapshot cũ.`);
+      const msg = trf('Đã ban hành chính sách phiên bản v{0}. Lớp và buổi đã công bố vẫn giữ snapshot cũ.', { 0: saved?.version ?? '' });
+      setNotice(msg);
+      notify.success('Đã ban hành chính sách lớp nhóm mới.', msg, {
+        key: 'admin-group-policy-save',
+        replace: true,
+      });
       await Promise.all([
         client.invalidateQueries({ queryKey: ['admin-group-policy-current'] }),
         client.invalidateQueries({ queryKey: ['admin-group-policy-history'] }),
@@ -148,196 +158,226 @@ export default function AdminMentorGroupPolicy() {
     onError: (err) => {
       setNotice('');
       setError(describeApiError(err).message || 'Không tạo được phiên bản chính sách mới.');
+      notify.apiError(err, 'Không ban hành được chính sách', {
+        key: 'admin-group-policy-save',
+        replace: true,
+      });
     },
   });
 
   const history = Array.isArray(historyQuery.data) ? historyQuery.data : [];
+  const currentMissing = currentQuery.error?.status === 404;
+  const currentBlocked = Boolean(currentQuery.isError && !currentMissing);
 
   return (
     <div className="space-y-5">
       <header>
-        <h2 className="text-[20px] font-semibold">Chính sách lớp nhóm & lịch dạy</h2>
-        <p className="mt-1 text-[13px] text-[#82737B]">
-          Mọi thay đổi tạo phiên bản mới có hiệu lực từ 00:00 giờ Việt Nam; lớp và buổi đã công bố giữ nguyên snapshot tại thời điểm tạo.
+        <h2 className="text-[20px] font-semibold">{tr('Chính sách lớp nhóm & lịch dạy')}</h2>
+        <p className="mt-1 text-[13px] text-rp-text-muted">
+          {tr('Mọi thay đổi tạo phiên bản mới có hiệu lực từ 00:00 giờ Việt Nam; lớp và buổi đã công bố giữ nguyên snapshot tại thời điểm tạo.')}
         </p>
       </header>
 
-      {(error || currentQuery.error || historyQuery.error) && (
-        <p role="alert" className="rounded-xl bg-white px-4 py-3 text-[13px] text-[#A33357]">
-          {error || (currentQuery.error && describeApiError(currentQuery.error).message) || (historyQuery.error && describeApiError(historyQuery.error).message)}
+      {currentQuery.isPending && (
+        <SakuraLoader variant="section" context="data" label={tr('Đang tải chính sách lớp nhóm…')} delay={160} />
+      )}
+      {currentBlocked && (
+        <div className="rounded-2xl border border-rp-line bg-white px-5">
+          <ContextualErrorState
+            compact
+            error={currentQuery.error}
+            title={tr('Chưa tải được chính sách lớp nhóm hiện hành')}
+            onRetry={() => currentQuery.refetch()}
+            retrying={currentQuery.isFetching}
+          />
+        </div>
+      )}
+      {historyQuery.isError && (
+        <ContextualErrorState
+          variant="inline"
+          compact
+          error={historyQuery.error}
+          title={tr('Chưa tải được lịch sử phiên bản')}
+          onRetry={() => historyQuery.refetch()}
+          retrying={historyQuery.isFetching}
+        />
+      )}
+      {error && (
+        <p role="alert" className="rounded-xl bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">
+          {error}
         </p>
       )}
-      {notice && <p className="rounded-xl bg-[#E7F6EC] px-4 py-3 text-[13px] text-[#1E5C36]">{notice}</p>}
+      {notice && <p className="rounded-xl bg-rp-success-bg px-4 py-3 text-[13px] text-rp-success">{notice}</p>}
 
       {current && (
-        <section className="grid gap-3 rounded-2xl border border-[#EADFE5] bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-3 rounded-2xl border border-rp-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-[11px] uppercase text-[#8C7782]">Phiên bản hiệu lực</p>
-            <p className="mt-1 text-[18px] font-semibold text-[#AD3155]">v{current.version}</p>
+            <p className="text-[11px] uppercase text-rp-text-muted">{tr('Phiên bản hiệu lực')}</p>
+            <p className="mt-1 text-[18px] font-semibold text-rp-brand-strong">v{current.version}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase text-[#8C7782]">Sĩ số & thời lượng</p>
-            <p className="mt-1 text-[14px] font-medium">Tối đa {current.maxLearners} HV · {current.sessionMinutes}p (nghỉ {current.restMinutes}p)</p>
+            <p className="text-[11px] uppercase text-rp-text-muted">{tr('Sĩ số & thời lượng')}</p>
+            <p className="mt-1 text-[14px] font-medium">{trf('Tối đa {0} học viên · {1} phút (nghỉ {2} phút)', { 0: current.maxLearners, 1: current.sessionMinutes, 2: current.restMinutes })}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase text-[#8C7782]">Khóa ghi danh & hủy/dời</p>
-            <p className="mt-1 text-[14px] font-medium">Trước {current.enrollmentCutoffMinutesBeforeFirstSession}p · Hủy/dời ≥ {current.cancellationLeadHours}h</p>
+            <p className="text-[11px] uppercase text-rp-text-muted">{tr('Khóa ghi danh & hủy/dời')}</p>
+            <p className="mt-1 text-[14px] font-medium">{trf('Khóa ghi danh trước {0} phút · Hủy/dời trước ≥ {1} giờ', { 0: current.enrollmentCutoffMinutesBeforeFirstSession, 1: current.cancellationLeadHours })}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase text-[#8C7782]">Placement & Học lại</p>
-            <p className="mt-1 text-[14px] font-medium">{current.placementAttemptLimit} lượt · BTVN {current.remediationThresholdComparison} {current.remediationCompletionThresholdPercent}%</p>
+            <p className="text-[11px] uppercase text-rp-text-muted">{tr('Đánh giá năng lực & học lại')}</p>
+            <p className="mt-1 text-[14px] font-medium">{trf('{0} lượt · bài tập {1} {2}%', { 0: current.placementAttemptLimit, 1: current.remediationThresholdComparison, 2: current.remediationCompletionThresholdPercent })}</p>
           </div>
         </section>
       )}
 
-      <section className="rounded-2xl border border-[#EADFE5] bg-white p-5">
-        <h3 className="text-[15px] font-semibold">Ban hành phiên bản chính sách mới</h3>
+      <section className="rounded-2xl border border-rp-line bg-white p-5">
+        <h3 className="text-[15px] font-semibold">{tr('Ban hành phiên bản chính sách mới')}</h3>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="text-[12px] text-[#6E5360]">
-            Ngày hiệu lực (00:00 GMT+7)
-            <input type="date" value={draft.effectiveDate} onChange={(e) => setField('effectiveDate', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Ngày hiệu lực (00:00 GMT+7)')}
+            <input type="date" value={draft.effectiveDate} onChange={(e) => setField('effectiveDate', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Sĩ số tối đa (1–4)
-            <input type="number" min={1} max={4} value={draft.maxLearners} onChange={(e) => setField('maxLearners', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Sĩ số tối đa (1–4)')}
+            <input type="number" min={1} max={4} value={draft.maxLearners} onChange={(e) => setField('maxLearners', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Thời lượng buổi (phút)
-            <input type="number" min={30} max={180} value={draft.sessionMinutes} onChange={(e) => setField('sessionMinutes', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Thời lượng buổi (phút)')}
+            <input type="number" min={30} max={180} value={draft.sessionMinutes} onChange={(e) => setField('sessionMinutes', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Nghỉ giữa buổi (phút)
-            <input type="number" min={0} max={120} value={draft.restMinutes} onChange={(e) => setField('restMinutes', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Nghỉ giữa buổi (phút)')}
+            <input type="number" min={0} max={120} value={draft.restMinutes} onChange={(e) => setField('restMinutes', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Khóa ghi danh trước khai giảng (phút)
-            <input type="number" min={0} max={10080} value={draft.enrollmentCutoffMinutesBeforeFirstSession} onChange={(e) => setField('enrollmentCutoffMinutesBeforeFirstSession', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Khóa ghi danh trước khai giảng (phút)')}
+            <input type="number" min={0} max={10080} value={draft.enrollmentCutoffMinutesBeforeFirstSession} onChange={(e) => setField('enrollmentCutoffMinutesBeforeFirstSession', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Số buổi tối đa / ngày
-            <input type="number" min={1} max={12} value={draft.dailySessionCap} onChange={(e) => setField('dailySessionCap', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Số buổi tối đa / ngày')}
+            <input type="number" min={1} max={12} value={draft.dailySessionCap} onChange={(e) => setField('dailySessionCap', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Hạn công bố lịch (ngày)
-            <input type="number" min={1} max={365} value={draft.publicationHorizonDays} onChange={(e) => setField('publicationHorizonDays', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Hạn công bố lịch (ngày)')}
+            <input type="number" min={1} max={365} value={draft.publicationHorizonDays} onChange={(e) => setField('publicationHorizonDays', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Hạn nộp BTVN mặc định (ngày)
-            <input type="number" min={1} max={365} value={draft.homeworkDeadlineDays} onChange={(e) => setField('homeworkDeadlineDays', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Hạn nộp bài tập mặc định (ngày)')}
+            <input type="number" min={1} max={365} value={draft.homeworkDeadlineDays} onChange={(e) => setField('homeworkDeadlineDays', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Báo trước hủy lịch (giờ)
-            <input type="number" min={0} max={720} value={draft.cancellationLeadHours} onChange={(e) => setField('cancellationLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Báo trước hủy lịch (giờ)')}
+            <input type="number" min={0} max={720} value={draft.cancellationLeadHours} onChange={(e) => setField('cancellationLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Báo trước dời lịch (giờ)
-            <input type="number" min={0} max={720} value={draft.reschedulingLeadHours} onChange={(e) => setField('reschedulingLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Báo trước dời lịch (giờ)')}
+            <input type="number" min={0} max={720} value={draft.reschedulingLeadHours} onChange={(e) => setField('reschedulingLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Giới hạn lượt Placement
-            <input type="number" min={1} max={20} value={draft.placementAttemptLimit} onChange={(e) => setField('placementAttemptLimit', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Giới hạn lượt đánh giá năng lực')}
+            <input type="number" min={1} max={20} value={draft.placementAttemptLimit} onChange={(e) => setField('placementAttemptLimit', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Chu kỳ báo cáo KPI (ngày)
-            <input type="number" min={1} max={366} value={draft.kpiReportingPeriodDays} onChange={(e) => setField('kpiReportingPeriodDays', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Chu kỳ báo cáo KPI (ngày)')}
+            <input type="number" min={1} max={366} value={draft.kpiReportingPeriodDays} onChange={(e) => setField('kpiReportingPeriodDays', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Ngưỡng BTVN học lại (%)
-            <input type="number" min={0.01} max={100} step="0.01" value={draft.remediationCompletionThresholdPercent} onChange={(e) => setField('remediationCompletionThresholdPercent', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Ngưỡng nộp bài tập để xét học lại (%)')}
+            <input type="number" min={0.01} max={100} step="0.01" value={draft.remediationCompletionThresholdPercent} onChange={(e) => setField('remediationCompletionThresholdPercent', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Điều kiện so sánh BTVN
-            <select value={draft.remediationThresholdComparison} onChange={(e) => setField('remediationThresholdComparison', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] bg-white px-2.5 text-[13px]">
-              <option value=">">&gt; (lớn hơn hẳn)</option>
-              <option value=">=">&gt;= (từ ngưỡng trở lên)</option>
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Điều kiện so sánh tỷ lệ nộp bài tập')}
+            <select value={draft.remediationThresholdComparison} onChange={(e) => setField('remediationThresholdComparison', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line bg-white px-2.5 text-[13px]">
+              <option value=">">{tr('> (lớn hơn hẳn)')}</option>
+              <option value=">=">{tr('>= (từ ngưỡng trở lên)')}</option>
             </select>
           </label>
-          <label className="flex items-center gap-2 pt-4 text-[12px] text-[#6E5360]">
+          <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
             <input type="checkbox" checked disabled />
-            Bắt buộc minh chứng kỳ thi JLPT (theo quy định)
+            {tr('Bắt buộc minh chứng kỳ thi JLPT (theo quy định)')}
           </label>
-          <label className="flex items-center gap-2 pt-4 text-[12px] text-[#6E5360]">
+          <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
             <input type="checkbox" checked disabled />
-            Admin duyệt yêu cầu học lại (theo quy định)
+            {tr('Admin duyệt yêu cầu học lại (theo quy định)')}
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Báo trước khi thay cố vấn chính (giờ)
-            <input type="number" min={0} max={720} value={draft.mentorReplacementLeadHours} onChange={(e) => setField('mentorReplacementLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Báo trước khi thay cố vấn chính (giờ)')}
+            <input type="number" min={0} max={720} value={draft.mentorReplacementLeadHours} onChange={(e) => setField('mentorReplacementLeadHours', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="flex items-center gap-2 pt-4 text-[12px] text-[#6E5360]">
+          <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
             <input type="checkbox" checked={Boolean(draft.learnerTransferEnabled)} onChange={(e) => setField('learnerTransferEnabled', e.target.checked)} />
-            Cho phép học viên gửi yêu cầu chuyển lớp (luôn cần Admin duyệt)
+            {tr('Cho phép học viên gửi yêu cầu chuyển lớp (luôn cần Admin duyệt)')}
           </label>
-          <label className="flex items-center gap-2 pt-4 text-[12px] text-[#6E5360]">
+          <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
             <input type="checkbox" disabled checked={false} readOnly aria-describedby="transfer-after-start-note" />
-            Cho phép chuyển khi lớp hiện tại đã khai giảng
+            {tr('Cho phép chuyển khi lớp hiện tại đã khai giảng')}
           </label>
-          <p id="transfer-after-start-note" className="pt-1 text-[11.5px] text-[#A33357] sm:col-span-2">
-            Theo quyết định Product Owner: không chuyển lớp sau khi khóa học bắt đầu.
+          <p id="transfer-after-start-note" className="pt-1 text-[11.5px] text-rp-brand-strong sm:col-span-2">
+            {tr('Theo chính sách hiện hành: không chuyển lớp sau khi khóa học bắt đầu.')}
           </p>
-          <label className="text-[12px] text-[#6E5360]">
-            Số buổi tối đa / tuần (0 = không giới hạn)
-            <input type="number" min={0} max={84} value={draft.weeklySessionCap} onChange={(e) => setField('weeklySessionCap', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Số buổi tối đa / tuần (0 = không giới hạn)')}
+            <input type="number" min={0} max={84} value={draft.weeklySessionCap} onChange={(e) => setField('weeklySessionCap', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Thời lượng khóa (tuần)
-            <input type="number" min={1} max={52} value={draft.courseDurationWeeks} onChange={(e) => setField('courseDurationWeeks', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Thời lượng khóa (tuần)')}
+            <input type="number" min={1} max={52} value={draft.courseDurationWeeks} onChange={(e) => setField('courseDurationWeeks', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Số buổi/tuần được phép (VD: 2,3,4)
-            <input value={draft.allowedSessionsPerWeekCsv} onChange={(e) => setField('allowedSessionsPerWeekCsv', e.target.value)} aria-invalid={sessionsCsvInvalid} className={`mt-1 h-9 w-full rounded-lg border px-2.5 text-[13px] ${sessionsCsvInvalid ? 'border-[#A33357]' : 'border-[#E7DAE1]'}`} />
-            {sessionsCsvInvalid && <span className="mt-1 block text-[11px] text-[#A33357]">Nhập các số 1–7, cách nhau bởi dấu phẩy.</span>}
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Số buổi/tuần được phép (VD: 2,3,4)')}
+            <input value={draft.allowedSessionsPerWeekCsv} onChange={(e) => setField('allowedSessionsPerWeekCsv', e.target.value)} aria-invalid={sessionsCsvInvalid} className={`mt-1 h-9 w-full rounded-lg border px-2.5 text-[13px] ${sessionsCsvInvalid ? 'border-rp-brand-strong' : 'border-rp-line'}`} />
+            {sessionsCsvInvalid && <span className="mt-1 block text-[11px] text-rp-brand-strong">{tr('Nhập các số 1–7, cách nhau bởi dấu phẩy.')}</span>}
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Số buổi/tuần mặc định (khuyến nghị)
-            <select value={draft.defaultSessionsPerWeek} onChange={(e) => setField('defaultSessionsPerWeek', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] bg-white px-2.5 text-[13px]">
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Số buổi/tuần mặc định (khuyến nghị)')}
+            <select value={draft.defaultSessionsPerWeek} onChange={(e) => setField('defaultSessionsPerWeek', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line bg-white px-2.5 text-[13px]">
               {(allowedSessionsPerWeek.length ? allowedSessionsPerWeek : [Number(draft.defaultSessionsPerWeek)]).map((n) => (
-                <option key={n} value={n}>{n} buổi/tuần</option>
+                <option key={n} value={n}>{trf('{0} buổi/tuần', { 0: n })}</option>
               ))}
             </select>
-            {defaultSpwInvalid && <span className="mt-1 block text-[11px] text-[#A33357]">Giá trị mặc định phải nằm trong danh sách được phép.</span>}
+            {defaultSpwInvalid && <span className="mt-1 block text-[11px] text-rp-brand-strong">{tr('Giá trị mặc định phải nằm trong danh sách được phép.')}</span>}
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Thời gian giữ chỗ khi thanh toán (phút)
-            <input type="number" min={1} max={120} value={draft.checkoutHoldMinutes} onChange={(e) => setField('checkoutHoldMinutes', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Thời gian giữ chỗ khi thanh toán (phút)')}
+            <input type="number" min={1} max={120} value={draft.checkoutHoldMinutes} onChange={(e) => setField('checkoutHoldMinutes', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
           </label>
-          <label className="text-[12px] text-[#6E5360]">
-            Số học viên tối thiểu để khai giảng
-            <input type="number" min={1} max={Number(draft.maxLearners) || 4} value={draft.minLearnersToStart} onChange={(e) => setField('minLearnersToStart', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-[#E7DAE1] px-2.5 text-[13px]" />
-            {minLearnersInvalid && <span className="mt-1 block text-[11px] text-[#A33357]">Không được lớn hơn sĩ số tối đa.</span>}
+          <label className="text-[12px] text-rp-text-2">
+            {tr('Số học viên tối thiểu để khai giảng')}
+            <input type="number" min={1} max={Number(draft.maxLearners) || 4} value={draft.minLearnersToStart} onChange={(e) => setField('minLearnersToStart', e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-rp-line px-2.5 text-[13px]" />
+            {minLearnersInvalid && <span className="mt-1 block text-[11px] text-rp-brand-strong">{tr('Không được lớn hơn sĩ số tối đa.')}</span>}
           </label>
-          <label className="flex items-center gap-2 pt-4 text-[12px] text-[#6E5360]">
+          <label className="flex items-center gap-2 pt-4 text-[12px] text-rp-text-2">
             <input type="checkbox" checked={Boolean(draft.mentorReplacementEnabled)} onChange={(e) => setField('mentorReplacementEnabled', e.target.checked)} />
-            Cho phép Admin thay cố vấn chính cho phần còn lại của lớp
+            {tr('Cho phép Admin thay cố vấn chính cho phần còn lại của lớp')}
           </label>
         </div>
         <div className="mt-4 flex justify-end">
           <button
             type="button"
-            disabled={createVersion.isPending || currentQuery.isPending || formInvalid}
+            disabled={createVersion.isPending || currentQuery.isPending || currentBlocked || formInvalid}
             onClick={() => createVersion.mutate()}
-            className="h-10 rounded-xl bg-[#AD3155] px-4 text-[13px] font-medium text-white hover:bg-[#982B4B] disabled:opacity-50"
+            className="h-10 rounded-xl bg-rp-brand-strong px-4 text-[13px] font-medium text-white hover:bg-rp-brand-deep disabled:opacity-50 rp-press"
           >
-            {createVersion.isPending ? 'Đang lưu phiên bản…' : 'Tạo phiên bản chính sách mới'}
+            {createVersion.isPending ? tr('Đang lưu phiên bản…') : tr('Tạo phiên bản chính sách mới')}
           </button>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-[#EADFE5] bg-white">
-        <div className="border-b border-[#F0E7EC] px-4 py-3">
-          <h3 className="text-[15px] font-semibold">Lịch sử phiên bản chính sách</h3>
+      <section className="overflow-hidden rounded-2xl border border-rp-line bg-white">
+        <div className="border-b border-rp-line px-4 py-3">
+          <h3 className="text-[15px] font-semibold">{tr('Lịch sử phiên bản chính sách')}</h3>
         </div>
         {history.length === 0 ? (
-          <p className="px-4 py-6 text-[13px] text-[#82737B]">Chưa có phiên bản chính sách nào.</p>
+          <p className="px-4 py-6 text-[13px] text-rp-text-muted">{tr('Chưa có phiên bản chính sách nào.')}</p>
         ) : (
-          <div className="divide-y divide-[#F3EDF0]">
+          <div className="divide-y divide-rp-line">
             {history.map((item) => (
               <div key={item.id ?? item.version} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-[13px]">
-                <span className="font-semibold text-[#AD3155]">v{item.version}</span>
-                <span>Hiệu lực: {String(item.effectiveFromUtc).slice(0, 10)}</span>
-                <span>Max {item.maxLearners} HV · {item.sessionMinutes}p / nghỉ {item.restMinutes}p</span>
-                <span>Cutoff {item.enrollmentCutoffMinutesBeforeFirstSession}p · Placement {item.placementAttemptLimit} lượt</span>
-                <span>BTVN {item.remediationThresholdComparison} {item.remediationCompletionThresholdPercent}%</span>
+                <span className="font-semibold text-rp-brand-strong">v{item.version}</span>
+                <span>{trf('Hiệu lực: {0}', { 0: String(item.effectiveFromUtc).slice(0, 10) })}</span>
+                <span>{trf('Tối đa {0} học viên · {1} phút / nghỉ {2} phút', { 0: item.maxLearners, 1: item.sessionMinutes, 2: item.restMinutes })}</span>
+                <span>{trf('Khóa ghi danh trước {0} phút · Đánh giá năng lực {1} lượt', { 0: item.enrollmentCutoffMinutesBeforeFirstSession, 1: item.placementAttemptLimit })}</span>
+                <span>{trf('Bài tập {0} {1}%', { 0: item.remediationThresholdComparison, 1: item.remediationCompletionThresholdPercent })}</span>
               </div>
             ))}
           </div>

@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 
-import { LearnerShell } from '../../components/shells';
-import { useLocale } from '../../i18n/locale.js';
-import { getSession } from '../../auth/session.js';
-import { setStudyLevel, updateAvatar, updateNotificationSettings, updateProfile } from '../../api/profile.js';
+import { LearnerShell } from '@/layouts';
+import { useLocale } from '@/locales/locale.js';
+import { getSession } from '@/app/auth/session.js';
+import { setStudyLevel, updateAvatar, updateNotificationSettings, updateProfile } from '@/features/profile/api/profileApi.js';
 import {
   displayName,
   learnerKeys,
   useLearnerProfile,
-} from '../../hooks/useLearnerHome.js';
+} from '@/features/dashboard/hooks/useLearnerHome.js';
+import Icon from '@/components/ui/Icon.jsx';
+import { SakuraLoader } from '@/components/ui';
+import { notify } from '@/components/ui/feedbackStore.js';
 
 const TABS = [
   {
@@ -42,29 +45,20 @@ const LEVEL_BY_ID = {
   4: 'N2',
 };
 
-function Icon({ name, className = '' }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`material-symbols-outlined ${className}`}
-    >
-      {name}
-    </span>
-  );
-}
 
 function InfoField({ label, value }) {
+  const { tr } = useLocale();
   return (
     <div>
-      <dt className="mb-2 text-[12px] text-[#967F8A]">
-        {label}
+      <dt className="mb-2 text-[12px] text-rp-text-muted">
+        {tr(label)}
       </dt>
       <dd
         className="min-h-10 break-words rounded-lg
-                   border border-[#EDE2E7] bg-[#FCFAFB]
-                   px-3 py-2.5 text-[13px] text-[#62515A]"
+                   border border-rp-line bg-rp-bg-2
+                   px-3 py-2.5 text-[13px] text-rp-text-2"
       >
-        {value || 'Chưa có thông tin'}
+        {value || tr('Chưa có thông tin')}
       </dd>
     </div>
   );
@@ -78,11 +72,11 @@ function ActionLink({ to, children, primary = false }) {
         'inline-flex min-h-9 items-center justify-center gap-2',
         'rounded-lg px-3.5 py-2 text-[12px] font-medium',
         'transition-colors focus-visible:outline-none',
-        'focus-visible:ring-2 focus-visible:ring-[#AD3155]/25',
+        'focus-visible:ring-2 focus-visible:ring-rp-brand-strong/25',
         'focus-visible:ring-offset-2',
         primary
-          ? 'bg-[#AD3155] text-white hover:bg-[#982B4B]'
-          : 'border border-[#E7D7DF] bg-white text-[#9C5671] hover:bg-[#FFF3F7]',
+          ? 'bg-rp-brand-strong text-white hover:bg-rp-brand-deep'
+          : 'border border-rp-line bg-white text-rp-brand-strong hover:bg-rp-brand-tint',
       ].join(' ')}
     >
       {children}
@@ -92,13 +86,14 @@ function ActionLink({ to, children, primary = false }) {
 }
 
 function SectionHeading({ title, description }) {
+  const { tr } = useLocale();
   return (
     <div className="mb-5">
-      <h2 className="text-[17px] font-semibold text-[#49353F]">
-        {title}
+      <h2 className="text-[17px] font-semibold text-rp-text">
+        {tr(title)}
       </h2>
-      <p className="mt-1 text-[12px] leading-5 text-[#A08A95]">
-        {description}
+      <p className="mt-1 text-[12px] leading-5 text-rp-text-muted">
+        {tr(description)}
       </p>
     </div>
   );
@@ -110,26 +105,45 @@ export default function LearnerSettings() {
   const session = getSession();
   const profileQuery = useLearnerProfile();
   const queryClient = useQueryClient();
-  const notify = useMutation({
+  const notifMutation = useMutation({
     mutationFn: updateNotificationSettings,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      notify.success(tr('Đã lưu cài đặt thông báo.'), '', { key: 'settings-notif' });
+    },
+    onError: (err) => notify.apiError(err, tr('Chưa lưu được cài đặt thông báo'), { key: 'settings-notif-err' }),
   });
   const saveProfile = useMutation({
     mutationFn: updateProfile,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      notify.success(tr('Đã lưu thông tin hồ sơ.'), '', { key: 'settings-profile' });
+    },
+    onError: (err) => notify.apiError(err, tr('Chưa lưu được hồ sơ'), { key: 'settings-profile-err' }),
   });
   const saveAvatar = useMutation({
     mutationFn: updateAvatar,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      notify.success(tr('Đã cập nhật ảnh đại diện.'), '', { key: 'settings-avatar' });
+    },
+    onError: (err) => notify.apiError(err, tr('Chưa cập nhật được ảnh đại diện'), { key: 'settings-avatar-err' }),
   });
   const saveLevel = useMutation({
     mutationFn: setStudyLevel,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: learnerKeys.profile }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      notify.success(tr('Đã cập nhật trình độ học.'), '', { key: 'settings-level' });
+    },
+    onError: (err) => notify.apiError(err, tr('Chưa cập nhật được trình độ học'), { key: 'settings-level-err' }),
   });
   const [studyLevelId, setStudyLevelId] = useState(3);
-  useEffect(() => {
-    if (profileQuery.data?.currentStudyLevelId) setStudyLevelId(profileQuery.data.currentStudyLevelId);
-  }, [profileQuery.data?.currentStudyLevelId]);
+  const serverStudyLevelId = profileQuery.data?.currentStudyLevelId;
+  const [syncedStudyLevelId, setSyncedStudyLevelId] = useState(null);
+  if (serverStudyLevelId && serverStudyLevelId !== syncedStudyLevelId) {
+    setSyncedStudyLevelId(serverStudyLevelId);
+    setStudyLevelId(serverStudyLevelId);
+  }
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -162,11 +176,10 @@ export default function LearnerSettings() {
         : null;
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb="Cài đặt">
+    <LearnerShell pathname={pathname} breadcrumb={tr('Cài đặt')}>
       <main
         data-page="LearnerSettings"
-        className="mx-auto max-w-[1120px] px-5 py-6
-                   text-[#49353F] lg:px-7"
+        className="rp-container py-6 text-rp-text lg:py-8"
       >
         <header className="mb-5">
           <h1
@@ -175,17 +188,17 @@ export default function LearnerSettings() {
           >
             {tr('Hồ sơ & cài đặt')}
           </h1>
-          <p className="mt-1 text-[13px] text-[#967F8A]">
+          <p className="mt-1 text-[13px] text-rp-text-muted">
             {tr('Quản lý tài khoản và mục tiêu ôn luyện của bạn.')}
           </p>
         </header>
 
         {/* Tóm tắt tài khoản */}
         <section
-          aria-label="Tóm tắt tài khoản"
+          aria-label={tr('Tóm tắt tài khoản')}
           className="mb-5 flex flex-wrap items-center
                      justify-between gap-5 rounded-2xl
-                     border border-[#EEDCE5] bg-[#FFF5F8]
+                     border border-rp-line bg-rp-brand-tint
                      px-5 py-5"
         >
           <div className="flex min-w-0 items-center gap-4">
@@ -196,8 +209,8 @@ export default function LearnerSettings() {
                 aria-hidden="true"
                 className="flex h-14 w-14 shrink-0 items-center
                            justify-center rounded-2xl
-                           bg-[#F4D8E4] text-[22px]
-                           font-medium text-[#A84466]"
+                           bg-rp-brand-soft text-[22px]
+                           font-medium text-rp-brand-strong"
               >
                 {initial}
               </div>
@@ -208,14 +221,14 @@ export default function LearnerSettings() {
                 {name}
               </h2>
 
-              <p className="mt-1 break-all text-[12px] text-[#A0808E]">
-                {email || 'Chưa có email'}
+              <p className="mt-1 break-all text-[12px] text-rp-text-muted">
+                {email || tr('Chưa có email')}
               </p>
 
               {verification !== null && (
                 <span
                   className="mt-2 inline-flex items-center gap-1
-                             text-[11px] text-[#967580]"
+                             text-[11px] text-rp-text-muted"
                 >
                   <Icon
                     name={
@@ -235,10 +248,10 @@ export default function LearnerSettings() {
 
           <div className="flex items-center gap-5">
             <div>
-              <p className="text-[11px] text-[#A0808E]">
+              <p className="text-[11px] text-rp-text-muted">
                 {tr('Mục tiêu JLPT')}
               </p>
-              <p className="mt-1 text-[15px] font-medium text-[#A84466]">
+              <p className="mt-1 text-[15px] font-medium text-rp-brand-strong">
                 {level || tr('Chưa chọn')}
               </p>
             </div>
@@ -246,10 +259,10 @@ export default function LearnerSettings() {
             <div className="h-8 w-px bg-[#EDD6E1]" />
 
             <div>
-              <p className="text-[11px] text-[#A0808E]">
+              <p className="text-[11px] text-rp-text-muted">
                 {tr('Mỗi ngày')}
               </p>
-              <p className="mt-1 text-[15px] font-medium text-[#A84466]">
+              <p className="mt-1 text-[15px] font-medium text-rp-brand-strong">
                 {minutes ? `${minutes} ${tr('phút')}` : tr('Chưa đặt')}
               </p>
             </div>
@@ -261,12 +274,11 @@ export default function LearnerSettings() {
             role="alert"
             className="mb-4 flex flex-wrap items-center
                        justify-between gap-2 rounded-lg
-                       bg-[#FFF0F3] px-4 py-3
-                       text-[12px] text-[#A15A70]"
+                       bg-rp-brand-tint px-4 py-3
+                       text-[12px] text-rp-brand-strong"
           >
             <span>
-              Chưa tải được hồ sơ đầy đủ. Thông tin bên dưới
-              có thể chưa cập nhật.
+              {tr('Chưa tải được hồ sơ đầy đủ. Thông tin bên dưới có thể chưa cập nhật.')}
             </span>
             <button
               type="button"
@@ -274,7 +286,7 @@ export default function LearnerSettings() {
               disabled={profileQuery.isFetching}
               className="font-medium underline disabled:opacity-50"
             >
-              Thử lại
+              {tr('Thử lại')}
             </button>
           </div>
         )}
@@ -282,8 +294,8 @@ export default function LearnerSettings() {
         <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
           {/* Menu cài đặt */}
           <nav
-            aria-label="Nhóm cài đặt"
-            className="rounded-xl border border-[#EADFE5]
+            aria-label={tr('Nhóm cài đặt')}
+            className="rounded-xl border border-rp-line
                        bg-white p-2"
           >
             <div className="flex gap-1 overflow-x-auto lg:flex-col">
@@ -302,10 +314,10 @@ export default function LearnerSettings() {
                       'rounded-lg px-3 text-left text-[12px]',
                       'transition-colors focus-visible:outline-none',
                       'focus-visible:ring-2',
-                      'focus-visible:ring-[#AD3155]/25',
+                      'focus-visible:ring-rp-brand-strong/25',
                       active
-                        ? 'bg-[#FCEAF1] font-medium text-[#A84466]'
-                        : 'text-[#967F8A] hover:bg-[#FFF7FA]',
+                        ? 'bg-rp-brand-soft font-medium text-rp-brand-strong'
+                        : 'text-rp-text-muted hover:bg-rp-brand-tint',
                     ].join(' ')}
                   >
                     <Icon name={tab.icon} className="text-[19px]" />
@@ -323,7 +335,7 @@ export default function LearnerSettings() {
               TABS.find((tab) => tab.id === activeTab)?.label
             }
             className="min-w-0 rounded-xl border
-                       border-[#EADFE5] bg-white p-5 sm:p-6"
+                       border-rp-line bg-white p-5 sm:p-6"
           >
             {activeTab === 'profile' && (
               <>
@@ -333,12 +345,12 @@ export default function LearnerSettings() {
                 />
 
                 {profileQuery.isPending && (
-                  <p
-                    role="status"
-                    className="mb-4 text-[12px] text-[#A08A95]"
-                  >
-                    {tr('Đang tải hồ sơ…')}
-                  </p>
+                  <SakuraLoader
+                    variant="section"
+                    context="profile"
+                    delay={160}
+                    className="mb-4"
+                  />
                 )}
 
                 <dl className="grid gap-4 sm:grid-cols-2">
@@ -352,29 +364,31 @@ export default function LearnerSettings() {
                 </dl>
 
                 <form
-                  className="mt-5 grid gap-3 border-t border-[#F0E7EC] pt-4 sm:grid-cols-2"
+                  key={`${profile?.userId ?? 'anon'}-${profile?.fullName ?? `${profile?.firstName ?? ''}-${profile?.lastName ?? ''}`}`}
+                  className="mt-5 grid gap-3 border-t border-rp-line pt-4 sm:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const data = new FormData(event.currentTarget);
                     saveProfile.mutate({
-                      firstName: String(data.get('firstName') || '').trim(),
-                      lastName: String(data.get('lastName') || '').trim(),
+                      fullName: String(data.get('fullName') || '').trim(),
                     });
                   }}
                 >
-                  <label className="text-[12px] text-[#967F8A]">
-                    {tr('Họ')}
-                    <input name="lastName" defaultValue={profile?.lastName || ''} className="mt-1 h-10 w-full rounded-lg border border-[#EDE2E7] px-3 text-[13px] text-[#49353F] outline-none focus:border-[#AD3155]" />
-                  </label>
-                  <label className="text-[12px] text-[#967F8A]">
-                    {tr('Tên')}
-                    <input name="firstName" defaultValue={profile?.firstName || ''} className="mt-1 h-10 w-full rounded-lg border border-[#EDE2E7] px-3 text-[13px] text-[#49353F] outline-none focus:border-[#AD3155]" />
+                  <label className="sm:col-span-2 text-[12px] text-rp-text-muted">
+                    {tr('Họ và tên')}
+                    <input
+                      name="fullName"
+                      required
+                      autoComplete="name"
+                      defaultValue={profile?.fullName || [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || ''}
+                      className="mt-1 h-10 w-full rounded-lg border border-rp-line px-3 text-[13px] text-rp-text outline-none focus:border-rp-brand-strong"
+                    />
                   </label>
                   <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
-                    <button type="submit" disabled={saveProfile.isPending} className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50">
+                    <button type="submit" disabled={saveProfile.isPending} className="h-9 rounded-lg bg-rp-brand-strong px-3 text-[12px] font-medium text-white disabled:opacity-50 rp-press">
                       {saveProfile.isPending ? tr('Đang lưu…') : tr('Lưu tên')}
                     </button>
-                    <label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#E7D7DF] px-3 text-[12px] text-[#9C5671]">
+                    <label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-rp-line px-3 text-[12px] text-rp-brand-strong">
                       {saveAvatar.isPending ? tr('Đang tải ảnh…') : tr('Đổi ảnh')}
                       <input
                         type="file"
@@ -387,7 +401,7 @@ export default function LearnerSettings() {
                       />
                     </label>
                     {(saveProfile.isError || saveAvatar.isError) && (
-                      <p className="text-[12px] text-[#A33357]">{(saveProfile.error || saveAvatar.error).message}</p>
+                      <p className="text-[12px] text-rp-brand-strong">{tr((saveProfile.error || saveAvatar.error).message)}</p>
                     )}
                   </div>
                 </form>
@@ -395,9 +409,9 @@ export default function LearnerSettings() {
                 <div
                   className="mt-5 flex flex-wrap items-center
                              justify-between gap-3
-                             border-t border-[#F0E7EC] pt-4"
+                             border-t border-rp-line pt-4"
                 >
-                  <p className="text-[12px] text-[#A08A95]">
+                  <p className="text-[12px] text-rp-text-muted">
                     {tr('Bạn có thể thay đổi email tại mục bảo mật.')}
                   </p>
                   <ActionLink to="/update-email">
@@ -416,33 +430,33 @@ export default function LearnerSettings() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div
-                    className="rounded-xl border border-[#EFE0E7]
-                               bg-[#FFFAFC] p-4"
+                    className="rounded-xl border border-rp-line
+                               bg-rp-brand-tint p-4"
                   >
                     <Icon
                       name="flag"
-                      className="text-[23px] text-[#BA859B]"
+                      className="text-[23px] text-rp-brand"
                     />
-                    <p className="mt-3 text-[12px] text-[#A08A95]">
+                    <p className="mt-3 text-[12px] text-rp-text-muted">
                       {tr('Cấp độ mục tiêu')}
                     </p>
-                    <p className="mt-1 text-[24px] font-semibold text-[#A84466]">
+                    <p className="mt-1 text-[24px] font-semibold text-rp-brand-strong">
                       {level ? `JLPT ${level}` : tr('Chưa chọn')}
                     </p>
                   </div>
 
                   <div
-                    className="rounded-xl border border-[#EFE0E7]
-                               bg-[#FFFAFC] p-4"
+                    className="rounded-xl border border-rp-line
+                               bg-rp-brand-tint p-4"
                   >
                     <Icon
                       name="schedule"
-                      className="text-[23px] text-[#BA859B]"
+                      className="text-[23px] text-rp-brand"
                     />
-                    <p className="mt-3 text-[12px] text-[#A08A95]">
+                    <p className="mt-3 text-[12px] text-rp-text-muted">
                       {tr('Thời gian mỗi ngày')}
                     </p>
-                    <p className="mt-1 text-[24px] font-semibold text-[#A84466]">
+                    <p className="mt-1 text-[24px] font-semibold text-rp-brand-strong">
                       {minutes || '—'}
                       {minutes && (
                         <span className="ml-1 text-[13px] font-normal">
@@ -453,8 +467,8 @@ export default function LearnerSettings() {
                   </div>
                 </div>
 
-                <div className="mt-5 border-t border-[#F0E7EC] pt-4">
-                  <p className="text-[12px] text-[#A08A95]">{tr('Cấp độ đang học trên lộ trình chuẩn')}</p>
+                <div className="mt-5 border-t border-rp-line pt-4">
+                  <p className="text-[12px] text-rp-text-muted">{tr('Cấp độ đang học trên lộ trình chuẩn')}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {[1, 2, 3, 4].map((id) => (
                       <button
@@ -462,24 +476,24 @@ export default function LearnerSettings() {
                         type="button"
                         aria-pressed={studyLevelId === id}
                         onClick={() => setStudyLevelId(id)}
-                        className={`h-9 rounded-lg border px-3 text-[13px] ${studyLevelId === id ? 'border-[#AD3155] bg-[#FCEAF1] text-[#A84466]' : 'border-[#E7D7DF] text-[#967F8A]'}`}
+                        className={`h-9 rounded-lg border px-3 text-[13px] ${studyLevelId === id ? 'border-rp-brand-strong bg-rp-brand-soft text-rp-brand-strong' : 'border-rp-line text-rp-text-muted'}`}
                       >
                         {LEVEL_BY_ID[id]}
                       </button>
                     ))}
                   </div>
-                  {saveLevel.isError && <p className="mt-2 text-[12px] text-[#A33357]">{saveLevel.error.message}</p>}
+                  {saveLevel.isError && <p className="mt-2 text-[12px] text-rp-brand-strong">{tr(saveLevel.error.message)}</p>}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <button
                       type="button"
                       disabled={saveLevel.isPending}
                       onClick={() => saveLevel.mutate({ currentStudyLevelId: studyLevelId })}
-                      className="h-9 rounded-lg bg-[#AD3155] px-3 text-[12px] font-medium text-white disabled:opacity-50"
+                      className="h-9 rounded-lg bg-rp-brand-strong px-3 text-[12px] font-medium text-white disabled:opacity-50 rp-press"
                     >
                       {saveLevel.isPending ? tr('Đang lưu…') : tr('Đặt cấp độ đang học')}
                     </button>
                     <ActionLink to="/onboarding" primary>
-                      {level ? 'Đổi mục tiêu' : 'Chọn mục tiêu'}
+                      {level ? tr('Đổi mục tiêu') : tr('Chọn mục tiêu')}
                     </ActionLink>
                   </div>
                 </div>
@@ -493,14 +507,14 @@ export default function LearnerSettings() {
                   description={tr('Quản lý thông tin đăng nhập tài khoản.')}
                 />
 
-                <div className="divide-y divide-[#F0E7EC]">
+                <div className="divide-y divide-rp-line">
                   <div className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <h3 className="text-[13px] font-medium">
                         {tr('Email đăng nhập')}
                       </h3>
-                      <p className="mt-1 break-all text-[12px] text-[#A08A95]">
-                        {email || 'Chưa có email'}
+                      <p className="mt-1 break-all text-[12px] text-rp-text-muted">
+                        {email || tr('Chưa có email')}
                       </p>
                     </div>
                     <ActionLink to="/update-email">
@@ -511,9 +525,9 @@ export default function LearnerSettings() {
                   <div className="flex flex-wrap items-center justify-between gap-3 py-4">
                     <div>
                       <h3 className="text-[13px] font-medium">
-                        Mật khẩu
+                        {tr('Mật khẩu')}
                       </h3>
-                      <p className="mt-1 text-[12px] text-[#A08A95]">
+                      <p className="mt-1 text-[12px] text-rp-text-muted">
                         {tr('Thay đổi mật khẩu đăng nhập.')}
                       </p>
                     </div>
@@ -525,8 +539,8 @@ export default function LearnerSettings() {
 
                 <p
                   className="mt-4 flex items-start gap-2
-                             rounded-lg bg-[#FAF5F7] p-3
-                             text-[12px] leading-5 text-[#A0808E]"
+                             rounded-lg bg-rp-brand-tint p-3
+                             text-[12px] leading-5 text-rp-text-muted"
                 >
                   <Icon
                     name="lock"
@@ -544,41 +558,41 @@ export default function LearnerSettings() {
                   description={tr('Các hình thức nhắc ôn tập và lịch tư vấn.')}
                 />
 
-                <div className="divide-y divide-[#F0E7EC]">
+                <div className="divide-y divide-rp-line">
                   {[
                     {
                       key: 'emailNotificationsEnabled',
                       icon: 'mail',
                       title: tr('Thông báo qua email'),
-                      description: tr('Gửi nhắc học và lịch tư vấn tới email của bạn.'),
+                      description: tr('Gửi nhắc học và lịch lớp nhóm tới email của bạn.'),
                     },
                     {
                       key: 'systemNotificationsEnabled',
                       icon: 'notifications',
                       title: tr('Thông báo trong ứng dụng'),
-                      description: tr('Hiện nhắc ôn tập và lịch tư vấn ngay trên RikiPath.'),
+                      description: tr('Hiện nhắc ôn tập và lịch lớp nhóm ngay trên RikiPath.'),
                     },
                   ].map((item) => {
                     const enabled = Boolean(profile?.[item.key]);
                     return (
                       <div key={item.key} className="flex items-start gap-3 py-4">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBEEF4] text-[#B77E95]">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rp-brand-tint text-rp-brand-strong">
                           <Icon name={item.icon} className="text-[20px]" />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-[13px] font-medium">{item.title}</h3>
-                          <p className="mt-1 text-[12px] leading-5 text-[#A08A95]">{item.description}</p>
+                          <h3 className="text-[13px] font-medium">{tr(item.title)}</h3>
+                          <p className="mt-1 text-[12px] leading-5 text-rp-text-muted">{tr(item.description)}</p>
                         </div>
                         <button
                           type="button"
                           role="switch"
                           aria-checked={enabled}
-                          disabled={!profile || notify.isPending}
-                          onClick={() => notify.mutate({
+                          disabled={!profile || notifMutation.isPending}
+                          onClick={() => notifMutation.mutate({
                             emailNotificationsEnabled: item.key === 'emailNotificationsEnabled' ? !enabled : Boolean(profile.emailNotificationsEnabled),
                             systemNotificationsEnabled: item.key === 'systemNotificationsEnabled' ? !enabled : Boolean(profile.systemNotificationsEnabled),
                           })}
-                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-[#AD3155]' : 'bg-[#E7D7DF]'}`}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-rp-brand-strong' : 'bg-rp-line'}`}
                         >
                           <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${enabled ? 'left-5' : 'left-0.5'}`} />
                         </button>
@@ -586,7 +600,7 @@ export default function LearnerSettings() {
                     );
                   })}
                 </div>
-                {notify.isError && <p role="alert" className="mt-3 text-[12px] text-[#A33357]">{notify.error.message}</p>}
+                {notifMutation.isError && <p role="alert" className="mt-3 text-[12px] text-rp-brand-strong">{tr(notifMutation.error.message)}</p>}
               </>
             )}
           </section>
