@@ -52,7 +52,7 @@ export const FEATURE_TONES = {
   writing: { Icon: PenLine, fg: 'text-tone-writing', bg: 'bg-tone-writing-bg', label: 'Luyện viết' },
   speaking: { Icon: Mic, fg: 'text-tone-speaking', bg: 'bg-tone-speaking-bg', label: 'Luyện nói' },
   mock: { Icon: FileCheck2, fg: 'text-tone-mock', bg: 'bg-tone-mock-bg', label: 'Thi thử' },
-  mentor: { Icon: UsersRound, fg: 'text-tone-mentor', bg: 'bg-tone-mentor-bg', label: 'Mentor' },
+  mentor: { Icon: UsersRound, fg: 'text-tone-mentor', bg: 'bg-tone-mentor-bg', label: 'Giáo viên' },
   calendar: { Icon: CalendarDays, fg: 'text-tone-calendar', bg: 'bg-tone-calendar-bg', label: 'Lịch học' },
   haru: { Icon: Sparkles, fg: 'text-tone-haru', bg: 'bg-tone-haru-bg', label: 'Haru AI' },
   lesson: { Icon: BookOpen, fg: 'text-tone-reading', bg: 'bg-tone-reading-bg', label: 'Bài học' },

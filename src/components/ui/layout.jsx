@@ -9,7 +9,8 @@ import { useLocale } from '@/locales/locale.js';
  */
 export function PageContainer({
   as: Tag = 'div',
-  width = 'default',
+  width,
+  maxWidth,
   density = 'comfortable',
   containerQuery = true,
   paddedY = true,
@@ -17,12 +18,13 @@ export function PageContainer({
   children,
   ...rest
 }) {
+  const resolvedWidth = width || maxWidth || 'default';
   const resolvedDensity = normalizeDensity(density);
   return (
     <Tag
       data-density={resolvedDensity}
       className={cx(
-        getContainerClass(width),
+        getContainerClass(resolvedWidth),
         containerQuery && 'rp-cq',
         paddedY && 'py-[var(--rp-space-page-y)]',
         className,

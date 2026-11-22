@@ -1,134 +1,376 @@
 import { useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-
-import { api } from '@/api/client.js';
+import { Link } from 'react-router-dom';
+import {
+  ArrowRight,
+  Eye,
+  Plus,
+  Search,
+  Volume2,
+  X,
+} from 'lucide-react';
 import { ContentAuthorShell } from '@/layouts';
-import { ContextualEmptyState, ContextualErrorState, SakuraLoader } from '@/components/ui';
-
-async function searchBank(path) {
-  const data = await api.post(path, { keyword: '', page: 1, pageSize: 100 });
-  const page = data?.result ?? data;
-  return {
-    items: page?.items || page?.Items || [],
-    total: page?.totalCount ?? page?.TotalCount ?? 0,
-  };
-}
-
-import { AUTHOR_LEVELS } from '@/features/content-author/constants/authorLevels.js';
+import {
+  Badge,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  CustomSelect,
+  DataTable,
+  FeatureIcon,
+  IconButton,
+  Input,
+  Modal,
+  Pagination,
+  RefreshingIndicator,
+  SakuraLoader,
+} from '@/components/ui';
+import {
+  getSharedBankDetail,
+  searchSharedBank,
+} from '@/features/content-author/api/sharedBankApi.js';
+import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLookups.js';
 import { useLocale } from '@/locales/locale.js';
+
+function DefaultBankDetail({ data, detailEndpoint }) {
+  const { tr } = useLocale();
+  if (!data) return null;
+
+  const isKanji = detailEndpoint.includes('/kanji');
+  const isGrammar = detailEndpoint.includes('/grammar');
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {data.jlptLevelName && (
+          <Badge tone="brand" size="sm" icon={false}>{data.jlptLevelName}</Badge>
+        )}
+        {data.partOfSpeech && (
+          <Badge tone="neutral" size="sm" icon={false}>{data.partOfSpeech}</Badge>
+        )}
+        {isKanji && data.strokeCount ? (
+          <Badge tone="info" size="sm" icon={false}>{data.strokeCount} {tr('nét')}</Badge>
+        ) : null}
+      </div>
+
+      {isKanji ? (
+        <div className="flex flex-wrap items-start gap-4 rounded-2xl border border-rp-line bg-rp-bg-2/50 p-4">
+          <div className="rp-jp flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-rp-brand-border bg-white text-4xl font-bold text-rp-brand-strong">
+            {data.character}
+          </div>
+          <div className="min-w-0 flex-1 space-y-1.5 text-sm">
+            <p className="text-base font-bold text-rp-text">{data.meaning}</p>
+            {data.sinoVietnamese && (
+              <p className="text-xs text-rp-text-2">
+                <strong>{tr('Âm Hán Việt')}:</strong> {data.sinoVietnamese}
+              </p>
+            )}
+            {data.onYomi && (
+              <p className="rp-jp text-xs text-rp-text-2">
+                <strong>On:</strong> {data.onYomi}
+              </p>
+            )}
+            {data.kunYomi && (
+              <p className="rp-jp text-xs text-rp-text-2">
+                <strong>Kun:</strong> {data.kunYomi}
+              </p>
+            )}
+          </div>
+        </div>
+      ) : isGrammar ? (
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-rp-brand-border bg-rp-brand-tint/40 p-4">
+            <p className="text-xs font-medium text-rp-brand-strong">{tr('Cấu trúc')}</p>
+            <p className="rp-jp mt-1 text-lg font-bold text-rp-text">{data.structure || data.title}</p>
+            {data.title && data.structure && data.title !== data.structure && (
+              <p className="mt-1 text-sm text-rp-text-2">{data.title}</p>
+            )}
+          </div>
+          {data.explanation && (
+            <div className="rounded-2xl border border-rp-line bg-white p-4">
+              <p className="text-xs font-semibold text-rp-text-muted">{tr('Giải thích & cách dùng')}</p>
+              <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-rp-text">{data.explanation}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3 rounded-2xl border border-rp-line bg-rp-bg-2/50 p-4">
+          <p className="rp-jp text-2xl font-bold text-rp-text">{data.word}</p>
+          {data.reading && (
+            <p className="rp-jp text-sm font-semibold text-rp-brand-strong">{data.reading}</p>
+          )}
+          <p className="text-sm leading-6 text-rp-text">{data.meaning}</p>
+        </div>
+      )}
+
+      {data.exampleSentence && (
+        <div className="rounded-2xl border border-rp-line bg-white p-4">
+          <p className="text-xs font-semibold text-rp-text-muted">{tr('Câu ví dụ')}</p>
+          <p className="rp-jp mt-1.5 text-sm font-medium text-rp-text">{data.exampleSentence}</p>
+        </div>
+      )}
+
+      {data.strokeOrderUrl && (
+        <div className="rounded-2xl border border-rp-line bg-white p-4">
+          <p className="mb-2 text-xs font-semibold text-rp-text-muted">{tr('Thứ tự nét viết')}</p>
+          <img
+            src={data.strokeOrderUrl}
+            alt={data.character || ''}
+            className="max-h-40 rounded-lg border border-rp-line bg-white object-contain p-2"
+          />
+        </div>
+      )}
+
+      {data.audioUrl && (
+        <div className="flex items-center gap-3 rounded-2xl border border-rp-line bg-rp-bg-2/40 p-3">
+          <Volume2 className="h-4 w-4 shrink-0 text-rp-brand-strong" />
+          <audio controls src={data.audioUrl} className="h-8 w-full" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ApprovedBankPage({
   pathname,
+  page: pageName,
   breadcrumb,
   title,
   hint,
-  page,
+  feature = 'vocab',
+  manualType = 'Vocabulary',
   endpoint,
+  detailEndpoint,
+  secondaryLink,
   columns,
-  detail,
 }) {
-  const { trf, tr } = useLocale();
-  const location = useLocation();
-  const currentPath = pathname || location.pathname;
-  const [queryText, setQueryText] = useState('');
-  const [level, setLevel] = useState(AUTHOR_LEVELS[0]);
-  const query = useQuery({
-    queryKey: ['approved-bank', endpoint],
-    queryFn: () => searchBank(endpoint),
+  const { tr, trf } = useLocale();
+  const [keyword, setKeyword] = useState('');
+  const [levelId, setLevelId] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [selectedRow, setSelectedRow] = useState(null);
+  const pageSize = 20;
+
+  const { levels } = useAuthorLookups();
+
+  const listQuery = useQuery({
+    queryKey: ['approved-bank', endpoint, keyword.trim(), levelId, page],
+    queryFn: () =>
+      searchSharedBank(endpoint, {
+        keyword: keyword.trim(),
+        jlptLevelId: levelId !== 'ALL' ? Number(levelId) : undefined,
+        page,
+        pageSize,
+      }),
+    placeholderData: (previous) => previous,
   });
-  const items = useMemo(() => query.data?.items || [], [query.data]);
-  const visible = useMemo(() => {
-    const text = queryText.trim().toLowerCase();
-    return items.filter((row) => {
-      const rowLevel = row.jlptLevelName || row.level || '';
-      if (!String(rowLevel).includes(level)) return false;
-      if (!text) return true;
-      return columns.some((column) => String(row[column.key] ?? '').toLowerCase().includes(text));
-    });
-  }, [items, queryText, level, columns]);
+
+  const resolvedDetailEndpoint =
+    detailEndpoint || endpoint.replace(/\/search$/i, '');
+
+  const detailQuery = useQuery({
+    queryKey: ['approved-bank-detail', resolvedDetailEndpoint, selectedRow?.id],
+    queryFn: () => getSharedBankDetail(resolvedDetailEndpoint, selectedRow.id),
+    enabled: Boolean(selectedRow?.id),
+  });
+
+  const rows = listQuery.data?.items || [];
+  const totalCount = listQuery.data?.totalCount ?? rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const hasFilters = keyword.trim() !== '' || levelId !== 'ALL';
+
+  const tableColumns = useMemo(
+    () =>
+      columns.map((col) => ({
+        key: col.key,
+        header: tr(col.label),
+        render: col.render || ((row) => row[col.key] || '—'),
+      })),
+    [columns, tr],
+  );
+
+  const resetFilters = () => {
+    setKeyword('');
+    setLevelId('ALL');
+    setPage(1);
+  };
 
   return (
-    <ContentAuthorShell pathname={currentPath} breadcrumb={breadcrumb}>
-      <main data-page={page} className="rp-container rp-cq py-[var(--rp-space-page-y)]">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="rp-type-page-title text-rp-text">{tr(title)}</h1>
-            <p className="rp-type-secondary mt-1.5 max-w-xl text-rp-text-muted">{tr(hint)}</p>
+    <ContentAuthorShell pathname={pathname} breadcrumb={tr(breadcrumb)}>
+      <main data-page={pageName} className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand-strong">
+              {tr('Kho học liệu đã duyệt')}
+            </p>
+            <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-rp-text">
+              <FeatureIcon feature={feature} size="lg" />
+              <span>{tr(title)}</span>
+              {!listQuery.isPending && (
+                <Badge tone="neutral" size="sm" icon={false}>{totalCount}</Badge>
+              )}
+            </h1>
+            {hint && <p className="max-w-2xl text-sm text-rp-text-muted">{tr(hint)}</p>}
           </div>
-          {detail && (
-            <Link to={detail.to} className="inline-flex h-10 items-center rounded-xl border border-rp-line bg-white px-3.5 text-[13px] text-rp-text-2 hover:bg-rp-brand-tint">
-              {tr(detail.label)}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <RefreshingIndicator active={listQuery.isFetching && !listQuery.isPending} />
+            {secondaryLink && (
+              <Link
+                to={secondaryLink.to}
+                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input border border-rp-line bg-white px-3.5 text-sm font-medium text-rp-text-2 hover:border-rp-brand-border"
+              >
+                <span>{tr(secondaryLink.label)}</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+            <Link
+              to={`/content-manual/?type=${encodeURIComponent(manualType)}`}
+              className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white hover:bg-rp-brand-deep"
+            >
+              <Plus className="h-4 w-4" />
+              <span>{tr('Soạn bổ sung')}</span>
             </Link>
-          )}
+          </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-rp-line bg-white p-3">
-          <input value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder={tr('Tìm trong kho đã duyệt')} className="h-10 min-w-0 flex-1 basis-[180px] rounded-xl border border-rp-line bg-rp-bg-2 px-3 text-[13px] outline-none focus:border-rp-brand-border" />
-          {AUTHOR_LEVELS.map((item) => (
-            <button key={item} type="button" onClick={() => setLevel(item)} className={`h-8 rounded-full px-3 text-[12px] ${level === item ? 'bg-rp-brand-strong text-white' : 'bg-rp-bg-2 text-rp-text-muted'}`}>
-              {item}
-            </button>
-          ))}
-          <span className="px-1 text-[12px] text-rp-text-muted">
-            {query.isPending ? tr('Đang tải…') : query.isError ? tr('Lỗi tải dữ liệu') : trf('{0} mục', { 0: visible.length })}
-          </span>
-        </div>
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="min-w-[220px] flex-1">
+              <Input
+                type="search"
+                icon={Search}
+                value={keyword}
+                onChange={(e) => {
+                  setKeyword(e.target.value);
+                  setPage(1);
+                }}
+                placeholder={tr('Tìm trong kho đã xuất bản…')}
+                aria-label={tr('Tìm trong kho đã xuất bản')}
+              />
+            </div>
 
-        {query.isError && (
-          <div className="mt-4 rounded-2xl border border-rp-line bg-white px-5">
+            <div className="w-full sm:w-[190px]">
+              <CustomSelect
+                value={levelId}
+                aria-label={tr('Lọc theo cấp độ')}
+                onChange={(val) => {
+                  setLevelId(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: 'ALL', label: tr('Mọi cấp độ') },
+                  ...levels.map((lvl) => ({
+                    value: String(lvl.id),
+                    label: `${lvl.certificate} · ${lvl.code}`,
+                  })),
+                ]}
+              />
+            </div>
+
+            {hasFilters && (
+              <Button variant="ghost" size="sm" icon={X} onClick={resetFilters}>
+                {tr('Xóa bộ lọc')}
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {listQuery.isPending ? (
+          <SakuraLoader variant="section" context="lesson" delay={140} />
+        ) : listQuery.isError ? (
+          <ContextualErrorState
+            error={listQuery.error}
+            title={tr('Chưa tải được dữ liệu từ kho đã duyệt')}
+            onRetry={() => listQuery.refetch()}
+          />
+        ) : rows.length === 0 ? (
+          <ContextualEmptyState
+            title={hasFilters ? tr('Không tìm thấy mục phù hợp') : tr('Chưa có học liệu nào được xuất bản')}
+            description={
+              hasFilters
+                ? tr('Thử thay đổi từ khóa hoặc chọn cấp độ khác.')
+                : tr('Các mục bạn soạn và được Admin duyệt sẽ xuất hiện tại đây.')
+            }
+            action={
+              hasFilters ? (
+                <Button variant="outline" onClick={resetFilters}>{tr('Xóa bộ lọc')}</Button>
+              ) : (
+                <Link
+                  to={`/content-manual/?type=${encodeURIComponent(manualType)}`}
+                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>{tr('Soạn nội dung mới')}</span>
+                </Link>
+              )
+            }
+          />
+        ) : (
+          <div className="space-y-4">
+            <DataTable
+              columns={tableColumns}
+              rows={rows}
+              keyField="id"
+              onRowClick={(row) => setSelectedRow(row)}
+              rowActions={(row) => (
+                <IconButton
+                  icon={Eye}
+                  size="sm"
+                  variant="ghost"
+                  label={tr('Xem chi tiết')}
+                  onClick={() => setSelectedRow(row)}
+                />
+              )}
+            />
+
+            {totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-rp-text-muted">
+                  {trf('Trang {0} / {1} · Tổng {2} mục', { 0: page, 1: totalPages, 2: totalCount })}
+                </p>
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  totalItems={totalCount}
+                  showPageSize={false}
+                  showTotal={false}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        <Modal
+          open={Boolean(selectedRow)}
+          onClose={() => setSelectedRow(null)}
+          title={selectedRow ? `${tr('Chi tiết')}: ${selectedRow.word || selectedRow.character || selectedRow.title || selectedRow.structure || ''}` : ''}
+          size="md"
+          footer={
+            <div className="flex justify-end">
+              <Button onClick={() => setSelectedRow(null)}>{tr('Đóng')}</Button>
+            </div>
+          }
+        >
+          {detailQuery.isPending ? (
+            <SakuraLoader variant="section" context="lesson" delay={120} />
+          ) : detailQuery.isError ? (
             <ContextualErrorState
               compact
-              error={query.error}
-              title={tr('Chưa tải được kho đã duyệt')}
-              onRetry={() => query.refetch()}
-              retrying={query.isFetching}
+              error={detailQuery.error}
+              title={tr('Không tải được chi tiết mục này')}
+              onRetry={() => detailQuery.refetch()}
             />
-          </div>
-        )}
-        {query.isPending && (
-          <SakuraLoader variant="section" context="data" label={tr('Đang mở kho đã duyệt…')} delay={160} className="mt-4" />
-        )}
-        {!query.isPending && !query.isError && !visible.length && (
-          <div className="mt-4 rounded-2xl border border-dashed border-rp-brand-border bg-white px-4">
-            <ContextualEmptyState
-              compact
-              title={tr('Chưa có mục nào.')}
-              description={tr('Nội dung hiện ở đây sau khi admin duyệt bài học.')}
+          ) : (
+            <DefaultBankDetail
+              data={detailQuery.data || selectedRow}
+              detailEndpoint={resolvedDetailEndpoint}
             />
-          </div>
-        )}
-        {!query.isPending && !query.isError && visible.length > 0 && (
-          <div style={{ '--rp-grid-min': '17rem' }} className="rp-fluid-grid mt-4">
-            {visible.map((row) => {
-              const face = row.character || row.word || row.title || row[columns[0].key];
-              const big = Boolean(row.character);
-              return (
-                <article key={row.id} className="rp-card-hover rounded-2xl border border-rp-line bg-white p-4">
-                  <div className="flex items-start gap-3">
-                    <span className={`flex shrink-0 items-center justify-center rounded-2xl bg-rp-brand-tint font-semibold text-rp-brand-strong ${big ? 'h-16 w-16 text-[28px]' : 'h-12 min-w-12 px-2 text-[13px]'}`} style={{ fontFamily: '"Segoe UI", "Yu Gothic", sans-serif' }}>
-                      {String(face || '—').slice(0, big ? 1 : 8)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h2 className="truncate text-[16px] font-semibold text-rp-text" style={{ fontFamily: '"Segoe UI", "Yu Gothic", sans-serif' }}>{face || '—'}</h2>
-                        {(row.jlptLevelName || row.level) && <span className="shrink-0 rounded-full bg-rp-brand-tint px-2 py-0.5 text-[11px] text-rp-text-muted">{row.jlptLevelName || row.level}</span>}
-                      </div>
-                      <dl className="mt-2 space-y-1">
-                        {columns.filter((column) => column.key !== columns[0].key && column.key !== 'jlptLevelName').map((column) => (
-                          <div key={column.key} className="flex gap-2 text-[12px]">
-                            <dt className="w-16 shrink-0 text-rp-text-muted">{tr(column.label)}</dt>
-                            <dd className="min-w-0 text-rp-brand-deep">{row[column.key] || '—'}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
+          )}
+        </Modal>
       </main>
     </ContentAuthorShell>
   );

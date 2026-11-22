@@ -36,6 +36,16 @@ export async function addNotebookEntry(payload) {
   return resultOf(data);
 }
 
+export async function updateNotebookEntry(noteEntryId, payload) {
+  const data = await api.put(`/Notebook/entries/${noteEntryId}`, payload);
+  return resultOf(data);
+}
+
+export async function enrollNotebookEntryToSrs(noteEntryId) {
+  const data = await api.post(`/Notebook/entries/${noteEntryId}/srs`);
+  return resultOf(data);
+}
+
 export function removeNotebookEntry(noteEntryId) {
   return api.delete(`/Notebook/entries/${noteEntryId}`);
 }

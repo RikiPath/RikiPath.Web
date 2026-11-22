@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import HanziWriter from 'hanzi-writer';
 import KanjiWritingCanvas from './KanjiWritingCanvas.jsx';
 import { getKanji, searchVocabulary } from '@/features/content-author/api/sharedBankApi.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
-import { useLocale, translateTemplate } from '@/locales/locale.js';
+import { Button, ContextualErrorState, SakuraLoader, SearchInput, Tabs } from '@/components/ui';
+import { useLocale, translateTemplate, translateText } from '@/locales/locale.js';
 
 function MemoryNote({ item }) {
   const { tr } = useLocale();
@@ -23,9 +23,9 @@ function MemoryNote({ item }) {
     .filter((row) => row.word?.includes(item.character) && row.word !== item.character)
     .slice(0, 2);
   const facts = [
-    ['On', card?.onYomi || item.onYomi],
-    ['Kun', card?.kunYomi || item.kunYomi],
-    ['HV', card?.sinoVietnamese || item.sinoVietnamese],
+    ['Onyomi', card?.onYomi || item.onYomi],
+    ['Kunyomi', card?.kunYomi || item.kunYomi],
+    ['Hán Việt', card?.sinoVietnamese || item.sinoVietnamese],
   ];
 
   function play() {
@@ -50,7 +50,7 @@ function MemoryNote({ item }) {
         <span>{item.strokeCount || card?.strokeCount || '?'}{' '}{tr('nét')}</span>
         {card?.jlptLevelName ? <span className="rounded-full bg-rp-brand-tint px-2 py-0.5">{card.jlptLevelName}</span> : null}
         {card?.audioUrl ? (
-          <button type="button" onClick={play} className="font-semibold text-rp-brand-strong">Nghe</button>
+          <button type="button" onClick={play} className="font-semibold text-rp-brand-strong">{tr('Nghe')}</button>
         ) : null}
       </div>
       {examples.length > 0 && (
@@ -123,7 +123,7 @@ function StrokeOrder({ character, active = 0 }) {
             <svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
               <g transform={transform}>
                 {strokes.slice(0, index + 1).map((path, pathIndex) => (
-                  <path key={pathIndex} d={path} fill={pathIndex === index ? '#AD3155' : '#E4D0D8'} />
+                  <path key={pathIndex} d={path} fill={pathIndex === index ? '#CC4B6B' : '#E6D6DC'} />
                 ))}
               </g>
             </svg>
@@ -176,7 +176,7 @@ function buildQuiz(item, queue) {
   const extras = FILLERS.filter((value) => value !== meaning && !pool.includes(value));
   const labels = shuffle([meaning, ...pool, ...extras].filter(Boolean).slice(0, 4), item.kanjiId + 3);
   return {
-    prompt: item.meaning ? 'Chữ này nghĩa là gì?' : 'Âm Hán Việt của chữ này là gì?',
+    prompt: item.meaning ? translateText('Chữ này nghĩa là gì?') : translateText('Âm Hán Việt của chữ này là gì?'),
     options: labels.map((label) => ({ id: label, label, big: false })),
     answer: meaning,
     showCharacter: true,
@@ -213,11 +213,31 @@ export default function KanjiLesson({ practice, scope, onScope }) {
   const [checked, setChecked] = useState(false);
   const [writeMistakes, setWriteMistakes] = useState(null);
   const [activeStroke, setActiveStroke] = useState(0);
+  const [kanjiSearch, setKanjiSearch] = useState('');
+  const [levelFilter, setLevelFilter] = useState('ALL');
   const item = queue[cursor] || null;
   const quiz = useMemo(() => (item ? buildQuiz(item, queue) : null), [item, queue]);
   const remembered = queue.filter((row) => (counts[row.kanjiId] || 0) >= ROUNDS).length;
   const progress = queue.length ? remembered / queue.length : 0;
   const correct = checked && picked === quiz?.answer;
+
+  const visibleQueue = useMemo(() => {
+    const q = kanjiSearch.trim().toLowerCase();
+    return queue.filter((row) => {
+      if (levelFilter !== 'ALL') {
+        const lvl = String(row.jlptLevelName || row.levelCode || '').toUpperCase();
+        if (!lvl.includes(levelFilter)) return false;
+      }
+      if (!q) return true;
+      const hay = `${row.character || ''} ${row.meaning || ''} ${row.sinoVietnamese || ''} ${row.onYomi || ''} ${row.kunYomi || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [queue, kanjiSearch, levelFilter]);
+
+  const availableLevels = useMemo(() => {
+    const lvls = new Set(queue.map((r) => String(r.jlptLevelName || r.levelCode || '').toUpperCase()).filter(Boolean));
+    return ['N5', 'N4', 'N3', 'N2', 'N1'].filter((c) => lvls.has(c));
+  }, [queue]);
 
   // New practice queue → restart the round (adjusting state during render, not in an effect).
   const [roundQueue, setRoundQueue] = useState(queue);
@@ -261,9 +281,10 @@ export default function KanjiLesson({ practice, scope, onScope }) {
       return;
     }
     const nextCount = Math.min(ROUNDS, roundIndex + 1);
-    setCounts({ ...counts, [item.kanjiId]: nextCount });
+    const nextCounts = { ...counts, [item.kanjiId]: nextCount };
+    setCounts(nextCounts);
     resetRound();
-    setPhase('pick');
+    setPhase(queue.every((row) => (nextCounts[row.kanjiId] || 0) >= ROUNDS) ? 'done' : 'pick');
     setStep('guide');
   }
 
@@ -309,7 +330,7 @@ export default function KanjiLesson({ practice, scope, onScope }) {
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-[13px]">
         <div className="inline-flex rounded-full bg-white p-1">
-          {[['due', 'Hôm nay'], ['all', 'Cả bảng']].map(([value, name]) => (
+          {[['due', tr('Hôm nay')], ['all', tr('Cả bảng')]].map(([value, name]) => (
             <button
               key={value}
               type="button"
@@ -334,10 +355,15 @@ export default function KanjiLesson({ practice, scope, onScope }) {
           />
         )}
         {!loading && !error && !queue.length && (
-          <div className="text-center">
-            <p className="text-[28px]" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>漢</p>
-            <h1 className="mt-3 text-[22px] font-bold text-rp-text">{tr('Hôm nay chưa có chữ đến hạn')}</h1>
-            <p className="mt-2 text-[14px] text-rp-text-muted">{tr('Mở cả bảng nếu bạn vẫn muốn luyện thêm.')}</p>
+          <div className="space-y-3 text-center">
+            <p className="text-[28px] text-rp-brand-strong" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>漢</p>
+            <h1 className="text-[22px] font-bold text-rp-text">{tr('Hôm nay chưa có chữ đến hạn')}</h1>
+            <p className="text-[14px] text-rp-text-muted">{tr('Mở cả bảng nếu bạn vẫn muốn luyện thêm.')}</p>
+            {scope === 'due' && (
+              <Button variant="soft" size="sm" onClick={() => onScope?.('all')}>
+                {tr('Chuyển sang cả bảng')}
+              </Button>
+            )}
           </div>
         )}
         {!loading && phase === 'done' && (
@@ -355,8 +381,35 @@ export default function KanjiLesson({ practice, scope, onScope }) {
           <div className="rp-cq">
             <h1 className="rp-type-page-title text-rp-text">{tr('Chọn chữ muốn ôn')}</h1>
             <p className="rp-type-secondary mt-1 text-rp-text-muted">{tr('Bấm một chữ để xem nét rồi viết. Thanh dưới ô đầy thì ô chuyển xanh.')}</p>
+            {(queue.length > 8 || availableLevels.length > 1) && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {queue.length > 8 && (
+                  <div className="min-w-[180px] flex-1">
+                    <SearchInput
+                      value={kanjiSearch}
+                      onChange={(e) => setKanjiSearch(e.target.value)}
+                      onClear={() => setKanjiSearch('')}
+                      placeholder="Tìm Kanji, âm Hán Việt, nghĩa…"
+                    />
+                  </div>
+                )}
+                {availableLevels.length > 1 && (
+                  <Tabs
+                    variant="pill"
+                    label={tr('Lọc cấp độ JLPT')}
+                    value={levelFilter}
+                    onChange={setLevelFilter}
+                    tabs={[
+                      { value: 'ALL', label: 'Tất cả' },
+                      ...availableLevels.map((lvl) => ({ value: lvl, label: lvl })),
+                    ]}
+                  />
+                )}
+              </div>
+            )}
             <div style={{ '--rp-grid-min': '8.5rem' }} className="rp-fluid-grid mt-5">
-              {queue.map((row, index) => {
+              {visibleQueue.map((row) => {
+                const index = queue.indexOf(row);
                 const count = counts[row.kanjiId] || 0;
                 const studied = count >= ROUNDS;
                 return (
@@ -378,6 +431,9 @@ export default function KanjiLesson({ practice, scope, onScope }) {
                 );
               })}
             </div>
+            {visibleQueue.length === 0 && (
+              <p className="mt-6 text-center text-sm text-rp-text-muted">{tr('Không tìm thấy chữ Kanji phù hợp.')}</p>
+            )}
           </div>
         )}
         {!loading && phase === 'practice' && item && step === 'guide' && (

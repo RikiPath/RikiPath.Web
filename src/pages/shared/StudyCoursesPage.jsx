@@ -54,7 +54,7 @@ const labels = {
   Present: 'Có mặt',
   Absent: 'Vắng',
   ExcusedAbsent: 'Vắng có phép',
-  CancelledByMentor: 'Mentor hủy',
+  CancelledByMentor: 'Giáo viên hủy',
   Pending: 'Chờ duyệt',
   Approved: 'Đã duyệt',
   Rejected: 'Từ chối',
@@ -555,6 +555,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
             {learner && tab === 'cohorts' && (
               <LearnerCohortDiscoveryPanel
                 cohorts={cohorts}
+                enrolledCourses={courses}
                 myEntitlements={myEntitlements}
                 busy={busy}
                 onRun={action}
@@ -762,7 +763,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                       </div>
                       <h2 style={{ marginTop: 10 }}>{current.name}</h2>
                       <p className="course-meta">
-                        {tr('Học viên:')}{' '}<strong>{current.learnerName}</strong> · Mentor: <strong>{current.mentorName || tr('Chưa phân công')}</strong>
+                        {tr('Học viên:')}{' '}<strong>{current.learnerName}</strong> · {tr('Giáo viên:')} <strong>{current.mentorName || tr('Chưa phân công')}</strong>
                       </p>
                       <p className="course-meta">
                        {trf('{0} buổi · {1} phút/buổi · Bắt đầu: {2}', { 0: current.totalSessions, 1: current.sessionMinutes, 2: date(current.startsAt) })}
@@ -997,7 +998,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                     <section className="course-box">
                       <h2>{tr('Hỗ trợ ôn lại khi trượt JLPT chính thức')}</h2>
                       <p className="course-meta">
-                        {tr('Admin duyệt minh chứng và điều kiện nộp bài tập. Sau khi Admin duyệt, Mentor lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
+                        {tr('Admin duyệt minh chứng và điều kiện nộp bài tập. Sau khi Admin duyệt, Giáo viên lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
                       </p>
                       {learner && current.status === 'Completed' && !current.requests.some((r) => r.status === 'Pending') && (
                         <Form
@@ -1020,7 +1021,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                           <Field title={tr('Ngày thi JLPT')}><input name="examDate" type="date" required /></Field>
                           <Field title={tr('Ngày công bố kết quả')}><input name="resultPublishedAt" type="date" required /></Field>
                           <Field title={tr('Lý do / Tường trình kết quả thi (bắt buộc với lớp nhóm)')}>
-                            <textarea name="reason" required maxLength={1000} placeholder={tr('Nêu rõ điểm các kỹ năng hoặc phần cần Mentor hỗ trợ ôn lại...')} />
+                            <textarea name="reason" required maxLength={1000} placeholder={tr('Nêu rõ điểm các kỹ năng hoặc phần cần Giáo viên hỗ trợ ôn lại...')} />
                           </Field>
                           <Field title={tr('Minh chứng chính thức (PDF/PNG/JPG ≤ 10 MB)')}>
                             <input name="evidence" type="file" accept="application/pdf,image/png,image/jpeg" />
@@ -1041,7 +1042,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                             {r.response && <p className="course-pre"><strong>{tr('Quyết định của Admin:')}</strong> {r.response}</p>}
                             {r.mentorSupportPlan && (
                               <div className="course-notice" style={{ marginTop: 8 }}>
-                                <strong>{trf('Lộ trình hỗ trợ từ Mentor ({0}):', { 0: date(r.mentorSupportPlanAtUtc) })}</strong>
+                                <strong>{trf('Lộ trình hỗ trợ từ Giáo viên ({0}):', { 0: date(r.mentorSupportPlanAtUtc) })}</strong>
                                 <p className="course-pre">{r.mentorSupportPlan}</p>
                               </div>
                             )}
@@ -1098,7 +1099,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                                   action(() => saveRetakeSupportPlan(current.id, r.id, val), 'Đã lưu kế hoạch hỗ trợ ôn lại cho học viên.');
                                 }}
                               >
-                                <h3>{tr('Lộ trình hỗ trợ ôn lại JLPT của Mentor')}</h3>
+                                <h3>{tr('Lộ trình hỗ trợ ôn lại JLPT của Giáo viên')}</h3>
                                 <fieldset disabled={busy}>
                                   <Field title={tr('Kế hoạch ôn luyện (chỉ mở sau khi Admin đã duyệt)')}>
                                     <textarea

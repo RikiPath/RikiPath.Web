@@ -1,6 +1,21 @@
 import { useState } from 'react';
+import { Eye, FileText } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors';
-import { ContextualEmptyState, SmartDataBoundary } from '@/components/ui';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualEmptyState,
+  CustomSelect,
+  DataTable,
+  Drawer,
+  Field,
+  IconButton,
+  Input,
+  SmartDataBoundary,
+  Textarea,
+} from '@/components/ui';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
 import {
   approveTransfer,
@@ -13,51 +28,54 @@ import {
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
-const STATUS = { Pending: 'Chờ duyệt', Approved: 'Đã duyệt', Rejected: 'Từ chối', Withdrawn: 'Đã rút' };
-const ENROLLMENT_STATUS = { Active: 'Đang học', Completed: 'Đã hoàn thành', Transferred: 'Đã chuyển lớp', TransferredOut: 'Đã chuyển sang lớp khác', Cancelled: 'Đã hủy', PendingPayment: 'Chờ thanh toán' };
-const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
+const STATUS_META = {
+  Pending: { label: 'Chờ duyệt', tone: 'warning', dot: '#f59e0b' },
+  Approved: { label: 'Đã duyệt', tone: 'success', dot: '#22c55e' },
+  Rejected: { label: 'Từ chối', tone: 'danger', dot: '#ef4444' },
+  Withdrawn: { label: 'Đã rút', tone: 'neutral', dot: '#94a3b8' },
+};
 
-function Checks({ checks }) {
-  const { tr } = useLocale();
-  return (
-    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-      {checks.map((c) => (
-        <li key={c.code} className="course-meta" style={{ color: c.passed ? '#1e5c36' : '#a42222' }}>
-          {c.passed ? '✓' : '✗'} {tr(c.message)} <code style={{ fontSize: 11 }}>{c.code}</code>
-        </li>
-      ))}
-    </ul>
-  );
-}
+const ENROLLMENT_STATUS = {
+  Active: 'Đang học',
+  Completed: 'Đã hoàn thành',
+  Transferred: 'Đã chuyển lớp',
+  TransferredOut: 'Đã chuyển sang lớp khác',
+  Cancelled: 'Đã hủy',
+  PendingPayment: 'Chờ thanh toán',
+};
+
+const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
 
 function CohortCard({ cohort, selected, onSelect }) {
   const { tr, trf } = useLocale();
   return (
-    <article className="course-box" style={{ borderColor: selected ? '#ad3155' : undefined }}>
-      <span className="course-badge">{cohort.level}</span>{' '}
-      <span className={`course-badge ${cohort.seatsAvailable > 0 ? 'ok' : 'muted'}`}>
-        {trf('{0}/{1} học viên · còn {2} chỗ', { 0: cohort.enrolledCount, 1: cohort.capacity, 2: cohort.seatsAvailable })}
-      </span>
-      <h3 style={{ marginTop: 8 }}>{cohort.name}</h3>
-      <p className="course-meta">{trf('Mentor: {0} · Khai giảng {1} · Khóa đăng ký {2}', { 0: cohort.mentorName, 1: date(cohort.startsAt), 2: date(cohort.enrollmentClosesAtUtc) })}</p>
-      <details>
-        <summary>{trf('Lịch {0} buổi', { 0: cohort.sessions.length })}</summary>
-        <ul>{cohort.sessions.map((s) => <li key={s.number} className="course-meta">{trf('Buổi {0}: {1}', { 0: s.number, 1: date(s.startTime) })}</li>)}</ul>
-      </details>
+    <Card
+      className={`space-y-2 p-3.5 text-sm ${selected ? 'border-rp-brand-strong bg-rp-brand-tint/30' : ''}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge tone="neutral" size="sm" icon={false}>{cohort.level}</Badge>
+        <Badge tone={cohort.seatsAvailable > 0 ? 'success' : 'neutral'} size="sm" icon={false}>
+          {trf('{0}/{1} học viên · còn {2} chỗ', { 0: cohort.enrolledCount, 1: cohort.capacity, 2: cohort.seatsAvailable })}
+        </Badge>
+      </div>
+      <p className="font-semibold text-rp-text">{cohort.name}</p>
+      <p className="text-xs text-rp-text-muted">
+        {trf('Giáo viên: {0} · Khai giảng {1}', { 0: cohort.mentorName, 1: date(cohort.startsAt) })}
+      </p>
       {onSelect && (
-        <button type="button" onClick={onSelect} className={selected ? 'course-primary' : ''}>
-          {selected ? tr('Đang chọn') : tr('Chọn làm lớp đích')}
-        </button>
+        <Button size="sm" variant={selected ? 'primary' : 'outline'} onClick={onSelect}>
+          {selected ? tr('Đang chọn làm lớp đích') : tr('Chọn làm lớp đích')}
+        </Button>
       )}
-    </article>
+    </Card>
   );
 }
 
-// Hàng đợi yêu cầu chuyển lớp: xem chi tiết, tiến độ, lớp đích (sức chứa/lịch) và duyệt/từ chối.
-export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
+export default function AdminCohortTransferQueuePanel({ busy, initialTransferId = null, onRun }) {
   const { tr, trf } = useLocale();
-  const [status, setStatus] = useState('Pending');
-  const [selectedId, setSelectedId] = useState(null);
+  const initialIdNum = initialTransferId ? Number(initialTransferId) : null;
+  const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
+  const [selectedId, setSelectedId] = useState(initialIdNum);
   const [detail, setDetail] = useState(null);
   const [targetId, setTargetId] = useState(null);
   const [eligibility, setEligibility] = useState(null);
@@ -65,11 +83,7 @@ export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
   const [rejectReason, setRejectReason] = useState('');
   const [error, setError] = useState('');
 
-  const query = useAsyncResource(
-    () => getTransferRequests(status || undefined),
-    [status],
-  );
-  const rows = Array.isArray(query.data) ? query.data : [];
+  const query = useAsyncResource(() => getTransferRequests(status || undefined), [status]);
 
   const loadList = () => query.refetch();
   const loadDetail = (id) =>
@@ -83,30 +97,89 @@ export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
       })
       .catch((e) => setError(describeApiError(e).message));
 
+  const [loadedInitialId, setLoadedInitialId] = useState(null);
+  if (initialIdNum && loadedInitialId !== initialIdNum) {
+    setLoadedInitialId(initialIdNum);
+    loadDetail(initialIdNum);
+  }
+
   const choose = (cohortId) => {
     setTargetId(cohortId);
     setEligibility(null);
     setError('');
-    getTransferEligibility(selectedId, cohortId).then(setEligibility).catch((e) => setError(describeApiError(e).message));
+    getTransferEligibility(selectedId, cohortId)
+      .then(setEligibility)
+      .catch((e) => setError(describeApiError(e).message));
   };
 
   const request = detail?.request;
+  const drawerOpen = Boolean(selectedId);
+
+  const columns = [
+    {
+      key: 'id',
+      header: '#',
+      render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span>,
+    },
+    {
+      key: 'learnerName',
+      header: tr('Học viên'),
+      render: (r) => <span className="font-semibold text-rp-text">{r.learnerName}</span>,
+    },
+    {
+      key: 'sourceCohortName',
+      header: tr('Lớp nguồn'),
+      render: (r) => <span className="text-sm text-rp-text-2">{r.sourceCohortName}</span>,
+    },
+    {
+      key: 'requestedTargetCohortName',
+      header: tr('Lớp đề xuất'),
+      render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedTargetCohortName || tr('Admin chọn')}</span>,
+    },
+    {
+      key: 'createdAtUtc',
+      header: tr('Gửi lúc'),
+      render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span>,
+    },
+    {
+      key: 'status',
+      header: tr('Trạng thái'),
+      render: (r) => {
+        const meta = STATUS_META[r.status] || { label: r.status, tone: 'neutral' };
+        return <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>;
+      },
+    },
+  ];
+
   return (
-    <section className="course-box">
-      <div className="course-buttons" style={{ justifyContent: 'space-between' }}>
-        <h2>{tr('Yêu cầu chuyển lớp của học viên')}</h2>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ maxWidth: 200 }} aria-label={tr('Lọc trạng thái')}>
-          <option value="Pending">{tr('Chờ duyệt')}</option>
-          <option value="Approved">{tr('Đã duyệt')}</option>
-          <option value="Rejected">{tr('Từ chối')}</option>
-          <option value="Withdrawn">{tr('Đã rút')}</option>
-          <option value="">{tr('Tất cả')}</option>
-        </select>
-      </div>
-      <p className="course-meta">
-        {tr('Học viên không thể tự đổi lớp hoặc Mentor. Máy chủ kiểm tra lại toàn bộ điều kiện khi duyệt; chuyển vào lớp đã khai giảng chưa được hỗ trợ.')}
-      </p>
-      {error && <p role="alert" className="course-error">{error}</p>}
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-rp-text">{tr('Yêu cầu chuyển lớp của học viên')}</h2>
+            <p className="text-xs text-rp-text-muted">
+              {tr('Máy chủ kiểm tra sức chứa, lịch học và điều kiện chính sách trước khi duyệt chuyển lớp.')}
+            </p>
+          </div>
+          <div className="w-full sm:w-[200px]">
+            <CustomSelect
+              value={status}
+              aria-label={tr('Lọc trạng thái chuyển lớp')}
+              onChange={setStatus}
+              options={[
+                { value: 'Pending', label: tr('Chờ duyệt'), dot: '#f59e0b' },
+                { value: 'Approved', label: tr('Đã duyệt'), dot: '#22c55e' },
+                { value: 'Rejected', label: tr('Từ chối'), dot: '#ef4444' },
+                { value: 'Withdrawn', label: tr('Đã rút'), dot: '#94a3b8' },
+                { value: '', label: tr('Tất cả trạng thái') },
+              ]}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {error && <Banner tone="danger">{error}</Banner>}
+
       <SmartDataBoundary
         query={query}
         isEmpty={(list) => !Array.isArray(list) || list.length === 0}
@@ -118,100 +191,169 @@ export default function AdminCohortTransferQueuePanel({ busy, onRun }) {
         empty={<ContextualEmptyState compact context="adminQueue" title={tr('Không có yêu cầu chuyển lớp.')} />}
       >
         {(list) => (
-          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left' }}><th>#</th><th>{tr('Học viên')}</th><th>{tr('Lớp nguồn')}</th><th>{tr('Đề xuất')}</th><th>{tr('Gửi lúc')}</th><th>{tr('Trạng thái')}</th><th /></tr>
-            </thead>
-            <tbody>
-              {list.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #f0e3e8', background: r.id === selectedId ? '#fff8fb' : undefined }}>
-                  <td>{r.id}</td><td>{r.learnerName}</td><td>{r.sourceCohortName}</td>
-                  <td>{r.requestedTargetCohortName || tr('Admin chọn')}</td><td>{date(r.createdAtUtc)}</td><td>{tr(STATUS[r.status] || r.status)}</td>
-                  <td>
-                    <button type="button" onClick={() => { setSelectedId(r.id); setNote(''); setRejectReason(''); loadDetail(r.id); }}>Xem</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={columns}
+            rows={list}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => {
+              setSelectedId(r.id);
+              setNote('');
+              setRejectReason('');
+              loadDetail(r.id);
+            }}
+            rowActions={(r) => (
+              <IconButton
+                icon={Eye}
+                size="sm"
+                variant="ghost"
+                label={tr('Xem chi tiết')}
+                onClick={() => {
+                  setSelectedId(r.id);
+                  setNote('');
+                  setRejectReason('');
+                  loadDetail(r.id);
+                }}
+              />
+            )}
+          />
         )}
       </SmartDataBoundary>
 
-      {rows.length > 0 && request && request.id === selectedId && (
-        <div className="course-form">
-          <h3>{tr('Yêu cầu #')}{request.id} · {request.learnerName} · {tr(STATUS[request.status] || request.status)}</h3>
-          <p className="course-pre"><strong>{tr('Lý do:')}</strong> {tr(request.reason)}</p>
-          {request.hasEvidence && (
-            <button type="button" disabled={busy} onClick={() => onRun(() => openTransferEvidence(request.id), 'Đã mở minh chứng riêng tư.')}>
-              {tr('Xem minh chứng')}
-            </button>
-          )}
-          {detail.sourceEnrollment && (
-            <p className="course-meta">
-              {trf('Ghi danh hiện tại ({1}) · Có mặt {2}/{3} buổi · Vắng {4} · Còn {5} buổi · Bài tập đã nộp {6}/{7}', { 1: tr(ENROLLMENT_STATUS[detail.sourceEnrollment.status] || 'Khác'), 2: detail.sourceEnrollment.progress.attended, 3: detail.sourceEnrollment.progress.totalSessions, 4: detail.sourceEnrollment.progress.absent, 5: detail.sourceEnrollment.progress.upcoming, 6: detail.sourceEnrollment.progress.homeworkSubmitted, 7: detail.sourceEnrollment.progress.homeworkAssigned })}
-            </p>
-          )}
-          {detail.sourceCohort && <CohortCard cohort={detail.sourceCohort} />}
-          {request.status === 'Pending' && (
-            <>
-              <h3 style={{ marginTop: 14 }}>{tr('Lớp đích phù hợp (cùng cấp độ, chưa khai giảng)')}</h3>
-              {detail.candidateCohorts.length === 0 ? (
-                <p className="course-meta">{tr('Không có lớp đích phù hợp.')}</p>
-              ) : (
-                <div className="course-grid">
-                  {detail.candidateCohorts.map((c) => (
-                    <CohortCard key={c.id} cohort={c} selected={c.id === targetId} onSelect={() => choose(c.id)} />
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setSelectedId(null)}
+        title={request ? `${tr('Yêu cầu chuyển lớp')} #${request.id}` : tr('Chi tiết yêu cầu chuyển lớp')}
+        width="w-[min(560px,100vw)]"
+      >
+        {request && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={(STATUS_META[request.status] || { tone: 'neutral' }).tone} size="sm" icon={false}>
+                {tr((STATUS_META[request.status] || { label: request.status }).label)}
+              </Badge>
+              {request.hasEvidence && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={FileText}
+                  disabled={busy}
+                  onClick={() => onRun(() => openTransferEvidence(request.id), 'Đã mở minh chứng riêng tư.')}
+                >
+                  {tr('Xem minh chứng')}
+                </Button>
+              )}
+            </div>
+
+            <Card className="space-y-2 bg-rp-bg-2/40 p-4 text-sm">
+              <p><strong>{tr('Lý do học viên')}:</strong> {tr(request.reason)}</p>
+              {detail.sourceEnrollment && (
+                <p className="text-xs text-rp-text-muted">
+                  {trf('Ghi danh ({1}) · Có mặt {2}/{3} · Vắng {4} · Còn {5} buổi · Bài tập {6}/{7}', {
+                    1: tr(ENROLLMENT_STATUS[detail.sourceEnrollment.status] || 'Khác'),
+                    2: detail.sourceEnrollment.progress.attended,
+                    3: detail.sourceEnrollment.progress.totalSessions,
+                    4: detail.sourceEnrollment.progress.absent,
+                    5: detail.sourceEnrollment.progress.upcoming,
+                    6: detail.sourceEnrollment.progress.homeworkSubmitted,
+                    7: detail.sourceEnrollment.progress.homeworkAssigned,
+                  })}
+                </p>
+              )}
+            </Card>
+
+            {detail.sourceCohort && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-rp-text-muted">{tr('Lớp nguồn')}</p>
+                <CohortCard cohort={detail.sourceCohort} />
+              </div>
+            )}
+
+            {request.status === 'Pending' && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-rp-text-muted">{tr('Chọn lớp đích phù hợp')}</p>
+                  {detail.candidateCohorts.length === 0 ? (
+                    <Banner tone="warning">{tr('Không có lớp đích phù hợp.')}</Banner>
+                  ) : (
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {detail.candidateCohorts.map((c) => (
+                        <CohortCard key={c.id} cohort={c} selected={c.id === targetId} onSelect={() => choose(c.id)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {eligibility && (
+                  <Banner tone={eligibility.eligible ? 'success' : 'danger'} title={eligibility.eligible ? tr('Đủ điều kiện chuyển') : tr('Chưa đủ điều kiện chuyển')}>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      {eligibility.checks.map((c) => (
+                        <li key={c.code}>
+                          {c.passed ? '✓' : '✗'} {tr(c.message)}
+                        </li>
+                      ))}
+                    </ul>
+                  </Banner>
+                )}
+
+                <Card className="space-y-3 p-4">
+                  <Field label={tr('Ghi chú duyệt (không bắt buộc)')}>
+                    <Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+                  </Field>
+                  <Button
+                    loading={busy}
+                    disabled={busy || !targetId || (eligibility && !eligibility.eligible)}
+                    onClick={() =>
+                      onRun(async () => {
+                        await approveTransfer(request.id, { targetCohortId: targetId, note, expectedRevision: request.revision });
+                        await loadList();
+                        await loadDetail(request.id);
+                      }, 'Đã duyệt chuyển lớp; ghi danh được cập nhật và thông báo sẽ gửi sau khi lưu.')
+                    }
+                  >
+                    {tr('Duyệt chuyển lớp')}
+                  </Button>
+                </Card>
+
+                <Card className="space-y-3 p-4">
+                  <Field label={tr('Lý do từ chối (bắt buộc)')}>
+                    <Textarea rows={3} maxLength={1000} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+                  </Field>
+                  <Button
+                    variant="danger"
+                    disabled={busy || !rejectReason.trim()}
+                    onClick={() =>
+                      onRun(async () => {
+                        await rejectTransfer(request.id, rejectReason, request.revision);
+                        await loadList();
+                        await loadDetail(request.id);
+                      }, 'Đã từ chối yêu cầu và gửi lý do cho học viên.')
+                    }
+                  >
+                    {tr('Từ chối yêu cầu')}
+                  </Button>
+                </Card>
+              </>
+            )}
+
+            {request.decisionNote && (
+              <Banner tone="info" title={tr('Quyết định')}>
+                {request.decisionNote}
+              </Banner>
+            )}
+
+            {request.history?.length > 0 && (
+              <div className="space-y-1.5 border-t border-rp-line pt-3">
+                <p className="text-xs font-semibold text-rp-text-muted">{tr('Lịch sử xử lý')}</p>
+                <ul className="space-y-1 text-xs text-rp-text-2">
+                  {request.history.map((h, i) => (
+                    <li key={i}>{date(h.atUtc)} · {h.actorRole} · {h.action}: {h.detail}</li>
                   ))}
-                </div>
-              )}
-              {eligibility && (
-                <div className={eligibility.eligible ? 'course-notice' : 'course-error'}>
-                  <strong>{eligibility.eligible ? tr('Đủ điều kiện chuyển') : tr('Chưa đủ điều kiện chuyển')}</strong>
-                  {eligibility.policyVersion ? trf(' · chính sách v{0}', { 0: eligibility.policyVersion }) : ''}
-                  <Checks checks={eligibility.checks} />
-                </div>
-              )}
-              <form
-                className="course-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onRun(async () => {
-                    await approveTransfer(request.id, { targetCohortId: targetId, note, expectedRevision: request.revision });
-                    await loadList();
-                    await loadDetail(request.id);
-                  }, 'Đã duyệt chuyển lớp; ghi danh được cập nhật và thông báo sẽ gửi sau khi lưu.');
-                }}
-              >
-                <fieldset disabled={busy || !targetId || (eligibility && !eligibility.eligible)}>
-                  <label className="course-field"><span>{tr('Ghi chú duyệt (không bắt buộc)')}</span><input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></label>
-                  <button className="course-primary" type="submit">{tr('Duyệt chuyển lớp')}</button>
-                </fieldset>
-              </form>
-              <form
-                className="course-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onRun(async () => {
-                    await rejectTransfer(request.id, rejectReason, request.revision);
-                    await loadList();
-                    await loadDetail(request.id);
-                  }, 'Đã từ chối yêu cầu và gửi lý do cho học viên.');
-                }}
-              >
-                <fieldset disabled={busy}>
-                  <label className="course-field"><span>{tr('Lý do từ chối (bắt buộc)')}</span><textarea required maxLength={1000} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} /></label>
-                  <button type="submit">{tr('Từ chối')}</button>
-                </fieldset>
-              </form>
-            </>
-          )}
-          {request.decisionNote && <p className="course-pre"><strong>{tr('Quyết định:')}</strong> {request.decisionNote}</p>}
-          <details open>
-            <summary>{tr('Lịch sử kiểm toán')}</summary>
-            <ul>{request.history.map((h, i) => <li key={i} className="course-meta">{date(h.atUtc)} · {h.actorRole} · {h.action}: {h.detail}</li>)}</ul>
-          </details>
-        </div>
-      )}
-    </section>
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Drawer>
+    </div>
   );
 }

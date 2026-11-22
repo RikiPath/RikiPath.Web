@@ -25,12 +25,36 @@ export function resendVerificationEmail(email) {
   return api.post('/Auth/resend-verification-email', { email });
 }
 
+export function changeUnverifiedEmail(payload) {
+  return api.post('/Auth/change-unverified-email', payload);
+}
+
 export function updateEmail(userId, payload) {
   return api.put(`/Auth/update-email/${userId}`, payload);
 }
 
+export function resendPendingEmail() {
+  return api.post('/Auth/resend-pending-email', {});
+}
+
+export function getAuthMe() {
+  return api.get('/Auth/me');
+}
+
 export function changePassword(userId, payload) {
   return api.post(`/Auth/change-password/${userId}`, payload);
+}
+
+export function setPassword(payload) {
+  return api.post('/Auth/set-password', payload);
+}
+
+export function requestPasswordReset(email) {
+  return api.post('/Auth/forgot-password', { email });
+}
+
+export function resetPassword(payload) {
+  return api.post('/Auth/reset-password', payload);
 }
 
 export function homePathForRole(role) {

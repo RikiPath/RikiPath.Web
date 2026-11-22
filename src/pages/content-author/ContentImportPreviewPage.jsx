@@ -8,7 +8,8 @@ import WorkbookPreview from './WorkbookPreview.jsx';
 import { workbookEditKey } from '@/features/content-author/utils/workbookModel.js';
 
 import { ContentAuthorShell } from '@/layouts';
-import { SakuraLoader } from '@/components/ui';
+import { CustomSelect, FeatureIcon, PageHeader, SakuraLoader } from '@/components/ui';
+import { FilePlus2, History } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
     CONTENT_IMPORT_TYPES, editExcelWorkbook, previewExcelWorkbook, submitAuthorImportBatch, uploadContentImage, uploadListeningAudio,
@@ -113,7 +114,7 @@ function DiffModal({ row, entityType, onClose }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
             <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/80">
                     <div className="flex items-center gap-3">
                         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-700 font-bold text-base">
                             {row.rowKey?.slice(0, 2) || '#'}
@@ -129,7 +130,7 @@ function DiffModal({ row, entityType, onClose }) {
                                 {tr('Dòng')}{' '}{row.sourceRowNumber} trong file • Sheet {ENTITY_LABELS[entityType] ?? entityType}
                                 {row.targetEntityId && (
                                     <span className="ml-2 font-mono text-slate-400">
-                                        (Entity ID trong DB: #{row.targetEntityId})
+                                        ({trf('Bản ghi #{0}', { 0: row.targetEntityId })})
                                     </span>
                                 )}
                             </p>
@@ -137,7 +138,7 @@ function DiffModal({ row, entityType, onClose }) {
                     </div>
                     <button
                         onClick={onClose}
-                        className="rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
                         title={tr('Đóng (Esc)')}
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -147,7 +148,7 @@ function DiffModal({ row, entityType, onClose }) {
                 </div>
 
                 {/* Modal Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     {/* Thông báo lỗi nếu có */}
                     {row.errors?.length > 0 && (
                         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
@@ -719,6 +720,15 @@ function ContentImportPreviewPage() {
         }),
     });
     const hasChanges = Object.keys(changes).length > 0;
+    useEffect(() => {
+        if (!hasChanges) return undefined;
+        const onBeforeUnload = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [hasChanges]);
     const busy = preview.isPending || confirmImport.isPending || submitReview.isPending ||
         workbookPreview.isPending || applyWorkbook.isPending;
 
@@ -999,25 +1009,25 @@ function ContentImportPreviewPage() {
                     </div>
 
                     <div className="flex flex-col justify-between gap-3">
-                        <label className="text-sm">
-                            <span className="mb-1 block font-medium text-slate-700">{tr('Loại nội dung')}</span>
-                            <select
+                        <div className="space-y-1.5 text-sm">
+                            <span className="block font-medium text-rp-text">{tr('Loại nội dung')}</span>
+                            <CustomSelect
                                 disabled={busy}
                                 value={entityType}
-                                onChange={(e) => {
-                                    setEntityType(e.target.value);
+                                aria-label={tr('Loại nội dung')}
+                                onChange={(value) => {
+                                    setEntityType(value);
                                     preview.reset();
                                 }}
-                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-sm"
-                            >
-                                <option value="">{tr('Tất cả sheet trong file')}</option>
-                                {CONTENT_IMPORT_TYPES.map((t) => (
-                                    <option key={t.value} value={t.value}>
-                                       {trf('Chỉ {0}', { 0: t.label })}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                                options={[
+                                    { value: '', label: tr('Tất cả sheet trong file') },
+                                    ...CONTENT_IMPORT_TYPES.map((t) => ({
+                                        value: t.value,
+                                        label: trf('Chỉ {0}', { 0: t.label }),
+                                    })),
+                                ]}
+                            />
+                        </div>
                         <button
                             type="submit"
                             disabled={!file || busy || hasChanges}

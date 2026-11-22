@@ -150,7 +150,7 @@ describe('PayOS return URL reconciliation & route parity', () => {
     assert.equal(canAccessPath('/admin/users/detail?id=5', ['Learner']), false);
     assert.equal(canAccessPath('/mentors/12', ['Learner']), true);
     assert.equal(canAccessPath('/mentors/12', ['Mentor']), false);
-    assert.equal(notificationDestination('/mentor-availability'), '/work-schedule/');
+    assert.equal(notificationDestination('/mentor-availability'), '/mentor-shift-schedule/');
     assert.equal(notificationDestination('https://evil.example/phish'), '');
   });
 

@@ -6,7 +6,7 @@ import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 import { getPlacementResult } from '@/features/placement/api/placementApi.js';
-import { Badge, Card, CardHeader, ErrorState, HaruMascot, ProgressBar, SakuraLoader } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, ErrorState, HaruMascot, PageContainer, ProgressBar, SakuraLoader } from '@/components/ui';
 
 /** Placement result: estimated level, recommendation and per-level / per-section breakdown (all from the API). */
 export default function PlacementResult() {
@@ -22,7 +22,7 @@ export default function PlacementResult() {
 
   return (
     <LearnerShell breadcrumb={tr('Kết quả đánh giá')}>
-      <div data-page="PlacementResult" className="rp-container-reading py-6 lg:py-8">
+      <PageContainer data-page="PlacementResult" width="reading" density="comfortable" className="text-rp-text">
         {query.isPending && (
           <SakuraLoader variant="section" context="assessment" label={tr('Đang tải kết quả đánh giá')} delay={160} />
         )}
@@ -32,7 +32,7 @@ export default function PlacementResult() {
           <div className="space-y-5">
             <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
               <div className="rp-pattern-seigaiha absolute inset-0 opacity-60" aria-hidden="true" />
-              <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+              <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rp-brand">{tr('Kết quả đánh giá năng lực')}</p>
                   <p className="mt-3 text-sm text-rp-text-muted">{tr('Trình độ ước tính')}</p>
@@ -44,11 +44,11 @@ export default function PlacementResult() {
                   </div>
                   <p className="mt-3 text-xs text-rp-text-muted">{tr('Đây là ước tính để gợi ý lộ trình, không phải kết quả JLPT chính thức.')}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <Link to="/roadmap/" className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand hover:bg-rp-brand-strong rp-press">
-                      {tr('Xem lộ trình gợi ý')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                    <Link to="/roadmap/">
+                      <Button variant="primary" iconRight={ArrowRight}>{tr('Xem lộ trình gợi ý')}</Button>
                     </Link>
-                    <Link to="/placement/" className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border border-rp-line bg-rp-surface px-4 text-sm font-semibold text-rp-text hover:border-rp-brand-border">
-                      <RotateCcw aria-hidden="true" className="h-4 w-4" /> {tr('Về trang đánh giá')}
+                    <Link to="/placement/">
+                      <Button variant="secondary" icon={RotateCcw}>{tr('Về trang đánh giá')}</Button>
                     </Link>
                   </div>
                 </div>
@@ -88,7 +88,7 @@ export default function PlacementResult() {
             )}
           </div>
         )}
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

@@ -1,26 +1,32 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
+  BookCheck,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Clock,
   Flame,
   RefreshCw,
   Route,
   School,
   Target,
   UsersRound,
+  Video,
 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { FeatureLink } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { useLocale } from '@/locales/locale.js';
-import { courseGet } from '@/features/cohorts/api/cohortApi';
+import { useWorkspaceCalendar } from '@/features/calendar/hooks/useWorkspaceCalendar.js';
+import { displayCourseTitle, homeworkStatusMeta } from '@/features/calendar/utils/calendarEventsModel.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { getSession } from '@/app/auth/session.js';
 import { splitSrsQueue, weekBloomStates } from '@/features/dashboard/hooks/useLearnerHome.js';
 import { JapanScene, sceneForHour } from '@/assets/illustrations';
 import {
   Badge,
+  Button,
   Card,
   CardHeader,
   ContextualEmptyState,
@@ -46,11 +52,17 @@ const PRACTICE = [
   { feature: 'speaking', to: '/speech', title: 'Luyện nói', note: 'Phát âm & phản xạ' },
 ];
 
-const SKILLS = [
+const BASE_SKILLS = [
   { key: 'vocabulary', label: 'Từ vựng', feature: 'vocabulary' },
   { key: 'grammar', label: 'Ngữ pháp', feature: 'grammar' },
   { key: 'reading', label: 'Đọc hiểu', feature: 'reading' },
   { key: 'listening', label: 'Nghe hiểu', feature: 'listening' },
+];
+
+const EXTENDED_SKILLS = [
+  ...BASE_SKILLS,
+  { key: 'writing', label: 'Luyện viết', feature: 'writing' },
+  { key: 'speaking', label: 'Luyện nói', feature: 'speaking' },
 ];
 
 const WEEK_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -83,7 +95,7 @@ function StatTile({ icon: Icon, tone, label, value, unit, loading, error, onRetr
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-rp-text-muted">{tr(label)}</p>
+          <p className="text-xs font-medium leading-snug text-rp-text-muted">{tr(label)}</p>
           {loading ? (
             <div className="mt-1 flex min-h-[2rem] items-center">
               <SakuraLoader variant="inline" size={18} context="data" delay={160} />
@@ -131,7 +143,7 @@ function StreakWeek({ days, activeToday }) {
             {(state === 'done' || state === 'today') && <Flame aria-hidden="true" className="h-3 w-3" />}
             <span className="sr-only">{state === 'done' || state === 'today' ? tr('Đã học') : state === 'pending' ? tr('Hôm nay chưa học') : state === 'future' ? tr('Chưa tới') : tr('Chưa học')}</span>
           </span>
-          <span className="text-[10px] font-medium text-rp-text-muted">{WEEK_LABELS[i]}</span>
+          <span className="text-[10px] font-medium text-rp-text-muted">{tr(WEEK_LABELS[i])}</span>
         </li>
       ))}
     </ol>
@@ -139,95 +151,202 @@ function StreakWeek({ days, activeToday }) {
 }
 
 function GroupLearningWidget() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const session = getSession();
-  const query = useQuery({
-    queryKey: ['learner-courses-summary', session?.userId],
-    queryFn: () => courseGet(),
-    enabled: Boolean(session?.accessToken && !session?.isPreview),
-    staleTime: 60_000,
-  });
+  const calendar = useWorkspaceCalendar({ roleKey: 'Learner', includeSrs: false });
 
   if (session?.isPreview) {
     return (
       <Card>
         <CardHeader
           icon={<FeatureIcon feature="group" size="sm" />}
-          title={tr('Học nhóm cùng Mentor')}
-          description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
+          title={tr('Học nhóm cùng Giáo viên')}
+          description={tr('Lịch buổi học nhóm, bài tập và tương tác cùng Giáo viên')}
         />
         <ContextualEmptyState compact icon={School} title={tr('Chế độ xem trước')} description={tr('Lớp học nhóm chỉ hiển thị với dữ liệu thật.')} />
       </Card>
     );
   }
 
-  const cohortCoursesOf = (rows) =>
-    (Array.isArray(rows) ? rows : []).filter((c) => c.cohortId && c.status !== 'Cancelled');
+  const courses = calendar.courses.filter((c) => c.cohortId && c.status !== 'Cancelled' && c.status !== 'Transferred');
+  const { liveSessions, upcomingSessions, upcoming7DaysSessions, pendingHomeworks } = calendar.summary;
+  const nextSession = liveSessions[0] || upcomingSessions[0] || null;
+  const hwTotal = calendar.homeworks.length;
+  const showHomeworkCard =
+    !calendar.homeworksQuery.isPending &&
+    !calendar.homeworksQuery.isError &&
+    !calendar.coursesQuery.isError &&
+    (courses.length > 0 || hwTotal > 0);
 
-  const courses = cohortCoursesOf(query.data);
+  const syntheticQuery = {
+    isPending: calendar.coursesQuery.isPending,
+    isFetching: calendar.coursesQuery.isFetching,
+    isError: calendar.coursesQuery.isError,
+    error: calendar.coursesQuery.error || null,
+    refetch: calendar.refetchAll,
+    data: calendar.coursesQuery.data,
+  };
 
   return (
-    <OptionalDashboardWidget
-      name="HomeLearner.GroupLearningWidget"
-      query={query}
-      isAuthenticated={Boolean(session?.accessToken)}
-      isEmpty={(rows) => cohortCoursesOf(rows).length === 0}
-      emptyPolicy="cta"
-      errorPolicy="hide"
-      loadingContext="cohort"
-      empty={
-        <ContextualEmptyState
-          compact
-          context="groupLearning"
-          art="calendar"
-          action={
-            <Link to="/mentors/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press">
-              <UsersRound aria-hidden="true" className="h-4 w-4" /> {tr('Tìm Mentor')}
-            </Link>
-          }
-        />
-      }
-      wrap={(content) => (
-        <Card>
-          <CardHeader
-            icon={<FeatureIcon feature="group" size="sm" />}
-            title={tr('Học nhóm cùng Mentor')}
-            description={tr('Lớp 1–4 học viên · 10 tuần · 90 phút/buổi')}
-            actions={
-              <div className="flex items-center gap-2">
-                <RefreshingIndicator active={query.isFetching && !query.isPending} />
-                {courses.length > 0 && <Link to="/my-courses/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Xem tất cả')}</Link>}
+    <div className="space-y-4">
+      <OptionalDashboardWidget
+        name="HomeLearner.GroupLearningWidget"
+        query={syntheticQuery}
+        isAuthenticated={Boolean(session?.accessToken)}
+        isEmpty={(rows) =>
+          (Array.isArray(rows) ? rows : []).filter((c) => c.cohortId && c.status !== 'Cancelled' && c.status !== 'Transferred').length === 0
+        }
+        emptyPolicy="cta"
+        errorPolicy="hide"
+        loadingContext="cohort"
+        empty={
+          <ContextualEmptyState
+            compact
+            context="groupLearning"
+            art="calendar"
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Link to="/cohorts" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press">
+                  <School aria-hidden="true" className="h-4 w-4" /> {tr('Khám phá lớp')}
+                </Link>
+                <Link to="/mentors/" className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input border border-rp-line bg-rp-surface px-3 text-[13px] font-semibold text-rp-text hover:bg-rp-muted">
+                  <UsersRound aria-hidden="true" className="h-4 w-4" /> {tr('Tìm Giáo viên')}
+                </Link>
               </div>
             }
           />
-          {content}
+        }
+        wrap={(content) => (
+          <Card>
+            <CardHeader
+              icon={<FeatureIcon feature="group" size="sm" />}
+              title={tr('Học nhóm cùng Giáo viên')}
+              description={tr('Lịch buổi học nhóm, bài tập và tương tác cùng Giáo viên')}
+              actions={
+                <div className="flex items-center gap-2">
+                  <RefreshingIndicator active={calendar.isFetching && !calendar.isLoading} />
+                  <Link to="/calendar" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch học')}</Link>
+                  {courses.length > 0 && <Link to="/my-courses/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Tất cả')}</Link>}
+                </div>
+              }
+            />
+            {content}
+          </Card>
+        )}
+      >
+        {() => (
+          <div className="space-y-3">
+            {nextSession && (
+              <div className={cx(
+                'rounded-rp-input border p-3',
+                nextSession.canJoin ? 'border-rp-success-line bg-rp-success-bg' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
+              )}>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className={cx('font-bold uppercase tracking-wide', nextSession.canJoin ? 'text-rp-success' : 'text-rp-brand-strong')}>
+                    {nextSession.canJoin ? tr('Phòng đang mở') : tr('Buổi sắp tới')}
+                  </span>
+                  <span className="flex items-center gap-1 text-rp-text-muted">
+                    <Clock className="h-3 w-3" /> {formatVnDateTime(nextSession.scheduledAt)}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-[13px] font-bold text-rp-text">{nextSession.title}</p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="truncate text-xs text-rp-text-muted">{nextSession.mentorName}</span>
+                  {nextSession.canJoin ? (
+                    <Link to={nextSession.roomHref}>
+                      <Button variant="primary" size="sm" icon={Video}>{tr('Vào phòng')}</Button>
+                    </Link>
+                  ) : (
+                    <Link
+                      to={nextSession.secondaryHref || '/my-courses'}
+                      className="shrink-0 text-xs font-semibold rp-link"
+                    >
+                      {tr('Mở lớp')}
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <ul className="space-y-2">
+              {courses.slice(0, 3).map((c) => {
+                const s = COURSE_STATUS[c.status] || { tone: 'neutral', label: c.status };
+                const total = Array.isArray(c.sessions) ? c.sessions.length : 0;
+                const present = Array.isArray(c.sessions) ? c.sessions.filter((x) => x.status === 'Present').length : 0;
+                return (
+                  <li key={c.id}>
+                    <Link to={`/my-courses/${c.id}`} className="rp-focus rp-card-hover flex items-center gap-3 rounded-rp-input border border-rp-line px-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-rp-text">{displayCourseTitle(c, tr('Lớp học nhóm'))}</span>
+                        <span className="block text-xs text-rp-text-muted">
+                          {c.level || 'JLPT'}{c.mentorName ? ` · ${c.mentorName}` : ''}{total > 0 ? ` · ${present}/${total}` : ''}
+                        </span>
+                      </span>
+                      <Badge tone={s.tone} size="sm">{tr(s.label)}</Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="flex items-center justify-between border-t border-rp-line/80 pt-2.5 text-xs">
+              <Link to="/group-learning/progress" className="font-semibold rp-link">{tr('Tiến độ học nhóm')}</Link>
+              <Link to="/group-learning" className="font-semibold text-rp-text-muted hover:text-rp-brand-strong">{tr('Tổng quan nhóm')}</Link>
+            </div>
+          </div>
+        )}
+      </OptionalDashboardWidget>
+
+      {showHomeworkCard && (
+        <Card>
+          <CardHeader
+            icon={<FeatureIcon feature="writing" icon={BookCheck} size="sm" />}
+            title={tr('Bài tập & Lịch học tuần')}
+            description={
+              pendingHomeworks.length > 0
+                ? trf('{0} bài chưa nộp · {1} buổi trong 7 ngày tới', { 0: pendingHomeworks.length, 1: upcoming7DaysSessions.length })
+                : tr('Theo dõi hạn nộp bài tập và lịch buổi học')
+            }
+            actions={<Link to="/homework" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Bài tập')}</Link>}
+          />
+          {pendingHomeworks.length === 0 ? (
+            <div className="flex items-center justify-between gap-2 rounded-rp-input border border-rp-line bg-rp-bg-2/50 px-3 py-2.5 text-xs">
+              <span className="text-rp-text-muted">{tr('Bạn không có bài tập tồn đọng lúc này.')}</span>
+              <Link to="/calendar" className="inline-flex shrink-0 items-center gap-1 font-semibold rp-link">
+                <CalendarDays className="h-3.5 w-3.5" /> {tr('Xem lịch')}
+              </Link>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {pendingHomeworks.slice(0, 2).map((hw) => {
+                const meta = homeworkStatusMeta(hw, calendar.nowMs);
+                return (
+                  <li key={hw.id}>
+                    <Link
+                      to={hw.cohortId ? `/homework/?cohortId=${hw.cohortId}` : '/homework'}
+                      className="rp-focus rp-card-hover flex items-center justify-between gap-2.5 rounded-rp-input border border-rp-line px-3 py-2"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold text-rp-text">{hw.title}</span>
+                        <span className="block truncate text-[11px] text-rp-text-muted">
+                          {hw.dueAt ? formatVnDateTime(hw.dueAt) : tr('Chưa đặt hạn nộp')}
+                        </span>
+                      </span>
+                      <Badge tone={meta.tone} size="sm">{tr(meta.label)}</Badge>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
       )}
-    >
-      {() => (
-        <ul className="space-y-2">
-          {courses.slice(0, 3).map((c) => {
-            const s = COURSE_STATUS[c.status] || { tone: 'neutral', label: c.status };
-            return (
-              <li key={c.id}>
-                <Link to="/my-courses/" className="rp-focus rp-card-hover flex items-center gap-3 rounded-rp-input border border-rp-line px-3 py-2.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-rp-text">{c.cohortName || c.name}</span>
-                    <span className="block text-xs text-rp-text-muted">{c.level || 'JLPT'}{c.mentorName ? ` · ${c.mentorName}` : ''}</span>
-                  </span>
-                  <Badge tone={s.tone} size="sm">{tr(s.label)}</Badge>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </OptionalDashboardWidget>
+    </div>
   );
 }
 
 export default function HomeLearner({ data = null }) {
-  const { locale, tr } = useLocale();
+  const { locale, tr, trf } = useLocale();
   const scene = useMemo(() => sceneForHour(), []);
   const copy = SCENE_COPY[scene];
   const lightText = scene === 'dusk' || scene === 'night';
@@ -237,7 +356,8 @@ export default function HomeLearner({ data = null }) {
   const streak = isNum(data?.streakDays) ? data.streakDays : null;
   const completed = isNum(data?.completedExercises) ? data.completedExercises : null;
   const skillScores = data?.skillScores ?? {};
-  const hasSkillData = SKILLS.some(({ key }) => isNum(skillScores[key]));
+  const visibleSkills = isNum(skillScores.writing) || isNum(skillScores.speaking) ? EXTENDED_SKILLS : BASE_SKILLS;
+  const hasSkillData = visibleSkills.some(({ key }) => isNum(skillScores[key]));
   const srsItems = Array.isArray(data?.srsItems) ? data.srsItems : [];
   const srsBreakdown = splitSrsQueue(srsItems);
   const loading = data?.loading ?? {};
@@ -288,7 +408,7 @@ export default function HomeLearner({ data = null }) {
                 ) : (
                   <p className={cx('text-sm leading-6', lightText ? 'text-white/90' : 'text-rp-text-2')}>
                     {targetLevel
-                      ? tr(`Mục tiêu của bạn: JLPT ${targetLevel}. Mỗi buổi học ngắn đều đưa bạn gần hơn tới kỳ thi.`)
+                      ? trf('Mục tiêu của bạn: JLPT {0}. Mỗi buổi học ngắn đều đưa bạn gần hơn tới kỳ thi.', { 0: targetLevel })
                       : tr('Đặt mục tiêu JLPT để RikiPath gợi ý lộ trình và bài luyện phù hợp với trình độ.')}
                   </p>
                 )}
@@ -321,7 +441,7 @@ export default function HomeLearner({ data = null }) {
                   className={cx('rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border px-4 text-sm font-semibold backdrop-blur transition-colors', lightText ? 'border-white/40 bg-white/15 text-white hover:bg-white/25' : 'border-rp-line bg-white/85 text-rp-text hover:border-rp-brand-border')}
                 >
                   <SrsLoopIcon className="h-4 w-4" />
-                  {dueCards ? `${tr('Ôn')} ${dueCards} ${tr('thẻ đến hạn')}` : tr('Ôn tập SRS')}
+                  {dueCards ? trf('Ôn {0} thẻ đến hạn', { 0: dueCards }) : tr('Ôn tập SRS')}
                 </Link>
               </div>
             </div>
@@ -370,7 +490,7 @@ export default function HomeLearner({ data = null }) {
             icon={Target}
             tone="bg-rp-brand-tint text-rp-brand-strong"
             label={tr('Mục tiêu JLPT')}
-            value={targetLevel}
+            value={targetLevel ? `JLPT ${targetLevel}` : null}
             loading={loading.profile}
             error={errors.profile}
             onRetry={onRetry.profile}
@@ -403,7 +523,7 @@ export default function HomeLearner({ data = null }) {
               <CardHeader
                 title={tr('Năng lực theo kỹ năng')}
                 description={tr('Điểm trung bình từ các bài bạn đã làm')}
-                actions={<Link to="/exam-result/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch sử & kết quả')}</Link>}
+                actions={hasSkillData ? <Link to="/exam-result/" className="rp-focus rounded text-[13px] font-semibold rp-link">{tr('Lịch sử & kết quả')}</Link> : null}
               />
               <OptionalDashboardWidget
                 name="HomeLearner.SkillMastery"
@@ -433,7 +553,7 @@ export default function HomeLearner({ data = null }) {
               >
                 {() => (
                   <ul className="grid gap-4 sm:grid-cols-2">
-                    {SKILLS.map(({ key, label, feature }) => {
+                    {visibleSkills.map(({ key, label, feature }) => {
                       const v = skillScores[key];
                       return (
                         <li key={key} className="rounded-rp-input border border-rp-line/70 bg-rp-bg-2/50 p-3.5">
@@ -506,19 +626,6 @@ export default function HomeLearner({ data = null }) {
                   </dl>
                 )}
               </OptionalDashboardWidget>
-            </Card>
-
-            <Card className="rp-card-hover relative overflow-hidden">
-              <div className="flex items-start gap-3">
-                <HaruMascot pose="guiding" size={72} className="-ml-1 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[15px] font-bold text-rp-text">Haru AI</p>
-                  <p className="mt-1 text-[13px] leading-5 text-rp-text-2">{tr('Haru gợi ý cách ôn từng kỹ năng, chấm bài viết và góp ý bài nói của bạn.')}</p>
-                  <Link to="/ai-counselor/" className="rp-focus mt-3 inline-flex items-center gap-1.5 rounded text-[13px] font-semibold rp-link">
-                    {tr('Xem gợi ý của Haru')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </div>
-              </div>
             </Card>
           </aside>
         </div>

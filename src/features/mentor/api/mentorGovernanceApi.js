@@ -1,8 +1,8 @@
 import { api } from '@/api/client.js';
 import { unwrapApiList, unwrapApiResult } from '@/features/admin/api/adminApi.js';
-import { translateTemplate, currentIntlTag } from '@/locales/locale.js';
+import { translateTemplate, translateText, currentIntlTag } from '@/locales/locale.js';
 
-export const SUPPORTED_JLPT_LEVELS = Object.freeze(['N5', 'N4', 'N3', 'N2']);
+export const SUPPORTED_JLPT_LEVELS = Object.freeze(['N5', 'N4', 'N3', 'N2', 'N1']);
 
 export function normalizeJlptLevel(level) {
   return String(level ?? '').trim().toUpperCase();
@@ -15,7 +15,7 @@ export function isSupportedJlptLevel(level) {
 export function assertSupportedJlptLevel(level) {
   const normalized = normalizeJlptLevel(level);
   if (!isSupportedJlptLevel(normalized)) {
-    throw new Error('Hệ thống lớp học nhóm chỉ hỗ trợ trình độ JLPT N5, N4, N3 và N2 (không hỗ trợ N1).');
+    throw new Error('Hệ thống hỗ trợ trình độ JLPT N5, N4, N3, N2 và N1.');
   }
   return normalized;
 }
@@ -32,18 +32,18 @@ export function formatVnd(amount) {
 
 export function formatMinutesVi(totalMinutes) {
   const num = Number(totalMinutes);
-  if (!Number.isFinite(num) || num <= 0) return '0 phút';
+  if (!Number.isFinite(num) || num <= 0) return translateTemplate('{0} phút', { 0: 0 });
   const hours = Math.floor(num / 60);
   const mins = Math.round(num % 60);
   if (hours <= 0) return translateTemplate('{0} phút', { 0: mins });
   if (mins === 0) return translateTemplate('{0} giờ', { 0: hours });
-  return `${hours}g ${mins}p`;
+  return translateTemplate('{0}g {1}p', { 0: hours, 1: mins });
 }
 
 export function formatTurnaroundVi(minutes) {
-  if (minutes === null || minutes === undefined) return 'Chưa đủ dữ liệu';
+  if (minutes === null || minutes === undefined) return translateText('Chưa đủ dữ liệu');
   const num = Number(minutes);
-  if (!Number.isFinite(num) || num < 0) return 'Chưa đủ dữ liệu';
+  if (!Number.isFinite(num) || num < 0) return translateText('Chưa đủ dữ liệu');
   if (num < 60) return translateTemplate('{0} phút', { 0: Math.round(num) });
   const hours = Math.round((num / 60) * 10) / 10;
   return translateTemplate('{0} giờ ({1} phút)', { 0: hours, 1: Math.round(num) });
@@ -69,3 +69,14 @@ export const getAdminMentorKpiByMentor = async (mentorId, params) =>
 
 export const getRoomAttendance = async (roomId) =>
   unwrapApiList(await api.get(`/mentor-meetings/rooms/${roomId}/attendance`));
+
+// —— Admin JLPT Teaching Qualification Governance ——
+
+export const getAdminMentorQualifications = async () =>
+  unwrapApiResult(await api.get('/admin/mentors/qualifications'));
+
+export const grantAdminMentorQualification = async (mentorId, payload) =>
+  unwrapApiResult(await api.post(`/admin/mentors/${mentorId}/qualifications`, payload));
+
+export const revokeAdminMentorQualification = async (mentorId, certificateLevelId, payload) =>
+  unwrapApiResult(await api.post(`/admin/mentors/${mentorId}/qualifications/${certificateLevelId}/revoke`, payload));

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-
+import { ArrowRight, ClipboardCheck } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
@@ -11,22 +11,35 @@ import {
   skipPlacement,
   startPlacement,
 } from '@/features/placement/api/placementApi.js';
-import { ClipboardCheck } from 'lucide-react';
+import {
+  useCertificateLevelsQuery,
+  useCertificateTypesQuery,
+} from '@/features/learning-path/hooks/useCertificates.js';
 import { JlptThumb } from '@/assets/illustrations';
-import { Banner, Button, Card, CardHeader, ErrorState, HaruMascot, SakuraLoader, notify } from '@/components/ui';
+import {
+  Banner,
+  Button,
+  Card,
+  CardHeader,
+  ErrorState,
+  HaruMascot,
+  PageContainer,
+  SakuraLoader,
+  notify,
+} from '@/components/ui';
 
-const LEVELS = [
-  { id: 1, name: 'N5' },
-  { id: 2, name: 'N4' },
-  { id: 3, name: 'N3' },
-  { id: 4, name: 'N2' },
+const FALLBACK_LEVELS = [
+  { id: 1, code: 'N5', name: 'N5' },
+  { id: 2, code: 'N4', name: 'N4' },
+  { id: 3, code: 'N3', name: 'N3' },
+  { id: 4, code: 'N2', name: 'N2' },
+  { id: 5, code: 'N1', name: 'N1' },
 ];
-
 
 export default function PlacementTest() {
   const navigate = useNavigate();
   const { tr } = useLocale();
-  const [levelId, setLevelId] = useState(3);
+  const [selectedLevelId, setSelectedLevelId] = useState(null);
   const [error, setError] = useState('');
 
   const uid = getSession()?.userId ?? 'anon';
@@ -36,9 +49,26 @@ export default function PlacementTest() {
   });
   const status = statusQuery.data;
 
+  const { data: certTypes = [] } = useCertificateTypesQuery();
+  const jlptCertId = useMemo(
+    () => certTypes.find((c) => c.name?.trim().toUpperCase() === 'JLPT')?.id ?? certTypes[0]?.id ?? null,
+    [certTypes],
+  );
+  const { data: apiLevels = [] } = useCertificateLevelsQuery(jlptCertId);
+  const levels = useMemo(() => {
+    const filtered = apiLevels.filter((l) => ['N5', 'N4', 'N3', 'N2', 'N1'].includes((l.code || l.name || '').trim().toUpperCase()));
+    return filtered.length > 0 ? filtered : FALLBACK_LEVELS;
+  }, [apiLevels]);
+
+  const effectiveLevelId = selectedLevelId
+    ?? status?.targetJlptLevelId
+    ?? levels.find((l) => (l.code || l.name || '').toUpperCase() === 'N3')?.id
+    ?? levels[0]?.id
+    ?? 3;
+
   const start = useMutation({
     mutationFn: async () => {
-      const test = await getPlacementTest(levelId);
+      const test = await getPlacementTest(effectiveLevelId);
       if (!test?.mockTestId) throw new Error(tr('Chưa có bài đánh giá năng lực cho cấp độ này.'));
       return startPlacement(test.mockTestId);
     },
@@ -64,21 +94,25 @@ export default function PlacementTest() {
   });
 
   const busy = start.isPending || skip.isPending;
-
   const retakeBlocked = Boolean(status && !status.hasActiveAttempt && status.canStartNewAttempt === false);
 
   return (
     <LearnerShell breadcrumb={tr('Đánh giá năng lực')}>
-      <div data-page="PlacementTest" className="rp-container-reading rp-cq py-[var(--rp-space-page-y)]">
+      <PageContainer data-page="PlacementTest" width="reading" density="comfortable" className="text-rp-text">
         <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
           <div className="rp-pattern-seigaiha absolute inset-0 opacity-70" aria-hidden="true" />
-          <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+          <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rp-brand">{tr('Đánh giá năng lực')}</p>
-              <h1 className="mt-2 text-2xl font-bold tracking-[-0.01em] text-rp-text sm:text-[28px]">{tr('Biết mình đang ở đâu trước khi ôn')}</h1>
+              <h1 className="mt-2 rp-type-page-title text-rp-text">{tr('Biết mình đang ở đâu trước khi ôn')}</h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-rp-text-2">
                 {tr('Làm một lượt để hệ thống ước tính trình độ JLPT hiện tại và gợi ý lộ trình. Có thể bỏ qua và làm sau.')}
               </p>
+              <div className="mt-3">
+                <Link to="/app/placement-test" className="rp-link inline-flex items-center gap-1 text-xs font-semibold">
+                  {tr('Mở đánh giá năng lực chuẩn hóa theo mục tiêu')} <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </div>
             <HaruMascot pose="thinking" size={128} className="hidden shrink-0 sm:block" />
           </div>
@@ -88,19 +122,31 @@ export default function PlacementTest() {
           {statusQuery.isPending && (
             <SakuraLoader variant="section" context="assessment" label={tr('Đang tải bài đánh giá')} delay={160} />
           )}
-          {statusQuery.isError && <Card><ErrorState error={statusQuery.error} onRetry={() => statusQuery.refetch()} retrying={statusQuery.isFetching} compact /></Card>}
+          {statusQuery.isError && (
+            <Card><ErrorState error={statusQuery.error} onRetry={() => statusQuery.refetch()} retrying={statusQuery.isFetching} compact /></Card>
+          )}
 
           {status?.hasCompletedPlacementTest && (
-            <Banner tone="success" title={`${tr('Kết quả gần nhất')}: ${status.assessedJlptLevelName || 'JLPT'}`}
+            <Banner
+              tone="success"
+              title={`${tr('Kết quả gần nhất')}: ${status.assessedJlptLevelName || 'JLPT'}`}
               actions={status.latestCompletedAttemptId && (
-                <Link to={`/placement/result/${status.latestCompletedAttemptId}/`} className="rp-focus inline-flex items-center gap-1 rounded text-[13px] font-semibold text-rp-brand-strong underline">{tr('Xem kết quả')}</Link>
+                <Link to={`/placement/result/${status.latestCompletedAttemptId}/`}>
+                  <Button variant="secondary" size="sm">{tr('Xem kết quả')}</Button>
+                </Link>
               )}
             />
           )}
 
           {status?.hasActiveAttempt && (
-            <Banner tone="info" title={tr('Bạn còn một lượt đang làm dở')}
-              actions={<Link to="/placement/exam/" className="rp-focus inline-flex h-9 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press">{tr('Làm tiếp')}</Link>}
+            <Banner
+              tone="info"
+              title={tr('Bạn còn một lượt đang làm dở')}
+              actions={(
+                <Link to="/placement/exam/">
+                  <Button variant="primary" size="sm">{tr('Làm tiếp')}</Button>
+                </Link>
+              )}
             >
               {tr('Thời gian làm bài vẫn được tính theo hạn của máy chủ.')}
             </Banner>
@@ -113,22 +159,28 @@ export default function PlacementTest() {
           )}
 
           <Card>
-            <CardHeader title={tr('Chọn cấp độ đề')} description={tr('Chọn cấp độ bạn muốn kiểm tra. Đề có giới hạn thời gian.')} />
-            <div role="radiogroup" aria-label={tr('Cấp độ đề')} style={{ '--rp-grid-min': '10rem' }} className="rp-fluid-grid">
-              {LEVELS.map((level) => {
-                const active = levelId === level.id;
+            <CardHeader
+              title="Chọn cấp độ đề"
+              description="Chọn cấp độ JLPT (N5–N1) bạn muốn kiểm tra nhanh. Đề có giới hạn thời gian."
+            />
+            <div role="radiogroup" aria-label={tr('Cấp độ đề')} style={{ '--rp-grid-min': '9.5rem' }} className="rp-fluid-grid">
+              {levels.map((level) => {
+                const code = (level.code || level.name || '').trim().toUpperCase();
+                const active = effectiveLevelId === level.id;
                 return (
                   <button
                     key={level.id}
                     type="button"
                     role="radio"
                     aria-checked={active}
-                    disabled={retakeBlocked}
-                    onClick={() => setLevelId(level.id)}
-                    className={`rp-focus overflow-hidden rounded-rp-card border text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'border-rp-brand ring-2 ring-rp-brand/20' : 'border-rp-line hover:border-rp-brand-border'}`}
+                    disabled={retakeBlocked || busy}
+                    onClick={() => setSelectedLevelId(level.id)}
+                    className={`rp-focus overflow-hidden rounded-rp-card border text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                      active ? 'border-rp-brand ring-2 ring-rp-brand/20 bg-rp-brand-tint/20' : 'border-rp-line hover:border-rp-brand-border'
+                    }`}
                   >
-                    <JlptThumb level={level.name} className="block h-16 w-full" />
-                    <span className="block px-3 py-2 text-sm font-bold text-rp-text">JLPT {level.name}</span>
+                    <JlptThumb level={code} className="block h-16 w-full" />
+                    <span className="block px-3 py-2 text-sm font-bold text-rp-text">JLPT {code}</span>
                   </button>
                 );
               })}
@@ -136,6 +188,7 @@ export default function PlacementTest() {
             {error && <Banner tone="danger" className="mt-4">{error}</Banner>}
             <div className="mt-5 flex flex-wrap gap-2">
               <Button
+                variant="primary"
                 icon={ClipboardCheck}
                 loading={start.isPending}
                 disabled={busy || retakeBlocked || status?.hasActiveAttempt}
@@ -152,7 +205,7 @@ export default function PlacementTest() {
             </div>
           </Card>
         </div>
-      </div>
+      </PageContainer>
     </LearnerShell>
   );
 }

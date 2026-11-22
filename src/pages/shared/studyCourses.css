@@ -35,8 +35,8 @@
   color: var(--color-rp-text-2);
 }
 
-/* Buttons (exclude SakuraCalendar buttons so its segmented tabs, icon controls & pills keep utility classes) */
-.course-page button:not([data-sakura-calendar] button),
+/* Buttons (exclude SakuraCalendar, Tabs, and Tailwind list-row/left-aligned buttons) */
+.course-page button:not([data-sakura-calendar] button):not([role="tab"]):not(.block):not([class*="justify-start"]),
 .course-primary {
   border: 1px solid var(--color-rp-line);
   border-radius: var(--radius-rp-input);
@@ -54,7 +54,7 @@
   text-decoration: none;
   transition: background-color var(--rp-fast) ease, border-color var(--rp-fast) ease, color var(--rp-fast) ease, box-shadow var(--rp-fast) ease;
 }
-.course-page button:not([data-sakura-calendar] button):hover:not(:disabled) { border-color: var(--color-rp-brand-border); color: var(--color-rp-brand-strong); background: var(--color-rp-brand-tint); }
+.course-page button:not([data-sakura-calendar] button):not([role="tab"]):not(.block):not([class*="justify-start"]):hover:not(:disabled) { border-color: var(--color-rp-brand-border); color: var(--color-rp-brand-strong); background: var(--color-rp-brand-tint); }
 .course-page .course-primary,
 .course-primary {
   background: var(--color-rp-brand-pressed);
@@ -63,7 +63,7 @@
   box-shadow: var(--shadow-rp-brand);
 }
 .course-page .course-primary:hover:not(:disabled) { background: var(--color-rp-brand-strong); border-color: var(--color-rp-brand-strong); color: #fff; }
-.course-page button:not([data-sakura-calendar] button):disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.course-page button:not([data-sakura-calendar] button):not([role="tab"]):disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .course-page button:focus-visible,
 .course-page a:focus-visible,
 .course-page summary:focus-visible,
@@ -106,13 +106,17 @@
   border: 1px solid var(--color-rp-line);
   background: var(--color-rp-surface);
   border-radius: var(--radius-rp-input);
-  padding: 9px 12px;
   max-width: 100%;
   width: 100%;
   color: var(--color-rp-text);
   font-size: 14px;
   font-weight: 400;
   transition: border-color var(--rp-fast) ease, box-shadow var(--rp-fast) ease;
+}
+.course-page input:not([type='checkbox']):not([type='radio']):not([type='search']):not([class*='pl-']),
+.course-page select,
+.course-page textarea {
+  padding: 9px 12px;
 }
 .course-page input:not([type='checkbox']):not([type='radio']):focus,
 .course-page select:focus,
@@ -155,8 +159,8 @@
 .course-page input[type='checkbox'],
 .course-page input[type='radio'] { margin-right: 6px; accent-color: var(--color-rp-brand); }
 
-/* Links */
-.course-page a:not(.course-primary):not(.course-pill-link) { color: var(--color-rp-brand-strong); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+/* Links (do not clobber Tailwind button links with explicit bg-* or border classes) */
+.course-page a:not(.course-primary):not(.course-pill-link):not([class*='bg-']):not([class*='border']) { color: var(--color-rp-brand-strong); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .course-pill-link {
   border: 1px solid var(--color-rp-brand-border);
   border-radius: var(--radius-rp-input);

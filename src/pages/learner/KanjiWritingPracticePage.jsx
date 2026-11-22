@@ -8,7 +8,9 @@ import KanaStrokeDialog from '@/features/kanji/components/KanaStrokeDialog.jsx';
 import KanaAudioButton from '@/features/kanji/components/KanaAudioButton.jsx';
 import { kanaFamily } from '@/features/kanji/components/kanaFamilies.js';
 import { useKanjiWritingPractice } from '@/features/kanji/hooks/useKanjiWritingPractice.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
+import { playKanaAudio } from '@/features/kanji/utils/kanaAudio.js';
+import { hasKanaStrokeData } from '@/features/kanji/utils/kanaCharData.js';
+import { Button, ContextualErrorState, SakuraLoader } from '@/components/ui';
 import { useKanaWritingPractice } from '@/features/kanji/hooks/useKanaWritingPractice.js';
 
 
@@ -35,12 +37,22 @@ export default function KanjiWritingPracticePage() {
     if (isKana) setKanaScope(value);
     else setScope(value);
   }
-  function openKana(character, index, tab = 'guide') {
+  function openKana(character, index, openModal = false, tab = 'guide') {
     kana.selectItem(index);
     const selection = { id: character.kanaCharacterId, type: kanaType, scope: kanaScope };
     setPickedKana(selection);
-    setOpenedKana(selection);
     setWritingTab(tab);
+    setOpenedKana(openModal ? selection : null);
+  }
+
+  function handleFamilyTileClick(tile) {
+    const matchIndex = kana.queue.findIndex((row) => row.character === tile.kana);
+    if (matchIndex >= 0 && hasKanaStrokeData(tile.kana)) {
+      const target = kana.queue[matchIndex];
+      openKana(target, matchIndex, true, writingTab);
+      return;
+    }
+    playKanaAudio(null, tile.kana);
   }
 
   const scopeSwitch = (
@@ -91,7 +103,16 @@ export default function KanjiWritingPracticePage() {
             retrying={kana.retrying}
           />
         )}
-        {!kana.loading && !kana.error && !kana.queue.length && <p className="mt-8 text-center text-[14px] text-rp-text-muted">{tr('Chưa có chữ cần ôn.')}</p>}
+        {!kana.loading && !kana.error && !kana.queue.length && (
+          <div className="mt-8 space-y-3 text-center">
+            <p className="text-[14px] text-rp-text-muted">{tr('Chưa có chữ cần ôn.')}</p>
+            {kanaScope === 'due' && (
+              <Button variant="soft" size="sm" onClick={() => changeScope('all')}>
+                {tr('Mở cả bảng Kana')}
+              </Button>
+            )}
+          </div>
+        )}
         {!kana.loading && !item && kana.queue.length > 0 && (
           <div
             style={{ '--rp-grid-min': kanaScope === 'all' ? '6.25rem' : '7.5rem' }}
@@ -99,7 +120,7 @@ export default function KanjiWritingPracticePage() {
           >
             {kana.queue.map((character, index) => (
               <div key={character.kanaCharacterId} className="rounded-2xl border border-rp-line bg-white p-2 text-center hover:border-rp-brand-strong">
-                <button type="button" onClick={() => openKana(character, index)}
+                <button type="button" onClick={() => openKana(character, index, false)}
                   aria-label={'Xem cách viết ' + character.character + ' (' + character.romaji + ')'}
                   className="block w-full rounded-xl px-2 py-3 focus-visible:outline-2 focus-visible:outline-rp-brand-strong">
                 <span className="block text-[32px] leading-none text-rp-text" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{character.character}</span>
@@ -138,13 +159,20 @@ export default function KanjiWritingPracticePage() {
                   {section.items.map((tile) => {
                     const current = tile.kana === item.character;
                     return (
-                      <div
+                      <button
                         key={`${section.title}-${tile.kana}`}
-                        className={`grid h-[76px] w-[76px] place-items-center rounded-2xl border ${current ? 'border-rp-brand-strong bg-rp-brand-strong text-white' : 'border-rp-line bg-white text-rp-text'}`}
+                        type="button"
+                        onClick={() => handleFamilyTileClick(tile)}
+                        aria-label={trf('Nghe hoặc luyện chữ {0} ({1})', { 0: tile.kana, 1: tile.romaji })}
+                        className={`rp-focus grid h-[76px] w-[76px] place-items-center rounded-2xl border transition-colors ${
+                          current
+                            ? 'border-rp-brand-strong bg-rp-brand-strong text-white'
+                            : 'border-rp-line bg-white text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/40'
+                        }`}
                       >
                         <span className="text-[28px] leading-none" style={{ fontFamily: '"Yu Gothic", sans-serif' }}>{tile.kana}</span>
                         <span className={`text-[11px] ${current ? 'text-white/80' : 'text-rp-text-muted'}`}>{tile.romaji}</span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -166,7 +194,7 @@ export default function KanjiWritingPracticePage() {
             onSubmitResult={kana.submitResult}
             lastResult={kana.lastResult}
             saveError={kana.error}
-            onNext={nextKana ? () => openKana(nextKana, dialogIndex + 1, writingTab) : undefined}
+            onNext={nextKana ? () => openKana(nextKana, dialogIndex + 1, true, writingTab) : undefined}
           />
         )}
       </section>

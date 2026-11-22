@@ -47,7 +47,7 @@ export default function MockExam() {
   const { tr } = useLocale();
   return (
     <PublicShell>
-      <div className="bg-rp-brand-tint text-rp-text" data-page="MockExam">
+      <div className="bg-rp-bg text-rp-text" data-page="MockExam">
         <div className="mx-auto max-w-[1100px] px-5 pb-12 pt-6 sm:px-8">
           <nav className="mb-4 flex flex-wrap items-center gap-2 text-[13px] text-rp-text-2">
             <Link className="hover:text-rp-brand" to="/">{tr('Trang chủ')}</Link>
@@ -174,7 +174,7 @@ export default function MockExam() {
               <p className="mt-2 text-[14px] leading-relaxed text-rp-text-2">{tr('Đăng nhập để lưu từng phần và xem kết quả sau khi nộp bài.')}</p>
               <div className="mt-4 flex flex-col items-start gap-2 text-[14px] font-semibold text-rp-brand-strong">
                 <Link className="hover:text-rp-brand" to="/mock-tests/?level=N3">{tr('Mở đề thi thử N3')}</Link>
-                <Link className="hover:text-rp-brand" to="/register">{tr('Học nhóm cùng Mentor')}</Link>
+                <Link className="hover:text-rp-brand" to="/register">{tr('Học nhóm cùng Giáo viên')}</Link>
                 <Link className="hover:text-rp-brand" to="/courses">{tr('Xem lộ trình ôn')}</Link>
               </div>
             </aside>

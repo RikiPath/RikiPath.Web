@@ -500,7 +500,7 @@ describe('Smart UI State Management — Component SSR & HomeLearner Integration'
       recoveredClient,
     );
     recoveredClient.clear();
-    assert.ok(htmlRecovered.includes('Học nhóm cùng Mentor'));
+    assert.ok(htmlRecovered.includes('Học nhóm cùng Giáo viên'));
     assert.ok(htmlRecovered.includes('JLPT N3 Nhóm Tối'));
   });
 

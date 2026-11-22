@@ -10,24 +10,28 @@
  */
 
 @theme {
-  /* Brand */
+  /* Brand — Harmonized with Login Soft Sakura Rose Design Reference */
   --color-rp-brand: #E05A7A;
-  --color-rp-brand-pressed: #C24362;
-  --color-rp-brand-strong: #A1334E;
-  --color-rp-brand-deep: #8C2340;
-  --color-rp-brand-tint: #FFF0F3;
-  --color-rp-brand-soft: #FCE7EB;
-  --color-rp-brand-border: #F8BBD0;
-  --color-rp-mentor: #BD385E;
+  --color-rp-brand-pressed: #CC4B6B;
+  --color-rp-brand-strong: #B53D5C;
+  --color-rp-brand-deep: #9E3350;
+  --color-rp-brand-tint: #FFF4F7;
+  --color-rp-brand-soft: #FCEAEF;
+  --color-rp-brand-border: #F2CCD7;
+  --color-rp-mentor: #C84666;
 
-  /* Neutral foundations */
-  --color-rp-bg: #F7F6F7;
-  --color-rp-bg-2: #FBFAFA;
+  /* Neutral foundations — Warm Ivory & Crisp White */
+  --color-rp-bg: #FAF8F6;
+  --color-rp-bg-2: #FCFBFA;
+  --color-rp-admin-bg: #F8F6F4;
+  --color-rp-table-head: #FAF7F8;
+  --color-rp-row-hover: #FFF9FA;
+  --color-rp-tab-active-bg: #FFF0F4;
   --color-rp-surface: #FFFFFF;
-  --color-rp-muted: #F4F2F3;
-  --color-rp-muted-strong: #EDE9EA;
-  --color-rp-line: #E5E0E2;
-  --color-rp-line-strong: #DDBFC3;
+  --color-rp-muted: #F5F2F3;
+  --color-rp-muted-strong: #EDE8EA;
+  --color-rp-line: #EAE3E4;
+  --color-rp-line-strong: #DEC9CE;
 
   /* Text — muted is darkened from Mobile #9E9397 to reach WCAG AA (4.5:1) on white */
   --color-rp-text: #2D282A;
@@ -35,47 +39,47 @@
   --color-rp-text-muted: #776C70;
   --color-rp-text-disabled: #9E9397;
 
-  /* Status (fg / bg / border) */
-  --color-rp-success: #0A7A3A;
-  --color-rp-success-bg: #E7F6EC;
-  --color-rp-success-line: #C3E7CB;
-  --color-rp-warning: #8A4B0B;
-  --color-rp-warning-bg: #FFF8E6;
-  --color-rp-warning-line: #FDE68A;
-  --color-rp-danger: #C62828;
-  --color-rp-danger-bg: #FDEDED;
-  --color-rp-danger-line: #F5C2C2;
-  --color-rp-info: #1B5FA8;
-  --color-rp-info-bg: #EAF2FD;
-  --color-rp-info-line: #D8E7FA;
-  --color-rp-streak: #E64A19;
-  --color-rp-streak-bg: #FFF0EC;
+  /* Status (fg / bg / border) — Harmonized soft surfaces with crisp AA contrast */
+  --color-rp-success: #0D7A42;
+  --color-rp-success-bg: #ECF8F0;
+  --color-rp-success-line: #BBE5C8;
+  --color-rp-warning: #8C4D0C;
+  --color-rp-warning-bg: #FFF9EB;
+  --color-rp-warning-line: #F5DC9C;
+  --color-rp-danger: #C22A2A;
+  --color-rp-danger-bg: #FEF1F1;
+  --color-rp-danger-line: #F3C4C4;
+  --color-rp-info: #1D62AB;
+  --color-rp-info-bg: #EEF5FD;
+  --color-rp-info-line: #CFE2F8;
+  --color-rp-streak: #E05324;
+  --color-rp-streak-bg: #FFF2ED;
 
   /* Pastel feature tones (Mobile AppColors.pastel* / feature*) */
   --color-tone-vocab: #1E824C;
-  --color-tone-vocab-bg: #E8F7EE;
+  --color-tone-vocab-bg: #EBF8F0;
   --color-tone-grammar: #B65A06;
-  --color-tone-grammar-bg: #FFF2E6;
+  --color-tone-grammar-bg: #FFF4E8;
   --color-tone-kanji: #74558A;
-  --color-tone-kanji-bg: #F4EFF7;
-  --color-tone-listening: #7E2FD0;
-  --color-tone-listening-bg: #F6F0FD;
+  --color-tone-kanji-bg: #F5F0F8;
+  --color-tone-listening: #7A35C7;
+  --color-tone-listening-bg: #F6F1FD;
   --color-tone-reading: #1F64B5;
-  --color-tone-reading-bg: #EAF2FD;
+  --color-tone-reading-bg: #EDF4FD;
   --color-tone-writing: #8A5A16;
-  --color-tone-writing-bg: #FFF5E7;
-  --color-tone-speaking: #2E7872;
-  --color-tone-speaking-bg: #EDF7F5;
+  --color-tone-writing-bg: #FFF6E9;
+  --color-tone-speaking: #28756F;
+  --color-tone-speaking-bg: #EDF8F6;
   --color-tone-mock: #4F628C;
-  --color-tone-mock-bg: #EFF1F7;
-  --color-tone-mentor: #BD385E;
-  --color-tone-mentor-bg: #FFF0F3;
-  --color-tone-calendar: #C2410C;
-  --color-tone-calendar-bg: #FFF0EC;
-  --color-tone-haru: #C24362;
+  --color-tone-mock-bg: #F0F2F8;
+  --color-tone-mentor: #C24362;
+  --color-tone-mentor-bg: #FFF4F7;
+  --color-tone-calendar: #C24816;
+  --color-tone-calendar-bg: #FFF2EE;
+  --color-tone-haru: #C84666;
   --color-tone-haru-bg: #FFF5F7;
   --color-tone-neutral: #5F5559;
-  --color-tone-neutral-bg: #F4F2F3;
+  --color-tone-neutral-bg: #F5F2F3;
 
   /* Typography: Vietnamese-first sans, Japanese fallback, serif for kanji display */
   --font-rp: "Be Vietnam Pro", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
@@ -90,10 +94,10 @@
   --radius-rp-card-lg: 20px;
 
   /* Elevation */
-  --shadow-rp-xs: 0 1px 2px rgba(45, 40, 42, 0.05);
-  --shadow-rp-card: 0 1px 2px rgba(45, 40, 42, 0.04), 0 8px 24px -12px rgba(45, 40, 42, 0.12);
-  --shadow-rp-pop: 0 16px 40px -12px rgba(45, 40, 42, 0.22);
-  --shadow-rp-brand: 0 8px 20px -6px rgba(224, 90, 122, 0.4);
+  --shadow-rp-xs: 0 1px 2px rgba(45, 40, 42, 0.04);
+  --shadow-rp-card: 0 1px 2px rgba(45, 40, 42, 0.03), 0 10px 26px -14px rgba(95, 45, 65, 0.11);
+  --shadow-rp-pop: 0 18px 42px -14px rgba(75, 35, 52, 0.2);
+  --shadow-rp-brand: 0 8px 20px -6px rgba(204, 75, 107, 0.28);
 
   /* Layout (adaptive across viewports and zoom) */
   --spacing-rp-sidebar: clamp(228px, 16.5vw, 272px);
@@ -338,17 +342,41 @@
 .rp-card-enter { animation: rp-card-enter 480ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes rp-card-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
+/* Onboarding multi-step wizard transitions (200–320ms, compositor transform/opacity only). */
+.rp-onboarding-step-forward { animation: rp-onboarding-slide-forward 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rp-onboarding-step-backward { animation: rp-onboarding-slide-backward 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rp-onboarding-reveal { animation: rp-onboarding-reveal 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rp-onboarding-check-pop { animation: rp-onboarding-check-pop 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes rp-onboarding-slide-forward {
+  from { opacity: 0; transform: translate3d(18px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-onboarding-slide-backward {
+  from { opacity: 0; transform: translate3d(-18px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-onboarding-reveal {
+  from { opacity: 0; transform: translate3d(0, -6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-onboarding-check-pop {
+  0% { transform: scale(0.72); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* Per-screen column ratios (desktop only; single column below 1024px).
  * Login & Register prioritize wide scenic banner; Register uses a single fullName field. */
 .rp-auth-card { display: grid; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1024px) {
   .rp-auth-card[data-variant='login'],
   .rp-auth-card[data-variant='register'] { grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr); }
-  .rp-auth-card[data-variant='verify'] { grid-template-columns: minmax(0, 1.35fr) minmax(400px, 1fr); }
+  .rp-auth-card[data-variant='verify'] { grid-template-columns: minmax(0, 1.45fr) minmax(420px, 0.85fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rp-kb-zoom-in, .rp-kb-pan-right, .rp-kb-zoom-out, .rp-kb-pan-left, .rp-petal-drift, .rp-crossfade-in, .rp-card-enter, .rp-branch-sway, .rp-slide-progress, .rp-bell-badge-ping { animation: none !important; }
+  .rp-kb-zoom-in, .rp-kb-pan-right, .rp-kb-zoom-out, .rp-kb-pan-left, .rp-petal-drift, .rp-crossfade-in, .rp-card-enter, .rp-branch-sway, .rp-slide-progress, .rp-bell-badge-ping,
+  .rp-onboarding-step-forward, .rp-onboarding-step-backward, .rp-onboarding-reveal, .rp-onboarding-check-pop { animation: none !important; }
   .rp-kb-zoom-in, .rp-kb-pan-right, .rp-kb-zoom-out, .rp-kb-pan-left { transform: scale(1.01); }
   .group:hover .rp-icon-tilt, .rp-interactive:hover .rp-icon-tilt, .rp-card-hover:hover { transform: none !important; }
 }
@@ -530,6 +558,7 @@
 .rp-sidebar-scroll {
   overflow-y: auto;
   overflow-x: clip;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(180, 165, 170, 0.35) transparent;
 }
@@ -537,8 +566,12 @@
 .rp-sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
 .rp-sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(180, 165, 170, 0.35); border-radius: 9999px; }
 .rp-sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(180, 165, 170, 0.65); }
-aside[data-collapsed='true'] .rp-sidebar-scroll { scrollbar-width: none; }
+aside[data-collapsed='true'] .rp-sidebar-scroll { scrollbar-gutter: auto; scrollbar-width: none; }
 aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: none; }
+
+/* Edge-to-edge calendar header/body scroll: prevents native scrollbar gutter from breaking column/header borders while keeping wheel/touch scroll. */
+.rp-cal-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.rp-cal-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* Text link (auth + inline actions): Sakura Primary with an underline that sweeps in left→right on hover/focus. */
 .rp-link {
@@ -637,18 +670,18 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   .group:hover .rp-nav-tile.rp-icon-tilt, .group:focus-visible .rp-nav-tile.rp-icon-tilt, .group:active .rp-nav-tile.rp-icon-tilt { transform: none; }
 }
 .rp-nav-tile svg { stroke-width: 2.2; }
-.rp-nav-tile[data-tone="lesson"], .rp-nav-tile[data-tone="reading"] { color: #2f72c8; background-color: #e6effc; }
-.rp-nav-tile[data-tone="vocabulary"], .rp-nav-tile[data-tone="srs"] { color: #128461; background-color: #dff4ea; }
-.rp-nav-tile[data-tone="grammar"] { color: #c2630a; background-color: #ffeedb; }
-.rp-nav-tile[data-tone="kanji"], .rp-nav-tile[data-tone="kana"] { color: #6c49a8; background-color: #efe7fb; }
-.rp-nav-tile[data-tone="listening"] { color: #6448d2; background-color: #ece8fd; }
-.rp-nav-tile[data-tone="writing"] { color: #b77a06; background-color: #fff1cf; }
-.rp-nav-tile[data-tone="speaking"] { color: #16857b; background-color: #ddf3f1; }
-.rp-nav-tile[data-tone="mock"] { color: #3c5a9e; background-color: #e6ecf8; }
-.rp-nav-tile[data-tone="mentor"], .rp-nav-tile[data-tone="group"] { color: #cc3f66; background-color: #ffe6ed; }
-.rp-nav-tile[data-tone="haru"] { color: #d0466c; background-color: #ffe9ef; }
-.rp-nav-tile[data-tone="roadmap"], .rp-nav-tile[data-tone="calendar"] { color: #d84b44; background-color: #ffe9e5; }
-.rp-nav-tile[data-tone="neutral"] { color: #4f474b; background-color: #eeeaec; }
+.rp-nav-tile[data-tone="lesson"], .rp-nav-tile[data-tone="reading"] { color: #2a6ec2; background-color: #ebf2fc; }
+.rp-nav-tile[data-tone="vocabulary"], .rp-nav-tile[data-tone="srs"] { color: #16805f; background-color: #e6f6ef; }
+.rp-nav-tile[data-tone="grammar"] { color: #bd6310; background-color: #fff1e2; }
+.rp-nav-tile[data-tone="kanji"], .rp-nav-tile[data-tone="kana"] { color: #6e4ea6; background-color: #f2ecfb; }
+.rp-nav-tile[data-tone="listening"] { color: #664ad0; background-color: #f0edfd; }
+.rp-nav-tile[data-tone="writing"] { color: #b5790c; background-color: #fff4d8; }
+.rp-nav-tile[data-tone="speaking"] { color: #1a8279; background-color: #e5f6f4; }
+.rp-nav-tile[data-tone="mock"] { color: #405c9c; background-color: #ebf0f9; }
+.rp-nav-tile[data-tone="mentor"], .rp-nav-tile[data-tone="group"] { color: #c84666; background-color: #fceaef; }
+.rp-nav-tile[data-tone="haru"] { color: #cc4b6b; background-color: #fdecf1; }
+.rp-nav-tile[data-tone="roadmap"], .rp-nav-tile[data-tone="calendar"] { color: #d4524a; background-color: #fdedea; }
+.rp-nav-tile[data-tone="neutral"] { color: #544b4f; background-color: #f0ecee; }
 .rp-nav-tile.rp-nav-tile-active { background-color: currentColor; }
 
 /* Locked nav rows (Smart Feature Lock): whole row faded like a disabled-but-explainable item. */

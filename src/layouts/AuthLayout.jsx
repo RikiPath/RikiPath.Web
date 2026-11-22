@@ -9,7 +9,7 @@ import { useLocale } from '@/locales/locale.js';
 const COPY = {
   login: {
     heading: 'Học tiếng Nhật theo cách của bạn',
-    sub: 'Lộ trình rõ ràng, luyện thi JLPT có tính giờ và lớp nhóm nhỏ cùng Mentor.',
+    sub: 'Lộ trình rõ ràng, luyện thi JLPT có tính giờ và lớp nhóm nhỏ cùng Giáo viên.',
   },
   register: {
     heading: 'Bắt đầu hành trình JLPT của bạn',
@@ -61,10 +61,10 @@ export default function AuthLayout({ variant = 'login', title, subtitle, childre
           {/* Mobile/tablet: compact responsive 4-banner slideshow strip */}
           <AuthScenicCarousel compact className="mt-4 h-32 rounded-2xl sm:h-40 lg:hidden" />
 
-          <div className="flex flex-1 flex-col justify-center py-[clamp(1.25rem,2.5vw,2.25rem)]">
+          <div className="flex flex-1 flex-col justify-center py-[clamp(1rem,2vw,1.75rem)]">
             {title && <h1 className="rp-type-page-title text-rp-text">{tr(title)}</h1>}
-            {subtitle && <p className="rp-type-body mt-2 text-rp-text-2">{tr(subtitle)}</p>}
-            <div className={title || subtitle ? 'mt-6 sm:mt-7' : ''}>{children}</div>
+            {subtitle && <p className="rp-type-body mt-1.5 text-rp-text-2">{tr(subtitle)}</p>}
+            <div className={title || subtitle ? 'mt-5' : ''}>{children}</div>
           </div>
 
           {footer && <div className="border-t border-rp-line pt-4 text-center rp-type-caption text-rp-text-muted">{footer}</div>}

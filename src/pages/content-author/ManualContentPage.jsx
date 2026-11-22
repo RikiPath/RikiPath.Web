@@ -1,10 +1,24 @@
 import AudioTranscriptPanel from '../../components/AudioTranscriptPanel.jsx';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  Eye,
+  FolderUp,
+  History,
+  Pencil,
+  Plus,
+  Search,
+  Send,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { api } from '@/api/client.js';
 import { uploadListeningAudio } from '@/features/content-author/api/contentImportApi.js';
-import { notify } from '@/components/ui/feedbackStore.js';
+import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLookups.js';
 import { useAuth } from '@/app/auth/authContext.js';
 import { ContentAuthorShell } from '@/layouts';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -17,6 +31,8 @@ import {
   withRowId,
 } from '@/features/content-author/utils/contentModel.js';
 import { useLocale } from '@/locales/locale.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { definitions } from '@/features/content-author/utils/contentDefinitions.js';
 
 const endpoint = '/content-author/manual';
 
@@ -32,77 +48,6 @@ const field = (key, label, kind = 'text', required = false) => ({
   kind,
   required,
 });
-
-const title = field('title', 'Tên', 'text', true);
-const description = field('description', 'Mô tả', 'textarea');
-const sort = field('sortOrder', 'Thứ tự', 'number');
-const meaning = field('meaning', 'Nghĩa tiếng Việt', 'textarea', true);
-
-const example = [
-  field('exampleSentence', 'Câu ví dụ'),
-  field('exampleSentenceMeaning', 'Nghĩa câu ví dụ'),
-];
-
-const lessonLink = field('lessonTitle', 'Tên bài học liên kết');
-
-const definitions = {
-  Lesson: {
-    label: 'Bài học',
-    fields: [title, description, sort],
-  },
-
-  Vocabulary: {
-    label: 'Từ vựng',
-    fields: [
-      field('word', 'Từ', 'text', true),
-      field('reading', 'Cách đọc', 'text', true),
-      meaning,
-      ...example,
-      field('audioUrl', 'URL âm thanh', 'url'),
-      lessonLink,
-    ],
-  },
-
-  Kanji: {
-    label: 'Hán tự',
-    fields: [
-      field('character', 'Hán tự', 'text', true),
-      meaning,
-      field('sinoVietnamese', 'Âm Hán Việt'),
-      field('onYomi', 'Âm On'),
-      field('kunYomi', 'Âm Kun'),
-      field('strokeCount', 'Số nét', 'number', true),
-      field('strokeOrderImageUrl', 'URL ảnh thứ tự nét', 'url'),
-      field('audioUrl', 'URL âm thanh', 'url'),
-      lessonLink,
-    ],
-  },
-
-  Grammar: {
-    label: 'Ngữ pháp',
-    fields: [
-      title,
-      field('structure', 'Cấu trúc', 'text', true),
-      field('usageNotes', 'Cách dùng', 'textarea'),
-      ...example,
-      lessonLink,
-    ],
-  },
-
-  PracticeExercise: {
-    label: 'Bài luyện tập',
-    fields: [title, description, sort],
-  },
-
-  MockTest: {
-    label: 'Đề thi thử',
-    fields: [
-      title,
-      description,
-      field('timeLimitMinutes', 'Thời lượng (phút)', 'number', true),
-    ],
-  },
-};
 
 const orderingType = ORDERING_TYPE;
 
@@ -232,7 +177,7 @@ function Select({ label, value, change, items }) {
   );
 }
 
-function AudioField({ data, change }) {
+function AudioUploadField({ data, change, error }) {
   const { tr } = useLocale();
 
   const upload = useMutation({
@@ -1144,6 +1089,7 @@ export function ContentForm({
   const { trf, tr } = useLocale();
 
   const [data, setData] = useState(initial);
+  const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState('');
 
   const readOnly =
@@ -1237,7 +1183,12 @@ export function ContentForm({
     }
 
     try {
-      save.mutate(serializeForm(type, data));
+      const serialized = serializeForm(type, data);
+      if (shouldSubmit && saveAndSubmit) {
+        saveAndSubmit.mutate(serialized);
+      } else {
+        save.mutate(serialized);
+      }
     } catch (error) {
       if (error instanceof SyntaxError) {
         setFormError(
@@ -1522,6 +1473,83 @@ export function ContentForm({
   );
 }
 
+function previewValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+export function ContentPreviewPanel({ type, data = {} }) {
+  const { tr, trf } = useLocale();
+  const definition = definitions[type];
+  const fields = definition?.fields ?? [];
+  const sections = Array.isArray(data.sections) ? data.sections : [];
+  const questions = Array.isArray(data.questions) ? data.questions : [];
+
+  return (
+    <div className="space-y-4 text-sm text-rp-text">
+      <div className="rounded-xl border border-rp-line bg-white p-4">
+        <h3 className="text-lg font-semibold">
+          {tr(definition?.label ?? type)}
+        </h3>
+        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+          {fields.map(fieldDefinition => {
+            const value = previewValue(data[fieldDefinition.key]);
+            if (!value) return null;
+            return (
+              <div key={fieldDefinition.key} className="rounded-lg bg-rp-bg-2 p-3">
+                <dt className="font-semibold">{tr(fieldDefinition.label)}</dt>
+                <dd className="mt-1 whitespace-pre-wrap break-words">{value}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+
+      {(data.audioUrl || data.imageUrl) && (
+        <div className="space-y-3 rounded-xl border border-rp-line bg-white p-4">
+          {data.audioUrl && (
+            <audio controls preload="none" className="w-full" src={data.audioUrl} />
+          )}
+          {data.imageUrl && (
+            <img
+              loading="lazy"
+              src={data.imageUrl}
+              alt={tr('Hình ảnh nội dung')}
+              className="max-h-64 max-w-full rounded-lg object-contain"
+            />
+          )}
+        </div>
+      )}
+
+      {type === 'MockTest' && sections.length > 0 && (
+        <div className="rounded-xl border border-rp-line bg-white p-4">
+          <h3 className="font-semibold">{tr('Các phần thi')}</h3>
+          <ul className="mt-2 space-y-2">
+            {sections.map((section, index) => (
+              <li key={section.id ?? section.uiId ?? index} className="rounded-lg bg-rp-bg-2 p-3">
+                <div className="font-medium">
+                  {section.title || trf('Phần {0}', { 0: index + 1 })}
+                </div>
+                <div className="mt-1 text-rp-text-muted">
+                  {trf('{0} câu hỏi', { 0: section.questions?.length ?? 0 })}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {type === 'PracticeExercise' && questions.length > 0 && (
+        <p className="rounded-xl border border-rp-line bg-white p-4">
+          {trf('{0} câu hỏi luyện tập', { 0: questions.length })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ManualContentWorkspace({
   heading = 'Tạo và sửa học liệu',
   pageName,
@@ -1554,6 +1582,7 @@ export function ManualContentWorkspace({
   ];
 
   const listKey = [...listPrefix, approvalFilter];
+
 
   const list = useQuery({
     queryKey: listKey,
@@ -1756,8 +1785,8 @@ export function ManualContentWorkspace({
     }
 
     save.reset();
+    saveAndSubmit.reset();
     send.reset();
-    setNotice('');
     setEditor(item);
   }
 

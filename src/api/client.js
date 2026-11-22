@@ -27,7 +27,7 @@ export function newCorrelationId() {
   return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-const AUTH_ENDPOINTS = /\/Auth\/(login|register|google|verify-email|resend-verification-email|forgot-password|reset-password)/i;
+const AUTH_ENDPOINTS = /\/Auth\/(login|register|google|verify-email|resend-verification-email|change-unverified-email|forgot-password|reset-password)/i;
 
 api.interceptors.request.use((config) => {
   const token = getSession()?.accessToken;

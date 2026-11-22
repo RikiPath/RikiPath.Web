@@ -89,7 +89,7 @@ export function RoadmapSection() {
               <li key={lvl.level} data-reveal style={{ '--d': `${120 + i * 110}ms` }} className="relative pl-16 lg:pl-0">
                 <div tabIndex={0} className="lp-card lp-level rp-focus group relative h-full rounded-[26px] border border-rp-line bg-white p-6 shadow-rp-xs">
                   <div className="flex items-center justify-between">
-                    <span className="lp-level-node absolute -left-16 top-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F7B6C8] to-[#C24362] text-[17px] font-extrabold text-white shadow-[0_10px_0_-2px_#A1334E,0_18px_26px_-10px_rgba(194,67,98,0.75)] lg:static">{lvl.level}</span>
+                    <span className="lp-level-node absolute -left-16 top-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F7B6C8] to-[#CC4B6B] text-[17px] font-extrabold text-white shadow-[0_10px_0_-2px_#B53D5C,0_18px_26px_-10px_rgba(204,75,107,0.65)] lg:static">{lvl.level}</span>
                     <span lang="ja" aria-hidden="true" className="rp-kanji text-[44px] leading-none text-rp-brand-soft transition-colors duration-300 group-hover:text-rp-brand-border group-focus-visible:text-rp-brand-border">{lvl.kanji}</span>
                   </div>
                   <p className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-rp-text-muted">{trf('Bước {n}', { n: i + 1 })}</p>
@@ -303,7 +303,7 @@ function ClassroomShowcase({ plan }) {
         <div className="mt-3 grid grid-cols-3 gap-2">
           <div className="col-span-3 flex items-center gap-3 rounded-2xl bg-gradient-to-br from-[#FFE3D6] to-[#FCE9EE] p-3 sm:col-span-1 sm:flex-col sm:justify-center">
             <StudyIllustration name="group" size="sm" />
-            <span className="text-[12px] font-bold text-[#9A3F35]">Mentor</span>
+            <span className="text-[12px] font-bold text-[#9A3F35]">{tr('Giáo viên')}</span>
           </div>
           <div className="col-span-3 grid grid-cols-4 gap-2 sm:col-span-2 sm:grid-cols-2">
             {seats.map((c, i) => (
@@ -336,7 +336,7 @@ function ClassroomShowcase({ plan }) {
             <StudyIllustration name="notebook" size={34} />
             <span className="min-w-0">
               <span className="block text-[12.5px] font-bold text-rp-text">{tr('Bài tập về nhà')}</span>
-              <span className="block text-[11px] text-rp-text-muted">{tr('Nộp bài · Mentor chấm và nhận xét')}</span>
+              <span className="block text-[11px] text-rp-text-muted">{tr('Nộp bài · Giáo viên chấm và nhận xét')}</span>
             </span>
           </div>
           <div className="flex items-center gap-2.5 rounded-2xl border border-rp-line bg-white p-3">
@@ -372,7 +372,7 @@ export function GroupLearningSection({ ctaTo, ctaLabel }) {
           <div>
             <SectionHeading
               id="group-title"
-              eyebrow={tr('Học nhóm cùng Mentor')}
+              eyebrow={tr('Học nhóm cùng Giáo viên')}
               title={tr('Lớp nhỏ 1–4 học viên, nhịp học do bạn chọn')}
               text={tr('Mọi lớp kéo dài 10 tuần, mỗi buổi 90 phút và thanh toán trọn khóa. Lịch học, phòng học trực tuyến, bài tập về nhà và tiến độ nằm cùng một chỗ.')}
             />
@@ -475,7 +475,7 @@ export function ClosingCta({ primaryTo, primaryLabel }) {
             </svg>
           ))}
         </div>
-        <div className="mx-auto flex w-full max-w-[1280px] flex-col justify-end gap-8 self-stretch px-[clamp(1.25rem,0.6rem+2.4vw,3rem)] py-14 md:flex-row md:items-center md:justify-between md:py-20">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-col justify-end gap-8 self-stretch px-[clamp(1.25rem,0.6rem+2.4vw,3rem)] py-14 md:flex-row md:items-center md:justify-between md:py-16 lg:py-20">
           <div className="mt-auto max-w-[600px] md:mt-0">
             <p lang="ja" className="rp-kanji text-[15px] tracking-[0.25em] text-white/85">一歩ずつ、確かに。</p>
             <h2 id="cta-title" className="mt-3 text-balance text-[clamp(1.9rem,1.3rem+2.2vw,3.2rem)] font-extrabold leading-[1.12] tracking-[-0.03em] text-white [text-shadow:0_2px_18px_rgba(23,36,58,0.45)]">{tr('Bắt đầu từ mục tiêu JLPT của bạn')}</h2>

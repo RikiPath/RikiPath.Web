@@ -1,16 +1,23 @@
+import { Radio } from '@/components/ui';
+
 export default function PracticeQuestionFields({ questions, answers, onAnswer, disabled, name }) {
   return questions.map((question, index) => (
-    <fieldset key={question.questionId} className="rounded-lg border border-card-border p-3" disabled={disabled}>
-      <legend className="max-w-full break-words px-1 font-semibold">{index + 1}. {question.questionText}</legend>
-      {question.imageUrl && <img src={question.imageUrl} alt={'Hình câu ' + (index + 1)} loading="lazy" className="my-2 max-h-80 max-w-full rounded-lg object-contain" />}
-      {question.options.map(option => (
-        <label key={option.optionId} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-primary-light">
-          <input type="radio" className="mt-1" name={name + '-' + question.questionId}
-            checked={answers[question.questionId] === option.optionId}
-            onChange={() => onAnswer(question.questionId, option.optionId)} />
-          <span>{option.optionText}{option.imageUrl && <img src={option.imageUrl} alt="Hình lựa chọn" loading="lazy" className="mt-1 max-h-48 max-w-full object-contain" />}</span>
-        </label>
-      ))}
+    <fieldset key={question.questionId} className="rounded-xl border border-rp-line bg-rp-surface p-3.5" disabled={disabled}>
+      <legend className="max-w-full break-words px-1.5 text-sm font-semibold text-rp-text">
+        {index + 1}. {question.questionText}
+      </legend>
+      <div className="mt-2 space-y-1.5">
+        {question.options.map((option) => (
+          <div key={option.optionId} className="rounded-lg px-2 py-1.5 hover:bg-rp-brand-tint/40">
+            <Radio
+              name={`${name}-${question.questionId}`}
+              checked={answers[question.questionId] === option.optionId}
+              onChange={() => onAnswer(question.questionId, option.optionId)}
+              label={option.optionText}
+            />
+          </div>
+        ))}
+      </div>
     </fieldset>
   ));
 }

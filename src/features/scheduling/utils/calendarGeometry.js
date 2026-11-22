@@ -7,66 +7,121 @@ const FULL_DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ 
 
 export const CALENDAR_TONES = Object.freeze({
   session: {
-    label: 'Buổi lớp nhóm',
-    card: 'border-l-[3.5px] border-l-[#AD3155] border border-[#F2CAD7] bg-[#FFF5F8] text-[#6F1934]',
-    pill: 'bg-[#FFF0F5] text-[#9A2346] border border-[#F2CAD7]',
-    dot: 'bg-[#AD3155]',
+    label: 'Đã xếp lớp',
+    hex: '#CE476D',
+    card: 'border-l-[3.5px] border-l-[#CE476D] border border-[#F2CCD7] bg-[#FFF5F7] text-[#7D2941] shadow-2xs',
+    pill: 'bg-[#FCEAEF] text-[#9E3350] border border-[#F2CCD7]',
+    dot: 'bg-[#CE476D]',
   },
   present: {
     label: 'Đã hoàn thành',
-    card: 'border-l-[3.5px] border-l-[#266945] border border-[#BDE2CA] bg-[#EFFAF3] text-[#1C4D33]',
-    pill: 'bg-[#E8F7EE] text-[#225C3D] border border-[#BDE2CA]',
-    dot: 'bg-[#266945]',
-  },
-  open: {
-    label: 'Khung rảnh còn trống',
-    card: 'border-l-[3.5px] border-l-[#16795C] border border-[#B2E3D4] bg-[#ECFDF7] text-[#125541]',
-    pill: 'bg-[#E6FAF3] text-[#156E53] border border-[#B2E3D4]',
-    dot: 'bg-[#16795C]',
+    hex: '#16A34A',
+    card: 'border-l-[3.5px] border-l-[#16A34A] border border-[#BBF7D0] bg-[#F0FDF4] text-[#14532D]',
+    pill: 'bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]',
+    dot: 'bg-[#16A34A]',
   },
   approved: {
-    label: 'Đã duyệt · chưa công bố',
-    card: 'border-l-[3.5px] border-l-[#2563A6] border border-[#BFD6EE] bg-[#F1F7FD] text-[#1D4875]',
-    pill: 'bg-[#EAF3FC] text-[#1F5490] border border-[#BFD6EE]',
-    dot: 'bg-[#2563A6]',
+    label: 'Đã duyệt',
+    hex: '#0D9488',
+    card: 'border-l-[3.5px] border-l-[#0D9488] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
+    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
+    dot: 'bg-[#0D9488]',
+  },
+  // Legacy alias mapped uniformly to Teal 'Đã duyệt' (no separate 'Đã công bố' status)
+  open: {
+    label: 'Đã duyệt',
+    hex: '#0D9488',
+    card: 'border-l-[3.5px] border-l-[#0D9488] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
+    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
+    dot: 'bg-[#0D9488]',
   },
   booked: {
-    label: 'Đã xếp lớp / có lịch',
-    card: 'border-l-[3.5px] border-l-[#6B358A] border border-[#DFC6EC] bg-[#F7EFFB] text-[#4C2263]',
-    pill: 'bg-[#F4E9F8] text-[#5C2E73] border border-[#DFC6EC]',
-    dot: 'bg-[#6B358A]',
+    label: 'Đã xếp lớp',
+    hex: '#CE476D',
+    card: 'border-l-[3.5px] border-l-[#CE476D] border border-[#EFC2CF] bg-[#FFF4F7] text-[#7D2941] shadow-2xs',
+    pill: 'bg-[#FCEAEF] text-[#9E3350] border border-[#EFC2CF]',
+    dot: 'bg-[#CE476D]',
   },
   pending: {
-    label: 'Chờ duyệt / điều chỉnh',
-    card: 'border-l-[3.5px] border-l-[#C47B16] border border-[#F3D7A4] bg-[#FFF9ED] text-[#7D4B07]',
+    label: 'Chờ duyệt',
+    hex: '#E4A020',
+    card: 'border-l-[3.5px] border-l-[#E4A020] border border-[#F3D7A4] bg-[#FFFBF2] text-[#784506]',
     pill: 'bg-[#FFF5E2] text-[#8E5306] border border-[#F3D7A4]',
-    dot: 'bg-[#C47B16]',
+    dot: 'bg-[#E4A020]',
+  },
+  rejected: {
+    label: 'Bị từ chối',
+    hex: '#DC3545',
+    card: 'border-l-[3.5px] border-l-[#DC3545] border border-[#F5C2C7] bg-[#FFF5F5] text-[#842029]',
+    pill: 'bg-[#FDECEC] text-[#B42318] border border-[#F5C2C7]',
+    dot: 'bg-[#DC3545]',
   },
   conflict: {
-    label: 'Xung đột lịch',
-    card: 'border-l-[3.5px] border-l-[#B42318] border border-[#F5B7B1] bg-[#FEF3F2] text-[#8A1C13]',
+    label: 'Trùng lịch',
+    hex: '#DC3545',
+    card: 'border-l-[3.5px] border-l-[#DC3545] border border-[#F5B7B1] bg-[#FEF5F5] text-[#8A1C13]',
     pill: 'bg-[#FDECEC] text-[#B42318] border border-[#F5B7B1]',
-    dot: 'bg-[#B42318]',
+    dot: 'bg-[#DC3545]',
   },
   cancelled: {
-    label: 'Đã hủy / từ chối',
-    card: 'border-l-[3.5px] border-l-[#8B7D86] border border-[#E3D9DE] bg-[#F7F3F5] text-[#64575F] opacity-85',
-    pill: 'bg-[#F3EEF1] text-[#64575F] border border-[#E3D9DE]',
-    dot: 'bg-[#8B7D86]',
+    label: 'Đã hủy',
+    hex: '#8B8B97',
+    card: 'border-l-[3.5px] border-l-[#8B8B97] border border-[#E2E2E8] bg-[#F8F8FA] text-[#5E5E6A] opacity-85',
+    pill: 'bg-[#F1F1F4] text-[#5E5E6A] border border-[#E2E2E8]',
+    dot: 'bg-[#8B8B97]',
   },
   selected: {
-    label: 'Đang chọn',
-    card: 'border-l-[3.5px] border-l-[#AD3155] border border-[#E6B0C2] bg-[#FCEEF3] text-[#7B1E3B]',
-    pill: 'bg-[#FCEEF3] text-[#9A2346] border border-[#E6B0C2]',
-    dot: 'bg-[#AD3155]',
+    label: 'Đã chọn (chưa gửi)',
+    hex: '#22C55E',
+    card: 'border-l-[3.5px] border-l-[#22C55E] border border-[#86EFAC] bg-[#F3FEF6] text-[#14532D] shadow-xs ring-1 ring-inset ring-[#86EFAC]/50',
+    pill: 'bg-[#E3FCE9] text-[#15803D] border border-[#86EFAC]',
+    dot: 'bg-[#22C55E]',
+  },
+  live: {
+    label: 'Phòng đang mở',
+    card: 'border-l-[3.5px] border-l-[#0F766E] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
+    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
+    dot: 'bg-[#0F766E]',
+  },
+  homework: {
+    label: 'Hạn nộp bài tập',
+    card: 'border-l-[3.5px] border-l-[#4F46E5] border border-[#C7D2FE] bg-[#EEF2FF] text-[#3730A3]',
+    pill: 'bg-[#E0E7FF] text-[#4338CA] border border-[#C7D2FE]',
+    dot: 'bg-[#4F46E5]',
+  },
+  rescheduled: {
+    label: 'Đã dời lịch',
+    card: 'border-l-[3.5px] border-l-[#B45309] border border-[#FDE68A] bg-[#FFFBEB] text-[#78350F]',
+    pill: 'bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]',
+    dot: 'bg-[#B45309]',
+  },
+  srs: {
+    label: 'Ôn tập SRS hôm nay',
+    card: 'border-l-[3.5px] border-l-[#059669] border border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]',
+    pill: 'bg-[#D1FAE5] text-[#047857] border border-[#A7F3D0]',
+    dot: 'bg-[#059669]',
   },
   ghost: {
     label: 'Dự kiến',
-    card: 'border border-dashed border-[#D8A3B6] bg-white/85 text-[#755F6C]',
-    pill: 'bg-white border border-dashed border-[#D8A3B6] text-[#755F6C]',
-    dot: 'bg-[#D8A3B6]',
+    card: 'border border-dashed border-[#86EFAC] bg-[#F0FDF4]/80 text-[#166534]',
+    pill: 'bg-[#F0FDF4] border border-dashed border-[#86EFAC] text-[#166534]',
+    dot: 'bg-[#22C55E]',
   },
 });
+
+/** Formats a cohort/class display title concisely so calendar cards don't truncate into unreadable 'QA-N4...'. */
+export function formatCleanCohortTitle(rawName, sessionNumber) {
+  const raw = String(rawName || '').trim();
+  if (!raw) return sessionNumber ? `Lớp nhóm · Buổi ${sessionNumber}` : 'Lớp nhóm';
+  // Replace noisy technical prefixes like QA-N4-202611... with clean readable JLPT class title
+  let clean = raw
+    .replace(/^QA[-_ ]+/i, '')
+    .replace(/[-_]\d{6,}.*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) clean = raw;
+  return sessionNumber ? `${clean} · Buổi ${sessionNumber}` : clean;
+}
 
 export function getToneMeta(tone) {
   return CALENDAR_TONES[tone] || CALENDAR_TONES.session;
@@ -199,7 +254,7 @@ export function stepAnchorKey(anchorKey, view, delta) {
   return shiftDateKey(anchorKey, delta * 7);
 }
 
-export function getViewDateRange(anchorKey, view) {
+export function getViewDateRange(anchorKey, view, audience = 'mentor') {
   if (view === 'day') {
     return {
       startKey: anchorKey,
@@ -214,7 +269,7 @@ export function getViewDateRange(anchorKey, view) {
       startKey: matrix.cells[0]?.key || anchorKey,
       endKey: matrix.cells[matrix.cells.length - 1]?.key || anchorKey,
       title: matrix.title,
-      subtitle: 'Theo dõi phân bố buổi dạy và khung trống',
+      subtitle: audience === 'learner' ? 'Tổng quan lịch học theo tháng' : 'Theo dõi phân bố buổi dạy và khung trống',
     };
   }
   if (view === 'agenda') {
@@ -302,13 +357,26 @@ export function packDayEvents(events = []) {
   return output;
 }
 
-export function groupAgendaEvents(events = [], { startKey, endKey, todayKey } = {}) {
+export function groupAgendaEvents(events = [], { startKey, endKey, todayKey, smartOrder = false } = {}) {
   const byDay = new Map();
-  const sorted = [...events]
-    .filter((ev) => (!startKey || ev.dayKey >= startKey) && (!endKey || ev.dayKey <= endKey))
-    .sort((a, b) => a.dayKey.localeCompare(b.dayKey) || minutesOfEvent(a).start - minutesOfEvent(b).start);
+  const inRange = [...events].filter((ev) => (!startKey || ev.dayKey >= startKey) && (!endKey || ev.dayKey <= endKey));
+  if (smartOrder) {
+    const isCompleted = (ev) => ev?.tone === 'present' || ev?.sessionCompleted === true;
+    inRange.sort((a, b) => {
+      const ca = isCompleted(a);
+      const cb = isCompleted(b);
+      if (ca !== cb) return ca ? 1 : -1;
+      const dayCmp = a.dayKey.localeCompare(b.dayKey);
+      if (!ca) {
+        return dayCmp !== 0 ? dayCmp : minutesOfEvent(a).start - minutesOfEvent(b).start;
+      }
+      return dayCmp !== 0 ? -dayCmp : minutesOfEvent(b).start - minutesOfEvent(a).start;
+    });
+  } else {
+    inRange.sort((a, b) => a.dayKey.localeCompare(b.dayKey) || minutesOfEvent(a).start - minutesOfEvent(b).start);
+  }
 
-  for (const ev of sorted) {
+  for (const ev of inRange) {
     if (!byDay.has(ev.dayKey)) byDay.set(ev.dayKey, []);
     byDay.get(ev.dayKey).push(ev);
   }

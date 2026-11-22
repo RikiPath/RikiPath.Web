@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Check, Search, X } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import {
   getPendingApprovals,
@@ -8,15 +9,31 @@ import {
   reviewLessonGroup,
   batchReviewContentRequests,
 } from '@/features/admin/api/adminApi.js';
+import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { notify } from '@/components/ui/feedbackStore.js';
-import { ContextualErrorState, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import {
+  Badge,
+  Banner,
+  Button,
+  Checkbox,
+  ContextualErrorState,
+  CustomSelect,
+  Input,
+  Modal,
+  PageHeader,
+  Pagination,
+  RefreshingIndicator,
+  SakuraLoader,
+  StaleDataBar,
+  Textarea,
+} from '@/components/ui';
 import Icon from '@/components/ui/Icon.jsx';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
 const approvalKeys = {
-  all: ['content-approvals'],
-  list: (params) => ['content-approvals', 'list', params],
+  all: ADMIN_KEYS.contentApprovals,
+  list: (params) => [...ADMIN_KEYS.contentApprovals, 'list', params],
 };
 
 const ENTITY_TYPES = [
@@ -238,17 +255,17 @@ function FieldRow({ f }) {
     return (
       <tr className="bg-amber-50/70">
         <td className="py-2 pl-4 pr-3 align-top text-[12px] font-semibold text-rp-text-2 whitespace-nowrap w-32">{displayLabel}</td>
-        <td className="py-2 pr-3 align-top text-[12px] text-rp-text break-all max-w-[160px]">
+        <td className="py-2 pr-3 align-top text-[12px] text-rp-text break-all min-w-[160px] max-w-md">
           {f.oldValue != null ? <span className="line-through text-rose-400">{f.oldValue}</span> : <span className="italic text-rp-text-muted">—</span>}
         </td>
-        <td className="py-2 pr-4 align-top text-[12px] font-medium text-emerald-700 break-words max-w-[200px]">
+        <td className="py-2 pr-4 align-top text-[12px] font-medium text-emerald-700 break-words min-w-[180px] max-w-md">
           {f.newValue ?? <span className="italic text-rp-text-muted">—</span>}
         </td>
       </tr>
     );
   }
   return (
-    <tr className="even:bg-rp-bg-2">
+    <tr className="transition-colors duration-150 hover:bg-rp-row-hover">
       <td className="py-2 pl-4 pr-3 align-top text-[12px] font-semibold text-rp-text-2 whitespace-nowrap w-32">{displayLabel}</td>
       <td colSpan={2} className="py-2 pr-4 align-top text-[12px] text-rp-text break-words">
         {f.newValue ?? f.oldValue ?? <span className="italic text-rp-text-muted">—</span>}
@@ -364,13 +381,13 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
         <div className="overflow-auto rounded-xl border border-rp-line bg-white">
           <table className="min-w-full table-fixed text-left">
             <thead>
-              <tr className="border-b border-[#f0e8e4] bg-rp-bg-2">
+              <tr className="border-b border-rp-line bg-rp-table-head">
                 <th className="py-2 pl-4 pr-3 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide w-32">{tr('Trường')}</th>
                 <th className="py-2 pr-3 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide">{tr('Cũ (DB)')}</th>
                 <th className="py-2 pr-4 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide">{tr('Mới (Excel)')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#f5efec]">
+            <tbody className="divide-y divide-rp-line/70">
               {fields.map((f) => <FieldRow key={f.field} f={f} />)}
             </tbody>
           </table>
@@ -384,8 +401,8 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
           <>
             <label className="text-[13px] font-semibold text-rp-text">
               {tr('Lý do từ chối')}{' '}<span className="text-rose-600">*</span>
-              <textarea
-                className="mt-1.5 w-full rounded-xl border border-rp-line p-3 text-[13px] outline-none focus:border-rp-brand transition-colors resize-none"
+              <Textarea
+                className="mt-1.5 resize-none"
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -393,67 +410,62 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
                 autoFocus
               />
             </label>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowRejectForm(false)}
-                className="rounded-xl border border-rp-line px-4 py-2 text-[13px] font-semibold text-rp-text-2 hover:bg-rp-bg-2 transition-colors"
-              >
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)}>
                 {tr('Huỷ')}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
                 disabled={!reason.trim() || submitting}
+                loading={submitting}
                 onClick={handleReject}
-                className="rounded-xl bg-rose-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors"
               >
                 {submitting ? tr('Đang xử lý…') : tr('Xác nhận từ chối')}
-              </button>
+              </Button>
               {item.entityType === 'Lesson' && (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="secondary"
                   disabled={!reason.trim() || submitting}
                   onClick={() => onRejectGroup(item.requestId, reason.trim())}
-                  className="rounded-xl border border-rose-300 px-4 py-2 text-[13px] font-semibold text-rose-700 disabled:opacity-50"
                 >
                   {tr('Từ chối cả nhóm')}
-                </button>
+                </Button>
               )}
             </div>
           </>
         ) : (
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button
+              size="sm"
+              variant="danger"
+              icon={X}
               onClick={() => setShowRejectForm(true)}
               disabled={submitting}
-              className="rounded-xl border border-rose-300 px-4 py-2 text-[13px] font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50 transition-colors"
             >
-              <Icon name="close" className="align-middle text-[16px] mr-1" />{tr('Từ chối')}
-            </button>
+              {tr('Từ chối')}
+            </Button>
             {item.entityType === 'Lesson' && (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="secondary"
                 disabled={submitting}
                 onClick={() => onApproveGroup(item.requestId)}
-                className="rounded-xl border border-rp-line px-4 py-2 text-[13px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint disabled:opacity-50"
               >
                 {tr('Duyệt cả nhóm bài')}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="primary"
+              icon={Check}
               onClick={handleApprove}
               disabled={submitting}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              loading={submitting}
             >
-              {submitting ? (
-                <SakuraLoader variant="inline" size={16} tone="light" className="mr-1" />
-              ) : (
-                <Icon name="check" className="align-middle text-[16px] mr-1" />
-              )}
               {tr('Phê duyệt')}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -486,60 +498,48 @@ function BatchRejectModal({ selectedItems, onClose, onSubmit, submitting }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between border-b border-rp-line pb-3">
-          <h3 className="text-lg font-bold text-rp-text">
-            {trf('Nhập lý do từ chối ({0} mục)', { 0: selectedItems.length })}
-          </h3>
-          <button onClick={onClose} className="text-rp-text-muted hover:text-rp-text">
-            <Icon name="close" />
-          </button>
+    <Modal
+      open
+      onClose={onClose}
+      title={trf('Nhập lý do từ chối ({0} mục)', { 0: selectedItems.length })}
+      description={tr('Mỗi yêu cầu từ chối cần có lý do cụ thể. Vui lòng nhập chi tiết cho từng phần bên dưới.')}
+      size="lg"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="max-h-[52vh] overflow-y-auto pr-1 space-y-3">
+          {selectedItems.map((item) => (
+            <div key={item.requestId} className="rounded-xl border border-rp-line p-3 bg-rp-bg-2">
+              <div className="mb-1.5 flex items-center justify-between text-[13px] font-bold text-rp-text">
+                <span>{item.rowKey} <span className="font-normal text-rp-text-2">({item.entityType})</span></span>
+                <span className="text-[11px] font-normal text-rp-text-muted">#{item.requestId}</span>
+              </div>
+              <Textarea
+                required
+                rows={2}
+                value={reasons[item.requestId] || ''}
+                onChange={(e) => handleReasonChange(item.requestId, e.target.value)}
+                placeholder={tr('Nhập lý do từ chối cho mục này...')}
+                className="resize-none bg-white"
+              />
+            </div>
+          ))}
         </div>
 
-        <p className="mb-4 text-xs text-rp-text-2">
-          {tr('Mỗi yêu cầu từ chối cần có lý do cụ thể. Vui lòng nhập chi tiết cho từng phần bên dưới.')}
-        </p>
-
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto pr-1 space-y-4">
-            {selectedItems.map((item) => (
-              <div key={item.requestId} className="rounded-xl border border-rp-line p-3 bg-rp-bg-2">
-                <div className="mb-1.5 flex items-center justify-between text-[13px] font-bold text-rp-text">
-                  <span>{item.rowKey} <span className="font-normal text-rp-text-2">({item.entityType})</span></span>
-                  <span className="text-[11px] font-normal text-rp-text-muted">#{item.requestId}</span>
-                </div>
-                <textarea
-                  required
-                  rows={2}
-                  value={reasons[item.requestId] || ''}
-                  onChange={(e) => handleReasonChange(item.requestId, e.target.value)}
-                  placeholder={tr('Nhập lý do từ chối cho mục này...')}
-                  className="w-full rounded-lg border border-rp-line bg-white p-2.5 text-[13px] outline-none focus:border-rp-brand transition-colors resize-none"
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex justify-end gap-3 border-t border-rp-line pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-rp-line px-4 py-2 text-[13px] font-semibold text-rp-text-2 hover:bg-rp-bg-2"
-            >
-              {tr('Hủy')}
-            </button>
-            <button
-              type="submit"
-              disabled={!isFormValid || submitting}
-              className="rounded-xl bg-rose-600 px-5 py-2 text-[13px] font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? tr('Đang gửi...') : tr('Xác nhận từ chối hàng loạt')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end gap-2 border-t border-rp-line pt-4">
+          <Button type="button" variant="outline" onClick={onClose}>
+            {tr('Hủy')}
+          </Button>
+          <Button
+            type="submit"
+            variant="danger"
+            disabled={!isFormValid || submitting}
+            loading={submitting}
+          >
+            {submitting ? tr('Đang gửi...') : tr('Xác nhận từ chối hàng loạt')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -589,6 +589,7 @@ export default function AdminContentReview() {
 
   const onMutationSuccess = useCallback(() => {
     qc.invalidateQueries({ queryKey: approvalKeys.all });
+    invalidateAdminDomains(qc, ['content']);
     setSelectedId(null);
     setCheckedIds([]);
     setShowBatchRejectModal(false);
@@ -685,41 +686,39 @@ export default function AdminContentReview() {
 
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Duyệt nội dung')}>
-      <div className="min-h-dvh bg-rp-bg-2 py-[var(--rp-space-page-y)] text-rp-text">
+      <div className="py-[var(--rp-space-page-y)] text-rp-text">
         <div className="rp-container rp-cq">
-        <header className="mb-[var(--rp-space-stack)]">
-          <h1 className="rp-type-page-title">{tr('Hàng chờ kiểm duyệt')}</h1>
-          <p className="rp-type-body mt-1 text-rp-text-2">
-            {tr('Nội dung do Content Author gửi lên, đang chờ Admin xem xét và phê duyệt.')}
-          </p>
-        </header>
+        <PageHeader
+          title={tr('Hàng chờ kiểm duyệt')}
+          subtitle={tr('Nội dung do Content Author gửi lên, đang chờ Admin xem xét và phê duyệt.')}
+          actions={(
+            <div className="flex items-center gap-2">
+              <Badge tone="brand" size="sm" icon={false}>
+                {trf('{0} mục chờ duyệt', { 0: items.length })}
+              </Badge>
+              <RefreshingIndicator active={isFetching && !isLoading} />
+            </div>
+          )}
+        />
 
         {/* Thanh công cụ tìm kiếm và lọc */}
         <div className="mb-5 flex flex-wrap items-center gap-3">
-          <div className="relative min-w-0 flex-1 basis-[180px] max-w-xs">
-            <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-rp-text-muted" />
-            <input
-              type="text"
+          <div className="min-w-[200px] flex-1 max-w-xs">
+            <Input
+              icon={Search}
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); setCheckedIds([]); }}
               placeholder={tr('Tìm theo tên, ký tự...')}
-              className="w-full rounded-xl border border-rp-line bg-white py-2 pl-9 pr-3 text-[13px] outline-none focus:border-rp-brand transition-colors"
             />
           </div>
 
-          <select
-            value={entityType}
-            onChange={(e) => { setEntityType(e.target.value); setPage(1); setSelectedId(null); setCheckedIds([]); }}
-            className="rounded-xl border border-rp-line bg-white px-3 py-2 text-[13px] outline-none focus:border-rp-brand transition-colors"
-          >
-            {ENTITY_TYPES.map((t) => <option key={t.value} value={t.value}>{tr(t.label)}</option>)}
-          </select>
-
-          <span className="rounded-full bg-rp-brand/10 px-3 py-1 text-[12px] font-semibold text-rp-brand">
-            {trf('{0} mục chờ duyệt', { 0: items.length })}
-          </span>
-
-          <RefreshingIndicator active={isFetching && !isLoading} />
+          <div className="w-[240px]">
+            <CustomSelect
+              value={entityType}
+              onChange={(val) => { setEntityType(val); setPage(1); setSelectedId(null); setCheckedIds([]); }}
+              options={ENTITY_TYPES.map((t) => ({ value: t.value, label: tr(t.label) }))}
+            />
+          </div>
         </div>
 
         {/* Thanh tác vụ hàng loạt khi chọn ít nhất 1 mục */}
@@ -729,47 +728,45 @@ export default function AdminContentReview() {
               {tr('Đã chọn')}{' '}<span className="text-rp-brand font-bold">{checkedIds.length}</span>{' '}{tr('mục')}
             </span>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="danger"
+                icon={X}
                 disabled={isSubmitting}
                 onClick={() => setShowBatchRejectModal(true)}
-                className="rounded-lg border border-rose-300 px-3 py-1.5 text-[12px] font-semibold text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50"
               >
                 {tr('Từ chối các mục đã chọn')}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={Check}
                 disabled={isSubmitting}
+                loading={isSubmitting}
                 onClick={handleBatchApprove}
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-1"
               >
-                {isSubmitting && <SakuraLoader variant="inline" size={14} tone="light" />}
                 {tr('Phê duyệt tất cả đã chọn')}
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
         {mutationError && (
-          <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-700">
-            {mutationError}
-          </p>
+          <div className="mb-4">
+            <Banner tone="danger">{mutationError}</Banner>
+          </div>
         )}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           {/* Cột danh sách */}
           <section className="overflow-hidden rounded-2xl border border-rp-line bg-white">
-            <div className="flex items-center justify-between border-b border-rp-line px-5 py-3.5 bg-rp-bg-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={items.length > 0 && checkedIds.length === items.length}
-                  onChange={handleToggleSelectAll}
-                  className="h-4 w-4 rounded border-gray-300 text-rp-brand focus:ring-rp-brand"
-                  disabled={items.length === 0}
-                />
-                <span className="font-bold text-[14px]">{tr('Chọn tất cả')}</span>
-              </div>
+            <div className="flex items-center justify-between border-b border-rp-line px-5 py-3.5 bg-rp-table-head">
+              <Checkbox
+                label={tr('Chọn tất cả')}
+                checked={items.length > 0 && checkedIds.length === items.length}
+                onChange={handleToggleSelectAll}
+                disabled={items.length === 0}
+              />
               <span className="text-[12px] text-rp-text-2">{trf('Tổng {0}', { 0: items.length })}</span>
             </div>
 
@@ -810,13 +807,12 @@ export default function AdminContentReview() {
                   const changedCount = Array.isArray(item.fields) ? item.fields.filter((f) => f.isChanged).length : 0;
 
                   return (
-                    <li key={id} className="flex items-center hover:bg-rp-bg-2">
+                    <li key={id} className="flex items-center transition-colors duration-150 hover:bg-rp-row-hover">
                       <div className="pl-4 pr-1" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={isChecked}
                           onChange={(e) => handleToggleCheck(id, e)}
-                          className="h-4 w-4 rounded border-gray-300 text-rp-brand focus:ring-rp-brand"
+                          aria-label={item.rowKey}
                         />
                       </div>
                       <button
@@ -849,22 +845,15 @@ export default function AdminContentReview() {
             )}
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-[#f0e8e4] px-5 py-3">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="rounded-lg border border-rp-line px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40 hover:bg-rp-bg-2 transition-colors"
-                >
-                  {tr('← Trước')}
-                </button>
-                <span className="text-[12px] text-rp-text-2">Trang {page}/{totalPages}</span>
-                <button
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="rounded-lg border border-rp-line px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40 hover:bg-rp-bg-2 transition-colors"
-                >
-                  {tr('Tiếp →')}
-                </button>
+              <div className="border-t border-[#f0e8e4] px-4 py-2.5">
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  pageSize={PAGE_SIZE}
+                  showPageSize={false}
+                  showTotal={false}
+                  onPageChange={setPage}
+                />
               </div>
             )}
           </section>

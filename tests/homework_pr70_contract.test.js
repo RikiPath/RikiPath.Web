@@ -31,7 +31,7 @@ describe('PR #70 homework contract (Web)', () => {
     assert.equal(lastRequest.url, '/homework/55/ai-draft');
     assert.equal(r.available, true);
     assert.equal(r.score, 81.5);
-    assert.equal(aiDraftNotice(r), 'Đã cập nhật gợi ý nháp AI cho Mentor.');
+    assert.equal(aiDraftNotice(r), 'Đã cập nhật gợi ý nháp AI cho Giáo viên.');
   });
 
   it('AI/OCR outage is a handled outcome with the server reason, not a thrown error', async () => {

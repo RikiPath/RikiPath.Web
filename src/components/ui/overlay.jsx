@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Toaster as HotToaster, toast as hotToast } from 'react-hot-toast';
-import { CircleAlert, Info, TriangleAlert, X } from 'lucide-react';
+import { CircleAlert, Info, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import { Button } from './core.jsx';
 import { cx } from './cx.js';
 import { useFocusTrap } from './hooks.js';
@@ -22,7 +22,7 @@ function Portal({ children }) {
 
 /* ------------------------------------------------------------------ Modal */
 
-const MODAL_SIZES = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
 
 export function Modal({ open, onClose, title, description, children, footer, size = 'md', dismissible = true, initialFocusRef, className }) {
   const { tr } = useLocale();
@@ -53,7 +53,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           )}
         >
           {(title || dismissible) && (
-            <div className="flex items-start justify-between gap-4 border-b border-rp-line px-5 py-4">
+            <div className="flex items-start justify-between gap-4 border-b border-rp-line px-5 py-3.5">
               <div className="min-w-0">
                 {title && <h2 id={titleId} className="text-base font-bold leading-6 text-rp-text">{tr(title)}</h2>}
                 {description && <p id={descId} className="mt-0.5 text-[13px] leading-5 text-rp-text-muted">{tr(description)}</p>}
@@ -98,7 +98,7 @@ export function Drawer({ open, onClose, title, side = 'right', width = 'w-[min(4
           )}
         >
           {title && (
-            <div className="flex items-center justify-between gap-3 border-b border-rp-line px-5 py-4">
+            <div className="flex items-center justify-between gap-3 border-b border-rp-line px-5 py-3.5">
               <h2 id={titleId} className="text-base font-bold text-rp-text">{tr(title)}</h2>
               <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus rounded-full p-1.5 text-rp-text-muted hover:bg-rp-muted">
                 <X aria-hidden="true" className="h-[18px] w-[18px]" />
@@ -137,10 +137,10 @@ export function AlertDialog({ open, title, description, confirmLabel = 'Xác nh�
           aria-labelledby={titleId}
           aria-describedby={description ? descId : undefined}
           tabIndex={-1}
-          className="rp-anim-pop relative w-full max-w-md rounded-rp-card-lg bg-rp-surface p-6 shadow-rp-pop outline-none"
+          className="rp-anim-pop relative w-full max-w-[420px] rounded-rp-card-lg bg-rp-surface p-5 shadow-rp-pop outline-none"
         >
-          <div className="flex items-start gap-4">
-            <span className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', iconCls)}>
+          <div className="flex items-start gap-3.5">
+            <span className={cx('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', iconCls)}>
               <Icon aria-hidden="true" className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -149,9 +149,9 @@ export function AlertDialog({ open, title, description, confirmLabel = 'Xác nh�
               {children && <div className="mt-3">{children}</div>}
             </div>
           </div>
-          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button ref={cancelRef} variant="secondary" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
-            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={busy}>{confirmLabel}</Button>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button ref={cancelRef} variant="secondary" onClick={onCancel} disabled={busy}>{tr(cancelLabel)}</Button>
+            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={busy}>{tr(confirmLabel)}</Button>
           </div>
         </div>
       </div>
@@ -279,16 +279,35 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
       document.removeEventListener('keydown', onKey);
     };
   }, [open, setOpen]);
+  const triggerAriaProps = {
+    'data-popover-trigger': true,
+    'aria-expanded': open,
+    'aria-controls': panelId,
+    'aria-haspopup': 'dialog',
+  };
+  const toggleOpen = () => setOpen((v) => !v);
+  const renderedTrigger =
+    typeof trigger === 'function'
+      ? trigger({ open, toggle: toggleOpen, props: triggerAriaProps })
+      : isValidElement(trigger)
+        ? cloneElement(trigger, {
+            ...triggerAriaProps,
+            onClick: (e) => {
+              trigger.props?.onClick?.(e);
+              if (!e.defaultPrevented) toggleOpen();
+            },
+          })
+        : null;
   return (
     <div ref={rootRef} className={cx('relative', className)}>
-      {trigger({ open, toggle: () => setOpen((v) => !v), props: { 'data-popover-trigger': true, 'aria-expanded': open, 'aria-controls': panelId, 'aria-haspopup': 'dialog' } })}
+      {renderedTrigger}
       {open && (
         <div
           id={panelId}
           role="dialog"
           aria-label={label}
           className={cx(
-            'rp-anim-pop absolute top-[calc(100%+8px)] z-[90] rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-pop',
+            'rp-anim-pop absolute top-[calc(100%+8px)] z-[90] max-w-[calc(100vw-24px)] rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-pop',
             align === 'end' ? 'right-0' : 'left-0',
             panelClassName,
           )}
@@ -298,6 +317,68 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
       )}
     </div>
   );
+}
+
+/** Reusable toolbar FilterPopover wrapping Popover with active count badge and reset link. */
+export function FilterPopover({
+  label = 'Bộ lọc',
+  activeCount = 0,
+  onReset,
+  align = 'end',
+  panelClassName,
+  children,
+}) {
+  const { tr } = useLocale();
+  return (
+    <Popover
+      align={align}
+      label={tr(label)}
+      panelClassName={cx('w-[min(340px,calc(100vw-24px))] p-4', panelClassName)}
+      trigger={({ open, toggle, props }) => (
+        <Button
+          {...props}
+          variant={activeCount > 0 ? 'soft' : 'secondary'}
+          size="sm"
+          icon={SlidersHorizontal}
+          onClick={toggle}
+          aria-pressed={open}
+        >
+          <span>{tr(label)}</span>
+          {activeCount > 0 && (
+            <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rp-brand-pressed px-1.5 text-[11px] font-bold text-white">
+              {activeCount}
+            </span>
+          )}
+        </Button>
+      )}
+    >
+      {({ close }) => (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-rp-line pb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-rp-text-muted">{tr(label)}</p>
+            {onReset && activeCount > 0 && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="rp-link text-xs font-semibold text-rp-brand-strong"
+              >
+                {tr('Xóa bộ lọc')}
+              </button>
+            )}
+          </div>
+          <div>{typeof children === 'function' ? children({ close }) : children}</div>
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+/** Accessible SegmentedControl backed by sliding-pill Tabs for compact view/filter switchers. */
+export function SegmentedControl({ options = [], value, onChange, label, className }) {
+  const mapped = options.map((opt) =>
+    typeof opt === 'object' ? opt : { value: String(opt), label: String(opt) },
+  );
+  return <Tabs variant="pill" tabs={mapped} value={value} onChange={onChange} label={label} className={className} />;
 }
 
 /** Floating tooltip rendered via Portal so scroll containers (sidebar) never overflow horizontally. */
@@ -405,12 +486,46 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
 
 /* ------------------------------------------------------------------ Tabs */
 
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 /** Accessible tabs (roving tabindex, ←/→/Home/End). Controlled via value/onChange. */
-export function Tabs({ tabs, value, onChange, label, className, variant = 'line' }) {
+export function Tabs({ tabs = [], value, onChange, label, className, variant = 'line' }) {
   const { tr } = useLocale();
   const listRef = useRef(null);
+  const [indicator, setIndicator] = useState(null);
+  const [ready, setReady] = useState(false);
+
+  const updateIndicator = useCallback(() => {
+    if (!listRef.current) return;
+    const activeEl = listRef.current.querySelector('[role="tab"][aria-selected="true"]');
+    if (!activeEl) {
+      setIndicator(null);
+      return;
+    }
+    const left = activeEl.offsetLeft;
+    const top = activeEl.offsetTop;
+    const width = activeEl.offsetWidth;
+    const height = activeEl.offsetHeight;
+    setIndicator({ left, top, width, height });
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
+    updateIndicator();
+    const raf = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [value, tabs, updateIndicator]);
+
+  useEffect(() => {
+    if (!listRef.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      updateIndicator();
+    });
+    observer.observe(listRef.current);
+    return () => observer.disconnect();
+  }, [updateIndicator]);
+
   const onKeyDown = (event) => {
-    const idx = tabs.findIndex((t) => t.value === value);
+    const idx = tabs.findIndex((t, i) => (t.value ?? t.id ?? i) === value);
     let next = null;
     if (event.key === 'ArrowRight') next = (idx + 1) % tabs.length;
     if (event.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
@@ -418,7 +533,7 @@ export function Tabs({ tabs, value, onChange, label, className, variant = 'line'
     if (event.key === 'End') next = tabs.length - 1;
     if (next == null) return;
     event.preventDefault();
-    onChange(tabs[next].value);
+    onChange(tabs[next].value ?? tabs[next].id ?? next);
     listRef.current?.querySelectorAll('[role="tab"]')[next]?.focus();
   };
   return (
@@ -428,34 +543,66 @@ export function Tabs({ tabs, value, onChange, label, className, variant = 'line'
       aria-label={label}
       onKeyDown={onKeyDown}
       className={cx(
-        'hide-scrollbar flex max-w-full gap-1 overflow-x-auto',
-        variant === 'line' ? 'border-b border-rp-line' : 'rounded-rp-input bg-rp-muted p-1',
+        'relative hide-scrollbar flex items-center max-w-full gap-1 overflow-x-auto',
+        variant === 'line' ? 'border-b border-rp-line' : 'rounded-rp-input border border-rp-line bg-rp-surface p-1',
         className,
       )}
     >
-      {tabs.map((tab) => {
-        const active = tab.value === value;
+      {/* Sliding Active Pill Indicator */}
+      {variant === 'pill' && indicator && (
+        <span
+          aria-hidden="true"
+          className={cx(
+            'pointer-events-none absolute top-0 left-0 z-0 rounded-[10px] bg-rp-tab-active-bg ring-1 ring-inset ring-rp-brand-border/70',
+            ready
+              ? 'transition-[transform,width] duration-200 motion-reduce:transition-none'
+              : 'opacity-0',
+          )}
+          style={{
+            transform: `translate3d(${indicator.left}px, ${indicator.top}px, 0)`,
+            width: `${indicator.width}px`,
+            height: `${indicator.height}px`,
+            transitionTimingFunction: 'var(--rp-ease, cubic-bezier(0.16, 1, 0.3, 1))',
+          }}
+        />
+      )}
+
+      {tabs.map((tab, idx) => {
+        const tabValue = tab.value ?? tab.id ?? idx;
+        const active = tabValue === value;
         return (
           <button
-            key={tab.value}
+            key={tabValue}
             type="button"
             role="tab"
-            id={`tab-${tab.value}`}
+            id={`tab-${tabValue}`}
             aria-selected={active}
             aria-controls={tab.panelId}
             tabIndex={active ? 0 : -1}
-            onClick={() => onChange(tab.value)}
+            onClick={() => onChange(tabValue)}
             className={cx(
-              'rp-focus inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-semibold transition-colors duration-150',
+              'rp-focus relative z-10 inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-sm font-semibold transition-colors duration-150',
               variant === 'line'
                 ? cx('-mb-px border-b-2 px-3 py-2.5', active ? 'border-rp-brand text-rp-brand-strong' : 'border-transparent text-rp-text-muted hover:text-rp-text')
-                : cx('rounded-[10px] px-3 py-1.5', active ? 'bg-rp-surface text-rp-brand-strong shadow-rp-xs' : 'text-rp-text-muted hover:text-rp-text'),
+                : cx(
+                    'rounded-[10px] px-3 py-1.5',
+                    active
+                      ? (!ready ? 'bg-rp-tab-active-bg text-rp-brand-strong' : 'text-rp-brand-strong')
+                      : 'text-rp-text-muted hover:text-rp-text',
+                  ),
             )}
           >
             {tab.icon && <tab.icon aria-hidden="true" className="h-4 w-4" />}
             {tr(tab.label)}
             {tab.count != null && (
-              <span className={cx('rounded-full px-1.5 text-[11px] tabular-nums', active ? 'bg-rp-brand-tint text-rp-brand-strong' : 'bg-rp-muted text-rp-text-muted')}>{tab.count}</span>
+              <span
+                className={cx(
+                  'inline-flex items-center justify-center rounded-full px-1.5 text-[11px] tabular-nums transition-colors duration-150',
+                  active ? 'bg-rp-surface text-rp-brand-strong shadow-[0_1px_1px_rgba(45,40,42,0.05)]' : 'bg-rp-muted text-rp-text-muted',
+                )}
+              >
+                {tab.count}
+              </span>
             )}
           </button>
         );

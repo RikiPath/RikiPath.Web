@@ -1,181 +1,262 @@
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, Lock, ShieldCheck, Unlock, UserCog } from 'lucide-react';
 import { AdminShell } from '@/layouts';
+import {
+  AlertDialog,
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  CustomSelect,
+  Field,
+  PageHeader,
+  SakuraLoader,
+  notify,
+} from '@/components/ui';
 import { getAdminUser, updateAdminUser } from '@/features/admin/api/adminApi.js';
+import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
-import { notify } from '@/components/ui/feedbackStore.js';
-import { ContextualErrorState, SakuraLoader } from '@/components/ui';
-import Icon from '@/components/ui/Icon.jsx';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
 const ROLES = [
-  ['Learner', 'Người ôn luyện'],
-  ['ContentAuthor', 'Biên tập viên'],
-  ['Mentor', 'Cố vấn'],
-  ['Admin', 'Quản trị viên'],
+  { value: 'Learner', label: 'Học viên' },
+  { value: 'ContentAuthor', label: 'Biên soạn nội dung' },
+  { value: 'Mentor', label: 'Giáo viên' },
+  { value: 'Admin', label: 'Quản trị viên' },
 ];
 
-const roleLabel = (role) => ROLES.find(([value]) => value === role)?.[1] || 'Vai trò chưa xác định';
-
 export default function AdminUserDetail() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const { pathname } = useLocation();
   const [params] = useSearchParams();
   const id = params.get('id');
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(id));
-  const [loadError, setLoadError] = useState(null);
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
-  const loadUser = useCallback(() => {
-    let alive = true;
-    if (!id) {
-      Promise.resolve().then(() => {
-        if (!alive) return;
-        setLoading(false);
-        setLoadError(null);
+  const [pendingChange, setPendingChange] = useState(null);
+  const [saveError, setSaveError] = useState('');
+
+  const userQuery = useQuery({
+    queryKey: ADMIN_KEYS.userDetail(id),
+    queryFn: async () => {
+      const data = await getAdminUser(id);
+      return data?.result ?? data;
+    },
+    enabled: Boolean(id),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (changes) => {
+      const user = userQuery.data;
+      return updateAdminUser(id, {
+        fullName: user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
+        phoneNumber: user?.phoneNumber || null,
+        role: user?.role?.name || user?.role || 'Learner',
+        isActive: user?.isActive !== false && !user?.isDeleted,
+        ...changes,
       });
-      return () => { alive = false; };
-    }
-    Promise.resolve()
-      .then(() => {
-        if (!alive) return null;
-        setLoading(true);
-        setLoadError(null);
-        return getAdminUser(id);
-      })
-      .then((data) => {
-        if (!alive) return;
-        setUser(data?.result ?? data);
-      })
-      .catch((err) => {
-        if (!alive) return;
-        setLoadError(err);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => { alive = false; };
-  }, [id]);
+    },
+    onSuccess: async (response) => {
+      const updated = response?.result ?? response;
+      queryClient.setQueryData(ADMIN_KEYS.userDetail(id), updated);
+      await invalidateAdminDomains(queryClient, ['users']);
+      setPendingChange(null);
+      setSaveError('');
+      notify.success(tr('Đã cập nhật tài khoản.'), '', { key: `admin-user-update-${id}`, replace: true });
+    },
+    onError: (err) => {
+      setPendingChange(null);
+      const msg = describeApiError(err)?.message || tr('Không cập nhật được tài khoản.');
+      setSaveError(msg);
+      notify.apiError(err, tr('Chưa cập nhật được tài khoản'), { key: `admin-user-update-err-${id}`, replace: true });
+    },
+  });
 
-  useEffect(() => loadUser(), [loadUser]);
-
-  const save = async (changes) => {
-    if (!user) return;
-    setSaving(true);
-    setError('');
-    try {
-      const response = await updateAdminUser(id, { ...user, ...changes });
-      setUser(response?.result ?? { ...user, ...changes });
-      notify.success('Đã cập nhật tài khoản.', '', { key: `admin-user-update-${id}` });
-    } catch (err) {
-      setError(describeApiError(err).message || 'Không cập nhật được tài khoản.');
-      notify.apiError(err, 'Chưa cập nhật được tài khoản', { key: `admin-user-update-err-${id}` });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const name = user?.fullName || user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Người dùng';
+  const user = userQuery.data;
+  const name = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || tr('Người dùng');
   const role = user?.role?.name || user?.role || 'Learner';
-  const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+  const isActive = user ? (user.isActive !== false && !user.isDeleted) : true;
+  const isAdminAccount = role === 'Admin';
+  const initials = name.split(/\s+/).filter(Boolean).slice(-2).map((p) => p[0]).join('').toUpperCase() || 'ND';
 
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Chi tiết người dùng')}>
-      <main className="rp-container py-6 text-rp-text lg:py-8">
-        <Link to="/admin/users" className="mb-4 inline-flex items-center gap-1 text-[13px] text-rp-text-muted hover:text-rp-brand-strong">
-          <Icon name="arrow_back" className="text-[18px]" />
-          {tr('Người dùng')}
-        </Link>
-
-        <header className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-rp-line bg-white p-5">
-          <div className="flex gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-rp-brand-soft text-[13px] font-semibold text-rp-brand-strong">
-              {initials}
-            </div>
-            <div>
-              <h1 className="text-[22px] font-semibold leading-tight">
-                {user ? name : loading ? <SakuraLoader variant="inline" size={18} context="profile" label={tr('Đang tải hồ sơ')} delay={160} /> : id ? tr('Không tải được hồ sơ') : tr('Chưa chọn người dùng')}
-              </h1>
-              {user && (
-                <p className="mt-1 text-[13px] text-rp-text-muted">
-                  {user.email || tr('Không có email')} · {roleLabel(role)} · {user.isActive === false ? tr('Đã khóa') : tr('Hoạt động')}
-                </p>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            disabled={!user || saving}
-            onClick={() => save({ isActive: user.isActive === false })}
-            className="h-9 rounded-lg border border-rp-line px-3 text-[13px] text-rp-text-2 hover:bg-rp-bg-2 disabled:opacity-50"
+      <main data-page="AdminUserDetail" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
+        <div>
+          <Link
+            to="/admin/users/"
+            className="rp-link inline-flex items-center gap-1.5 text-sm font-medium text-rp-text-2"
           >
-            {user?.isActive === false ? tr('Mở khóa') : tr('Khóa tài khoản')}
-          </button>
-        </header>
-
-        {loadError && (
-          <div className="mt-4 rounded-xl border border-rp-line bg-white px-5">
-            <ContextualErrorState
-              compact
-              error={loadError}
-              title={tr('Không tải được tài khoản')}
-              onRetry={loadUser}
-              retrying={loading}
-            />
-          </div>
-        )}
-        {error && (
-          <p role="alert" className="mt-4 rounded-[10px] bg-rp-brand-tint px-4 py-3 text-[13px] text-rp-brand-strong">{error}</p>
-        )}
-
-        <div className="mt-5 grid gap-5 lg:grid-cols-12">
-          <section className="rounded-xl border border-rp-line bg-white p-5 lg:col-span-7">
-            <h2 className="text-[15px] font-semibold">{tr('Tài khoản')}</h2>
-            <dl className="mt-4 grid grid-cols-1 gap-3 text-center min-[380px]:grid-cols-3">
-              {[
-                ['Mã', id || '—'],
-                ['Email xác thực', user?.isEmailVerified ? 'Có' : '—'],
-                ['Ngày tạo', user?.createdAt ? new Date(user.createdAt).toLocaleDateString(currentIntlTag()) : '—'],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-lg bg-rp-brand-tint px-2 py-3">
-                  <dt className="text-[12px] text-rp-text-muted">{tr(label)}</dt>
-                  <dd className="mt-1 text-[14px] font-medium text-rp-brand-strong">{value}</dd>
-                </div>
-              ))}
-            </dl>
-            <label className="mt-5 block text-[13px] font-medium">
-              {tr('Vai trò')}
-              <select
-                disabled={!user || saving}
-                value={role}
-                onChange={(event) => save({ role: event.target.value })}
-                className="mt-2 h-10 w-full rounded-lg border border-rp-line bg-white px-3 text-[14px] outline-none focus:border-rp-brand-border"
-              >
-                {ROLES.map(([value, label]) => <option key={value} value={value}>{tr(label)}</option>)}
-              </select>
-            </label>
-          </section>
-
-          <aside className="rounded-xl border border-rp-line bg-white p-5 lg:col-span-5">
-            <h2 className="text-[15px] font-semibold">{tr('Hồ sơ')}</h2>
-            <dl className="mt-4 space-y-3 text-[14px]">
-              <div>
-                <dt className="text-[12px] text-rp-text-muted">{tr('Số điện thoại')}</dt>
-                <dd className="mt-0.5">{user?.phoneNumber || '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-[12px] text-rp-text-muted">{tr('Ngôn ngữ')}</dt>
-                <dd className="mt-0.5">{user?.locale || '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-[12px] text-rp-text-muted">{tr('Giới thiệu')}</dt>
-                <dd className="mt-0.5">{user?.bio || '—'}</dd>
-              </div>
-            </dl>
-          </aside>
+            <ArrowLeft className="h-4 w-4" />
+            <span>{tr('Quay lại danh sách người dùng')}</span>
+          </Link>
         </div>
+
+        {!id ? (
+          <ContextualEmptyState
+            icon={UserCog}
+            title={tr('Chưa chọn người dùng')}
+            description={tr('Hãy mở một tài khoản từ danh sách Người dùng & vai trò để xem và điều chỉnh quyền.')}
+            action={
+              <Link
+                to="/admin/users/"
+                className="rp-focus inline-flex h-10 items-center rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
+              >
+                {tr('Mở danh sách Người dùng')}
+              </Link>
+            }
+          />
+        ) : userQuery.isPending ? (
+          <SakuraLoader variant="section" context="profile" label={tr('Đang tải hồ sơ người dùng')} delay={140} />
+        ) : userQuery.isError ? (
+          <ContextualErrorState
+            error={userQuery.error}
+            title={tr('Không tải được hồ sơ người dùng')}
+            onRetry={() => userQuery.refetch()}
+          />
+        ) : (
+          <>
+            <PageHeader
+              title={
+                <span className="inline-flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-rp-brand-tint text-sm font-bold text-rp-brand-strong">
+                    {initials}
+                  </span>
+                  <span>{name}</span>
+                </span>
+              }
+              description={user.email}
+              actions={
+                !isAdminAccount && (
+                  <Button
+                    variant={isActive ? 'outline' : 'primary'}
+                    icon={isActive ? Lock : Unlock}
+                    disabled={updateMutation.isPending}
+                    onClick={() =>
+                      setPendingChange({
+                        kind: 'status',
+                        changes: { isActive: !isActive },
+                        title: isActive ? tr('Khóa tài khoản này?') : tr('Kích hoạt lại tài khoản?'),
+                        description: isActive
+                          ? trf('Tài khoản "{0}" sẽ tạm ngừng đăng nhập vào hệ thống.', { 0: name })
+                          : trf('Tài khoản "{0}" sẽ được mở khóa trở lại.', { 0: name }),
+                        confirmLabel: isActive ? tr('Khóa tài khoản') : tr('Mở khóa'),
+                        tone: isActive ? 'danger' : 'info',
+                      })
+                    }
+                  >
+                    {isActive ? tr('Khóa tài khoản') : tr('Mở khóa tài khoản')}
+                  </Button>
+                )
+              }
+            />
+
+            {saveError && <Banner tone="danger">{saveError}</Banner>}
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card className="space-y-4 p-5">
+                <div className="flex items-center justify-between border-b border-rp-line pb-3">
+                  <h2 className="text-base font-bold text-rp-text">{tr('Tài khoản & phân quyền')}</h2>
+                  <Badge tone={isActive ? 'success' : 'danger'} size="sm" icon={false}>
+                    {isActive ? tr('Hoạt động') : tr('Đã khóa')}
+                  </Badge>
+                </div>
+
+                {isAdminAccount ? (
+                  <Banner tone="info" title={tr('Tài khoản Quản trị hệ thống')}>
+                    {tr('Tài khoản Admin duy nhất được bảo vệ khỏi thao tác hạ quyền hoặc tự vô hiệu hóa.')}
+                  </Banner>
+                ) : (
+                  <Field
+                    label={tr('Vai trò hệ thống')}
+                    hint={tr('Mọi thay đổi vai trò đều yêu cầu xác nhận và được ghi vào nhật ký kiểm toán Admin.')}
+                  >
+                    <CustomSelect
+                      value={role}
+                      aria-label={tr('Vai trò hệ thống')}
+                      disabled={updateMutation.isPending}
+                      onChange={(nextRole) => {
+                        if (nextRole === role) return;
+                        const label = tr(ROLES.find((r) => r.value === nextRole)?.label || nextRole);
+                        setPendingChange({
+                          kind: 'role',
+                          changes: { role: nextRole },
+                          title: tr('Thay đổi vai trò tài khoản?'),
+                          description: trf('Chuyển tài khoản "{0}" sang vai trò "{1}"?', { 0: name, 1: label }),
+                          confirmLabel: tr('Xác nhận đổi vai trò'),
+                          tone: 'info',
+                        });
+                      }}
+                      options={ROLES.filter((r) => r.value !== 'Admin').map((r) => ({
+                        value: r.value,
+                        label: tr(r.label),
+                      }))}
+                    />
+                  </Field>
+                )}
+
+                <dl className="grid grid-cols-2 gap-4 pt-2 text-sm">
+                  <div>
+                    <dt className="text-xs text-rp-text-muted">{tr('Xác thực Email')}</dt>
+                    <dd className="mt-1 font-medium text-rp-text">
+                      <Badge tone={user.isEmailVerified ? 'success' : 'neutral'} size="sm" icon={false}>
+                        {user.isEmailVerified ? tr('Đã xác thực') : tr('Chưa xác thực')}
+                      </Badge>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-rp-text-muted">{tr('Ngày tạo')}</dt>
+                    <dd className="mt-1 font-medium text-rp-text">
+                      {user.createdDate ? formatVnDateTime(user.createdDate) : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-rp-text-muted">{tr('Cập nhật gần nhất')}</dt>
+                    <dd className="mt-1 font-medium text-rp-text">
+                      {user.lastActivityAt ? formatVnDateTime(user.lastActivityAt) : '—'}
+                    </dd>
+                  </div>
+                </dl>
+              </Card>
+
+              <Card className="space-y-4 p-5">
+                <div className="flex items-center gap-2 border-b border-rp-line pb-3">
+                  <ShieldCheck className="h-4 w-4 text-rp-brand-strong" />
+                  <h2 className="text-base font-bold text-rp-text">{tr('Thông tin liên hệ')}</h2>
+                </div>
+                <dl className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between gap-4 border-b border-rp-line/60 pb-2.5">
+                    <dt className="text-rp-text-muted">{tr('Họ và tên')}</dt>
+                    <dd className="font-medium text-rp-text">{name}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 border-b border-rp-line/60 pb-2.5">
+                    <dt className="text-rp-text-muted">{tr('Email')}</dt>
+                    <dd className="font-medium text-rp-text">{user.email}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-rp-text-muted">{tr('Số điện thoại')}</dt>
+                    <dd className="font-medium text-rp-text">{user.phoneNumber || '—'}</dd>
+                  </div>
+                </dl>
+              </Card>
+            </div>
+          </>
+        )}
+
+        <AlertDialog
+          open={Boolean(pendingChange)}
+          onClose={() => setPendingChange(null)}
+          onConfirm={() => pendingChange && updateMutation.mutate(pendingChange.changes)}
+          loading={updateMutation.isPending}
+          tone={pendingChange?.tone || 'info'}
+          title={pendingChange?.title || ''}
+          description={pendingChange?.description || ''}
+          confirmLabel={pendingChange?.confirmLabel}
+        />
       </main>
     </AdminShell>
   );

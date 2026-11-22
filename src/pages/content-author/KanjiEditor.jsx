@@ -1,27 +1,57 @@
 import { useLocation } from 'react-router-dom';
-
+import { Badge } from '@/components/ui';
 import ApprovedBankPage from './ApprovedBankPage.jsx';
-import { useLocale } from '@/locales/locale.js';
 
 export default function KanjiEditor() {
-  const { tr } = useLocale();
   const { pathname } = useLocation();
   return (
     <ApprovedBankPage
       pathname={pathname}
       page="KanjiEditor"
-      breadcrumb={tr('Hán tự')}
-      title={tr('Hán tự')}
-      hint={tr('Hán tự đã được duyệt cùng bài học.')}
+      breadcrumb="Hán tự"
+      title="Hán tự"
+      hint="Kho chữ Hán đã duyệt kèm âm đọc On/Kun, Hán Việt và số nét."
+      feature="kanji"
+      manualType="Kanji"
       endpoint="/SharedBank/kanji/search"
-      detail={{ to: '/vocabulary-editor', label: 'Từ vựng' }}
+      detailEndpoint="/SharedBank/kanji"
+      secondaryLink={{ to: '/vocabulary-editor/', label: 'Kho Từ vựng' }}
       columns={[
-        { key: 'character', label: 'Chữ' },
-        { key: 'kunYomi', label: 'Kun' },
-        { key: 'onYomi', label: 'On' },
-        { key: 'meaning', label: 'Nghĩa' },
-        { key: 'strokeCount', label: 'Nét' },
-        { key: 'jlptLevelName', label: 'Cấp' },
+        {
+          key: 'character',
+          label: 'Chữ Hán',
+          render: (row) => (
+            <span className="rp-jp inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rp-brand-tint text-lg font-bold text-rp-brand-strong">
+              {row.character}
+            </span>
+          ),
+        },
+        {
+          key: 'meaning',
+          label: 'Nghĩa',
+          render: (row) => <span className="font-medium text-rp-text">{row.meaning}</span>,
+        },
+        {
+          key: 'readings',
+          label: 'Âm đọc',
+          render: (row) => (
+            <span className="rp-jp text-xs text-rp-text-2">
+              {[row.onYomi && `On: ${row.onYomi}`, row.kunYomi && `Kun: ${row.kunYomi}`].filter(Boolean).join(' · ') || '—'}
+            </span>
+          ),
+        },
+        {
+          key: 'strokeCount',
+          label: 'Số nét',
+          render: (row) => <span className="tabular-nums text-xs">{row.strokeCount}</span>,
+        },
+        {
+          key: 'jlptLevelName',
+          label: 'Cấp độ',
+          render: (row) => (
+            row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'
+          ),
+        },
       ]}
     />
   );

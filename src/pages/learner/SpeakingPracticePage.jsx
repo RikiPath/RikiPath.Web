@@ -1,23 +1,46 @@
-import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { ArrowLeft, HelpCircle, Mic, RotateCcw, Square } from 'lucide-react';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  CustomSelect,
+  PageContainer,
+  PageHeader,
+  Popover,
+} from '@/components/ui';
+import Icon from '@/components/ui/Icon.jsx';
+import { describeApiError } from '@/api/apiErrors.js';
 import { LearnerShell } from '@/layouts';
+import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import GradingFeedback from '@/features/practice/components/GradingFeedback.jsx';
 import { useSpeakingGrading } from '@/features/speaking/hooks/useSpeechToText.js';
 import { useLocale } from '@/locales/locale.js';
 
 import { speakingLessons } from './productionPracticeLessons.js';
-import { SakuraLoader } from '@/components/ui';
-import Icon from '@/components/ui/Icon.jsx';
 
+function formatTimer(totalSeconds) {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
 
 export default function SpeakingPracticePage() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const { pathname } = useLocation();
   const [showReading, setShowReading] = useState(false);
   const [lessonIndex, setLessonIndex] = useState(0);
-  const lesson = speakingLessons[lessonIndex];
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const lesson = speakingLessons[lessonIndex] || speakingLessons[0];
+
+  const studyAccess = useStudyAccess();
+  const subscription = studyAccess.data;
+  const speakingQuota = subscription
+    ? (Number(subscription.speakingUsesRemaining ?? 0) + Number(subscription.aiGradingUsesRemaining ?? 0))
+    : null;
 
   const {
     isListening,
@@ -34,9 +57,41 @@ export default function SpeakingPracticePage() {
     gradeRecording,
   } = useSpeakingGrading();
 
-  const hasText = Boolean(
-    fullText || transcript || interimTranscript,
+  useEffect(() => {
+    if (!isListening) return undefined;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setRecordingSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 250);
+    return () => {
+      clearInterval(timer);
+      setRecordingSeconds(0);
+    };
+  }, [isListening]);
+
+  const audioPreviewUrl = useMemo(
+    () => (audioFile ? URL.createObjectURL(audioFile) : ''),
+    [audioFile],
   );
+
+  useEffect(() => () => {
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+  }, [audioPreviewUrl]);
+
+  const hasText = Boolean(fullText || transcript || interimTranscript);
+  const isQuotaError = Boolean(
+    error &&
+      typeof error === 'object' &&
+      (error.status === 403 ||
+        ['AI_CREDIT_REQUIRED', 'SPEAKING_PACKAGE_REQUIRED', 'SELF_STUDY_PACKAGE_REQUIRED'].includes(
+          error?.data?.errorCode || error?.errorCode,
+        )),
+  );
+  const errorMessage = error
+    ? typeof error === 'string'
+      ? error
+      : describeApiError(error, tr('Chưa chấm được bài nói.'))
+    : '';
 
   function handleToggleListening() {
     if (isListening) {
@@ -46,380 +101,282 @@ export default function SpeakingPracticePage() {
     }
   }
 
+  const lessonOptions = speakingLessons.map((item, index) => ({
+    value: String(index),
+    label: `${item.level} · ${tr(item.title)}`,
+  }));
+
   return (
-    <LearnerShell pathname={pathname} breadcrumb={tr("Luyện nói")}>
-      <main
-        data-page="SpeakingPracticePage"
-        className="rp-container py-6 text-rp-text lg:py-8"
-      >
-        {/* Tiêu đề */}
-        <header className="mb-5">
-          <Link
-            to="/roadmap"
-            className="inline-flex items-center gap-1
-                       rounded text-[12px] text-rp-text-muted
-                       hover:text-rp-brand-strong"
+    <LearnerShell pathname={pathname} breadcrumb={tr('Luyện nói')}>
+      <PageContainer data-page="SpeakingPracticePage" width="default">
+        <Link to="/roadmap" className="rp-focus rp-link mb-3 inline-flex items-center gap-1 text-xs font-semibold">
+          <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+          {tr('Lộ trình ôn luyện')}
+        </Link>
+        <PageHeader
+          eyebrow="JLPT N5 – N1"
+          title={tr('Luyện nói tiếng Nhật')}
+          description={tr('Thu âm câu mẫu để nghe lại và nhận bản chép lời cùng nhận xét phát âm.')}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {speakingQuota !== null && (
+                <Badge tone={speakingQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                  {trf('Lượt AI nói: {0}', { 0: speakingQuota })}
+                </Badge>
+              )}
+              <Popover
+                align="end"
+                label={tr('Hướng dẫn')}
+                panelClassName="w-72 p-4 text-xs"
+                trigger={({ toggle, props }) => (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={HelpCircle}
+                    onClick={toggle}
+                    {...props}
+                  >
+                    {tr('Hướng dẫn')}
+                  </Button>
+                )}
+              >
+                <div className="w-72 space-y-3 p-1 text-xs">
+                  <p className="font-semibold text-rp-text">{tr('Cách luyện hiệu quả')}</p>
+                  <ol className="space-y-2 text-rp-text-2">
+                    <li>1. {tr('Đọc câu mẫu và mở cách đọc kana nếu cần.')}</li>
+                    <li>2. {tr('Bấm Bắt đầu nói và đọc trọn câu ở tốc độ tự nhiên.')}</li>
+                    <li>3. {tr('Nghe lại bản thu âm rồi chọn Chấm bài bằng AI.')}</li>
+                  </ol>
+                  <p className="border-t border-rp-line pt-2 text-rp-text-muted">
+                    {tr('Luyện trong không gian yên tĩnh để hệ thống nhận dạng chính xác hơn.')}
+                  </p>
+                </div>
+              </Popover>
+            </div>
+          }
+        />
+
+        {speakingQuota === 0 && (
+          <Banner
+            tone="warning"
+            className="mb-4"
+            actions={
+              <Link
+                to="/plans/"
+                state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện nói AI') }}
+                className="rp-link text-xs font-semibold"
+              >
+                {tr('Xem gói & lượt AI')}
+              </Link>
+            }
           >
-            <Icon
-              name="arrow_back"
-              className="text-[15px]"
-            />{tr("Lộ trình ôn luyện")}</Link>
+            {tr('Bạn đã hết lượt chấm nói AI. Bạn vẫn có thể thu âm và nghe lại, hoặc nạp thêm lượt để AI chấm.')}
+          </Banner>
+        )}
 
-          <h1
-            className="mt-3 text-[26px] font-semibold
-                       leading-tight tracking-tight"
-          >{tr('Luyện nói tiếng Nhật')}</h1>
-
-          <p className="mt-1.5 text-[13px] text-rp-text-muted">
-            {tr('Thu âm câu mẫu để nhận điểm luyện nói riêng. N5–N2 thể hiện độ khó của bài.')}
-          </p>
-          <label className="mt-4 block max-w-md text-sm font-medium">
-            {tr('Bài luyện nói')}
-            <select className="mt-1 w-full rounded-lg border border-rp-line bg-white px-3 py-2"
-              value={lessonIndex} disabled={loading || isListening} onChange={event => {
+        <div className="mx-auto w-full max-w-4xl space-y-5">
+          <div className="max-w-sm">
+            <label className="mb-1.5 block text-xs font-semibold text-rp-text-muted">
+              {tr('Bài luyện nói')}
+            </label>
+            <CustomSelect
+              value={String(lessonIndex)}
+              disabled={loading || isListening}
+              onChange={(next) => {
                 resetTranscript();
                 setShowReading(false);
-                setLessonIndex(Number(event.target.value));
-              }}>
-              {speakingLessons.map((item, index) => <option key={item.level} value={index}>{item.level} · {tr(item.title)}</option>)}
-            </select>
-          </label>
-        </header>
+                setLessonIndex(Number(next));
+              }}
+              options={lessonOptions}
+            />
+          </div>
 
-        <div className="w-full max-w-5xl">
-          <section
-            aria-labelledby="speaking-exercise-title"
-            className="min-w-0 overflow-hidden rounded-2xl
-                       border border-rp-line bg-white"
-          >
-            <header
-              className="flex flex-wrap items-center
-                         justify-between gap-2
-                         border-b border-rp-line
-                         px-5 py-3.5"
-            >
-              <h2
-                id="speaking-exercise-title"
-                className="flex items-center gap-2
-                           text-[14px] font-medium"
-              >
-                <Icon
-                  name="record_voice_over"
-                  className="text-[19px] text-rp-brand-strong"
-                />{tr('Đọc theo câu mẫu')}</h2>
+          <Card padded={false} className="overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line px-5 py-3.5">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-rp-text">
+                <Icon name="record_voice_over" className="text-[19px] text-rp-brand-strong" />
+                {tr('Đọc theo câu mẫu')}
+              </h2>
+              <Badge tone="neutral" size="sm" icon={false}>
+                {lesson.level}
+              </Badge>
+            </div>
 
-            </header>
-
-            {/* Câu cần luyện */}
             <div className="px-5 py-6 sm:px-6">
-              <p className="text-[12px] text-rp-text-muted">{tr('Câu cần đọc')}</p>
-
+              <p className="text-xs font-medium text-rp-text-muted">{tr('Câu cần đọc')}</p>
               <p
                 lang="ja"
-                className="mt-4 break-words
-                           font-['Noto_Sans_JP',sans-serif]
-                           text-[25px] font-medium
-                           leading-[1.8] tracking-wide
-                           text-rp-text sm:text-[29px]"
+                className="mt-3 break-words font-['Noto_Sans_JP',sans-serif] text-2xl font-medium leading-[1.8] tracking-wide text-rp-text sm:text-[28px]"
               >
-                {tr(lesson.text)}
+                {lesson.text}
               </p>
-
-              <p
-                className="mt-3 text-[13px]
-                           leading-6 text-rp-text-muted"
-              >
-                {lesson.meaning}
-              </p>
+              <p className="mt-2.5 text-sm leading-6 text-rp-text-muted">{tr(lesson.meaning)}</p>
 
               <button
                 type="button"
                 aria-expanded={showReading}
                 aria-controls="sentence-reading"
                 onClick={() => setShowReading((current) => !current)}
-                className="mt-4 inline-flex items-center gap-1
-                           rounded text-[12px] text-rp-brand-strong
-                           hover:text-rp-brand-strong
-                           focus-visible:outline-none
-                           focus-visible:ring-2
-                           focus-visible:ring-rp-brand-strong/25"
+                className="rp-focus mt-3 inline-flex items-center gap-1 rounded text-xs font-medium text-rp-brand-strong hover:text-rp-brand-deep"
               >
-                {showReading ? tr("Ẩn cách đọc") : tr("Hiện cách đọc")}
-                <Icon
-                  name={showReading ? 'expand_less' : 'expand_more'}
-                  className="text-[17px]"
-                />
+                {showReading ? tr('Ẩn cách đọc') : tr('Hiện cách đọc')}
+                <Icon name={showReading ? 'expand_less' : 'expand_more'} className="text-[17px]" />
               </button>
 
               {showReading && (
-                <div
-                  id="sentence-reading"
-                  className="mt-3 rounded-lg bg-rp-brand-tint
-                             px-4 py-3"
-                >
-                  <p
-                    lang="ja"
-                    className="font-['Noto_Sans_JP',sans-serif]
-                               text-[14px] leading-7 text-rp-brand-strong"
-                  >
+                <div id="sentence-reading" className="mt-3 rounded-xl border border-rp-brand-soft bg-rp-brand-tint px-4 py-3">
+                  <p lang="ja" className="font-['Noto_Sans_JP',sans-serif] text-sm leading-7 text-rp-brand-strong">
                     {lesson.reading}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Điều khiển mic */}
-            <div
-              className="border-y border-rp-line
-                         bg-rp-brand-tint px-5 py-4 sm:px-6"
-            >
-              <div
-                className="flex flex-wrap items-center
-                           justify-between gap-4"
-              >
+            <div className="border-y border-rp-line bg-rp-brand-tint/60 px-5 py-4 sm:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span
                     aria-hidden="true"
-                    className={[
-                      'flex h-10 w-10 shrink-0 items-center',
-                      'justify-center rounded-full',
-                      isListening
-                        ? 'bg-rp-brand-soft text-rp-brand-strong'
-                        : 'bg-rp-brand-soft text-rp-brand',
-                    ].join(' ')}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                      isListening ? 'bg-rp-brand-strong text-white' : 'bg-rp-brand-soft text-rp-brand-strong'
+                    }`}
                   >
-                    <Icon
-                      name={isListening ? 'graphic_eq' : 'mic_none'}
-                      className="text-[23px]"
-                    />
+                    <Icon name={isListening ? 'graphic_eq' : 'mic_none'} className="text-[22px]" />
                   </span>
 
                   <div role="status">
-                    <p className="text-[13px] font-medium">
+                    <p className="text-sm font-semibold text-rp-text">
                       {loading
-                        ? tr("Đang xử lý…")
+                        ? tr('Đang xử lý…')
                         : isListening
-                          ? tr("Đang nghe bạn nói")
-                          : hasText
-                            ? tr("Bạn có thể nói thêm hoặc luyện lại")
-                            : tr("Sẵn sàng luyện nói")}
+                          ? trf('Đang ghi âm · {0}', { 0: formatTimer(recordingSeconds) })
+                          : audioFile
+                            ? tr('Đã thu âm xong · Nghe lại hoặc gửi chấm')
+                            : tr('Sẵn sàng luyện nói')}
                     </p>
-
-                    <p className="mt-1 text-[11px] text-rp-text-muted">
+                    <p className="mt-0.5 text-xs text-rp-text-muted">
                       {isListening
-                        ? tr("Đọc rõ ràng, với tốc độ tự nhiên.")
-                        : tr("Cho phép sử dụng micro khi được hỏi.")}
+                        ? tr('Đọc rõ ràng ở tốc độ tự nhiên, nhấn Dừng khi xong.')
+                        : tr('Cho phép trình duyệt sử dụng micro khi được hỏi.')}
                     </p>
                   </div>
                 </div>
 
-                <button
+                <Button
                   type="button"
+                  variant={isListening ? 'danger' : 'primary'}
                   onClick={handleToggleListening}
                   disabled={loading && !isListening}
+                  loading={loading && !isListening}
                   aria-pressed={isListening}
-                  className="inline-flex h-10 items-center
-                             justify-center gap-2 rounded-[10px]
-                             bg-rp-brand-strong px-4 text-[13px]
-                             font-medium text-white
-                             transition-colors hover:bg-rp-brand-deep
-                             focus-visible:outline-none
-                             focus-visible:ring-2
-                             focus-visible:ring-rp-brand-strong/30
-                             focus-visible:ring-offset-2
-                             disabled:cursor-wait
-                             disabled:opacity-50 rp-press"
+                  icon={isListening ? Square : Mic}
                 >
-                  {loading && !isListening ? (
-                    <SakuraLoader variant="inline" size={16} tone="light" />
-                  ) : (
-                    <Icon
-                      name={isListening ? 'stop' : 'mic'}
-                      className="text-[18px]"
-                    />
-                  )}
-
-                  {isListening
-                    ? tr("Dừng nói")
-                    : loading
-                      ? tr("Đang xử lý…")
-                      : tr("Bắt đầu nói")}
-                </button>
+                  {isListening ? tr('Dừng nói') : loading ? tr('Đang xử lý…') : tr('Bắt đầu nói')}
+                </Button>
               </div>
             </div>
 
-            {/* Nội dung nhận dạng */}
-            <div className="px-5 py-5 sm:px-6">
-              <div
-                className="mb-3 flex items-center
-                           justify-between gap-3"
-              >
-                <h3 className="text-[13px] font-medium">{tr('Nội dung nhận dạng')}</h3>
-
-                {isListening && (
-                  <span
-                    className="inline-flex items-center gap-1.5
-                               text-[11px] text-rp-brand-strong"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="h-1.5 w-1.5 rounded-full
-                                 bg-rp-brand"
-                    />{tr("Đang nghe")}</span>
-                )}
-              </div>
-
-              <div
-                aria-live="polite"
-                aria-atomic="true"
-                className="min-h-[88px] rounded-xl
-                           border border-rp-line
-                           bg-rp-brand-tint px-4 py-3"
-              >
-                {hasText ? (
-                  <p
-                    lang="ja"
-                    className="whitespace-pre-wrap break-words
-                               font-['Noto_Sans_JP',sans-serif]
-                               text-[18px] leading-8"
-                  >
-                    <span className="text-rp-text-2">
-                      {transcript}
-                    </span>
-
-                    {interimTranscript && (
-                      <span className="text-rp-brand">
-                        {transcript ? ' ' : ''}
-                        {interimTranscript}
-                      </span>
-                    )}
-
-                    {!transcript && !interimTranscript && fullText}
-                  </p>
-                ) : (
-                  <p className="text-[12px] leading-6 text-rp-text-muted">
-                    {isListening
-                      ? tr('Hãy đọc câu mẫu rồi dừng thu âm.')
-                      : audioFile
-                        ? tr('Đã thu âm. Chọn chấm bài để xem bản chép lời và nhận xét.')
-                        : tr('Nhấn “Bắt đầu nói” để thực hiện bài luyện.')}
-                  </p>
-                )}
-              </div>
-
-              {error && (
-                <div
-                  role="alert"
-                  className="mt-3 flex flex-wrap items-start justify-between gap-2
-                             rounded-lg bg-rp-brand-tint
-                             px-3 py-2.5 text-[12px]
-                             leading-5 text-rp-brand-strong"
-                >
-                  <p className="flex items-start gap-2">
-                    <Icon
-                      name="error_outline"
-                      className="mt-0.5 shrink-0 text-[16px]"
-                    />
-                    {String(error.message || error)}
-                  </p>
-                  {(error?.status === 403 || ['AI_CREDIT_REQUIRED', 'SPEAKING_PACKAGE_REQUIRED', 'SELF_STUDY_PACKAGE_REQUIRED'].includes(error?.data?.errorCode || error?.errorCode)) && (
-                    <Link
-                      to="/plans/"
-                      state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện nói AI') }}
-                      className="shrink-0 font-semibold underline"
-                    >
-                      {tr('Xem gói & lượt AI')}
-                    </Link>
-                  )}
+            <div className="space-y-4 px-5 py-5 sm:px-6">
+              {audioPreviewUrl && (
+                <div className="rounded-xl border border-rp-line bg-rp-bg-2 p-3">
+                  <p className="mb-1.5 text-xs font-medium text-rp-text-muted">{tr('Nghe lại bản thu âm')}</p>
+                  <audio controls src={audioPreviewUrl} className="h-9 w-full" />
                 </div>
               )}
 
-              {audioFile && !grading && <button
-                type="button" disabled={loading || isListening} onClick={() => gradeRecording(lesson.text, lesson.level)}
-                className="mt-4 rounded-lg bg-rp-brand-strong px-4 py-2 text-sm font-medium text-white disabled:opacity-50 rp-press">
-                {loading ? tr('Đang chấm…') : tr('Chấm bài bằng AI · 1 lượt')}
-              </button>}
-              <GradingFeedback grading={grading} skill={tr('nói')} />
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-rp-text">{tr('Bản chép lời nhận dạng')}</h3>
+                  {isListening && (
+                    <Badge tone="brand" size="sm" icon={false}>
+                      {tr('Đang nghe')}
+                    </Badge>
+                  )}
+                </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="max-w-[420px] text-[11px] leading-5 text-rp-text-muted">
-                  {tr('Nội dung nhận dạng có thể khác lời bạn nói. AI nhận xét nội dung từ bản chép lời.')}
+                <div
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="min-h-[84px] rounded-xl border border-rp-line bg-rp-bg-2 px-4 py-3"
+                >
+                  {hasText ? (
+                    <p lang="ja" className="whitespace-pre-wrap break-words font-['Noto_Sans_JP',sans-serif] text-lg leading-8 text-rp-text">
+                      <span>{transcript}</span>
+                      {interimTranscript && (
+                        <span className="text-rp-brand-strong">
+                          {transcript ? ' ' : ''}
+                          {interimTranscript}
+                        </span>
+                      )}
+                      {!transcript && !interimTranscript && fullText}
+                    </p>
+                  ) : (
+                    <p className="text-xs leading-6 text-rp-text-muted">
+                      {isListening
+                        ? tr('Hãy đọc câu mẫu rồi nhấn Dừng nói.')
+                        : audioFile
+                          ? tr('Đã thu âm xong. Bấm Chấm bài bằng AI để nhận bản chép lời và góp ý phát âm.')
+                          : tr('Nhấn “Bắt đầu nói” để thu âm câu luyện của bạn.')}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {errorMessage && (
+                <Banner
+                  tone="danger"
+                  actions={
+                    isQuotaError ? (
+                      <Link
+                        to="/plans/"
+                        state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện nói AI') }}
+                        className="rp-link text-xs font-semibold"
+                      >
+                        {tr('Xem gói & lượt AI')}
+                      </Link>
+                    ) : null
+                  }
+                >
+                  {errorMessage}
+                </Banner>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
+                <p className="max-w-md text-xs leading-5 text-rp-text-muted">
+                  {tr('Nội dung nhận dạng có thể khác nhẹ lời nói thực tế; AI đánh giá dựa trên bản ghi và câu mẫu.')}
                 </p>
 
-                <button
-                  type="button"
-                  onClick={resetTranscript}
-                  disabled={loading || isListening || (!hasText && !audioFile)}
-                  className="inline-flex h-9 shrink-0
-                             items-center gap-1.5 rounded-lg
-                             border border-rp-line
-                             px-3 text-[12px] text-rp-brand-strong
-                             hover:bg-rp-brand-tint
-                             disabled:cursor-not-allowed
-                             disabled:opacity-40"
-                >
-                  <Icon name="refresh" className="text-[17px]" />{tr('Xóa và luyện lại')}</button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={resetTranscript}
+                    disabled={loading || isListening || (!hasText && !audioFile && !grading)}
+                    icon={RotateCcw}
+                  >
+                    {tr('Xóa và luyện lại')}
+                  </Button>
+
+                  {audioFile && !grading && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      disabled={loading || isListening}
+                      onClick={() => gradeRecording(lesson.text, lesson.level)}
+                    >
+                      {loading ? tr('Đang chấm…') : tr('Chấm bài bằng AI · 1 lượt')}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </section>
+          </Card>
 
-          {/* Hướng dẫn ngắn */}
-          <aside className="space-y-4">
-            <section
-              className="rounded-xl border border-rp-line
-                         bg-white p-4"
-            >
-              <h2 className="text-[14px] font-medium">
-                {tr('Cách luyện')}
-              </h2>
-
-              <ol className="mt-4 space-y-4">
-                {[
-                  ['1', 'Đọc câu mẫu', 'Xem cách đọc nếu cần.'],
-                  ['2', 'Nói vào micro', 'Đọc trọn câu với tốc độ vừa phải.'],
-                  ['3', 'Chấm bài', 'Xem bản chép lời và nhận xét của AI.'],
-                ].map(([number, title, description]) => (
-                  <li key={number} className="flex items-start gap-2.5">
-                    <span
-                      aria-hidden="true"
-                      className="flex h-6 w-6 shrink-0
-                                 items-center justify-center
-                                 rounded-full bg-rp-brand-soft
-                                 text-[11px] text-rp-brand-strong"
-                    >
-                      {number}
-                    </span>
-
-                    <div>
-                      <p className="text-[12px] font-medium">
-                        {tr(title)}
-                      </p>
-                      <p className="mt-1 text-[11px] leading-5 text-rp-text-muted">
-                        {tr(description)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            <div
-              className="flex items-start gap-2 rounded-xl
-                         border border-rp-line
-                         bg-rp-brand-tint p-4"
-            >
-              <Icon
-                name="lightbulb"
-                className="mt-0.5 shrink-0 text-[18px] text-rp-brand-strong"
-              />
-              <p className="text-[12px] leading-6 text-rp-text-muted">
-                {tr('Luyện từng câu ngắn trong không gian yên tĩnh để dễ theo dõi lời nói được nhận dạng.')}
-              </p>
-            </div>
-          </aside>
+          <GradingFeedback grading={grading} skill={tr('nói')} />
         </div>
-        <LearnerFeedbackPanel type="speaking" label="Phản hồi về luyện nói" />
-      </main>
+      </PageContainer>
     </LearnerShell>
   );
 }

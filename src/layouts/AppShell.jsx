@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   KeyRound,
+  Layers,
   LockKeyhole,
   LogOut,
   Menu,
@@ -20,9 +22,10 @@ import BrandMark from '@/components/brand/BrandMark.jsx';
 import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
 import { useLocale } from '@/locales/locale.js';
 import NotificationCenter from '@/features/notifications/components/NotificationCenter.jsx';
+import HeaderCalendarPopover from '@/features/calendar/components/HeaderCalendarPopover.jsx';
 import BackHomeLink from '@/components/brand/BackHomeLink.jsx';
-import { Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, Tooltip, cx } from '@/components/ui';
-import { ROLE_NAV, buildBreadcrumbs, isNavItemActive } from './appNav.js';
+import { Avatar, Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, Tooltip, cx } from '@/components/ui';
+import { ROLE_NAV, buildBreadcrumbs, flattenNavItems, isNavItemActive } from './appNav.js';
 import { StudyUnlockProvider } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { LOCK_REASON, useStudyUnlock } from '@/features/entitlements/studyUnlock.js';
 import { useAtmosphere } from '@/features/atmosphere/useAtmosphere.js';
@@ -32,7 +35,7 @@ import '@/features/atmosphere/atmosphere.css';
 
 const COLLAPSE_KEY = 'rp.sidebar.collapsed';
 
-const ROLE_LABEL = { Learner: 'Học viên', Mentor: 'Mentor', ContentAuthor: 'Tác giả nội dung', Admin: 'Quản trị viên' };
+const ROLE_LABEL = { Learner: 'Học viên', Mentor: 'Giáo viên', ContentAuthor: 'Tác giả nội dung', Admin: 'Quản trị viên' };
 
 function readCollapsed() {
   try {
@@ -147,7 +150,7 @@ function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', 
       >
         <Icon className={cx('h-[17px] w-[17px]', active && 'text-white')} />
       </span>
-      {!collapsed && <span className="min-w-0 flex-1 truncate">{tr(label)}</span>}
+      {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
     </NavLink>
   );
   return collapsed ? (
@@ -159,45 +162,461 @@ function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', 
   );
 }
 
-function SidebarNav({ roleKey, collapsed, onNavigate }) {
+function CollapsedBranchFlyout({ item, anchorRect, pathname, search, tr, onNavigate, onClose, lockStateFor, onLockedClick }) {
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => {
+      if (!menuRef.current?.contains(e.target)) onClose();
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  if (!anchorRect || typeof document === 'undefined') return null;
+  const maxTop = typeof window !== 'undefined' ? window.innerHeight - 320 : anchorRect.top;
+  const top = Math.max(12, Math.min(anchorRect.top - 8, maxTop));
+  const left = anchorRect.right + 10;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label={tr(item.label)}
+      style={{ top, left }}
+      className="rp-anim-pop fixed z-[140] w-60 rounded-2xl border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
+    >
+      {item.to ? (
+        <NavLink
+          to={item.to}
+          end
+          onClick={() => {
+            onClose();
+            onNavigate?.();
+          }}
+          className="rp-focus flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs font-bold uppercase tracking-[0.06em] text-rp-brand-strong hover:bg-rp-brand-tint/60"
+        >
+          <span className="truncate">{tr(item.label)}</span>
+          <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        </NavLink>
+      ) : (
+        <p className="px-2.5 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-rp-text-muted">{tr(item.label)}</p>
+      )}
+      <ul className="mt-1 space-y-0.5 border-t border-rp-line/80 pt-1.5">
+        {item.children.map((child) => {
+          const childActive = isNavItemActive(child, pathname, search);
+          const locked = lockStateFor(child) === 'locked' && onLockedClick;
+          const ChildIcon = child.icon;
+          if (locked) {
+            return (
+              <li key={child.to}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onClose();
+                    onNavigate?.();
+                    onLockedClick(child);
+                  }}
+                  className="rp-focus flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/60"
+                >
+                  <ChildIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
+                  <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                </button>
+              </li>
+            );
+          }
+          return (
+            <li key={child.to}>
+              <NavLink
+                to={child.to}
+                role="menuitem"
+                onClick={() => {
+                  onClose();
+                  onNavigate?.();
+                }}
+                className={cx(
+                  'rp-focus flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-colors',
+                  childActive
+                    ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
+                    : 'font-medium text-rp-text-2 hover:bg-rp-muted/65 hover:text-rp-text',
+                )}
+              >
+                <ChildIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
+              </NavLink>
+            </li>
+          );
+        })}
+      </ul>
+    </div>,
+    document.body,
+  );
+}
+
+function HierarchicalNavItem({
+  item,
+  pathname,
+  search,
+  collapsed,
+  expanded,
+  onToggleExpand,
+  onNavigate,
+  tr,
+  lockStateFor,
+  onLockedClick,
+}) {
+  const Icon = item.icon;
+  const label = tr(item.label);
+  const subId = useId();
+  const branchActive = isNavItemActive(item, pathname, search);
+  const selfActive = item.to ? pathname.replace(/\/+$/, '') === item.to : false;
+  const isOpen = Boolean(expanded);
+
+  const [flyoutRect, setFlyoutRect] = useState(null);
+  const btnRef = useRef(null);
+
+  if (collapsed) {
+    return (
+      <>
+        <Tooltip content={label} side="right" fullWidth>
+          <button
+            ref={btnRef}
+            type="button"
+            aria-expanded={Boolean(flyoutRect)}
+            aria-haspopup="menu"
+            aria-label={label}
+            onClick={() => {
+              if (flyoutRect) {
+                setFlyoutRect(null);
+              } else {
+                setFlyoutRect(btnRef.current?.getBoundingClientRect() || { top: 120, right: 76 });
+              }
+            }}
+            className={cx(
+              'rp-focus rp-interactive group relative mx-auto flex h-10 w-10 items-center justify-center rounded-xl p-0 transition-all duration-150',
+              branchActive
+                ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border shadow-rp-xs'
+                : 'font-medium text-rp-text hover:bg-rp-muted/50',
+            )}
+          >
+            <span
+              aria-hidden="true"
+              data-tone={item.tone || 'neutral'}
+              className={cx(
+                'rp-nav-tile rp-icon-tilt flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]',
+                branchActive && 'rp-nav-tile-active bg-current',
+              )}
+            >
+              <Icon className={cx('h-[17px] w-[17px]', branchActive && 'text-white')} />
+            </span>
+          </button>
+        </Tooltip>
+        {flyoutRect && (
+          <CollapsedBranchFlyout
+            item={item}
+            anchorRect={flyoutRect}
+            pathname={pathname}
+            search={search}
+            tr={tr}
+            onNavigate={onNavigate}
+            onClose={() => setFlyoutRect(null)}
+            lockStateFor={lockStateFor}
+            onLockedClick={onLockedClick}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggleExpand}
+        aria-expanded={isOpen}
+        aria-controls={subId}
+        className={cx(
+          'rp-focus rp-interactive group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 py-1 text-left rp-type-nav transition-colors duration-150',
+          branchActive
+            ? 'bg-rp-brand-tint/85 font-semibold text-rp-brand-strong shadow-rp-xs'
+            : 'font-medium text-rp-text hover:bg-rp-muted/50',
+        )}
+      >
+        {(selfActive || (branchActive && !isOpen)) && (
+          <span aria-hidden="true" className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-rp-brand" />
+        )}
+        <span
+          aria-hidden="true"
+          data-tone={item.tone || 'neutral'}
+          className={cx(
+            'rp-nav-tile rp-icon-tilt flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]',
+            branchActive && 'rp-nav-tile-active bg-current',
+          )}
+        >
+          <Icon className={cx('h-[17px] w-[17px]', branchActive && 'text-white')} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cx(
+            'mr-0.5 h-4 w-4 shrink-0 text-rp-text-muted transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            isOpen && 'rotate-180',
+          )}
+        />
+      </button>
+
+      <div
+        id={subId}
+        inert={!isOpen || undefined}
+        className={cx(
+          'grid transition-[grid-template-rows,opacity] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={cx(
+              'pt-1 transition-transform duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              isOpen ? 'translate-y-0' : '-translate-y-1.5',
+            )}
+          >
+            <ul className="ml-[21px] space-y-0.5 border-l-2 border-rp-line/85 py-0.5 pl-3">
+              {item.children.map((child) => {
+                const childActive = isNavItemActive(child, pathname, search);
+                const ChildIcon = child.icon;
+                const locked = lockStateFor(child) === 'locked' && onLockedClick;
+                if (locked) {
+                  return (
+                    <li key={child.to}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigate?.();
+                          onLockedClick(child);
+                        }}
+                        className="rp-focus flex min-h-8.5 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/65 hover:text-rp-text-2"
+                      >
+                        <ChildIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
+                        <LockKeyhole aria-hidden="true" className="h-3 w-3 shrink-0" />
+                      </button>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={child.to}>
+                    <NavLink
+                      to={child.to}
+                      onClick={onNavigate}
+                      aria-current={childActive ? 'page' : undefined}
+                      className={cx(
+                        'rp-focus relative flex min-h-8.5 items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors duration-150',
+                        childActive
+                          ? 'bg-rp-brand-tint/90 font-semibold text-rp-brand-strong shadow-rp-xs'
+                          : 'font-medium text-rp-text-2 hover:bg-rp-muted/60 hover:text-rp-text',
+                      )}
+                    >
+                      <ChildIcon
+                        aria-hidden="true"
+                        className={cx('h-3.5 w-3.5 shrink-0', childActive ? 'text-rp-brand-strong' : 'text-rp-text-muted')}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Each page renders its own shell, so the sidebar remounts on every navigation. Its scroll offset is kept per role
+// (memory for in-app navigation, sessionStorage for reloads) and restored before paint, so clicking a nav item only
+// changes the page body — the sidebar stays exactly where the learner left it.
+const sidebarScrollMemory = new Map();
+const SIDEBAR_SCROLL_KEY = 'rp.sidebar.scroll.';
+
+function readSidebarScroll(key) {
+  if (sidebarScrollMemory.has(key)) return sidebarScrollMemory.get(key);
+  try {
+    const saved = Number(sessionStorage.getItem(SIDEBAR_SCROLL_KEY + key));
+    return Number.isFinite(saved) ? saved : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function useSidebarScrollMemory(ref, key, enabled) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return undefined;
+    el.scrollTop = readSidebarScroll(key);
+    let frame = 0;
+    const save = () => {
+      sidebarScrollMemory.set(key, el.scrollTop);
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        try {
+          sessionStorage.setItem(SIDEBAR_SCROLL_KEY + key, String(Math.round(el.scrollTop)));
+        } catch {
+          /* preference only */
+        }
+      });
+    };
+    el.addEventListener('scroll', save, { passive: true });
+    return () => {
+      sidebarScrollMemory.set(key, el.scrollTop);
+      el.removeEventListener('scroll', save);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [ref, key, enabled]);
+}
+
+const lastVisitedNavRoute = new Map();
+
+function loadExpandedBranches(nav, storageKey, roleKey, pathname, search) {
+  const map = {};
+  nav.groups.forEach((g) => {
+    g.items.forEach((item) => {
+      if (item.children?.length) {
+        map[item.id || item.label] = item.defaultOpen !== false;
+      }
+    });
+  });
+
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) Object.assign(map, JSON.parse(saved));
+  } catch {
+    /* ignore */
+  }
+
+  const prev = lastVisitedNavRoute.get(roleKey);
+  if (prev) {
+    let updated = false;
+    nav.groups.forEach((g) => {
+      g.items.forEach((item) => {
+        if (!item.children?.length) return;
+        const key = item.id || item.label;
+        const wasInBranch = isNavItemActive(item, prev.pathname, prev.search);
+        const nowInBranch = isNavItemActive(item, pathname, search);
+        if (!wasInBranch && nowInBranch && !map[key]) {
+          map[key] = true;
+          updated = true;
+        }
+      });
+    });
+    if (updated) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(map));
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  return map;
+}
+
+function SidebarNav({ roleKey, collapsed, onNavigate, rememberScroll = false }) {
+  const navRef = useRef(null);
+  useSidebarScrollMemory(navRef, `${roleKey}.${collapsed ? 'rail' : 'full'}`, rememberScroll);
   const { pathname, search } = useLocation();
   const { tr } = useLocale();
   const nav = ROLE_NAV[roleKey];
   const unlock = useStudyUnlock();
+  const storageKey = `rp.nav.expanded.${roleKey}`;
+
+  const [expandedMap, setExpandedMap] = useState(() =>
+    loadExpandedBranches(nav, storageKey, roleKey, pathname, search),
+  );
+
+  useEffect(() => {
+    lastVisitedNavRoute.set(roleKey, { pathname, search });
+  }, [roleKey, pathname, search]);
+
+  const toggleExpanded = (branchKey) => {
+    setExpandedMap((prev) => {
+      const next = { ...prev, [branchKey]: !(prev[branchKey] ?? true) };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   // loading / error → 'unknown' → rendered as a normal item (no lock flash, no false paywall).
   const lockStateFor = (item) => (unlock ? unlock.access.lockStateFor(item.to) : 'open');
   const onLockedClick = unlock ? (item) => unlock.requestUnlock(item.to, item.label) : undefined;
   return (
     <nav
+      ref={navRef}
       aria-label={tr('Điều hướng chính')}
       className={cx('rp-sidebar-scroll min-h-0 flex-1 py-3', collapsed ? 'px-2' : 'px-3')}
     >
-      {nav.groups.map((group) => (
+      {nav.groups.map((group) => {
+        const singleBranchSameLabel =
+          group.items.length === 1 &&
+          group.items[0].children?.length &&
+          group.items[0].label === group.label;
+        return (
         <div key={group.label} className={collapsed ? 'mb-2.5' : 'mb-3.5'}>
           {!collapsed ? (
-            <p className="mb-1.5 truncate px-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-rp-text-muted">
-              {tr(group.label)}
-            </p>
+            !singleBranchSameLabel && (
+              <p className="mb-1.5 truncate px-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-rp-text-muted">
+                {tr(group.label)}
+              </p>
+            )
           ) : (
             <span aria-hidden="true" className="mx-auto mb-2 block h-px w-6 bg-rp-line" />
           )}
           <ul className="space-y-1">
             {group.items.map((item) => (
-              <li key={item.to} className={collapsed ? 'flex justify-center' : undefined}>
-                <NavItem
-                  item={item}
-                  active={isNavItemActive(item, pathname, search)}
-                  collapsed={collapsed}
-                  onNavigate={onNavigate}
-                  tr={tr}
-                  lockState={lockStateFor(item)}
-                  onLockedClick={onLockedClick}
-                />
+              <li key={item.to || item.id || item.label} className={collapsed ? 'flex justify-center' : undefined}>
+                {item.children?.length ? (
+                  <HierarchicalNavItem
+                    item={item}
+                    pathname={pathname}
+                    search={search}
+                    collapsed={collapsed}
+                    expanded={expandedMap[item.id || item.label] ?? item.defaultOpen !== false}
+                    onToggleExpand={() => toggleExpanded(item.id || item.label)}
+                    onNavigate={onNavigate}
+                    tr={tr}
+                    lockStateFor={lockStateFor}
+                    onLockedClick={onLockedClick}
+                  />
+                ) : (
+                  <NavItem
+                    item={item}
+                    active={isNavItemActive(item, pathname, search)}
+                    collapsed={collapsed}
+                    onNavigate={onNavigate}
+                    tr={tr}
+                    lockState={lockStateFor(item)}
+                    onLockedClick={onLockedClick}
+                  />
+                )}
               </li>
             ))}
           </ul>
         </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }
@@ -230,17 +649,20 @@ function ProfileMenu({ roleKey }) {
   const { user, primaryRole, logout } = useAuth();
   const { tr } = useLocale();
   const name = user?.fullName || user?.name || user?.email || tr('Tài khoản');
-  const initial = String(name).trim().charAt(0).toUpperCase() || 'R';
   const role = ROLE_LABEL[primaryRole] || primaryRole;
   const links = [
+    { to: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
     ...(roleKey === 'Learner'
-      ? [
-          { to: '/settings', label: 'Tài khoản của tôi', icon: Settings },
-          { to: '/onboarding', label: 'Mục tiêu học tập', icon: Target },
-        ]
+      ? [{ to: '/profile?tab=goals', label: 'Mục tiêu học tập', icon: Target }]
       : []),
-    ...(roleKey === 'Mentor' ? [{ to: '/mentor-profile', label: 'Hồ sơ chuyên môn', icon: UserRound }] : []),
-    { to: '/change-password', label: 'Đổi mật khẩu', icon: KeyRound },
+    ...(roleKey === 'Mentor'
+      ? [{ to: '/mentor-profile', label: 'Hồ sơ giảng dạy', icon: UserRound }]
+      : []),
+    ...(roleKey === 'ContentAuthor'
+      ? [{ to: '/cms-studio', label: 'Biên soạn nội dung', icon: Layers }]
+      : []),
+    { to: '/profile?tab=notifications', label: 'Thông báo & tùy chọn', icon: Settings },
+    { to: '/profile?tab=security', label: 'Bảo mật & đăng nhập', icon: KeyRound },
   ];
   return (
     <Popover
@@ -252,15 +674,9 @@ function ProfileMenu({ roleKey }) {
           type="button"
           onClick={toggle}
           aria-label={`${tr('Tài khoản')}: ${name}`}
-          className="rp-focus flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-2.5 transition-colors hover:border-rp-line hover:bg-rp-surface/90"
+          className="rp-focus flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-1 transition-colors hover:border-rp-line hover:bg-rp-surface/90 md:pr-2.5"
         >
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover ring-1 ring-rp-line" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-          ) : (
-            <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-rp-brand-tint text-[13px] font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border">
-              {initial}
-            </span>
-          )}
+          <Avatar src={user?.avatarUrl} name={name} size={32} className="ring-1 ring-rp-line" />
           <span className="hidden max-w-[148px] text-left leading-tight md:block">
             <span className="block truncate text-[13px] font-semibold text-rp-text">{name}</span>
             <span className="block truncate text-[11px] text-rp-text-muted">{tr(role)}</span>
@@ -322,10 +738,28 @@ function QuickJumpModal({ open, onClose, groups, tr }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return groups
-      .map((g) => ({
-        label: tr(g.label),
-        items: g.items.filter((i) => !q || tr(i.label).toLowerCase().includes(q) || i.to.toLowerCase().includes(q)),
-      }))
+      .map((g) => {
+        const groupLabel = tr(g.label).toLowerCase();
+        const uniqueByTo = new Map();
+        for (const item of flattenNavItems(g.items)) {
+          if (!item.to) continue;
+          // Prefer leaf item when a hierarchical branch shares the exact route with a child item.
+          if (!item.children?.length || !uniqueByTo.has(item.to)) {
+            uniqueByTo.set(item.to, item);
+          }
+          if (!item.children?.length) {
+            uniqueByTo.set(item.to, item);
+          }
+        }
+        return {
+          label: tr(g.label),
+          items: [...uniqueByTo.values()].filter((i) => {
+            if (!q) return true;
+            if (tr(i.label).toLowerCase().includes(q) || i.to.toLowerCase().includes(q) || groupLabel.includes(q)) return true;
+            return Array.isArray(i.keywords) && i.keywords.some((kw) => tr(kw).toLowerCase().includes(q) || kw.toLowerCase().includes(q));
+          }),
+        };
+      })
       .filter((g) => g.items.length > 0);
   }, [groups, query, tr]);
 
@@ -362,7 +796,7 @@ function QuickJumpModal({ open, onClose, groups, tr }) {
         ) : (
           filtered.map((g) => (
             <div key={g.label}>
-              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-rp-text-muted">{tr(g.label)}</p>
+              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-rp-text-muted">{g.label}</p>
               <ul className="space-y-1">
                 {g.items.map((item) => {
                   const tone = FEATURE_TONES[item.tone] || FEATURE_TONES.neutral;
@@ -439,10 +873,11 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [lastPath, setLastPath] = useState(pathname);
-  if (lastPath !== pathname) {
-    setLastPath(pathname);
-    if (drawerOpen) setDrawerOpen(false);
+  const locationKey = `${pathname}${search}`;
+  const [lastLocationKey, setLastLocationKey] = useState(locationKey);
+  if (locationKey !== lastLocationKey) {
+    setLastLocationKey(locationKey);
+    setDrawerOpen(false);
   }
 
   useEffect(() => {
@@ -454,7 +889,6 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
   }, [collapsed]);
 
   useEffect(() => {
-    if (typeof onSearchChange === 'function') return undefined;
     const onKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -463,7 +897,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onSearchChange]);
+  }, []);
 
   // The area root ("Học viên", "Mentor"…) is already named in the brand pill, so the header trail starts below it.
   const trail = useMemo(() => buildBreadcrumbs(roleKey, pathname, search, breadcrumb).slice(1), [roleKey, pathname, search, breadcrumb]);
@@ -506,7 +940,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
           {collapsed ? <ChevronRight aria-hidden="true" strokeWidth={2.5} className="h-[15px] w-[15px]" /> : <ChevronLeft aria-hidden="true" strokeWidth={2.5} className="h-[15px] w-[15px]" />}
         </button>
 
-        <SidebarNav roleKey={roleKey} collapsed={collapsed} />
+        <SidebarNav roleKey={roleKey} collapsed={collapsed} rememberScroll />
 
         <div className={cx('shrink-0 border-t border-rp-line p-2', collapsed && 'flex justify-center')}>
           {collapsed ? (
@@ -537,7 +971,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
       </aside>
 
       {/* Mobile / tablet drawer */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="left" width="w-[min(300px,88vw)]" title={area}>
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="left" width="w-[min(300px,88vw)]" title={nav.area}>
         <div className="flex min-h-full flex-col">
           <SidebarNav roleKey={roleKey} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
           <div className="shrink-0 space-y-2 border-t border-rp-line p-3 sm:hidden">
@@ -554,12 +988,14 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
                 <span className="truncate">{tr('Tìm nhanh…')}</span>
               </button>
             )}
-            {roleKey === 'Learner' && (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2">
-                <span className="text-xs font-semibold text-rp-text-muted">{tr('Ngôn ngữ')}</span>
-                <LanguageSwitch />
-              </div>
-            )}
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2">
+              <span className="text-xs font-semibold text-rp-text-muted">{tr('Trang chủ')}</span>
+              <BackHomeLink />
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2">
+              <span className="text-xs font-semibold text-rp-text-muted">{tr('Ngôn ngữ')}</span>
+              <LanguageSwitch />
+            </div>
           </div>
         </div>
       </Drawer>
@@ -569,7 +1005,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         data-role={roleKey.toLowerCase()}
         data-sky={skyOn ? 'on' : 'off'}
         data-sky-tone={skyOn && atmosphere.scene.isDark ? 'dark' : 'light'}
-        className="rp-header-ambient rp-sky-header sticky top-0 z-[45] flex h-[var(--spacing-rp-topbar)] items-center gap-1.5 border-b border-rp-line bg-rp-surface/92 px-3 backdrop-blur-md sm:gap-3 sm:px-[var(--rp-space-page-x)] lg:pl-3"
+        className="rp-header-ambient rp-sky-header sticky top-0 z-[45] flex h-[var(--spacing-rp-topbar)] items-center gap-1 border-b border-rp-line bg-rp-surface/92 px-2.5 backdrop-blur-md sm:gap-2.5 sm:px-[var(--rp-space-page-x)] lg:pl-3"
       >
         {skyOn && (
           <AtmosphericSky
@@ -598,17 +1034,25 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
           <Breadcrumbs trail={trail} />
         </div>
         {typeof onSearchChange === 'function' ? (
-          <label className="relative hidden w-[220px] transition-[width] duration-200 focus-within:w-[280px] xl:block">
-            <span className="sr-only">{tr(searchPlaceholder)}</span>
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
-            <input
-              type="search"
-              value={searchValue ?? ''}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={tr(searchPlaceholder)}
-              className="h-9 w-full rounded-full border border-rp-line bg-rp-surface/90 pl-9 pr-3 text-[13px] text-rp-text placeholder:text-rp-text-muted transition-[border-color,box-shadow,background-color] focus:border-rp-brand focus:bg-rp-surface focus:outline-none focus:shadow-[0_0_0_3px_rgba(224,90,122,0.16)]"
+          <>
+            <IconButton
+              icon={Search}
+              label={tr('Tìm nhanh trang và chức năng (Ctrl+K)')}
+              onClick={() => setQuickOpen(true)}
+              className="xl:hidden"
             />
-          </label>
+            <label className="relative hidden w-[220px] transition-[width] duration-200 focus-within:w-[280px] xl:block">
+              <span className="sr-only">{tr(searchPlaceholder)}</span>
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
+              <input
+                type="search"
+                value={searchValue ?? ''}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={tr(searchPlaceholder)}
+                className="h-9 w-full rounded-full border border-rp-line bg-rp-surface/90 pl-9 pr-3 text-[13px] text-rp-text placeholder:text-rp-text-muted transition-[border-color,box-shadow,background-color] focus:border-rp-brand focus:bg-rp-surface focus:outline-none focus:shadow-[0_0_0_3px_rgba(224,90,122,0.16)]"
+              />
+            </label>
+          </>
         ) : (
           <>
             <IconButton
@@ -636,8 +1080,15 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         {headerActions && <div className="hidden min-w-0 shrink items-center gap-2 sm:flex">{headerActions}</div>}
         <WeatherHeaderControl atmosphere={atmosphere} />
         <BackHomeLink variant="icon" />
-        {roleKey === 'Learner' && <LanguageSwitch className="hidden sm:block" />}
-        <NotificationCenter />
+        <div
+          role="group"
+          aria-label={tr('Ngôn ngữ, lịch và thông báo')}
+          className="flex shrink-0 items-center gap-1 sm:gap-2"
+        >
+          <LanguageSwitch variant="icon" />
+          <HeaderCalendarPopover roleKey={roleKey} />
+          <NotificationCenter />
+        </div>
         <ProfileMenu roleKey={roleKey} />
       </header>
 
@@ -649,9 +1100,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         </div>
       </div>
 
-      {typeof onSearchChange !== 'function' && (
-        <QuickJumpModal open={quickOpen} onClose={() => setQuickOpen(false)} groups={nav.groups} tr={tr} />
-      )}
+      <QuickJumpModal open={quickOpen} onClose={() => setQuickOpen(false)} groups={nav.groups} tr={tr} />
     </div>
     </StudyUnlockProvider>
   );

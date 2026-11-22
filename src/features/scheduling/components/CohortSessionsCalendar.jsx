@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { CalendarDays, List } from 'lucide-react';
+import { SegmentedControl } from '@/components/ui';
 import SakuraCalendar from './SakuraCalendar.jsx';
-import { toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
+import { formatCleanCohortTitle, toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
 import { parseUtcDate, sessionStatusLabel } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -56,7 +57,8 @@ export default function CohortSessionsCalendar({
           startMinute: start.minute,
           endHour: end.hour,
           endMinute: end.minute,
-          title: trf('{0} · Buổi {1}', { 0: course.cohortName || course.name, 1: s.number }),
+          title: formatCleanCohortTitle(course.cohortName || course.name, s.number),
+          fullTitle: trf('{0} · Buổi {1}', { 0: course.cohortName || course.name, 1: s.number }),
           detail: s.note || computedStatusLabel,
           statusLabel: computedStatusLabel,
           tone: toneForSession(s.status),
@@ -65,7 +67,7 @@ export default function CohortSessionsCalendar({
           metaRows: [
             { label: 'Lớp / Khóa', value: course.cohortName || course.name },
             { label: 'Học viên', value: course.learnerName || '—' },
-            { label: 'Mentor', value: course.mentorName || 'Chưa phân công' },
+            { label: tr('Giáo viên'), value: course.mentorName || 'Chưa phân công' },
             s.note && { label: 'Ghi chú', value: s.note },
           ].filter(Boolean),
         };
@@ -77,7 +79,7 @@ export default function CohortSessionsCalendar({
       events: mapped,
       firstKey: upcoming?.dayKey || mapped[0]?.dayKey || todayKey,
     };
-  }, [course, cohort, renderedAt]);
+  }, [course, cohort, renderedAt, tr, trf]);
 
   const [anchorKey, setAnchorKey] = useState(firstKey);
 
@@ -87,43 +89,29 @@ export default function CohortSessionsCalendar({
         <div>
           <h2 className="m-0">{tr('Lịch buổi học & Phòng học chung')}</h2>
           <p className="course-meta m-0 mt-0.5">
-            {trf('{0} buổi đã xếp lịch · Giờ Việt Nam (GMT+7)', { 0: events.length })}
+            {trf('{0} buổi toàn khóa · Giờ Việt Nam (GMT+7)', { 0: events.length })}
           </p>
         </div>
-        <div
-          role="group"
-          aria-label={tr('Kiểu hiển thị buổi học')}
-          className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
-        >
-          <button
-            type="button"
-            onClick={() => setMode('calendar')}
-            className={`!min-h-[32px] !rounded-lg !border-0 !px-3 !py-1 !text-[12px] ${
-              mode === 'calendar' ? '!bg-white !text-rp-brand-strong shadow-xs' : '!bg-transparent !text-rp-text-muted'
-            }`}
-          >
-            <CalendarDays className="h-3.5 w-3.5" />{' '}{tr('Lịch biểu')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('list')}
-            className={`!min-h-[32px] !rounded-lg !border-0 !px-3 !py-1 !text-[12px] ${
-              mode === 'list' ? '!bg-white !text-rp-brand-strong shadow-xs' : '!bg-transparent !text-rp-text-muted'
-            }`}
-          >
-            <List className="h-3.5 w-3.5" />{' '}{tr('Danh sách & điểm danh')}
-          </button>
-        </div>
+        <SegmentedControl
+          label={tr('Kiểu hiển thị buổi học')}
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'calendar', label: 'Lịch biểu', icon: CalendarDays },
+            { value: 'list', label: 'Danh sách buổi học', icon: List },
+          ]}
+        />
       </div>
 
-      {mode === 'calendar' && events.length > 0 ? (
+      {mode === 'calendar' ? (
         <SakuraCalendar
           events={events}
+          audience="learner"
           anchorKey={anchorKey}
           onAnchorChange={setAnchorKey}
           defaultView="month"
           emptyTitle={tr('Không có buổi học nào trong khoảng này.')}
-          emptyDescription={tr('Chuyển sang Danh sách & điểm danh hoặc chọn tuần/tháng khác để xem toàn bộ khóa học.')}
+          emptyDescription={tr('Chuyển sang Danh sách buổi học hoặc chọn tuần/tháng khác để xem toàn bộ khóa học.')}
         />
       ) : (
         children

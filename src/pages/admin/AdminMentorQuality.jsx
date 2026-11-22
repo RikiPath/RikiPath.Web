@@ -1,14 +1,31 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-
+import { BarChart3, Eye, Search, X } from 'lucide-react';
 import {
   formatCompletionRatio,
   formatMinutesVi,
   formatTurnaroundVi,
   getAdminMentorKpiList,
 } from '@/features/mentor/api/mentorGovernanceApi.js';
-import { ContextualEmptyState, ContextualErrorState, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { ADMIN_KEYS } from '@/features/admin/api/adminQueryKeys.js';
+import {
+  Badge,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  DataTable,
+  DateInput,
+  Drawer,
+  FeatureIcon,
+  IconButton,
+  Input,
+  PageHeader,
+  RefreshingIndicator,
+  SakuraLoader,
+  StaleDataBar,
+} from '@/components/ui';
 import { AdminShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 
@@ -27,11 +44,11 @@ export default function AdminMentorQuality() {
   const [fromDate, setFromDate] = useState(initial.from);
   const [toDate, setToDate] = useState(initial.to);
   const [search, setSearch] = useState('');
-  const [selectedMentorId, setSelectedMentorId] = useState(null);
+  const [drawerMentor, setDrawerMentor] = useState(null);
 
   const kpiQuery = useQuery({
-    queryKey: ['admin-mentor-kpi-list', fromDate, toDate],
-    queryFn: () => getAdminMentorKpiList({ from: fromDate, to: toDate, page: 1, pageSize: 50 }),
+    queryKey: [...ADMIN_KEYS.mentorKpis, fromDate, toDate],
+    queryFn: () => getAdminMentorKpiList({ from: fromDate, to: toDate, page: 1, pageSize: 100 }),
   });
 
   const mentors = useMemo(() => kpiQuery.data || [], [kpiQuery.data]);
@@ -39,282 +56,265 @@ export default function AdminMentorQuality() {
     const q = search.trim().toLowerCase();
     if (!q) return mentors;
     return mentors.filter(
-      (m) =>
-        String(m.mentorId).includes(q) ||
-        String(m.mentorName || '').toLowerCase().includes(q),
+      (m) => String(m.mentorId).includes(q) || String(m.mentorName || '').toLowerCase().includes(q),
     );
   }, [mentors, search]);
 
-  const activeMentor = useMemo(() => {
-    if (!filteredMentors.length) return null;
-    return (
-      filteredMentors.find((m) => m.mentorId === selectedMentorId) ||
-      filteredMentors[0]
-    );
-  }, [filteredMentors, selectedMentorId]);
+  const totals = useMemo(
+    () =>
+      filteredMentors.reduce(
+        (acc, m) => ({
+          assigned: acc.assigned + (m.totalAssignedSessions || 0),
+          completed: acc.completed + (m.completedValidSessions || 0),
+          confirmedMinutes: acc.confirmedMinutes + (m.confirmedTeachingMinutes || 0),
+          disputes: acc.disputes + (m.totalDisputesCount || 0),
+        }),
+        { assigned: 0, completed: 0, confirmedMinutes: 0, disputes: 0 },
+      ),
+    [filteredMentors],
+  );
 
-  const totals = useMemo(() => {
-    return filteredMentors.reduce(
-      (acc, m) => ({
-        assigned: acc.assigned + (m.totalAssignedSessions || 0),
-        completed: acc.completed + (m.completedValidSessions || 0),
-        confirmedMinutes: acc.confirmedMinutes + (m.confirmedTeachingMinutes || 0),
-        disputes: acc.disputes + (m.totalDisputesCount || 0),
-      }),
-      { assigned: 0, completed: 0, confirmedMinutes: 0, disputes: 0 },
-    );
-  }, [filteredMentors]);
+  const hasFilters = search.trim() !== '' || fromDate !== initial.from || toDate !== initial.to;
+
+  const columns = [
+    {
+      key: 'mentorName',
+      header: tr('Giáo viên'),
+      render: (m) => (
+        <div>
+          <p className="font-semibold text-rp-text">{m.mentorName}</p>
+          <p className="text-xs text-rp-text-muted">#{m.mentorId}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'sessions',
+      header: tr('Buổi hợp lệ / giao'),
+      render: (m) => (
+        <span className="tabular-nums font-medium">
+          {m.completedValidSessions} / {m.totalAssignedSessions}{' '}
+          <span className="text-xs text-rp-text-muted">({formatCompletionRatio(m.completedValidSessions, m.totalAssignedSessions)})</span>
+        </span>
+      ),
+    },
+    {
+      key: 'confirmedMinutes',
+      header: tr('Thời lượng xác nhận'),
+      render: (m) => <span className="text-sm">{formatMinutesVi(m.confirmedTeachingMinutes)}</span>,
+    },
+    {
+      key: 'outcomes',
+      header: tr('Hủy · Vắng · Chờ'),
+      render: (m) => (
+        <span className="text-xs text-rp-text-2">
+          {trf('{0} hủy · {1} vắng · {2} chờ', {
+            0: m.cancelledSessionsCount,
+            1: m.missedOrNoShowSessionsCount,
+            2: m.upcomingOrIncompleteSessionsCount,
+          })}
+        </span>
+      ),
+    },
+    {
+      key: 'homework',
+      header: tr('Bài tập (giao/nộp/chấm)'),
+      render: (m) => (
+        <span className="tabular-nums text-xs">
+          {m.homeworkAssignedCount} / {m.homeworkSubmittedCount} / {m.homeworkGradedCount}
+        </span>
+      ),
+    },
+    {
+      key: 'rating',
+      header: tr('Đánh giá & KN'),
+      render: (m) => (
+        <div className="space-y-0.5 text-xs">
+          <p className="font-medium text-rp-text">
+            {m.averageRating != null ? `${m.averageRating} ★ (${m.totalReviewsCount})` : tr('Chưa có đánh giá')}
+          </p>
+          <p className="text-rp-text-muted">
+            {trf('{0} khiếu nại ({1} mở)', { 0: m.totalDisputesCount, 1: m.openDisputesCount })}
+          </p>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Chấm công & KPI Cố vấn')}>
-      <div className="rp-container rp-cq space-y-[var(--rp-space-section)] py-[var(--rp-space-page-y)] text-rp-text">
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="rp-type-page-title">{tr('Chấm công & KPI Cố vấn')}</h1>
-            <p className="rp-type-secondary mt-1 max-w-2xl text-rp-text-2">
-              {tr('Theo dõi phân công giảng dạy, điểm danh phòng họp, bài tập và phản hồi từ học viên. Không áp dụng trọng số KPI, thưởng/phạt hoặc tính lương.')}
-            </p>
-          </div>
-          <div className="flex max-w-full flex-wrap items-end gap-2">
-            <label className="text-[12px] text-rp-text-2">
-              {tr('Từ ngày')}
-              <input
-                type="date"
+    <AdminShell pathname={pathname} breadcrumb={tr('Điểm danh & KPI')}>
+      <main data-page="AdminMentorQuality" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
+        <PageHeader
+          eyebrow={tr('Vận hành & lịch dạy')}
+          title={
+            <span className="inline-flex items-center gap-2.5">
+              <FeatureIcon feature="stats" icon={BarChart3} size="lg" />
+              <span>{tr('Điểm danh & KPI Giáo viên')}</span>
+            </span>
+          }
+          description={tr('Theo dõi buổi giảng dạy thực tế (GMT+7), tỷ lệ chấm bài tập và phản hồi học viên. Không sử dụng để tính lương hay thưởng/phạt.')}
+          actions={<RefreshingIndicator active={kpiQuery.isFetching && !kpiQuery.isPending} />}
+        />
+
+        {/* Filters */}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[200px] flex-1">
+              <Input
+                type="search"
+                icon={Search}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={tr('Tìm tên hoặc mã Giáo viên…')}
+                aria-label={tr('Tìm Giáo viên')}
+              />
+            </div>
+
+            <div className="w-full sm:w-[175px]">
+              <DateInput
+                label={tr('Từ ngày')}
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="ml-1.5 h-9 rounded-xl border border-rp-line bg-white px-2.5 text-[13px]"
+                onChange={setFromDate}
               />
-            </label>
-            <label className="text-[12px] text-rp-text-2">
-              {tr('Đến ngày')}
-              <input
-                type="date"
+            </div>
+
+            <div className="w-full sm:w-[175px]">
+              <DateInput
+                label={tr('Đến ngày')}
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="ml-1.5 h-9 rounded-xl border border-rp-line bg-white px-2.5 text-[13px]"
+                onChange={setToDate}
               />
-            </label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tr('Tìm tên hoặc ID cố vấn…')}
-              className="h-9 min-w-0 w-full rounded-xl border border-rp-line bg-white px-3 text-[13px] sm:w-52"
-            />
+            </div>
+
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={X}
+                onClick={() => {
+                  setSearch('');
+                  setFromDate(initial.from);
+                  setToDate(initial.to);
+                }}
+              >
+                {tr('Mặc định')}
+              </Button>
+            )}
           </div>
-        </header>
+        </Card>
 
         {kpiQuery.isError && kpiQuery.data && (
           <StaleDataBar onRetry={() => kpiQuery.refetch()} retrying={kpiQuery.isFetching} />
         )}
 
-        {kpiQuery.isError && !kpiQuery.data ? (
-          <section className="rounded-2xl border border-rp-line bg-white p-5">
-            <ContextualErrorState
-              error={kpiQuery.error}
-              title={tr('Không tải được dữ liệu KPI Cố vấn')}
-              onRetry={() => kpiQuery.refetch()}
-              retrying={kpiQuery.isFetching}
-            />
-          </section>
-        ) : kpiQuery.isLoading && !kpiQuery.data ? (
-          <section className="rounded-2xl border border-rp-line bg-white p-5">
-            <SakuraLoader variant="section" context="dashboard" label={tr('Đang tổng hợp dữ liệu KPI…')} delay={160} />
-          </section>
+        {kpiQuery.isPending && !kpiQuery.data ? (
+          <SakuraLoader variant="section" context="data" delay={140} />
+        ) : kpiQuery.isError && !kpiQuery.data ? (
+          <ContextualErrorState
+            error={kpiQuery.error}
+            title={tr('Không tải được dữ liệu KPI Giáo viên')}
+            onRetry={() => kpiQuery.refetch()}
+          />
         ) : (
-        <>
-        <section className="rp-cq-kpis">
-          <div className="rounded-2xl border border-rp-line bg-white p-4">
-            <p className="text-[12px] text-rp-text-muted">{tr('Tổng buổi phân công')}</p>
-            <p className="mt-1.5 text-[24px] font-semibold text-rp-text">{totals.assigned}</p>
-            <p className="mt-0.5 text-[11px] text-rp-text-muted">{trf('{0} cố vấn trong bộ lọc', { 0: filteredMentors.length })}</p>
-          </div>
-          <div className="rounded-2xl border border-rp-line bg-white p-4">
-            <p className="text-[12px] text-rp-text-muted">{tr('Hoàn thành hợp lệ')}</p>
-            <p className="mt-1.5 text-[24px] font-semibold text-rp-success">{totals.completed}</p>
-            <p className="mt-0.5 text-[11px] text-rp-text-muted">
-             {trf('Tỷ lệ {0}', { 0: formatCompletionRatio(totals.completed, totals.assigned) })}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-rp-line bg-white p-4">
-            <p className="text-[12px] text-rp-text-muted">{tr('Thời lượng xác nhận')}</p>
-            <p className="mt-1.5 text-[24px] font-semibold text-rp-brand-strong">
-              {formatMinutesVi(totals.confirmedMinutes)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-rp-text-muted">{tr('Từ điểm danh phòng học & xác nhận buổi học')}</p>
-          </div>
-          <div className="rounded-2xl border border-rp-line bg-white p-4">
-            <p className="text-[12px] text-rp-text-muted">{tr('Tổng khiếu nại phát sinh')}</p>
-            <p className="mt-1.5 text-[24px] font-semibold text-[#8A4F08]">{totals.disputes}</p>
-            <p className="mt-0.5 text-[11px] text-rp-text-muted">{trf('Trong khoảng {0} → {1}', { 0: fromDate, 1: toDate })}</p>
-          </div>
-        </section>
+          <>
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Card className="p-4">
+                <p className="text-xs font-medium text-rp-text-muted">{tr('Tổng buổi được giao')}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-rp-text">{totals.assigned}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-medium text-rp-text-muted">{tr('Buổi hoàn thành hợp lệ')}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700">
+                  {totals.completed}{' '}
+                  <span className="text-sm font-semibold text-rp-text-muted">
+                    ({formatCompletionRatio(totals.completed, totals.assigned)})
+                  </span>
+                </p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-medium text-rp-text-muted">{tr('Thời lượng dạy đã xác nhận')}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-rp-brand-strong">{formatMinutesVi(totals.confirmedMinutes)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-medium text-rp-text-muted">{tr('Tổng khiếu nại trong kỳ')}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-rp-text">{totals.disputes}</p>
+              </Card>
+            </section>
 
-        <section className="rounded-2xl border border-rp-line bg-white p-5">
-          <h2 className="text-[16px] font-semibold text-rp-text">{tr('Bảng tổng hợp KPI theo Cố vấn')}</h2>
-          {filteredMentors.length === 0 ? (
-            <ContextualEmptyState compact title={tr('Chưa có dữ liệu cố vấn trong bộ lọc.')} description={tr('Hãy thử đổi khoảng ngày hoặc từ khóa tìm kiếm.')} />
-          ) : (
-            <div data-density="compact" className="rp-scroll-x mt-3">
-              <table className="w-full min-w-[760px] text-left text-[13px]">
-                <thead>
-                  <tr className="border-b border-rp-line bg-rp-bg-2/60 text-[11px] uppercase tracking-wider text-rp-text-muted">
-                    <th className="px-3 py-2.5">{tr('Cố vấn')}</th>
-                    <th className="px-3 py-2.5">{tr('Phân công / Hợp lệ')}</th>
-                    <th className="px-3 py-2.5">{tr('Thời lượng')}</th>
-                    <th className="px-3 py-2.5">{tr('Hủy / Vắng / Chờ')}</th>
-                    <th className="px-3 py-2.5">{tr('Bài tập (giao/nộp/chấm)')}</th>
-                    <th className="px-3 py-2.5">{tr('Phản hồi bài tập')}</th>
-                    <th className="px-3 py-2.5">{tr('Đánh giá / Khiếu nại')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredMentors.map((m) => {
-                    const selected = activeMentor?.mentorId === m.mentorId;
-                    return (
-                      <tr
-                        key={m.mentorId}
-                        onClick={() => setSelectedMentorId(m.mentorId)}
-                        className={`cursor-pointer border-b border-rp-bg-2 transition hover:bg-rp-brand-tint ${
-                          selected ? 'bg-rp-brand-tint' : ''
-                        }`}
-                      >
-                        <td className="px-3 py-3">
-                          <div className="font-semibold text-rp-text">
-                            #{m.mentorId} · {m.mentorName}
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {(m.teachingJlptLevels || []).map((lv) => (
-                              <span
-                                key={lv}
-                                className="rounded bg-rp-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-rp-brand-strong"
-                              >
-                                {lv}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <span className="font-semibold text-rp-success">{m.completedValidSessions}</span>
-                          {' / '}
-                          <span>{m.totalAssignedSessions}</span>
-                          <span className="ml-1 text-[11px] text-rp-text-muted">
-                            ({formatCompletionRatio(m.completedValidSessions, m.totalAssignedSessions)})
-                          </span>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div>{formatMinutesVi(m.confirmedTeachingMinutes)}</div>
-                          <div className="text-[11px] text-rp-text-muted">
-                           {trf('Kế hoạch: {0}', { 0: formatMinutesVi(m.scheduledCompletedMinutes) })}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-[12px]">
-                         {trf('{0} hủy · {1} vắng ·  {2} chờ', { 0: m.cancelledSessionsCount, 1: m.missedOrNoShowSessionsCount, 2: m.upcomingOrIncompleteSessionsCount })}
-                        </td>
-                        <td className="px-3 py-3">
-                          {m.homeworkAssignedCount} / {m.homeworkSubmittedCount} / {m.homeworkGradedCount}
-                        </td>
-                        <td className="px-3 py-3 text-[12px] text-rp-text-2">
-                          {formatTurnaroundVi(m.averageFeedbackTurnaroundMinutes)}
-                        </td>
-                        <td className="px-3 py-3 text-[12px]">
-                          <div>
-                            {m.averageRating != null ? `${m.averageRating} ★ (${m.totalReviewsCount})` : tr('Chưa có đánh giá')}
-                          </div>
-                          <div className="text-rp-text-muted">
-                           {trf('{0} khiếu nại ({1} đang mở)', { 0: m.totalDisputesCount, 1: m.openDisputesCount })}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            {filteredMentors.length === 0 ? (
+              <ContextualEmptyState
+                title={tr('Chưa có dữ liệu điểm danh hoặc KPI trong khoảng thời gian này')}
+                description={tr('Hãy mở rộng khoảng ngày hoặc xóa từ khóa tìm kiếm.')}
+              />
+            ) : (
+              <DataTable
+                columns={columns}
+                rows={filteredMentors}
+                rowKey={(m) => m.mentorId}
+                rowActions={(m) => (
+                  <IconButton
+                    icon={Eye}
+                    size="sm"
+                    variant="ghost"
+                    label={tr('Xem chi tiết tháng & tuần')}
+                    onClick={() => setDrawerMentor(m)}
+                  />
+                )}
+              />
+            )}
+          </>
+        )}
+
+        {/* Monthly & Weekly KPI Drawer */}
+        <Drawer
+          open={Boolean(drawerMentor)}
+          onClose={() => setDrawerMentor(null)}
+          title={drawerMentor ? `${tr('Chi tiết KPI')}: ${drawerMentor.mentorName}` : ''}
+          width="w-[min(860px,100vw)]"
+        >
+          {drawerMentor && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="brand" size="sm" icon={false}>
+                  {tr('Phản hồi bài tập TB')}: {formatTurnaroundVi(drawerMentor.averageFeedbackTurnaroundMinutes)}
+                </Badge>
+                <Badge tone="neutral" size="sm" icon={false}>
+                  {tr('Điểm đánh giá')}: {drawerMentor.averageRating != null ? `${drawerMentor.averageRating} ★` : tr('Chưa có')}
+                </Badge>
+              </div>
+
+              <Card className="space-y-2 p-4">
+                <h3 className="text-sm font-bold text-rp-text">{tr('Thống kê theo tháng')}</h3>
+                <DataTable
+                  rowKey={(p) => p.periodKey}
+                  rows={drawerMentor.monthlyBreakdown || []}
+                  columns={[
+                    { key: 'periodKey', header: tr('Tháng'), render: (p) => <span className="font-semibold">{p.periodKey}</span> },
+                    { key: 'sessions', header: tr('Hợp lệ / Giao'), render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}` },
+                    { key: 'minutes', header: tr('Xác nhận'), render: (p) => formatMinutesVi(p.confirmedTeachingMinutes) },
+                    { key: 'hw', header: tr('Bài tập (chấm/nộp)'), render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}` },
+                    { key: 'rating', header: tr('Sao / KN'), render: (p) => `${p.averageRating != null ? `${p.averageRating}★` : '—'} · ${p.disputesCount}` },
+                  ]}
+                />
+              </Card>
+
+              <Card className="space-y-2 p-4">
+                <h3 className="text-sm font-bold text-rp-text">{tr('Thống kê theo tuần')}</h3>
+                <DataTable
+                  rowKey={(p) => p.periodKey}
+                  rows={(drawerMentor.weeklyBreakdown || []).slice(0, 12)}
+                  columns={[
+                    { key: 'periodKey', header: tr('Tuần'), render: (p) => <span className="font-semibold">{p.periodKey}</span> },
+                    { key: 'sessions', header: tr('Hợp lệ / Giao'), render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}` },
+                    { key: 'minutes', header: tr('Xác nhận'), render: (p) => formatMinutesVi(p.confirmedTeachingMinutes) },
+                    { key: 'hw', header: tr('Bài tập (chấm/nộp)'), render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}` },
+                    { key: 'cancel', header: tr('Hủy / Vắng'), render: (p) => `${p.cancelledSessionsCount} / ${p.missedOrNoShowSessionsCount}` },
+                  ]}
+                />
+              </Card>
             </div>
           )}
-        </section>
-        </>
-        )}
-
-        {activeMentor && (
-          <section className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-2xl border border-rp-line bg-white p-5">
-              <h3 className="text-[15px] font-semibold text-rp-text">
-               {trf('Thống kê theo tháng — {0}', { 0: activeMentor.mentorName })}
-              </h3>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-[12px]">
-                  <thead>
-                    <tr className="border-b border-rp-line text-[11px] uppercase text-rp-text-muted">
-                      <th className="py-2">{tr('Tháng')}</th>
-                      <th className="py-2">{tr('Hợp lệ / Giao')}</th>
-                      <th className="py-2">{tr('Xác nhận')}</th>
-                      <th className="py-2">{tr('Bài tập (chấm/nộp)')}</th>
-                      <th className="py-2">Sao / KN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(activeMentor.monthlyBreakdown || []).map((p) => (
-                      <tr key={p.periodKey} className="border-b border-rp-bg-2">
-                        <td className="py-2 font-medium">{p.periodKey}</td>
-                        <td className="py-2">{p.completedValidSessions} / {p.totalAssignedSessions}</td>
-                        <td className="py-2">{formatMinutesVi(p.confirmedTeachingMinutes)}</td>
-                        <td className="py-2">{p.homeworkGradedCount} / {p.homeworkSubmittedCount}</td>
-                        <td className="py-2">
-                          {p.averageRating != null ? `${p.averageRating}★` : '—'} · {p.disputesCount}
-                        </td>
-                      </tr>
-                    ))}
-                    {!(activeMentor.monthlyBreakdown || []).length && (
-                      <tr>
-                        <td colSpan={5} className="py-4 text-center text-rp-text-muted">
-                          {tr('Chưa có hoạt động theo tháng trong kỳ.')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-rp-line bg-white p-5">
-              <h3 className="text-[15px] font-semibold text-rp-text">
-               {trf('Thống kê theo tuần — {0}', { 0: activeMentor.mentorName })}
-              </h3>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-[12px]">
-                  <thead>
-                    <tr className="border-b border-rp-line text-[11px] uppercase text-rp-text-muted">
-                      <th className="py-2">{tr('Tuần')}</th>
-                      <th className="py-2">{tr('Hợp lệ / Giao')}</th>
-                      <th className="py-2">{tr('Xác nhận')}</th>
-                      <th className="py-2">{tr('Bài tập (chấm/nộp)')}</th>
-                      <th className="py-2">{tr('Hủy / Vắng')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(activeMentor.weeklyBreakdown || []).slice(0, 8).map((p) => (
-                      <tr key={p.periodKey} className="border-b border-rp-bg-2">
-                        <td className="py-2 font-medium">{p.periodKey}</td>
-                        <td className="py-2">{p.completedValidSessions} / {p.totalAssignedSessions}</td>
-                        <td className="py-2">{formatMinutesVi(p.confirmedTeachingMinutes)}</td>
-                        <td className="py-2">{p.homeworkGradedCount} / {p.homeworkSubmittedCount}</td>
-                        <td className="py-2">{p.cancelledSessionsCount} / {p.missedOrNoShowSessionsCount}</td>
-                      </tr>
-                    ))}
-                    {!(activeMentor.weeklyBreakdown || []).length && (
-                      <tr>
-                        <td colSpan={5} className="py-4 text-center text-rp-text-muted">
-                          {tr('Chưa có hoạt động theo tuần trong kỳ.')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        )}
-      </div>
+        </Drawer>
+      </main>
     </AdminShell>
   );
 }

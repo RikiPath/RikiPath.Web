@@ -131,7 +131,7 @@ export default function WeekTimeGrid({
           {days.map((day) => (
             <div key={day.key} className="border-l border-rp-line px-2 py-2 text-center">
               <p className="text-[11px] uppercase tracking-wide text-rp-text-muted">{day.name}</p>
-              <p className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-[16px] font-semibold ${day.today ? 'bg-rp-brand-strong text-white' : 'text-rp-text'}`}>
+              <p className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-[16px] font-semibold ${day.today ? 'bg-rp-brand-pressed text-white' : 'text-rp-text'}`}>
                 {day.date}
               </p>
             </div>
@@ -150,13 +150,13 @@ export default function WeekTimeGrid({
             ))}
           </div>
           {days.map((day) => (
-            <div key={day.key} className={`relative overflow-hidden border-l border-rp-line ${day.today ? 'bg-rp-brand-tint' : ''}`} style={{ height }}>
+            <div key={day.key} className="relative overflow-hidden border-l border-rp-line bg-white" style={{ height }}>
               {hours.map((hour) => (
                 <div key={hour} className="pointer-events-none absolute inset-x-0 z-0 h-px bg-rp-line" style={{ top: (hour - firstHour) * HOUR_HEIGHT }} />
               ))}
               {showNow && day.key === nowKey ? (
-                <div className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-rp-brand-strong" style={{ top: ((nowMinutes - firstHour * 60) / 60) * HOUR_HEIGHT }}>
-                  <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-rp-brand-strong" />
+                <div className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-rp-brand-pressed" style={{ top: ((nowMinutes - firstHour * 60) / 60) * HOUR_HEIGHT }}>
+                  <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-rp-brand-pressed" />
                 </div>
               ) : null}
               {layoutEvents(events.filter((event) => event.dayKey === day.key), stackOverlaps).map((event) => (

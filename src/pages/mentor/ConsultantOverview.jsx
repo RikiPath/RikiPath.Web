@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -14,7 +15,7 @@ import {
   UsersRound,
   Video,
 } from 'lucide-react';
-import { MentorShell } from '@/layouts';
+import { AdminShell, MentorShell } from '@/layouts';
 import { courseGet, getCohorts, getCohortHomework } from '@/features/cohorts/api/cohortApi.js';
 import {
   formatCompletionRatio,
@@ -24,17 +25,20 @@ import {
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
 import { toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
 import { useNow } from '@/hooks/useNow.js';
-import { Badge, Card, CardHeader, EmptyState, ErrorState, FeatureIcon, PageHeader, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { Badge, Banner, Card, CardHeader, EmptyState, ErrorState, FeatureIcon, PageHeader, ProgressBar, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
 // Teaching workspace. All metrics strictly reflect live Backend API responses (zero mocked/hardcoded numbers).
 const QUICK_ACTIONS = [
   { to: '/mentor-study-courses/', label: 'Quản lý lớp nhóm', note: 'Lớp phụ trách, buổi học, điểm danh', feature: 'mentor' },
   { to: '/mentor-homework/', label: 'Bài tập & chấm điểm', note: 'Giao bài, xem bài nộp, chấm điểm', feature: 'writing' },
-  { to: '/mentor-shift-schedule/', label: 'Đăng ký lịch dạy', note: 'Khung giờ rảnh theo tuần', feature: 'calendar' },
-  { to: '/mentor-availability/', label: 'Lịch tuần', note: 'Lịch dạy đã duyệt và yêu cầu', feature: 'calendar' },
+  { to: '/mentor-grading/', label: 'Chấm bài luyện tập', note: 'Đánh giá nhanh bài viết & nói JLPT', feature: 'mock' },
+  { to: '/work-schedule/', label: 'Lịch làm việc', note: 'Buổi dạy sắp diễn ra & đã hoàn thành', feature: 'calendar' },
+  { to: '/mentor-shift-schedule/', label: 'Đăng ký lịch dạy', note: 'Đăng ký khung giờ & theo dõi duyệt', feature: 'calendar' },
   { to: '/mentor-attendance-kpi/', label: 'Điểm danh & KPI', note: 'Chỉ số giảng dạy thực tế', feature: 'reading' },
-  { to: '/mentor-reviews/', label: 'Đánh giá', note: 'Phản hồi từ học viên lớp nhóm', feature: 'grammar' },
+  { to: '/mentor-reviews/', label: 'Đánh giá học viên', note: 'Phản hồi từ học viên lớp nhóm', feature: 'grammar' },
+  { to: '/mentor-disputes/', label: 'Khiếu nại & hỗ trợ', note: 'Theo dõi và phản hồi yêu cầu từ học viên', feature: 'neutral' },
+  { to: '/mentor-profile/', label: 'Hồ sơ chuyên môn', note: 'Giới thiệu, chứng chỉ & trạng thái duyệt', feature: 'neutral' },
 ];
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -59,7 +63,7 @@ function analyzeSessions(courses, nowMs, cohortNameMap) {
       if (!Number.isFinite(at)) continue;
       const endAt = at + durationMin * 60000;
 
-      if (course.status === 'Active' && endAt <= nowMs) {
+      if ((course.status === 'Active' || course.status === 'Transferred') && endAt <= nowMs) {
         pendingAttendance.push({
           key: `${course.id}-${session.id}`,
           courseId: course.id,
@@ -126,19 +130,23 @@ function summarizeCohorts(courses, cohortNameMap) {
 
 export default function ConsultantOverview() {
   const { tr, trf } = useLocale();
+  const { user } = useAuth();
+  const isAdminViewer = String(user?.role || '').toLowerCase() === 'admin';
   const nowMs = useNow(60000);
   const session = getSession();
   const uid = session?.userId ?? 'anon';
-  const live = !session?.isPreview;
+  const live = !session?.isPreview && !isAdminViewer;
 
   const query = useQuery({
     queryKey: ['mentor-overview-courses', uid, live ? 'live' : 'preview'],
     queryFn: () => (live ? courseGet() : []),
+    enabled: !isAdminViewer,
   });
 
   const cohortsListQuery = useQuery({
     queryKey: ['mentor-overview-cohorts', uid],
     queryFn: () => (live ? getCohorts() : []),
+    enabled: !isAdminViewer,
   });
 
   const cohortNameMap = useMemo(() => {
@@ -152,11 +160,13 @@ export default function ConsultantOverview() {
   const homeworkQuery = useQuery({
     queryKey: ['mentor-overview-homework', uid],
     queryFn: () => (live ? getCohortHomework() : []),
+    enabled: !isAdminViewer,
   });
 
   const kpiQuery = useQuery({
     queryKey: ['mentor-overview-kpi', uid],
     queryFn: () => (live ? getMentorKpiSummary() : null),
+    enabled: !isAdminViewer,
   });
 
   const courses = useMemo(() => (Array.isArray(query.data) ? query.data : []), [query.data]);
@@ -174,13 +184,19 @@ export default function ConsultantOverview() {
   const todaySessions = upcoming.filter((s) => toVnDateKey(new Date(s.at)) === todayKey);
   const thisWeekCount = upcoming.filter((s) => s.at < nowMs + 7 * DAY_MS).length;
   const [next, ...later] = upcoming;
-  const todayLabel = new Date(nowMs).toLocaleDateString(currentIntlTag(), { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const todayLabel = new Date(nowMs).toLocaleDateString(currentIntlTag(), {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
   const stats = [
     { label: 'Lớp nhóm phụ trách', value: cohortSummary.length, icon: School, tone: 'bg-tone-mentor-bg text-tone-mentor' },
     { label: 'Học viên đang học', value: active.length, icon: UsersRound, tone: 'bg-tone-reading-bg text-tone-reading' },
     { label: 'Buổi dạy 7 ngày tới', value: thisWeekCount, icon: CalendarClock, tone: 'bg-tone-calendar-bg text-tone-calendar' },
-    { label: 'Bài tập chờ chấm điểm', value: pendingGrading.length, icon: ClipboardCheck, tone: 'bg-tone-writing-bg text-tone-writing' },
+    { label: 'Bài tập chờ chấm điểm', value: homeworkQuery.isError ? '—' : pendingGrading.length, icon: ClipboardCheck, tone: 'bg-tone-writing-bg text-tone-writing' },
   ];
 
   const completionPct = kpi && kpi.totalAssignedSessions > 0
@@ -188,6 +204,29 @@ export default function ConsultantOverview() {
     : 0;
   const hwTotal = kpi?.homeworkSubmittedCount || 0;
   const hwGradedPct = hwTotal > 0 ? Math.min(100, Math.round(((kpi?.homeworkGradedCount || 0) / hwTotal) * 100)) : 0;
+
+  if (isAdminViewer) {
+    return (
+      <AdminShell breadcrumb={tr('Bảng điều khiển Giáo viên')}>
+        <div className="rp-container py-6">
+          <Banner
+            tone="info"
+            title={tr('Trang này hiển thị không gian giảng dạy cá nhân của Giáo viên')}
+            actions={(
+              <Link
+                to="/admin/dashboard/"
+                className="rp-focus inline-flex h-9 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-xs font-semibold text-white hover:bg-rp-brand-strong"
+              >
+                {tr('Về Bảng điều khiển Quản trị')}
+              </Link>
+            )}
+          >
+            {tr('Vui lòng sử dụng khu vực Quản trị để điều phối đội ngũ Giáo viên và lớp học nhóm.')}
+          </Banner>
+        </div>
+      </AdminShell>
+    );
+  }
 
   return (
     <MentorShell breadcrumb={tr('Bảng điều khiển')}>
@@ -237,7 +276,7 @@ export default function ConsultantOverview() {
                       art="calendar"
                       title={tr('Chưa có buổi dạy sắp tới')}
                       description={tr('Buổi học xuất hiện khi lớp nhóm của bạn được công bố và có học viên ghi danh.')}
-                      action={<Link to="/mentor-shift-schedule/" className="rp-focus text-sm font-semibold text-rp-brand-strong underline">{tr('Đăng ký lịch dạy')}</Link>}
+                      action={<Link to="/mentor-shift-schedule/" className="rp-focus rp-link text-sm font-semibold">{tr('Đăng ký lịch dạy')}</Link>}
                     />
                   ) : (
                     <div className="rounded-rp-input border border-rp-brand-soft bg-rp-brand-tint p-4">
@@ -245,9 +284,9 @@ export default function ConsultantOverview() {
                         {next.level && <Badge tone="brand" icon={false}>{next.level}</Badge>}
                         <Badge tone="info">{trf('Buổi {0}', { 0: next.number })}</Badge>
                         {next.isLive && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                            <Radio className="h-3 w-3 animate-pulse" />{' '}{tr('Đang mở phòng học')}
-                          </span>
+                          <Badge tone="success" icon={Radio}>
+                            {tr('Đang mở phòng học')}
+                          </Badge>
                         )}
                       </div>
                       <p className="mt-2 text-lg font-bold text-rp-text">{next.name}</p>
@@ -263,7 +302,7 @@ export default function ConsultantOverview() {
                           </Link>
                         )}
                         <Link
-                          to={next.cohortId ? `/mentor-study-courses/?cohortId=${next.cohortId}` : '/mentor-study-courses/'}
+                          to={next.cohortId ? `/mentor-study-courses/${next.cohortId}/` : '/mentor-study-courses/'}
                           className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong rp-press"
                         >
                           {tr('Mở lớp phụ trách')}{' '}<ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -304,7 +343,7 @@ export default function ConsultantOverview() {
                               <p className="truncate font-semibold text-rp-text">{trf('{0} · Buổi {1}', { 0: p.cohortName, 1: p.number })}</p>
                               <p className="truncate text-[11.5px] text-rp-text-muted">{p.learnerName} · {formatVnDateTime(new Date(p.at).toISOString())}</p>
                             </div>
-                            <Link to="/mentor-study-courses/" className="rp-link shrink-0 font-semibold">
+                            <Link to={p.cohortId ? `/mentor-study-courses/${p.cohortId}/?section=attendance` : '/mentor-study-courses/'} className="rp-link shrink-0 font-semibold">
                               {tr('Chốt ngay')}
                             </Link>
                           </li>
@@ -349,13 +388,11 @@ export default function ConsultantOverview() {
                       {cohortSummary.map((ch) => (
                         <Link
                           key={ch.cohortId}
-                          to={`/mentor-study-courses/?cohortId=${ch.cohortId}`}
+                          to={`/mentor-study-courses/${ch.cohortId}/`}
                           className="rp-card-hover block rounded-xl border border-rp-line bg-white p-3.5 transition hover:border-rp-brand-border"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="rounded-md bg-rp-brand-soft px-2 py-0.5 text-[11px] font-bold text-rp-brand-strong">
-                              {ch.level || 'JLPT'}
-                            </span>
+                            <Badge size="sm" tone="brand" icon={false}>{ch.level || 'JLPT'}</Badge>
                             <span className="text-[11.5px] font-medium text-rp-text-muted">{trf('{0} học viên', { 0: ch.activeLearners })}</span>
                           </div>
                           <p className="mt-2 truncate text-[14px] font-bold text-rp-text">{ch.name}</p>
@@ -371,7 +408,18 @@ export default function ConsultantOverview() {
 
               <div className="min-w-0 space-y-[var(--rp-space-section)]">
                 {/* Real Teaching KPI Card */}
-                {kpi && (
+                {kpiQuery.isError ? (
+                  <Card>
+                    <ErrorState
+                      variant="inline"
+                      compact
+                      error={kpiQuery.error}
+                      title={tr('Chưa tải được chỉ số giảng dạy')}
+                      onRetry={() => kpiQuery.refetch()}
+                      retrying={kpiQuery.isFetching}
+                    />
+                  </Card>
+                ) : kpi && (
                   <Card>
                     <CardHeader title={tr('Hiệu suất giảng dạy kỳ này')} description={tr('Thống kê từ điểm danh & bài tập thật')} />
                     <div className="space-y-3.5 text-[13px]">
@@ -382,9 +430,7 @@ export default function ConsultantOverview() {
                             {kpi.completedValidSessions}/{kpi.totalAssignedSessions} ({formatCompletionRatio(kpi.completedValidSessions, kpi.totalAssignedSessions)})
                           </span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-rp-bg-2">
-                          <div className="h-full rounded-full bg-rp-success transition-all" style={{ width: `${completionPct}%` }} />
-                        </div>
+                        <ProgressBar value={completionPct} tone="success" size="md" label={tr('Hoàn thành buổi học hợp lệ')} />
                       </div>
 
                       <div>
@@ -394,9 +440,7 @@ export default function ConsultantOverview() {
                             {kpi.homeworkGradedCount}/{kpi.homeworkSubmittedCount} ({hwGradedPct}%)
                           </span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-rp-bg-2">
-                          <div className="h-full rounded-full bg-rp-brand-strong transition-all" style={{ width: `${hwGradedPct}%` }} />
-                        </div>
+                        <ProgressBar value={hwGradedPct} tone="brand" size="md" label={tr('Chấm bài tập về nhà đã nộp')} />
                       </div>
 
                       <div className="flex items-center justify-between rounded-xl bg-rp-bg-2 px-3 py-2.5 text-[12px]">

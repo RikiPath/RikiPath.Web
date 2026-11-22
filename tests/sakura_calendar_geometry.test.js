@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   buildMonthMatrix,
   buildWeekDays,
@@ -81,5 +83,51 @@ describe('SakuraCalendar collision packing & agenda grouping', () => {
     assert.equal(groups.length, 2);
     assert.equal(groups[0].isToday, true);
     assert.deepEqual(groups[0].items.map((x) => x.title), ['S1a', 'S1b']);
+  });
+
+  it('enforces single-scroll-container Header/Body column alignment and uniform white Mon-Sun day columns', () => {
+    const interactiveSrc = fs.readFileSync(
+      path.resolve('src/features/scheduling/components/InteractiveSlotCalendar.jsx'),
+      'utf8',
+    );
+    const sakuraSrc = fs.readFileSync(
+      path.resolve('src/features/scheduling/components/SakuraCalendar.jsx'),
+      'utf8',
+    );
+
+    for (const [name, src] of [['InteractiveSlotCalendar', interactiveSrc], ['SakuraCalendar', sakuraSrc]]) {
+      // Header and body must share the same gridTemplateColumns formula and scrollbarGutter: 'stable' while only body scrolls
+      assert.ok(src.includes('data-testid="calendar-header-grid"'), `${name} must mark calendar-header-grid`);
+      assert.ok(src.includes('data-testid="calendar-body-grid"'), `${name} must mark calendar-body-grid`);
+      assert.ok(
+        src.includes("scrollbarGutter: 'stable'"),
+        `${name} header and body must synchronize scrollbar gutter width while only body scrolls vertically`,
+      );
+      // Uniform white day column surfaces (no weekend pink/gray column tint or full-column today pink fill)
+      assert.ok(!src.includes("cell.isWeekend ? 'bg-[#FCF9FB]'"), `${name} must not tint weekend columns/cells`);
+      assert.ok(!src.includes("day.isToday ? 'bg-[#FFFCFD]'"), `${name} must not tint entire today body column`);
+      // Distinct selected day & today states on header
+      assert.ok(src.includes('data-is-selected={isSelectedDay ? \'true\' : \'false\'}'), `${name} must expose selected day state`);
+      assert.ok(src.includes('day.isToday && isSelectedDay'), `${name} must handle combined Today + Selected state`);
+    }
+
+    // V6.8 Performance, Status Locking, Custom Listbox & 5-Column Direct Actions contracts on InteractiveSlotCalendar
+    assert.ok(interactiveSrc.includes('requestAnimationFrame(processDragFrame)'), 'must throttle drag updates via requestAnimationFrame');
+    assert.ok(interactiveSrc.includes('translate3d(0,'), 'must position drag ghost via GPU translate3d');
+    assert.ok(interactiveSrc.includes('if (!ev.isSelectedDraft || !ev.draggable || ev.locked) return;'), 'must lock direct grid dragging to unsent Draft cards only');
+    assert.ok(interactiveSrc.includes('<StatusDotListbox'), 'must render custom StatusDotListbox with color dots');
+    assert.ok(interactiveSrc.includes('<ScheduleMoreFiltersPopover'), 'must render advanced date/time/type/sort filter popover');
+    assert.ok(interactiveSrc.includes("{tr('Loại lịch')}"), 'must render 5-column table including Loại lịch');
+    assert.ok(interactiveSrc.includes('data-testid={`row-action-view-${ev.id}`}'), 'must render direct Xem row action button');
+
+    // Calendar Empty State UX Contract: NEVER render ContextualEmptyState above or inside Day/Week/Month Calendar grid
+    assert.ok(
+      !sakuraSrc.includes("rangeEventsCount === 0 && (view === 'agenda' || (!onEmptySlotClick && view !== 'month'))"),
+      'SakuraCalendar must not render a large ContextualEmptyState above the Day/Week calendar grid when rangeEventsCount === 0',
+    );
+    assert.ok(
+      sakuraSrc.includes("view === 'agenda' && rangeEventsCount === 0"),
+      'SakuraCalendar must only render ContextualEmptyState in List/Agenda mode when empty',
+    );
   });
 });

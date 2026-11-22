@@ -1,879 +1,527 @@
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-const ADMIN_MENTORS_KEY = ['admin-mentors', 'list'];
-import { useLocation } from 'react-router-dom';
-import {
+  Calendar,
+  Eye,
+  GraduationCap,
+  Lock,
   Plus,
   Search,
-  RefreshCw,
-  CheckCircle2,
-  Calendar,
+  Unlock,
   X,
-  MoreHorizontal,
 } from 'lucide-react';
-
-import { AdminShell } from '@/layouts';
-import { RefreshingIndicator, SakuraLoader, Select } from '@/components/ui';
+import {
+  AlertDialog,
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  CustomSelect,
+  DataTable,
+  Drawer,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  Pagination,
+  RefreshingIndicator,
+  SakuraLoader,
+  notify,
+} from '@/components/ui';
+import { usePagination } from '@/hooks/usePagination.js';
 import AdminMentorScheduleCalendar from './AdminMentorScheduleCalendar.jsx';
 import {
-  getAdminMentors,
   createAdminMentor,
+  getAdminMentors,
   setAdminMentorActive,
   unwrapApiList,
 } from '@/features/admin/api/adminApi.js';
-import { notify } from '@/components/ui/feedbackStore.js';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
+import { describeApiError } from '@/api/apiErrors.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
-const EMPTY_FORM = {
-  email: '',
-  password: '',
-  fullName: '',
-  phoneNumber: '',
+const EMPTY_FORM = { email: '', password: '', fullName: '', phoneNumber: '' };
+
+const VERIFY_META = {
+  Approved: { label: 'Đã duyệt hồ sơ', tone: 'success' },
+  Pending: { label: 'Chờ duyệt', tone: 'warning' },
+  ChangesRequested: { label: 'Cần bổ sung', tone: 'warning' },
+  Rejected: { label: 'Từ chối', tone: 'danger' },
+  Unverified: { label: 'Chưa nộp', tone: 'neutral' },
 };
 
-const INPUT_CLASS =
-  'h-10 w-full rounded-lg border border-rp-line bg-white ' +
-  'px-3 text-[13px] text-rp-text outline-none ' +
-  'placeholder:text-rp-text-muted focus:border-rp-brand-border ' +
-  'focus:ring-2 focus:ring-rp-brand-strong/10';
-
-const BUTTON_CLASS =
-  'inline-flex h-9 items-center justify-center gap-2 rounded-lg ' +
-  'border border-rp-line bg-white px-3 text-[13px] ' +
-  'text-rp-text-2 transition hover:bg-rp-brand-tint ' +
-  'disabled:cursor-not-allowed disabled:opacity-50';
-
-function getName(mentor) {
-  return (
-    mentor.fullName ||
-    mentor.name ||
-    [mentor.lastName, mentor.firstName].filter(Boolean).join(' ') ||
-    mentor.email ||
-    'Cố vấn'
-  );
+function getName(m) {
+  return m.fullName || m.name || [m.lastName, m.firstName].filter(Boolean).join(' ') || m.email || 'Giáo viên';
 }
 
 function getInitials(name) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(-2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
+  return name.trim().split(/\s+/).slice(-2).map((p) => p[0]).join('').toUpperCase() || 'GV';
 }
 
-function Status({ active }) {
-  const { tr } = useLocale();
-  return (
-    <span
-      className={`inline-flex items-center gap-2 whitespace-nowrap
-        text-[13px] ${
-          active ? 'text-[#49745A]' : 'text-rp-text-muted'
-        }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`h-1.5 w-1.5 rounded-full ${
-          active ? 'bg-[#51956B]' : 'bg-[#A99AA1]'
-        }`}
-      />
-      {active ? tr('Hoạt động') : tr('Đã tắt')}
-    </span>
-  );
-}
-
-/* Dialog dùng chung: khóa cuộn nền, hỗ trợ Escape và giữ focus. */
-function Dialog({ titleId, onClose, children, wide = false }) {
-  const panelRef = useRef(null);
-  const closeRef = useRef(onClose);
-  useLayoutEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const panel = panelRef.current;
-    panel?.focus();
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        closeRef.current();
-        return;
-      }
-
-      if (event.key !== 'Tab' || !panel) return;
-
-      const focusable = [...panel.querySelectorAll(
-        'button:not([disabled]), input:not([disabled]), ' +
-        'select:not([disabled]), textarea:not([disabled]), ' +
-        'a[href], [tabindex="0"]',
-      )];
-
-      if (!focusable.length) {
-        event.preventDefault();
-        panel.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (
-        event.shiftKey &&
-        (document.activeElement === first ||
-          document.activeElement === panel)
-      ) {
-        event.preventDefault();
-        last.focus();
-      } else if (
-        !event.shiftKey &&
-        (document.activeElement === last ||
-          document.activeElement === panel)
-      ) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocus?.focus?.();
-    };
-  }, []);
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center
-                 justify-center bg-[#30242B]/35 p-4"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={`flex max-h-[90vh] w-full flex-col
-          overflow-hidden rounded-2xl bg-white
-          shadow-[0_16px_60px_rgba(48,36,43,0.16)]
-          outline-none ${wide ? 'max-w-[820px]' : 'max-w-[460px]'}`}
-      >
-        {children}
-      </section>
-    </div>
-  );
-}
-
-function ScheduleDialog({ mentor, onClose }) {
-  return (
-    <Dialog titleId="mentor-schedule-title" onClose={onClose} wide>
-      <AdminMentorScheduleCalendar mentorId={mentor.id} mentorName={getName(mentor)}
-        email={mentor.email} initials={getInitials(getName(mentor))} onClose={onClose} />
-    </Dialog>
-  );
-}
-export default function AdminConsultants({ embedded = false }) {
+export default function AdminConsultants() {
   const { tr, trf } = useLocale();
-  const { pathname } = useLocation();
-
   const queryClient = useQueryClient();
-  const mentorsQuery = useQuery({
-    queryKey: ADMIN_MENTORS_KEY,
-    queryFn: async () => unwrapApiList(await getAdminMentors()).map((mentor) => ({
-      ...mentor,
-      id: mentor.id ?? mentor.mentorId ?? mentor.userId,
-    })),
-  });
-  const mentors = useMemo(() => mentorsQuery.data ?? [], [mentorsQuery.data]);
-  const loading = mentorsQuery.isPending;
-  const error = mentorsQuery.isError ? 'Không thể tải danh sách cố vấn. Vui lòng thử lại.' : '';
-  const setMentors = useCallback((update) => {
-    queryClient.setQueryData(ADMIN_MENTORS_KEY, (current = []) => (typeof update === 'function' ? update(current) : update));
-  }, [queryClient]);
-  const [notice, setNotice] = useState('');
+
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [sortBy, setSortBy] = useState('name');
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [formError, setFormError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formErrors, setFormErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
 
-  const [scheduleMentor, setScheduleMentor] = useState(null);
   const [detailMentor, setDetailMentor] = useState(null);
-  const [changingStatus, setChangingStatus] = useState(false);
-  const [confirmStatus, setConfirmStatus] = useState(false);
-  const [detailError, setDetailError] = useState('');
+  const [scheduleMentor, setScheduleMentor] = useState(null);
+  const [toggleTarget, setToggleTarget] = useState(null);
 
-  const loadMentors = useCallback(() => mentorsQuery.refetch(), [mentorsQuery]);
+  const mentorsQuery = useQuery({
+    queryKey: [ADMIN_KEYS.mentors[0], statusFilter === 'all' || statusFilter === 'inactive'],
+    queryFn: async () =>
+      unwrapApiList(await getAdminMentors({ includeInactive: statusFilter !== 'active' })),
+  });
 
-  const filteredMentors = useMemo(() => {
-    const keyword = search.trim().toLocaleLowerCase('vi-VN');
+  const createMutation = useMutation({
+    mutationFn: (payload) => createAdminMentor(payload),
+    onSuccess: async (_, vars) => {
+      await invalidateAdminDomains(queryClient, ['mentors', 'users']);
+      setCreateOpen(false);
+      setForm(EMPTY_FORM);
+      setFormErrors({});
+      setSubmitError('');
+      notify.success(trf('Đã thêm Giáo viên {0}.', { 0: vars.fullName }), '', { key: 'admin-mentor-create', replace: true });
+    },
+    onError: (err) => {
+      const msg = describeApiError(err)?.message || tr('Không thể thêm Giáo viên.');
+      setSubmitError(msg);
+      notify.apiError(err, tr('Không thể thêm Giáo viên'), { key: 'admin-mentor-create-err', replace: true });
+    },
+  });
 
-    return mentors.filter((mentor) => {
-      const active = mentor.isActive !== false;
-      const matchStatus =
-        filter === 'all' ||
-        (filter === 'active' && active) ||
-        (filter === 'inactive' && !active);
-
-      const matchSearch = [
-        getName(mentor),
-        mentor.email,
-        mentor.phoneNumber,
-      ].some((value) =>
-        String(value || '').toLocaleLowerCase('vi-VN').includes(keyword),
+  const toggleMutation = useMutation({
+    mutationFn: ({ mentor, nextActive }) => setAdminMentorActive(mentor.id, nextActive),
+    onSuccess: async (_, { mentor, nextActive }) => {
+      await invalidateAdminDomains(queryClient, ['mentors', 'users']);
+      setToggleTarget(null);
+      if (detailMentor?.id === mentor.id) setDetailMentor((d) => (d ? { ...d, isActive: nextActive } : d));
+      notify.success(
+        nextActive ? trf('Đã kích hoạt lại {0}.', { 0: getName(mentor) }) : trf('Đã tạm khóa {0}.', { 0: getName(mentor) }),
+        '',
+        { key: 'admin-mentor-status', replace: true },
       );
+    },
+    onError: (err) => {
+      setToggleTarget(null);
+      notify.apiError(err, tr('Không thể cập nhật trạng thái Giáo viên'), { key: 'admin-mentor-status-err', replace: true });
+    },
+  });
 
-      return matchStatus && matchSearch;
+  const rawMentors = useMemo(() => mentorsQuery.data || [], [mentorsQuery.data]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = rawMentors.filter((m) => {
+      const active = m.isActive !== false;
+      if (statusFilter === 'active' && !active) return false;
+      if (statusFilter === 'inactive' && active) return false;
+      if (!q) return true;
+      return `${getName(m)} ${m.email || ''} ${m.phoneNumber || ''}`.toLowerCase().includes(q);
     });
-  }, [mentors, filter, search]);
 
-  const activeCount = mentors.filter(
-    (mentor) => mentor.isActive !== false,
-  ).length;
+    return [...rows].sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.createdDate || 0).getTime() - new Date(a.createdDate || 0).getTime() || b.id - a.id;
+      }
+      return getName(a).localeCompare(getName(b), 'vi') || a.id - b.id;
+    });
+  }, [rawMentors, search, statusFilter, sortBy]);
 
-  function updateForm(field, value) {
-    setForm((current) => ({ ...current, [field]: value }));
+  const pagination = usePagination(filtered, { initialPageSize: 10 });
+  const hasFilters = search.trim() !== '' || statusFilter !== 'active';
+
+  function validateCreate() {
+    const errors = {};
+    if (!form.fullName.trim()) errors.fullName = tr('Vui lòng nhập họ tên.');
+    const email = form.email.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = tr('Vui lòng nhập email hợp lệ.');
+    if (!form.password || form.password.length < 6) errors.password = tr('Mật khẩu cần ít nhất 6 ký tự.');
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
-  function closeCreate() {
-    if (!submitting) setShowCreate(false);
+  function handleCreate(e) {
+    e.preventDefault();
+    setSubmitError('');
+    if (!validateCreate()) return;
+    createMutation.mutate({
+      fullName: form.fullName.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      phoneNumber: form.phoneNumber.trim() || null,
+    });
   }
 
-  async function createMentor(event) {
-    event.preventDefault();
-    setFormError('');
-    setSubmitting(true);
-    setNotice('');
-
-    try {
-      await createAdminMentor({
-        ...form,
-        email: form.email.trim(),
-        fullName: form.fullName.trim(),
-        phoneNumber: form.phoneNumber.trim(),
-      });
-
-      setShowCreate(false);
-      setForm({ ...EMPTY_FORM });
-      setNotice('Đã thêm cố vấn.');
-      notify.success('Đã thêm cố vấn mới.', '', { key: 'admin-mentor-create' });
-      await loadMentors();
-    } catch (err) {
-      setFormError('Không thể thêm cố vấn. Vui lòng kiểm tra thông tin và thử lại.');
-      notify.apiError(err, 'Không thể thêm cố vấn', { key: 'admin-mentor-create-err' });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function openDetail(mentor) {
-    setDetailMentor(mentor);
-    setConfirmStatus(false);
-    setDetailError('');
-  }
-
-  function closeDetail() {
-    if (!changingStatus) {
-      setDetailMentor(null);
-      setConfirmStatus(false);
-    }
-  }
-
-  async function changeStatus() {
-    if (!detailMentor || changingStatus) return;
-    const nextActive = detailMentor.isActive === false;
-
-    setChangingStatus(true);
-    setDetailError('');
-
-    try {
-      await setAdminMentorActive(detailMentor.id, nextActive);
-
-      setMentors((current) =>
-        current.map((mentor) =>
-          mentor.id === detailMentor.id
-            ? { ...mentor, isActive: nextActive }
-            : mentor,
-        ),
-      );
-
-      setDetailMentor((current) => ({
-        ...current,
-        isActive: nextActive,
-      }));
-      setConfirmStatus(false);
-      const msg = nextActive ? 'Đã kích hoạt cố vấn.' : 'Đã vô hiệu hóa cố vấn.';
-      setNotice(msg);
-      notify.success(msg, '', { key: `admin-mentor-status-${detailMentor.id}` });
-    } catch (err) {
-      setDetailError(err.message || 'Không thể đổi trạng thái.');
-      notify.apiError(err, 'Không thể đổi trạng thái cố vấn', { key: 'admin-mentor-status-err' });
-    } finally {
-      setChangingStatus(false);
-    }
-  }
-
-  const page = (
-      <>
-        <header
-          className={`mb-4 flex flex-wrap items-center gap-3 ${
-            embedded ? 'justify-end' : 'justify-between'
-          }`}
-        >
-          {!embedded && (
-            <div>
-              <h1 className="text-[25px] font-semibold tracking-tight">
-                {tr('Quản lý cố vấn')}
-              </h1>
-              <p className="mt-1 text-[13px] text-rp-text-muted">
-                {tr('Hồ sơ và trạng thái tư vấn.')}
-              </p>
+  const columns = [
+    {
+      key: 'fullName',
+      header: tr('Giáo viên'),
+      render: (row) => {
+        const name = getName(row);
+        return (
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-xs font-bold text-rp-brand-strong">
+              {getInitials(name)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-rp-text">{name}</p>
+              <p className="truncate text-xs text-rp-text-muted">{row.email}</p>
             </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'phoneNumber',
+      header: tr('Liên hệ'),
+      render: (row) => <span className="text-sm text-rp-text-2">{row.phoneNumber || '—'}</span>,
+    },
+    {
+      key: 'verificationStatus',
+      header: tr('Hồ sơ'),
+      render: (row) => {
+        const meta = VERIFY_META[row.verificationStatus] || VERIFY_META.Unverified;
+        return <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>;
+      },
+    },
+    {
+      key: 'teachingLevels',
+      header: tr('Quyền dạy JLPT'),
+      render: (row) => (
+        row.teachingLevels?.length ? (
+          <div className="flex flex-wrap gap-1">
+            {row.teachingLevels.map((lvl) => (
+              <Badge key={lvl} tone="info" size="sm" icon={false}>{lvl}</Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-rp-text-muted">{tr('Chưa cấp quyền')}</span>
+        )
+      ),
+    },
+    {
+      key: 'isActive',
+      header: tr('Trạng thái'),
+      render: (row) => (
+        <Badge tone={row.isActive !== false ? 'success' : 'danger'} size="sm" icon={false}>
+          {row.isActive !== false ? tr('Hoạt động') : tr('Tạm khóa')}
+        </Badge>
+      ),
+    },
+  ];
+
+  return (
+    <div data-page="AdminConsultants" className="space-y-4">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="min-w-[210px] flex-1">
+            <Input
+              type="search"
+              icon={Search}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={tr('Tìm theo họ tên, email hoặc số điện thoại…')}
+              aria-label={tr('Tìm kiếm Giáo viên')}
+            />
+          </div>
+
+          <div className="w-full sm:w-[170px]">
+            <CustomSelect
+              value={statusFilter}
+              aria-label={tr('Lọc theo trạng thái')}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'active', label: tr('Đang hoạt động'), dot: '#22c55e' },
+                { value: 'inactive', label: tr('Tạm khóa'), dot: '#ef4444' },
+                { value: 'all', label: tr('Tất cả trạng thái') },
+              ]}
+            />
+          </div>
+
+          <div className="w-full sm:w-[160px]">
+            <CustomSelect
+              value={sortBy}
+              aria-label={tr('Sắp xếp danh sách')}
+              onChange={setSortBy}
+              options={[
+                { value: 'name', label: tr('Tên A–Z') },
+                { value: 'newest', label: tr('Mới nhất') },
+              ]}
+            />
+          </div>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={X}
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('active');
+              }}
+            >
+              {tr('Xóa bộ lọc')}
+            </Button>
           )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setForm({ ...EMPTY_FORM });
-              setFormError('');
-              setShowCreate(true);
+          <div className="ml-auto flex items-center gap-2">
+            <RefreshingIndicator active={mentorsQuery.isFetching && !mentorsQuery.isPending} />
+            <Button
+              icon={Plus}
+              onClick={() => {
+                setForm(EMPTY_FORM);
+                setFormErrors({});
+                setSubmitError('');
+                setCreateOpen(true);
+              }}
+            >
+              {tr('Thêm Giáo viên')}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {mentorsQuery.isPending ? (
+        <SakuraLoader variant="section" context="data" label={tr('Đang tải danh sách Giáo viên')} delay={140} />
+      ) : mentorsQuery.isError ? (
+        <ContextualErrorState
+          error={mentorsQuery.error}
+          title={tr('Chưa tải được danh sách Giáo viên')}
+          onRetry={() => mentorsQuery.refetch()}
+        />
+      ) : filtered.length === 0 ? (
+        <ContextualEmptyState
+          title={hasFilters ? tr('Không tìm thấy Giáo viên phù hợp') : tr('Chưa có Giáo viên nào')}
+          description={tr('Thêm tài khoản Giáo viên hoặc điều chỉnh bộ lọc trạng thái.')}
+          action={
+            hasFilters ? (
+              <Button variant="outline" onClick={() => { setSearch(''); setStatusFilter('active'); }}>
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : null
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          <DataTable
+            columns={columns}
+            rows={pagination.paginatedData}
+            rowKey={(row) => row.id}
+            rowActions={(row) => {
+              const active = row.isActive !== false;
+              return (
+                <div className="flex items-center justify-end gap-1">
+                  <IconButton
+                    icon={Eye}
+                    size="sm"
+                    variant="ghost"
+                    label={tr('Xem hồ sơ tóm tắt')}
+                    onClick={() => setDetailMentor(row)}
+                  />
+                  <IconButton
+                    icon={Calendar}
+                    size="sm"
+                    variant="ghost"
+                    label={tr('Xem lịch giảng dạy')}
+                    onClick={() => setScheduleMentor(row)}
+                  />
+                  <IconButton
+                    icon={active ? Lock : Unlock}
+                    size="sm"
+                    variant="ghost"
+                    label={active ? tr('Tạm khóa tài khoản') : tr('Kích hoạt lại')}
+                    onClick={() => setToggleTarget({ mentor: row, nextActive: !active })}
+                  />
+                </div>
+              );
             }}
-            className="inline-flex h-10 items-center gap-2
-                       rounded-[10px] bg-rp-brand-strong px-4
-                       text-[13px] font-medium text-white
-                       hover:bg-rp-brand-deep rp-press"
-          >
-            <Plus size={17} />
-            {tr('Thêm cố vấn')}
-          </button>
-        </header>
+          />
 
-        {notice && (
-          <div
-            role="status"
-            className="mb-4 flex items-center justify-between gap-3
-                       rounded-lg bg-[#EFF6F1] px-4 py-2.5
-                       text-[13px] text-[#49745A]"
-          >
-            <span>{notice}</span>
-            <button
-              type="button"
-              onClick={() => setNotice('')}
-              aria-label={tr('Đóng thông báo')}
-            >
-              <X size={16} />
-            </button>
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            totalItems={filtered.length}
+            onPageChange={pagination.setCurrentPage}
+            onPageSizeChange={pagination.setPageSize}
+            pageSizeOptions={[10, 20, 50]}
+            itemLabel={tr('Giáo viên')}
+          />
+        </div>
+      )}
+
+      {/* Create Mentor Modal */}
+      <Modal
+        open={createOpen}
+        onClose={() => !createMutation.isPending && setCreateOpen(false)}
+        title={tr('Thêm tài khoản Giáo viên')}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" disabled={createMutation.isPending} onClick={() => setCreateOpen(false)}>
+              {tr('Hủy')}
+            </Button>
+            <Button loading={createMutation.isPending} onClick={handleCreate}>
+              {tr('Tạo tài khoản')}
+            </Button>
           </div>
-        )}
+        }
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          {submitError && <Banner tone="danger">{submitError}</Banner>}
+          <Field label={tr('Họ và tên')} required error={formErrors.fullName}>
+            <Input
+              value={form.fullName}
+              onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+              placeholder={tr('Ví dụ: Sensei Takahashi')}
+              invalid={Boolean(formErrors.fullName)}
+            />
+          </Field>
+          <Field label={tr('Email')} required error={formErrors.email}>
+            <Input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              placeholder="teacher@rikipath.local"
+              invalid={Boolean(formErrors.email)}
+            />
+          </Field>
+          <Field label={tr('Mật khẩu tạm thời')} required error={formErrors.password} hint={tr('Ít nhất 6 ký tự.')}>
+            <Input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              invalid={Boolean(formErrors.password)}
+            />
+          </Field>
+          <Field label={tr('Số điện thoại')}>
+            <Input
+              value={form.phoneNumber}
+              onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+            />
+          </Field>
+        </form>
+      </Modal>
 
-        <section
-          aria-label={tr('Danh sách cố vấn')}
-          className="overflow-hidden rounded-xl border
-                     border-rp-line bg-white"
-        >
-          <div
-            className="flex flex-wrap items-center justify-between
-                       gap-3 border-b border-rp-line px-5 py-3.5"
-          >
-            <p className="text-[13px] text-rp-text-muted">
-              {loading && !mentors.length ? (
-                <SakuraLoader variant="inline" size={16} context="cohort" />
-              ) : (
-                <>
-                  <span className="font-medium text-rp-text-2">
-                   {trf('{0} cố vấn', { 0: mentors.length })}
-                  </span>
-                  <span className="mx-2 text-rp-text-muted">·</span>
-                  {activeCount}{' '}{tr('đang hoạt động')}
-                </>
-              )}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search
-                  size={16}
-                  className="pointer-events-none absolute left-3
-                             top-1/2 -translate-y-1/2 text-rp-text-muted"
-                />
-                <input
-                  type="search"
-                  aria-label={tr('Tìm cố vấn')}
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={tr('Tên, email, số điện thoại...')}
-                  className="h-9 w-[240px] rounded-lg border
-                             border-rp-line bg-rp-brand-tint
-                             pl-9 pr-3 text-[12px] outline-none
-                             focus:border-rp-brand-border
-                             focus:ring-2 focus:ring-rp-brand-strong/10"
-                />
-              </div>
-
-              <Select
-                aria-label={tr('Lọc trạng thái cố vấn')}
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
-                className="!h-9 !w-auto !rounded-lg !px-3 !pr-8 !text-[12px]"
+      {/* Mentor Quick Detail Drawer */}
+      <Drawer
+        open={Boolean(detailMentor)}
+        onClose={() => setDetailMentor(null)}
+        title={detailMentor ? getName(detailMentor) : ''}
+        description={detailMentor?.email}
+        size="md"
+        footer={
+          detailMentor && (
+            <div className="flex flex-wrap justify-between gap-2">
+              <Link
+                to={`/admin/mentor-verifications/?mentorId=${detailMentor.id}`}
+                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input border border-rp-line bg-white px-3.5 text-sm font-medium text-rp-text hover:border-rp-brand-border"
               >
-                <option value="all">{tr('Mọi trạng thái')}</option>
-                <option value="active">{tr('Hoạt động')}</option>
-                <option value="inactive">{tr('Đã tắt')}</option>
-              </Select>
-
-              <RefreshingIndicator active={loading && mentors.length > 0} />
-              <button
-                type="button"
-                onClick={loadMentors}
-                disabled={loading}
-                aria-label={tr('Tải lại danh sách')}
-                title={tr('Tải lại')}
-                className="flex h-9 w-9 items-center justify-center
-                           rounded-lg text-rp-text-muted
-                           hover:bg-rp-brand-tint disabled:opacity-50"
+                {tr('Mở hồ sơ xét duyệt')}
+              </Link>
+              <Link
+                to="/admin/mentor-qualifications/"
+                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
               >
-                {loading ? <SakuraLoader variant="inline" size={16} /> : <RefreshCw size={16} />}
-              </button>
+                <GraduationCap className="h-4 w-4" />
+                <span>{tr('Phân quyền JLPT')}</span>
+              </Link>
             </div>
-          </div>
-
-          {error ? (
-            <div role="alert" className="px-5 py-10 text-center">
-              <p className="text-[13px] text-rp-brand-strong">{error}</p>
-              <button
-                type="button"
-                onClick={loadMentors}
-                className="mt-3 text-[13px] text-rp-brand-strong underline"
-              >
-                {tr('Thử lại')}
-              </button>
-            </div>
-          ) : (
-            <div data-density="compact" className="rp-scroll-x">
-              <table
-                aria-busy={loading}
-                className="w-full min-w-[700px] table-fixed text-left"
-              >
-                <colgroup>
-                  <col className="w-[43%]" />
-                  <col className="w-[19%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[20%]" />
-                </colgroup>
-
-                <thead className="bg-rp-bg-2 text-[12px] text-rp-text-muted">
-                  <tr>
-                    <th scope="col" className="px-5 py-3 font-medium">
-                      {tr('Cố vấn')}
-                    </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      {tr('Số điện thoại')}
-                    </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      {tr('Trạng thái')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-5 py-3 text-right font-medium"
-                    >
-                      {tr('Thao tác')}
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-rp-line">
-                  {loading && mentors.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center">
-                        <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách cố vấn')} className="min-h-[120px] py-4" delay={160} />
-                      </td>
-                    </tr>
-                  ) : filteredMentors.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-12 text-center">
-                        <p className="text-[14px] text-rp-text-2">
-                          {tr('Không có cố vấn phù hợp')}
-                        </p>
-                        <p className="mt-1 text-[12px] text-rp-text-muted">
-                          {tr('Thử thay đổi từ khóa hoặc bộ lọc.')}
-                        </p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredMentors.map((mentor) => {
-                      const name = getName(mentor);
-
-                      return (
-                        <tr key={mentor.id} className="hover:bg-rp-bg-2">
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <div
-                                aria-hidden="true"
-                                className="flex h-9 w-9 shrink-0
-                                           items-center justify-center
-                                           rounded-xl bg-rp-brand-soft
-                                           text-[12px] font-medium
-                                           text-rp-brand-strong"
-                              >
-                                {getInitials(name)}
-                              </div>
-
-                              <div className="min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() => openDetail(mentor)}
-                                  title={name}
-                                  className="block max-w-full truncate
-                                             text-left text-[14px]
-                                             font-medium hover:text-rp-brand-strong"
-                                >
-                                  {name}
-                                </button>
-
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span
-                                    title={mentor.email}
-                                    className="truncate text-[12px] text-rp-text-muted"
-                                  >
-                                    {mentor.email || '—'}
-                                  </span>
-                                  {mentor.isEmailVerified && (
-                                    <span
-                                      role="img"
-                                      aria-label={tr('Email đã xác thực')}
-                                      title={tr('Email đã xác thực')}
-                                      className="shrink-0 text-[#629171]"
-                                    >
-                                      <CheckCircle2 size={13} />
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="px-4 py-3.5 text-[13px] text-rp-text-muted">
-                            {mentor.phoneNumber || '—'}
-                          </td>
-
-                          <td className="px-4 py-3.5">
-                            <Status active={mentor.isActive !== false} />
-                          </td>
-
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setScheduleMentor(mentor)}
-                                className="inline-flex items-center gap-1.5
-                                           whitespace-nowrap rounded-md
-                                           px-2 py-1.5 text-[12px]
-                                           text-rp-brand-strong hover:bg-rp-brand-soft"
-                              >
-                                <Calendar size={14} />
-                                {tr('Xem lịch')}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => openDetail(mentor)}
-                                aria-label={trf('Chi tiết {0}', { 0: name })}
-                                title={tr('Chi tiết và trạng thái')}
-                                className="rounded-md p-1.5
-                                           text-rp-text-muted hover:bg-rp-brand-soft"
-                              >
-                                <MoreHorizontal size={18} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!loading && !error && (
-            <div
-              className="border-t border-rp-line px-5 py-2.5
-                         text-[12px] text-rp-text-muted"
-            >
-             {trf('Hiển thị {0}/{1} cố vấn', { 0: filteredMentors.length, 1: mentors.length })}
-            </div>
-          )}
-        </section>
-
-        {showCreate && (
-          <Dialog titleId="add-mentor-title" onClose={closeCreate}>
-            <header
-              className="flex items-center justify-between
-                         border-b border-rp-line px-5 py-4"
-            >
-              <h2 id="add-mentor-title" className="text-[17px] font-semibold">
-                {tr('Thêm cố vấn')}
-              </h2>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={closeCreate}
-                aria-label={tr('Đóng')}
-                className="rounded-lg p-1 text-rp-text-muted hover:bg-rp-brand-tint"
-              >
-                <X size={18} />
-              </button>
-            </header>
-
-            <form onSubmit={createMentor} className="overflow-y-auto p-5">
-              <fieldset disabled={submitting} className="space-y-4">
-                <label className="block">
-                  <span className="mb-1.5 block text-[13px]">{tr('Họ và tên')}</span>
-                  <input
-                    value={form.fullName}
-                    onChange={(event) => updateForm('fullName', event.target.value)}
-                    placeholder={tr('Nguyễn Minh Anh')}
-                    className={INPUT_CLASS}
-                    autoComplete="name"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1.5 block text-[13px]">Email *</span>
-                  <input
-                    required
-                    type="email"
-                    autoComplete="email"
-                    value={form.email}
-                    onChange={(event) => updateForm('email', event.target.value)}
-                    placeholder="ten@example.com"
-                    className={INPUT_CLASS}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1.5 block text-[13px]">
-                    {tr('Mật khẩu khởi tạo *')}
-                  </span>
-                  <input
-                    required
-                    type="password"
-                    minLength={6}
-                    autoComplete="new-password"
-                    value={form.password}
-                    onChange={(event) => updateForm('password', event.target.value)}
-                    className={INPUT_CLASS}
-                  />
-                  <span className="mt-1 block text-[11px] text-rp-text-muted">
-                    {tr('Tối thiểu 6 ký tự theo form hiện tại.')}
-                  </span>
-                </label>
-
-                <label className="block">
-                  <span className="mb-1.5 block text-[13px]">
-                    {tr('Số điện thoại')}
-                  </span>
-                  <input
-                    type="tel"
-                    autoComplete="tel"
-                    value={form.phoneNumber}
-                    onChange={(event) =>
-                      updateForm('phoneNumber', event.target.value)
-                    }
-                    className={INPUT_CLASS}
-                  />
-                </label>
-              </fieldset>
-
-              {formError && (
-                <p
-                  role="alert"
-                  className="mt-4 rounded-lg bg-rp-brand-tint
-                             px-3 py-2 text-[12px] text-rp-brand-strong"
-                >
-                  {formError}
-                </p>
-              )}
-
-              <footer
-                className="mt-5 flex justify-end gap-2
-                           border-t border-rp-line pt-4"
-              >
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={closeCreate}
-                  className={BUTTON_CLASS}
-                >
-                  {tr('Hủy')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="h-9 rounded-lg bg-rp-brand-strong px-4
-                             text-[13px] text-white hover:bg-rp-brand-deep
-                             disabled:opacity-50 rp-press"
-                >
-                  {submitting ? tr('Đang thêm…') : tr('Thêm cố vấn')}
-                </button>
-              </footer>
-            </form>
-          </Dialog>
-        )}
-
+          )
+        }
+      >
         {detailMentor && (
-          <Dialog titleId="mentor-detail-title" onClose={closeDetail}>
-            <header
-              className="flex items-center justify-between
-                         border-b border-rp-line px-5 py-4"
-            >
-              <h2 id="mentor-detail-title" className="text-[17px] font-semibold">
-                {tr('Thông tin cố vấn')}
-              </h2>
-              <button
-                type="button"
-                disabled={changingStatus}
-                onClick={closeDetail}
-                aria-label={tr('Đóng chi tiết')}
-                className="rounded-lg p-1 text-rp-text-muted hover:bg-rp-brand-tint"
-              >
-                <X size={18} />
-              </button>
-            </header>
-
-            <div className="overflow-y-auto p-5">
-              <p className="text-[16px] font-medium">{getName(detailMentor)}</p>
-              <div className="mt-2">
-                <Status active={detailMentor.isActive !== false} />
-              </div>
-
-              <dl className="mt-5 space-y-3 text-[13px]">
-                {[
-                  ['Mã hồ sơ', detailMentor.id],
-                  ['Email', detailMentor.email],
-                  ['Số điện thoại', detailMentor.phoneNumber],
-                  [
-                    'Xác thực email',
-                    detailMentor.isEmailVerified === true
-                      ? 'Đã xác thực'
-                      : detailMentor.isEmailVerified === false
-                        ? 'Chưa xác thực'
-                        : 'Chưa có thông tin',
-                  ],
-                  [
-                    'Ngày tạo',
-                    detailMentor.createdAt &&
-                    !Number.isNaN(new Date(detailMentor.createdAt).getTime())
-                      ? new Date(detailMentor.createdAt).toLocaleDateString(currentIntlTag())
-                      : null,
-                  ],
-                ].map(([label, value]) => (
-                  <div key={label} className="grid grid-cols-[120px_1fr] gap-3">
-                    <dt className="text-rp-text-muted">{tr(label)}</dt>
-                    <dd className="break-words text-rp-text-2">
-                      {value ?? '—'}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-
-              {detailError && (
-                <p role="alert" className="mt-4 text-[12px] text-rp-brand-strong">
-                  {detailError}
-                </p>
-              )}
-
-              <div className="mt-5 border-t border-rp-line pt-4">
-                {confirmStatus ? (
-                  <div className="rounded-lg bg-rp-brand-tint p-3">
-                    <p className="text-[13px] text-rp-text-2">
-                      {detailMentor.isActive === false
-                        ? tr('Kích hoạt lại cố vấn này?')
-                        : tr('Vô hiệu hóa cố vấn này?')}
-                    </p>
-                    <div className="mt-3 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        disabled={changingStatus}
-                        onClick={() => setConfirmStatus(false)}
-                        className={BUTTON_CLASS}
-                      >
-                        {tr('Hủy')}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={changingStatus}
-                        onClick={changeStatus}
-                        className="h-9 rounded-lg bg-rp-brand-strong px-3
-                                   text-[13px] text-white disabled:opacity-50 rp-press"
-                      >
-                        {changingStatus ? tr('Đang xử lý…') : tr('Xác nhận')}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      disabled={detailMentor.id == null}
-                      onClick={() => setConfirmStatus(true)}
-                      className="text-[12px] text-rp-brand-strong disabled:opacity-40"
-                    >
-                      {detailMentor.isActive === false
-                        ? tr('Kích hoạt cố vấn')
-                        : tr('Vô hiệu hóa cố vấn')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={closeDetail}
-                      className={BUTTON_CLASS}
-                    >
-                      {tr('Đóng')}
-                    </button>
-                  </div>
-                )}
-              </div>
+          <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={detailMentor.isActive !== false ? 'success' : 'danger'} size="sm" icon={false}>
+                {detailMentor.isActive !== false ? tr('Hoạt động') : tr('Tạm khóa')}
+              </Badge>
+              <Badge tone={(VERIFY_META[detailMentor.verificationStatus] || VERIFY_META.Unverified).tone} size="sm" icon={false}>
+                {tr((VERIFY_META[detailMentor.verificationStatus] || VERIFY_META.Unverified).label)}
+              </Badge>
+              {detailMentor.jlptLevel && <Badge tone="brand" size="sm" icon={false}>JLPT: {detailMentor.jlptLevel}</Badge>}
             </div>
-          </Dialog>
-        )}
 
+            <dl className="space-y-3 rounded-2xl border border-rp-line bg-rp-bg-2/50 p-4">
+              <div className="flex justify-between gap-3">
+                <dt className="text-rp-text-muted">{tr('Email')}</dt>
+                <dd className="font-medium text-rp-text">{detailMentor.email}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-rp-text-muted">{tr('Số điện thoại')}</dt>
+                <dd className="font-medium text-rp-text">{detailMentor.phoneNumber || '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-rp-text-muted">{tr('Ngày tạo')}</dt>
+                <dd className="font-medium text-rp-text">
+                  {detailMentor.createdDate ? formatVnDateTime(detailMentor.createdDate) : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-rp-text-muted">{tr('Quyền giảng dạy đang hoạt động')}</dt>
+                <dd className="mt-1.5 flex flex-wrap gap-1.5">
+                  {detailMentor.teachingLevels?.length ? (
+                    detailMentor.teachingLevels.map((lvl) => (
+                      <Badge key={lvl} tone="info" size="sm" icon={false}>{lvl}</Badge>
+                    ))
+                  ) : (
+                    <span className="text-xs text-rp-text-muted">{tr('Chưa cấp quyền giảng dạy')}</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        )}
+      </Drawer>
+
+      {/* Mentor Schedule Calendar Modal */}
+      <Modal
+        open={Boolean(scheduleMentor)}
+        onClose={() => setScheduleMentor(null)}
+        title={scheduleMentor ? `${tr('Lịch giảng dạy')}: ${getName(scheduleMentor)}` : ''}
+        size="xl"
+      >
         {scheduleMentor && (
-          <ScheduleDialog
-            mentor={scheduleMentor}
+          <AdminMentorScheduleCalendar
+            mentorId={scheduleMentor.id}
+            mentorName={getName(scheduleMentor)}
+            email={scheduleMentor.email}
+            initials={getInitials(getName(scheduleMentor))}
             onClose={() => setScheduleMentor(null)}
           />
         )}
-      </>
-  );
+      </Modal>
 
-  if (embedded) {
-    return <div className="text-rp-text">{page}</div>;
-  }
-
-  return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Cố vấn')}>
-      <main className="rp-container py-6 text-rp-text lg:py-8">
-        {page}
-      </main>
-    </AdminShell>
+      {/* Activate / Deactivate Confirm */}
+      <AlertDialog
+        open={Boolean(toggleTarget)}
+        onClose={() => setToggleTarget(null)}
+        onConfirm={() => toggleTarget && toggleMutation.mutate(toggleTarget)}
+        loading={toggleMutation.isPending}
+        tone={toggleTarget?.nextActive ? 'info' : 'danger'}
+        title={toggleTarget?.nextActive ? tr('Kích hoạt lại Giáo viên?') : tr('Tạm khóa tài khoản Giáo viên?')}
+        description={
+          toggleTarget?.nextActive
+            ? trf('Giáo viên "{0}" có thể đăng nhập và giảng dạy trở lại.', { 0: getName(toggleTarget.mentor) })
+            : trf('Nếu Giáo viên đang có lớp học hoặc lịch đã có học viên đặt, hệ thống sẽ chặn thao tác để bảo vệ lịch học.', {
+                0: getName(toggleTarget?.mentor || {}),
+              })
+        }
+        confirmLabel={toggleTarget?.nextActive ? tr('Kích hoạt') : tr('Tạm khóa')}
+      />
+    </div>
   );
 }

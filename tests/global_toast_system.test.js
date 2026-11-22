@@ -290,7 +290,7 @@ describe('Global toast architecture & domain safety contracts', () => {
 
   it('verifies auth logout flash, login toast, and network vs credential auth error distinction', () => {
     const authCtx = readSrc('src/app/auth/AuthContext.jsx');
-    assert.match(authCtx, /notify\.flash\('success',\s*'Bạn đã đăng xuất thành công\.'/);
+    assert.match(authCtx, /notify\.flash\([\s\S]*?'Bạn đã đăng xuất thành công\.'/);
     assert.match(authCtx, /if\s*\(\s*getSession\(\)\s*\)/);
 
     const signIn = readSrc('src/pages/auth/useCompleteSignIn.js');

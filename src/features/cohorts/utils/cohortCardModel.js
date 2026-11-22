@@ -1,6 +1,6 @@
 // Dữ liệu hiển thị của thẻ lớp (thuần JS, dùng chung Web + kiểm thử). Chỉ định dạng dữ liệu Backend trả về.
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
-import { translateTemplate, currentIntlTag } from '@/locales/locale.js';
+import { translateTemplate, translateText, currentIntlTag } from '@/locales/locale.js';
 
 const WEEKDAY_LABELS = { 1: 'Thứ 2', 2: 'Thứ 3', 3: 'Thứ 4', 4: 'Thứ 5', 5: 'Thứ 6', 6: 'Thứ 7', 0: 'Chủ nhật' };
 const INTENSITY_TONE = { Light: 'intensity-light', Standard: 'intensity-standard', Advanced: 'intensity-advanced' };
@@ -11,7 +11,7 @@ export const fmtDate = (v) => (v ? formatVnDateTime(v, '—') : '—');
 /** "Thứ 2, Thứ 4 · 19:00–20:30" (nhóm theo khung giờ). */
 export function schedulePatternText(pattern = [], sessions = []) {
   if (!pattern?.length) {
-    if (!sessions?.length) return 'Chưa có lịch cụ thể';
+    if (!sessions?.length) return translateText('Chưa có lịch cụ thể');
     const fmt = new Intl.DateTimeFormat(currentIntlTag(), { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short' });
     return [...new Set(sessions.map((s) => fmt.format(parseUtcDate(s.startTime))))].join(', ');
   }
@@ -21,7 +21,7 @@ export function schedulePatternText(pattern = [], sessions = []) {
     .sort((a, b) => order(a.weekday) - order(b.weekday))
     .forEach((p) => {
       const time = `${p.localStart}–${p.localEnd}`;
-      const label = p.weekdayLabel || WEEKDAY_LABELS[p.weekday] || translateTemplate('Thứ {0}', { 0: p.weekday + 1 });
+      const label = p.weekdayLabel || (WEEKDAY_LABELS[p.weekday] ? translateText(WEEKDAY_LABELS[p.weekday]) : translateTemplate('Thứ {0}', { 0: p.weekday + 1 }));
       groups.set(time, [...(groups.get(time) || []), label]);
     });
   return [...groups.entries()].map(([time, days]) => `${days.join(', ')} · ${time}`).join('; ');
@@ -51,7 +51,7 @@ export function cohortCardFacts(cohort) {
   const weeks = cohort.sessionsPerWeek ? Math.round(totalSessions / cohort.sessionsPerWeek) : null;
   return [
     ['Cấp độ JLPT', cohort.level || '—'],
-    ['Mentor', cohort.mentorName || '—'],
+    ['Giáo viên', cohort.mentorName || '—'],
     ['Lịch hằng tuần', schedulePatternText(cohort.schedulePattern, cohort.sessions)],
     ['Thời lượng buổi', cohort.sessionMinutes ? translateTemplate('{0} phút/buổi', { 0: cohort.sessionMinutes }) : '—'],
     ['Tổng số buổi', !totalSessions ? '—' : translateTemplate('{0} buổi{1}', { 0: totalSessions, 1: cohort.totalTeachingHours != null ? translateTemplate(' · {0} giờ', { 0: cohort.totalTeachingHours }) : '' })],

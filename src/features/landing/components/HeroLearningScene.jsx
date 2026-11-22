@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CalendarCheck, RotateCw } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
 import { StudyIllustration } from './StudyIllustrations.jsx';
+import HeroScenicSlideshow from './HeroScenicSlideshow.jsx';
 
 const MAX_TILT = 5; // degrees — subtle, never a "spinning card"
 const LEVELS = ['N5', 'N4', 'N3', 'N2'];
@@ -57,11 +58,14 @@ export default function HeroLearningScene() {
   return (
     <div ref={stageRef} data-idle className="lp-stage relative mx-auto w-full max-w-[640px] lg:mx-0 lg:ml-auto" data-intro="stage" style={{ '--d': '260ms' }}>
       <div ref={innerRef} className="lp-stage-inner relative">
-        {/* The landscape itself is the hero's full-bleed background (HeroScenicSlideshow in HomeLanding).
-            This spacer only reserves the stage area (fixed ratio → no CLS); the centre stays open so the
-            photo's subject (Fuji / pagoda) remains visible between the floating cards. */}
-        <div aria-hidden="true" className="aspect-[4/5] w-full sm:aspect-[6/5] lg:aspect-[1/1] xl:aspect-[6/5.4]" />
-        <span lang="ja" aria-hidden="true" className="rp-kanji lp-hero-vertical absolute right-1 top-2 hidden text-[13px] tracking-[0.3em] text-white [writing-mode:vertical-rl] sm:block">日本語の道</span>
+        {/* Scenic frame: the landscape slideshow fills ONLY this rounded box (object-fit: cover), behind the
+            floating cards. The fixed aspect ratio reserves space (no CLS); a soft gradient lifts the cards. */}
+        <div className="lp-scenic-frame relative overflow-hidden rounded-[28px] sm:rounded-[32px]">
+          <div aria-hidden="true" className="aspect-[4/5] w-full sm:aspect-[6/5] lg:aspect-[1/1] xl:aspect-[6/5.4]" />
+          <HeroScenicSlideshow className="absolute inset-0" sizes="(min-width: 1024px) 640px, 92vw" />
+          <div aria-hidden="true" className="lp-scenic-shade absolute inset-0" />
+          <span lang="ja" aria-hidden="true" className="rp-kanji lp-hero-vertical absolute right-5 top-5 hidden text-[13px] tracking-[0.3em] text-white [writing-mode:vertical-rl] sm:block">日本語の道</span>
+        </div>
 
         {/* Sakura branch (original SVG) framing the top edge of the stage */}
         <svg aria-hidden="true" viewBox="0 0 260 120" className="lp-branch pointer-events-none absolute -top-6 left-[22%] hidden w-[44%] sm:block">
@@ -145,7 +149,7 @@ export default function HeroLearningScene() {
         </div>
 
         {/* Group class card — bottom-right */}
-        <div className="lp-depth-2 absolute bottom-0 right-0 w-[min(250px,62%)] sm:right-[2%]" data-intro="pop" style={{ '--d': '880ms' }} role="img" aria-label={tr('Minh họa lớp nhóm cùng Mentor: 10 tuần, 90 phút mỗi buổi, 1 đến 4 học viên')}>
+        <div className="lp-depth-2 absolute bottom-0 right-0 w-[min(250px,62%)] sm:right-[2%]" data-intro="pop" style={{ '--d': '880ms' }} role="img" aria-label={tr('Minh họa lớp nhóm cùng Giáo viên: 10 tuần, 90 phút mỗi buổi, 1 đến 4 học viên')}>
           <div className="lp-bob rounded-[18px] border border-white/70 bg-white/95 p-3.5 shadow-[0_22px_44px_-20px_rgba(90,30,55,0.38)]" style={{ '--bob': '3.4s' }}>
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-tone-mentor"><StudyIllustration name="group" size={22} /> {tr('Lớp nhóm')}</p>
@@ -153,7 +157,7 @@ export default function HeroLearningScene() {
                 {['#F2A2B8', '#9CC4E8', '#B9DDB0', '#F6D49A'].map((c) => <span key={c} className="h-5 w-5 rounded-full border-2 border-white" style={{ background: c }} />)}
               </span>
             </div>
-            <p className="mt-2 text-[13.5px] font-bold text-rp-text">{tr('Học cùng Mentor')}</p>
+            <p className="mt-2 text-[13.5px] font-bold text-rp-text">{tr('Học cùng Giáo viên')}</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-rp-text-muted"><CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" /> {tr('10 tuần · 90 phút/buổi · 1–4 học viên')}</p>
           </div>
         </div>

@@ -11,7 +11,7 @@ import {
   useUnreadCountQuery,
 } from '@/features/notifications/hooks/useNotification.js';
 import { notificationDestination } from '@/features/notifications/utils/notificationDedupe.js';
-import { EmptyState, ErrorState, IconButton, Popover, SakuraLoader, cx, notify } from '@/components/ui';
+import { EmptyState, ErrorState, HeaderIconBadge, IconButton, Popover, SakuraLoader, cx, notify } from '@/components/ui';
 
 /**
  * Notification Center: bell + popover list wired to /api/Notification, realtime via the
@@ -72,7 +72,7 @@ export default function NotificationCenter() {
   return (
     <Popover
       label={tr('Thông báo')}
-      panelClassName="w-[min(360px,calc(100vw-24px))]"
+      panelClassName="max-sm:fixed max-sm:left-3 max-sm:right-3 max-sm:top-[calc(var(--spacing-rp-topbar)+6px)] sm:w-[348px]"
       onOpenChange={setOpen}
       trigger={({ toggle, props }) => {
         return (
@@ -82,12 +82,12 @@ export default function NotificationCenter() {
             label={unreadCount > 0 ? `${tr('Thông báo')}: ${unreadCount} ${tr('chưa đọc')}` : tr('Thông báo')}
             onClick={toggle}
             variant="outline"
-            className="rp-bell-trigger"
+            className="rp-bell-trigger shadow-rp-xs"
             badge={
               unreadCount > 0 && (
-                <span className="rp-bell-badge-ping absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rp-brand-pressed px-1 text-[10px] font-bold leading-none text-white ring-2 ring-rp-surface">
+                <HeaderIconBadge pulse>
                   {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
+                </HeaderIconBadge>
               )
             }
           />
@@ -96,7 +96,7 @@ export default function NotificationCenter() {
     >
       {({ close }) => (
         <div>
-          <div className="flex items-center justify-between border-b border-rp-line px-4 py-3">
+          <div className="flex items-center justify-between border-b border-rp-line px-3.5 py-2.5">
             <p className="text-sm font-bold text-rp-text">{tr('Thông báo')}</p>
             {unreadCount > 0 && (
               <button
@@ -130,7 +130,7 @@ export default function NotificationCenter() {
                   <button
                     type="button"
                     onClick={() => openItem(item, close)}
-                    className="rp-focus flex w-full items-start gap-3 border-b border-rp-line px-4 py-3 text-left last:border-0 hover:bg-rp-bg-2"
+                    className="rp-focus flex w-full items-start gap-2.5 border-b border-rp-line px-3.5 py-2.5 text-left last:border-0 hover:bg-rp-bg-2"
                   >
                     <span aria-hidden="true" className={cx('mt-1.5 h-2 w-2 shrink-0 rounded-full', item.isRead ? 'bg-transparent' : 'bg-rp-brand')} />
                     <span className="min-w-0 flex-1">

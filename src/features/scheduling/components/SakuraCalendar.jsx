@@ -1,15 +1,18 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Calendar as CalendarIcon,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock,
+  Eye,
+  List,
   RefreshCw,
   X,
 } from 'lucide-react';
 import { Modal, Popover } from '@/components/ui/overlay.jsx';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
+import { StatusDotListbox } from '@/features/scheduling/components/ScheduleFilterControls.jsx';
 import { useLocale } from '@/locales/locale.js';
 import {
   buildMonthMatrix,
@@ -116,6 +119,7 @@ const TimeGridEvent = memo(function TimeGridEvent({ event, firstHour, hourHeight
   return (
     <button
       type="button"
+      title={`${event.fullTitle || event.title} · ${timeRangeText(event)} · ${tr(event.statusLabel || meta.label)}`}
       onClick={(e) => {
         e.stopPropagation();
         if (event.onClick) {
@@ -124,19 +128,19 @@ const TimeGridEvent = memo(function TimeGridEvent({ event, firstHour, hourHeight
           onSelect?.(event);
         }
       }}
-      className={`group absolute overflow-hidden rounded-lg px-2 py-1 text-left transition-all duration-150 hover:z-30 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/40 ${event.className || meta.card}`}
+      className={`group absolute flex flex-col justify-between overflow-hidden rounded-xl px-2.5 py-1.5 text-left transition-all duration-150 hover:z-30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/40 ${event.className || meta.card}`}
       style={{ top, height, width, left, zIndex: z }}
       aria-label={`${event.title} (${timeRangeText(event)})`}
     >
-      <div className="flex items-center gap-1.5">
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
-        <span className={`truncate text-[11.5px] font-semibold leading-tight ${event.tone === 'cancelled' ? 'line-through' : ''}`}>
+      <div className="flex items-start gap-1.5">
+        <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
+        <span className={`line-clamp-2 text-[11.5px] font-bold leading-snug ${event.tone === 'cancelled' ? 'line-through' : ''}`}>
           {tr(event.title)}
         </span>
       </div>
       {height >= 36 && (
-        <span className="mt-0.5 block truncate text-[10px] font-medium tabular-nums opacity-80">
-          {timeRangeText(event)}{event.detail ? ` · ${event.detail}` : ''}
+        <span className="mt-0.5 block truncate text-[10px] font-medium tabular-nums opacity-85">
+          {timeRangeText(event)}{event.detail && event.detail !== timeRangeText(event) ? ` · ${event.detail}` : ''}
         </span>
       )}
     </button>
@@ -185,7 +189,7 @@ function MiniMonthPicker({ anchorKey, todayKey, eventsByDay, onPickDay }) {
               onClick={() => onPickDay(cell.key)}
               className={`relative flex h-8 flex-col items-center justify-center rounded-lg text-[12px] transition-colors ${
                 isSelected
-                  ? 'bg-rp-brand-strong font-bold text-white shadow-xs'
+                  ? 'bg-rp-brand-pressed font-bold text-white shadow-xs'
                   : cell.isToday
                     ? 'bg-rp-brand-tint font-bold text-rp-brand-strong'
                     : cell.inCurrentMonth
@@ -197,7 +201,7 @@ function MiniMonthPicker({ anchorKey, todayKey, eventsByDay, onPickDay }) {
               {hasEvents && (
                 <span
                   aria-hidden="true"
-                  className={`mt-0.5 h-1 w-1 rounded-full ${isSelected ? 'bg-white' : 'bg-rp-brand-strong'}`}
+                  className={`mt-0.5 h-1 w-1 rounded-full ${isSelected ? 'bg-white' : 'bg-rp-brand-pressed'}`}
                 />
               )}
             </button>
@@ -215,6 +219,7 @@ function MiniMonthPicker({ anchorKey, todayKey, eventsByDay, onPickDay }) {
  */
 export default function SakuraCalendar({
   events = [],
+  audience = 'mentor', // 'mentor' | 'learner'
   anchorKey: controlledAnchorKey,
   onAnchorChange,
   view: controlledView,
@@ -228,6 +233,9 @@ export default function SakuraCalendar({
   onEmptySlotClick,
   renderEventActions,
   showToneFilter = true,
+  agendaSortSmart = false,
+  agendaShowAllDates = false,
+  toolbarExtra = null,
   emptyTitle = 'Chưa có lịch nào trong khoảng thời gian đang xem.',
   emptyDescription = 'Bạn có thể chuyển sang tuần/tháng khác hoặc bấm Làm mới để cập nhật.',
   className = '',
@@ -283,7 +291,7 @@ export default function SakuraCalendar({
     return map;
   }, [filteredEvents]);
 
-  const range = useMemo(() => getViewDateRange(anchorKey, view), [anchorKey, view]);
+  const range = useMemo(() => getViewDateRange(anchorKey, view, audience), [anchorKey, view, audience]);
   const weekDays = useMemo(
     () => (view === 'day'
       ? buildWeekDays(anchorKey, todayKey).filter((d) => d.key === anchorKey)
@@ -296,14 +304,21 @@ export default function SakuraCalendar({
   );
   const agendaGroups = useMemo(
     () => (view === 'agenda'
-      ? groupAgendaEvents(filteredEvents, { startKey: range.startKey, endKey: range.endKey, todayKey })
+      ? groupAgendaEvents(filteredEvents, {
+          startKey: agendaShowAllDates ? undefined : range.startKey,
+          endKey: agendaShowAllDates ? undefined : range.endKey,
+          todayKey,
+          smartOrder: agendaSortSmart,
+        })
       : []),
-    [view, filteredEvents, range.startKey, range.endKey, todayKey]
+    [view, filteredEvents, range.startKey, range.endKey, todayKey, agendaSortSmart, agendaShowAllDates]
   );
 
   const rangeEventsCount = useMemo(
-    () => filteredEvents.filter((ev) => ev.dayKey >= range.startKey && ev.dayKey <= range.endKey).length,
-    [filteredEvents, range.startKey, range.endKey]
+    () => (view === 'agenda' && agendaShowAllDates
+      ? filteredEvents.length
+      : filteredEvents.filter((ev) => ev.dayKey >= range.startKey && ev.dayKey <= range.endKey).length),
+    [view, agendaShowAllDates, filteredEvents, range.startKey, range.endKey]
   );
 
   // Adaptive hour range across visible week/day events
@@ -419,36 +434,85 @@ export default function SakuraCalendar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-rp-bg-2 px-2.5 py-1 text-[11px] font-medium text-rp-text-2">
-            <Clock className="h-3 w-3 text-rp-brand-strong" />
-            GMT+7 · {trf('{n} mục', { n: rangeEventsCount })}
-          </span>
-
+          {/* Primary Toggle: Lịch | Danh sách */}
           <div
             role="tablist"
-            aria-label={tr('Chế độ xem lịch')}
-            className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
+            aria-label={tr('Chế độ hiển thị')}
+            className="inline-flex items-center rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
           >
-            {VIEWS.map((v) => {
-              const active = view === v.id;
-              return (
-                <button
-                  key={v.id}
-                  role="tab"
-                  type="button"
-                  aria-selected={active}
-                  onClick={() => setView(v.id)}
-                  className={`rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition-all ${
-                    active
-                      ? 'bg-white text-rp-brand-strong shadow-xs'
-                      : 'text-rp-text-muted hover:text-rp-text'
-                  }`}
-                >
-                  {tr(v.label)}
-                </button>
-              );
-            })}
+            <button
+              role="tab"
+              type="button"
+              aria-selected={view !== 'agenda'}
+              onClick={() => { if (view === 'agenda') setView('week'); }}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
+                view !== 'agenda'
+                  ? 'bg-white text-rp-brand-strong shadow-2xs'
+                  : 'text-rp-text-muted hover:text-rp-text'
+              }`}
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              <span>{tr('Lịch')}</span>
+            </button>
+            <button
+              role="tab"
+              type="button"
+              aria-selected={view === 'agenda'}
+              onClick={() => setView('agenda')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
+                view === 'agenda'
+                  ? 'bg-white text-rp-brand-strong shadow-2xs'
+                  : 'text-rp-text-muted hover:text-rp-text'
+              }`}
+            >
+              <List className="h-3.5 w-3.5" />
+              <span>{tr('Danh sách')}</span>
+            </button>
           </div>
+
+          {view !== 'agenda' && (
+            <div
+              role="group"
+              aria-label={tr('Khung thời gian lịch')}
+              className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
+            >
+              {VIEWS.filter((v) => v.id !== 'agenda').map((v) => {
+                const active = view === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setView(v.id)}
+                    className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
+                      active
+                        ? 'bg-white text-rp-brand-strong shadow-2xs'
+                        : 'text-rp-text-muted hover:text-rp-text'
+                    }`}
+                  >
+                    {tr(v.label)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {toolbarExtra}
+
+          {showToneFilter && availableTones.length > 0 && (
+            <StatusDotListbox
+              value={activeToneFilter}
+              onChange={(nextTone) => setActiveToneFilter(nextTone)}
+              options={[
+                { id: 'ALL', label: 'Tất cả trạng thái', dotClass: 'bg-[#CE476D]' },
+                ...availableTones.map((tone) => ({
+                  id: tone,
+                  label: getToneMeta(tone).label,
+                  dotClass: getToneMeta(tone).dot,
+                })),
+              ]}
+            />
+          )}
 
           {onRefresh && (
             <button
@@ -457,61 +521,38 @@ export default function SakuraCalendar({
               disabled={refreshing}
               aria-label={tr('Làm mới dữ liệu lịch')}
               title={tr('Làm mới lịch')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rp-line bg-white text-rp-text-muted hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
+              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-rp-line bg-white text-rp-text-muted hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Filter & Legend Strip */}
-      {showToneFilter && availableTones.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line bg-[#FCF9FB] px-4 py-2 text-[11.5px]">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveToneFilter('ALL')}
-              className={`rounded-full px-2.5 py-1 font-semibold transition-colors ${
-                activeToneFilter === 'ALL'
-                  ? 'bg-rp-brand-strong text-white'
-                  : 'bg-white text-rp-text-2 border border-rp-line hover:bg-rp-brand-tint'
-              }`}
-            >
-              {trf('Tất cả ({n})', { n: events.length })}
-            </button>
-            {availableTones.map((tone) => {
-              const meta = getToneMeta(tone);
-              const active = activeToneFilter === tone;
-              const count = events.filter((ev) => (ev.tone || 'session') === tone).length;
-              return (
-                <button
-                  key={tone}
-                  type="button"
-                  onClick={() => setActiveToneFilter(active ? 'ALL' : tone)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium transition-colors ${
-                    active
-                      ? 'bg-rp-brand-strong text-white'
-                      : 'bg-white text-rp-text-2 border border-rp-line hover:bg-rp-brand-tint'
-                  }`}
-                >
-                  <span className={`h-2 w-2 rounded-full ${active ? 'bg-white' : meta.dot}`} aria-hidden="true" />
-                  <span>{tr(meta.label)}</span>
-                  <span className="opacity-70">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-          {onEmptySlotClick && (view === 'day' || view === 'week') && (
-            <span className="text-[11px] text-rp-text-muted">{tr('Nhấp vào ô giờ trống để chọn nhanh thời gian rảnh')}</span>
-          )}
+      {/* Compact 1-line filter hint ONLY when a tone filter is active and yields 0 matches in the viewed range */}
+      {activeToneFilter !== 'ALL' && rangeEventsCount === 0 && (
+        <div
+          data-testid="calendar-empty-filter-hint"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line bg-[#FCFAFB] px-4 py-1.5 text-[11.5px]"
+        >
+          <span className="font-medium text-rp-text-2">
+            {tr('Không có lịch khớp với trạng thái đang lọc trong khoảng thời gian này.')}
+          </span>
+          <button
+            type="button"
+            data-testid="calendar-clear-tone-filter-btn"
+            onClick={() => setActiveToneFilter('ALL')}
+            className="rp-link font-semibold text-rp-brand-strong"
+          >
+            {tr('Xóa bộ lọc')}
+          </button>
         </div>
       )}
 
-      {/* Body */}
-      <div className="rp-cal-stage">
-        {rangeEventsCount === 0 && (view === 'agenda' || (!onEmptySlotClick && view !== 'month')) && (
-          <div className="p-5">
+      {/* Body — Calendar mode NEVER renders a big Empty State above or inside the grid; only List (agenda) mode renders Empty State when empty */}
+      <div className="rp-cal-stage bg-white">
+        {view === 'agenda' && rangeEventsCount === 0 && (
+          <div className="p-6">
             <ContextualEmptyState
               compact
               context="calendar"
@@ -522,47 +563,76 @@ export default function SakuraCalendar({
         )}
 
         {/* DAY / WEEK TIMELINE */}
-        {(view === 'week' || view === 'day') && (rangeEventsCount > 0 || onEmptySlotClick || view === 'week' || view === 'day') && (
-          <div className="overflow-x-auto">
+        {(view === 'week' || view === 'day') && (
+          <div className="overflow-x-auto bg-white">
             <div className={view === 'week' ? 'min-w-[740px]' : 'min-w-full'}>
-              {/* Sticky Day Headers */}
+              {/* Fixed Day Headers — sits OUTSIDE the vertical scroll container and shares stable scrollbar-gutter */}
               <div
-                className="sticky top-0 z-20 grid border-b border-rp-line bg-white/95 backdrop-blur-xs"
-                style={{ gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))` }}
+                data-testid="calendar-header-grid"
+                className="rp-cal-scroll grid border-b border-rp-line bg-white"
+                style={{
+                  gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))`,
+                  scrollbarGutter: 'stable',
+                  overflowY: 'scroll',
+                }}
               >
-                <div className="flex items-end justify-end px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-rp-text-muted">
+                <div className="flex items-end justify-end bg-white px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-rp-text-muted">
                   GMT+7
                 </div>
-                {weekDays.map((day) => (
-                  <button
-                    key={day.key}
-                    type="button"
-                    onClick={() => {
-                      setAnchor(day.key);
-                      if (view === 'week') setView('day');
-                    }}
-                    className={`border-l border-rp-line px-2 py-2 text-center transition-colors hover:bg-rp-brand-tint/40 ${
-                      day.isToday ? 'bg-rp-brand-tint/50' : day.isWeekend ? 'bg-[#FCF8FA]' : ''
-                    }`}
-                  >
-                    <span className={`block text-[11px] font-semibold uppercase tracking-wide ${day.isToday ? 'text-rp-brand-strong' : 'text-rp-text-muted'}`}>
-                      {view === 'day' ? L.dayFull(day) : L.dayShort(day)}
-                    </span>
-                    <span
-                      className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-bold ${
-                        day.isToday ? 'bg-rp-brand-strong text-white shadow-xs' : 'text-rp-text'
+                {weekDays.map((day) => {
+                  const isSelectedDay = day.key === anchorKey;
+                  return (
+                    <button
+                      key={day.key}
+                      type="button"
+                      data-day-header={day.key}
+                      data-is-today={day.isToday ? 'true' : 'false'}
+                      data-is-selected={isSelectedDay ? 'true' : 'false'}
+                      onClick={() => {
+                        if (day.key === anchorKey && view === 'week') {
+                          setView('day');
+                        } else {
+                          setAnchor(day.key);
+                        }
+                      }}
+                      className={`relative border-l border-rp-line px-2 py-2 text-center transition-colors ${
+                        isSelectedDay ? 'bg-rp-brand-tint/35' : 'bg-white hover:bg-rp-bg-2/50'
                       }`}
                     >
-                      {day.dateNum}
-                    </span>
-                  </button>
-                ))}
+                      <span className={`block text-[11px] font-semibold uppercase tracking-wide ${
+                        day.isToday || isSelectedDay ? 'text-rp-brand-strong' : 'text-rp-text-muted'
+                      }`}>
+                        {view === 'day' ? L.dayFull(day) : L.dayShort(day)}
+                      </span>
+                      <span
+                        className={`mx-auto mt-0.5 flex h-7.5 w-7.5 items-center justify-center rounded-full text-[14px] font-bold transition-all ${
+                          day.isToday && isSelectedDay
+                            ? 'bg-rp-brand-pressed text-white ring-2 ring-rp-brand-border ring-offset-1 shadow-2xs'
+                            : day.isToday
+                              ? 'bg-rp-brand-pressed text-white shadow-2xs'
+                              : isSelectedDay
+                                ? 'border border-rp-brand-border bg-rp-brand-tint font-bold text-rp-brand-strong'
+                                : 'text-rp-text'
+                        }`}
+                      >
+                        {day.dateNum}
+                      </span>
+                      {isSelectedDay && (
+                        <span aria-hidden="true" className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-rp-brand" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Scrollable Hour Body */}
+              {/* Time-Grid Hour Body — ONLY the Body scrolls vertically; shares scrollbarGutter: stable with Header */}
               <div
-                className="grid max-h-[620px] overflow-y-auto"
-                style={{ gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))` }}
+                data-testid="calendar-body-grid"
+                className="rp-cal-scroll grid max-h-[calc(100dvh-242px)] min-h-[490px] overflow-y-scroll bg-white"
+                style={{
+                  gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))`,
+                  scrollbarGutter: 'stable',
+                }}
               >
                 <div className="relative bg-white" style={{ height: gridHeight }}>
                   {hours.map((hour) => (
@@ -581,20 +651,19 @@ export default function SakuraCalendar({
                   return (
                     <div
                       key={day.key}
+                      data-day-col={day.key}
                       onClick={(e) => handleEmptyGridClick(day.key, e.clientY, e.currentTarget.getBoundingClientRect())}
-                      className={`relative border-l border-rp-line ${
-                        day.isToday ? 'bg-[#FFF9FB]' : day.isWeekend ? 'bg-[#FCF8FA]/70' : 'bg-white'
-                      } ${onEmptySlotClick ? 'cursor-cell' : ''}`}
+                      className={`relative border-l border-rp-line bg-white ${onEmptySlotClick ? 'cursor-cell' : ''}`}
                       style={{ height: gridHeight, contain: 'layout style' }}
                     >
                       {hours.map((hour) => (
                         <div key={hour}>
                           <div
-                            className="pointer-events-none absolute inset-x-0 border-t border-rp-line/90"
+                            className="pointer-events-none absolute inset-x-0 border-t border-gray-200/80"
                             style={{ top: (hour - firstHour) * hourHeight }}
                           />
                           <div
-                            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-rp-line/45"
+                            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-gray-100"
                             style={{ top: (hour - firstHour) * hourHeight + hourHeight / 2 }}
                           />
                         </div>
@@ -603,10 +672,10 @@ export default function SakuraCalendar({
                       {showNowLine && day.isToday && (
                         <div
                           aria-hidden="true"
-                          className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-rp-brand-strong"
+                          className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-rp-brand-pressed"
                           style={{ top: ((nowMinutes - firstHour * 60) / 60) * hourHeight }}
                         >
-                          <span className="absolute -left-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-rp-brand-strong ring-2 ring-white" />
+                          <span className="absolute -left-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-rp-brand-pressed ring-2 ring-white" />
                         </div>
                       )}
 
@@ -637,6 +706,7 @@ export default function SakuraCalendar({
                 </div>
               ))}
               {monthMatrix.cells.map((cell) => {
+                const isSelectedCell = cell.key === anchorKey;
                 const items = (eventsByDay.get(cell.key) || [])
                   .slice()
                   .sort((a, b) => minutesOfEvent(a).start - minutesOfEvent(b).start);
@@ -646,24 +716,31 @@ export default function SakuraCalendar({
                   <div
                     key={cell.key}
                     className={`flex min-h-[82px] flex-col p-1.5 sm:min-h-[112px] sm:p-2 ${
-                      cell.isToday
-                        ? 'bg-[#FFF5F8]'
+                      isSelectedCell
+                        ? 'bg-rp-brand-tint/30 ring-1 ring-inset ring-rp-brand-border'
                         : cell.inCurrentMonth
-                          ? cell.isWeekend ? 'bg-[#FCF9FB]' : 'bg-white'
-                          : 'bg-[#FAF6F8] text-rp-text-muted/60'
+                          ? 'bg-white'
+                          : 'bg-rp-bg-2/70 text-rp-text-muted/60'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <button
                         type="button"
                         onClick={() => {
-                          setAnchor(cell.key);
-                          setView('day');
+                          if (cell.key === anchorKey) {
+                            setView('day');
+                          } else {
+                            setAnchor(cell.key);
+                          }
                         }}
-                        className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[11.5px] font-bold transition-colors ${
-                          cell.isToday
-                            ? 'bg-rp-brand-strong text-white'
-                            : cell.inCurrentMonth ? 'text-rp-text hover:bg-rp-brand-tint' : 'text-rp-text-muted/60 hover:bg-rp-bg-2'
+                        className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[11.5px] font-bold transition-all ${
+                          cell.isToday && isSelectedCell
+                            ? 'bg-rp-brand-pressed text-white ring-2 ring-rp-brand-border ring-offset-1'
+                            : cell.isToday
+                              ? 'bg-rp-brand-pressed text-white'
+                              : isSelectedCell
+                                ? 'border border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                                : cell.inCurrentMonth ? 'text-rp-text hover:bg-rp-brand-tint' : 'text-rp-text-muted/60 hover:bg-rp-bg-2'
                         }`}
                       >
                         {cell.dateNum}
@@ -685,8 +762,8 @@ export default function SakuraCalendar({
                             className={`flex w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[10.5px] font-semibold transition hover:brightness-95 ${meta.pill}`}
                           >
                             <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
-                            <span className="tabular-nums opacity-75">{clockFromMinutes(minutesOfEvent(ev).start)}</span>
-                            <span className={`truncate ${ev.tone === 'cancelled' ? 'line-through' : ''}`}>{tr(ev.title)}</span>
+                            <span className="shrink-0 whitespace-nowrap tabular-nums opacity-75">{clockFromMinutes(minutesOfEvent(ev).start)}</span>
+                            <span className={`min-w-0 flex-1 truncate ${ev.tone === 'cancelled' ? 'line-through' : ''}`}>{tr(ev.title)}</span>
                           </button>
                         );
                       })}
@@ -721,57 +798,136 @@ export default function SakuraCalendar({
           </div>
         )}
 
-        {/* AGENDA VIEW */}
+        {/* LIST VIEW (Danh sách — Mobile Cards + Desktop 5-Column Compact Table) */}
         {view === 'agenda' && agendaGroups.length > 0 && (
-          <div className="divide-y divide-rp-line">
-            {agendaGroups.map((group) => (
-              <section key={group.dayKey} className="px-4 py-3.5 sm:px-5">
-                <div className="mb-2.5 flex items-center justify-between gap-2">
-                  <h3 className={`text-[13px] font-bold ${group.isToday ? 'text-rp-brand-strong' : 'text-rp-text'}`}>
-                    {L.fullDay(group.dayKey, todayKey)}
-                  </h3>
-                  <span className="text-[11px] font-medium text-rp-text-muted">{trf('{n} mục', { n: group.items.length })}</span>
-                </div>
-                <div className="space-y-2">
-                  {group.items.map((ev) => {
-                    const meta = getToneMeta(ev.tone);
-                    return (
-                      <article
-                        key={ev.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rp-line bg-white px-3.5 py-2.5 transition hover:border-rp-brand-border hover:bg-rp-brand-tint/35"
+          <div className="max-h-[calc(100dvh-196px)] min-h-[320px] overflow-auto">
+            {/* Mobile Compact Cards */}
+            <div className="divide-y divide-rp-line md:hidden">
+              {agendaGroups.flatMap((group) => group.items.map((ev) => ({ group, ev }))).map(({ group, ev }) => {
+                const meta = getToneMeta(ev.tone);
+                const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort || ev.eventType === 'session' || ev.eventType === 'live';
+                const typeLabel = audience === 'learner'
+                  ? (ev.eventType === 'homework' ? 'Bài tập' : ev.eventType === 'srs' ? 'Ôn tập SRS' : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
+                  : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
+                return (
+                  <div key={`m-${ev.id}`} className="space-y-2 p-3.5 text-[13px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-rp-text-muted">{L.fullDay(group.dayKey, todayKey)}</span>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                        {tr(ev.statusLabel || meta.label)}
+                      </span>
+                    </div>
+                    <p className={`font-bold text-rp-text ${ev.tone === 'cancelled' ? 'line-through opacity-75' : ''}`}>
+                      {tr(ev.fullTitle || ev.title)}
+                    </p>
+                    <p className="text-xs font-medium tabular-nums text-rp-text-2">
+                      {timeRangeText(ev)} · {L.duration(durationMinutes(ev))} · {tr(typeLabel)}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => (ev.onClick ? ev.onClick(ev) : setSelectedEvent(ev))}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
                       >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
-                          <div className="min-w-0">
-                            <p className={`truncate text-[13.5px] font-semibold text-rp-text ${ev.tone === 'cancelled' ? 'line-through opacity-75' : ''}`}>
-                              {tr(ev.title)}
-                            </p>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-rp-text-muted">
-                              <span className="font-semibold tabular-nums text-rp-text-2">{timeRangeText(ev)}</span>
-                              <span>· {L.duration(durationMinutes(ev))}</span>
-                              {ev.detail && <span>· {ev.detail}</span>}
-                            </p>
-                          </div>
-                        </div>
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>{tr('Xem')}</span>
+                      </button>
+                      {ev.href && (
+                        <Link
+                          to={ev.href}
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2.5 text-xs font-semibold text-rp-brand-strong"
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          <span>{tr(ev.hrefLabel || 'Mở lớp')}</span>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-                        <div className="flex items-center gap-2">
-                          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
-                            {tr(ev.statusLabel || meta.label)}
+            {/* Desktop Table */}
+            <table className="hidden w-full border-collapse text-left text-[13px] md:table">
+              <thead className="sticky top-0 z-10 border-b border-rp-line bg-rp-table-head text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
+                <tr>
+                  <th className="px-4 py-2.5">{tr('Ngày')}</th>
+                  <th className="px-4 py-2.5">{tr(audience === 'learner' ? 'Giờ học' : 'Giờ dạy')}</th>
+                  <th className="px-4 py-2.5">{tr('Loại lịch')}</th>
+                  <th className="px-4 py-2.5">{tr('Trạng thái')}</th>
+                  <th className="px-4 py-2.5 text-right">{tr('Thao tác')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rp-line/70">
+                {agendaGroups.flatMap((group) => group.items.map((ev) => ({ group, ev }))).map(({ group, ev }) => {
+                  const meta = getToneMeta(ev.tone);
+                  const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort || ev.eventType === 'session' || ev.eventType === 'live';
+                  const typeLabel = audience === 'learner'
+                    ? (ev.eventType === 'homework' ? 'Bài tập' : ev.eventType === 'srs' ? 'Ôn tập SRS' : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
+                    : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
+                  const typeBadgeClass = isCohort
+                    ? 'border-[#F2CCD7] bg-[#FFF5F7] text-[#9E3350]'
+                    : 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]';
+                  const typeDotClass = isCohort ? 'bg-[#CE476D]' : 'bg-[#0D9488]';
+                  return (
+                    <tr key={ev.id} className="transition-colors hover:bg-rp-bg-2/40">
+                      <td className="px-4 py-2.5 font-medium text-rp-text whitespace-nowrap">
+                        {L.fullDay(group.dayKey, todayKey)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="font-bold tabular-nums text-rp-text">
+                          {timeRangeText(ev)}
+                          <span className="ml-1.5 text-[11.5px] font-normal text-rp-text-muted">
+                            ({L.duration(durationMinutes(ev))})
                           </span>
+                        </div>
+                        <div className={`mt-0.5 text-[11.5px] text-rp-text-2 ${ev.tone === 'cancelled' ? 'line-through opacity-75' : ''}`}>
+                          {tr(ev.fullTitle || ev.title)}
+                          {ev.detail && ev.detail !== timeRangeText(ev) ? ` · ${ev.detail}` : ''}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${typeBadgeClass}`}>
+                          <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${typeDotClass}`} />
+                          {tr(typeLabel)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${meta.pill}`}>
+                          <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                          {tr(ev.statusLabel || meta.label)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => (ev.onClick ? ev.onClick(ev) : setSelectedEvent(ev))}
-                            className="inline-flex h-8 items-center rounded-lg border border-rp-line bg-white px-2.5 text-[12px] font-semibold text-rp-text-2 hover:border-rp-brand-border hover:text-rp-brand-strong"
+                            onClick={() => {
+                              if (ev.onClick) ev.onClick(ev);
+                              else setSelectedEvent(ev);
+                            }}
+                            className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
                           >
-                            {tr('Chi tiết')}
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>{tr('Xem')}</span>
                           </button>
+                          {ev.href && (
+                            <Link
+                              to={ev.href}
+                              className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2.5 text-[11.5px] font-semibold text-rp-brand-strong transition-colors hover:bg-rp-brand-soft"
+                            >
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              <span>{tr(ev.hrefLabel || 'Mở lớp')}</span>
+                            </Link>
+                          )}
                         </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -819,7 +975,7 @@ export default function SakuraCalendar({
                   setAnchor(k);
                   setView('day');
                 }}
-                className="inline-flex h-9 items-center rounded-xl bg-rp-brand-strong px-3.5 text-[12.5px] font-semibold text-white hover:bg-rp-brand-deep"
+                className="inline-flex h-9 items-center rounded-xl bg-rp-brand-pressed px-3.5 text-[12.5px] font-semibold text-white hover:bg-rp-brand-strong"
               >
                 {tr('Mở chế độ xem Ngày')}
               </button>
@@ -868,15 +1024,48 @@ export default function SakuraCalendar({
                   </dl>
                 )}
 
-                {selectedEvent.href && (
-                  <div>
-                    <Link
-                      to={selectedEvent.href}
-                      onClick={closeDetail}
-                      className="inline-flex h-9 items-center rounded-xl bg-rp-brand-strong px-4 text-[12.5px] font-semibold text-white hover:bg-rp-brand-deep"
-                    >
-                      {tr(selectedEvent.hrefLabel || 'Mở chi tiết')}
-                    </Link>
+                {Array.isArray(selectedEvent.relatedHomeworks) && selectedEvent.relatedHomeworks.length > 0 && (
+                  <div className="space-y-1.5 rounded-xl border border-rp-line bg-rp-surface p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-rp-text-muted">
+                      {tr('Bài tập liên quan của lớp')}
+                    </p>
+                    <ul className="space-y-1">
+                      {selectedEvent.relatedHomeworks.map((hw) => (
+                        <li key={hw.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+                          <span className="min-w-0 flex-1 truncate font-medium text-rp-text">{hw.title}</span>
+                          <Link
+                            to={hw.cohortId ? `/homework/?cohortId=${hw.cohortId}` : '/homework'}
+                            onClick={closeDetail}
+                            className="shrink-0 font-semibold rp-link"
+                          >
+                            {tr('Mở bài tập')}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {(selectedEvent.href || selectedEvent.secondaryHref) && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedEvent.href && (
+                      <Link
+                        to={selectedEvent.href}
+                        onClick={closeDetail}
+                        className="inline-flex h-9 items-center rounded-xl bg-rp-brand-pressed px-4 text-[12.5px] font-semibold text-white transition-colors hover:bg-rp-brand-strong"
+                      >
+                        {tr(selectedEvent.hrefLabel || 'Mở chi tiết')}
+                      </Link>
+                    )}
+                    {selectedEvent.secondaryHref && (
+                      <Link
+                        to={selectedEvent.secondaryHref}
+                        onClick={closeDetail}
+                        className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3.5 text-[12.5px] font-semibold text-rp-text-2 transition-colors hover:bg-rp-brand-tint"
+                      >
+                        {tr(selectedEvent.secondaryLabel || 'Không gian lớp học')}
+                      </Link>
+                    )}
                   </div>
                 )}
 

@@ -81,7 +81,7 @@ export function getPlacementResultActions(status, result) {
   const canRetake = isCurrentResult && status?.canStartNewAttempt !== false
     && result.nextActions?.includes('RETAKE_TARGET_ASSESSMENT') === true;
   const canPlan = isCurrentResult && status?.isReadyForLearningPath === true;
-  const canStartUpdatedAssessment = isCurrentResult && !status.attemptAllowance && ['N2', 'N3', 'N4', 'N5'].includes(status.targetJlptLevelName)
+  const canStartUpdatedAssessment = isCurrentResult && !status.attemptAllowance && ['N1', 'N2', 'N3', 'N4', 'N5'].includes(status.targetJlptLevelName)
     && (result.isComprehensiveAssessment || !result.assessmentTargetLevelId
       || (status.targetJlptLevelName !== 'N5' && result.levelBreakdowns?.length === 1));
   return { isLatest, matchesTarget, isDifferentGoal, canPlan, canStartUpdatedAssessment, canRetake };

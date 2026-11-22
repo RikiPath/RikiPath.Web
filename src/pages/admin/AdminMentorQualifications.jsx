@@ -1,240 +1,392 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ContextualEmptyState, ContextualErrorState, SakuraLoader, StaleDataBar } from '@/components/ui';
-import { getAdminMentorVerifications, getAdminMentors, unwrapApiList } from '@/features/admin/api/adminApi.js';
+import { GraduationCap, Plus, Search, ShieldOff, X } from 'lucide-react';
 import {
-  SUPPORTED_JLPT_LEVELS,
-  getAdminMentorKpiList,
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualEmptyState,
+  ContextualErrorState,
+  CustomSelect,
+  DataTable,
+  Field,
+  Input,
+  Modal,
+  RefreshingIndicator,
+  SakuraLoader,
+  Textarea,
+  notify,
+} from '@/components/ui';
+import {
+  getAdminMentorQualifications,
+  grantAdminMentorQualification,
+  revokeAdminMentorQualification,
 } from '@/features/mentor/api/mentorGovernanceApi.js';
-import { parseUtcDate } from '@/utils/vnDateTime.js';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
-
-const cardClass =
-  'rounded-2xl border border-rp-line bg-white p-5 shadow-[0_6px_20px_rgba(80,40,55,0.03)]';
-
-function fmtDate(value) {
-  if (!value) return '—';
-  const d = parseUtcDate(value);
-  if (!d || Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString(currentIntlTag(), { timeZone: 'Asia/Ho_Chi_Minh' });
-}
+import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
+import { describeApiError } from '@/api/apiErrors.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
 export default function AdminMentorQualifications() {
   const { tr, trf } = useLocale();
-  const [selectedMentorId, setSelectedMentorId] = useState('');
-  const [levelFilter, setLevelFilter] = useState('');
+  const queryClient = useQueryClient();
 
-  const mentorsQuery = useQuery({
-    queryKey: ['admin-mentors-qualifications'],
-    queryFn: async () => unwrapApiList(await getAdminMentors()),
+  const [search, setSearch] = useState('');
+  const [levelFilter, setLevelFilter] = useState('ALL');
+  const [grantTarget, setGrantTarget] = useState(null); // mentor summary row
+  const [grantLevelId, setGrantLevelId] = useState('');
+  const [grantReason, setGrantReason] = useState('');
+  const [grantError, setGrantError] = useState('');
+
+  const [revokeTarget, setRevokeTarget] = useState(null); // { mentor, badge }
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revokeError, setRevokeError] = useState('');
+
+  const qualQuery = useQuery({
+    queryKey: ADMIN_KEYS.mentorQualifications,
+    queryFn: getAdminMentorQualifications,
   });
 
-  const verificationsQuery = useQuery({
-    queryKey: ['admin-mentor-verifications-qual'],
-    queryFn: async () => unwrapApiList(await getAdminMentorVerifications()),
+  const grantMutation = useMutation({
+    mutationFn: ({ mentorId, certificateLevelId, reason }) =>
+      grantAdminMentorQualification(mentorId, {
+        certificateLevelId: Number(certificateLevelId),
+        reason: reason || null,
+      }),
+    onSuccess: async () => {
+      await invalidateAdminDomains(queryClient, ['mentors']);
+      setGrantTarget(null);
+      setGrantLevelId('');
+      setGrantReason('');
+      setGrantError('');
+      notify.success(tr('Đã cấp quyền giảng dạy JLPT cho Giáo viên.'), '', { key: 'admin-qual-grant', replace: true });
+    },
+    onError: (err) => {
+      const msg = describeApiError(err)?.message || tr('Chưa thể cấp quyền giảng dạy.');
+      setGrantError(msg);
+      notify.apiError(err, tr('Chưa thể cấp quyền giảng dạy'), { key: 'admin-qual-grant-err', replace: true });
+    },
   });
 
-  const kpiQuery = useQuery({
-    queryKey: ['admin-mentor-kpi-qualifications'],
-    queryFn: () => getAdminMentorKpiList({ page: 1, pageSize: 100 }),
+  const revokeMutation = useMutation({
+    mutationFn: ({ mentorId, certificateLevelId, reason }) =>
+      revokeAdminMentorQualification(mentorId, certificateLevelId, { reason }),
+    onSuccess: async () => {
+      await invalidateAdminDomains(queryClient, ['mentors']);
+      setRevokeTarget(null);
+      setRevokeReason('');
+      setRevokeError('');
+      notify.success(tr('Đã thu hồi quyền giảng dạy (dữ liệu lớp lịch sử được giữ nguyên).'), '', {
+        key: 'admin-qual-revoke',
+        replace: true,
+      });
+    },
+    onError: (err) => {
+      const msg = describeApiError(err)?.message || tr('Không thu hồi được quyền giảng dạy.');
+      setRevokeError(msg);
+      notify.apiError(err, tr('Không thu hồi được quyền giảng dạy'), { key: 'admin-qual-revoke-err', replace: true });
+    },
   });
 
-  const mentors = mentorsQuery.data || [];
-  const verifications = verificationsQuery.data || [];
-  const kpiRows = kpiQuery.data || [];
+  const levels = useMemo(() => qualQuery.data?.levels || [], [qualQuery.data]);
+  const mentors = useMemo(() => qualQuery.data?.mentors || [], [qualQuery.data]);
 
-  const verificationMap = new Map(verifications.map((v) => [v.mentorId, v]));
-  const kpiMap = new Map(kpiRows.map((k) => [k.mentorId, k]));
-
-  const rows = mentors
-    .map((m) => {
-      const ver = verificationMap.get(m.id);
-      const kpi = kpiMap.get(m.id);
-      const teachingLevels = Array.isArray(kpi?.teachingJlptLevels) && kpi.teachingJlptLevels.length
-        ? kpi.teachingJlptLevels
-        : ver?.jlptLevel && SUPPORTED_JLPT_LEVELS.includes(ver.jlptLevel)
-          ? [ver.jlptLevel]
-          : [];
-      return {
-        mentorId: m.id,
-        fullName: m.fullName || [ver?.firstName, ver?.lastName].filter(Boolean).join(' ') || m.email || `Mentor #${m.id}`,
-        email: m.email || ver?.email || '',
-        certificateLevel: ver?.jlptLevel || '—',
-        teachingLevels,
-        verificationStatus: ver?.verificationStatus || 'Unverified',
-        reviewedAt: ver?.reviewedAt,
-        isActive: m.isActive !== false,
-      };
-    })
-    .filter((row) => {
-      if (selectedMentorId && Number(selectedMentorId) !== row.mentorId) return false;
-      if (levelFilter && !row.teachingLevels.includes(levelFilter) && row.certificateLevel !== levelFilter) return false;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return mentors.filter((m) => {
+      if (q && !`${m.fullName} ${m.email} ${m.declaredJlptLevel || ''}`.toLowerCase().includes(q)) return false;
+      if (levelFilter === 'NONE') return (m.activeQualifications || []).length === 0;
+      if (levelFilter !== 'ALL') {
+        return (m.activeQualifications || []).some((b) => String(b.certificateLevelId) === levelFilter);
+      }
       return true;
     });
+  }, [mentors, search, levelFilter]);
 
-  const isLoading = mentorsQuery.isLoading || verificationsQuery.isLoading || kpiQuery.isLoading;
-  const firstError = mentorsQuery.error || verificationsQuery.error || kpiQuery.error;
-  const hasCompleteData = Boolean(mentorsQuery.data && verificationsQuery.data && kpiQuery.data);
-  const retryFailed = () => {
-    if (mentorsQuery.isError) mentorsQuery.refetch();
-    if (verificationsQuery.isError) verificationsQuery.refetch();
-    if (kpiQuery.isError) kpiQuery.refetch();
-  };
-  const isFetching = mentorsQuery.isFetching || verificationsQuery.isFetching || kpiQuery.isFetching;
+  const hasFilters = search.trim() !== '' || levelFilter !== 'ALL';
+
+  function openGrantModal(mentor) {
+    const activeIds = new Set((mentor.activeQualifications || []).map((q) => Number(q.certificateLevelId)));
+    const firstAvailable = levels.find((l) => !activeIds.has(Number(l.id)));
+    setGrantTarget(mentor);
+    setGrantLevelId(firstAvailable ? String(firstAvailable.id) : '');
+    setGrantReason('');
+    setGrantError('');
+  }
+
+  function submitGrant(e) {
+    e.preventDefault();
+    if (!grantLevelId) {
+      setGrantError(tr('Vui lòng chọn cấp độ cần cấp quyền.'));
+      return;
+    }
+    setGrantError('');
+    grantMutation.mutate({
+      mentorId: grantTarget.mentorId,
+      certificateLevelId: Number(grantLevelId),
+      reason: grantReason.trim(),
+    });
+  }
+
+  function submitRevoke(e) {
+    e.preventDefault();
+    if (revokeReason.trim().length < 3) {
+      setRevokeError(tr('Vui lòng nhập lý do thu hồi (ít nhất 3 ký tự).'));
+      return;
+    }
+    setRevokeError('');
+    revokeMutation.mutate({
+      mentorId: revokeTarget.mentor.mentorId,
+      certificateLevelId: revokeTarget.badge.certificateLevelId,
+      reason: revokeReason.trim(),
+    });
+  }
+
+  const columns = [
+    {
+      key: 'fullName',
+      header: tr('Giáo viên'),
+      render: (row) => (
+        <div className="min-w-0">
+          <p className="font-semibold text-rp-text">{row.fullName}</p>
+          <p className="truncate text-xs text-rp-text-muted">{row.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'verificationStatus',
+      header: tr('Hồ sơ & Chứng chỉ'),
+      render: (row) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge tone={row.verificationStatus === 'Approved' ? 'success' : 'warning'} size="sm" icon={false}>
+            {row.verificationStatus === 'Approved' ? tr('Đã duyệt hồ sơ') : tr(row.verificationStatus)}
+          </Badge>
+          {row.declaredJlptLevel && (
+            <Badge tone="neutral" size="sm" icon={false}>
+              {tr('Chứng chỉ')}: {row.declaredJlptLevel}
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'activeQualifications',
+      header: tr('Quyền giảng dạy hiện tại'),
+      render: (row) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {row.activeQualifications?.length ? (
+            row.activeQualifications.map((badge) => (
+              <span
+                key={badge.certificateLevelId}
+                className="inline-flex items-center gap-1 rounded-full border border-rp-brand-border bg-rp-brand-tint px-2.5 py-0.5 text-xs font-semibold text-rp-brand-strong"
+                title={`${tr('Cấp bởi')}: ${badge.verifiedByAdminName} (${formatVnDateTime(badge.verifiedAtUtc)})`}
+              >
+                <span>{badge.levelCode}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRevokeTarget({ mentor: row, badge });
+                    setRevokeReason('');
+                    setRevokeError('');
+                  }}
+                  className="rp-focus ml-0.5 rounded-full p-0.5 text-rp-text-muted hover:bg-white hover:text-rp-brand-strong"
+                  aria-label={trf('Thu hồi quyền {0}', { 0: badge.levelCode })}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-xs text-rp-text-muted">{tr('Chưa cấp quyền nào')}</span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const availableGrantLevels = useMemo(() => {
+    if (!grantTarget) return [];
+    const owned = new Set((grantTarget.activeQualifications || []).map((q) => Number(q.certificateLevelId)));
+    return levels.filter((l) => !owned.has(Number(l.id)));
+  }, [grantTarget, levels]);
 
   return (
-    <section className="space-y-5" data-testid="admin-mentor-qualifications">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-rp-bg-2 px-4 py-3">
-        <div>
-          <p className="text-[13px] font-semibold text-rp-text">
-            {tr('Phân quyền giảng dạy JLPT (N5–N2)')}
-          </p>
-          <p className="mt-0.5 text-[12px] text-rp-text-2">
-            {tr('Phân quyền dùng để kiểm tra điều kiện gán Mentor và thay thế cố vấn chính cho các lớp học nhóm JLPT N5–N2. Xét duyệt chứng chỉ thực hiện tại mục Hồ sơ chờ xét duyệt.')}
-          </p>
-        </div>
+    <div data-page="AdminMentorQualifications" className="space-y-4">
+      <Banner tone="info" title={tr('Phân biệt Chứng chỉ cá nhân & Quyền giảng dạy')}>
+        {tr('Giáo viên phải được duyệt hồ sơ trước khi cấp quyền giảng dạy, và chỉ được cấp tối đa đến cấp độ JLPT tương ứng với chứng chỉ đã xác minh. Mọi thao tác cấp hoặc thu hồi đều lưu nhật ký kiểm toán và không làm mất lịch sử lớp cũ.')}
+      </Banner>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-[12px] font-medium text-rp-text-2">
-            {tr('Cố vấn:')}
-            <select
-              value={selectedMentorId}
-              onChange={(e) => setSelectedMentorId(e.target.value)}
-              className="h-9 min-w-0 max-w-full rounded-xl border border-rp-line bg-white px-3 text-[13px] text-rp-text"
-            >
-              <option value="">{tr('Tất cả cố vấn')}</option>
-              {mentors.map((m) => (
-                <option key={m.id} value={m.id}>
-                  #{m.id} · {m.fullName || m.email}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-[12px] font-medium text-rp-text-2">
-            {tr('Trình độ:')}
-            <select
-              value={levelFilter}
-              onChange={(e) => setLevelFilter(e.target.value)}
-              className="h-9 rounded-xl border border-rp-line bg-white px-3 text-[13px] text-rp-text"
-            >
-              <option value="">{tr('Tất cả (N5–N2)')}</option>
-              {SUPPORTED_JLPT_LEVELS.map((lv) => (
-                <option key={lv} value={lv}>
-                  {lv}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className={cardClass}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-[15px] font-semibold text-rp-text">
-           {trf('Danh sách cố vấn & trình độ giảng dạy JLPT ({0})', { 0: rows.length })}
-          </h3>
-          <Link
-            to="/admin/mentor-verifications/"
-            className="inline-flex h-9 items-center justify-center rounded-xl bg-rp-brand-strong px-3.5 text-[12px] font-medium text-white transition hover:bg-rp-brand-deep rp-press"
-          >
-            {tr('Xét duyệt hồ sơ & chứng chỉ')}
-          </Link>
-        </div>
-
-        {firstError && hasCompleteData && (
-          <StaleDataBar className="mt-4" onRetry={retryFailed} retrying={isFetching} />
-        )}
-        {isLoading ? (
-          <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách phân quyền')} delay={160} className="mt-4" />
-        ) : firstError && !hasCompleteData ? (
-          <ContextualErrorState
-            className="mt-4"
-            error={firstError}
-            title={tr('Chưa tải đủ dữ liệu phân quyền giảng dạy')}
-            onRetry={retryFailed}
-            retrying={isFetching}
-          />
-        ) : rows.length === 0 ? (
-          <ContextualEmptyState
-            compact
-            title={tr('Chưa có cố vấn nào trong phạm vi lọc.')}
-            description={tr('Thử xóa bộ lọc trình độ hoặc chọn Tất cả cố vấn.')}
-          />
-        ) : (
-          <div data-density="compact" className="rp-scroll-x mt-4">
-            <table className="w-full min-w-[680px] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-rp-line text-[11px] uppercase tracking-wider text-rp-text-muted">
-                  <th className="py-2">{tr('Cố vấn')}</th>
-                  <th className="py-2">{tr('Chứng chỉ hồ sơ')}</th>
-                  <th className="py-2">{tr('Trình độ lớp nhóm (N5–N2)')}</th>
-                  <th className="py-2">{tr('Trạng thái xác minh')}</th>
-                  <th className="py-2">{tr('Cập nhật')}</th>
-                  <th className="py-2 text-right">{tr('Thao tác')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.mentorId} className="border-b border-rp-line">
-                    <td className="py-2.5 font-medium text-rp-text">
-                      #{row.mentorId} · {row.fullName}
-                    </td>
-                    <td className="py-2.5">
-                      <span className="rounded-md bg-rp-brand-soft px-2 py-0.5 text-[12px] font-semibold text-rp-text-2">
-                        {row.certificateLevel}
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      {row.teachingLevels.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {row.teachingLevels.map((lv) => (
-                            <span
-                              key={lv}
-                              className="rounded-md bg-rp-brand-soft px-2 py-0.5 text-[12px] font-semibold text-rp-brand-strong"
-                            >
-                              {lv}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-rp-text-muted">{tr('Chưa cấp quyền')}</span>
-                      )}
-                    </td>
-                    <td className="py-2.5">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                          row.verificationStatus === 'Approved'
-                            ? 'bg-rp-success-bg text-rp-success'
-                            : 'bg-rp-warning-bg text-rp-warning'
-                        }`}
-                      >
-                        {row.verificationStatus === 'Approved' ? tr('Đã phê duyệt') : row.verificationStatus}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-rp-text-2">{fmtDate(row.reviewedAt)}</td>
-                    <td className="py-2.5 text-right">
-                      <Link
-                        to={`/admin/mentor-verifications/?mentorId=${row.mentorId}`}
-                        className="inline-flex h-8 items-center rounded-xl border border-rp-line bg-white px-3 text-[12px] font-medium text-rp-text-2 hover:bg-rp-bg-2"
-                      >
-                        {tr('Xem hồ sơ')}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-6 text-center text-rp-text-muted">
-                      {tr('Chưa có cố vấn nào trong phạm vi lọc.')}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="min-w-[200px] flex-1">
+            <Input
+              type="search"
+              icon={Search}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={tr('Tìm theo tên Giáo viên, email hoặc chứng chỉ…')}
+              aria-label={tr('Tìm Giáo viên')}
+            />
           </div>
+
+          <div className="w-full sm:w-[210px]">
+            <CustomSelect
+              value={levelFilter}
+              aria-label={tr('Lọc theo quyền giảng dạy')}
+              onChange={setLevelFilter}
+              options={[
+                { value: 'ALL', label: tr('Mọi cấp độ phân quyền') },
+                { value: 'NONE', label: tr('Chưa cấp quyền nào') },
+                ...levels.map((lvl) => ({
+                  value: String(lvl.id),
+                  label: `${lvl.certificateCode} · ${lvl.code}`,
+                })),
+              ]}
+            />
+          </div>
+
+          {hasFilters && (
+            <Button variant="ghost" size="sm" icon={X} onClick={() => { setSearch(''); setLevelFilter('ALL'); }}>
+              {tr('Xóa bộ lọc')}
+            </Button>
+          )}
+          <RefreshingIndicator active={qualQuery.isFetching && !qualQuery.isPending} />
+        </div>
+      </Card>
+
+      {qualQuery.isPending ? (
+        <SakuraLoader variant="section" context="data" label={tr('Đang tải dữ liệu phân quyền')} delay={140} />
+      ) : qualQuery.isError ? (
+        <ContextualErrorState
+          error={qualQuery.error}
+          title={tr('Chưa tải được danh sách phân quyền JLPT')}
+          onRetry={() => qualQuery.refetch()}
+        />
+      ) : filtered.length === 0 ? (
+        <ContextualEmptyState
+          title={hasFilters ? tr('Không có Giáo viên nào khớp bộ lọc') : tr('Chưa có Giáo viên nào')}
+          description={tr('Hãy kiểm tra hồ sơ Giáo viên hoặc bỏ bộ lọc để xem toàn bộ danh sách.')}
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          rowKey={(row) => row.mentorId}
+          rowActions={(row) => (
+            <div className="flex items-center justify-end gap-2">
+              {row.verificationStatus === 'Approved' ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={Plus}
+                  disabled={levels.length === 0 || (row.activeQualifications?.length || 0) >= levels.length}
+                  onClick={() => openGrantModal(row)}
+                >
+                  {tr('Cấp quyền')}
+                </Button>
+              ) : (
+                <Link
+                  to={`/admin/mentor-verifications/?mentorId=${row.mentorId}`}
+                  className="rp-link text-xs font-semibold text-rp-brand-strong"
+                >
+                  {tr('Duyệt hồ sơ trước')} →
+                </Link>
+              )}
+            </div>
+          )}
+        />
+      )}
+
+      {/* Grant Qualification Modal */}
+      <Modal
+        open={Boolean(grantTarget)}
+        onClose={() => !grantMutation.isPending && setGrantTarget(null)}
+        title={grantTarget ? `${tr('Cấp quyền giảng dạy')}: ${grantTarget.fullName}` : ''}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" disabled={grantMutation.isPending} onClick={() => setGrantTarget(null)}>
+              {tr('Hủy')}
+            </Button>
+            <Button
+              icon={GraduationCap}
+              loading={grantMutation.isPending}
+              disabled={!availableGrantLevels.length}
+              onClick={submitGrant}
+            >
+              {tr('Xác nhận cấp quyền')}
+            </Button>
+          </div>
+        }
+      >
+        {grantTarget && (
+          <form onSubmit={submitGrant} className="space-y-4">
+            {grantError && <Banner tone="danger">{grantError}</Banner>}
+            <p className="text-xs text-rp-text-muted">
+              {tr('Chứng chỉ JLPT đã khai báo')}: <strong>{grantTarget.declaredJlptLevel || tr('Chưa khai báo')}</strong>
+            </p>
+            <Field label={tr('Cấp độ được phép giảng dạy')} required>
+              <CustomSelect
+                value={grantLevelId}
+                aria-label={tr('Chọn cấp độ JLPT')}
+                onChange={setGrantLevelId}
+                options={availableGrantLevels.map((l) => ({
+                  value: String(l.id),
+                  label: `${l.certificateCode} · ${l.code}`,
+                }))}
+              />
+            </Field>
+            <Field label={tr('Ghi chú kiểm duyệt (tùy chọn)')}>
+              <Textarea
+                rows={3}
+                value={grantReason}
+                onChange={(e) => setGrantReason(e.target.value)}
+                placeholder={tr('Ví dụ: Đã đối chiếu chứng chỉ N1 bản gốc…')}
+              />
+            </Field>
+          </form>
         )}
-      </div>
-    </section>
+      </Modal>
+
+      {/* Revoke Qualification Modal */}
+      <Modal
+        open={Boolean(revokeTarget)}
+        onClose={() => !revokeMutation.isPending && setRevokeTarget(null)}
+        title={
+          revokeTarget
+            ? trf('Thu hồi quyền {0} của {1}', { 0: revokeTarget.badge.levelCode, 1: revokeTarget.mentor.fullName })
+            : ''
+        }
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" disabled={revokeMutation.isPending} onClick={() => setRevokeTarget(null)}>
+              {tr('Hủy')}
+            </Button>
+            <Button variant="danger" icon={ShieldOff} loading={revokeMutation.isPending} onClick={submitRevoke}>
+              {tr('Xác nhận thu hồi')}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={submitRevoke} className="space-y-4">
+          {revokeError && <Banner tone="danger">{revokeError}</Banner>}
+          <Banner tone="warning">
+            {tr('Thu hồi quyền chỉ ngăn mở lớp mới ở cấp độ này. Các lớp và buổi học lịch sử của Giáo viên vẫn được bảo toàn nguyên vẹn.')}
+          </Banner>
+          <Field label={tr('Lý do thu hồi')} required error={revokeError}>
+            <Textarea
+              rows={3}
+              value={revokeReason}
+              onChange={(e) => setRevokeReason(e.target.value)}
+              placeholder={tr('Nhập lý do thu hồi quyền giảng dạy…')}
+              invalid={Boolean(revokeError)}
+            />
+          </Field>
+        </form>
+      </Modal>
+    </div>
   );
 }
