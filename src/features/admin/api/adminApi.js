@@ -96,11 +96,52 @@ export async function reviewLessonGroup(requestId, data) {
   return res?.result ?? res;
 }
 
+const BATCH_REVIEW_CHUNK_SIZE = 10;
+const BATCH_REVIEW_TIMEOUT_MS = 120000;
+
 // Duyệt / Từ chối hàng loạt
 export async function batchReviewContentRequests(items) {
   // items: Array<{ requestId: number, approve: boolean, reviewNote: string }>
-  const res = await api.post('/content-approvals/requests/batch-review', { items });
-  return res?.result ?? res;
+  if (!Array.isArray(items) || items.length === 0) {
+    return { successCount: 0, failures: [] };
+  }
+
+  const chunks = [];
+  for (let index = 0; index < items.length; index += BATCH_REVIEW_CHUNK_SIZE) {
+    chunks.push(items.slice(index, index + BATCH_REVIEW_CHUNK_SIZE));
+  }
+
+  const aggregate = { successCount: 0, failures: [] };
+  for (const chunk of chunks) {
+    try {
+      // Mỗi nhóm nhỏ được commit riêng, tránh giữ một transaction cho hàng
+      // trăm request và tránh để trình duyệt hủy request sau 120 giây.
+      const res = await api.post(
+        '/content-approvals/requests/batch-review',
+        { items: chunk },
+        { timeout: BATCH_REVIEW_TIMEOUT_MS }
+      );
+      const result = res?.result ?? res ?? {};
+      aggregate.successCount += Number(result.successCount ?? result.SuccessCount ?? 0);
+      aggregate.failures.push(...(result.failures ?? result.Failures ?? []));
+    } catch (error) {
+      // Lỗi validation/conflict của một nhóm không được chặn các nhóm còn lại.
+      // Lỗi mạng, timeout hoặc 5xx phải dừng để tránh trạng thái không rõ ràng.
+      const canContinue = Number.isFinite(error?.status)
+        && error.status >= 400
+        && error.status < 500
+        && !error.isTimeout
+        && !error.isNetwork;
+      if (!canContinue) throw error;
+
+      aggregate.failures.push(...chunk.map((item) => ({
+        requestId: item.requestId,
+        reason: error.message || 'Không thể xử lý nhóm này.',
+      })));
+    }
+  }
+
+  return aggregate;
 }
 
 export async function getModerationQueueV2(params = {}) {

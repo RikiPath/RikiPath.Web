@@ -68,6 +68,11 @@ export async function getMockTestReview(attemptId) {
   return result;
 }
 
+export async function getMockQuestionExplanation(attemptId, questionId) {
+  const { result } = await api.post(endpoint + '/attempts/' + attemptId + '/questions/' + questionId + '/ai-explanation');
+  return result;
+}
+
 export async function getMockTestHistory() {
   const { result } = await api.get(endpoint + '/history');
   return result ?? [];

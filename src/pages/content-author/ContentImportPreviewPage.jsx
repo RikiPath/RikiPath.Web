@@ -1,3 +1,4 @@
+import AudioTranscriptPanel from '@/components/AudioTranscriptPanel.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -561,6 +562,7 @@ function ListeningAudioUpload() {
                     ? <p role="alert" className="mt-1 text-rose-700">{file.error}</p>
                     : <input readOnly aria-label={'AudioUrl của ' + file.name} value={file.url}
                         onFocus={(event) => event.target.select()} className="mt-1 w-full rounded border border-slate-300 bg-white p-2" />}
+                {file.url && <AudioTranscriptPanel audioUrl={file.url} />}
             </li>)}
         </ul>}
     </section>;
@@ -626,6 +628,22 @@ function ContentImageUpload() {
             </li>)}
         </ul>}
     </details>;
+}
+
+function mediaUrlsFromSheets(sheets, kind) {
+    const urls = new Set();
+    function visit(value) {
+        if (!value || typeof value !== 'object') return;
+        for (const [key, item] of Object.entries(value)) {
+            if ((kind === 'audio' ? key.toLowerCase() === 'audiourl' : key.toLowerCase().endsWith('imageurl')) && typeof item === 'string' && item) urls.add(item);
+            else if (item && typeof item === 'object') visit(item);
+        }
+    }
+    for (const sheet of sheets) for (const row of sheet.rows ?? []) {
+        try { visit(typeof row.payloadJson === 'string' ? JSON.parse(row.payloadJson) : row.payloadJson); }
+        catch { /* Invalid payloads already appear in the row's import errors. */ }
+    }
+    return [...urls];
 }
 
 function ContentImportPreviewPage() {
@@ -774,6 +792,8 @@ function ContentImportPreviewPage() {
     const rawData = preview.data;
     const result = rawData?.result ?? rawData;
     const sheets = result?.sheets ?? [];
+    const importedAudioUrls = mediaUrlsFromSheets(sheets, 'audio');
+    const importedImageUrls = mediaUrlsFromSheets(sheets, 'image');
     const sheet = sheets[activeSheet];
 
     const totals = Object.fromEntries(
@@ -995,6 +1015,25 @@ function ContentImportPreviewPage() {
                     </div>
                 )}
             </form>
+
+            {importedImageUrls.length > 0 && <details className="rounded-xl border border-[#E8DFDC] bg-white p-4 text-sm">
+                <summary className="cursor-pointer font-semibold text-primary">Ảnh đã gắn trong Excel ({importedImageUrls.length})</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    {importedImageUrls.map(url => <figure key={url} className="rounded-lg border border-card-border p-2">
+                        <img src={url} alt="Ảnh nội dung import" loading="lazy" className="max-h-48 w-full object-contain" />
+                        <figcaption className="mt-1 break-all text-xs text-slate-500">{url}</figcaption>
+                    </figure>)}
+                </div>
+            </details>}
+
+            {importedAudioUrls.length > 0 && <details className="rounded-xl border border-[#E8DFDC] bg-white p-4 text-sm">
+                <summary className="cursor-pointer font-semibold text-primary">Bản chép lời audio trong Excel ({importedAudioUrls.length})</summary>
+                <p className="mt-2 text-slate-600">Bản chép lời được lưu theo câu nghe để AI phân tích và giải thích đáp án.</p>
+                {importedAudioUrls.map(url => <div key={url} className="mt-3">
+                    <p className="break-all text-xs text-slate-500">{url}</p>
+                    <AudioTranscriptPanel audioUrl={url} />
+                </div>)}
+            </details>}
 
             <div hidden={!showWorkbook}>
                 {workbookPreview.isPending && <p role="status" className="text-sm text-slate-600">{tr('Đang đọc các sheet…')}</p>}
