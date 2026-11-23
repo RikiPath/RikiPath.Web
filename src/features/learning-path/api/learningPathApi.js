@@ -5,6 +5,18 @@ export async function getStandardAssessmentRoadmap() {
   return response.result;
 }
 
+export async function getAdaptiveRoadmap() {
+  try {
+    const response = await api.get('/StandardRoadmap/adaptive');
+    return response.result;
+  } catch (error) {
+    if (error?.status === 404) {
+      return getStandardAssessmentRoadmap();
+    }
+    throw error;
+  }
+}
+
 export async function getAssessmentRoadmapLesson(lessonId) {
   const response = await api.get(`/StandardRoadmap/assessment/lessons/${lessonId}`);
   return response.result;

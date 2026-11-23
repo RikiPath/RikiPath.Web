@@ -11,29 +11,37 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 describe('Sakura Auth Banner Pack & Slideshow integration', () => {
-  it('configures exactly the 4 Sakura Banner Pack slides with WebP primary, JPG fallback, and files on disk', () => {
-    assert.equal(AUTH_SLIDES.length, 4);
+  it('uses five distinct high-resolution scenes with complete editorial copy', () => {
+    assert.equal(AUTH_SLIDES.length, 5);
     const expectedFiles = [
-      'rikipath-banner-fuji-lake',
-      'rikipath-banner-pagoda-sunrise',
-      'rikipath-banner-kyoto-street',
-      'rikipath-banner-japanese-garden',
+      'rikipath-banner-fuji-lake-hd.jpg',
+      'rikipath-banner-pagoda-sunrise-hd.jpg',
+      'rikipath-banner-kyoto-street-hd.jpg',
+      'rikipath-banner-japanese-garden-hd.jpg',
+      'rikipath-banner-kyoto-sakura-hd.webp',
     ];
 
+    const seenPhotos = new Set();
     AUTH_SLIDES.forEach((slide, idx) => {
+      assert.equal(seenPhotos.has(slide.photo), false, `Duplicate slide photo ${slide.photo}`);
+      seenPhotos.add(slide.photo);
+
       const photo = PHOTOS[slide.photo];
       assert.ok(photo, `Missing PHOTOS entry for ${slide.photo}`);
-      assert.ok(Array.isArray(photo.webp) && photo.webp.length > 0, `Missing webp srcset for ${slide.photo}`);
-      assert.match(photo.jpg, new RegExp(`${expectedFiles[idx]}\\.jpg$`));
-      assert.match(photo.webp[0][0], new RegExp(`${expectedFiles[idx]}\\.webp$`));
-      assert.ok(photo.width > 0 && photo.height > 0);
+      assert.equal(photo.jpg.endsWith(expectedFiles[idx]), true);
+      assert.ok(photo.width >= 1600 && photo.height > 0);
       assert.ok(slide.position && slide.mobilePosition);
       assert.ok(slide.caption);
+      assert.ok(slide.eyebrow && slide.description);
+      assert.ok(slide.verticalLabel);
+      assert.equal(slide.titleLines?.length, 2);
+      assert.ok(slide.layout && slide.reveal);
 
-      const webpDisk = path.join(ROOT, 'public', photo.webp[0][0]);
-      const jpgDisk = path.join(ROOT, 'public', photo.jpg);
-      assert.equal(fs.existsSync(webpDisk), true, `Missing asset ${webpDisk}`);
-      assert.equal(fs.existsSync(jpgDisk), true, `Missing asset ${jpgDisk}`);
+      const fallbackDisk = path.join(ROOT, 'public', photo.jpg);
+      assert.equal(fs.existsSync(fallbackDisk), true, `Missing asset ${fallbackDisk}`);
+      for (const [webp] of photo.webp || []) {
+        assert.equal(fs.existsSync(path.join(ROOT, 'public', webp)), true, `Missing asset ${webp}`);
+      }
     });
   });
 
@@ -69,6 +77,7 @@ describe('Sakura Auth Banner Pack & Slideshow integration', () => {
     assert.match(css, /rp-kb-pan-right/);
     assert.match(css, /rp-kb-zoom-out/);
     assert.match(css, /rp-kb-pan-left/);
+    assert.match(css, /rp-auth-reveal/);
     assert.match(css, /7\.8s ease-out both/);
     assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.rp-kb-zoom-in/);
   });

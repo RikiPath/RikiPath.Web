@@ -176,6 +176,8 @@ export function SakuraLoader({
   return core;
 }
 
+export const SakuraLoading = SakuraLoader;
+
 export function SakuraSpinner({ size = 18, tone = 'brand', label }) {
   return <SakuraLoader variant="inline" size={size} tone={tone} label={label} showDots={false} />;
 }
@@ -202,10 +204,14 @@ export function RefreshingIndicator({ active, label = 'Đang cập nhật dữ l
     <span
       role="status"
       aria-live="polite"
-      className={cx('inline-flex items-center gap-1.5 rounded-full bg-rp-brand-tint/85 px-2.5 py-1 text-xs font-medium text-rp-brand-strong', className)}
+      data-sakura-refreshing="true"
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded-full border border-rp-brand-border/55 bg-rp-surface/95 px-2.5 py-1 text-xs font-medium text-rp-brand-strong shadow-rp-xs backdrop-blur-xs',
+        className,
+      )}
     >
       <SakuraBloom size={14} />
-      <span>{tr(text)}</span>
+      <span>{text}</span>
     </span>
   );
 }

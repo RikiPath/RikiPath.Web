@@ -31,6 +31,7 @@ import { useWebRtcMeeting } from '@/features/meetings/hooks/useWebRtcMeeting.js'
 import { checkRoomAccess, getRoomAttendance, getRoomPresence } from '@/features/mentor/api/mentorProfileApi.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { Button, ContextualErrorState, SakuraLoader, notify } from '@/components/ui';
+import { SpotArt } from '@/assets/illustrations/SpotArt.jsx';
 import BrandMark from '@/components/brand/BrandMark.jsx';
 
 const ROOM_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -639,9 +640,9 @@ export default function ConsultationRoom() {
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
                   {chatMessages.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-white/40">
-                      <MessageSquare className="h-8 w-8 stroke-1" />
-                      <p className="text-xs">
+                    <div className="flex h-full flex-col items-center justify-center gap-2.5 text-center text-white/60">
+                      <SpotArt name="message" size={92} className="opacity-95" />
+                      <p className="text-xs leading-relaxed">
                         {tr('Chưa có tin nhắn trong phòng.')}
                         <br />
                         {isUserMentor
@@ -815,9 +816,12 @@ export default function ConsultationRoom() {
                   </button>
                 </form>
                 {agendaList.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-white/10 p-3 text-center text-xs text-white/50">
-                    {tr('Chưa có mục tiêu nào cho buổi học này. Thêm ghi chú nhanh ở trên để theo dõi.')}
-                  </p>
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/10 px-3 py-4 text-center">
+                    <SpotArt name="homework" size={80} className="opacity-95" />
+                    <p className="text-xs leading-relaxed text-white/60">
+                      {tr('Chưa có mục tiêu nào cho buổi học này. Thêm ghi chú nhanh ở trên để theo dõi.')}
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {agendaList.map((item) => (

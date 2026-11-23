@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Lock, ShieldCheck, Unlock, UserCog } from 'lucide-react';
+import { ArrowLeft, Lock, ShieldCheck, Unlock, UserRound } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import {
   AlertDialog,
@@ -10,13 +10,13 @@ import {
   Button,
   Card,
   ContextualEmptyState,
-  ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   Field,
-  PageHeader,
-  SakuraLoader,
   notify,
 } from '@/components/ui';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import { AdminRoleBadge } from '@/features/admin/components/AdminPrimitives.jsx';
 import { getAdminUser, updateAdminUser } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -81,7 +81,6 @@ export default function AdminUserDetail() {
   const role = user?.role?.name || user?.role || 'Learner';
   const isActive = user ? (user.isActive !== false && !user.isDeleted) : true;
   const isAdminAccount = role === 'Admin';
-  const initials = name.split(/\s+/).filter(Boolean).slice(-2).map((p) => p[0]).join('').toUpperCase() || 'ND';
 
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Chi tiết người dùng')}>
@@ -98,7 +97,7 @@ export default function AdminUserDetail() {
 
         {!id ? (
           <ContextualEmptyState
-            icon={UserCog}
+            illustration="mentor"
             title={tr('Chưa chọn người dùng')}
             description={tr('Hãy mở một tài khoản từ danh sách Người dùng & vai trò để xem và điều chỉnh quyền.')}
             action={
@@ -110,52 +109,52 @@ export default function AdminUserDetail() {
               </Link>
             }
           />
-        ) : userQuery.isPending ? (
-          <SakuraLoader variant="section" context="profile" label={tr('Đang tải hồ sơ người dùng')} delay={140} />
-        ) : userQuery.isError ? (
-          <ContextualErrorState
-            error={userQuery.error}
-            title={tr('Không tải được hồ sơ người dùng')}
-            onRetry={() => userQuery.refetch()}
-          />
         ) : (
-          <>
-            <PageHeader
-              title={
-                <span className="inline-flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-rp-brand-tint text-sm font-bold text-rp-brand-strong">
-                    {initials}
-                  </span>
-                  <span>{name}</span>
-                </span>
-              }
-              description={user.email}
-              actions={
-                !isAdminAccount && (
-                  <Button
-                    variant={isActive ? 'outline' : 'primary'}
-                    icon={isActive ? Lock : Unlock}
-                    disabled={updateMutation.isPending}
-                    onClick={() =>
-                      setPendingChange({
-                        kind: 'status',
-                        changes: { isActive: !isActive },
-                        title: isActive ? tr('Khóa tài khoản này?') : tr('Kích hoạt lại tài khoản?'),
-                        description: isActive
-                          ? trf('Tài khoản "{0}" sẽ tạm ngừng đăng nhập vào hệ thống.', { 0: name })
-                          : trf('Tài khoản "{0}" sẽ được mở khóa trở lại.', { 0: name }),
-                        confirmLabel: isActive ? tr('Khóa tài khoản') : tr('Mở khóa'),
-                        tone: isActive ? 'danger' : 'info',
-                      })
-                    }
-                  >
-                    {isActive ? tr('Khóa tài khoản') : tr('Mở khóa tài khoản')}
-                  </Button>
-                )
-              }
-            />
+          <DataRefreshBoundary
+            query={userQuery}
+            context="profile"
+            loadingLabel={tr('Đang tải hồ sơ người dùng')}
+            errorTitle={tr('Không tải được hồ sơ người dùng')}
+            loaderDelay={140}
+            className="space-y-5"
+          >
+            {user && (
+              <>
+                <AdminPageHeader
+                  icon={UserRound}
+                  title={name}
+                  subtitle={user.email}
+                  showTitle
+                  badge={<AdminRoleBadge role={user.role} />}
+                  actions={
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!isAdminAccount && (
+                        <Button
+                          size="sm"
+                          variant={isActive ? 'outline' : 'primary'}
+                          icon={isActive ? Lock : Unlock}
+                          disabled={updateMutation.isPending}
+                          onClick={() =>
+                            setPendingChange({
+                              kind: 'status',
+                              changes: { isActive: !isActive },
+                              title: isActive ? tr('Khóa tài khoản này?') : tr('Kích hoạt lại tài khoản?'),
+                              description: isActive
+                                ? trf('Tài khoản "{0}" sẽ tạm ngừng đăng nhập vào hệ thống.', { 0: name })
+                                : trf('Tài khoản "{0}" sẽ được mở khóa trở lại.', { 0: name }),
+                              confirmLabel: isActive ? tr('Khóa tài khoản') : tr('Mở khóa'),
+                              tone: isActive ? 'danger' : 'info',
+                            })
+                          }
+                        >
+                          {isActive ? tr('Khóa tài khoản') : tr('Mở khóa tài khoản')}
+                        </Button>
+                      )}
+                    </div>
+                  }
+                />
 
-            {saveError && <Banner tone="danger">{saveError}</Banner>}
+                {saveError && <Banner tone="danger">{saveError}</Banner>}
 
             <div className="grid gap-5 lg:grid-cols-2">
               <Card className="space-y-4 p-5">
@@ -244,7 +243,9 @@ export default function AdminUserDetail() {
                 </dl>
               </Card>
             </div>
-          </>
+              </>
+            )}
+          </DataRefreshBoundary>
         )}
 
         <AlertDialog

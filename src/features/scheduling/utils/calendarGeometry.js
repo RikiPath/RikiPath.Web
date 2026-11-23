@@ -5,20 +5,79 @@ export const VN_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const SHORT_DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const FULL_DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 
+export const CALENDAR_CATEGORIES = Object.freeze({
+  srs: {
+    id: 'srs',
+    category: 'srs',
+    label: 'Ôn tập SRS',
+    shortLabel: 'Ôn tập',
+    hex: '#D5A12F',
+    bgHex: '#FFF8E7',
+    card: 'border-l-[3.5px] border-l-rp-cal-srs border border-rp-cal-srs-border bg-rp-cal-srs-bg text-rp-cal-srs-text shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-rp-cal-srs hover:bg-[#FFEFCA] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rp-cal-srs/15 text-rp-cal-srs-text transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-rp-cal-srs group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-rp-cal-srs-border bg-rp-cal-srs-bg text-rp-cal-srs-text',
+    dot: 'bg-rp-cal-srs',
+    iconText: 'text-rp-cal-srs',
+  },
+  homework: {
+    id: 'homework',
+    category: 'homework',
+    label: 'Bài tập về nhà',
+    shortLabel: 'Bài tập',
+    hex: '#DC6977',
+    bgHex: '#FFF1F3',
+    card: 'border-l-[3.5px] border-l-rp-cal-homework border border-rp-cal-homework-border bg-rp-cal-homework-bg text-rp-cal-homework-text shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-rp-cal-homework hover:bg-[#FFE2E7] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rp-cal-homework/15 text-rp-cal-homework-text transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-rp-cal-homework group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-rp-cal-homework-border bg-rp-cal-homework-bg text-rp-cal-homework-text',
+    dot: 'bg-rp-cal-homework',
+    iconText: 'text-rp-cal-homework',
+  },
+  class: {
+    id: 'session',
+    category: 'session',
+    label: 'Lịch học / Lớp học',
+    shortLabel: 'Lớp học',
+    hex: '#2F9B6B',
+    bgHex: '#EAF8F0',
+    card: 'border-l-[3.5px] border-l-rp-cal-class border border-rp-cal-class-border bg-rp-cal-class-bg text-rp-cal-class-text shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-rp-cal-class hover:bg-[#D7F2E3] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rp-cal-class/15 text-rp-cal-class-text transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-rp-cal-class group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-rp-cal-class-border bg-rp-cal-class-bg text-rp-cal-class-text',
+    dot: 'bg-rp-cal-class',
+    iconText: 'text-rp-cal-class',
+  },
+  reminder: {
+    id: 'reminder',
+    category: 'reminder',
+    label: 'Nhắc nhở / Thông báo',
+    shortLabel: 'Nhắc nhở',
+    hex: '#477FDC',
+    bgHex: '#EDF4FF',
+    card: 'border-l-[3.5px] border-l-rp-cal-reminder border border-rp-cal-reminder-border bg-rp-cal-reminder-bg text-rp-cal-reminder-text shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-rp-cal-reminder hover:bg-[#DCEAFE] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rp-cal-reminder/15 text-rp-cal-reminder-text transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-rp-cal-reminder group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-rp-cal-reminder-border bg-rp-cal-reminder-bg text-rp-cal-reminder-text',
+    dot: 'bg-rp-cal-reminder',
+    iconText: 'text-rp-cal-reminder',
+  },
+});
+
+export const CALENDAR_CATEGORY_ORDER = Object.freeze(['session', 'homework', 'srs', 'reminder']);
+
 export const CALENDAR_TONES = Object.freeze({
   session: {
+    ...CALENDAR_CATEGORIES.class,
     label: 'Đã xếp lớp',
-    hex: '#CE476D',
-    card: 'border-l-[3.5px] border-l-[#CE476D] border border-[#F2CCD7] bg-[#FFF5F7] text-[#7D2941] shadow-2xs',
-    pill: 'bg-[#FCEAEF] text-[#9E3350] border border-[#F2CCD7]',
-    dot: 'bg-[#CE476D]',
+  },
+  class: {
+    ...CALENDAR_CATEGORIES.class,
+    label: 'Lớp học',
   },
   present: {
+    ...CALENDAR_CATEGORIES.class,
     label: 'Đã hoàn thành',
-    hex: '#16A34A',
-    card: 'border-l-[3.5px] border-l-[#16A34A] border border-[#BBF7D0] bg-[#F0FDF4] text-[#14532D]',
-    pill: 'bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]',
-    dot: 'bg-[#16A34A]',
   },
   approved: {
     label: 'Đã duyệt',
@@ -36,11 +95,8 @@ export const CALENDAR_TONES = Object.freeze({
     dot: 'bg-[#0D9488]',
   },
   booked: {
+    ...CALENDAR_CATEGORIES.class,
     label: 'Đã xếp lớp',
-    hex: '#CE476D',
-    card: 'border-l-[3.5px] border-l-[#CE476D] border border-[#EFC2CF] bg-[#FFF4F7] text-[#7D2941] shadow-2xs',
-    pill: 'bg-[#FCEAEF] text-[#9E3350] border border-[#EFC2CF]',
-    dot: 'bg-[#CE476D]',
   },
   pending: {
     label: 'Chờ duyệt',
@@ -64,11 +120,14 @@ export const CALENDAR_TONES = Object.freeze({
     dot: 'bg-[#DC3545]',
   },
   cancelled: {
+    category: 'session',
     label: 'Đã hủy',
     hex: '#8B8B97',
-    card: 'border-l-[3.5px] border-l-[#8B8B97] border border-[#E2E2E8] bg-[#F8F8FA] text-[#5E5E6A] opacity-85',
+    bgHex: '#EAF8F0',
+    card: 'border-l-[3.5px] border-l-rp-cal-class border border-rp-cal-class-border bg-rp-cal-class-bg/65 text-rp-cal-class-text opacity-80',
     pill: 'bg-[#F1F1F4] text-[#5E5E6A] border border-[#E2E2E8]',
-    dot: 'bg-[#8B8B97]',
+    dot: 'bg-rp-cal-class',
+    iconText: 'text-rp-cal-class',
   },
   selected: {
     label: 'Đã chọn (chưa gửi)',
@@ -78,34 +137,34 @@ export const CALENDAR_TONES = Object.freeze({
     dot: 'bg-[#22C55E]',
   },
   live: {
+    ...CALENDAR_CATEGORIES.class,
     label: 'Phòng đang mở',
-    card: 'border-l-[3.5px] border-l-[#0F766E] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
-    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
-    dot: 'bg-[#0F766E]',
   },
   homework: {
+    ...CALENDAR_CATEGORIES.homework,
     label: 'Hạn nộp bài tập',
-    card: 'border-l-[3.5px] border-l-[#4F46E5] border border-[#C7D2FE] bg-[#EEF2FF] text-[#3730A3]',
-    pill: 'bg-[#E0E7FF] text-[#4338CA] border border-[#C7D2FE]',
-    dot: 'bg-[#4F46E5]',
   },
   rescheduled: {
+    ...CALENDAR_CATEGORIES.class,
     label: 'Đã dời lịch',
-    card: 'border-l-[3.5px] border-l-[#B45309] border border-[#FDE68A] bg-[#FFFBEB] text-[#78350F]',
-    pill: 'bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]',
-    dot: 'bg-[#B45309]',
   },
   srs: {
-    label: 'Ôn tập SRS hôm nay',
-    card: 'border-l-[3.5px] border-l-[#059669] border border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]',
-    pill: 'bg-[#D1FAE5] text-[#047857] border border-[#A7F3D0]',
-    dot: 'bg-[#059669]',
+    ...CALENDAR_CATEGORIES.srs,
+    label: 'Ôn tập SRS',
+  },
+  reminder: {
+    ...CALENDAR_CATEGORIES.reminder,
+    label: 'Nhắc nhở',
+  },
+  notification: {
+    ...CALENDAR_CATEGORIES.reminder,
+    label: 'Nhắc nhở',
   },
   ghost: {
     label: 'Dự kiến',
-    card: 'border border-dashed border-[#86EFAC] bg-[#F0FDF4]/80 text-[#166534]',
-    pill: 'bg-[#F0FDF4] border border-dashed border-[#86EFAC] text-[#166534]',
-    dot: 'bg-[#22C55E]',
+    card: 'border border-dashed border-rp-cal-class-border bg-rp-cal-class-bg/80 text-rp-cal-class-text',
+    pill: 'bg-rp-cal-class-bg border border-dashed border-rp-cal-class-border text-rp-cal-class-text',
+    dot: 'bg-rp-cal-class',
   },
 });
 
@@ -125,6 +184,20 @@ export function formatCleanCohortTitle(rawName, sessionNumber) {
 
 export function getToneMeta(tone) {
   return CALENDAR_TONES[tone] || CALENDAR_TONES.session;
+}
+
+/**
+ * Resolves the unified 4-category visual identity (SRS, Homework, Class, Reminder)
+ * from an event object or category/eventType string.
+ */
+export function getCalendarCategoryMeta(eventOrType) {
+  const key = typeof eventOrType === 'string'
+    ? eventOrType
+    : (eventOrType?.category || eventOrType?.eventType || eventOrType?.tone || 'session');
+  if (key === 'srs') return CALENDAR_CATEGORIES.srs;
+  if (key === 'homework') return CALENDAR_CATEGORIES.homework;
+  if (key === 'reminder' || key === 'notification') return CALENDAR_CATEGORIES.reminder;
+  return CALENDAR_CATEGORIES.class;
 }
 
 /** Formats a Date or backend UTC ISO string into YYYY-MM-DD in Asia/Ho_Chi_Minh. */

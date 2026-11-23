@@ -30,3 +30,20 @@ export function submitQuizExercise(attemptId, answers) {
     })),
   }).then(result);
 }
+
+export function getRoadmapCheckpoints(params = {}) {
+  return api.get('/practice-exercises/checkpoints', { params }).then(result);
+}
+
+export function startCheckpointAttempt(practiceExerciseId) {
+  return api.post(`/practice-exercises/checkpoints/${practiceExerciseId}/attempts`).then(result);
+}
+
+export function submitCheckpointAttempt(attemptId, answers) {
+  return api.post(`/practice-exercises/checkpoints/attempts/${attemptId}/submit`, {
+    answers: answers.map((item) => ({
+      questionId: item.questionId,
+      selectedOptionId: item.selectedOptionId ?? null,
+    })),
+  }).then(result);
+}

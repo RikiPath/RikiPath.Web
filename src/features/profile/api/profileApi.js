@@ -48,6 +48,11 @@ export async function setStudyLevel({ currentStudyLevelId }) {
   return data.result;
 }
 
+export async function setRoadmapMode(mode) {
+  const data = await api.put('/UserProfile/me/roadmap-mode', { mode });
+  return data.result;
+}
+
 export async function updateNotificationSettings({
   emailNotificationsEnabled,
   systemNotificationsEnabled,

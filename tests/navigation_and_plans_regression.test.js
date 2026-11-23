@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { matchRoute, ROUTES, REDIRECTS, canAccessPath, homeForRole } from '@/app/routes/routeTable.js';
 import { evaluateStudyPlanAccess, studyFeatureInfo } from '@/app/guards/studyPlanGate.js';
+import { ACCESS, featureLockState } from '@/features/entitlements/featureAccess.js';
 import { resolvePaymentReturn } from '@/app/guards/paymentReturnResolver.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { notificationDestination } from '@/features/notifications/utils/notificationDedupe.js';
@@ -46,15 +47,43 @@ describe('Regression guard: /plans gating & self-study route contracts', () => {
   });
 
   it('keeps study: true ONLY on Backend [RequireSelfStudy] routes with readable metadata', () => {
-    const gatedPaths = ['/lessons', '/lesson-player', '/riki/listening', '/riki/reading', '/vocabulary', '/kanji-notebook'];
+    const gatedPaths = ['/lessons', '/lesson-player', '/riki/listening', '/riki/reading'];
+    // `/lesson-player/:lessonId` is the deep-link form of the same Lesson Player (same Backend gate).
     const actualGated = ROUTES.filter((r) => Boolean(r.study)).map((r) => r.path).sort();
-    assert.deepEqual(actualGated, [...gatedPaths].sort());
+    assert.deepEqual(actualGated, [...gatedPaths, '/lesson-player/:lessonId'].sort());
+    assert.equal(Boolean(matchRoute('/roadmap/stages/12')?.study), false, 'Roadmap Stage Detail must remain Core Free');
+
+    assert.equal(Boolean(matchRoute('/kanji-notebook')?.study), false, 'Personal Notebook must remain Core Free');
+    assert.equal(Boolean(matchRoute('/roadmap')?.study), false, 'Standard Roadmap must remain Core Free');
+    assert.equal(featureLockState('/kanji-notebook', ACCESS.FREE), 'open');
+    assert.equal(featureLockState('/roadmap', ACCESS.FREE), 'open');
+    assert.equal(featureLockState('/lessons', ACCESS.FREE), 'locked');
+
+    assert.ok(
+      REDIRECTS.some(([from, to]) => from === '/vocabulary' && to === '/kanji-notebook'),
+      'Legacy /vocabulary route must redirect to /kanji-notebook',
+    );
 
     for (const p of gatedPaths) {
       const info = studyFeatureInfo(p);
       assert.ok(info.featureLabel && !info.featureLabel.includes('Nội dung tự học'), `Missing specific feature label for ${p}`);
       assert.ok(info.description.length > 20, `Missing contextual description for ${p}`);
     }
+  });
+
+  it('prefers server feature entitlement truth over fallback route table locks', () => {
+    assert.equal(
+      featureLockState('/lessons', ACCESS.FREE, [
+        { code: 'LESSONS_CONTENT', routes: ['/lessons', '/lesson-player'], allowed: true },
+      ]),
+      'open',
+    );
+    assert.equal(
+      featureLockState('/roadmap', ACCESS.FREE, [
+        { code: 'STANDARD_ROADMAP', routes: ['/roadmap'], allowed: false, accessMode: 'PLAN_REQUIRED' },
+      ]),
+      'locked',
+    );
   });
 
   it('evaluateStudyPlanAccess returns contextual plan-required instead of silent redirect', () => {
@@ -71,6 +100,18 @@ describe('Regression guard: /plans gating & self-study route contracts', () => {
     assert.equal(
       evaluateStudyPlanAccess({ pathname: '/lessons', isAuthenticated: true, isLearner: true, subscriptionData: { active: true } }),
       'allow',
+    );
+    assert.equal(
+      evaluateStudyPlanAccess({
+        pathname: '/lessons',
+        isAuthenticated: true,
+        isLearner: true,
+        subscriptionData: {
+          active: false,
+          features: [{ code: 'LESSONS_CONTENT', routes: ['/lessons'], accessMode: 'DISABLED', allowed: false }],
+        },
+      }),
+      'disabled',
     );
   });
 

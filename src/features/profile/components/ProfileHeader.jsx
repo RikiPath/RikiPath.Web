@@ -1,5 +1,5 @@
 import { Camera, CheckCircle2, Flame, Globe, KeyRound, MailWarning, PencilLine, ShieldAlert, Target } from 'lucide-react';
-import { Avatar, Button, cx } from '@/components/ui';
+import { Button, UserAvatar, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { ROLE_META } from '../profileConstants.js';
 
@@ -42,10 +42,11 @@ export default function ProfileHeader({
               aria-label={tr('Thay đổi ảnh đại diện')}
               className="rp-focus group relative block rounded-full"
             >
-              <Avatar
+              <UserAvatar
                 src={profile?.avatarUrl}
                 name={fullName}
                 size={72}
+                eager
                 className="ring-2 ring-[#F1E6E9] transition-transform duration-150 group-hover:scale-[1.02]"
               />
               <span

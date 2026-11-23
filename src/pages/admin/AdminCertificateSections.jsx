@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Pencil, Plus } from 'lucide-react';
+import { Library, Plus } from 'lucide-react';
 
 import {
   archiveCertificateSection,
@@ -19,17 +19,16 @@ import {
   Button,
   Checkbox,
   ContextualEmptyState,
-  ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   Field,
   Input,
   Modal,
-  PageHeader,
-  RefreshingIndicator,
-  SakuraLoader,
-  StaleDataBar,
   Textarea,
+  UnifiedToolbar,
 } from '@/components/ui';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import { AdminDataTable, AdminIconAction, AdminRowActions, AdminWorkspace } from '@/features/admin/components/AdminPrimitives.jsx';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -77,6 +76,7 @@ export default function AdminCertificateSections() {
   const formId = useId();
 
   const [levelId, setLevelId] = useState('');
+  const [query, setQuery] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [modalState, setModalState] = useState(null); // null | { editId: number|null, initialForm, form }
   const [fieldErrors, setFieldErrors] = useState({});
@@ -157,17 +157,80 @@ export default function AdminCertificateSections() {
       ].map(([id, code]) => ({ id, code })),
     [allRows, trf],
   );
+  const levelTabs = useMemo(() => [
+    { value: '', label: 'Tất cả' },
+    ...filterLevelOptions.map((level) => ({ value: String(level.id), label: level.code })),
+  ], [filterLevelOptions]);
 
-  const rows = levelId ? allRows.filter((row) => String(row.certificateLevelId) === levelId) : allRows;
-
-  const groups = useMemo(() => {
-    const map = new Map();
-    rows.forEach((row) => {
-      const key = row.certificateLevelCode || 'Khác';
-      map.set(key, [...(map.get(key) || []), row]);
+  // One table for every level. Order = level order as the API returns it (N5 → N2), then each section's SortOrder,
+  // never an alphabetical sort of names or codes.
+  const rows = useMemo(() => {
+    const levelRank = new Map();
+    allRows.forEach((row) => {
+      if (!levelRank.has(row.certificateLevelId)) levelRank.set(row.certificateLevelId, levelRank.size);
     });
-    return [...map.entries()];
-  }, [rows]);
+    const q = query.trim().toLowerCase();
+    return allRows
+      .filter((row) => !levelId || String(row.certificateLevelId) === levelId)
+      .filter((row) => !q || String(row.name || '').toLowerCase().includes(q) || String(row.code || '').toLowerCase().includes(q))
+      .sort((a, b) => (levelRank.get(a.certificateLevelId) - levelRank.get(b.certificateLevelId))
+        || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
+        || a.id - b.id);
+  }, [allRows, levelId, query]);
+
+  const sectionColumns = [
+    {
+      key: 'level',
+      header: tr('Cấp độ'),
+      width: 'w-[8%]',
+      sortable: false,
+      render: (row) => (
+        <span className="inline-flex min-w-[40px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2 py-0.5 text-[12.5px] font-bold text-rp-brand-strong">
+          {row.certificateLevelCode || trf('Cấp {0}', { 0: row.certificateLevelId })}
+        </span>
+      ),
+    },
+    {
+      key: 'name',
+      header: tr('Phần thi'),
+      width: 'w-[34%]',
+      sortable: false,
+      render: (row) => (
+        <div className="min-w-[220px]">
+          <p className="line-clamp-2 font-semibold text-rp-text" title={row.name}>{row.name}</p>
+          <p className="mt-0.5 text-xs text-rp-text-muted">{row.code}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'score',
+      header: tr('Điểm đạt / tối đa'),
+      width: 'w-[19%]',
+      align: 'center',
+      sortable: false,
+      render: (row) => <span className="tabular-nums text-rp-text-2">{row.passingScore}/{row.maxScore}</span>,
+    },
+    {
+      key: 'durationMinutes',
+      header: tr('Phút'),
+      width: 'w-[12%]',
+      align: 'center',
+      sortable: false,
+      render: (row) => <span className="tabular-nums text-rp-text-2">{row.durationMinutes ?? '—'}</span>,
+    },
+    {
+      key: 'status',
+      header: tr('Trạng thái'),
+      width: 'w-[17%]',
+      align: 'center',
+      sortable: false,
+      render: (row) => (
+        <Badge size="sm" tone={row.isArchived ? 'neutral' : 'success'}>
+          {row.isArchived ? tr('Đã lưu trữ') : tr('Hoạt động')}
+        </Badge>
+      ),
+    },
+  ];
 
   const nextOrderForLevel = (targetLevelId) => {
     const rowsInLevel = allRows.filter((row) => String(row.certificateLevelId) === String(targetLevelId));
@@ -290,205 +353,121 @@ export default function AdminCertificateSections() {
     forceClose();
   };
 
+  const refreshSections = () =>
+    Promise.all([
+      sections.refetch({ cancelRefetch: true }),
+      catalog.refetch({ cancelRefetch: true }),
+    ]);
+  const isRefreshingSections = (sections.isFetching && !sections.isLoading) || (catalog.isFetching && !catalog.isLoading);
+  const showFilterToolbar = allRows.length > 0;
+  const filtersActive = Boolean(levelId || query.trim());
+
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Phần thi')}>
-      <main className="rp-container py-[var(--rp-space-page-y)] text-rp-text">
-        <PageHeader
-          title={tr('Phần thi JLPT')}
-          description={tr('Từ vựng, ngữ pháp, đọc và nghe theo từng cấp.')}
-          actions={(
-            <div className="flex items-center gap-3">
-              <RefreshingIndicator active={sections.isFetching && !sections.isLoading} />
-              <Button variant="primary" icon={Plus} onClick={openCreate}>
+      <AdminWorkspace viewportLocked page="AdminCertificateSections">
+        <AdminPageHeader icon={Library} title="Phần thi" className="mb-0 shrink-0" />
+
+        {/* One toolbar: level pills, search, archived toggle, refresh, create. Hidden while the dataset is empty. */}
+        {showFilterToolbar && (
+          <UnifiedToolbar
+            className="shrink-0"
+            tabs={{
+              label: tr('Lọc theo cấp độ'),
+              value: levelId,
+              onChange: setLevelId,
+              tabs: levelTabs,
+            }}
+            search={{
+              value: query,
+              onChange: (e) => setQuery(e.target.value),
+              onClear: () => setQuery(''),
+              placeholder: 'Tìm phần thi hoặc mã phần thi…',
+              ariaLabel: tr('Tìm phần thi'),
+            }}
+            filters={
+              <Checkbox
+                label="Hiện phần đã lưu trữ"
+                checked={includeArchived}
+                onChange={(event) => setIncludeArchived(event.target.checked)}
+              />
+            }
+            refresh={{ onRefresh: refreshSections, refreshing: isRefreshingSections }}
+            actions={
+              <Button variant="primary" size="md" icon={Plus} onClick={openCreate}>
                 {tr('Thêm phần thi')}
               </Button>
-            </div>
-          )}
-        />
-
-        {/* Level Filter Strip + Archive Toggle */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tr('Lọc theo cấp độ')}>
-            <Button
-              size="sm"
-              variant={levelId === '' ? 'primary' : 'outline'}
-              onClick={() => setLevelId('')}
-            >
-              {tr('Tất cả')}
-            </Button>
-            {filterLevelOptions.map((level) => {
-              const active = String(level.id) === levelId;
-              return (
-                <Button
-                  key={level.id}
-                  size="sm"
-                  variant={active ? 'primary' : 'outline'}
-                  onClick={() => setLevelId(String(level.id))}
-                >
-                  {level.code}
-                </Button>
-              );
-            })}
-          </div>
-
-          <Checkbox
-            label="Hiện phần đã lưu trữ"
-            checked={includeArchived}
-            onChange={(event) => setIncludeArchived(event.target.checked)}
+            }
           />
-        </div>
+        )}
 
         {archive.error && (
-          <Banner tone="danger" role="alert" className="mb-4">
+          <Banner tone="danger" role="alert" className="shrink-0">
             {tr(describeApiError(archive.error).message)}
           </Banner>
         )}
 
         {notice && (
-          <Banner tone="success" role="status" className="mb-4" onDismiss={() => setNotice('')}>
+          <Banner tone="success" role="status" className="shrink-0" onDismiss={() => setNotice('')}>
             {tr(notice)}
           </Banner>
         )}
 
-        {sections.isError && !allRows.length && (
-          <div className="rounded-rp-card border border-rp-line bg-rp-surface px-5 shadow-rp-xs">
-            <ContextualErrorState
-              compact
-              error={sections.error}
-              title={tr('Chưa tải được danh sách phần thi')}
-              onRetry={() => sections.refetch()}
-              retrying={sections.isFetching}
-            />
-          </div>
-        )}
-        {sections.isError && allRows.length > 0 && (
-          <StaleDataBar className="mb-4" onRetry={() => sections.refetch()} retrying={sections.isFetching} />
-        )}
-
-        <div className="space-y-4">
-          {sections.isLoading && (
-            <div className="rounded-rp-card border border-rp-line bg-rp-surface p-6 shadow-rp-xs">
-              <SakuraLoader variant="section" context="data" delay={160} />
-            </div>
-          )}
-
-          {!sections.isLoading && !sections.isError && groups.length === 0 && (
-            <div className="rounded-rp-card border border-rp-line bg-rp-surface px-5 shadow-rp-xs">
+        <DataRefreshBoundary
+          fillHeight
+          queries={[sections]}
+          loading={sections.isLoading}
+          refreshing={isRefreshingSections}
+          error={sections.error}
+          hasData={allRows.length > 0}
+          isEmpty={allRows.length === 0}
+          loadingContext="data"
+          loadingLabel={tr('Đang tải danh sách phần thi')}
+          errorTitle={tr('Chưa tải được danh sách phần thi')}
+          onRetry={refreshSections}
+          emptyIllustration="certificate"
+          emptyTitle={tr('Chưa có phần thi.')}
+          emptyAction={
+            <Button variant="primary" size="sm" icon={Plus} onClick={openCreate}>
+              {tr('Thêm phần thi')}
+            </Button>
+          }
+          compact
+        >
+          <AdminDataTable
+            fillHeight
+            keyField="id"
+            columns={sectionColumns}
+            rows={rows}
+            pageSize={10}
+            resetPageKey={`${levelId}|${query}|${includeArchived}`}
+            align="left"
+            minTableWidth="min-w-[720px]"
+            itemLabel="phần thi"
+            caption={tr('Danh sách phần thi theo cấp độ')}
+            empty={
               <ContextualEmptyState
-                compact
-                title={tr('Chưa có phần thi.')}
-                actionLabel={tr('Thêm phần thi')}
-                onAction={openCreate}
+                variant="search"
+                illustration="certificate"
+                title={tr('Không tìm thấy kết quả phù hợp.')}
+                description=""
+                action={filtersActive ? (
+                  <Button size="sm" variant="outline" onClick={() => { setLevelId(''); setQuery(''); }}>
+                    {tr('Xóa bộ lọc')}
+                  </Button>
+                ) : undefined}
               />
-            </div>
-          )}
-
-          {groups.map(([level, items]) => (
-            <section
-              key={level}
-              className="overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-xs"
-            >
-              <header className="flex items-center justify-between border-b border-rp-line bg-rp-table-head/60 px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex min-w-[40px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2 py-0.5 text-[12.5px] font-bold text-rp-brand-strong">
-                    {level}
-                  </span>
-                  <h2 className="text-[14px] font-semibold text-rp-text">
-                    {trf('{0} phần', { 0: items.length })}
-                  </h2>
-                </div>
-              </header>
-
-              {/* Desktop Table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-rp-line bg-rp-table-head text-xs font-semibold uppercase tracking-[0.04em] text-rp-text-muted">
-                      <th scope="col" className="px-5 py-2.5">{tr('Phần thi')}</th>
-                      <th scope="col" className="w-[140px] px-4 py-2.5">{tr('Điểm')}</th>
-                      <th scope="col" className="w-[100px] px-4 py-2.5 text-center">{tr('Phút')}</th>
-                      <th scope="col" className="w-[150px] px-4 py-2.5">{tr('Trạng thái')}</th>
-                      <th scope="col" className="w-[190px] px-5 py-2.5 text-right">{tr('Thao tác')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-rp-line/70">
-                    {items.map((row) => (
-                      <tr key={row.id} className="transition-colors duration-150 hover:bg-rp-row-hover">
-                        <td className="px-5 py-3">
-                          <p className="font-semibold text-rp-text">{row.name}</p>
-                          <p className="mt-0.5 text-xs text-rp-text-muted">{row.code}</p>
-                        </td>
-                        <td className="px-4 py-3 tabular-nums text-rp-text-2">
-                          {row.passingScore}/{row.maxScore}
-                        </td>
-                        <td className="px-4 py-3 text-center tabular-nums text-rp-text-2">
-                          {row.durationMinutes ?? '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge size="sm" tone={row.isArchived ? 'neutral' : 'success'}>
-                            {row.isArchived ? tr('Đã lưu trữ') : tr('Hoạt động')}
-                          </Badge>
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          {!row.isArchived && (
-                            <span className="inline-flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                icon={Pencil}
-                                onClick={() => openEdit(row)}
-                              >
-                                {tr('Sửa')}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                icon={Archive}
-                                onClick={() => setArchiveTarget(row)}
-                              >
-                                {tr('Lưu trữ')}
-                              </Button>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Compact Cards */}
-              <div className="divide-y divide-rp-line/70 md:hidden">
-                {items.map((row) => (
-                  <div key={row.id} className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-rp-text">{row.name}</p>
-                        <p className="text-xs text-rp-text-muted">
-                          {row.code} · {tr('Điểm')}: {row.passingScore}/{row.maxScore} · {row.durationMinutes ?? '—'} {tr('Phút')}
-                        </p>
-                      </div>
-                      <Badge size="sm" tone={row.isArchived ? 'neutral' : 'success'}>
-                        {row.isArchived ? tr('Đã lưu trữ') : tr('Hoạt động')}
-                      </Badge>
-                    </div>
-                    {!row.isArchived && (
-                      <div className="mt-3 flex justify-end gap-2">
-                        <Button size="sm" variant="secondary" icon={Pencil} onClick={() => openEdit(row)}>
-                          {tr('Sửa')}
-                        </Button>
-                        <Button size="sm" variant="ghost" icon={Archive} onClick={() => setArchiveTarget(row)}>
-                          {tr('Lưu trữ')}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </main>
+            }
+            rowActions={(row) => (!row.isArchived ? (
+              <AdminRowActions className="w-full">
+                <AdminIconAction kind="edit" tone="brand" tooltip="Chỉnh sửa phần thi" onClick={() => openEdit(row)} />
+                <AdminIconAction kind="archive" tone="danger" tooltip="Lưu trữ phần thi" onClick={() => setArchiveTarget(row)} />
+              </AdminRowActions>
+            ) : (
+              <span className="block text-center text-xs text-rp-text-muted">—</span>
+            ))}
+          />
+        </DataRefreshBoundary>
+      </AdminWorkspace>
 
       {/* Create / Edit Modal */}
       {modalState && (
@@ -497,7 +476,6 @@ export default function AdminCertificateSections() {
           onClose={requestClose}
           size="md"
           title={modalState.editId ? tr('Sửa phần thi') : tr('Phần thi mới')}
-          description={tr('Cấu hình điểm đạt, điểm tối đa và thời lượng làm bài cho từng phần thi.')}
           footer={(
             <>
               <Button variant="secondary" onClick={requestClose} disabled={save.isPending}>

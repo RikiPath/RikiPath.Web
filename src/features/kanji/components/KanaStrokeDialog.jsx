@@ -1,14 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Lightbulb, PenLine, PlayCircle, RotateCcw, TriangleAlert, Undo2 } from 'lucide-react';
 import kanaStrokes from '@/data/kanaStrokes.json';
-import { Modal, cx } from '@/components/ui';
+import { Button, Modal, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import KanaAudioButton from './KanaAudioButton.jsx';
 import KanjiWritingCanvas from './KanjiWritingCanvas.jsx';
 import { hasKanaStrokeData, loadKanaCharData } from '../utils/kanaCharData.js';
 
 const emptyStrokes = [];
-const BRAND = '#B52F55';
+const BRAND = '#CC4B6B';
 const KANA_FONT = { fontFamily: '"Yu Gothic", "Hiragino Sans", sans-serif' };
 
 /* ------------------------------------------------------------------ Mode A — stroke guide */
@@ -60,9 +60,9 @@ function StrokeGuide({ item, strokes, onStartPractice }) {
   }
 
   return (
-    <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] sm:items-start">
+    <div className="grid gap-5 sm:grid-cols-[minmax(0,280px)_minmax(0,1fr)] sm:items-start">
       <div>
-        <div className="mx-auto max-w-[320px] overflow-hidden rounded-[24px] border border-rp-line bg-[#FFFCFA] shadow-rp-xs">
+        <div className="mx-auto max-w-[280px] overflow-hidden rounded-[24px] border border-rp-line bg-white shadow-rp-xs">
           <svg viewBox="0 0 109 109" role="img" aria-label={trf('Hướng dẫn {0} nét của chữ {1}', { 0: strokes.length, 1: item.character })} className="block aspect-square w-full">
             <path d="M54.5 0V109 M0 54.5H109 M0 0L109 109 M109 0L0 109" fill="none" stroke="#eadfd9" strokeWidth="0.35" strokeDasharray="2 2" />
             <g fill="none" stroke="#f1e6e9" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">{strokes.map((d, index) => <path key={index} d={d} />)}</g>
@@ -91,9 +91,9 @@ function StrokeGuide({ item, strokes, onStartPractice }) {
 
       <div className="min-w-0">
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => play()} className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border border-rp-line bg-white px-3.5 text-sm font-semibold text-rp-text hover:border-rp-brand-border">
-            <PlayCircle aria-hidden="true" className="h-4 w-4 text-tone-reading" /> {tr('Xem lại toàn bộ')}
-          </button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => play()} icon={PlayCircle}>
+            {tr('Xem lại toàn bộ')}
+          </Button>
           <KanaAudioButton audioUrl={item.audioUrl} character={item.character} />
         </div>
         <p className="mt-4 text-[13px] font-semibold text-rp-text-2">{tr('Chọn một nét để xem riêng:')}</p>
@@ -111,14 +111,15 @@ function StrokeGuide({ item, strokes, onStartPractice }) {
           ))}
         </div>
         <p className="mt-4 text-xs leading-5 text-rp-text-muted">{tr('Theo dõi nét hồng và số thứ tự để biết điểm bắt đầu, hướng đi và thứ tự viết.')}</p>
-        <button
+        <Button
           type="button"
           onClick={onStartPractice}
           disabled={!hasKanaStrokeData(item.character)}
-          className="rp-focus rp-press mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-[15px] font-semibold text-white shadow-rp-brand transition-colors hover:bg-rp-brand-strong disabled:opacity-50 sm:w-auto"
+          icon={PenLine}
+          className="mt-5 w-full sm:w-auto"
         >
-          <PenLine aria-hidden="true" className="h-4 w-4" /> {tr('Bắt đầu luyện viết')}
-        </button>
+          {tr('Bắt đầu luyện viết')}
+        </Button>
       </div>
     </div>
   );
@@ -126,8 +127,8 @@ function StrokeGuide({ item, strokes, onStartPractice }) {
 
 /* ------------------------------------------------------------------ Mode B — writing practice */
 
-function useSquareSize(ref, { min = 220, max = 340 } = {}) {
-  const [size, setSize] = useState(300);
+function useSquareSize(ref, { min = 220, max = 280 } = {}) {
+  const [size, setSize] = useState(280);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
@@ -191,20 +192,20 @@ function WritingPractice({ item, total, onSubmitResult, lastResult, saveError, o
       tone: 'warn',
       icon: TriangleAlert,
       text: event.backwards
-        ? trf('Nét {0} đang viết ngược chiều. Hãy bắt đầu từ điểm có số thứ tự.', { 0: event.stroke })
-        : trf('Nét {0} chưa khớp hình hoặc thứ tự. Thử lại, hoặc bấm Gợi ý.', { 0: event.stroke }),
+        ? tr('Ngược chiều nét. Hãy thử lại.')
+        : tr('Nét chưa đúng. Hãy thử lại.'),
     };
   } else if (event?.type === 'correct') {
-    feedback = { tone: 'ok', icon: CheckCircle2, text: trf('Nét {0} / {1} chính xác.', { 0: event.stroke, 1: total }) };
+    feedback = { tone: 'ok', icon: CheckCircle2, text: trf('Tốt lắm! Nét {0}/{1}', { 0: event.stroke, 1: total }) };
   } else {
-    feedback = { tone: 'idle', icon: PenLine, text: trf('Viết nét {0} / {1} trong ô luyện viết.', { 0: 1, 1: total }) };
+    feedback = { tone: 'idle', icon: PenLine, text: trf('Nét {0}/{1}', { 0: Math.min(progress.done + 1, Math.max(1, total)), 1: total }) };
   }
 
   const nextReview = lastResult?.nextReviewDate ? new Date(lastResult.nextReviewDate) : null;
 
   return (
-    <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] sm:items-start">
-      <div ref={boxRef} className="mx-auto w-full max-w-[340px]">
+    <div className="grid gap-5 sm:grid-cols-[minmax(0,280px)_minmax(0,1fr)] sm:items-start">
+      <div ref={boxRef} className="mx-auto w-full max-w-[280px]">
         <div className="relative">
           <KanjiWritingCanvas
             key={`${item.character}-${attempt}-${size}`}
@@ -232,28 +233,27 @@ function WritingPractice({ item, total, onSubmitResult, lastResult, saveError, o
       </div>
 
       <div className="min-w-0">
-        <div role="toolbar" aria-label={tr('Công cụ luyện viết')} className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setOutline((v) => !v)} aria-pressed={outline} className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[13px] font-semibold text-rp-text hover:border-rp-brand-border">
-            {outline ? <Eye aria-hidden="true" className="h-4 w-4 text-tone-reading" /> : <EyeOff aria-hidden="true" className="h-4 w-4 text-rp-text-muted" />}
-            {outline ? tr('Ẩn chữ mẫu') : tr('Hiện chữ mẫu')}
-          </button>
-          <button type="button" onClick={hint} disabled={Boolean(result)} className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[13px] font-semibold text-rp-text hover:border-rp-brand-border disabled:opacity-45">
-            <Lightbulb aria-hidden="true" className="h-4 w-4 text-tone-grammar" /> {tr('Gợi ý')}
-          </button>
-          <button type="button" onClick={restart} className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[13px] font-semibold text-rp-text hover:border-rp-brand-border">
-            <RotateCcw aria-hidden="true" className="h-4 w-4 text-tone-vocab" /> {tr('Viết lại')}
-          </button>
+        <div role="toolbar" aria-label={tr('Công cụ luyện viết')} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setOutline((v) => !v)} aria-pressed={outline} icon={outline ? Eye : EyeOff}>
+            {outline ? tr('Ẩn mẫu') : tr('Hiện mẫu')}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={hint} disabled={Boolean(result)} icon={Lightbulb}>
+            {tr('Gợi ý')}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={restart} icon={RotateCcw}>
+            {tr('Viết lại')}
+          </Button>
         </div>
-        <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-5 text-rp-text-muted">
-          <Undo2 aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {tr('Chỉ nét viết đúng mới được giữ lại; nét sai tự biến mất để bạn viết lại.')}
+        <p className="mt-2 flex items-center gap-1.5 text-[12px] leading-5 text-rp-text-muted">
+          <Undo2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+          <span>{tr('Viết theo nét mẫu.')}</span>
         </p>
 
         <p
           role="status"
           aria-live="polite"
           className={cx(
-            'mt-4 flex items-start gap-2 rounded-2xl px-3.5 py-3 text-[13.5px] font-medium leading-5 transition-colors duration-200',
+            'mt-3.5 flex items-start gap-2 rounded-2xl px-3.5 py-2.5 text-[13px] font-medium leading-5 transition-colors duration-200',
             feedback.tone === 'success' && 'bg-[#E7F6EC] text-[#0A6B33]',
             feedback.tone === 'ok' && 'bg-[#EEF6F2] text-[#1E6B47]',
             feedback.tone === 'warn' && 'bg-[#FFF4E5] text-[#8A4B06]',
@@ -261,11 +261,11 @@ function WritingPractice({ item, total, onSubmitResult, lastResult, saveError, o
           )}
         >
           <feedback.icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-          {feedback.text}
+          <span>{feedback.text}</span>
         </p>
 
         {result && (
-          <div className="mt-3 text-[12.5px] leading-5 text-rp-text-2">
+          <div className="mt-2.5 text-[12.5px] leading-5 text-rp-text-2">
             {result.saving && <p>{tr('Đang lưu kết quả luyện viết…')}</p>}
             {!result.saving && nextReview && !Number.isNaN(nextReview.getTime()) && (
               <p>{trf('Đã lưu. Lần ôn kế: {0}', { 0: nextReview.toLocaleDateString(locale === 'ja' ? 'ja-JP' : 'vi-VN') })}</p>
@@ -274,18 +274,20 @@ function WritingPractice({ item, total, onSubmitResult, lastResult, saveError, o
           </div>
         )}
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {result && (
-            <button type="button" onClick={restart} className="rp-focus inline-flex h-10 items-center gap-2 rounded-rp-input border border-rp-line bg-white px-4 text-sm font-semibold text-rp-text hover:border-rp-brand-border">
-              <RotateCcw aria-hidden="true" className="h-4 w-4" /> {tr('Luyện lại')}
-            </button>
-          )}
-          {onNext && (
-            <button type="button" onClick={onNext} className={cx('rp-focus rp-press inline-flex h-10 items-center gap-2 rounded-rp-input px-4 text-sm font-semibold transition-colors', result ? 'bg-rp-brand-pressed text-white shadow-rp-brand hover:bg-rp-brand-strong' : 'border border-rp-line bg-white text-rp-text hover:border-rp-brand-border')}>
-              {tr('Chữ tiếp theo')} <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        {(result || onNext) && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-rp-line/70 pt-3.5">
+            {result && (
+              <Button type="button" variant="secondary" size="sm" onClick={restart} icon={RotateCcw}>
+                {tr('Luyện lại')}
+              </Button>
+            )}
+            {onNext && (
+              <Button type="button" variant={result ? 'primary' : 'secondary'} size="sm" onClick={onNext} iconRight={ArrowRight}>
+                {tr('Chữ tiếp theo')}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

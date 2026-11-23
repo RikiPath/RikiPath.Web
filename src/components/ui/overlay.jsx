@@ -22,7 +22,7 @@ function Portal({ children }) {
 
 /* ------------------------------------------------------------------ Modal */
 
-const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', '2xl': 'max-w-[1080px]' };
 
 export function Modal({ open, onClose, title, description, children, footer, size = 'md', dismissible = true, initialFocusRef, className }) {
   const { tr } = useLocale();
@@ -53,7 +53,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           )}
         >
           {(title || dismissible) && (
-            <div className="flex items-start justify-between gap-4 border-b border-rp-line px-5 py-3.5">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-rp-line px-5 py-3.5">
               <div className="min-w-0">
                 {title && <h2 id={titleId} className="text-base font-bold leading-6 text-rp-text">{tr(title)}</h2>}
                 {description && <p id={descId} className="mt-0.5 text-[13px] leading-5 text-rp-text-muted">{tr(description)}</p>}
@@ -66,7 +66,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
             </div>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-          {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-rp-line bg-rp-bg-2 px-5 py-3">{footer}</div>}
+          {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-rp-line bg-rp-bg-2 px-5 py-3">{footer}</div>}
         </div>
       </div>
     </Portal>
@@ -75,54 +75,182 @@ export function Modal({ open, onClose, title, description, children, footer, siz
 
 /* ------------------------------------------------------------------ Drawer */
 
-export function Drawer({ open, onClose, title, side = 'right', width = 'w-[min(420px,100vw)]', children, footer, labelledBy }) {
+const DRAWER_SIZES = {
+  sm: 'w-[min(360px,100vw)]',
+  md: 'w-[min(480px,100vw)]',
+  lg: 'w-[min(620px,100vw)]',
+  xl: 'w-[min(820px,100vw)]',
+  '2xl': 'w-full md:w-[min(880px,92vw)] lg:w-[clamp(720px,62vw,920px)]',
+};
+
+export function DrawerHeader({ title, subtitle, description, onClose, closeLabel = 'Đóng', titleId, descId, className }) {
   const { tr } = useLocale();
+  const sub = subtitle ?? description;
+  return (
+    <div className={cx('flex shrink-0 items-center justify-between gap-3 border-b border-rp-line bg-rp-surface px-5 py-3.5', className)}>
+      <div className="min-w-0 flex-1">
+        {title && (
+          <h2 id={titleId} className="truncate text-base font-bold text-rp-text">
+            {typeof title === 'string' ? tr(title) : title}
+          </h2>
+        )}
+        {sub && (
+          <p id={descId} className="mt-0.5 truncate text-[12.5px] leading-5 text-rp-text-muted">
+            {typeof sub === 'string' ? tr(sub) : sub}
+          </p>
+        )}
+      </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={tr(closeLabel)}
+          className="rp-focus -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-rp-text-muted transition-colors hover:bg-rp-muted hover:text-rp-text"
+        >
+          <X aria-hidden="true" className="h-[18px] w-[18px]" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function DrawerBody({ padded = true, className, children }) {
+  return (
+    <div className={cx('min-h-0 flex-1 overflow-y-auto', padded && 'px-5 py-4', className)}>
+      {children}
+    </div>
+  );
+}
+
+export function DrawerFooter({ className, children }) {
+  return (
+    <div className={cx('shrink-0 border-t border-rp-line bg-rp-bg-2 px-5 py-3', className)}>
+      {children}
+    </div>
+  );
+}
+
+export function SideDrawer({
+  open,
+  onClose,
+  title,
+  description,
+  side = 'right',
+  size = '2xl',
+  width,
+  labelledBy,
+  dismissible = true,
+  className,
+  children,
+}) {
   const ref = useRef(null);
   const titleId = useId();
-  useFocusTrap(ref, { open, onEscape: onClose });
+  const descId = useId();
+  useFocusTrap(ref, { open, onEscape: dismissible ? onClose : undefined });
   if (!open) return null;
+  const resolvedWidth = side === 'bottom'
+    ? 'inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-rp-card-lg'
+    : cx('inset-y-0', width || DRAWER_SIZES[size] || DRAWER_SIZES.md);
+  const motionCls = side === 'bottom' ? 'rp-anim-modal' : side === 'left' ? 'rp-anim-left left-0' : 'rp-anim-right right-0';
   return (
     <Portal>
       <div className="fixed inset-0 z-[95]">
-        <div aria-hidden="true" className="rp-anim-fade rp-backdrop absolute inset-0" onClick={onClose} />
+        <div
+          aria-hidden="true"
+          className="rp-anim-fade rp-backdrop absolute inset-0"
+          onClick={dismissible ? onClose : undefined}
+        />
         <aside
           ref={ref}
           role="dialog"
           aria-modal="true"
           aria-labelledby={labelledBy || (title ? titleId : undefined)}
+          aria-describedby={description ? descId : undefined}
           tabIndex={-1}
           className={cx(
-            'absolute inset-y-0 flex flex-col bg-rp-surface shadow-rp-pop outline-none',
-            side === 'left' ? 'rp-anim-left left-0' : 'rp-anim-right right-0',
-            width,
+            'absolute flex flex-col bg-rp-surface shadow-rp-pop outline-none motion-reduce:animate-none',
+            motionCls,
+            resolvedWidth,
+            className,
           )}
         >
-          {title && (
-            <div className="flex items-center justify-between gap-3 border-b border-rp-line px-5 py-3.5">
-              <h2 id={titleId} className="text-base font-bold text-rp-text">{tr(title)}</h2>
-              <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus rounded-full p-1.5 text-rp-text-muted hover:bg-rp-muted">
-                <X aria-hidden="true" className="h-[18px] w-[18px]" />
-              </button>
-            </div>
-          )}
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-          {footer && <div className="border-t border-rp-line px-5 py-3">{footer}</div>}
+          {typeof children === 'function' ? children({ titleId, descId }) : children}
         </aside>
       </div>
     </Portal>
   );
 }
 
+export function Drawer({
+  open,
+  onClose,
+  title,
+  description,
+  side = 'right',
+  size,
+  width,
+  padded = true,
+  children,
+  footer,
+  labelledBy,
+}) {
+  return (
+    <SideDrawer
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={description}
+      side={side}
+      size={size || 'md'}
+      width={width}
+      labelledBy={labelledBy}
+    >
+      {({ titleId, descId }) => (
+        <>
+          {title && (
+            <DrawerHeader
+              title={title}
+              description={description}
+              onClose={onClose}
+              titleId={titleId}
+              descId={descId}
+            />
+          )}
+          <DrawerBody padded={padded}>{children}</DrawerBody>
+          {footer && <DrawerFooter>{footer}</DrawerFooter>}
+        </>
+      )}
+    </SideDrawer>
+  );
+}
+
+export const ConfirmDialog = AlertDialog;
+
 /* ------------------------------------------------------------------ AlertDialog + confirm provider */
 
-export function AlertDialog({ open, title, description, confirmLabel = 'Xác nhận', cancelLabel = 'Hủy', tone = 'danger', onConfirm, onCancel, busy = false, children }) {
+export function AlertDialog({
+  open,
+  title,
+  description,
+  confirmLabel = 'Xác nhận',
+  cancelLabel = 'Hủy',
+  tone = 'danger',
+  onConfirm,
+  onCancel,
+  onClose,
+  busy = false,
+  loading = false,
+  children,
+}) {
   const { tr } = useLocale();
   const cancelRef = useRef(null);
   const ref = useRef(null);
   const titleId = useId();
   const descId = useId();
+  const resolvedCancel = onCancel || onClose;
+  const isBusy = Boolean(busy || loading);
   // Destructive dialogs focus "Hủy" first so Enter never confirms by accident.
-  useFocusTrap(ref, { open, onEscape: busy ? undefined : onCancel, initialFocusRef: cancelRef });
+  useFocusTrap(ref, { open, onEscape: isBusy ? undefined : resolvedCancel, initialFocusRef: cancelRef });
   if (!open) return null;
   const Icon = tone === 'danger' ? TriangleAlert : tone === 'warning' ? CircleAlert : Info;
   const iconCls = tone === 'danger' ? 'bg-rp-danger-bg text-rp-danger' : tone === 'warning' ? 'bg-rp-warning-bg text-rp-warning' : 'bg-rp-brand-tint text-rp-brand-strong';
@@ -150,8 +278,8 @@ export function AlertDialog({ open, title, description, confirmLabel = 'Xác nh�
             </div>
           </div>
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button ref={cancelRef} variant="secondary" onClick={onCancel} disabled={busy}>{tr(cancelLabel)}</Button>
-            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={busy}>{tr(confirmLabel)}</Button>
+            <Button ref={cancelRef} variant="secondary" onClick={resolvedCancel} disabled={isBusy}>{tr(cancelLabel)}</Button>
+            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={isBusy}>{tr(confirmLabel)}</Button>
           </div>
         </div>
       </div>
@@ -249,8 +377,11 @@ export function FeedbackProvider({ children }) {
 
 /* ------------------------------------------------------------------ Popover + Tooltip */
 
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 export function Popover({ trigger, children, align = 'end', className, panelClassName, label, onOpenChange }) {
   const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState(null);
   const didMountRef = useRef(false);
   useEffect(() => {
     if (!didMountRef.current) {
@@ -260,11 +391,46 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
     onOpenChange?.(open);
   }, [open, onOpenChange]);
   const rootRef = useRef(null);
+  const panelRef = useRef(null);
   const panelId = useId();
+
+  const updatePanelPosition = useCallback(() => {
+    if (!rootRef.current || typeof window === 'undefined') return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const measuredW = panelRef.current?.offsetWidth || 300;
+    const width = Math.min(measuredW, window.innerWidth - 24);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const flip = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const left = align === 'end'
+      ? Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))
+      : Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+    setPanelStyle({
+      position: 'fixed',
+      left,
+      maxWidth: 'calc(100vw - 24px)',
+      zIndex: 130,
+      ...(flip ? { bottom: Math.max(12, window.innerHeight - rect.top + 8) } : { top: Math.min(window.innerHeight - 60, rect.bottom + 8) }),
+    });
+  }, [align]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!open) {
+      setPanelStyle(null);
+      return undefined;
+    }
+    updatePanelPosition();
+    const raf = window.requestAnimationFrame(updatePanelPosition);
+    return () => window.cancelAnimationFrame(raf);
+  }, [open, updatePanelPosition]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false);
+      if (event.target?.closest?.('[data-rp-floating-portal="true"]')) return;
+      if (!rootRef.current?.contains(event.target) && !panelRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
     };
     const onKey = (event) => {
       if (event.key === 'Escape') {
@@ -274,11 +440,16 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
     };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', updatePanelPosition);
+    window.addEventListener('scroll', updatePanelPosition, true);
     return () => {
       document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', updatePanelPosition);
+      window.removeEventListener('scroll', updatePanelPosition, true);
     };
-  }, [open, setOpen]);
+  }, [open, updatePanelPosition]);
+
   const triggerAriaProps = {
     'data-popover-trigger': true,
     'aria-expanded': open,
@@ -302,18 +473,22 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
     <div ref={rootRef} className={cx('relative', className)}>
       {renderedTrigger}
       {open && (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label={label}
-          className={cx(
-            'rp-anim-pop absolute top-[calc(100%+8px)] z-[90] max-w-[calc(100vw-24px)] rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-pop',
-            align === 'end' ? 'right-0' : 'left-0',
-            panelClassName,
-          )}
-        >
-          {typeof children === 'function' ? children({ close: () => setOpen(false) }) : children}
-        </div>
+        <Portal>
+          <div
+            ref={panelRef}
+            id={panelId}
+            data-rp-floating-portal="true"
+            role="dialog"
+            aria-label={label}
+            style={panelStyle || { position: 'fixed', left: 12, top: 64, zIndex: 130, visibility: 'hidden' }}
+            className={cx(
+              'rp-anim-pop max-w-[calc(100vw-24px)] rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-pop',
+              panelClassName,
+            )}
+          >
+            {typeof children === 'function' ? children({ close: () => setOpen(false) }) : children}
+          </div>
+        </Portal>
       )}
     </div>
   );
@@ -325,6 +500,7 @@ export function FilterPopover({
   activeCount = 0,
   onReset,
   align = 'end',
+  size = 'md',
   panelClassName,
   children,
 }) {
@@ -338,7 +514,7 @@ export function FilterPopover({
         <Button
           {...props}
           variant={activeCount > 0 ? 'soft' : 'secondary'}
-          size="sm"
+          size={size}
           icon={SlidersHorizontal}
           onClick={toggle}
           aria-pressed={open}
@@ -374,11 +550,11 @@ export function FilterPopover({
 }
 
 /** Accessible SegmentedControl backed by sliding-pill Tabs for compact view/filter switchers. */
-export function SegmentedControl({ options = [], value, onChange, label, className }) {
+export function SegmentedControl({ options = [], value, onChange, label, size = 'md', className }) {
   const mapped = options.map((opt) =>
     typeof opt === 'object' ? opt : { value: String(opt), label: String(opt) },
   );
-  return <Tabs variant="pill" tabs={mapped} value={value} onChange={onChange} label={label} className={className} />;
+  return <Tabs variant="pill" size={size} tabs={mapped} value={value} onChange={onChange} label={label} className={className} />;
 }
 
 /** Floating tooltip rendered via Portal so scroll containers (sidebar) never overflow horizontally. */
@@ -486,38 +662,127 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
 
 /* ------------------------------------------------------------------ Tabs */
 
-const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
 /** Accessible tabs (roving tabindex, ←/→/Home/End). Controlled via value/onChange. */
-export function Tabs({ tabs = [], value, onChange, label, className, variant = 'line' }) {
+/**
+ * Last active-pill geometry per tab set. Pages that render a different toolbar for each tab (e.g. Lớp học & ghi danh)
+ * remount <Tabs> on every switch; without this memory a fresh mount has nothing to slide from and the pill just appears.
+ */
+const TAB_INDICATOR_MEMORY = new Map();
+/**
+ * Where the most recent slide of a tab set started. A click first re-renders the outgoing strip (which already moves its
+ * pill to the new tab) and only then swaps the panel that owns the toolbar; the remounted strip restarts from this
+ * origin so the movement is still visible.
+ */
+const TAB_SLIDE_ORIGIN = new Map();
+const SLIDE_ORIGIN_TTL_MS = 600;
+
+export function Tabs({
+  tabs = [],
+  value,
+  onChange,
+  label,
+  className,
+  variant = 'line',
+  tone = 'default',
+  size = 'md',
+  fullWidth = false,
+}) {
   const { tr } = useLocale();
   const listRef = useRef(null);
+  const mountedRef = useRef(false);
+  // Pending "slide from remembered position" timers: kept outside effect cleanup so a parent re-render (new `tabs`
+  // array identity) cannot cancel the slide halfway; cleared only on unmount.
+  const slideRef = useRef(null);
   const [indicator, setIndicator] = useState(null);
   const [ready, setReady] = useState(false);
+  const memoryKey = `${label || ''}|${tabs.map((t, i) => t.value ?? t.id ?? i).join('|')}`;
+
+  const measureIndicator = useCallback(() => {
+    const activeEl = listRef.current?.querySelector('[role="tab"][aria-selected="true"]');
+    if (!activeEl) return null;
+    return { left: activeEl.offsetLeft, top: activeEl.offsetTop, width: activeEl.offsetWidth, height: activeEl.offsetHeight };
+  }, []);
 
   const updateIndicator = useCallback(() => {
     if (!listRef.current) return;
-    const activeEl = listRef.current.querySelector('[role="tab"][aria-selected="true"]');
-    if (!activeEl) {
-      setIndicator(null);
-      return;
+    const rect = measureIndicator();
+    setIndicator(rect);
+    if (!rect) return;
+    const previous = TAB_INDICATOR_MEMORY.get(memoryKey);
+    if (previous && (previous.left !== rect.left || previous.width !== rect.width)) {
+      TAB_SLIDE_ORIGIN.set(memoryKey, { rect: previous, at: Date.now() });
     }
-    const left = activeEl.offsetLeft;
-    const top = activeEl.offsetTop;
-    const width = activeEl.offsetWidth;
-    const height = activeEl.offsetHeight;
-    setIndicator({ left, top, width, height });
+    TAB_INDICATOR_MEMORY.set(memoryKey, rect);
+  }, [measureIndicator, memoryKey]);
+
+  // First mount of a tab set seen before: start the pill where it was, then slide it to the active tab.
+  const startFromRemembered = useCallback(() => {
+    const origin = TAB_SLIDE_ORIGIN.get(memoryKey);
+    const previous = origin && Date.now() - origin.at < SLIDE_ORIGIN_TTL_MS
+      ? origin.rect
+      : TAB_INDICATOR_MEMORY.get(memoryKey);
+    const next = measureIndicator();
+    if (!previous || !next || (previous.left === next.left && previous.width === next.width)) return null;
+    setIndicator(previous);
+    setReady(true);
+    const slide = { first: 0, second: 0, fallback: 0 };
+    const finish = () => {
+      if (slideRef.current !== slide) return;
+      cancelAnimationFrame(slide.first);
+      cancelAnimationFrame(slide.second);
+      clearTimeout(slide.fallback);
+      slideRef.current = null;
+      updateIndicator();
+    };
+    slide.first = requestAnimationFrame(() => {
+      slide.second = requestAnimationFrame(finish);
+    });
+    // Background/hidden documents may not run animation frames: never leave the pill on the previous tab.
+    slide.fallback = setTimeout(finish, 120);
+    slideRef.current = slide;
+    return true;
+  }, [measureIndicator, memoryKey, updateIndicator]);
+
+  useEffect(() => () => {
+    const slide = slideRef.current;
+    if (!slide) return;
+    cancelAnimationFrame(slide.first);
+    cancelAnimationFrame(slide.second);
+    clearTimeout(slide.fallback);
+    slideRef.current = null;
   }, []);
 
   useIsomorphicLayoutEffect(() => {
+    const isFirstMount = !mountedRef.current;
+    mountedRef.current = true;
+    if (isFirstMount && startFromRemembered()) return undefined;
+    if (slideRef.current) return undefined; // a slide is in flight; it ends on the active tab
     updateIndicator();
+    const activeEl = listRef.current?.querySelector('[role="tab"][aria-selected="true"]');
+    const list = listRef.current;
+    if (list && activeEl && list.scrollWidth > list.clientWidth) {
+      const activeLeft = activeEl.offsetLeft;
+      const activeRight = activeLeft + activeEl.offsetWidth;
+      if (activeLeft < list.scrollLeft) list.scrollTo({ left: activeLeft, behavior: 'auto' });
+      else if (activeRight > list.scrollLeft + list.clientWidth) {
+        list.scrollTo({ left: activeRight - list.clientWidth, behavior: 'auto' });
+      }
+    }
     const raf = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(raf);
-  }, [value, tabs, updateIndicator]);
+  }, [value, tabs, updateIndicator, startFromRemembered]);
 
   useEffect(() => {
     if (!listRef.current || typeof ResizeObserver === 'undefined') return;
+    // ResizeObserver also fires once right after observe(); that initial call would snap a remembered pill to the new
+    // tab before the old position is painted (no slide). Only react to real size changes.
+    let lastWidth = listRef.current.offsetWidth;
+    let lastHeight = listRef.current.offsetHeight;
     const observer = new ResizeObserver(() => {
+      const node = listRef.current;
+      if (!node || slideRef.current || (node.offsetWidth === lastWidth && node.offsetHeight === lastHeight)) return;
+      lastWidth = node.offsetWidth;
+      lastHeight = node.offsetHeight;
       updateIndicator();
     });
     observer.observe(listRef.current);
@@ -540,11 +805,20 @@ export function Tabs({ tabs = [], value, onChange, label, className, variant = '
     <div
       ref={listRef}
       role="tablist"
+      data-rp-tab-size={size}
+      data-rp-tab-variant={variant}
       aria-label={label}
       onKeyDown={onKeyDown}
       className={cx(
         'relative hide-scrollbar flex items-center max-w-full gap-1 overflow-x-auto',
-        variant === 'line' ? 'border-b border-rp-line' : 'rounded-rp-input border border-rp-line bg-rp-surface p-1',
+        variant === 'line'
+          ? 'border-b border-rp-line'
+          : size === 'xs' || size === 'sm'
+            ? 'w-fit h-8 rounded-xl border border-rp-line bg-rp-surface p-[3px]'
+            : size === 'lg'
+              ? 'w-fit h-12 rounded-2xl border border-rp-line bg-rp-surface p-1'
+              : 'w-fit h-10 rounded-2xl border border-rp-line bg-rp-surface p-[3px]',
+        fullWidth && variant !== 'line' && 'w-full!',
         className,
       )}
     >
@@ -553,7 +827,10 @@ export function Tabs({ tabs = [], value, onChange, label, className, variant = '
         <span
           aria-hidden="true"
           className={cx(
-            'pointer-events-none absolute top-0 left-0 z-0 rounded-[10px] bg-rp-tab-active-bg ring-1 ring-inset ring-rp-brand-border/70',
+            'pointer-events-none absolute top-0 left-0 z-0',
+            tone === 'segmented'
+              ? 'rounded-xl bg-rp-tab-active-bg ring-1 ring-inset ring-rp-brand-border/80'
+              : 'rounded-xl bg-rp-tab-active-bg ring-1 ring-inset ring-rp-brand-border/80',
             ready
               ? 'transition-[transform,width] duration-200 motion-reduce:transition-none'
               : 'opacity-0',
@@ -570,29 +847,44 @@ export function Tabs({ tabs = [], value, onChange, label, className, variant = '
       {tabs.map((tab, idx) => {
         const tabValue = tab.value ?? tab.id ?? idx;
         const active = tabValue === value;
+        const segmented = tone === 'segmented';
+        const isSmall = size === 'xs' || size === 'sm';
+        const isLarge = size === 'lg';
+        const pillButtonSize = isSmall
+          ? 'h-6 rounded-[8px] px-3'
+          : isLarge
+            ? 'h-[38px] rounded-xl px-5 text-[15px]'
+            : 'h-8 rounded-xl px-4';
         return (
           <button
             key={tabValue}
             type="button"
             role="tab"
             id={`tab-${tabValue}`}
+            data-testid={tab.testId}
+            data-testid={tab.testId}
+            disabled={Boolean(tab.disabled)}
             aria-selected={active}
             aria-controls={tab.panelId}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(tabValue)}
             className={cx(
-              'rp-focus relative z-10 inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-sm font-semibold transition-colors duration-150',
+              'rp-focus relative z-10 inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap font-semibold transition-colors duration-150 disabled:pointer-events-none disabled:opacity-45',
+              fullWidth && variant !== 'line' ? 'min-w-0 flex-1' : 'shrink-0',
+              isSmall ? 'text-xs' : isLarge ? 'text-[15px]' : 'text-sm',
               variant === 'line'
                 ? cx('-mb-px border-b-2 px-3 py-2.5', active ? 'border-rp-brand text-rp-brand-strong' : 'border-transparent text-rp-text-muted hover:text-rp-text')
                 : cx(
-                    'rounded-[10px] px-3 py-1.5',
+                    pillButtonSize,
                     active
-                      ? (!ready ? 'bg-rp-tab-active-bg text-rp-brand-strong' : 'text-rp-brand-strong')
+                      ? (!ready
+                          ? (segmented ? 'bg-rp-tab-active-bg text-rp-brand-strong' : 'bg-rp-tab-active-bg text-rp-brand-strong')
+                          : 'text-rp-brand-strong')
                       : 'text-rp-text-muted hover:text-rp-text',
                   ),
             )}
           >
-            {tab.icon && <tab.icon aria-hidden="true" className="h-4 w-4" />}
+            {tab.icon && <tab.icon aria-hidden="true" className={isSmall ? 'h-3.5 w-3.5' : 'h-4 w-4'} />}
             {tr(tab.label)}
             {tab.count != null && (
               <span

@@ -29,6 +29,15 @@ export const ERROR_MESSAGES = Object.freeze({
   COHORT_ALREADY_ENROLLED: 'Bạn đã ghi danh lớp này. Vui lòng xem mục "Lớp đang học của tôi".',
   COHORT_SCHEDULE_CONFLICT: 'Lịch lớp này trùng với lịch học khác của bạn. Vui lòng chọn lớp khác.',
   PAYMENT_GATEWAY_INVALID_LINK: 'Không tạo được liên kết thanh toán hợp lệ. Vui lòng thử lại sau ít phút.',
+  // Thanh toán gói tự học (PayOS)
+  PLAN_NOT_AVAILABLE: 'Gói học này hiện không còn mở bán. Vui lòng chọn gói khác.',
+  PLAN_PRICE_INVALID: 'Gói học đang được cập nhật giá. Vui lòng thử lại sau.',
+  PAYMENT_LINK_IN_PROGRESS: 'Đơn hàng đang được tạo. Vui lòng đợi trong giây lát rồi thử lại.',
+  PAYMENT_GATEWAY_NOT_CONFIGURED: 'Cổng thanh toán tạm thời chưa sẵn sàng. Vui lòng thử lại sau.',
+  PAYMENT_GATEWAY_UNAVAILABLE: 'Cổng thanh toán tạm thời chưa sẵn sàng. Vui lòng thử lại sau.',
+  PAYMENT_GATEWAY_RATE_LIMITED: 'PayOS đang nhận quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.',
+  PAYMENT_GATEWAY_TIMEOUT: 'PayOS đang phản hồi chậm. Vui lòng thử lại.',
+  PAYMENT_GATEWAY_REJECTED: 'PayOS chưa tạo được liên kết thanh toán. Vui lòng thử lại.',
   COHORT_CANCELLATION_NOT_ALLOWED: 'Khóa học đã bắt đầu nên không thể tự hủy ghi danh. Bạn có thể gửi khiếu nại nếu cần hỗ trợ.',
   TRANSFER_SOURCE_STARTED: 'Không thể chuyển lớp sau khi khóa học đã bắt đầu.',
   // Yêu cầu dời/hủy lớp
@@ -46,6 +55,8 @@ export const ERROR_MESSAGES = Object.freeze({
   WRITING_PACKAGE_REQUIRED: 'Nhận dạng chữ viết tay từ ảnh yêu cầu Gói tự học hoặc Gói luyện viết.',
   SPEAKING_PACKAGE_REQUIRED: 'Chấm điểm luyện nói AI yêu cầu Gói tự học hoặc Gói luyện nói.',
   AI_CREDIT_REQUIRED: 'Bạn chưa có lượt chấm AI cho kỹ năng này. Vào mục Gói tự học để mua thêm lượt.',
+  FEATURE_DISABLED: 'Tính năng này đang tạm ngừng cung cấp. Bạn có thể quay lại sử dụng khi hệ thống mở lại.',
+  FEATURE_POLICY_RESTRICTED: 'Tính năng này hiện không khả dụng với gói học của bạn.',
   // Danh mục chứng chỉ & cấp độ
   DISPLAY_ORDER_INVALID: 'Thứ tự hiển thị phải là số nguyên dương bắt đầu từ 1.',
   DISPLAY_ORDER_CONFLICT: 'Thứ tự hiển thị đã được sử dụng trong danh sách này.',
@@ -69,8 +80,20 @@ export const ERROR_MESSAGES = Object.freeze({
   SUBSCRIPTION_PLAN_QUOTA_INVALID: 'Số lượt AI không hợp lệ.',
   SUBSCRIPTION_PLAN_DUPLICATE_NAME: 'Tên gói học đã tồn tại.',
   FEATURE_NOT_FOUND: 'Quyền lợi được chọn không tồn tại trong hệ thống.',
+  CORE_FREE_FEATURE_PROTECTED: 'Tính năng cốt lõi miễn phí được bảo vệ, không thể chuyển sang chế độ khóa hoặc tắt.',
+  FEATURE_ACCESS_MODE_INVALID: 'Chế độ truy cập tính năng không hợp lệ.',
+  FEATURE_CREDIT_KEY_INVALID: 'Khóa tiêu thụ lượt AI không hợp lệ.',
   INVALID_PAYMENT_STREAM: 'Luồng giao dịch không hợp lệ.',
   // Hệ thống
+  NOTEBOOK_INVALID_INPUT: 'Thông tin Sổ tay không hợp lệ. Vui lòng kiểm tra lại.',
+  NOTEBOOK_FOLDER_DUPLICATE: 'Tên thư mục này đã tồn tại.',
+  NOTEBOOK_FILE_DUPLICATE: 'Tên tệp ghi chú này đã tồn tại trong thư mục.',
+  NOTEBOOK_PAGE_DUPLICATE: 'Tên trang này đã tồn tại trong tệp ghi chú.',
+  NOTEBOOK_REVISION_CONFLICT: 'Trang hoặc mục này vừa được cập nhật ở nơi khác. Hãy tải bản mới nhất trước khi lưu.',
+  NOTEBOOK_FOLDER_NOT_EMPTY: 'Thư mục vẫn còn tệp ghi chú. Hãy di chuyển tệp hoặc xác nhận xóa toàn bộ thư mục.',
+  NOTEBOOK_FILE_NOT_EMPTY: 'Tệp ghi chú vẫn còn trang. Hãy xác nhận để xóa toàn bộ tệp và các trang bên trong.',
+  SRS_SESSION_TIME_EXPIRED: 'Đã hết thời gian cho phiên ôn tập tự do.',
+  SRS_SESSION_CLOSED: 'Phiên ôn tập này đã kết thúc.',
   INTERNAL_ERROR: INTERNAL_MESSAGE,
   CONCURRENCY_CONFLICT: 'Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại và thử lại.',
   DUPLICATE_REQUEST: 'Yêu cầu này đã được gửi trước đó. Vui lòng kiểm tra lại trạng thái.',
@@ -106,6 +129,10 @@ const PREFER_SERVER_DETAIL = new Set([
 ]);
 
 const RETRYABLE_CODES = new Set([
+  'PAYMENT_LINK_IN_PROGRESS',
+  'PAYMENT_GATEWAY_RATE_LIMITED',
+  'PAYMENT_GATEWAY_TIMEOUT',
+  'PAYMENT_GATEWAY_REJECTED',
   'HOMEWORK_AI_DRAFT_UNAVAILABLE',
   'INTERNAL_ERROR',
   'UPSTREAM_TIMEOUT',
@@ -274,4 +301,10 @@ export function describeApiError(error) {
   return build(GENERIC_MESSAGE, { retryable });
 }
 
-export const errorMessage = (error) => describeApiError(error).message;
+export const errorMessage = (error, fallback = '') => {
+  const described = describeApiError(error);
+  if (fallback && (!error || described.message === GENERIC_MESSAGE)) {
+    return fallback;
+  }
+  return described.message || fallback || GENERIC_MESSAGE;
+};

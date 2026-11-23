@@ -19,10 +19,10 @@ import {
   Field,
   FileUpload,
   Modal,
-  SearchInput,
+  RefreshingIndicator,
   SmartDataBoundary,
-  Tabs,
   Textarea,
+  UnifiedToolbar,
 } from '@/components/ui';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
@@ -82,7 +82,7 @@ function ComplaintRow({ item, highlighted = false, actions, children }) {
     <Card
       id={`complaint-${item.id}`}
       density="compact"
-      className={highlighted ? 'ring-2 ring-rp-brand-strong/40 bg-rp-brand-tint/20' : undefined}
+      className={highlighted ? 'ring-2 ring-rp-brand-strong/40 bg-white' : undefined}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
@@ -114,7 +114,7 @@ function ComplaintRow({ item, highlighted = false, actions, children }) {
         </div>
       )}
       {item.decision && (
-        <div className="mt-2 rounded-lg border border-rp-line bg-rp-brand-tint/30 px-3 py-2 text-[13px] text-rp-text">
+        <div className="mt-2 rounded-lg border border-rp-line bg-white px-3 py-2 text-[13px] text-rp-text">
           <strong className="font-semibold text-rp-brand-strong">{tr('Quyết định của Quản trị viên:')}</strong>{' '}
           <span className="whitespace-pre-wrap">{item.decision}</span>
         </div>
@@ -199,7 +199,17 @@ function MentorComplaints({ cohortId = null, highlightComplaintId = null, busy, 
   };
 
   return (
-    <Card className="space-y-4">
+    <Card className="relative space-y-4">
+      {query.isFetching && !query.isPending && (
+        <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+          <div className="flex justify-end">
+            <div className="pointer-events-auto">
+              <RefreshingIndicator active delay={60} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="rp-type-card text-rp-text">
@@ -210,28 +220,34 @@ function MentorComplaints({ cohortId = null, highlightComplaintId = null, busy, 
             {tr('Bạn có thể xem chi tiết và phản hồi khiếu nại về giảng dạy, ứng xử hoặc lịch học. Khiếu nại thanh toán do Quản trị viên xử lý.')}
           </p>
         </div>
-        <div className="w-full sm:w-64">
-          <SearchInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onClear={() => setSearch('')}
-            placeholder="Tìm lớp, học viên, nội dung…"
-          />
-        </div>
       </div>
 
-      <Tabs
-        variant="pill"
-        className="flex-wrap sm:flex-nowrap"
-        label={tr('Lọc trạng thái khiếu nại')}
-        value={statusFilter}
-        onChange={setStatusFilter}
-        tabs={[
-          { value: 'ALL', label: 'Tất cả', count: rows.length },
-          { value: 'OPEN', label: 'Cần phản hồi', count: openCount },
-          { value: 'RESPONDED', label: 'Đã phản hồi / Xong', count: respondedCount },
-        ]}
-      />
+      {rows.length > 0 && (
+        <UnifiedToolbar
+          tabs={{
+            label: tr('Lọc trạng thái khiếu nại'),
+            value: statusFilter,
+            onChange: setStatusFilter,
+            tabs: [
+              { value: 'ALL', label: 'Tất cả', count: rows.length },
+              { value: 'OPEN', label: 'Cần phản hồi', count: openCount },
+              { value: 'RESPONDED', label: 'Đã phản hồi / Xong', count: respondedCount },
+            ],
+          }}
+          search={{
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            onClear: () => setSearch(''),
+            placeholder: 'Tìm lớp, học viên, nội dung…',
+            ariaLabel: tr('Tìm kiếm khiếu nại'),
+          }}
+          refresh={{
+            onRefresh: () => query.refetch(),
+            refreshing: query.isFetching && !query.isPending,
+            disabled: query.isPending,
+          }}
+        />
+      )}
 
       <SmartDataBoundary
         query={query}
@@ -243,18 +259,20 @@ function MentorComplaints({ cohortId = null, highlightComplaintId = null, busy, 
         diagnosticScope="CohortComplaintPanel.Mentor"
         empty={
           <ContextualEmptyState
-            compact
+            variant="compact"
+            illustration="message"
             title="Chưa có khiếu nại nào"
-            message="Chưa có khiếu nại nào liên quan đến lớp của bạn."
+            description="Chưa có khiếu nại nào liên quan đến lớp của bạn."
           />
         }
       >
         {() => (
           filtered.length === 0 ? (
             <ContextualEmptyState
-              compact
+              variant="search"
+              illustration="search"
               title="Không có khiếu nại phù hợp"
-              message="Thử xóa từ khóa tìm kiếm hoặc chọn bộ lọc khác."
+              description="Thử xóa từ khóa tìm kiếm hoặc chọn bộ lọc khác."
               action={statusFilter !== 'ALL' || search ? (
                 <Button
                   variant="secondary"
@@ -327,7 +345,7 @@ function MentorComplaints({ cohortId = null, highlightComplaintId = null, busy, 
             )}
 
             {activeComplaint.decision && (
-              <div className="rounded-xl border border-rp-brand-border bg-rp-brand-tint/30 p-3.5 text-[13px]">
+              <div className="rounded-xl border border-rp-brand-border bg-white p-3.5 text-[13px]">
                 <p className="text-xs font-semibold text-rp-brand-strong">{tr('Quyết định của Quản trị viên')}</p>
                 <p className="mt-1 whitespace-pre-wrap text-rp-text">{activeComplaint.decision}</p>
               </div>
@@ -432,7 +450,17 @@ function LearnerComplaints({ course, mentors = [], busy, onRun }) {
   };
 
   return (
-    <Card className="space-y-4">
+    <Card className="relative space-y-4">
+      {query.isFetching && !query.isPending && (
+        <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+          <div className="flex justify-end">
+            <div className="pointer-events-auto">
+              <RefreshingIndicator active delay={60} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="rp-type-card text-rp-text">
@@ -443,14 +471,16 @@ function LearnerComplaints({ course, mentors = [], busy, onRun }) {
             {tr('Theo dõi các yêu cầu hỗ trợ đã gửi hoặc tạo khiếu nại mới khi có vấn đề về buổi học hoặc ghi danh.')}
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={busy || !course}
-          onClick={() => openModal(false)}
-        >
-          {tr('Gửi khiếu nại mới')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy || !course}
+            onClick={() => openModal(false)}
+          >
+            {tr('Gửi khiếu nại mới')}
+          </Button>
+        </div>
       </div>
 
       {underReview && (
@@ -477,9 +507,10 @@ function LearnerComplaints({ course, mentors = [], busy, onRun }) {
         diagnosticScope="CohortComplaintPanel.Learner"
         empty={
           <ContextualEmptyState
-            compact
+            variant="compact"
+            illustration="message"
             title="Chưa có khiếu nại nào"
-            message="Bạn chưa gửi khiếu nại nào cho khóa học này."
+            description="Bạn chưa gửi khiếu nại nào cho khóa học này."
           />
         }
       >

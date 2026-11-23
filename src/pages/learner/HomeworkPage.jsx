@@ -15,13 +15,15 @@ import {
   EmptyState,
   ErrorState,
   PageContainer,
-  PageHeader,
+  RefreshingIndicator,
   SakuraLoader,
-  Tabs,
+  UnifiedToolbar,
   notify,
   useSubmitGuard,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import { classifyHomeworkItem } from '@/features/calendar/utils/calendarEventsModel.js';
+import { invalidateScheduleAndHomeworkCaches } from '@/features/srs/utils/srsCacheSync.js';
 import { useLocale } from '@/locales/locale.js';
 
 /**
@@ -105,8 +107,7 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
       const toastId = notify.loading('Đang xử lý bài tập…', '', { key: 'homework-action' });
       try {
         const result = await fn();
-        await queryClient.invalidateQueries({ queryKey: ['homework-hub', uid, role, 'items'] });
-        await queryClient.invalidateQueries({ queryKey: ['workspace-calendar', 'homeworks', uid] });
+        await invalidateScheduleAndHomeworkCaches(queryClient);
         const resolved = typeof message === 'function' ? message(result) : message;
         const isAiUnavailable = Boolean(result?.available === false || result?.aiDraftUnavailable);
         notify[isAiUnavailable ? 'warning' : 'success'](resolved, '', { id: toastId, key: 'homework-action', replace: true });
@@ -129,33 +130,29 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
         ? 'Theo dõi bài tập của các lớp nhóm (chỉ xem).'
         : 'Nộp bài bằng chữ hoặc ảnh/PDF và xem điểm, nhận xét của Giáo viên.';
 
+  const isRefreshingAll = (coursesQuery.isFetching || hwQuery.isFetching || cohortsListQuery.isFetching)
+    && !coursesQuery.isPending && !hwQuery.isPending;
+  const handleRefresh = () => Promise.all([
+    coursesQuery.refetch({ cancelRefetch: true }),
+    cohorts.length > 0 ? hwQuery.refetch({ cancelRefetch: true }) : Promise.resolve(),
+    cohortsListQuery.isError ? cohortsListQuery.refetch({ cancelRefetch: true }) : Promise.resolve(),
+  ]);
+
   return (
     <Shell breadcrumb={tr(title)}>
-      <PageContainer width="default" density="comfortable" className="text-rp-text">
-        <PageHeader
-          eyebrow="Học nhóm"
-          title={title}
-          description={description}
-          actions={
-            (canQueryAllCohorts ? cohorts.length >= 1 : cohorts.length > 1) && (
-              <div className="w-full sm:w-80">
-                <CustomSelect
-                  label={tr('Chọn lớp')}
-                  searchable={cohorts.length > 6}
-                  value={String(cohortId ?? '')}
-                  onChange={(nextVal) => {
-                    if (!nextVal || nextVal === 'ALL') setParams({});
-                    else setParams({ cohortId: nextVal });
-                  }}
-                  options={[
-                    ...(canQueryAllCohorts ? [{ value: 'ALL', label: tr('Tất cả lớp') }] : []),
-                    ...cohorts.map((c) => ({ value: String(c.id), label: `${c.name}${c.level ? ` · ${c.level}` : ''}` })),
-                  ]}
-                />
-              </div>
-            )
-          }
-        />
+      <PageContainer width="default" density="comfortable" className="relative space-y-4 text-rp-text">
+        {/* Admin console pages show no visual title block (breadcrumb + sidebar name the page). */}
+        {role === 'Admin' ? (
+          <h1 className="sr-only">{tr(title)}</h1>
+        ) : (
+          <IllustratedPageHeader
+            icon="homework"
+            tone="peach"
+            eyebrow={tr('Học nhóm')}
+            title={tr(title)}
+            description={tr(description)}
+          />
+        )}
 
         {error && (
           <Banner tone="danger" title="Chưa thực hiện được" onDismiss={() => setError('')} className="mb-4">
@@ -184,7 +181,7 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
         ) : cohorts.length === 0 ? (
           <Card>
             <EmptyState
-              art="empty"
+              illustration="classroom"
               title={role === 'Learner' ? 'Bạn chưa tham gia lớp nhóm nào' : 'Chưa có lớp nhóm'}
               description={role === 'Learner' ? 'Bài tập về nhà được giao trong lớp học nhóm cùng Giáo viên.' : 'Bài tập xuất hiện khi lớp nhóm có học viên ghi danh.'}
               action={role === 'Learner' && (
@@ -200,30 +197,69 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
           <Card><ErrorState error={hwQuery.error} onRetry={() => hwQuery.refetch()} retrying={hwQuery.isFetching} /></Card>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Tabs
-                variant="pill"
-                label={tr('Lọc trạng thái bài tập')}
-                value={statusFilter}
-                onChange={setStatusFilter}
-                tabs={[
+            <UnifiedToolbar
+              tabs={{
+                label: tr('Lọc trạng thái bài tập'),
+                value: statusFilter,
+                onChange: setStatusFilter,
+                tabs: [
                   { value: 'ALL', label: 'Tất cả' },
                   { value: 'PENDING', label: role === 'Mentor' ? 'Chưa nộp' : 'Cần làm' },
                   { value: 'SUBMITTED', label: role === 'Mentor' ? 'Chờ chấm' : 'Đã nộp' },
                   { value: 'GRADED', label: 'Đã chấm' },
-                ]}
-              />
-              {effectiveCohortId && cohortMap.get(effectiveCohortId)?.courseId && role === 'Learner' && (
-                <Link to={`/my-courses/${cohortMap.get(effectiveCohortId).courseId}?section=homework`} className="rp-link text-xs font-semibold">
-                  {tr('Mở không gian lớp này')}
-                </Link>
-              )}
-              {effectiveCohortId && role === 'Mentor' && (
-                <Link to={`/mentor-study-courses/${effectiveCohortId}/?section=homework`} className="rp-link text-xs font-semibold">
-                  {tr('Mở không gian lớp này')}
-                </Link>
-              )}
-            </div>
+                ],
+              }}
+              filters={
+                (canQueryAllCohorts ? cohorts.length >= 1 : cohorts.length > 1) ? (
+                  <CustomSelect
+                    fitContent
+                    size="md"
+                    className="max-w-full sm:max-w-[280px]"
+                    label={tr('Chọn lớp')}
+                    searchable={cohorts.length > 6}
+                    value={String(cohortId ?? '')}
+                    onChange={(nextVal) => {
+                      if (!nextVal || nextVal === 'ALL') setParams({});
+                      else setParams({ cohortId: nextVal });
+                    }}
+                    options={[
+                      ...(canQueryAllCohorts ? [{ value: 'ALL', label: tr('Tất cả lớp') }] : []),
+                      ...cohorts.map((c) => ({ value: String(c.id), label: `${c.name}${c.level ? ` · ${c.level}` : ''}` })),
+                    ]}
+                  />
+                ) : null
+              }
+              actions={
+                effectiveCohortId && cohortMap.get(effectiveCohortId)?.courseId && role === 'Learner' ? (
+                  <Link to={`/my-courses/${cohortMap.get(effectiveCohortId).courseId}?section=homework`} className="rp-link text-xs font-semibold">
+                    {tr('Mở không gian lớp này')}
+                  </Link>
+                ) : effectiveCohortId && role === 'Mentor' ? (
+                  <Link to={`/mentor-study-courses/${effectiveCohortId}/?section=homework`} className="rp-link text-xs font-semibold">
+                    {tr('Mở không gian lớp này')}
+                  </Link>
+                ) : null
+              }
+              refresh={
+                role !== 'Learner'
+                  ? {
+                      onRefresh: handleRefresh,
+                      refreshing: isRefreshingAll,
+                      disabled: hwQuery.isPending,
+                    }
+                  : undefined
+              }
+            />
+
+            {isRefreshingAll && (
+              <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+                <div className="flex justify-end">
+                  <div className="pointer-events-auto">
+                    <RefreshingIndicator active delay={60} />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <CohortHomeworkPanel
               key={cohortId ?? 'all'}

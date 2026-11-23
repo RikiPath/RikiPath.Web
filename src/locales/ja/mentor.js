@@ -542,6 +542,7 @@ export const jaMentor = {
   'Theo khung lịch': '表示期間に合わせる',
   'Từ ngày': '開始日',
   'Đến ngày': '終了日',
+  'Xóa ngày': '日付をクリア',
   'Khung giờ trong ngày (GMT+7)': '時間帯（GMT+7）',
   'Tất cả giờ': 'すべての時間帯',
   'Giờ tùy chọn': '時間指定',
@@ -608,4 +609,10 @@ export const jaMentor = {
   'Tuần này': '今週',
   'Đợt gửi {0} khung giờ': '{0}枠の申請バッチ',
   'Duyệt cả đợt ({0})': '一括承認（{0}）',
+  'Tìm lớp học': 'クラスを検索',
+  'Tìm đánh giá': 'レビューを検索',
+  'Tìm tên lớp, JLPT, học viên…': 'クラス名・JLPT・受講生で検索…',
+  'Đang cập nhật lịch…': 'スケジュールを更新中…',
+  'Không thể làm mới dữ liệu lớp.': 'クラスデータを更新できませんでした。',
+  'Tìm kiếm khiếu nại': '申し立てを検索',
 };

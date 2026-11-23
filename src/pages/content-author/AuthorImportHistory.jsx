@@ -6,7 +6,6 @@ import {
   Eye,
   FileSpreadsheet,
   Pencil,
-  Search,
   Send,
   X,
 } from 'lucide-react';
@@ -28,13 +27,15 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   DataTable,
   FeatureIcon,
-  Input,
   Modal,
+  PageContainer,
   PageHeader,
-  RefreshingIndicator,
+  RefreshButton,
   SakuraLoader,
+  UnifiedToolbar,
   notify,
 } from '@/components/ui';
 import { ContentForm } from './ManualContentPage.jsx';
@@ -180,31 +181,32 @@ function BatchContents({ batchId, batch, userId }) {
               ))}
           </div>
         </div>
-        {draftCount > 0 && (
-          <Button
-            icon={Send}
-            disabled={save.isPending || submit.isPending || Boolean(activeItem)}
-            onClick={() => setConfirmSubmit(true)}
-          >
-            {trf('Gửi toàn bộ lô ({0} bản nháp)', { 0: draftCount })}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {draftCount > 0 && (
+            <Button
+              icon={Send}
+              disabled={save.isPending || submit.isPending || Boolean(activeItem)}
+              onClick={() => setConfirmSubmit(true)}
+            >
+              {trf('Gửi toàn bộ lô ({0} bản nháp)', { 0: draftCount })}
+            </Button>
+          )}
+        </div>
       </Card>
 
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="min-w-[200px] flex-1">
-            <Input
-              type="search"
-              icon={Search}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tr('Tìm mục trong lô này…')}
-              aria-label={tr('Tìm mục trong lô')}
-            />
-          </div>
-          <div className="w-full sm:w-[200px]">
+      {items.isSuccess && (items.data || []).length > 0 && (
+        <UnifiedToolbar
+          search={{
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            onClear: () => setSearch(''),
+            placeholder: 'Tìm mục trong lô này…',
+            ariaLabel: 'Tìm mục trong lô',
+          }}
+          filters={
             <CustomSelect
+              fitContent
+              size="sm"
               value={type}
               aria-label={tr('Loại nội dung')}
               onChange={setType}
@@ -216,52 +218,65 @@ function BatchContents({ batchId, batch, userId }) {
                 })),
               ]}
             />
-          </div>
-          {(type !== 'ALL' || search.trim() !== '') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={X}
-              onClick={() => {
-                setType('ALL');
-                setSearch('');
-              }}
-            >
-              {tr('Xóa bộ lọc')}
-            </Button>
-          )}
-        </div>
-      </Card>
-
-      {items.isPending ? (
-        <SakuraLoader variant="section" context="data" delay={140} />
-      ) : items.isError ? (
-        <ContextualErrorState error={items.error} title={tr('Không tải được các mục trong lô')} onRetry={() => items.refetch()} />
-      ) : visibleItems.length === 0 ? (
-        <ContextualEmptyState
-          title={tr('Không có mục nào khớp bộ lọc')}
-          description={tr('Hãy xóa bộ lọc hoặc chọn loại nội dung khác.')}
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={visibleItems}
-          keyField="id"
-          rowActions={(item) => (
-            <Button
-              size="sm"
-              variant={item.status === 'Draft' || item.status === 'Rejected' ? 'outline' : 'ghost'}
-              icon={item.status === 'Draft' || item.status === 'Rejected' ? Pencil : Eye}
-              onClick={() => {
-                save.reset();
-                setActiveItem(item);
-              }}
-            >
-              {item.status === 'Draft' || item.status === 'Rejected' ? tr('Sửa') : tr('Xem')}
-            </Button>
-          )}
+          }
+          actions={
+            (type !== 'ALL' || search.trim() !== '') ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={X}
+                onClick={() => {
+                  setType('ALL');
+                  setSearch('');
+                }}
+              >
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : null
+          }
+          refresh={{
+            onRefresh: () => items.refetch({ cancelRefetch: true }),
+            refreshing: items.isFetching && !items.isPending,
+            disabled: items.isPending,
+          }}
         />
       )}
+
+      <DataRefreshBoundary
+        query={items}
+        hasData={(items.data || []).length > 0}
+        context="data"
+        errorTitle={tr('Không tải được các mục trong lô')}
+      >
+        {visibleItems.length === 0 ? (
+          <ContextualEmptyState
+            variant={(items.data || []).length === 0 ? 'compact' : 'search'}
+            illustration={(items.data || []).length === 0 ? 'book' : 'search'}
+            title={tr((items.data || []).length === 0 ? 'Chưa có mục nào trong lô.' : 'Không có mục nào khớp bộ lọc')}
+            description={(items.data || []).length === 0 ? '' : tr('Hãy xóa bộ lọc hoặc chọn loại nội dung khác.')}
+            action={(items.data || []).length > 0 ? <Button variant="outline" size="sm" onClick={() => { setType('ALL'); setSearch(''); }}>{tr('Xóa bộ lọc')}</Button> : null}
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={visibleItems}
+            keyField="id"
+            rowActions={(item) => (
+              <Button
+                size="sm"
+                variant={item.status === 'Draft' || item.status === 'Rejected' ? 'outline' : 'ghost'}
+                icon={item.status === 'Draft' || item.status === 'Rejected' ? Pencil : Eye}
+                onClick={() => {
+                  save.reset();
+                  setActiveItem(item);
+                }}
+              >
+                {item.status === 'Draft' || item.status === 'Rejected' ? tr('Sửa') : tr('Xem')}
+              </Button>
+            )}
+          />
+        )}
+      </DataRefreshBoundary>
 
       <Modal
         open={Boolean(activeItem)}
@@ -350,7 +365,7 @@ export default function AuthorImportHistory() {
 
   return (
     <ContentAuthorShell pathname="/bulk-import/?view=history" breadcrumb={tr('Lịch sử nhập liệu')}>
-      <main data-page="author-import-history" className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
+      <PageContainer as="div" data-page="author-import-history" width="default" className="space-y-5">
         <PageHeader
           eyebrow={tr('Lịch sử nhập Excel')}
           title={
@@ -362,7 +377,13 @@ export default function AuthorImportHistory() {
           description={tr('Theo dõi các lô Excel đã lưu bản nháp, chỉnh sửa dòng cần bổ sung và gửi Admin duyệt theo lô.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <RefreshingIndicator active={history.isFetching && !history.isPending} />
+              {!batchId && history.isSuccess && (history.data || []).length > 0 && (
+                <RefreshButton
+                  onRefresh={() => history.refetch({ cancelRefetch: true })}
+                  refreshing={history.isFetching && !history.isPending}
+                  disabled={history.isPending}
+                />
+              )}
               {batchId && (
                 <Link
                   to="?view=history"
@@ -390,41 +411,47 @@ export default function AuthorImportHistory() {
             userId={userId}
             batch={history.data?.find((b) => b.batchId === batchId)}
           />
-        ) : history.isPending ? (
-          <SakuraLoader variant="section" context="data" label={tr('Đang tải các lô đã lưu')} delay={140} />
-        ) : history.isError ? (
-          <ContextualErrorState error={history.error} title={tr('Chưa tải được lịch sử nhập liệu')} onRetry={() => history.refetch()} />
-        ) : !history.data?.length ? (
-          <ContextualEmptyState
-            icon={FileSpreadsheet}
-            title={tr('Bạn chưa lưu lô Excel nào')}
-            description={tr('Tải tệp .xlsx ở trang Nhập Excel để kiểm tra đối chiếu và lưu thành lô bản nháp.')}
-            action={
-              <Link
-                to="/bulk-import/"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                <span>{tr('Mở Nhập Excel')}</span>
-              </Link>
-            }
-          />
         ) : (
-          <DataTable
-            columns={batchColumns}
-            rows={history.data}
-            keyField="batchId"
-            rowActions={(batch) => (
-              <Link
-                to={`?view=history&batchId=${encodeURIComponent(batch.batchId)}`}
-                className="rp-link text-sm font-semibold text-rp-brand-strong"
-              >
-                {tr('Mở lô')} ({trf('{0} mục', { 0: batch.itemCount })}) →
-              </Link>
+          <DataRefreshBoundary
+            query={history}
+            hasData={(history.data || []).length > 0}
+            context="data"
+            loadingLabel={tr('Đang tải các lô đã lưu')}
+            errorTitle={tr('Chưa tải được lịch sử nhập liệu')}
+          >
+            {!history.data?.length ? (
+              <ContextualEmptyState
+                illustration="table"
+                title={tr('Bạn chưa lưu lô Excel nào')}
+                description={tr('Tải tệp .xlsx ở trang Nhập Excel để kiểm tra đối chiếu và lưu thành lô bản nháp.')}
+                action={
+                  <Link
+                    to="/bulk-import/"
+                    className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span>{tr('Mở Nhập Excel')}</span>
+                  </Link>
+                }
+              />
+            ) : (
+              <DataTable
+                columns={batchColumns}
+                rows={history.data}
+                keyField="batchId"
+                rowActions={(batch) => (
+                  <Link
+                    to={`?view=history&batchId=${encodeURIComponent(batch.batchId)}`}
+                    className="rp-link text-sm font-semibold text-rp-brand-strong"
+                  >
+                    {tr('Mở lô')} ({trf('{0} mục', { 0: batch.itemCount })}) →
+                  </Link>
+                )}
+              />
             )}
-          />
+          </DataRefreshBoundary>
         )}
-      </main>
+      </PageContainer>
     </ContentAuthorShell>
   );
 }

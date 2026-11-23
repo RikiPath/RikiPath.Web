@@ -24,8 +24,10 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { AlertDialog, Modal, Popover } from '@/components/ui/overlay.jsx';
-import { DateInput } from '@/components/ui/core.jsx';
+import { AlertDialog, Modal, Popover, Tabs } from '@/components/ui/overlay.jsx';
+import { DateInput, TimeInput } from '@/components/ui/core.jsx';
+import { RefreshButton } from '@/components/ui/RefreshButton.jsx';
+import { RefreshingIndicator } from '@/components/ui/SakuraLoader.jsx';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
 import Pagination from '@/components/ui/Pagination.jsx';
 import { useLocale } from '@/locales/locale.js';
@@ -241,7 +243,12 @@ export default function InteractiveSlotCalendar({
   onDeletePendingSlot,
   onRequestCancelSlot,
   onRequestChangeSlot,
+  onRefresh,
+  refreshing = false,
   renderCustomHeaderActions,
+  proposalMode = false,
+  proposalConfig = null,
+  customValidateCandidate = null,
 }) {
   const { locale, tr, trf, fmt } = useLocale();
   const dayLabels = locale === 'ja' ? DAY_SHORT_JA : DAY_SHORT_VI;
@@ -321,6 +328,7 @@ export default function InteractiveSlotCalendar({
   const durationMinutes = policy?.sessionMinutes || 90;
   const restMinutes = policy?.restMinutes ?? 15;
   const effectiveStep = policy?.defaultStepMinutes || 15;
+  const proposalReadOnly = Boolean(proposalMode && proposalConfig?.readOnly);
 
   useEffect(() => {
     if (!invalidFlash) return undefined;
@@ -387,15 +395,22 @@ export default function InteractiveSlotCalendar({
       a.dayKey === b.dayKey ? a.startMin - b.startMin : a.dayKey.localeCompare(b.dayKey)
     ));
     for (const item of sorted) {
-      const check = validateCandidateSlot({
-        dayKey: item.dayKey,
-        startMin: item.startMin,
-        policy,
-        occupiedItems,
-        extraProposedItems: accepted,
-        nowMs,
-        stepMinutes: effectiveStep,
-      });
+      const check = customValidateCandidate
+        ? customValidateCandidate({
+          dayKey: item.dayKey,
+          startMin: item.startMin,
+          replaceKey: item.key,
+          currentOverride: accepted,
+        })
+        : validateCandidateSlot({
+          dayKey: item.dayKey,
+          startMin: item.startMin,
+          policy,
+          occupiedItems,
+          extraProposedItems: accepted,
+          nowMs,
+          stepMinutes: effectiveStep,
+        });
       const entry = {
         ...item,
         valid: check.valid,
@@ -404,22 +419,26 @@ export default function InteractiveSlotCalendar({
       };
       results.push(entry);
       if (check.valid) {
-        accepted.push({
-          id: `selected-${item.key}`,
-          dayKey: item.dayKey,
-          startMin: item.startMin,
-          endMin: item.endMin,
-          startMs: new Date(item.startUtcIso).getTime(),
-          endMs: new Date(item.endUtcIso).getTime(),
-          label: `${item.startClock}–${item.endClock}`,
-          title: 'Khung đang chọn',
-          blocksOverlap: true,
-          blocksRest: true,
-        });
+        if (customValidateCandidate) {
+          accepted.push(item);
+        } else {
+          accepted.push({
+            id: `selected-${item.key}`,
+            dayKey: item.dayKey,
+            startMin: item.startMin,
+            endMin: item.endMin,
+            startMs: new Date(item.startUtcIso).getTime(),
+            endMs: new Date(item.endUtcIso).getTime(),
+            label: `${item.startClock}–${item.endClock}`,
+            title: 'Khung đang chọn',
+            blocksOverlap: true,
+            blocksRest: true,
+          });
+        }
       }
     }
     return results;
-  }, [selectedSlots, policy, occupiedItems, nowMs, effectiveStep]);
+  }, [selectedSlots, customValidateCandidate, policy, occupiedItems, nowMs, effectiveStep]);
 
   const validSelectedSlots = useMemo(
     () => validatedSelections.filter((s) => s.valid),
@@ -444,19 +463,19 @@ export default function InteractiveSlotCalendar({
     }));
   }, [validatedSelections]);
 
-  // Debounced server-side teaching conflict verification
+  // Debounced server-side teaching conflict verification (skipped in proposalMode where 10-week validation runs at proposal level)
   const proposedIntervalsForServer = useMemo(() => {
     if (pendingMove) {
       return [{ startUtc: pendingMove.startUtcIso, endUtc: pendingMove.endUtcIso }];
     }
-    if (validSelectedSlots.length > 0) {
+    if (!proposalMode && validSelectedSlots.length > 0) {
       return validSelectedSlots.map((s) => ({
         startUtc: s.startUtcIso,
         endUtc: s.endUtcIso,
       }));
     }
     return [];
-  }, [pendingMove, validSelectedSlots]);
+  }, [pendingMove, proposalMode, validSelectedSlots]);
 
   const serverCheckKey = useMemo(() => JSON.stringify(proposedIntervalsForServer), [proposedIntervalsForServer]);
   const [serverConflictState, setServerConflictState] = useState(null);
@@ -499,9 +518,11 @@ export default function InteractiveSlotCalendar({
   const serverConflicts = activeServerCheck?.conflicts || [];
   const hasServerConflict = serverConflicts.length > 0 || activeServerCheck?.isValid === false;
 
-  // Quota & pending summary for anti-spam protection
-  const maxSlotsPerSubmission = policy?.maxSlotsPerSubmission || 14;
-  const maxPendingSlots = policy?.maxPendingSlots || 24;
+  // Quota & pending summary for anti-spam protection (overridden cleanly in Course Proposal mode: 2–4 sessions/week)
+  const maxSlotsPerSubmission = proposalMode
+    ? Number(proposalConfig?.maxPerWeek ?? 4)
+    : (policy?.maxSlotsPerSubmission || 14);
+  const maxPendingSlots = proposalMode ? 0 : (policy?.maxPendingSlots || 24);
   const dailySessionCap = policy?.dailySessionCap || 4;
   const weeklySessionCap = policy?.weeklySessionCap || 0;
 
@@ -534,15 +555,63 @@ export default function InteractiveSlotCalendar({
 
   // Toggle or add a 90-minute slot in multi-select
   const toggleOrSelectSlot = useCallback((dayKey, startMin, replaceKey = null) => {
-    const targetKey = `${dayKey}_${startMin}`;
-    const exists = selectedSlots.some((s) => s.key === targetKey);
-    if (exists && !replaceKey) {
-      setSelectedSlots((cur) => cur.filter((s) => s.key !== targetKey));
+    if (proposalReadOnly) return false;
+    const rawTargetKey = `${dayKey}_${startMin}`;
+    const existingItem = selectedSlots.find(
+      (s) => s.key === rawTargetKey || (s.dayKey === dayKey && Number(s.startMin) === Number(startMin))
+    );
+    const matchKey = existingItem?.key || rawTargetKey;
+    if (existingItem && !replaceKey) {
+      setSelectedSlots((cur) => cur.filter((s) => s.key !== matchKey));
       setFeedbackBanner(null);
       return true;
     }
 
-    const activeCountExcludingTarget = selectedSlots.filter((s) => s.key !== replaceKey && s.key !== targetKey).length;
+    if (customValidateCandidate) {
+      const check = customValidateCandidate({
+        dayKey,
+        startMin,
+        replaceKey: replaceKey || null,
+      });
+      if (!check.valid) {
+        setInvalidFlash({
+          dayKey,
+          startMin,
+          reason: check.reason,
+          suggestedStartMin: check.suggestedStartMin ?? null,
+        });
+        setFeedbackBanner({
+          tone: 'error',
+          text: check.reason,
+          suggestion: check.suggestedStartMin != null
+            ? { dayKey, startMin: check.suggestedStartMin }
+            : null,
+        });
+        return false;
+      }
+
+      const finalKey = check.key || rawTargetKey;
+      const newItem = {
+        key: finalKey,
+        dayKey,
+        startMin,
+        endMin: check.endMin ?? (startMin + durationMinutes),
+        startClock: check.startClock ?? clockFromMinutes(startMin),
+        endClock: check.endClock ?? clockFromMinutes(startMin + durationMinutes),
+        startUtcIso: check.startUtcIso,
+        endUtcIso: check.endUtcIso,
+        weekday: check.weekday,
+      };
+      setSelectedSlots((cur) => {
+        const filtered = cur.filter((s) => s.key !== replaceKey && s.key !== finalKey);
+        return [...filtered, newItem];
+      });
+      setInvalidFlash(null);
+      setFeedbackBanner(null);
+      return true;
+    }
+
+    const activeCountExcludingTarget = selectedSlots.filter((s) => s.key !== replaceKey && s.key !== matchKey).length;
     if (activeCountExcludingTarget + 1 > maxSlotsPerSubmission) {
       setFeedbackBanner({
         tone: 'error',
@@ -564,7 +633,7 @@ export default function InteractiveSlotCalendar({
       return false;
     }
 
-    const extraProposed = buildProposedFromSelection(replaceKey || targetKey);
+    const extraProposed = buildProposedFromSelection(replaceKey || matchKey);
     const check = validateCandidateSlot({
       dayKey,
       startMin,
@@ -593,7 +662,7 @@ export default function InteractiveSlotCalendar({
     }
 
     const newItem = {
-      key: targetKey,
+      key: matchKey,
       dayKey,
       startMin,
       endMin: check.endMin,
@@ -604,13 +673,13 @@ export default function InteractiveSlotCalendar({
     };
 
     setSelectedSlots((cur) => {
-      const filtered = cur.filter((s) => s.key !== replaceKey && s.key !== targetKey);
+      const filtered = cur.filter((s) => s.key !== replaceKey && s.key !== matchKey);
       return [...filtered, newItem];
     });
     setInvalidFlash(null);
     setFeedbackBanner(null);
     return true;
-  }, [buildProposedFromSelection, currentPendingCount, effectiveStep, maxPendingSlots, maxSlotsPerSubmission, occupiedItems, policy, selectedSlots, setSelectedSlots, trf]);
+  }, [buildProposedFromSelection, currentPendingCount, customValidateCandidate, durationMinutes, effectiveStep, maxPendingSlots, maxSlotsPerSubmission, occupiedItems, policy, proposalReadOnly, selectedSlots, setSelectedSlots, trf]);
 
   const removeSelectedSlotByKey = useCallback((key) => {
     setSelectedSlots((cur) => cur.filter((s) => s.key !== key));
@@ -811,6 +880,13 @@ export default function InteractiveSlotCalendar({
       });
     }
 
+    if (Array.isArray(proposalConfig?.pendingProposalEvents)) {
+      for (const pev of proposalConfig.pendingProposalEvents) {
+        if (!pev) continue;
+        events.push(pev);
+      }
+    }
+
     for (const pv of previewGeneratedSlots) {
       if (!pv || pv.isExisting) continue;
       const sp = { hour: Number(String(pv.localStart).slice(0, 2)), minute: Number(String(pv.localStart).slice(3, 5)) };
@@ -884,10 +960,12 @@ export default function InteractiveSlotCalendar({
         timeLabel: timeRange,
         title: timeRange,
         fullTitle: `${timeRange} (${durationMinutes} phút)`,
-        detail: sel.valid
-          ? tr('Đã chọn · Click để bỏ chọn')
-          : sel.reason,
-        statusLabel: sel.valid ? 'Đã chọn' : 'Cần kiểm tra',
+        detail: proposalMode
+          ? (sel.valid ? tr('Hàng tuần · Click để bỏ chọn') : sel.reason)
+          : sel.valid
+            ? tr('Đã chọn · Click để bỏ chọn')
+            : sel.reason,
+        statusLabel: sel.valid ? (proposalMode ? 'Đã chọn (10 tuần)' : 'Đã chọn') : 'Cần kiểm tra',
         tone: sel.valid ? 'selected' : 'conflict',
         metaRows: [
           { label: 'Trạng thái', value: sel.valid ? tr('Đã chọn (chưa gửi)') : tr('Không hợp lệ') },
@@ -898,7 +976,7 @@ export default function InteractiveSlotCalendar({
     }
 
     return events;
-  }, [slots, pendingMove, overlapIds, restIds, cohortByAvailabilityId, durationMinutes, restMinutes, tr, trf, fmt, cohortSessions, externalBusyEvents, previewGeneratedSlots, validatedSelections]);
+  }, [slots, pendingMove, overlapIds, restIds, cohortByAvailabilityId, durationMinutes, restMinutes, tr, trf, fmt, cohortSessions, externalBusyEvents, previewGeneratedSlots, validatedSelections, proposalConfig, proposalMode]);
 
   // Effective date range for filtering (used in Table View and when an explicit Date Filter preset/custom is active)
   const effectiveDateRange = useMemo(() => {
@@ -1146,15 +1224,21 @@ export default function InteractiveSlotCalendar({
       ds.lastRenderedDayKey = targetDayKey;
       ds.lastRenderedStartMin = targetStartMin;
 
-      const check = validateCandidateSlot({
-        dayKey: targetDayKey,
-        startMin: targetStartMin,
-        policy,
-        occupiedItems: ds.cachedOccupied || occupiedItems,
-        extraProposedItems: ds.cachedExtraProposed || [],
-        nowMs: Date.now(),
-        stepMinutes: effectiveStep,
-      });
+      const check = customValidateCandidate
+        ? customValidateCandidate({
+          dayKey: targetDayKey,
+          startMin: targetStartMin,
+          replaceKey: ds.selectedKey ?? null,
+        })
+        : validateCandidateSlot({
+          dayKey: targetDayKey,
+          startMin: targetStartMin,
+          policy,
+          occupiedItems: ds.cachedOccupied || occupiedItems,
+          extraProposedItems: ds.cachedExtraProposed || [],
+          nowMs: Date.now(),
+          stepMinutes: effectiveStep,
+        });
 
       setDragVisual({
         mode: ds.mode,
@@ -1240,6 +1324,7 @@ export default function InteractiveSlotCalendar({
     };
   }, [
     effectiveStep,
+    customValidateCandidate,
     findHoveredDayAndStartMin,
     measureColumnsSnapshot,
     occupiedItems,
@@ -1269,7 +1354,7 @@ export default function InteractiveSlotCalendar({
   }, [pendingMove]);
 
   const startEmptyColumnPointerDown = (dayKey, e) => {
-    if (e.button !== 0 || busy || submittingBatch) return;
+    if (e.button !== 0 || busy || submittingBatch || proposalReadOnly) return;
     const colEl = dayColsRef.current[dayKey];
     if (!colEl) return;
     measureColumnsSnapshot();
@@ -1513,22 +1598,31 @@ export default function InteractiveSlotCalendar({
     const maxStart = (policy?.gridEndHour ?? 22) * 60 - durationMinutes;
     const extraProposed = buildProposedFromSelection(null);
     for (let m = minM; m <= maxStart; m += effectiveStep) {
-      const isSelected = selectedSlots.some((s) => s.dayKey === dk && s.startMin === m);
-      const check = validateCandidateSlot({
-        dayKey: dk,
-        startMin: m,
-        policy,
-        occupiedItems,
-        extraProposedItems: extraProposed,
-        nowMs,
-        stepMinutes: effectiveStep,
-      });
+      const isSelected = selectedSlots.some((s) => s.dayKey === dk && Number(s.startMin) === m);
+      const check = customValidateCandidate
+        ? {
+          dayKey: dk,
+          startMin: m,
+          endMin: m + durationMinutes,
+          startClock: clockFromMinutes(m),
+          endClock: clockFromMinutes(m + durationMinutes),
+          ...customValidateCandidate({ dayKey: dk, startMin: m }),
+        }
+        : validateCandidateSlot({
+          dayKey: dk,
+          startMin: m,
+          policy,
+          occupiedItems,
+          extraProposedItems: extraProposed,
+          nowMs,
+          stepMinutes: effectiveStep,
+        });
       if (check.code !== 'PAST_TIME') {
         list.push({ ...check, isSelected });
       }
     }
     return list;
-  }, [touchPickerDay, durationMinutes, effectiveStep, policy, occupiedItems, buildProposedFromSelection, selectedSlots, nowMs]);
+  }, [touchPickerDay, durationMinutes, effectiveStep, policy, occupiedItems, buildProposedFromSelection, selectedSlots, nowMs, customValidateCandidate]);
 
   const monthMatrix = useMemo(
     () => (calendarSubView === 'month' ? buildMonthMatrix(anchorKey, todayKey) : null),
@@ -1676,43 +1770,19 @@ export default function InteractiveSlotCalendar({
 
           {/* Right: Mode Switcher (Lịch | Danh sách), Status Filter & Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Primary Mode Toggle: Lịch | Danh sách */}
-            <div
-              role="tablist"
-              aria-label={tr('Chế độ hiển thị')}
-              className="inline-flex items-center rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
-            >
-              <button
-                role="tab"
-                type="button"
-                data-testid="view-mode-calendar"
-                aria-selected={displayMode === 'calendar'}
-                onClick={() => setDisplayMode('calendar')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                  displayMode === 'calendar'
-                    ? 'bg-white text-rp-brand-strong shadow-2xs'
-                    : 'text-rp-text-muted hover:text-rp-text'
-                }`}
-              >
-                <CalendarIcon className="h-3.5 w-3.5" />
-                <span>{tr('Lịch')}</span>
-              </button>
-              <button
-                role="tab"
-                type="button"
-                data-testid="view-mode-list"
-                aria-selected={displayMode === 'list'}
-                onClick={() => setDisplayMode('list')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                  displayMode === 'list'
-                    ? 'bg-white text-rp-brand-strong shadow-2xs'
-                    : 'text-rp-text-muted hover:text-rp-text'
-                }`}
-              >
-                <List className="h-3.5 w-3.5" />
-                <span>{tr('Danh sách')}</span>
-              </button>
-            </div>
+            {/* Primary Mode Toggle: Lịch | Danh sách — shared Tabs (sliding active pill) */}
+            <Tabs
+              variant="pill"
+              tone="segmented"
+              size="sm"
+              label={tr('Chế độ hiển thị')}
+              value={displayMode}
+              onChange={setDisplayMode}
+              tabs={[
+                { value: 'calendar', label: 'Lịch', icon: CalendarIcon, testId: 'view-mode-calendar' },
+                { value: 'list', label: 'Danh sách', icon: List, testId: 'view-mode-list' },
+              ]}
+            />
 
             {/* Sub-view pills (Ngày | Tuần | Tháng) when in Calendar mode */}
             {displayMode === 'calendar' && (
@@ -1791,78 +1861,194 @@ export default function InteractiveSlotCalendar({
             {/* Custom Toolbar Actions (e.g., "Điền nhanh" modal trigger) */}
             {renderCustomHeaderActions}
 
-            {/* Quick Slot Picker button */}
-            <button
-              type="button"
-              onClick={() => setTouchPickerDay({ dayKey: anchorKey >= todayKey ? anchorKey : todayKey, rawStartMin: 8 * 60 })}
-              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[12px] font-semibold text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-            >
-              <Plus className="h-3.5 w-3.5 text-rp-brand-strong" />
-              <span>{tr('Đăng ký giờ')}</span>
-            </button>
+            {onRefresh && (
+              <RefreshButton
+                iconOnly
+                size="sm"
+                onRefresh={onRefresh}
+                refreshing={refreshing}
+                tooltip={tr('Làm mới lịch')}
+                aria-label={tr('Làm mới dữ liệu lịch')}
+                className="!h-8.5 !w-8.5 rounded-xl"
+              />
+            )}
+
+            {/* Quick Slot Picker button (hidden when readOnly) */}
+            {!proposalReadOnly && (
+              <button
+                type="button"
+                onClick={() => setTouchPickerDay({ dayKey: anchorKey >= todayKey ? anchorKey : todayKey, rawStartMin: 8 * 60 })}
+                className="inline-flex h-8.5 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[12px] font-semibold text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+              >
+                <Plus className="h-3.5 w-3.5 text-rp-brand-strong" />
+                <span>{tr('Đăng ký giờ')}</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Compact Top Selection Action Bar — placed immediately below Primary Toolbar & above day headers */}
-        {selectedSlots.length > 0 && (
+        {refreshing && (
+          <div className="pointer-events-none sticky top-2 z-30 h-0 overflow-visible px-3">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} label={tr('Đang cập nhật lịch…')} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact Top Selection Action Bar — always visible cleanly in proposalMode or when slots are selected */}
+        {(proposalMode || selectedSlots.length > 0) && (
           <div
             data-testid="multi-select-action-bar"
-            className="flex flex-wrap items-center justify-between gap-2.5 border-b border-emerald-200/90 bg-[#F2FBF6] px-4 py-2"
+            className={
+              proposalMode
+                ? 'flex flex-wrap items-center justify-between gap-2.5 border-b border-rp-brand-border bg-rp-brand-tint/85 px-4 py-2'
+                : 'flex flex-wrap items-center justify-between gap-2.5 border-b border-emerald-200/90 bg-[#F2FBF6] px-4 py-2'
+            }
           >
-            <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-emerald-950">
-              <span className="inline-flex h-5.5 min-w-5.5 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11.5px] font-bold text-white shadow-2xs">
-                {selectedSlots.length}
-              </span>
-              <span>{trf('Đã chọn {0} khung giờ', { 0: selectedSlots.length })}</span>
-              <span className="text-emerald-700/80" aria-hidden="true">·</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white/90 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                {tr('Chưa gửi đăng ký')}
-              </span>
-              <span className="hidden text-[11.5px] font-normal text-emerald-900/80 sm:inline">
-                {weeklySessionCap > 0
-                  ? trf('Tuần này: đã có {0}/{1} khung · chờ duyệt {2} · còn lại {3}', {
-                      0: viewedWeekStats.totalRegistered,
-                      1: weeklySessionCap,
-                      2: currentPendingCount,
-                      3: viewedWeekStats.remainingWeekQuota,
-                    })
-                  : trf('Tối đa {0} khung/ngày · {1}/{2} khung chờ duyệt · tối đa {3} khung/lần gửi', {
-                      0: dailySessionCap,
-                      1: currentPendingCount,
-                      2: maxPendingSlots,
-                      3: maxSlotsPerSubmission,
+            {proposalMode ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-rp-text">
+                  <span className={`inline-flex h-5.5 min-w-5.5 items-center justify-center rounded-full px-2 text-[11.5px] font-bold text-white shadow-2xs ${
+                    selectedSlots.length >= (proposalConfig?.minPerWeek ?? 2) && selectedSlots.length <= (proposalConfig?.maxPerWeek ?? 4)
+                      ? 'bg-rp-brand-pressed'
+                      : 'bg-amber-600'
+                  }`}>
+                    {selectedSlots.length}/{proposalConfig?.maxPerWeek ?? 4}
+                  </span>
+                  <span className="text-rp-brand-deep">
+                    {trf('{0}/{1} buổi/tuần', {
+                      0: selectedSlots.length,
+                      1: proposalConfig?.maxPerWeek ?? 4,
                     })}
-              </span>
-              {invalidSelectedSlots.length > 0 && (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">
-                  {trf('{0} khung cần kiểm tra', { 0: invalidSelectedSlots.length })}
-                </span>
-              )}
-            </div>
+                  </span>
+                  <span className="text-rp-brand-border" aria-hidden="true">·</span>
+                  {selectedSlots.length < (proposalConfig?.minPerWeek ?? 2) ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                      {trf('Tối thiểu {0} buổi/tuần', { 0: proposalConfig?.minPerWeek ?? 2 })}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rp-brand-border bg-white/95 px-2 py-0.5 text-[11px] font-medium text-rp-brand-strong">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rp-brand" aria-hidden="true" />
+                      {trf('Tổng khóa: {0} buổi ({1} tuần)', {
+                        0: selectedSlots.length * (proposalConfig?.durationWeeks ?? 10),
+                        1: proposalConfig?.durationWeeks ?? 10,
+                      })}
+                    </span>
+                  )}
+                  {proposalConfig?.courseSummaryText && (
+                    <span className="hidden text-[11.5px] font-normal text-rp-text-2 sm:inline">
+                      · {proposalConfig.courseSummaryText}
+                    </span>
+                  )}
+                  {invalidSelectedSlots.length > 0 && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">
+                      {trf('{0} khung cần kiểm tra', { 0: invalidSelectedSlots.length })}
+                    </span>
+                  )}
+                </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                data-testid="clear-all-selected-btn"
-                disabled={submittingBatch || busy}
-                onClick={clearAllSelectedSlots}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 text-[12px] font-semibold text-emerald-900 transition-colors hover:bg-emerald-50 disabled:opacity-50"
-              >
-                <X className="h-3.5 w-3.5" />
-                <span>{tr('Bỏ chọn tất cả')}</span>
-              </button>
-              <button
-                type="button"
-                data-testid="open-confirm-modal-btn"
-                disabled={submittingBatch || busy}
-                onClick={() => setConfirmModalOpen(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white shadow-2xs transition-colors hover:bg-rp-brand-strong disabled:opacity-50"
-              >
-                <Send className="h-3.5 w-3.5" />
-                <span>{trf('Xem & gửi đăng ký ({0})', { 0: selectedSlots.length })}</span>
-              </button>
-            </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {proposalConfig?.onOpenCourseInfo && (
+                    <button
+                      type="button"
+                      data-testid="open-course-info-drawer-btn"
+                      onClick={proposalConfig.onOpenCourseInfo}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-rp-brand-border bg-white px-3 text-[12px] font-semibold text-rp-text transition-colors hover:border-rp-brand hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                    >
+                      <span
+                        className={`h-2 w-2 rounded-full ${proposalConfig.hasCourseInfoReady ? 'bg-rp-brand' : 'bg-amber-400'}`}
+                        aria-hidden="true"
+                      />
+                      <span>{tr('Thông tin lớp dự kiến')}</span>
+                    </button>
+                  )}
+                  {selectedSlots.length > 0 && !proposalReadOnly && (
+                    <button
+                      type="button"
+                      data-testid="clear-all-selected-btn"
+                      disabled={submittingBatch || busy}
+                      onClick={clearAllSelectedSlots}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-rp-brand-border bg-white px-3 text-[12px] font-semibold text-rp-brand-strong transition-colors hover:bg-rp-brand-soft disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <span>{tr('Bỏ chọn tất cả')}</span>
+                    </button>
+                  )}
+                  {proposalConfig?.onOpenReview && (
+                    <button
+                      type="button"
+                      data-testid="open-confirm-modal-btn"
+                      disabled={submittingBatch || busy}
+                      onClick={proposalConfig.onOpenReview}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white shadow-2xs transition-colors hover:bg-rp-brand-strong disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      <span>{tr('Xem lại đề xuất')}</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-emerald-950">
+                  <span className="inline-flex h-5.5 min-w-5.5 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11.5px] font-bold text-white shadow-2xs">
+                    {selectedSlots.length}
+                  </span>
+                  <span>{trf('Đã chọn {0} khung giờ', { 0: selectedSlots.length })}</span>
+                  <span className="text-emerald-700/80" aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white/90 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                    {tr('Chưa gửi đăng ký')}
+                  </span>
+                  <span className="hidden text-[11.5px] font-normal text-emerald-900/80 sm:inline">
+                    {weeklySessionCap > 0
+                      ? trf('Tuần này: đã có {0}/{1} khung · chờ duyệt {2} · còn lại {3}', {
+                          0: viewedWeekStats.totalRegistered,
+                          1: weeklySessionCap,
+                          2: currentPendingCount,
+                          3: viewedWeekStats.remainingWeekQuota,
+                        })
+                      : trf('Tối đa {0} khung/ngày · {1}/{2} khung chờ duyệt · tối đa {3} khung/lần gửi', {
+                          0: dailySessionCap,
+                          1: currentPendingCount,
+                          2: maxPendingSlots,
+                          3: maxSlotsPerSubmission,
+                        })}
+                  </span>
+                  {invalidSelectedSlots.length > 0 && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">
+                      {trf('{0} khung cần kiểm tra', { 0: invalidSelectedSlots.length })}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="clear-all-selected-btn"
+                    disabled={submittingBatch || busy}
+                    onClick={clearAllSelectedSlots}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 text-[12px] font-semibold text-emerald-900 transition-colors hover:bg-emerald-50 disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    <span>{tr('Bỏ chọn tất cả')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="open-confirm-modal-btn"
+                    disabled={submittingBatch || busy}
+                    onClick={() => setConfirmModalOpen(true)}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white shadow-2xs transition-colors hover:bg-rp-brand-strong disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>{trf('Xem & gửi đăng ký ({0})', { 0: selectedSlots.length })}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -2418,8 +2604,9 @@ export default function InteractiveSlotCalendar({
               {listTableRows.length === 0 ? (
                 <div className="p-8">
                   <ContextualEmptyState
-                    compact
+                    variant="compact"
                     context="calendar"
+                    illustration="calendar"
                     title={tr('Chưa có khung giờ nào khớp điều kiện đang xem')}
                     description={tr('Nhấn "Đăng ký giờ", "Điền nhanh", điều chỉnh bộ lọc hoặc chuyển sang chế độ Lịch để chọn trực tiếp các khung giờ 90 phút.')}
                   />
@@ -2841,27 +3028,28 @@ export default function InteractiveSlotCalendar({
         >
           <form onSubmit={handleConfirmAdjustTime} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                {tr('Ngày dạy')}
-                <input
-                  type="date"
+              <div className="space-y-1">
+                <label className="block text-[12.5px] font-semibold text-rp-text-2">
+                  {tr('Ngày dạy')}
+                </label>
+                <DateInput
                   min={todayKey}
                   value={adjustDateKey}
                   onChange={(e) => { setAdjustDateKey(e.target.value); setAdjustError(''); }}
                   required
-                  className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px]"
                 />
-              </label>
-              <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                {tr('Giờ bắt đầu (90 phút)')}
-                <input
-                  type="time"
-                  value={adjustTimeClock}
-                  onChange={(e) => { setAdjustTimeClock(e.target.value); setAdjustError(''); }}
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[12.5px] font-semibold text-rp-text-2">
+                  {tr('Giờ bắt đầu (90 phút)')}
+                </label>
+                <TimeInput
                   required
-                  className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px] tabular-nums"
+                  value={adjustTimeClock}
+                  aria-label={tr('Giờ bắt đầu (90 phút)')}
+                  onChange={(e) => { setAdjustTimeClock(e.target.value); setAdjustError(''); }}
                 />
-              </label>
+              </div>
             </div>
             {adjustError && (
               <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-800">

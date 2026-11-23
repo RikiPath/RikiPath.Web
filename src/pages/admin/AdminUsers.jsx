@@ -1,44 +1,46 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
-import {
-  Eye,
-  Lock,
-  Search,
-  Unlock,
-  UserCog,
-  UserPlus,
-  X,
-} from 'lucide-react';
+import { UserPlus, Users, X } from 'lucide-react';
+import { useAuth } from '@/app/auth/authContext.js';
+import { useSmartRefresh } from '@/hooks/useSmartRefresh.js';
 import { AdminShell } from '@/layouts';
 import {
   AlertDialog,
-  Badge,
+  Avatar,
   Banner,
   Button,
-  Card,
   Checkbox,
   ContextualEmptyState,
-  ContextualErrorState,
   CustomSelect,
-  DataTable,
-  FeatureIcon,
+  DataRefreshBoundary,
   Field,
-  IconButton,
   Input,
   Modal,
-  PageHeader,
-  Pagination,
-  RefreshingIndicator,
-  SakuraLoader,
+  SearchInput,
   notify,
 } from '@/components/ui';
-import { usePagination } from '@/hooks/usePagination.js';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import {
+  AdminAccountIdentityHeader,
+  AdminDataTable,
+  AdminIconAction,
+  AdminRoleBadge,
+  AdminRowActions,
+  AdminStatusBadge,
+  AdminToolbar,
+  AdminWorkspace,
+  DetailModal,
+  RoleEditModal,
+} from '@/features/admin/components/AdminPrimitives.jsx';
+import { normalizeAdminRole } from '@/features/admin/utils/adminRoles.js';
 import {
   createAdminUser,
   disableAdminUser,
+  getAdminUser,
   getAdminUsers,
   unwrapApiList,
+  unwrapApiResult,
   updateAdminUser,
 } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
@@ -46,12 +48,12 @@ import { describeApiError } from '@/api/apiErrors.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
-const ROLE_META = {
-  Admin: { label: 'Quản trị', tone: 'brand' },
-  ContentAuthor: { label: 'Biên soạn nội dung', tone: 'info' },
-  Mentor: { label: 'Giáo viên', tone: 'warning' },
-  Learner: { label: 'Học viên', tone: 'neutral' },
-};
+const ROLE_OPTIONS = [
+  { value: 'Learner', label: 'Học viên', dotClass: 'bg-[#E05A7A]' },
+  { value: 'Mentor', label: 'Giáo viên', dotClass: 'bg-[#2563EB]' },
+  { value: 'ContentAuthor', label: 'Biên soạn nội dung', dotClass: 'bg-[#EAB308]' },
+  { value: 'Admin', label: 'Quản trị viên', dotClass: 'bg-[#DC2626]' },
+];
 
 const CREATABLE_ROLES = ['Learner', 'ContentAuthor', 'Mentor'];
 
@@ -60,46 +62,76 @@ const EMPTY_CREATE_FORM = {
   email: '',
   password: '',
   phoneNumber: '',
-  role: 'Learner',
-  isEmailVerified: true,
+  role: '',
+  isEmailVerified: false,
 };
 
 function normalizeUser(user) {
   const rawRole = typeof user.role === 'string' ? user.role : user.role?.name;
-  const role = Object.keys(ROLE_META).find((r) => r.toLowerCase() === String(rawRole).toLowerCase()) || 'Learner';
+  const role = normalizeAdminRole(rawRole);
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
   const active = !(user.isActive === false || user.isDisabled || user.isDeleted);
-  const lastActivity = user.lastActivityAt || user.lastActiveAt || user.createdDate || null;
+  const createdDate = user.createdDate || null;
+  const modifiedDate = user.modifiedDate || user.updatedAt || null;
+  const lastActivity = user.lastActivityAt || user.lastActiveAt || modifiedDate || createdDate || null;
 
   return {
     ...user,
     id: user.id ?? user.userId,
     name: user.fullName || user.name || fullName || user.email || 'Người dùng',
     email: user.email || '',
+    avatarUrl: user.avatarUrl || user.avatar || user.photoUrl || user.pictureUrl || null,
     role,
     isActive: active,
     status: active ? 'Active' : 'Suspended',
+    createdDate,
+    modifiedDate,
     lastActivityAt: lastActivity,
   };
 }
 
 export default function AdminUsers() {
   const { tr, trf } = useLocale();
+  const { user: currentUser, primaryRole } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const initialRole = searchParams.get('role');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState(
-    initialRole && Object.hasOwn(ROLE_META, initialRole) ? initialRole : 'all',
+    initialRole && ROLE_OPTIONS.some((r) => r.value === initialRole) ? initialRole : 'all',
   );
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSession, setCreateSession] = useState(0);
+  const [createAutofillLocked, setCreateAutofillLocked] = useState(true);
   const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [formErrors, setFormErrors] = useState({});
   const [formSubmitError, setFormSubmitError] = useState('');
+
+  const openCreateModal = () => {
+    setForm({ ...EMPTY_CREATE_FORM });
+    setFormErrors({});
+    setFormSubmitError('');
+    setCreateAutofillLocked(true);
+    setCreateSession((n) => n + 1);
+    setCreateOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    if (createMutation.isPending) return;
+    setCreateOpen(false);
+    setForm({ ...EMPTY_CREATE_FORM });
+    setFormErrors({});
+    setFormSubmitError('');
+  };
+
+  const [viewUser, setViewUser] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editSubmitError, setEditSubmitError] = useState('');
+
   const [toggleTarget, setToggleTarget] = useState(null);
 
   const usersQuery = useQuery({
@@ -107,9 +139,16 @@ export default function AdminUsers() {
     queryFn: async () => unwrapApiList(await getAdminUsers({ includeInactive: true, includeDisabled: true })).map(normalizeUser),
   });
 
+  const viewDetailQuery = useQuery({
+    queryKey: ['admin-user-detail', viewUser?.id],
+    queryFn: async () => normalizeUser(unwrapApiResult(await getAdminUser(viewUser.id)) || viewUser),
+    enabled: Boolean(viewUser?.id),
+    initialData: viewUser || undefined,
+  });
+
   const createMutation = useMutation({
     mutationFn: (payload) => createAdminUser(payload),
-    onSuccess: async (res, vars) => {
+    onSuccess: async (_, vars) => {
       await invalidateAdminDomains(queryClient, ['users']);
       setCreateOpen(false);
       setForm(EMPTY_CREATE_FORM);
@@ -124,25 +163,51 @@ export default function AdminUsers() {
     },
   });
 
+  const editMutation = useMutation({
+    mutationFn: ({ id, target, nextRole }) =>
+      updateAdminUser(id, {
+        fullName: target.name,
+        phoneNumber: target.phoneNumber || null,
+        role: nextRole,
+        isActive: Boolean(target.isActive),
+      }),
+    onSuccess: async (response, { id, target, nextRole }) => {
+      const updatedRaw = unwrapApiResult(response);
+      const updatedNormalized = updatedRaw ? normalizeUser(updatedRaw) : null;
+      queryClient.setQueryData(ADMIN_KEYS.users, (prev) =>
+        Array.isArray(prev)
+          ? prev.map((u) => (Number(u.id) === Number(id) ? { ...u, ...(updatedNormalized || {}), role: nextRole } : u))
+          : prev,
+      );
+      await invalidateAdminDomains(queryClient, ['users']);
+      setEditTarget(null);
+      setEditSubmitError('');
+      notify.success(trf('Đã cập nhật vai trò tài khoản {0}.', { 0: target.name }), '', { key: 'admin-user-edit', replace: true });
+    },
+    onError: (err) => {
+      const msg = describeApiError(err)?.message || tr('Chưa cập nhật được vai trò tài khoản.');
+      setEditSubmitError(msg);
+      notify.apiError(err, tr('Chưa cập nhật được vai trò tài khoản'), { key: 'admin-user-edit-err', replace: true });
+    },
+  });
+
   const toggleStatusMutation = useMutation({
-    mutationFn: async (user) => {
-      if (user.isActive) {
-        return disableAdminUser(user.id);
-      }
-      return updateAdminUser(user.id, {
-        fullName: user.name,
-        phoneNumber: user.phoneNumber || null,
-        role: user.role,
+    mutationFn: async (target) => {
+      if (target.isActive) return disableAdminUser(target.id);
+      return updateAdminUser(target.id, {
+        fullName: target.name,
+        phoneNumber: target.phoneNumber || null,
+        role: target.role,
         isActive: true,
       });
     },
-    onSuccess: async (_, user) => {
+    onSuccess: async (_, target) => {
       await invalidateAdminDomains(queryClient, ['users']);
       setToggleTarget(null);
       notify.success(
-        user.isActive
-          ? trf('Đã khóa tài khoản {0}.', { 0: user.name })
-          : trf('Đã kích hoạt lại tài khoản {0}.', { 0: user.name }),
+        target.isActive
+          ? trf('Đã khóa tài khoản {0}.', { 0: target.name })
+          : trf('Đã kích hoạt lại tài khoản {0}.', { 0: target.name }),
         '',
         { key: 'admin-user-status', replace: true },
       );
@@ -153,12 +218,16 @@ export default function AdminUsers() {
   });
 
   const allUsers = useMemo(() => usersQuery.data || [], [usersQuery.data]);
+  const selfId = Number(currentUser?.userId || currentUser?.id || 0);
 
   const filteredUsers = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     const list = allUsers.filter((u) => {
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
-      if (statusFilter !== 'all' && u.status !== statusFilter) return false;
+      if (statusFilter === 'Active' && !u.isActive) return false;
+      if (statusFilter === 'Suspended' && u.isActive) return false;
+      if (statusFilter === 'Verified' && !u.isEmailVerified) return false;
+      if (statusFilter === 'Unverified' && u.isEmailVerified) return false;
       if (!q) return true;
       return `${u.name} ${u.email} ${u.phoneNumber || ''}`.toLowerCase().includes(q);
     });
@@ -177,7 +246,6 @@ export default function AdminUsers() {
     });
   }, [allUsers, searchTerm, roleFilter, statusFilter, sortBy]);
 
-  const pagination = usePagination(filteredUsers, { initialPageSize: 10 });
   const hasFilters = searchTerm.trim() !== '' || roleFilter !== 'all' || statusFilter !== 'all';
 
   const resetFilters = () => {
@@ -201,6 +269,9 @@ export default function AdminUsers() {
     if (!form.password || form.password.length < 6) {
       errors.password = tr('Mật khẩu cần ít nhất 6 ký tự.');
     }
+    if (!form.role) {
+      errors.role = tr('Vui lòng chọn vai trò hệ thống.');
+    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -223,227 +294,349 @@ export default function AdminUsers() {
     {
       key: 'name',
       header: tr('Người dùng'),
+      headerButtonClassName: 'w-[240px] max-w-full justify-center sm:w-[270px]',
+      sortValue: (row) => row.name,
       render: (row) => (
-        <div className="min-w-0">
-          <Link to={`/admin/users/detail/?id=${row.id}`} className="rp-link font-semibold text-rp-text">
-            {row.name}
-          </Link>
-          <p className="truncate text-xs text-rp-text-muted">{row.email}</p>
+        <div className="flex w-[240px] max-w-full min-w-0 items-center gap-2.5 text-left sm:w-[270px]">
+          <Avatar src={row.avatarUrl} name={row.name} size={32} className="ring-1 ring-rp-line" />
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setViewUser(row)}
+              title={row.name}
+              className="rp-focus block max-w-full truncate rounded text-left text-[13.5px] font-semibold text-rp-text transition-colors hover:text-[#C84666]"
+            >
+              {row.name}
+            </button>
+            <p title={row.email} className="truncate text-xs text-rp-text-muted">{row.email}</p>
+          </div>
         </div>
       ),
     },
     {
       key: 'role',
       header: tr('Vai trò'),
-      render: (row) => {
-        const meta = ROLE_META[row.role] || ROLE_META.Learner;
-        return <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>;
-      },
+      sortValue: (row) => row.role,
+      render: (row) => <AdminRoleBadge role={row.role} />,
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      sortValue: (row) => (row.isActive ? 1 : 0),
       render: (row) => (
-        <Badge tone={row.isActive ? 'success' : 'danger'} size="sm" icon={false}>
-          {row.isActive ? tr('Hoạt động') : tr('Đã khóa')}
-        </Badge>
+        <AdminStatusBadge
+          tone={row.isActive ? 'success' : 'danger'}
+          label={row.isActive ? 'Hoạt động' : 'Đã khóa'}
+        />
       ),
     },
     {
-      key: 'verified',
+      key: 'isEmailVerified',
       header: tr('Xác thực Email'),
+      sortValue: (row) => (row.isEmailVerified ? 1 : 0),
       render: (row) => (
-        <Badge tone={row.isEmailVerified ? 'info' : 'neutral'} size="sm" icon={false}>
-          {row.isEmailVerified ? tr('Đã xác thực') : tr('Chưa xác thực')}
-        </Badge>
+        <AdminStatusBadge
+          tone={row.isEmailVerified ? 'success' : 'danger'}
+          label={row.isEmailVerified ? 'Đã xác thực' : 'Chưa xác thực'}
+        />
       ),
     },
     {
       key: 'lastActivityAt',
       header: tr('Cập nhật / tạo'),
+      sortValue: (row) => (row.lastActivityAt ? new Date(row.lastActivityAt).getTime() : 0),
       render: (row) => (
-        <span className="whitespace-nowrap text-xs text-rp-text-2">
+        <span className="whitespace-nowrap text-xs tabular-nums text-rp-text-2">
           {row.lastActivityAt ? formatVnDateTime(row.lastActivityAt) : '—'}
         </span>
       ),
     },
   ];
 
+  const detailRecord = viewDetailQuery.data || viewUser;
+  const hasToolbar = usersQuery.isSuccess && allUsers.length > 0;
+  const { refresh: refreshUsers, isRefreshing: usersRefreshing } = useSmartRefresh({
+    queries: [usersQuery],
+  });
+
   return (
     <AdminShell breadcrumb={tr('Người dùng & vai trò')}>
-      <main data-page="AdminUsers" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
-        <PageHeader
-          eyebrow={tr('Điều hành')}
-          title={
-            <span className="inline-flex items-center gap-2.5">
-              <FeatureIcon feature="users" icon={UserCog} size="lg" />
-              <span>{tr('Người dùng & vai trò')}</span>
-              {!usersQuery.isPending && <Badge tone="neutral" size="sm" icon={false}>{allUsers.length}</Badge>}
-            </span>
-          }
-          description={tr('Quản lý tài khoản, vai trò hệ thống và trạng thái hoạt động với kiểm soát bảo mật RBAC.')}
+      <AdminWorkspace viewportLocked page="AdminUsers">
+        <AdminPageHeader
+          icon={Users}
+          title="Người dùng & vai trò"
+          className="mb-0 shrink-0"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <RefreshingIndicator active={usersQuery.isFetching && !usersQuery.isPending} />
+            !hasToolbar && usersQuery.isSuccess ? (
               <Button
+                size="sm"
+                className="h-9 px-3.5"
                 icon={UserPlus}
-                onClick={() => {
-                  setForm(EMPTY_CREATE_FORM);
-                  setFormErrors({});
-                  setFormSubmitError('');
-                  setCreateOpen(true);
-                }}
+                onClick={openCreateModal}
                 data-testid="create-user-btn"
               >
                 {tr('Tạo tài khoản')}
               </Button>
-            </div>
+            ) : null
           }
         />
 
-        {/* Toolbar */}
-        <Card className="p-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="min-w-[220px] flex-1">
-              <Input
-                type="search"
-                icon={Search}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder={tr('Tìm theo họ tên, email hoặc số điện thoại…')}
-                aria-label={tr('Tìm kiếm người dùng')}
-              />
-            </div>
-
-            <div className="w-full sm:w-[190px]">
-              <CustomSelect
-                value={roleFilter}
-                aria-label={tr('Lọc theo vai trò')}
-                onChange={(val) => {
-                  setRoleFilter(val);
-                  const next = new URLSearchParams(searchParams);
-                  if (val === 'all') next.delete('role');
-                  else next.set('role', val);
-                  setSearchParams(next, { replace: true });
-                }}
-                options={[
-                  { value: 'all', label: tr('Tất cả vai trò') },
-                  ...Object.entries(ROLE_META).map(([value, meta]) => ({
-                    value,
-                    label: tr(meta.label),
-                  })),
-                ]}
-              />
-            </div>
-
-            <div className="w-full sm:w-[165px]">
-              <CustomSelect
-                value={statusFilter}
-                aria-label={tr('Lọc theo trạng thái')}
-                onChange={setStatusFilter}
-                options={[
-                  { value: 'all', label: tr('Tất cả trạng thái') },
-                  { value: 'Active', label: tr('Hoạt động'), dot: '#22c55e' },
-                  { value: 'Suspended', label: tr('Đã khóa'), dot: '#ef4444' },
-                ]}
-              />
-            </div>
-
-            <div className="w-full sm:w-[160px]">
-              <CustomSelect
-                value={sortBy}
-                aria-label={tr('Sắp xếp danh sách')}
-                onChange={setSortBy}
-                options={[
-                  { value: 'newest', label: tr('Mới nhất') },
-                  { value: 'oldest', label: tr('Cũ nhất') },
-                  { value: 'name', label: tr('Tên A–Z') },
-                  { value: 'role', label: tr('Theo vai trò') },
-                ]}
-              />
-            </div>
-
-            {hasFilters && (
-              <Button variant="ghost" size="sm" icon={X} onClick={resetFilters}>
-                {tr('Xóa bộ lọc')}
-              </Button>
-            )}
-          </div>
-        </Card>
-
-        {usersQuery.isPending ? (
-          <SakuraLoader variant="section" context="data" label={tr('Đang tải danh sách người dùng')} delay={140} />
-        ) : usersQuery.isError ? (
-          <ContextualErrorState
-            error={usersQuery.error}
-            title={tr('Chưa tải được danh sách người dùng')}
-            onRetry={() => usersQuery.refetch()}
+        {/* Compact Single-Row Filter Bar */}
+        {hasToolbar && <AdminToolbar
+          refresh={{ onRefresh: refreshUsers, refreshing: usersRefreshing }}
+          actions={(
+            <Button size="sm" icon={UserPlus} onClick={openCreateModal} data-testid="create-user-btn">
+              {tr('Tạo tài khoản')}
+            </Button>
+          )}
+        >
+          <SearchInput
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onClear={() => setSearchTerm('')}
+            placeholder="Tìm họ tên, email, SĐT…"
+            aria-label={tr('Tìm kiếm người dùng')}
+            className="w-full sm:w-[225px]"
           />
-        ) : filteredUsers.length === 0 ? (
-          <ContextualEmptyState
-            title={hasFilters ? tr('Không tìm thấy tài khoản phù hợp') : tr('Chưa có tài khoản nào')}
-            description={
-              hasFilters
-                ? tr('Thử thay đổi từ khóa, vai trò hoặc trạng thái hiển thị.')
-                : tr('Nhấn Tạo tài khoản để thêm học viên, biên tập viên hoặc giáo viên mới.')
-            }
-            action={
-              hasFilters ? (
-                <Button variant="outline" onClick={resetFilters}>{tr('Xóa bộ lọc')}</Button>
-              ) : null
-            }
+
+          <CustomSelect
+            fitContent
+            value={roleFilter}
+            aria-label={tr('Lọc theo vai trò')}
+            onChange={setRoleFilter}
+            options={[
+              { value: 'all', label: tr('Tất cả vai trò') },
+              ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: tr(r.label), dotClass: r.dotClass })),
+            ]}
           />
-        ) : (
-          <div className="space-y-4">
-            <DataTable
+
+          <CustomSelect
+            fitContent
+            value={statusFilter}
+            aria-label={tr('Lọc theo trạng thái tài khoản')}
+            onChange={setStatusFilter}
+            options={[
+              { value: 'all', label: tr('Tất cả trạng thái') },
+              { value: 'Active', label: tr('Hoạt động'), dotClass: 'bg-[#16A34A]' },
+              { value: 'Suspended', label: tr('Đã khóa'), dotClass: 'bg-[#DC2626]' },
+              { value: 'Verified', label: tr('Đã xác thực'), dotClass: 'bg-[#16A34A]' },
+              { value: 'Unverified', label: tr('Chưa xác thực'), dotClass: 'bg-[#DC2626]' },
+            ]}
+          />
+
+          <CustomSelect
+            fitContent
+            value={sortBy}
+            aria-label={tr('Sắp xếp danh sách')}
+            onChange={setSortBy}
+            options={[
+              { value: 'newest', label: tr('Mới nhất') },
+              { value: 'oldest', label: tr('Cũ nhất') },
+              { value: 'name', label: tr('Tên A–Z') },
+              { value: 'role', label: tr('Theo vai trò') },
+            ]}
+          />
+
+          {hasFilters && (
+            <Button variant="ghost" size="sm" className="h-9" icon={X} onClick={resetFilters}>
+              {tr('Xóa bộ lọc')}
+            </Button>
+          )}
+        </AdminToolbar>}
+
+        <DataRefreshBoundary
+          fillHeight
+          queries={[usersQuery]}
+          loading={usersQuery.isPending}
+          refreshing={usersRefreshing}
+          error={usersQuery.error}
+          hasData={Boolean(usersQuery.data)}
+          isEmpty={false}
+          loadingContext="data"
+          loadingLabel={tr('Đang tải danh sách người dùng')}
+          loadingDelay={140}
+          errorTitle={tr('Chưa tải được danh sách người dùng')}
+          onRetry={refreshUsers}
+        >
+          {filteredUsers.length === 0 ? (
+            <ContextualEmptyState
+              variant={allUsers.length > 0 && hasFilters ? 'search' : 'default'}
+              illustration={allUsers.length > 0 && hasFilters ? 'search' : 'mentor'}
+              title={allUsers.length > 0 && hasFilters ? tr('Không tìm thấy tài khoản phù hợp') : tr('Chưa có tài khoản nào')}
+              description={
+                allUsers.length > 0 && hasFilters
+                  ? tr('Thử thay đổi từ khóa, vai trò hoặc trạng thái hiển thị.')
+                  : tr('Nhấn Tạo tài khoản để thêm học viên, biên soạn nội dung hoặc giáo viên mới.')
+              }
+              action={allUsers.length > 0 && hasFilters ? <Button variant="outline" onClick={resetFilters}>{tr('Xóa bộ lọc')}</Button> : null}
+            />
+          ) : (
+            <AdminDataTable
+              fillHeight
               columns={columns}
-              rows={pagination.paginatedData}
+              rows={filteredUsers}
               rowKey={(row) => row.id}
-              rowActions={(row) => (
-                <div className="flex items-center justify-end gap-1">
-                  <Link
-                    to={`/admin/users/detail/?id=${row.id}`}
-                    className="rp-focus inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-2 hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-                    title={tr('Xem chi tiết')}
-                    aria-label={tr('Xem chi tiết')}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Link>
-                  {row.role !== 'Admin' && (
-                    <IconButton
-                      icon={row.isActive ? Lock : Unlock}
-                      size="sm"
-                      variant="ghost"
-                      label={row.isActive ? tr('Khóa tài khoản') : tr('Mở khóa tài khoản')}
-                      onClick={() => setToggleTarget(row)}
+              pageSize={10}
+              itemLabel="tài khoản"
+              rowActions={(row) => {
+                const isSelf = Boolean(selfId && Number(row.id) === selfId);
+                return (
+                  <AdminRowActions>
+                    <AdminIconAction
+                      kind="view"
+                      tooltip="Xem chi tiết tài khoản"
+                      onClick={() => setViewUser(row)}
                     />
-                  )}
+                    <AdminIconAction
+                      kind="edit"
+                      tone="brand"
+                      tooltip="Chỉnh sửa vai trò"
+                      onClick={() => {
+                        setEditSubmitError('');
+                        setEditTarget(row);
+                      }}
+                    />
+                    {row.role !== 'Admin' && (
+                      <AdminIconAction
+                        kind={row.isActive ? 'lock' : 'unlock'}
+                        tone={row.isActive ? 'danger' : 'success'}
+                        tooltip={row.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+                        disabled={isSelf}
+                        onClick={() => setToggleTarget(row)}
+                      />
+                    )}
+                  </AdminRowActions>
+                );
+              }}
+            />
+          )}
+        </DataRefreshBoundary>
+
+        {/* Read-only Account Detail Modal */}
+        <DetailModal
+          open={Boolean(viewUser)}
+          onClose={() => setViewUser(null)}
+          title={tr('Chi tiết tài khoản')}
+          size="md"
+          identity={
+            detailRecord && (
+              <AdminAccountIdentityHeader
+                name={detailRecord.name}
+                email={detailRecord.email}
+                avatarUrl={detailRecord.avatarUrl}
+                role={detailRecord.role}
+                isActive={detailRecord.isActive}
+              />
+            )
+          }
+        >
+          {detailRecord && (
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Họ và tên')}</dt>
+                <dd className="mt-0.5 font-semibold text-rp-text">{detailRecord.name}</dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Email')}</dt>
+                <dd className="mt-0.5 truncate font-semibold text-rp-text" title={detailRecord.email}>
+                  {detailRecord.email || tr('Chưa cập nhật')}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Số điện thoại')}</dt>
+                <dd className="mt-0.5 font-semibold text-rp-text">
+                  {detailRecord.phoneNumber || tr('Chưa cập nhật')}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Vai trò')}</dt>
+                <dd className="mt-1">
+                  <AdminRoleBadge role={detailRecord.role} />
+                </dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Trạng thái tài khoản')}</dt>
+                <dd className="mt-1">
+                  <AdminStatusBadge
+                    tone={detailRecord.isActive ? 'success' : 'danger'}
+                    label={detailRecord.isActive ? 'Hoạt động' : 'Đã khóa'}
+                  />
+                </dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Xác thực Email')}</dt>
+                <dd className="mt-1">
+                  <AdminStatusBadge
+                    tone={detailRecord.isEmailVerified ? 'success' : 'danger'}
+                    label={detailRecord.isEmailVerified ? 'Đã xác thực' : 'Chưa xác thực'}
+                  />
+                </dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Ngày tạo')}</dt>
+                <dd className="mt-0.5 text-xs font-medium tabular-nums text-rp-text">
+                  {detailRecord.createdDate ? formatVnDateTime(detailRecord.createdDate) : tr('Chưa ghi nhận')}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-rp-line p-3">
+                <dt className="text-xs text-rp-text-muted">{tr('Ngày cập nhật')}</dt>
+                <dd className="mt-0.5 text-xs font-medium tabular-nums text-rp-text">
+                  {detailRecord.modifiedDate
+                    ? formatVnDateTime(detailRecord.modifiedDate)
+                    : detailRecord.lastActivityAt && detailRecord.lastActivityAt !== detailRecord.createdDate
+                      ? formatVnDateTime(detailRecord.lastActivityAt)
+                      : tr('Chưa cập nhật')}
+                </dd>
+              </div>
+              {(detailRecord.jlptLevel || detailRecord.declaredJlptCertificateCode) && (
+                <div className="rounded-xl border border-rp-line p-3 sm:col-span-2">
+                  <dt className="text-xs text-rp-text-muted">{tr('Trình độ JLPT')}</dt>
+                  <dd className="mt-0.5 font-semibold text-rp-text">
+                    {detailRecord.jlptLevel || detailRecord.declaredJlptCertificateCode}
+                  </dd>
                 </div>
               )}
-            />
+              {detailRecord.bio && (
+                <div className="rounded-xl border border-rp-line p-3 sm:col-span-2">
+                  <dt className="text-xs text-rp-text-muted">{tr('Giới thiệu')}</dt>
+                  <dd className="mt-0.5 text-xs leading-5 text-rp-text-2">{detailRecord.bio}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+        </DetailModal>
 
-            <Pagination
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              pageSize={pagination.pageSize}
-              totalItems={filteredUsers.length}
-              onPageChange={pagination.setCurrentPage}
-              onPageSizeChange={pagination.setPageSize}
-              pageSizeOptions={[10, 20, 50]}
-              itemLabel={tr('tài khoản')}
-            />
-          </div>
+        {/* Role-Only Edit Modal */}
+        {editTarget && (
+          <RoleEditModal
+            key={`${editTarget.id}-${editTarget.role}`}
+            open={Boolean(editTarget)}
+            onClose={() => !editMutation.isPending && setEditTarget(null)}
+            user={editTarget}
+            callerRole={primaryRole || currentUser?.role}
+            selfId={selfId}
+            assignableRoles={CREATABLE_ROLES}
+            saving={editMutation.isPending}
+            submitError={editSubmitError}
+            onSave={(nextRole) =>
+              editMutation.mutate({
+                id: editTarget.id,
+                target: editTarget,
+                nextRole,
+              })
+            }
+          />
         )}
 
         {/* Create User Modal */}
         <Modal
           open={createOpen}
-          onClose={() => !createMutation.isPending && setCreateOpen(false)}
+          onClose={closeCreateModal}
           title={tr('Tạo tài khoản mới')}
           size="md"
           footer={
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" disabled={createMutation.isPending} onClick={() => setCreateOpen(false)}>
+              <Button variant="ghost" disabled={createMutation.isPending} onClick={closeCreateModal}>
                 {tr('Hủy')}
               </Button>
               <Button loading={createMutation.isPending} onClick={handleCreateSubmit}>
@@ -452,12 +645,12 @@ export default function AdminUsers() {
             </div>
           }
         >
-          <form onSubmit={handleCreateSubmit} className="space-y-4">
-            {formSubmitError && (
-              <Banner tone="danger">{formSubmitError}</Banner>
-            )}
+          <form key={createSession} autoComplete="off" onSubmit={handleCreateSubmit} className="space-y-4">
+            {formSubmitError && <Banner tone="danger">{formSubmitError}</Banner>}
             <Field label={tr('Họ và tên')} required error={formErrors.fullName}>
               <Input
+                name={`create-fullname-${createSession}`}
+                autoComplete="off"
                 value={form.fullName}
                 onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
                 placeholder={tr('Ví dụ: Nguyễn Văn An')}
@@ -467,6 +660,13 @@ export default function AdminUsers() {
             <Field label={tr('Email')} required error={formErrors.email}>
               <Input
                 type="email"
+                name={`create-email-${createSession}`}
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
+                readOnly={createAutofillLocked}
+                onFocus={() => setCreateAutofillLocked(false)}
+                onPointerDown={() => setCreateAutofillLocked(false)}
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 placeholder="email@rikipath.local"
@@ -476,6 +676,13 @@ export default function AdminUsers() {
             <Field label={tr('Mật khẩu tạm thời')} required error={formErrors.password} hint={tr('Ít nhất 6 ký tự.')}>
               <Input
                 type="password"
+                name={`create-password-${createSession}`}
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-form-type="other"
+                readOnly={createAutofillLocked}
+                onFocus={() => setCreateAutofillLocked(false)}
+                onPointerDown={() => setCreateAutofillLocked(false)}
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 placeholder="••••••"
@@ -485,17 +692,24 @@ export default function AdminUsers() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={tr('Số điện thoại')}>
                 <Input
+                  name={`create-phone-${createSession}`}
+                  autoComplete="off"
                   value={form.phoneNumber}
                   onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
                   placeholder="09xx xxx xxx"
                 />
               </Field>
-              <Field label={tr('Vai trò hệ thống')} required>
+              <Field label={tr('Vai trò hệ thống')} required error={formErrors.role}>
                 <CustomSelect
                   value={form.role}
+                  placeholder={tr('Chọn vai trò')}
+                  invalid={Boolean(formErrors.role)}
                   aria-label={tr('Vai trò hệ thống')}
                   onChange={(value) => setForm((f) => ({ ...f, role: value }))}
-                  options={CREATABLE_ROLES.map((r) => ({ value: r, label: tr(ROLE_META[r].label) }))}
+                  options={CREATABLE_ROLES.map((r) => {
+                    const meta = ROLE_OPTIONS.find((x) => x.value === r);
+                    return { value: r, label: tr(meta.label), dotClass: meta.dotClass };
+                  })}
                 />
               </Field>
             </div>
@@ -527,7 +741,7 @@ export default function AdminUsers() {
           }
           confirmLabel={toggleTarget?.isActive ? tr('Khóa tài khoản') : tr('Mở khóa')}
         />
-      </main>
+      </AdminWorkspace>
     </AdminShell>
   );
 }

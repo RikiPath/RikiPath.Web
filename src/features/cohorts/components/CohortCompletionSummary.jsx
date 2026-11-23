@@ -4,7 +4,7 @@ import {
   submitCohortMentorReview,
   updateCohortMentorReview,
 } from '@/features/cohorts/api/cohortApi';
-import { describeApiError } from '@/api/apiErrors';
+import { errorMessage as formatApiError } from '@/api/apiErrors';
 import {
   Badge,
   Banner,
@@ -12,6 +12,7 @@ import {
   Card,
   ContextualErrorState,
   CustomSelect,
+  EmptyState,
   Field,
   SakuraLoader,
   Textarea,
@@ -54,7 +55,7 @@ function ReviewForm({ courseId, mentor, existing, busy, onRun, onSaved }) {
               if (existing?.id) await updateCohortMentorReview(courseId, existing.id, { rating, comment });
               else await submitCohortMentorReview(courseId, { mentorId: mentor.mentorId, rating, comment });
             } catch (err) {
-              setError(describeApiError(err, tr('Chưa gửi được đánh giá.')));
+              setError(formatApiError(err, tr('Chưa gửi được đánh giá.')));
               throw err;
             }
             onSaved();
@@ -161,7 +162,7 @@ export default function CohortCompletionSummary({
       <div className="space-y-2 text-xs">
         <h3 className="text-sm font-semibold text-rp-text">{tr('Giáo viên phụ trách')}</h3>
         {(summary.mentors || []).length === 0 ? (
-          <p className="text-rp-text-muted">{tr('Chưa có dữ liệu Giáo viên.')}</p>
+          <EmptyState variant="inline" size="sm" illustration="mentor" title={tr('Chưa có dữ liệu Giáo viên.')} />
         ) : (
           <ul className="space-y-1 text-rp-text-2">
             {summary.mentors.map((m) => (
@@ -210,7 +211,7 @@ export default function CohortCompletionSummary({
       <div className="space-y-2 text-xs">
         <h3 className="text-sm font-semibold text-rp-text">{tr('Nhận xét của Giáo viên')}</h3>
         {(summary.mentorFeedback || []).length === 0 ? (
-          <p className="text-rp-text-muted">{tr('Chưa có nhận xét nào được công bố.')}</p>
+          <EmptyState variant="inline" size="sm" illustration="review" title={tr('Chưa có nhận xét nào được công bố.')} />
         ) : (
           <div className="space-y-2">
             {summary.mentorFeedback.map((f, i) => (
@@ -257,9 +258,12 @@ export default function CohortCompletionSummary({
             retrying={reviewsQuery.isFetching}
           />
         ) : reviewable.length === 0 ? (
-          <p className="text-xs text-rp-text-muted">
-            {tr('Bạn có thể đánh giá Giáo viên sau khi đã học ít nhất một buổi do Giáo viên đó trực tiếp dạy.')}
-          </p>
+          <EmptyState
+            variant="inline"
+            size="sm"
+            illustration="review"
+            title={tr('Bạn có thể đánh giá Giáo viên sau khi đã học ít nhất một buổi do Giáo viên đó trực tiếp dạy.')}
+          />
         ) : (
           <div className="space-y-3">
             {reviewable.map((m) => {

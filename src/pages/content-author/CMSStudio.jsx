@@ -27,7 +27,9 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   FeatureIcon,
+  PageContainer,
   PageHeader,
+  RefreshingIndicator,
   SakuraLoader,
 } from '@/components/ui';
 import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLookups.js';
@@ -143,13 +145,14 @@ export default function CMSStudio() {
 
   return (
     <ContentAuthorShell breadcrumb={tr('Tổng quan')}>
-      <main data-page="content-studio" className="mx-auto w-full min-w-0 max-w-[1280px] space-y-6">
+      <PageContainer as="div" data-page="content-studio" width="default" className="space-y-6">
         <PageHeader
           eyebrow={tr('RikiPath Content Studio')}
           title={trf('Xin chào, {0}', { 0: displayName })}
           description={tr('Không gian biên soạn, rà soát và đưa học liệu tiếng Nhật qua quy trình kiểm duyệt trước khi xuất bản cho người học.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
+              <RefreshingIndicator active={mineQuery.isFetching && !mineQuery.isPending} />
               <Link
                 to="/author-dashboard/"
                 className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input border border-rp-line bg-white px-4 text-sm font-medium text-rp-text hover:border-rp-brand-border"
@@ -262,11 +265,12 @@ export default function CMSStudio() {
               error={mineQuery.error}
               title={tr('Chưa tải được danh sách công việc')}
               onRetry={() => mineQuery.refetch()}
+              retrying={mineQuery.isFetching}
             />
           ) : actionableItems.length === 0 ? (
             <ContextualEmptyState
-              compact
-              icon={CheckCircle2}
+              variant="compact"
+              illustration="done"
               title={tr('Chưa có mục nháp hay mục chờ xử lý nào')}
               description={tr('Hãy bắt đầu bằng cách soạn một bài học, bộ từ vựng hoặc nhập hàng loạt từ Excel.')}
               action={
@@ -369,7 +373,7 @@ export default function CMSStudio() {
             })}
           </div>
         </section>
-      </main>
+      </PageContainer>
     </ContentAuthorShell>
   );
 }

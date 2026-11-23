@@ -169,7 +169,7 @@ export default function MockExam() {
                 ))}
               </ul>
             </div>
-            <aside className="rounded-[28px] bg-rp-brand-tint p-6">
+            <aside className="rounded-[28px] border border-rp-line bg-white p-6 shadow-rp-xs">
               <h3 className="text-[20px] font-extrabold">{tr('Sẵn sàng làm lượt đầu?')}</h3>
               <p className="mt-2 text-[14px] leading-relaxed text-rp-text-2">{tr('Đăng nhập để lưu từng phần và xem kết quả sau khi nộp bài.')}</p>
               <div className="mt-4 flex flex-col items-start gap-2 text-[14px] font-semibold text-rp-brand-strong">

@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { getMockTestAttempt } from '@/features/mock-test/api/mockTestApi.js';
 import { jlptLevels, summarizeSkills } from '@/features/mock-test/utils/examSkillScores.js';
-import { Button, CustomSelect, SakuraLoader } from '@/components/ui';
+import { Button, Card, CustomSelect, EmptyState, SakuraLoader } from '@/components/ui';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 import ExamSkillRadar from './ExamSkillRadar.jsx';
@@ -143,9 +144,9 @@ export default function MockTestProgress({ attempts, userId }) {
   const comparable = attempts.filter((attempt) => attempt.jlptLevelName === level).reverse();
 
   return (
-    <section
+    <Card
       aria-labelledby="mock-test-progress-title"
-      className="space-y-4 rounded-rp-card border border-rp-line bg-rp-surface p-5"
+      className="space-y-4"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -161,12 +162,18 @@ export default function MockTestProgress({ attempts, userId }) {
       {comparable.length >= 2 ? (
         <CompareAttempts key={level} attempts={comparable} userId={userId} />
       ) : (
-        <p className="rounded-xl border border-rp-line bg-rp-brand-tint px-3.5 py-2.5 text-sm text-rp-text-2">
-          {tr('Cần ít nhất hai lượt thi thử')}{' '}
-          {level || tr('cùng cấp')}{' '}
-          {tr('đã nộp để so sánh.')}
-        </p>
+        <EmptyState
+          variant="inline"
+          size="sm"
+          illustration="certificate"
+          title={`${tr('Cần ít nhất hai lượt thi thử')} ${level || tr('cùng cấp')} ${tr('đã nộp để so sánh.')}`}
+          action={
+            <Link to="/mock-tests/" className="rp-focus rp-link text-xs font-semibold">
+              {tr('Chọn đề thi thử')}
+            </Link>
+          }
+        />
       )}
-    </section>
+    </Card>
   );
 }

@@ -4,7 +4,7 @@ import { getAllKanjiForWriting, getDueKanjiForWriting, submitKanjiWritingResult 
 import { describeApiError } from '@/api/apiErrors.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 
-export function useKanjiWritingPractice({ enabled = true, scope = 'due' } = {}) {
+export function useKanjiWritingPractice({ enabled = true, scope = 'all' } = {}) {
     const [queue, setQueue] = useState([]);
     const [index, setIndex] = useState(0);
     const [loading, setLoading] = useState(Boolean(enabled));

@@ -5,6 +5,7 @@ import {
   ChevronDown,
   CircleAlert,
   CircleCheck,
+  Clock,
   Info,
   Search,
   TriangleAlert,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import { SakuraSpinner } from './SakuraLoader.jsx';
 import { cx } from './cx.js';
+import UserAvatar from './UserAvatar.jsx';
 import { useLocale } from '@/locales/locale.js';
 
 
@@ -19,19 +21,23 @@ import { useLocale } from '@/locales/locale.js';
 
 const BUTTON_VARIANTS = {
   primary:
-    'bg-rp-brand-pressed text-white shadow-rp-brand hover:bg-rp-brand-strong enabled:hover:scale-[1.02] enabled:hover:shadow-[0_10px_24px_-8px_rgba(194,67,98,0.45)] enabled:active:scale-[0.985] enabled:active:duration-100 motion-reduce:transform-none disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:shadow-none',
+    'rp-btn-primary bg-rp-brand-pressed text-white shadow-rp-brand hover:bg-rp-brand-strong enabled:hover:scale-[1.02] enabled:hover:shadow-[0_10px_24px_-8px_rgba(194,67,98,0.45)] enabled:active:scale-[0.985] enabled:active:duration-100 motion-reduce:transform-none disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:shadow-none',
   secondary:
-    'bg-rp-surface text-rp-text border border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:text-rp-text-disabled disabled:bg-rp-muted',
-  soft: 'bg-rp-brand-tint text-rp-brand-strong border border-rp-brand-soft hover:bg-rp-brand-soft disabled:opacity-60',
-  ghost: 'bg-transparent text-rp-text-2 hover:bg-rp-muted hover:text-rp-text disabled:text-rp-text-disabled',
-  danger: 'bg-rp-danger text-white hover:bg-[#A61F1F] disabled:bg-rp-muted-strong disabled:text-rp-text-disabled',
-  'danger-soft': 'bg-rp-danger-bg text-rp-danger border border-rp-danger-line hover:bg-[#FADCDC] disabled:opacity-60',
+    'bg-rp-surface text-rp-text border border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong hover:shadow-rp-xs disabled:text-rp-text-disabled disabled:bg-rp-muted disabled:hover:border-rp-line disabled:hover:bg-rp-muted disabled:hover:text-rp-text-disabled disabled:hover:shadow-none',
+  outline:
+    'bg-rp-surface text-rp-text border border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong hover:shadow-rp-xs disabled:text-rp-text-disabled disabled:bg-rp-muted disabled:hover:border-rp-line disabled:hover:bg-rp-muted disabled:hover:text-rp-text-disabled disabled:hover:shadow-none',
+  soft: 'bg-rp-brand-tint text-rp-brand-strong border border-rp-brand-soft hover:bg-rp-brand-soft disabled:opacity-60 disabled:hover:bg-rp-brand-tint',
+  ghost: 'bg-transparent text-rp-text-2 hover:bg-rp-muted hover:text-rp-text disabled:text-rp-text-disabled disabled:hover:bg-transparent disabled:hover:text-rp-text-disabled',
+  link: 'rp-underline bg-transparent text-rp-brand-strong hover:text-rp-brand-deep px-1 shadow-none disabled:text-rp-text-disabled',
+  danger: 'bg-rp-danger text-white hover:bg-[#A61F1F] disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:hover:bg-rp-muted-strong',
+  'danger-soft': 'bg-rp-danger-bg text-rp-danger border border-rp-danger-line hover:bg-[#FADCDC] disabled:opacity-60 disabled:hover:bg-rp-danger-bg',
 };
 
 const BUTTON_SIZES = {
-  sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-[10px]',
-  md: 'h-10 px-4 text-sm gap-2 rounded-rp-input',
-  lg: 'h-12 px-5 text-[15px] gap-2 rounded-rp-input',
+  xs: 'h-7 px-2.5 text-xs gap-1 rounded-[8px]',
+  sm: 'h-8 px-3 text-xs gap-1.5 rounded-[10px]',
+  md: 'h-10 px-4 text-sm gap-2 rounded-xl',
+  lg: 'h-12 px-5 text-[15px] gap-2 rounded-xl',
 };
 
 /**
@@ -68,7 +74,7 @@ export const Button = forwardRef(function Button(
       aria-busy={loading || undefined}
       onClick={!isNativeButton && isDisabled ? (e) => e.preventDefault() : onClick}
       className={cx(
-        'rp-focus inline-flex select-none items-center justify-center font-semibold transition-[background-color,color,border-color,box-shadow,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu backface-hidden disabled:cursor-not-allowed',
+        'rp-focus rp-press group inline-flex cursor-pointer select-none items-center justify-center font-semibold transform-gpu backface-hidden disabled:cursor-not-allowed motion-reduce:transform-none',
         wrap ? 'whitespace-normal text-left' : 'whitespace-nowrap',
         !isNativeButton && isDisabled && 'pointer-events-none opacity-60',
         BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary,
@@ -82,8 +88,8 @@ export const Button = forwardRef(function Button(
       ) : (
         Icon && (isValidElement(Icon) ? Icon : <Icon aria-hidden="true" className={size === 'sm' ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />)
       )}
-      {children != null && <span className={wrap ? 'leading-snug' : 'truncate'}>{children}</span>}
-      {IconRight && !loading && (isValidElement(IconRight) ? IconRight : <IconRight aria-hidden="true" className="h-4 w-4 shrink-0" />)}
+      {children != null && <span className={cx('inline-flex items-center gap-1.5', wrap ? 'leading-snug' : 'truncate')}>{children}</span>}
+      {IconRight && !loading && (isValidElement(IconRight) ? IconRight : <IconRight aria-hidden="true" className="rp-btn-arrow h-4 w-4 shrink-0" />)}
     </Tag>
   );
 });
@@ -98,6 +104,8 @@ export const IconButton = forwardRef(function IconButton(
     <button
       ref={ref}
       type="button"
+      data-rp-icon-button="true"
+      data-rp-icon-size={size}
       aria-label={label}
       title={label}
       className={cx(
@@ -135,10 +143,12 @@ export function HeaderIconBadge({ children, pulse = false, className }) {
 
 /* ------------------------------------------------------------------ Card */
 
-export function Card({ as: Tag = 'section', density, interactive = false, className, padded = true, padding, children, ...rest }) {
+export function Card({ as: Tag = 'section', density, interactive = false, className, padded = true, padding, tone, children, ...rest }) {
+  void tone;
   const isPadded = padding !== undefined ? Boolean(padding) : padded;
   return (
     <Tag
+      data-rp-surface="true"
       data-density={density || undefined}
       className={cx(
         'min-w-0 rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-xs',
@@ -251,15 +261,19 @@ export function Field({ label, hint, error, required, children, className, id: i
   const errorId = error ? `${id}-error` : undefined;
   const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
   const control = typeof children === 'function' ? children({ id, describedBy, invalid: Boolean(error) }) : children;
+  const rawLabel = typeof label === 'string' ? tr(label) : label;
+  const hasTrailingStar = typeof rawLabel === 'string' && /\s*\*\s*$/.test(rawLabel);
+  const cleanLabel = hasTrailingStar ? rawLabel.replace(/\s*\*\s*$/, '') : rawLabel;
+  const showRequiredStar = Boolean(required || hasTrailingStar);
   return (
     <div className={cx('min-w-0', className)}>
       {label && (
-        <div className="mb-1.5 flex items-baseline justify-between gap-2">
-          <label htmlFor={id} className="text-[13px] font-semibold text-rp-text">
-            {tr(label)}
-            {required && <span className="ml-0.5 text-rp-danger" aria-hidden="true">*</span>}
+        <div className="mb-1.5 flex min-h-4 items-center justify-between gap-2">
+          <label htmlFor={id} className="inline-flex items-center gap-1 text-[13px] font-semibold leading-4 text-rp-text">
+            <span>{cleanLabel}</span>
+            {showRequiredStar && <span className="ml-0.5 text-rp-danger" aria-hidden="true">*</span>}
           </label>
-          {counter && <span className="text-[11px] tabular-nums text-rp-text-muted">{counter}</span>}
+          {counter && <span className="text-[11px] leading-4 tabular-nums text-rp-text-muted">{counter}</span>}
         </div>
       )}
       {control}
@@ -274,27 +288,50 @@ export function Field({ label, hint, error, required, children, className, id: i
   );
 }
 
-const CONTROL =
-  'w-full rounded-rp-input border bg-rp-surface px-3.5 text-sm text-rp-text placeholder:text-rp-text-disabled transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-rp-brand focus:shadow-[0_0_0_3px_rgba(224,90,122,0.18)] disabled:cursor-not-allowed disabled:bg-rp-muted disabled:text-rp-text-disabled';
+const CONTROL_BASE =
+  'rp-control rounded-rp-input border bg-rp-surface px-3.5 text-sm text-rp-text placeholder:text-rp-text-disabled transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-rp-brand focus:shadow-[0_0_0_3px_rgba(224,90,122,0.18)] disabled:cursor-not-allowed disabled:bg-rp-muted disabled:text-rp-text-disabled';
+const CONTROL = cx('w-full', CONTROL_BASE);
 
 /**
  * `icon` (a lucide component) renders a leading icon that turns Sakura Primary while the field is focused
  * (red when invalid). Any `.relative` wrapper with an absolutely positioned icon/button next to an input
  * gets the same focus colour via `.rp-field-icon` rules in tokens.css.
  */
+const FIELD_SIZES = {
+  sm: 'h-8 px-3 text-xs rounded-[10px]',
+  md: 'h-10 px-3.5 text-sm rounded-rp-input',
+  lg: 'h-12 px-4 text-[15px] rounded-xl',
+};
+
 export const Input = forwardRef(function Input({ invalid, className, icon: LeadIcon, ...rest }, ref) {
+  const { fitContent = false, size = 'md', htmlSize, ...inputRest } = rest;
+  const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
   const input = (
     <input
       ref={ref}
+      size={htmlSize}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL, 'h-11', LeadIcon && 'pl-10', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
-      {...rest}
+      className={cx(
+        CONTROL_BASE,
+        fitContent ? 'w-fit max-w-full' : 'w-full',
+        FIELD_SIZES[resolvedSize],
+        LeadIcon && (resolvedSize === 'sm' ? 'pl-8.5' : 'pl-10'),
+        invalid ? 'border-rp-danger' : 'border-rp-line',
+        className,
+      )}
+      {...inputRest}
     />
   );
   if (!LeadIcon) return input;
   return (
-    <div className="relative">
-      <LeadIcon aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
+    <div className={cx('relative', fitContent && 'inline-block max-w-full')}>
+      <LeadIcon
+        aria-hidden="true"
+        className={cx(
+          'pointer-events-none absolute top-1/2 -translate-y-1/2 text-rp-text-muted',
+          resolvedSize === 'sm' ? 'left-3 h-3.5 w-3.5' : 'left-3.5 h-4 w-4',
+        )}
+      />
       {input}
     </div>
   );
@@ -320,11 +357,32 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
  * Shared SearchInput with built-in leading Search icon and clear button.
  */
 export const SearchInput = forwardRef(function SearchInput(
-  { value = '', onChange, onClear, placeholder = 'Tìm kiếm...', clearLabel = 'Xóa tìm kiếm', className, inputClassName, ...rest },
+  {
+    value = '',
+    onChange,
+    onClear,
+    placeholder = 'Tìm kiếm...',
+    clearLabel = 'Xóa tìm kiếm',
+    size = 'md',
+    fitContent = false,
+    className,
+    inputClassName,
+    ...rest
+  },
   ref,
 ) {
   const { tr } = useLocale();
   const hasValue = String(value ?? '').length > 0;
+  const resolvedPlaceholder = tr(placeholder);
+  const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
+  const sizeClass =
+    resolvedSize === 'sm'
+      ? 'h-8 pl-8.5 pr-3 text-xs rounded-[10px]'
+      : resolvedSize === 'lg'
+        ? 'h-12 pl-10.5 pr-4 text-[15px] rounded-xl'
+        : 'h-10 pl-10 pr-3.5 text-sm rounded-rp-input';
+  const sizerTextClass =
+    resolvedSize === 'sm' ? 'pl-8.5 pr-8 text-xs' : resolvedSize === 'lg' ? 'pl-10.5 pr-9 text-[15px]' : 'pl-10 pr-9 text-sm';
   const handleClear = () => {
     if (onClear) onClear();
     else if (onChange) {
@@ -332,29 +390,63 @@ export const SearchInput = forwardRef(function SearchInput(
     }
   };
   return (
-    <div className={cx('relative w-full', className)}>
-      <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
+    <div
+      className={cx(
+        'relative',
+        fitContent ? 'inline-grid min-w-[168px] max-w-full sm:max-w-[300px]' : 'w-full',
+        className,
+      )}
+    >
+      <Search
+        aria-hidden="true"
+        className={cx(
+          'pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 text-rp-text-muted',
+          resolvedSize === 'sm' ? 'left-3 h-3.5 w-3.5' : 'left-3.5 h-4 w-4',
+        )}
+      />
       <input
         ref={ref}
         type="search"
         value={value}
         onChange={onChange}
-        placeholder={tr(placeholder)}
+        placeholder={resolvedPlaceholder}
         className={cx(
-          CONTROL,
-          'h-11 pl-10',
-          hasValue && 'pr-9',
+          CONTROL_BASE,
+          fitContent ? 'col-start-1 row-start-1 w-full min-w-0 pr-9' : cx('w-full', hasValue && 'pr-9'),
+          sizeClass,
+          '[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden',
           'border-rp-line',
           inputClassName,
         )}
         {...rest}
       />
+      {fitContent && (
+        <>
+          <span
+            aria-hidden="true"
+            className={cx('pointer-events-none col-start-1 row-start-1 flex h-0 select-none overflow-hidden whitespace-nowrap invisible', sizerTextClass)}
+          >
+            {resolvedPlaceholder}
+          </span>
+          {hasValue && (
+            <span
+              aria-hidden="true"
+              className={cx('pointer-events-none col-start-1 row-start-1 flex h-0 select-none overflow-hidden whitespace-nowrap invisible', sizerTextClass)}
+            >
+              {String(value)}
+            </span>
+          )}
+        </>
+      )}
       {hasValue && !rest.disabled && !rest.readOnly && (
         <button
           type="button"
           onClick={handleClear}
           aria-label={tr(clearLabel)}
-          className="rp-focus absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+          className={cx(
+            'rp-focus absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center rounded-full text-rp-text-muted hover:bg-rp-muted hover:text-rp-text',
+            resolvedSize === 'sm' ? 'h-6 w-6' : 'h-7 w-7',
+          )}
         >
           <X aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
@@ -378,6 +470,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
     label,
     size = 'md',
     align = 'start',
+    fitContent = false,
     disabled = false,
     readOnly = false,
     loading = false,
@@ -487,7 +580,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
     const flip = spaceBelow < 230 && spaceAbove > spaceBelow;
-    const width = Math.max(rect.width, 200);
+    const width = Math.max(rect.width, fitContent ? 156 : 200);
     const left = align === 'end'
       ? Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))
       : Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
@@ -499,7 +592,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
       ...(flip ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
       zIndex: 200,
     });
-  }, [align]);
+  }, [align, fitContent]);
 
   useIsomorphicLayoutEffect(() => {
     if (!open) {
@@ -536,6 +629,8 @@ export const CustomSelect = forwardRef(function CustomSelect(
     };
     const onKey = (e) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
         setOpen(false);
         setSearchQuery('');
         triggerRef.current?.focus();
@@ -543,12 +638,12 @@ export const CustomSelect = forwardRef(function CustomSelect(
     };
     const onReposition = () => updateMenuPosition();
     document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', onReposition);
     window.addEventListener('scroll', onReposition, true);
     return () => {
       document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('resize', onReposition);
       window.removeEventListener('scroll', onReposition, true);
     };
@@ -622,15 +717,16 @@ export const CustomSelect = forwardRef(function CustomSelect(
   const showClear = clearable && Boolean(selectedOption) && !disabled && !readOnly;
   const sizeClasses =
     size === 'sm'
-      ? 'h-8.5 px-3 text-[12.5px] rounded-xl font-semibold'
+      ? 'h-8 px-3 text-xs rounded-[10px] font-semibold'
       : size === 'lg'
-        ? 'h-12 px-4 text-[15px] rounded-rp-input font-medium'
-        : 'min-h-11 h-11 px-3.5 text-sm rounded-rp-input font-medium';
+        ? 'h-12 px-4 text-[15px] rounded-xl font-semibold'
+        : 'h-10 px-3.5 text-sm rounded-xl font-semibold';
 
   const menuNode = open ? (
     <div
       ref={menuRef}
       id={listboxId}
+      data-rp-floating-portal="true"
       role="listbox"
       aria-label={label || tr(placeholder)}
       tabIndex={-1}
@@ -728,11 +824,34 @@ export const CustomSelect = forwardRef(function CustomSelect(
     </div>
   ) : null;
 
+  const triggerContent = (
+    <>
+      {LeadIcon && <LeadIcon className="h-4 w-4 shrink-0 text-rp-text-muted" />}
+      {selectedOption?.dotClass && (
+        <span
+          aria-hidden="true"
+          className={cx('h-2 w-2 shrink-0 rounded-full', selectedOption.dotClass)}
+        />
+      )}
+      {selectedOption?.icon && (
+        <selectedOption.icon className="h-4 w-4 shrink-0 text-rp-text-muted" />
+      )}
+      <span className={cx('truncate', !selectedOption && 'text-rp-text-disabled')}>
+        {selectedOption ? tr(selectedOption.label) : tr(placeholder)}
+      </span>
+      {selectedOption?.count != null && (
+        <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
+          {selectedOption.count}
+        </span>
+      )}
+    </>
+  );
+
   return (
     <div
       ref={rootRef}
       onKeyDown={handleKeyDown}
-      className={cx('relative inline-block w-full text-left', className)}
+      className={cx('relative inline-block text-left', fitContent ? 'w-fit max-w-full' : 'w-full', className)}
     >
       <button
         ref={(el) => {
@@ -755,37 +874,50 @@ export const CustomSelect = forwardRef(function CustomSelect(
         }}
         data-testid={dataTestIdProp || dataTestId}
         className={cx(
-          'rp-focus flex w-full items-center justify-between gap-2 border bg-rp-surface text-rp-text transition-[border-color,box-shadow,background-color] duration-150',
+          'rp-focus flex items-center justify-between gap-2 border bg-rp-surface text-rp-text transition-[border-color,box-shadow,background-color] duration-150',
+          fitContent ? 'w-auto max-w-full' : 'w-full',
           sizeClasses,
           showClear && 'pr-12',
           isInvalid
             ? 'border-rp-danger focus-visible:ring-2 focus-visible:ring-rp-danger/30'
-            : 'border-rp-line hover:border-rp-brand-border focus-visible:border-rp-brand focus-visible:shadow-[0_0_0_3px_rgba(224,90,122,0.18)]',
+            : 'border-rp-line hover:border-rp-brand-border focus-visible:border-rp-brand-border focus-visible:shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
+          open && !isInvalid && 'border-rp-brand-border shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
           disabled && 'cursor-not-allowed bg-rp-muted opacity-60 text-rp-text-disabled',
           triggerClassName,
         )}
         {...rest}
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-left">
-          {LeadIcon && <LeadIcon className="h-4 w-4 shrink-0 text-rp-text-muted" />}
-          {selectedOption?.dotClass && (
-            <span
-              aria-hidden="true"
-              className={cx('h-2 w-2 shrink-0 rounded-full', selectedOption.dotClass)}
-            />
-          )}
-          {selectedOption?.icon && (
-            <selectedOption.icon className="h-4 w-4 shrink-0 text-rp-text-muted" />
-          )}
-          <span className={cx('truncate', !selectedOption && 'text-rp-text-disabled')}>
-            {selectedOption ? tr(selectedOption.label) : tr(placeholder)}
-          </span>
-          {selectedOption?.count != null && (
-            <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
-              {selectedOption.count}
+        {fitContent ? (
+          <span className="inline-grid min-w-0 items-center text-left">
+            <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 truncate text-left">
+              {triggerContent}
             </span>
-          )}
-        </span>
+            {[
+              { key: 'placeholder', label: tr(placeholder) },
+              ...normalizedOptions.map((opt, idx) => ({ ...opt, key: `${opt.value}-${idx}`, label: tr(opt.label) })),
+            ].map((sizer) => (
+              <span
+                key={`sizer-${sizer.key}`}
+                aria-hidden="true"
+                className="pointer-events-none col-start-1 row-start-1 flex h-0 select-none items-center gap-2 overflow-hidden whitespace-nowrap invisible"
+              >
+                {LeadIcon && <span className="h-4 w-4 shrink-0" />}
+                {sizer.dotClass && <span className="h-2 w-2 shrink-0" />}
+                {sizer.icon && <span className="h-4 w-4 shrink-0" />}
+                <span>{sizer.label}</span>
+                {sizer.count != null && (
+                  <span className="rounded-full px-1.5 py-px text-[10.5px] font-semibold">
+                    {sizer.count}
+                  </span>
+                )}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-left">
+            {triggerContent}
+          </span>
+        )}
 
         <ChevronDown
           aria-hidden="true"
@@ -819,17 +951,24 @@ export const CustomSelect = forwardRef(function CustomSelect(
 /**
  * Shared StatusDotListbox built directly on CustomSelect for toolbar status filters.
  */
-export function StatusDotListbox({ size = 'sm', placeholder = 'Trạng thái', ...rest }) {
-  return <CustomSelect size={size} placeholder={placeholder} {...rest} />;
+export function StatusDotListbox({ size = 'sm', placeholder = 'Trạng thái', fitContent = true, ...rest }) {
+  return <CustomSelect size={size} placeholder={placeholder} fitContent={fitContent} {...rest} />;
 }
 
-export const Select = forwardRef(function Select({ native = false, invalid, className, children, options, style, ...rest }, ref) {
+export const Select = forwardRef(function Select({ native = false, invalid, size = 'md', className, children, options, style, ...rest }, ref) {
   if (native) {
+    const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
+    const nativeSizeClass =
+      resolvedSize === 'sm'
+        ? 'h-8 text-xs rounded-[10px]'
+        : resolvedSize === 'lg'
+          ? 'h-12 text-[15px] rounded-xl'
+          : 'h-10 text-sm';
     return (
       <select
         ref={ref}
         aria-invalid={invalid || undefined}
-        className={cx(CONTROL, 'min-h-11 py-2.5 leading-snug cursor-pointer appearance-none overflow-hidden text-ellipsis whitespace-nowrap bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
+        className={cx(CONTROL, nativeSizeClass, 'py-0 leading-snug cursor-pointer appearance-none overflow-hidden text-ellipsis whitespace-nowrap bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
         style={{
           WebkitAppearance: 'none',
           appearance: 'none',
@@ -842,18 +981,35 @@ export const Select = forwardRef(function Select({ native = false, invalid, clas
       </select>
     );
   }
-  return <CustomSelect ref={ref} invalid={invalid} className={className} options={options} {...rest}>{children}</CustomSelect>;
+  return <CustomSelect ref={ref} invalid={invalid} size={size} className={className} options={options} {...rest}>{children}</CustomSelect>;
 });
+
+function AnimatedTick({ sizeClass = 'h-[15px] w-[15px]', className }) {
+  return (
+    <svg viewBox="0 0 16 16" className={sizeClass} fill="none">
+      <path
+        className={className}
+        d="M2.6 8.3 6.3 12 13.4 4.2"
+        stroke="#fff"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pathLength="1"
+      />
+    </svg>
+  );
+}
 
 export function Radio({ label, description, className, ...rest }) {
   const { tr } = useLocale();
   const id = useId();
   return (
     <label htmlFor={id} className={cx('flex cursor-pointer items-start gap-2.5 text-sm text-rp-text', className)}>
-      <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+      {/* Native radio stays focusable/accessible; selected circle pops & draws its checkmark just like Checkbox. */}
+      <span className="relative mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center">
         <input id={id} type="radio" className="rp-radio peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
-        <span aria-hidden="true" className="rp-radio-box pointer-events-none flex h-full w-full items-center justify-center rounded-full border-[1.5px] border-rp-line-strong bg-rp-surface peer-checked:border-rp-brand peer-focus-visible:ring-2 peer-focus-visible:ring-rp-brand/40">
-          <span className="h-2 w-2 rounded-full bg-rp-brand opacity-0 transition-opacity peer-checked:opacity-100" />
+        <span aria-hidden="true" className="rp-radio-box pointer-events-none flex h-full w-full items-center justify-center rounded-full border-2 border-rp-line-strong bg-rp-surface transition-all">
+          <AnimatedTick sizeClass="h-[13px] w-[13px]" className="rp-radio-tick" />
         </span>
       </span>
       <span>
@@ -873,9 +1029,7 @@ export function Checkbox({ label, description, className, ...rest }) {
       <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0">
         <input id={id} type="checkbox" className="rp-check peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
         <span aria-hidden="true" className="rp-check-box pointer-events-none flex h-full w-full items-center justify-center rounded-[5px] border-[1.5px] border-rp-line-strong bg-rp-surface">
-          <svg viewBox="0 0 16 16" className="h-[15px] w-[15px]" fill="none">
-            <path className="rp-check-tick" d="M2.6 8.3 6.3 12 13.4 4.2" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" pathLength="1" />
-          </svg>
+          <AnimatedTick sizeClass="h-[15px] w-[15px]" className="rp-check-tick" />
         </span>
       </span>
       <span>
@@ -889,99 +1043,577 @@ export function Checkbox({ label, description, className, ...rest }) {
 /**
  * On/off switch (role="switch"). Use for settings that apply immediately or a single option such as
  * "Lặp theo tuần"; use Checkbox for items in a list. Keyboard: Space toggles (native checkbox).
+ * Vertically centered on the OY axis against its title + description block so single- and multi-line rows align evenly.
  */
-export function Switch({ label, description, className, checked, onChange, disabled, ...rest }) {
+/**
+ * Shared Switch (controlled). `onChange` receives the native change event (legacy contract);
+ * prefer `onCheckedChange(nextBoolean)` — it never leaks the event object into boolean state.
+ * `loading` keeps the current value visible but blocks input while an async save is in flight.
+ */
+export function Switch({
+  label,
+  description,
+  className,
+  checked,
+  onChange,
+  onCheckedChange,
+  disabled,
+  loading = false,
+  fullWidth = false,
+  ...rest
+}) {
   const { tr } = useLocale();
   const id = useId();
+  const hasCopy = Boolean(label || description);
+  const isOn = Boolean(checked);
+  const blocked = Boolean(disabled || loading);
   return (
-    <label htmlFor={id} className={cx('inline-flex cursor-pointer items-start gap-3 text-sm text-rp-text', disabled && 'cursor-not-allowed opacity-60', className)}>
-      <span className="relative mt-0.5 inline-flex h-[22px] w-[38px] shrink-0">
+    <label
+      htmlFor={id}
+      className={cx(
+        'text-sm text-rp-text select-none',
+        hasCopy
+          ? cx('flex min-h-[44px] items-center gap-3.5 py-1', fullWidth && 'w-full')
+          : 'inline-flex items-center justify-center',
+        disabled ? 'cursor-not-allowed opacity-60' : loading ? 'cursor-progress' : 'cursor-pointer',
+        className,
+      )}
+    >
+      <span className="relative inline-flex h-[22px] w-[38px] shrink-0 items-center justify-center">
         <input
           id={id}
           type="checkbox"
           role="switch"
-          aria-checked={Boolean(checked)}
-          checked={checked}
-          onChange={onChange}
-          disabled={disabled}
+          aria-checked={isOn}
+          aria-busy={loading || undefined}
+          checked={isOn}
+          onChange={(e) => {
+            if (blocked) return;
+            onChange?.(e);
+            onCheckedChange?.(e.target.checked);
+          }}
+          disabled={blocked}
           className="rp-switch peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
           {...rest}
         />
         <span aria-hidden="true" className="rp-switch-track pointer-events-none h-full w-full rounded-full border border-rp-line-strong bg-rp-muted" />
-        <span aria-hidden="true" className="rp-switch-thumb pointer-events-none absolute left-[3px] top-[3px] h-4 w-4 rounded-full bg-white shadow" />
+        <span aria-hidden="true" className="rp-switch-thumb pointer-events-none absolute left-[3px] top-[3px] flex h-4 w-4 items-center justify-center rounded-full bg-white shadow">
+          {loading && <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-rp-brand-pressed border-t-transparent motion-reduce:animate-none" />}
+        </span>
       </span>
-      {(label || description) && (
-        <span>
-          {label && <span className="font-medium">{tr(label)}</span>}
-          {description && <span className="block text-xs text-rp-text-muted">{tr(description)}</span>}
+      {hasCopy && (
+        <span className="min-w-0 flex-1 space-y-0.5">
+          {label && (
+            <span className="block text-[13.5px] font-semibold leading-5 text-rp-text">
+              {tr(label)}
+            </span>
+          )}
+          {description && (
+            <span className="block text-xs leading-[18px] text-rp-text-muted">
+              {tr(description)}
+            </span>
+          )}
         </span>
       )}
     </label>
   );
 }
 
-/** Native date/time pickers styled consistently (keyboard + screen-reader support for free). */
-export const DateInput = forwardRef(function DateInput(props, ref) {
-  return <Input ref={ref} type="date" {...props} />;
-});
-export const TimeInput = forwardRef(function TimeInput(props, ref) {
-  return <Input ref={ref} type="time" step={props.step ?? 300} {...props} />;
-});
+const DEFAULT_WEEKDAY_OPTIONS = [
+  { value: 1, short: 'T2', full: 'Thứ 2', jaShort: '月', jaFull: '月曜日' },
+  { value: 2, short: 'T3', full: 'Thứ 3', jaShort: '火', jaFull: '火曜日' },
+  { value: 3, short: 'T4', full: 'Thứ 4', jaShort: '水', jaFull: '水曜日' },
+  { value: 4, short: 'T5', full: 'Thứ 5', jaShort: '木', jaFull: '木曜日' },
+  { value: 5, short: 'T6', full: 'Thứ 6', jaShort: '金', jaFull: '金曜日' },
+  { value: 6, short: 'T7', full: 'Thứ 7', jaShort: '土', jaFull: '土曜日' },
+  { value: 0, short: 'CN', full: 'Chủ nhật', jaShort: '日', jaFull: '日曜日' },
+];
 
-/** Paired start/end DateInputs with built-in inverted-range detection (`from > to`). */
-export function DateRangePicker({
-  from = '',
-  to = '',
-  onFromChange,
-  onToChange,
-  fromLabel = 'Từ ngày',
-  toLabel = 'Đến ngày',
-  min,
-  max,
+/**
+ * Multi-select weekday chip group. Starts empty (`value = []`) unless stored preferences exist;
+ * 1st click selects with a distinct Sakura check indicator, 2nd click deselects cleanly down to empty.
+ */
+export function WeekdayPicker({
+  value = [],
+  onChange,
+  options,
+  size = 'md',
   disabled = false,
+  invalid = false,
   className,
-  inputClassName,
+  'aria-label': ariaLabel,
 }) {
-  const { tr } = useLocale();
-  const invalidRange = Boolean(from && to && from > to);
+  const { locale, tr } = useLocale();
+  const selectedSet = useMemo(() => new Set(Array.isArray(value) ? value : []), [value]);
+  const items = useMemo(() => {
+    if (Array.isArray(options) && options.length > 0) {
+      return options.map((opt) => ({
+        value: opt.value,
+        short: tr(opt.short || opt.label),
+        full: tr(opt.full || opt.label || opt.short),
+        disabled: Boolean(opt.disabled),
+      }));
+    }
+    return DEFAULT_WEEKDAY_OPTIONS.map((d) => ({
+      value: d.value,
+      short: locale === 'ja' ? d.jaShort : d.short,
+      full: locale === 'ja' ? d.jaFull : d.full,
+      disabled: false,
+    }));
+  }, [options, locale, tr]);
+
+  const orderMap = useMemo(() => {
+    const map = new Map();
+    items.forEach((opt, idx) => map.set(opt.value, idx));
+    return map;
+  }, [items]);
+
+  const chipSizeClass = size === 'sm'
+    ? 'h-8 min-w-[60px] px-2.5 text-xs rounded-[10px]'
+    : 'h-10 min-w-[70px] px-3 text-[13px] rounded-xl';
+
+  const handleToggle = (dayValue) => {
+    if (disabled) return;
+    const next = selectedSet.has(dayValue)
+      ? items.filter((opt) => selectedSet.has(opt.value) && opt.value !== dayValue).map((opt) => opt.value)
+      : [...selectedSet, dayValue].sort((a, b) => (orderMap.get(a) ?? 99) - (orderMap.get(b) ?? 99));
+    onChange?.(next);
+  };
+
   return (
-    <div className={cx('space-y-1.5', className)}>
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-          <span>{tr(fromLabel)}</span>
-          <DateInput
-            aria-label={tr(fromLabel)}
-            value={from}
-            min={min}
-            max={to || max}
-            disabled={disabled}
-            invalid={invalidRange}
-            onChange={(e) => onFromChange?.(e.target.value)}
-            className={cx('h-9 w-auto min-w-[144px] text-xs', inputClassName)}
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-          <span>{tr(toLabel)}</span>
-          <DateInput
-            aria-label={tr(toLabel)}
-            value={to}
-            min={from || min}
-            max={max}
-            disabled={disabled}
-            invalid={invalidRange}
-            onChange={(e) => onToChange?.(e.target.value)}
-            className={cx('h-9 w-auto min-w-[144px] text-xs', inputClassName)}
-          />
-        </label>
-      </div>
-      {invalidRange && (
-        <p role="alert" className="text-xs font-medium text-rp-danger">
-          {tr('Ngày bắt đầu không thể lớn hơn ngày kết thúc.')}
-        </p>
-      )}
+    <div
+      role="group"
+      aria-label={ariaLabel || tr('Chọn ngày trong tuần')}
+      aria-invalid={invalid || undefined}
+      className={cx('flex flex-wrap gap-2', className)}
+    >
+      {items.map((opt) => {
+        const selected = selectedSet.has(opt.value);
+        const itemDisabled = disabled || opt.disabled;
+        return (
+          <button
+            key={String(opt.value)}
+            type="button"
+            disabled={itemDisabled}
+            aria-label={opt.full}
+            title={opt.full}
+            aria-pressed={selected}
+            data-selected={selected ? 'true' : 'false'}
+            onClick={() => handleToggle(opt.value)}
+            className={cx(
+              'rp-focus inline-flex shrink-0 items-center justify-center gap-1.5 border transition-[background-color,border-color,color,box-shadow] duration-150 select-none',
+              chipSizeClass,
+              selected
+                ? 'border-rp-brand-pressed bg-rp-brand-tint font-bold text-rp-brand-strong shadow-rp-xs hover:bg-rp-brand-soft'
+                : invalid
+                  ? 'border-rp-danger/70 bg-rp-surface font-semibold text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-text'
+                  : 'border-rp-line-strong bg-rp-surface font-semibold text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-text',
+              itemDisabled && 'cursor-not-allowed opacity-50 hover:bg-rp-surface',
+            )}
+          >
+            {selected && (
+              <span
+                aria-hidden="true"
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rp-brand-pressed text-white"
+              >
+                <Check className="h-2.5 w-2.5 stroke-[3]" />
+              </span>
+            )}
+            <span className="leading-none">{opt.short}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
+
+/** Native date picker styled consistently with FIELD_SIZES. */
+export const DateInput = forwardRef(function DateInput({ className, ...props }, ref) {
+  return <Input ref={ref} type="date" className={cx('tabular-nums', className)} {...props} />;
+});
+
+const CLOCK_HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+
+function normalizeClock24(raw) {
+  if (typeof raw !== 'string') return '';
+  const match = raw.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return '';
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (!Number.isInteger(h) || !Number.isInteger(m) || h < 0 || h > 23 || m < 0 || m > 59) return '';
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function buildMinuteOptions(stepSeconds, currentMinute) {
+  const stepMins = Math.max(1, Math.min(60, Math.round(Number(stepSeconds || 300) / 60)));
+  const set = new Set();
+  for (let m = 0; m < 60; m += stepMins) {
+    set.add(String(m).padStart(2, '0'));
+  }
+  if (currentMinute && /^\d{2}$/.test(currentMinute)) {
+    set.add(currentMinute);
+  }
+  return Array.from(set).sort((a, b) => Number(a) - Number(b));
+}
+
+function isClockInBounds(clock, minClock, maxClock) {
+  if (!clock) return false;
+  if (minClock && clock < minClock) return false;
+  if (maxClock && clock > maxClock) return false;
+  return true;
+}
+
+/**
+ * Custom 24h (`HH:mm`) Time Dropdown built to match CustomSelect & FIELD_SIZES (32px / 40px / 48px).
+ * Clicking anywhere on the trigger opens a Portal two-column Hour/Minute selector with Escape/focus handling.
+ */
+export const TimeInput = forwardRef(function TimeInput(
+  {
+    value,
+    defaultValue = '',
+    onChange,
+    name,
+    placeholder = '--:--',
+    clearLabel = 'Xóa giờ',
+    size = 'md',
+    fitContent = false,
+    step = 300,
+    min,
+    max,
+    disabled = false,
+    readOnly = false,
+    required = false,
+    invalid = false,
+    clearable,
+    align = 'start',
+    className,
+    triggerClassName,
+    menuClassName,
+    'aria-label': ariaLabel,
+    'aria-describedby': ariaDescribedBy,
+    ...rest
+  },
+  ref,
+) {
+  const { tr } = useLocale();
+  const isControlled = value !== undefined;
+  const [internalClock, setInternalClock] = useState(() => normalizeClock24(defaultValue));
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const hourListRef = useRef(null);
+  const minuteListRef = useRef(null);
+
+  const popupId = useId();
+  const currentClock = normalizeClock24(isControlled ? value : internalClock);
+  const [selectedHour = '', selectedMinute = ''] = currentClock ? currentClock.split(':') : ['', ''];
+  const minClock = normalizeClock24(min || '');
+  const maxClock = normalizeClock24(max || '');
+  const minuteOptions = useMemo(() => buildMinuteOptions(step, selectedMinute), [step, selectedMinute]);
+
+  const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
+  const sizeClasses = FIELD_SIZES[resolvedSize];
+  const showClear = !disabled && !readOnly && !required && Boolean(currentClock) && clearable !== false;
+
+  const setTriggerRefs = (node) => {
+    triggerRef.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  };
+
+  const emitClock = (nextRaw) => {
+    const nextClock = normalizeClock24(nextRaw);
+    if (!isControlled) setInternalClock(nextClock);
+    if (onChange) {
+      onChange({
+        target: { value: nextClock, name },
+        currentTarget: { value: nextClock, name },
+      });
+    }
+  };
+
+  const updateMenuPosition = useMemo(() => () => {
+    if (!triggerRef.current || typeof window === 'undefined') return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const flip = spaceBelow < 310 && spaceAbove > spaceBelow;
+    const width = Math.max(256, Math.min(284, rect.width > 256 ? rect.width : 264));
+    const left = align === 'end'
+      ? Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))
+      : Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+    setMenuStyle({
+      position: 'fixed',
+      left,
+      width,
+      maxWidth: 'calc(100vw - 24px)',
+      ...(flip ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
+      zIndex: 200,
+    });
+  }, [align]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return undefined;
+    }
+    updateMenuPosition();
+    const timer = window.setTimeout(() => {
+      const centerActive = (container) => {
+        if (!container) return;
+        const activeBtn = container.querySelector('[data-active="true"]');
+        if (!activeBtn) return;
+        container.scrollTop = Math.max(
+          0,
+          activeBtn.offsetTop - container.clientHeight / 2 + activeBtn.clientHeight / 2,
+        );
+      };
+      centerActive(hourListRef.current);
+      centerActive(minuteListRef.current);
+    }, 16);
+    return () => window.clearTimeout(timer);
+  }, [open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (!rootRef.current?.contains(e.target) && !menuRef.current?.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    const onEscapeCapture = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    const onReposition = () => updateMenuPosition();
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEscapeCapture, true);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEscapeCapture, true);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [open, updateMenuPosition]);
+
+  const handleHourPick = (hh) => {
+    const candidateMinutes = selectedMinute ? [selectedMinute, ...minuteOptions] : minuteOptions;
+    const pickedMin = candidateMinutes.find((mm) => isClockInBounds(`${hh}:${mm}`, minClock, maxClock)) || minuteOptions[0] || '00';
+    emitClock(`${hh}:${pickedMin}`);
+  };
+
+  const handleMinutePick = (mm) => {
+    const fallbackHour = selectedHour || CLOCK_HOURS.find((hh) => isClockInBounds(`${hh}:${mm}`, minClock, maxClock)) || '08';
+    emitClock(`${fallbackHour}:${mm}`);
+  };
+
+  const handleTriggerKeyDown = (e) => {
+    if (disabled || readOnly) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setOpen((prev) => !prev);
+    }
+  };
+
+  const menuNode = open ? (
+    <div
+      ref={menuRef}
+      id={popupId}
+      data-rp-floating-portal="true"
+      role="dialog"
+      aria-label={ariaLabel || tr('Chọn giờ')}
+      style={menuStyle || undefined}
+      className={cx(
+        'rp-anim-pop overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-pop focus:outline-none',
+        !menuStyle && 'absolute top-[calc(100%+6px)] left-0 z-[120] w-[264px]',
+        menuClassName,
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-[#EAE3E4] bg-[#FFFCF8] px-3.5 py-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <Clock aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-brand-strong" />
+          <span className="truncate text-xs font-semibold text-rp-text-2">{tr('Chọn giờ')}</span>
+        </div>
+        <span className="inline-flex h-6 min-w-[58px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2 text-xs font-bold tabular-nums text-rp-brand-strong">
+          {currentClock || placeholder}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 divide-x divide-[#EAE3E4]">
+        <div>
+          <div className="border-b border-[#EAE3E4] bg-rp-surface px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-rp-text-muted">
+            {tr('Giờ')}
+          </div>
+          <div ref={hourListRef} className="max-h-[196px] space-y-0.5 overflow-y-auto p-1.5">
+            {CLOCK_HOURS.map((hh) => {
+              const active = hh === selectedHour;
+              const hourValid = minuteOptions.some((mm) => isClockInBounds(`${hh}:${mm}`, minClock, maxClock));
+              return (
+                <button
+                  key={hh}
+                  type="button"
+                  disabled={!hourValid}
+                  data-active={active ? 'true' : undefined}
+                  aria-pressed={active}
+                  onClick={() => handleHourPick(hh)}
+                  className={cx(
+                    'rp-focus flex h-8 w-full items-center justify-center rounded-lg text-[13px] tabular-nums transition-colors',
+                    active
+                      ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
+                      : 'font-medium text-rp-text hover:bg-rp-bg-2 hover:text-rp-brand-strong',
+                    !hourValid && 'cursor-not-allowed opacity-35 hover:bg-transparent hover:text-rp-text',
+                  )}
+                >
+                  {hh}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="border-b border-[#EAE3E4] bg-rp-surface px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-rp-text-muted">
+            {tr('Phút')}
+          </div>
+          <div ref={minuteListRef} className="max-h-[196px] space-y-0.5 overflow-y-auto p-1.5">
+            {minuteOptions.map((mm) => {
+              const active = mm === selectedMinute;
+              const targetHour = selectedHour || '00';
+              const minValid = selectedHour
+                ? isClockInBounds(`${targetHour}:${mm}`, minClock, maxClock)
+                : CLOCK_HOURS.some((hh) => isClockInBounds(`${hh}:${mm}`, minClock, maxClock));
+              return (
+                <button
+                  key={mm}
+                  type="button"
+                  disabled={!minValid}
+                  data-active={active ? 'true' : undefined}
+                  aria-pressed={active}
+                  onClick={() => handleMinutePick(mm)}
+                  className={cx(
+                    'rp-focus flex h-8 w-full items-center justify-center rounded-lg text-[13px] tabular-nums transition-colors',
+                    active
+                      ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
+                      : 'font-medium text-rp-text hover:bg-rp-bg-2 hover:text-rp-brand-strong',
+                    !minValid && 'cursor-not-allowed opacity-35 hover:bg-transparent hover:text-rp-text',
+                  )}
+                >
+                  {mm}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 border-t border-[#EAE3E4] bg-[#FFFCF8] px-3 py-2">
+        {!required && currentClock ? (
+          <button
+            type="button"
+            onClick={() => {
+              emitClock('');
+              setOpen(false);
+              triggerRef.current?.focus();
+            }}
+            className="rp-focus inline-flex h-7 items-center rounded-lg px-2 text-xs font-semibold text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+          >
+            {tr('Xóa')}
+          </button>
+        ) : (
+          <span className="text-[11px] font-medium tabular-nums text-rp-text-muted">24h</span>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            triggerRef.current?.focus();
+          }}
+          className="rp-focus inline-flex h-7 items-center rounded-lg bg-rp-brand-pressed px-3 text-xs font-semibold text-white shadow-rp-xs hover:bg-rp-brand-strong"
+        >
+          {tr('Xong')}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <div
+      ref={rootRef}
+      className={cx(
+        'relative',
+        fitContent ? 'inline-grid max-w-full' : 'w-full',
+        className,
+      )}
+    >
+      <button
+        ref={setTriggerRefs}
+        type="button"
+        role="combobox"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? popupId : undefined}
+        aria-label={ariaLabel || tr('Chọn giờ')}
+        aria-invalid={invalid || undefined}
+        aria-describedby={ariaDescribedBy}
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled && !readOnly) setOpen((prev) => !prev);
+        }}
+        onKeyDown={handleTriggerKeyDown}
+        className={cx(
+          'rp-focus flex items-center justify-between gap-2 border bg-rp-surface text-rp-text transition-[border-color,box-shadow,background-color] duration-150',
+          fitContent ? (resolvedSize === 'sm' ? 'min-w-[116px] w-auto max-w-full' : 'min-w-[132px] w-auto max-w-full') : 'w-full',
+          sizeClasses,
+          showClear && 'pr-12',
+          invalid
+            ? 'border-rp-danger focus-visible:ring-2 focus-visible:ring-rp-danger/30'
+            : 'border-rp-line hover:border-rp-brand-border focus-visible:border-rp-brand-border focus-visible:shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
+          open && !invalid && 'border-rp-brand-border shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
+          disabled && 'cursor-not-allowed bg-rp-muted opacity-60 text-rp-text-disabled',
+          triggerClassName,
+        )}
+        {...rest}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <Clock aria-hidden="true" className={cx('h-4 w-4 shrink-0', currentClock ? 'text-rp-brand-strong' : 'text-rp-text-muted')} />
+          <span className={cx('truncate font-medium tabular-nums', !currentClock && 'text-rp-text-disabled font-normal')}>
+            {currentClock || placeholder}
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cx('h-4 w-4 shrink-0 text-rp-text-muted transition-transform duration-150', open && 'rotate-180')}
+        />
+      </button>
+
+      {showClear && (
+        <button
+          type="button"
+          aria-label={tr(clearLabel)}
+          onClick={(e) => {
+            e.stopPropagation();
+            emitClock('');
+            triggerRef.current?.focus();
+          }}
+          className="rp-focus absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-rp-text-muted hover:bg-rp-muted hover:text-rp-text"
+        >
+          <X aria-hidden="true" className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {menuNode && (typeof document !== 'undefined' ? createPortal(menuNode, document.body) : menuNode)}
+    </div>
+  );
+});
 
 /* ------------------------------------------------------------------ Skeleton */
 
@@ -1050,21 +1682,18 @@ export function ProgressBar({ value = 0, max = 100, label, tone = 'brand', size 
 
 /* ------------------------------------------------------------------ Avatar */
 
-function initialsOf(name) {
-  return String(name || '?').trim().split(/\s+/).slice(-2).map((p) => p[0] || '').join('').toUpperCase() || '?';
-}
-
-/** Image avatar with an initials fallback when the URL is missing or fails to load (no layout shift). */
-export function Avatar({ src, name, size = 40, className }) {
-  const [failedSrc, setFailedSrc] = useState(null);
-  const failed = Boolean(src) && failedSrc === src;
-  const style = { width: size, height: size, fontSize: Math.max(11, Math.round(size * 0.34)) };
-  if (src && !failed) {
-    return <img src={src} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailedSrc(src)} style={style} className={cx('shrink-0 rounded-full object-cover', className)} />;
-  }
+/** Shared avatar primitive wrapping UserAvatar for backward compatibility. */
+export function Avatar({ src, name, size = 40, className, rounded, loading, decorative, alt }) {
   return (
-    <span aria-hidden="true" style={style} className={cx('flex shrink-0 items-center justify-center rounded-full bg-rp-brand-tint font-bold text-rp-brand-strong', className)}>
-      {initialsOf(name)}
-    </span>
+    <UserAvatar
+      src={src}
+      name={name}
+      size={size}
+      className={className}
+      rounded={rounded}
+      loading={loading}
+      decorative={decorative}
+      alt={alt}
+    />
   );
 }

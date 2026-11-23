@@ -74,7 +74,7 @@ describe('Sakura Loading Logic — Context Messages, Route Mapping & Query State
       ['/author-dashboard/', 'dashboard'],
       ['/roadmap/', 'roadmap'],
       ['/lessons/', 'lesson'],
-      ['/vocabulary/', 'vocabulary'],
+      ['/vocabulary-detail/', 'vocabulary'],
       ['/grammar/', 'grammar'],
       ['/kanji-writing/?type=kanji', 'writing'],
       ['/daily-srs/', 'srs'],

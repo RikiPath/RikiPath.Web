@@ -82,14 +82,74 @@ export function requiredEntitlement(to) {
   return route?.study ? 'self-study' : null;
 }
 
+/** Longest-prefix match against server-returned `data.features[].routes` (or legacy `routePrefixes`). */
+export function findFeatureForPath(to, features = null) {
+  if (!Array.isArray(features) || features.length === 0) return null;
+  const path = cleanPath(to).toLowerCase();
+  let best = null;
+  let bestLen = -1;
+  for (const feature of features) {
+    const prefixes = Array.isArray(feature?.routes)
+      ? feature.routes
+      : Array.isArray(feature?.routePrefixes)
+        ? feature.routePrefixes
+        : [];
+    for (const rawPrefix of prefixes) {
+      const prefix = cleanPath(rawPrefix).toLowerCase();
+      if (!prefix) continue;
+      const matches = path === prefix || path.startsWith(`${prefix}/`);
+      if (matches && prefix.length > bestLen) {
+        best = feature;
+        bestLen = prefix.length;
+      }
+    }
+  }
+  return best;
+}
+
+/** Why a destination is locked — drives the copy and CTA of the unlock dialog. */
+export const LOCK_KIND = Object.freeze({
+  ADMIN_DISABLED: 'admin-disabled',
+  CREDIT: 'credit',
+  PLAN_AND_CREDIT: 'plan-and-credit',
+  PLAN: 'plan',
+});
+
+/**
+ * Lock cause for a destination from the server-evaluated feature (same rules as the Backend
+ * `SubscriptionAccessService.EffectiveState`): an Admin suspension is never reported as a missing plan or credits.
+ * Returns null when the destination is not locked by a server feature.
+ */
+export function featureLockKind(to, features = null) {
+  const feature = findFeatureForPath(to, features);
+  if (!feature || feature.allowed === true) return null;
+  const mode = String(feature.accessMode || '').toUpperCase();
+  if (String(feature.accessSource || '').toUpperCase() === 'DISABLED' || mode === 'DISABLED') return LOCK_KIND.ADMIN_DISABLED;
+  if (mode === 'CREDIT_REQUIRED') return LOCK_KIND.CREDIT;
+  if (mode === 'PLAN_AND_CREDIT') return feature.grantedByPlanName ? LOCK_KIND.CREDIT : LOCK_KIND.PLAN_AND_CREDIT;
+  return LOCK_KIND.PLAN;
+}
+
+/** Server-provided lock reason for a destination when gated, falling back to `fallback`. */
+export function featureLockReason(to, features = null, fallback = '') {
+  return findFeatureForPath(to, features)?.lockReason || fallback;
+}
+
 /**
  * Lock state for a destination: 'locked' | 'open' | 'unknown'.
  * 'unknown' (loading / error / forbidden) must render exactly like 'open' in navigation — no lock flash,
  * no false "buy a plan" — and the direct-URL gate + Backend keep protecting the content.
  */
-export function featureLockState(to, status) {
+export function featureLockState(to, status, features = null) {
+  if (status === ACCESS.NOT_APPLICABLE) return 'open';
+  const serverFeature = findFeatureForPath(to, features);
+  if (serverFeature) {
+    if (serverFeature.allowed === true) return 'open';
+    if (status === ACCESS.LOADING || status === ACCESS.ERROR || status === ACCESS.FORBIDDEN) return 'unknown';
+    return 'locked';
+  }
   if (!requiredEntitlement(to)) return 'open';
-  if (status === ACCESS.ACTIVE || status === ACCESS.NOT_APPLICABLE) return 'open';
+  if (status === ACCESS.ACTIVE) return 'open';
   if (LOCKING.has(status)) return 'locked';
   return 'unknown';
 }

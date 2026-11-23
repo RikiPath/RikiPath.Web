@@ -1,9 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { learnerHomePath } from '@/features/auth/api/authApi.js';
+import { learnerHomePath, getAuthMe } from '@/features/auth/api/authApi.js';
 import { queryClient } from '@/api/queryClient.js';
 import { useAuth } from '@/app/auth/authContext.js';
 import { saveRememberedLogin } from '@/app/auth/session.js';
 import { extractUserFromToken, normalizeRole } from '@/app/auth/jwt.js';
+import { normalizeAvatarUrl } from '@/components/ui/userAvatarLogic.js';
 import { learnerKeys, learnerProfileQueryKey, prefetchLearnerHome } from '@/features/dashboard/hooks/useLearnerHome.js';
 import { canAccessPath } from '@/app/routes/routeTable.js';
 import { postLoginDestination } from '@/utils/safeRedirect.js';
@@ -17,7 +18,7 @@ import { notify } from '@/components/ui/feedbackStore.js';
  * the route guard is honoured only if it is internal and allowed for that role.
  */
 export function useCompleteSignIn() {
-  const { login } = useAuth();
+  const { login, syncUserProfile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -35,7 +36,7 @@ export function useCompleteSignIn() {
       pendingEmail: result.pendingEmail || null,
       fullName: result.fullName,
       phoneNumber: result.phoneNumber || null,
-      avatarUrl: result.avatarUrl || null,
+      avatarUrl: normalizeAvatarUrl(result.avatarUrl),
       role: result.role,
       isEmailVerified: Boolean(result.isEmailVerified),
       hasPassword: typeof result.hasPassword === 'boolean' ? result.hasPassword : true,
@@ -49,18 +50,9 @@ export function useCompleteSignIn() {
     const roles = claims?.roles?.length ? claims.roles : [normalizeRole(result.role)];
     const role = roles[0];
 
-    const from = location.state?.from;
-    const normalizedFromPath = from?.pathname ? `${from.pathname.replace(/\/+$/, '')}/` : '';
-    if (
-      role === 'Learner' &&
-      from?.state?.payment &&
-      ['/payment/success/', '/payment/cancel/', '/study-payment-receipt/'].includes(normalizedFromPath)
-    ) {
-      navigate(normalizedFromPath, { replace: true, state: from.state });
-      return;
-    }
-
-    let home;
+    // Hydrate current user from Backend right after login when login payload lacks avatar/profile details
+    // or to guarantee unified profile/AuthContext state without requiring a page reload.
+    let syncedFromProfile = false;
     if (role === 'Learner') {
       let prefetchFailed = false;
       await prefetchLearnerHome(nextSession).catch((err) => {
@@ -68,14 +60,42 @@ export function useCompleteSignIn() {
         recordDiagnostic({ source: 'useCompleteSignIn', operation: 'prefetchLearnerHome', error: err });
       });
       const cachedProfile = queryClient.getQueryData(learnerProfileQueryKey(nextSession));
-      home = prefetchFailed && !cachedProfile ? '/app' : learnerHomePath(cachedProfile, role);
-    } else {
-      home = learnerHomePath(null, role);
+      if (cachedProfile) {
+        syncUserProfile(cachedProfile);
+        syncedFromProfile = true;
+      }
+      if (!syncedFromProfile && result.avatarUrl == null) {
+        const meRes = await getAuthMe().catch(() => null);
+        if (meRes?.result) syncUserProfile(meRes.result);
+      }
+
+      const from = location.state?.from;
+      const normalizedFromPath = from?.pathname ? `${from.pathname.replace(/\/+$/, '')}/` : '';
+      if (
+        from?.state?.payment &&
+        ['/payment/success/', '/payment/cancel/', '/study-payment-receipt/'].includes(normalizedFromPath)
+      ) {
+        navigate(normalizedFromPath, { replace: true, state: from.state });
+        return;
+      }
+
+      const home = prefetchFailed && !cachedProfile ? '/app' : learnerHomePath(cachedProfile, role);
+      const target = home === '/onboarding'
+        ? home
+        : postLoginDestination(from ? `${from.pathname || ''}${from.search || ''}` : '', home, (path) => canAccessPath(path, roles));
+      navigate(target, { replace: true });
+      return;
     }
-    // Onboarding must finish first; otherwise honour a safe, role-allowed return path.
-    const target = home === '/onboarding'
-      ? home
-      : postLoginDestination(from ? `${from.pathname || ''}${from.search || ''}` : '', home, (path) => canAccessPath(path, roles));
+
+    // Non-Learner roles: hydrate current user via /Auth/me right after login so Header/Dropdown syncs immediately.
+    const meRes = await getAuthMe().catch(() => null);
+    if (meRes?.result) {
+      syncUserProfile(meRes.result);
+    }
+
+    const from = location.state?.from;
+    const home = learnerHomePath(null, role);
+    const target = postLoginDestination(from ? `${from.pathname || ''}${from.search || ''}` : '', home, (path) => canAccessPath(path, roles));
     navigate(target, { replace: true });
   };
 }

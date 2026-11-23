@@ -22,6 +22,7 @@ import {
   Field,
   IconButton,
   Input,
+  PageContainer,
   PageHeader,
   Textarea,
   notify,
@@ -277,7 +278,7 @@ export default function ContentPlanStudio() {
 
   return (
     <ContentAuthorShell pathname="/content-plan" breadcrumb={tr('Trợ lý biên soạn')}>
-      <main data-page="content-plan" className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
+      <PageContainer as="div" data-page="content-plan" width="default" className="space-y-5">
         <PageHeader
           eyebrow={tr('Hỗ trợ AI · Trợ lý biên soạn')}
           title={
@@ -701,7 +702,7 @@ export default function ContentPlanStudio() {
             </ul>
           )}
         </Card>
-      </main>
+      </PageContainer>
     </ContentAuthorShell>
   );
 }

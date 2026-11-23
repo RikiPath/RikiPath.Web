@@ -10,11 +10,13 @@ import {
   History,
   Pencil,
   Plus,
-  Search,
   Send,
+  Sparkles,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
+import SkillQuestionEditor from '@/features/content-author/components/SkillQuestionEditor.jsx';
 import { api } from '@/api/client.js';
 import { uploadListeningAudio } from '@/features/content-author/api/contentImportApi.js';
 import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLookups.js';
@@ -31,17 +33,20 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   DataTable,
   FeatureIcon,
   Field,
   IconButton,
   Input,
   Modal,
+  PageContainer,
   PageHeader,
   Radio,
-  RefreshingIndicator,
   SakuraLoader,
+  Tabs,
   Textarea,
+  UnifiedToolbar,
   confirmAction,
   notify,
 } from '@/components/ui';
@@ -1055,6 +1060,9 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
 
   const [selectedType, setType] = useState(() => (paramType && definitions[paramType] ? paramType : 'Lesson'));
   const type = fixedType ?? (examOnly ? 'MockTest' : selectedType);
+  const [authoringMode, setAuthoringMode] = useState(() =>
+    examOnly || fixedType || paramType || paramEditId ? 'legacy' : 'skill-studio',
+  );
 
   const [activeLevel, setActiveLevel] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -1308,9 +1316,19 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
   ];
 
   const hasFilters = activeLevel !== 'ALL' || searchTerm.trim() !== '' || approvalFilter !== '';
+  const hasListData = Array.isArray(list.data) && list.data.length > 0;
+  const showFilterControls = hasListData || hasFilters;
+  const showToolbar = !examOnly && !fixedType
+    ? true
+    : showFilterControls;
+  const handleRefresh = () => Promise.all([
+    list.refetch({ cancelRefetch: true }),
+    lookupsQuery.isError ? lookupsQuery.refetch({ cancelRefetch: true }) : Promise.resolve(),
+  ]);
+  const isRefreshing = (list.isFetching || lookupsQuery.isFetching) && !list.isPending && !lookupsQuery.isPending;
 
   return (
-    <main data-page={pageName} className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
+    <PageContainer as="div" data-page={pageName} width="default" className="space-y-5">
       <PageHeader
         eyebrow={tr('Biên soạn học liệu')}
         title={
@@ -1328,7 +1346,6 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <RefreshingIndicator active={list.isFetching && !list.isPending} />
             <Link
               to="/bulk-import/?view=history"
               className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input border border-rp-line bg-white px-3.5 text-sm font-medium text-rp-text-2 hover:border-rp-brand-border"
@@ -1343,131 +1360,191 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
               <FolderUp className="h-4 w-4" />
               <span>{tr('Nhập Excel')}</span>
             </Link>
-            <Button
-              icon={Plus}
-              disabled={!defaultCreateLevelId || save.isPending || send.isPending}
-              onClick={handleOpenCreate}
-              data-testid="create-author-item-btn"
-            >
-              {examOnly ? tr('Thêm đề thi') : fixedType === 'Lesson' ? tr('Thêm bài học') : tr('Tạo học liệu')}
-            </Button>
+            {authoringMode === 'legacy' && (
+              <Button
+                icon={Plus}
+                disabled={!defaultCreateLevelId || save.isPending || send.isPending}
+                onClick={handleOpenCreate}
+                data-testid="create-author-item-btn"
+              >
+                {examOnly ? tr('Thêm đề thi') : fixedType === 'Lesson' ? tr('Thêm bài học') : tr('Tạo học liệu')}
+              </Button>
+            )}
           </div>
         }
       />
 
+      {!examOnly && !fixedType && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Tabs
+            variant="pill"
+            value={authoringMode}
+            onChange={setAuthoringMode}
+            tabs={[
+              { value: 'skill-studio', label: tr('Soạn câu hỏi 5 kỹ năng + AI'), icon: Sparkles },
+              { value: 'legacy', label: tr('Soạn giáo trình / Luyện tập') },
+            ]}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/question-bank"
+              className="rp-focus inline-flex h-9 items-center rounded-rp-input border border-rp-line bg-white px-3 text-xs font-semibold text-rp-text-2 hover:border-rp-brand-border"
+            >
+              {tr('Mở Ngân hàng câu hỏi')}
+            </Link>
+            <Link
+              to="/exam-builder"
+              className="rp-focus inline-flex h-9 items-center rounded-rp-input border border-rp-line bg-white px-3 text-xs font-semibold text-rp-text-2 hover:border-rp-brand-border"
+            >
+              {tr('Mở Trình tạo đề thi')}
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {!examOnly && !fixedType && authoringMode === 'skill-studio' ? (
+        <SkillQuestionEditor
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ['question-bank-v2'] })}
+          onSubmitted={() => {
+            queryClient.invalidateQueries({ queryKey: ['question-bank-v2'] });
+            queryClient.invalidateQueries({ queryKey: ['my-content-approvals'] });
+          }}
+        />
+      ) : (
+        <>
       {children}
 
-      {/* Filter Bar */}
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          {!examOnly && !fixedType && (
-            <div className="w-full sm:w-[190px]">
-              <CustomSelect
-                value={type}
-                aria-label={tr('Loại học liệu')}
-                onChange={(value) => {
-                  if (save.isPending || send.isPending) return;
-                  setType(value);
-                  openEditor(null);
+      {showToolbar && (
+        <UnifiedToolbar
+          search={
+            showFilterControls
+              ? {
+                  value: searchTerm,
+                  onChange: (e) => setSearchTerm(e.target.value),
+                  onClear: () => setSearchTerm(''),
+                  placeholder: 'Tìm theo tên, chủ đề hoặc tên tệp…',
+                  ariaLabel: 'Tìm kiếm học liệu',
+                  className: 'sm:max-w-[220px]',
+                }
+              : undefined
+          }
+          filters={
+            <>
+              {!examOnly && !fixedType && (
+                <CustomSelect
+                  fitContent
+                  size="sm"
+                  value={type}
+                  aria-label={tr('Loại học liệu')}
+                  onChange={(value) => {
+                    if (save.isPending || send.isPending) return;
+                    setType(value);
+                    openEditor(null);
+                  }}
+                  options={Object.entries(definitions).map(([value, item]) => ({
+                    value,
+                    label: tr(item.label),
+                  }))}
+                />
+              )}
+
+              {showFilterControls && (
+                <>
+                  <CustomSelect
+                    fitContent
+                    size="sm"
+                    value={String(activeLevel)}
+                    aria-label={tr('Lọc theo cấp độ')}
+                    onChange={(val) => {
+                      setActiveLevel(val);
+                      openEditor(null);
+                    }}
+                    options={[
+                      { value: 'ALL', label: tr('Tất cả cấp độ') },
+                      ...levels.map((lvl) => ({
+                        value: String(lvl.id),
+                        label: `${lvl.certificate} · ${lvl.code}`,
+                      })),
+                    ]}
+                  />
+
+                  <CustomSelect
+                    fitContent
+                    size="sm"
+                    value={approvalFilter}
+                    aria-label={tr('Lọc theo trạng thái duyệt')}
+                    onChange={setApprovalFilter}
+                    options={[
+                      { value: '', label: tr('Tất cả trạng thái') },
+                      ...Object.entries(statuses).map(([value, s]) => ({ value, label: tr(s.label) })),
+                    ]}
+                  />
+
+                  <CustomSelect
+                    fitContent
+                    size="sm"
+                    value={sortBy}
+                    aria-label={tr('Sắp xếp danh sách')}
+                    onChange={setSortBy}
+                    options={[
+                      { value: 'updated_desc', label: tr('Mới cập nhật') },
+                      { value: 'title_asc', label: tr('Tên A–Z') },
+                    ]}
+                  />
+                </>
+              )}
+            </>
+          }
+          actions={
+            hasFilters ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={X}
+                onClick={() => {
+                  setActiveLevel('ALL');
+                  setSearchTerm('');
+                  setApprovalFilter('');
                 }}
-                options={Object.entries(definitions).map(([value, item]) => ({
-                  value,
-                  label: tr(item.label),
-                }))}
-              />
-            </div>
-          )}
+              >
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : null
+          }
+          refresh={{
+            onRefresh: handleRefresh,
+            refreshing: isRefreshing,
+            disabled: list.isPending || lookupsQuery.isPending,
+          }}
+        />
+      )}
 
-          <div className="min-w-[200px] flex-1">
-            <Input
-              type="search"
-              icon={Search}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={tr('Tìm theo tên, chủ đề hoặc tên tệp…')}
-              aria-label={tr('Tìm kiếm học liệu')}
-            />
-          </div>
-
-          <div className="w-full sm:w-[175px]">
-            <CustomSelect
-              value={String(activeLevel)}
-              aria-label={tr('Lọc theo cấp độ')}
-              onChange={(val) => {
-                setActiveLevel(val);
-                openEditor(null);
-              }}
-              options={[
-                { value: 'ALL', label: tr('Tất cả cấp độ') },
-                ...levels.map((lvl) => ({
-                  value: String(lvl.id),
-                  label: `${lvl.certificate} · ${lvl.code}`,
-                })),
-              ]}
-            />
-          </div>
-
-          <div className="w-full sm:w-[175px]">
-            <CustomSelect
-              value={approvalFilter}
-              aria-label={tr('Lọc theo trạng thái duyệt')}
-              onChange={setApprovalFilter}
-              options={[
-                { value: '', label: tr('Tất cả trạng thái') },
-                ...Object.entries(statuses).map(([value, s]) => ({ value, label: tr(s.label) })),
-              ]}
-            />
-          </div>
-
-          <div className="w-full sm:w-[165px]">
-            <CustomSelect
-              value={sortBy}
-              aria-label={tr('Sắp xếp danh sách')}
-              onChange={setSortBy}
-              options={[
-                { value: 'updated_desc', label: tr('Mới cập nhật') },
-                { value: 'title_asc', label: tr('Tên A–Z') },
-              ]}
-            />
-          </div>
-
-          {hasFilters && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setActiveLevel('ALL');
-                setSearchTerm('');
-                setApprovalFilter('');
-              }}
-            >
-              {tr('Xóa bộ lọc')}
-            </Button>
-          )}
-        </div>
-      </Card>
-
-      {(lookupsQuery.isError || list.isError || detail.isError) && (
+      {(lookupsQuery.isError || detail.isError) && (
         <Card>
           <ContextualErrorState
             compact
-            error={lookupsQuery.error || list.error || detail.error}
+            error={lookupsQuery.error || detail.error}
             title={
               lookupsQuery.isError
                 ? tr('Chưa tải được danh mục cấp độ và kỹ năng')
-                : list.isError
-                  ? tr('Chưa tải được danh sách học liệu')
-                  : tr('Chưa tải được chi tiết mục đang sửa')
+                : tr('Chưa tải được chi tiết mục đang sửa')
             }
-            onRetry={() => (lookupsQuery.isError ? lookupsQuery.refetch() : list.isError ? list.refetch() : detail.refetch())}
-            retrying={lookupsQuery.isFetching || list.isFetching || detail.isFetching}
+            onRetry={() => (lookupsQuery.isError ? lookupsQuery.refetch() : detail.refetch())}
+            retrying={lookupsQuery.isFetching || detail.isFetching}
           />
         </Card>
       )}
 
-      {(list.isPending || lookupsQuery.isPending) && !list.data ? (
-        <SakuraLoader variant="section" context="data" label={tr('Đang tải danh sách học liệu…')} delay={140} />
-      ) : (
+      <DataRefreshBoundary
+        loading={(list.isPending || lookupsQuery.isPending) && !list.data}
+        refreshing={isRefreshing}
+        error={list.isError ? list.error : null}
+        hasData={hasListData}
+        context="data"
+        loadingLabel={tr('Đang tải danh sách học liệu…')}
+        errorTitle={tr('Chưa tải được danh sách học liệu')}
+        onRetry={() => list.refetch()}
+      >
         <DataTable
           columns={columns}
           rows={visibleItems}
@@ -1476,7 +1553,8 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
           caption={tr(heading)}
           empty={
             <ContextualEmptyState
-              compact
+              variant={hasFilters ? 'search' : 'compact'}
+              illustration={hasFilters ? 'search' : 'book'}
               title={
                 hasFilters
                   ? tr('Không tìm thấy học liệu phù hợp bộ lọc.')
@@ -1502,7 +1580,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
             />
           }
           rowActions={(row) => (
-            <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+            <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
               <Button size="sm" variant="ghost" icon={Eye} onClick={() => setPreviewItem(row)}>
                 {tr('Xem trước')}
               </Button>
@@ -1531,7 +1609,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
             </div>
           )}
         />
-      )}
+      </DataRefreshBoundary>
 
       {/* Editor Modal */}
       <Modal
@@ -1616,7 +1694,9 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
         description={deleteTarget ? trf('Bản nháp "{0}" sẽ bị xóa khỏi danh sách chưa gửi duyệt.', { 0: deleteTarget.rowKey }) : ''}
         confirmLabel={tr('Xóa bản nháp')}
       />
-    </main>
+        </>
+      )}
+    </PageContainer>
   );
 }
 

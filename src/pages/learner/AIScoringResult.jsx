@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { describeApiError } from '@/api/apiErrors.js';
+import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { getSession } from '@/app/auth/session.js';
 import { PenLine } from 'lucide-react';
 import {
@@ -13,9 +13,9 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   PageContainer,
-  PageHeader,
   SakuraLoader,
 } from '@/components/ui';
+import { ControlGroup, CounterPill, IllustratedPageHeader } from '@/features/learner-ui';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import {
@@ -106,22 +106,24 @@ export default function AIScoringResult() {
 
   return (
     <LearnerShell pathname="/ai-scoring" breadcrumb={tr('Kết quả chấm')}>
-      <PageContainer width="default">
-        <PageHeader
+      <PageContainer width="default" className="space-y-4">
+        <IllustratedPageHeader
+          icon="achievement"
+          tone="peach"
           eyebrow={tr('LỊCH SỬ CHẤM ĐIỂM AI')}
           title={tr('Kết quả luyện viết & nói')}
           description={tr('Xem lại các bài đã nộp, tiêu chí đánh giá và yêu cầu chấm lại khi cần.')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <ControlGroup>
               {totalAiQuota !== null && (
-                <Badge tone={totalAiQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                <CounterPill tone={totalAiQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI còn: {0}', { 0: totalAiQuota })}
-                </Badge>
+                </CounterPill>
               )}
-              <Button as={Link} to="/sentence-studio/" variant="primary" size="sm" icon={PenLine}>
+              <Button as={Link} to="/sentence-studio/" variant="primary" size="md" icon={PenLine}>
                 {tr('Viết bài mới')}
               </Button>
-            </div>
+            </ControlGroup>
           }
         />
 
@@ -136,6 +138,20 @@ export default function AIScoringResult() {
           >
             {tr('Đăng nhập để xem lịch sử các bài đã nộp và nhận xét AI.')}
           </Banner>
+        ) : historyQuery.isSuccess && history.length === 0 ? (
+          <div className="mx-auto max-w-xl py-4">
+            <ContextualEmptyState
+              variant="card"
+              illustration="homework"
+              title={tr('Chưa có bài nào được nộp.')}
+              description={tr('Hãy hoàn thành một bài luyện viết hoặc luyện nói để nhận điểm và góp ý chi tiết từ AI.')}
+              action={
+                <Button as={Link} to="/sentence-studio/" variant="primary" size="sm" icon={PenLine}>
+                  {tr('Viết bài mới')}
+                </Button>
+              }
+            />
+          </div>
         ) : (
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(250px,0.34fr)_minmax(0,1fr)]">
             <Card className="p-4">
@@ -163,7 +179,13 @@ export default function AIScoringResult() {
               )}
 
               {history.length === 0 && historyQuery.isSuccess && (
-                <p className="mt-3 text-xs text-rp-text-muted">{tr('Chưa có bài nào được nộp.')}</p>
+                <ContextualEmptyState
+                  variant="inline"
+                  size="sm"
+                  illustration="homework"
+                  title={tr('Chưa có bài nào được nộp.')}
+                  className="mt-3"
+                />
               )}
 
               <ul className="mt-3 max-h-[60vh] space-y-1.5 overflow-y-auto">
@@ -199,6 +221,7 @@ export default function AIScoringResult() {
             <Card>
               {!submissionId && !historyQuery.isLoading && (
                 <ContextualEmptyState
+                  illustration="clock"
                   title={tr('Chưa chọn bài luyện')}
                   description={tr('Chọn một bài ở cột bên hoặc bắt đầu viết bài mới để xem nhận xét.')}
                   action={
@@ -239,7 +262,7 @@ export default function AIScoringResult() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-rp-text-muted">{tr('Điểm tổng quan')}</p>
-                      <p className="text-3xl font-bold tabular-nums text-rp-brand-strong">
+                      <p className="text-3xl font-bold tabular-nums text-rp-brand">
                         {grading ? `${Math.round(grading.overallScore)}/100` : '—'}
                       </p>
                     </div>
@@ -305,8 +328,8 @@ export default function AIScoringResult() {
                       <h3 className="text-xs font-semibold text-rp-text">{tr('Gợi ý sửa câu')}</h3>
                       <ul className="space-y-2">
                         {grading.corrections.map((item, idx) => (
-                          <li key={idx} className="rounded-xl border border-rp-line bg-rp-brand-tint/50 px-3.5 py-3 text-xs">
-                            <p lang="ja" className="text-rp-brand-strong line-through">{item.original}</p>
+                          <li key={idx} className="rounded-xl border border-rp-line bg-rp-bg-2/70 px-3.5 py-3 text-xs">
+                            <p lang="ja" className="text-rp-text-muted line-through">{item.original}</p>
                             <p lang="ja" className="mt-1 font-semibold text-rp-success">{item.suggestion}</p>
                             {item.reason && <p className="mt-1 text-rp-text-2">{item.reason}</p>}
                           </li>
@@ -330,7 +353,7 @@ export default function AIScoringResult() {
                         ) : null
                       }
                     >
-                      {describeApiError(regrade.error, tr('Chưa chấm lại được bài này.'))}
+                      {formatApiError(regrade.error, tr('Chưa chấm lại được bài này.'))}
                     </Banner>
                   )}
 

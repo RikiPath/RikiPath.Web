@@ -130,6 +130,11 @@ export const jaAppCore = {
   'Xác thực email thành công!': 'メールアドレスを確認しました！',
   'Bạn có thể đăng nhập ngay để tiếp tục.': 'ログインして続けることができます。',
   'Chưa xác thực được email': 'メールアドレスを確認できませんでした',
+  'Nhấn nút bên dưới để hoàn tất xác thực email cho tài khoản RikiPath của bạn.': '下のボタンを押して、RikiPathアカウントのメールアドレス確認を完了してください。',
+  'Liên kết xác thực chỉ sử dụng một lần. Nhấn nút xác nhận bên dưới để kích hoạt email và quay lại đăng nhập.': 'この確認リンクは1回のみ有効です。下の確認ボタンを押してメールを有効化し、ログイン画面へお進みください。',
+  'Liên kết xác thực không hợp lệ hoặc đã hết hạn.': '確認リンクが無効か、有効期限が切れています。',
+  'Đang xác thực...': '確認中…',
+  'Hoặc nhập mã 6 chữ số thủ công': 'または6桁のコードを手動で入力する',
   'Nhập mã 6 chữ số đã gửi tới': '次のアドレスに送った6桁のコードを入力してください：',
   'Nhập mã 6 chữ số trong email xác thực.': '確認メールに記載された6桁のコードを入力してください。',
   'Không tìm thấy phiên đăng ký': '登録情報が見つかりません',
@@ -232,6 +237,9 @@ export const jaAppCore = {
   'Nhập một mẫu để bắt đầu': '文型を入力して始めましょう',
   'Tìm theo mẫu câu tiếng Nhật hoặc nghĩa tiếng Việt.': '日本語の文型またはベトナム語の意味で検索できます。',
   'Không có mẫu khớp': '一致する文型はありません',
+  'Chưa có mẫu ngữ pháp': '文法パターンはまだありません',
+  'mẫu ngữ pháp': '文法パターン',
+  'Thử từ khóa ngắn hơn, gợi ý ở trên hoặc bỏ lọc cấp độ JLPT.': '短いキーワードや上のおすすめを試すか、JLPTレベルの絞り込みを解除してください。',
   'Thử từ khóa ngắn hơn hoặc một mẫu khác.': '短いキーワードや別の文型で試してください。',
   'Chọn một mẫu để xem chi tiết': '文型を選ぶと詳細を表示します',
   'Ý nghĩa & cách dùng': '意味と使い方',
@@ -294,6 +302,7 @@ export const jaAppCore = {
   'Thẻ cần ôn hôm nay': '今日の復習カード',
   'Luyện tập nhanh': 'クイック練習',
   'Chọn kỹ năng bạn muốn ôn ngay hôm nay': '今日練習したいスキルを選びましょう',
+  'Luyện đề & Thi thử': '問題演習・模擬試験',
   'Thi thử JLPT': 'JLPT模擬試験',
   'Năng lực theo kỹ năng': 'スキル別の実力',
   'Điểm trung bình từ các bài bạn đã làm': 'これまでの解答の平均点',
@@ -411,4 +420,8 @@ export const jaAppCore = {
   'Hãy đặt câu hỏi cho giáo viên!': '教師に質問してみましょう！',
   'Điểm danh: Chưa tải được trạng thái': '出欠確認：状態を読み込めませんでした',
   'Chưa tải được danh sách điểm danh.': '出欠一覧を読み込めませんでした。',
+
+  // UnifiedToolbar
+  'Điều hướng danh mục': 'カテゴリ切替',
+  'Tìm kiếm': '検索',
 };

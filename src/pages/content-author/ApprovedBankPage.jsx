@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Eye,
   Plus,
-  Search,
   Volume2,
   X,
 } from 'lucide-react';
@@ -13,18 +12,17 @@ import { ContentAuthorShell } from '@/layouts';
 import {
   Badge,
   Button,
-  Card,
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   DataTable,
   FeatureIcon,
   IconButton,
-  Input,
   Modal,
-  Pagination,
-  RefreshingIndicator,
+  PageContainer,
   SakuraLoader,
+  UnifiedToolbar,
 } from '@/components/ui';
 import {
   getSharedBankDetail,
@@ -80,7 +78,7 @@ function DefaultBankDetail({ data, detailEndpoint }) {
         </div>
       ) : isGrammar ? (
         <div className="space-y-3">
-          <div className="rounded-2xl border border-rp-brand-border bg-rp-brand-tint/40 p-4">
+          <div className="rounded-2xl border border-rp-line bg-white p-4">
             <p className="text-xs font-medium text-rp-brand-strong">{tr('Cấu trúc')}</p>
             <p className="rp-jp mt-1 text-lg font-bold text-rp-text">{data.structure || data.title}</p>
             {data.title && data.structure && data.title !== data.structure && (
@@ -145,17 +143,17 @@ export default function ApprovedBankPage({
   secondaryLink,
   columns,
 }) {
-  const { tr, trf } = useLocale();
+  const { tr } = useLocale();
   const [keyword, setKeyword] = useState('');
   const [levelId, setLevelId] = useState('ALL');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [selectedRow, setSelectedRow] = useState(null);
-  const pageSize = 20;
 
   const { levels } = useAuthorLookups();
 
   const listQuery = useQuery({
-    queryKey: ['approved-bank', endpoint, keyword.trim(), levelId, page],
+    queryKey: ['approved-bank', endpoint, keyword.trim(), levelId, page, pageSize],
     queryFn: () =>
       searchSharedBank(endpoint, {
         keyword: keyword.trim(),
@@ -177,12 +175,16 @@ export default function ApprovedBankPage({
 
   const rows = listQuery.data?.items || [];
   const totalCount = listQuery.data?.totalCount ?? rows.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const hasFilters = keyword.trim() !== '' || levelId !== 'ALL';
+  const showToolbar = rows.length > 0 || (listQuery.isSuccess && (totalCount > 0 || hasFilters));
+
+  const handleRefresh = () => listQuery.refetch({ cancelRefetch: true });
+  const refreshing = listQuery.isFetching && !listQuery.isPending;
 
   const tableColumns = useMemo(
     () =>
       columns.map((col) => ({
+        ...col,
         key: col.key,
         header: tr(col.label),
         render: col.render || ((row) => row[col.key] || '—'),
@@ -198,7 +200,7 @@ export default function ApprovedBankPage({
 
   return (
     <ContentAuthorShell pathname={pathname} breadcrumb={tr(breadcrumb)}>
-      <main data-page={pageName} className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
+      <PageContainer as="div" data-page={pageName} width="default" className="space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand-strong">
@@ -215,7 +217,6 @@ export default function ApprovedBankPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <RefreshingIndicator active={listQuery.isFetching && !listQuery.isPending} />
             {secondaryLink && (
               <Link
                 to={secondaryLink.to}
@@ -235,24 +236,25 @@ export default function ApprovedBankPage({
           </div>
         </div>
 
-        <Card className="p-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="min-w-[220px] flex-1">
-              <Input
-                type="search"
-                icon={Search}
-                value={keyword}
-                onChange={(e) => {
-                  setKeyword(e.target.value);
-                  setPage(1);
-                }}
-                placeholder={tr('Tìm trong kho đã xuất bản…')}
-                aria-label={tr('Tìm trong kho đã xuất bản')}
-              />
-            </div>
-
-            <div className="w-full sm:w-[190px]">
+        {showToolbar && (
+          <UnifiedToolbar
+            search={{
+              value: keyword,
+              onChange: (e) => {
+                setKeyword(e.target.value);
+                setPage(1);
+              },
+              onClear: () => {
+                setKeyword('');
+                setPage(1);
+              },
+              placeholder: 'Tìm trong kho đã xuất bản…',
+              ariaLabel: 'Tìm trong kho đã xuất bản',
+            }}
+            filters={
               <CustomSelect
+                fitContent
+                size="sm"
                 value={levelId}
                 aria-label={tr('Lọc theo cấp độ')}
                 onChange={(val) => {
@@ -267,52 +269,67 @@ export default function ApprovedBankPage({
                   })),
                 ]}
               />
-            </div>
-
-            {hasFilters && (
-              <Button variant="ghost" size="sm" icon={X} onClick={resetFilters}>
-                {tr('Xóa bộ lọc')}
-              </Button>
-            )}
-          </div>
-        </Card>
-
-        {listQuery.isPending ? (
-          <SakuraLoader variant="section" context="lesson" delay={140} />
-        ) : listQuery.isError ? (
-          <ContextualErrorState
-            error={listQuery.error}
-            title={tr('Chưa tải được dữ liệu từ kho đã duyệt')}
-            onRetry={() => listQuery.refetch()}
-          />
-        ) : rows.length === 0 ? (
-          <ContextualEmptyState
-            title={hasFilters ? tr('Không tìm thấy mục phù hợp') : tr('Chưa có học liệu nào được xuất bản')}
-            description={
-              hasFilters
-                ? tr('Thử thay đổi từ khóa hoặc chọn cấp độ khác.')
-                : tr('Các mục bạn soạn và được Admin duyệt sẽ xuất hiện tại đây.')
             }
-            action={
+            actions={
               hasFilters ? (
-                <Button variant="outline" onClick={resetFilters}>{tr('Xóa bộ lọc')}</Button>
-              ) : (
-                <Link
-                  to={`/content-manual/?type=${encodeURIComponent(manualType)}`}
-                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>{tr('Soạn nội dung mới')}</span>
-                </Link>
-              )
+                <Button variant="ghost" size="sm" icon={X} onClick={resetFilters}>
+                  {tr('Xóa bộ lọc')}
+                </Button>
+              ) : null
             }
+            refresh={{
+              onRefresh: handleRefresh,
+              refreshing,
+              disabled: listQuery.isPending,
+            }}
           />
-        ) : (
-          <div className="space-y-4">
+        )}
+
+        <DataRefreshBoundary
+          query={listQuery}
+          hasData={rows.length > 0}
+          context="lesson"
+          loadingLabel={tr('Đang tải kho học liệu đã duyệt…')}
+          errorTitle={tr('Chưa tải được dữ liệu từ kho đã duyệt')}
+        >
+          {rows.length === 0 ? (
+            <ContextualEmptyState
+              variant={hasFilters ? 'search' : 'default'}
+              illustration={hasFilters ? 'search' : 'book'}
+              title={hasFilters ? tr('Không tìm thấy mục phù hợp') : tr('Chưa có học liệu nào được xuất bản')}
+              description={
+                hasFilters
+                  ? tr('Thử thay đổi từ khóa hoặc chọn cấp độ khác.')
+                  : tr('Các mục bạn soạn và được Admin duyệt sẽ xuất hiện tại đây.')
+              }
+              action={
+                hasFilters ? (
+                  <Button variant="outline" onClick={resetFilters}>{tr('Xóa bộ lọc')}</Button>
+                ) : (
+                  <Link
+                    to={`/content-manual/?type=${encodeURIComponent(manualType)}`}
+                    className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>{tr('Soạn nội dung mới')}</span>
+                  </Link>
+                )
+              }
+            />
+          ) : (
             <DataTable
               columns={tableColumns}
               rows={rows}
               keyField="id"
+              page={page}
+              pageSize={pageSize}
+              total={totalCount}
+              itemLabel="mục"
+              onPageChange={setPage}
+              onPageSizeChange={(nextSize) => {
+                setPageSize(nextSize);
+                setPage(1);
+              }}
               onRowClick={(row) => setSelectedRow(row)}
               rowActions={(row) => (
                 <IconButton
@@ -324,25 +341,8 @@ export default function ApprovedBankPage({
                 />
               )}
             />
-
-            {totalPages > 1 && (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-rp-text-muted">
-                  {trf('Trang {0} / {1} · Tổng {2} mục', { 0: page, 1: totalPages, 2: totalCount })}
-                </p>
-                <Pagination
-                  currentPage={page}
-                  totalPages={totalPages}
-                  pageSize={pageSize}
-                  totalItems={totalCount}
-                  showPageSize={false}
-                  showTotal={false}
-                  onPageChange={setPage}
-                />
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </DataRefreshBoundary>
 
         <Modal
           open={Boolean(selectedRow)}
@@ -371,7 +371,7 @@ export default function ApprovedBankPage({
             />
           )}
         </Modal>
-      </main>
+      </PageContainer>
     </ContentAuthorShell>
   );
 }

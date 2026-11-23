@@ -1,302 +1,181 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock } from 'lucide-react';
-import { useAuth } from '@/app/auth/authContext.js';
-import { getStandardAssessmentRoadmap } from '@/features/learning-path/api/learningPathApi.js';
-import { getMySubscription } from '@/features/checkout/api/subscriptionApi.js';
-import { Badge, Banner, Button, Card, ProgressBar, SakuraLoader } from '@/components/ui';
-import LessonContent from './LessonContent.jsx';
+import { Banner, Button, Card, ContextualErrorState, EmptyState, ProgressBar, SakuraLoader } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { useJourneyRoadmap } from '@/features/learning-journey/useJourneyRoadmap.js';
+import {
+  resolveNextStep,
+  stageKey,
+  stageProgress,
+  toJourneyStageView,
+} from '@/features/learning-journey/journeyModel.js';
+import JourneyMap from '@/features/learning-journey/components/JourneyMap.jsx';
+import NextLearningCard from '@/features/learning-journey/components/NextLearningCard.jsx';
+import SkillSummary from '@/features/learning-journey/components/SkillSummary.jsx';
 
-const skillNames = {
-  Vocabulary: 'Từ vựng',
-  Kanji: 'Hán tự',
-  Grammar: 'Ngữ pháp',
-  Reading: 'Đọc hiểu',
-  Listening: 'Nghe hiểu',
-  Speaking: 'Luyện nói',
-  Writing: 'Luyện viết',
-};
-
-function LessonRow({ lesson, index, open, toggle, userId, refresh, canOpen, requiresPlan, recheckAccess }) {
-  const { trf, tr } = useLocale();
-  const skillName = skillNames[lesson.languageSkillName] ? tr(skillNames[lesson.languageSkillName]) : lesson.languageSkillName;
-  const material = [
-    lesson.kanjiCount > 0 && trf('{0} Hán tự', { 0: lesson.kanjiCount }),
-    lesson.vocabularyCount > 0 && trf('{0} từ vựng', { 0: lesson.vocabularyCount }),
-    lesson.grammarCount > 0 && trf('{0} mẫu ngữ pháp', { 0: lesson.grammarCount }),
-  ].filter(Boolean).join(' · ');
-
-  const statusText = lesson.isLocked ? tr('Chờ đạt bài trước')
-    : requiresPlan ? tr('Cần gói tự học')
-      : lesson.isCompleted ? tr('Đã hoàn thành')
-        : lesson.isStudied && !lesson.hasPracticeExercise ? tr('Chưa có bài luyện tập')
-          : lesson.isStudied ? tr('Chờ làm bài luyện tập') : canOpen ? tr('Sẵn sàng') : null;
-
-  const tone = lesson.isCompleted ? 'success' : lesson.isLocked ? 'neutral' : requiresPlan ? 'warning' : 'brand';
-
-  return (
-    <li id={`self-study-lesson-${lesson.lessonId}`} className="scroll-mt-6">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-rp-text">
-              <span className="mr-2 text-rp-brand-strong">{index + 1}.</span>
-              {tr(lesson.title)}
-            </h3>
-            {skillName && <Badge tone="brand" icon={false} size="sm">{skillName}</Badge>}
-            {statusText && (
-              <Badge tone={tone} icon={lesson.isLocked ? Lock : undefined} size="sm">
-                {statusText}
-              </Badge>
-            )}
-          </div>
-          {material && <p className="mt-1 text-xs text-rp-text-muted">{material}</p>}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {canOpen && !lesson.isLocked && (
-            <>
-              <Link to={`/lesson-player/?lessonId=${lesson.lessonId}`}>
-                <Button variant="ghost" size="sm">{tr('Mở trang bài')}</Button>
-              </Link>
-              <Button variant={open ? 'secondary' : 'soft'} size="sm" onClick={toggle} aria-expanded={open}>
-                {open ? tr('Thu gọn') : lesson.isCompleted ? tr('Xem lại') : lesson.isStudied && lesson.hasPracticeExercise ? tr('Làm bài luyện tập') : tr('Mở bài')}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {open && (
-        <div className="mb-3 rounded-xl border border-rp-line bg-rp-bg-2 p-3 sm:p-4">
-          <LessonContent
-            lesson={lesson}
-            userId={userId}
-            refresh={refresh}
-            fromAssessmentRoadmap
-            onAccessDenied={recheckAccess}
-          />
-        </div>
-      )}
-    </li>
-  );
-}
-
-export default function StandardAssessmentRoadmap({ targetLevelId }) {
+/**
+ * Standard (system) roadmap rendered as the Learning Journey Map — Tier 1 of the learning journey.
+ * Stages, lessons, locks and recommendations all come from Adaptive Roadmap V2 (`/StandardRoadmap/adaptive`).
+ */
+export default function StandardAssessmentRoadmap() {
   const { tr, trf } = useLocale();
-  const { isAuthenticated, isLearner, session, user } = useAuth();
-  const queryClient = useQueryClient();
-  const [requestedLevel, setRequestedLevel] = useState(null);
-  const [openLessonId, setOpenLessonId] = useState(null);
-  const userId = user?.userId;
+  const journey = useJourneyRoadmap();
+  const { roadmapQuery, roadmap, overview, subscriptionQuery, requiresPlan, errorCode, isPreview } = journey;
 
-  const roadmapQuery = useQuery({
-    queryKey: ['assessment-roadmap', userId, targetLevelId, session?.isPreview ? 'preview' : 'live'],
-    queryFn: getStandardAssessmentRoadmap,
-    enabled: isAuthenticated && isLearner && !session?.isPreview,
-    retry: false,
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-
-  const subscriptionQuery = useQuery({
-    queryKey: ['study-subscription', session?.userId ?? userId],
-    queryFn: getMySubscription,
-    enabled: isAuthenticated && isLearner && !session?.isPreview,
-    retry: false,
-    staleTime: 0,
-  });
-
-  if (isAuthenticated && !isLearner) return null;
-  if (session?.isPreview) {
+  if (isPreview) {
     return (
-      <Card aria-labelledby="self-study-roadmap-title" className="mb-5 scroll-mt-6">
-        <h2 id="self-study-roadmap-title" className="text-[17px] font-semibold text-rp-text">{tr('Lộ trình tự học hệ thống đề xuất')}</h2>
-        <p className="mt-2 text-sm text-rp-text-muted">{tr('Lộ trình cá nhân hóa theo bài đánh giá năng lực hiển thị khi đăng nhập bằng tài khoản học viên.')}</p>
+      <Card aria-labelledby="self-study-roadmap-title" className="scroll-mt-6">
+        <h2 id="self-study-roadmap-title" className="text-[17px] font-semibold text-rp-text">{tr('Lộ trình hệ thống đề xuất')}</h2>
+        <p className="mt-2 text-sm text-rp-text-muted">{tr('Lộ trình thích ứng theo năng lực hiển thị khi đăng nhập bằng tài khoản học viên.')}</p>
       </Card>
     );
   }
 
-  const canOpenLessons = subscriptionQuery.data?.active === true;
-  const requiresPlan = subscriptionQuery.isSuccess && !canOpenLessons;
+  if (roadmapQuery.isPending && journey.enabled) {
+    return (
+      <Card>
+        <SakuraLoader variant="section" context="roadmap" label={tr('Đang tải lộ trình học của bạn')} delay={160} />
+      </Card>
+    );
+  }
 
-  const roadmap = roadmapQuery.data;
-  const levels = [...new Set([roadmap?.targetJlptLevelName, roadmap?.currentStudyLevelName].filter(Boolean))];
-  const selectedLevel = levels.includes(requestedLevel) ? requestedLevel : levels[0];
-  const lessons = roadmap?.lessons ?? [];
-  const visibleLessons = lessons.filter((lesson) => lesson.levelCode === selectedLevel);
-  const completed = visibleLessons.filter((lesson) => lesson.isCompleted).length;
-  const nextLesson = visibleLessons.find((lesson) => !lesson.isCompleted && !lesson.isLocked);
-  const errorCode = roadmapQuery.error?.data?.errorCode;
+  if (errorCode === 'STANDARD_ROADMAP_PLACEMENT_REQUIRED') {
+    return (
+      <Banner
+        tone="info"
+        actions={<Button as={Link} to="/app/placement-test" variant="primary" size="sm">{tr('Làm bài đánh giá năng lực')}</Button>}
+      >
+        {tr('Hoàn thành hoặc tạm bỏ qua bài đánh giá năng lực để hệ thống sắp xếp chặng học phù hợp.')}
+      </Banner>
+    );
+  }
 
-  const refresh = () => Promise.all([
-    roadmapQuery.refetch(),
-    queryClient.invalidateQueries({ queryKey: ['self-study-catalog', userId] }),
-  ]);
+  if (errorCode === 'STUDY_LEVEL_REQUIRED') {
+    return (
+      <Banner
+        tone="info"
+        actions={<Button as={Link} to="/onboarding" variant="primary" size="sm">{tr('Chọn mục tiêu JLPT')}</Button>}
+      >
+        {tr('Vui lòng chọn chứng chỉ và mục tiêu JLPT trước khi tạo lộ trình.')}
+      </Banner>
+    );
+  }
+
+  if (roadmapQuery.isError) {
+    return (
+      <Card>
+        <ContextualErrorState
+          compact
+          error={roadmapQuery.error}
+          title={tr('Chưa tải được lộ trình học')}
+          onRetry={() => roadmapQuery.refetch()}
+          retrying={roadmapQuery.isFetching}
+        />
+      </Card>
+    );
+  }
+
+  if (!roadmap) return null;
+
+  const { stages, totalLessons, completedLessons, percent, currentStage } = overview;
+  const nextStep = resolveNextStep(roadmap, overview);
+  const focusStage = nextStep?.stage ?? currentStage;
+  const levelPath = roadmap.currentStudyLevelName && roadmap.currentStudyLevelName !== roadmap.targetJlptLevelName
+    ? `${roadmap.currentStudyLevelName} → ${roadmap.targetJlptLevelName}`
+    : roadmap.targetJlptLevelName;
 
   return (
-    <Card aria-labelledby="self-study-roadmap-title" className="mb-5 scroll-mt-6 border-rp-brand-border">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="self-study-roadmap-title" className="text-[17px] font-semibold text-rp-text">
-          {tr('Lộ trình tự học hệ thống đề xuất')}
-        </h2>
-        {roadmap?.placementAttemptId && (
-          <Link to={`/app/placement-test/?attemptId=${roadmap.placementAttemptId}`} className="rp-link text-xs font-semibold">
-            {tr('Xem kết quả đánh giá')}
-          </Link>
-        )}
-      </div>
-
-      {!isAuthenticated && (
-        <div className="mt-3">
-          <Link to="/auth/"><Button variant="primary" size="sm">{tr('Đăng nhập để xem lộ trình tự học')}</Button></Link>
-        </div>
+    <div id="self-study-roadmap-title" className="scroll-mt-6 space-y-4">
+      {subscriptionQuery.isPending && (
+        <SakuraLoader variant="inline" context="payment" label={tr('Đang kiểm tra quyền tự học')} delay={160} />
       )}
-
-      {isAuthenticated && roadmapQuery.isPending && (
-        <SakuraLoader variant="section" context="roadmap" delay={160} className="mt-2" />
-      )}
-
-      {errorCode === 'STANDARD_ROADMAP_PLACEMENT_REQUIRED' && (
+      {requiresPlan && (
         <Banner
-          tone="info"
-          className="mt-3"
-          actions={<Link to="/app/placement-test"><Button variant="primary" size="sm">{tr('Làm bài đánh giá năng lực')}</Button></Link>}
-        >
-          {tr('Hoàn thành bài đánh giá năng lực để hệ thống sắp xếp danh sách bài học phù hợp với trình độ hiện tại.')}
-        </Banner>
-      )}
-
-      {errorCode === 'STUDY_LEVEL_REQUIRED' && (
-        <Banner
-          tone="info"
-          className="mt-3"
-          actions={<Link to="/onboarding"><Button variant="primary" size="sm">{tr('Chọn mục tiêu JLPT')}</Button></Link>}
-        >
-          {tr('Vui lòng chọn chứng chỉ và mục tiêu JLPT trước khi tạo lộ trình.')}
-        </Banner>
-      )}
-
-      {roadmapQuery.isError && !['STANDARD_ROADMAP_PLACEMENT_REQUIRED', 'STUDY_LEVEL_REQUIRED'].includes(errorCode) && (
-        <Banner
-          tone="danger"
-          className="mt-3"
-          actions={<Button variant="secondary" size="sm" onClick={() => roadmapQuery.refetch()}>{tr('Thử lại')}</Button>}
-        >
-          {tr(roadmapQuery.error.message)}
-        </Banner>
-      )}
-
-      {roadmap && (
-        <div className="mt-3 space-y-4">
-          <p className="text-sm text-rp-text-2">
-            JLPT {roadmap.currentStudyLevelName !== roadmap.targetJlptLevelName ? `${roadmap.currentStudyLevelName} → ` : ''}{roadmap.targetJlptLevelName}
-          </p>
-
-          <div role="group" aria-label={tr('Cấp độ bài học')} className="flex flex-wrap gap-2">
-            {levels.map((level) => {
-              const count = lessons.filter((lesson) => lesson.levelCode === level).length;
-              const isTarget = level === roadmap.targetJlptLevelName;
-              const active = level === selectedLevel;
-              return (
-                <Button
-                  key={level}
-                  variant={active ? 'primary' : 'secondary'}
-                  size="sm"
-                  aria-pressed={active}
-                  onClick={() => {
-                    setRequestedLevel(level);
-                    setOpenLessonId(null);
-                  }}
-                >
-                  {isTarget ? trf('Học {0}', { 0: level }) : trf('Ôn lại {0}', { 0: level })} · {trf('{0} bài', { 0: count })}
-                </Button>
-              );
-            })}
-          </div>
-
-          {visibleLessons.length === 0 ? (
-            <p role="status" className="text-sm text-rp-text-2">
-              {trf('Kho học liệu chưa có bài học JLPT {0} khả dụng.', { 0: selectedLevel })}
-            </p>
-          ) : (
+          tone="warning"
+          actions={(
             <>
-              {subscriptionQuery.isPending && !session?.isPreview && (
-                <SakuraLoader
-                  variant="section"
-                  context="payment"
-                  label={tr('Đang kiểm tra quyền tự học')}
-                  delay={160}
-                />
-              )}
-              {requiresPlan && (
-                <Banner
-                  tone="warning"
-                  actions={(
-                    <>
-                      <Link to="/plans/"><Button variant="primary" size="sm">{tr('Xem gói tự học')}</Button></Link>
-                      <Button variant="secondary" size="sm" loading={subscriptionQuery.isFetching} onClick={() => subscriptionQuery.refetch()}>
-                        {tr('Kiểm tra lại quyền')}
-                      </Button>
-                    </>
-                  )}
-                >
-                  {tr('Bạn cần gói tự học đang hiệu lực để mở bài và làm bài luyện tập.')}
-                </Banner>
-              )}
-              {subscriptionQuery.isError && (
-                <Banner
-                  tone="danger"
-                  actions={<Button variant="secondary" size="sm" loading={subscriptionQuery.isFetching} onClick={() => subscriptionQuery.refetch()}>{tr('Thử lại')}</Button>}
-                >
-                  {tr('Chưa kiểm tra được quyền tự học.')}
-                </Banner>
-              )}
-
-              <div className="space-y-2 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-rp-text">
-                      {trf('{0}/{1} bài {2} hoàn thành', { 0: completed, 1: visibleLessons.length, 2: selectedLevel })}
-                    </p>
-                    <p className="mt-0.5 text-xs text-rp-text-muted">{tr('Học theo thứ tự. Đạt bài luyện tập để mở bài kế tiếp.')}</p>
-                  </div>
-                  {canOpenLessons && nextLesson && (
-                    <a
-                      href={`#self-study-lesson-${nextLesson.lessonId}`}
-                      onClick={() => setOpenLessonId(nextLesson.lessonId)}
-                    >
-                      <Button variant="primary" size="sm">
-                        {completed === 0 && !nextLesson.isStudied ? tr('Bắt đầu học') : tr('Tiếp tục học')}
-                      </Button>
-                    </a>
-                  )}
-                </div>
-                <ProgressBar value={completed} max={visibleLessons.length || 1} label={selectedLevel} />
-              </div>
-
-              <ol className="divide-y divide-rp-line border-y border-rp-line">
-                {visibleLessons.map((lesson, index) => (
-                  <LessonRow
-                    key={lesson.lessonId}
-                    lesson={lesson}
-                    index={index}
-                    userId={userId}
-                    refresh={refresh}
-                    canOpen={canOpenLessons}
-                    requiresPlan={requiresPlan}
-                    recheckAccess={subscriptionQuery.refetch}
-                    open={canOpenLessons && !lesson.isLocked && openLessonId === lesson.lessonId}
-                    toggle={() => setOpenLessonId((id) => (id === lesson.lessonId ? null : lesson.lessonId))}
-                  />
-                ))}
-              </ol>
+              <Button as={Link} to="/plans/" variant="primary" size="sm">{tr('Xem gói tự học')}</Button>
+              <Button variant="secondary" size="sm" loading={subscriptionQuery.isFetching} onClick={() => subscriptionQuery.refetch()}>
+                {tr('Kiểm tra lại quyền')}
+              </Button>
             </>
           )}
-        </div>
+        >
+          {tr('Bạn cần gói tự học đang hiệu lực để mở bài và làm bài luyện tập.')}
+        </Banner>
       )}
-    </Card>
+
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <aside className="order-first space-y-3 lg:sticky lg:top-4 lg:order-none lg:col-start-2 lg:row-start-1">
+          <section className="rounded-rp-card border border-rp-line bg-white p-4" aria-label={tr('Tiến độ tổng thể')}>
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[12px] font-semibold text-rp-text-muted">{tr('Tiến độ tổng thể')}</p>
+              <p className="text-[20px] font-bold tabular-nums text-rp-text">{percent}%</p>
+            </div>
+            <ProgressBar value={completedLessons} max={totalLessons || 1} className="mt-2" label={tr('Tiến độ tổng thể')} />
+            <p className="mt-2 text-[12px] text-rp-text-muted">
+              {trf('{0}/{1} bài hoàn thành', { 0: completedLessons, 1: totalLessons })}
+              {levelPath && ` · JLPT ${levelPath}`}
+              {roadmap.dailyStudyMinutes > 0 && ` · ${trf('{0} phút/ngày', { 0: roadmap.dailyStudyMinutes })}`}
+            </p>
+            {roadmap.workloadAdvice && (
+              <p className="mt-2 border-t border-rp-line pt-2 text-[12px] leading-5 text-rp-text-2">{tr(roadmap.workloadAdvice)}</p>
+            )}
+          </section>
+
+          <NextLearningCard
+            nextStep={nextStep}
+            reason={roadmap.nextRecommendationReason}
+            stageTitle={focusStage?.title}
+            stageProgress={focusStage ? stageProgress(focusStage) : null}
+            srsDueCount={roadmap.srsDueTodayCount}
+            requiresPlan={requiresPlan}
+          />
+        </aside>
+
+        <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1">
+          <SkillSummary
+            skillProfile={roadmap.skillProfile}
+            hasPlacementEvidence={roadmap.hasPlacementEvidence}
+            placementDecision={roadmap.placementDecision}
+          />
+
+          <section aria-labelledby="journey-map-title" className="rounded-rp-card border border-rp-line bg-[linear-gradient(180deg,#FFFFFF_0%,#FFFBFC_100%)] p-4 sm:p-5">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 id="journey-map-title" className="text-[16px] font-bold text-rp-text">{tr('Hành trình JLPT')}</h2>
+                <p className="mt-0.5 text-[12.5px] text-rp-text-muted">
+                  {tr('Chọn một chặng để xem các bài học và bài kiểm tra cuối chặng.')}
+                </p>
+              </div>
+              {roadmap.placementAttemptId ? (
+                <Link to={`/app/placement-test/?attemptId=${roadmap.placementAttemptId}`} className="rp-link text-[12px] font-semibold">
+                  {tr('Xem kết quả đánh giá')}
+                </Link>
+              ) : (
+                <Link to="/app/placement-test" className="rp-link text-[12px] font-semibold">
+                  {tr('Làm bài đánh giá năng lực')}
+                </Link>
+              )}
+            </div>
+
+            {stages.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                illustration="book"
+                title={trf('Kho học liệu chưa có bài học JLPT {0} khả dụng.', { 0: roadmap.targetJlptLevelName || '' })}
+                description={tr('Nội dung sẽ xuất hiện khi bài học được duyệt và công bố.')}
+              />
+            ) : (
+              <JourneyMap
+                stages={stages.map(toJourneyStageView)}
+                currentKey={focusStage ? stageKey(focusStage) : null}
+                goalLabel={roadmap.targetJlptLevelName ? trf('Mục tiêu JLPT {0}', { 0: roadmap.targetJlptLevelName }) : null}
+                goalReached={totalLessons > 0 && completedLessons >= totalLessons}
+              />
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }

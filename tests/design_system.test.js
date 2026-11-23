@@ -53,10 +53,14 @@ describe('design system: checkbox & radio', () => {
     assert.match(ds, /:is\(input\[type="checkbox"\]\):indeterminate/);
   });
 
-  it('keeps the shared Checkbox on a real <input type="checkbox"> with the animated tick', () => {
+  it('keeps the shared Checkbox & Radio on real native inputs with the animated checkmark tick', () => {
     assert.match(core, /<input id=\{id\} type="checkbox" className="rp-check peer/);
     assert.match(core, /className="rp-check-tick"/);
     assert.match(tokens, /\.rp-check:checked \+ \.rp-check-box \.rp-check-tick \{[^}]*animation: rp-check-draw/);
+
+    assert.match(core, /<input id=\{id\} type="radio" className="rp-radio peer/);
+    assert.match(core, /className="rp-radio-tick"/);
+    assert.match(tokens, /\.rp-radio:checked \+ \.rp-radio-box \.rp-radio-tick \{[^}]*animation: rp-check-draw/);
   });
 
   it('no page re-introduces the browser default checkbox tint', () => {

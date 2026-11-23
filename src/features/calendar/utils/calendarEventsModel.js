@@ -98,10 +98,181 @@ function formatHm(hour, minute) {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-export function extractSrsDueCount(srsQueue) {
+const VALID_SRS_MODES = new Set(['flip', 'typing', 'mcq', 'mixed']);
+
+function normalizeSrsMode(value, fallback = 'flip') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'multiplechoice' || raw === 'multiple_choice') return 'mcq';
+  if (VALID_SRS_MODES.has(raw)) return raw;
+  return VALID_SRS_MODES.has(fallback) ? fallback : 'flip';
+}
+
+export function extractSrsDueCount(srsQueue, srsSummary = null) {
+  if (srsSummary && srsSummary.dueTodayCount != null) {
+    return Math.max(0, Number(srsSummary.dueTodayCount) || 0);
+  }
   if (!srsQueue) return 0;
   if (Array.isArray(srsQueue)) return srsQueue.length;
   return Number(srsQueue.totalDue ?? srsQueue.dueCount ?? (Array.isArray(srsQueue.items) ? srsQueue.items.length : 0)) || 0;
+}
+
+export function extractSrsCalendarState({
+  srsSummary = null,
+  srsQueue = null,
+  srsCalendarDays = [],
+  activeSession = null,
+  nowMs = Date.now(),
+} = {}) {
+  const todayKey = (srsSummary?.studyTodayDate && String(srsSummary.studyTodayDate).slice(0, 10))
+    || toVnDateKey(new Date(nowMs));
+  const dueNowCount = extractSrsDueCount(srsQueue, srsSummary);
+  const dueLaterTodayCount = Math.max(0, Number(srsSummary?.dueLaterTodayCount) || 0);
+  const reviewedTodayCount = Math.max(0, Number(srsSummary?.reviewedTodayCount) || 0);
+  const activeCardsCount = Math.max(0, Number(srsSummary?.activeCards ?? srsSummary?.totalCards) || 0);
+  const nextDueAtUtc = srsSummary?.nextDueAtUtc || srsQueue?.nextDueAtUtc || null;
+  const preferredReviewMode = normalizeSrsMode(srsSummary?.preferredReviewMode || srsQueue?.studyMode, 'flip');
+
+  const isExplicitSessionOpen = Boolean(
+    activeSession
+    && activeSession.status !== 'Completed'
+    && activeSession.status !== 'Abandoned'
+    && !activeSession.isFinished,
+  );
+  const explicitPendingCount = Array.isArray(activeSession?.pendingItems)
+    ? activeSession.pendingItems.length
+    : activeSession?.pendingCount;
+  const rawActivePending = isExplicitSessionOpen && explicitPendingCount != null
+    ? explicitPendingCount
+    : srsSummary?.activeSessionPendingCount;
+  const summaryRequestsActive = isExplicitSessionOpen || Boolean(srsSummary?.hasActiveSession);
+  const activeSessionPendingCount = rawActivePending != null
+    ? Math.max(0, Number(rawActivePending) || 0)
+    : (summaryRequestsActive && dueNowCount > 0 ? dueNowCount : 0);
+  const hasActiveSession = Boolean(summaryRequestsActive && activeSessionPendingCount > 0);
+  const activeSessionStudyMode = normalizeSrsMode(
+    (isExplicitSessionOpen ? activeSession?.studyMode : null) || srsSummary?.activeSessionStudyMode,
+    preferredReviewMode,
+  );
+  const activeSessionKey = (isExplicitSessionOpen ? activeSession?.sessionKey : null)
+    || srsSummary?.activeSessionKey
+    || null;
+  const reminderHour = Number.isFinite(Number(srsSummary?.reminderHour)) ? Number(srsSummary.reminderHour) : 20;
+  const reminderMinute = Number.isFinite(Number(srsSummary?.reminderMinute)) ? Number(srsSummary.reminderMinute) : 0;
+
+  const daysMap = new Map();
+
+  const upsertDay = (raw) => {
+    if (!raw) return;
+    const dayKey = String(raw.date || raw.dayKey || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return;
+    const prev = daysMap.get(dayKey) || {
+      dayKey,
+      dueNowCount: 0,
+      dueLaterCount: 0,
+      dueScheduledCount: 0,
+      reviewedCount: 0,
+      rememberedCount: 0,
+      earliestDueAtUtc: null,
+      nextDueAtUtc: null,
+      status: 'None',
+    };
+
+    const isPast = dayKey < todayKey;
+    const rawScheduled = Number(raw.dueScheduledCount ?? raw.dueCount ?? 0) || 0;
+    const rawDueNow = isPast ? 0 : (Number(raw.dueNowCount ?? (dayKey === todayKey ? rawScheduled : 0)) || 0);
+    const rawDueLater = isPast
+      ? 0
+      : (raw.dueLaterCount != null
+        ? Number(raw.dueLaterCount) || 0
+        : (dayKey > todayKey ? rawScheduled : 0));
+    const resolvedScheduled = isPast ? 0 : Math.max(rawScheduled, rawDueNow + rawDueLater);
+    const resolvedReviewed = Math.max(prev.reviewedCount, Number(raw.reviewedCount) || 0);
+    const resolvedRemembered = Math.max(prev.rememberedCount, Number(raw.rememberedCount) || 0);
+
+    daysMap.set(dayKey, {
+      dayKey,
+      dueNowCount: rawDueNow,
+      dueLaterCount: rawDueLater,
+      dueScheduledCount: resolvedScheduled,
+      reviewedCount: resolvedReviewed,
+      rememberedCount: resolvedRemembered,
+      earliestDueAtUtc: raw.earliestDueAtUtc || prev.earliestDueAtUtc || null,
+      nextDueAtUtc: raw.nextDueAtUtc || prev.nextDueAtUtc || null,
+      status: raw.status || prev.status || 'None',
+    });
+  };
+
+  (Array.isArray(srsCalendarDays) ? srsCalendarDays : []).forEach(upsertDay);
+  (Array.isArray(srsSummary?.forecastNext7Days) ? srsSummary.forecastNext7Days : []).forEach(upsertDay);
+  (Array.isArray(srsSummary?.calendarDays) ? srsSummary.calendarDays : []).forEach(upsertDay);
+
+  const prevToday = daysMap.get(todayKey) || {};
+  const todayScheduled = dueNowCount + dueLaterTodayCount;
+  const todayReviewed = Math.max(prevToday.reviewedCount || 0, reviewedTodayCount);
+  daysMap.set(todayKey, {
+    dayKey: todayKey,
+    dueNowCount,
+    dueLaterCount: dueLaterTodayCount,
+    dueScheduledCount: todayScheduled,
+    reviewedCount: todayReviewed,
+    rememberedCount: Math.max(prevToday.rememberedCount || 0, Number(srsSummary?.correctTodayCount) || 0),
+    earliestDueAtUtc: prevToday.earliestDueAtUtc || (dueLaterTodayCount > 0 ? nextDueAtUtc : null),
+    nextDueAtUtc,
+    status: hasActiveSession
+      ? 'ActiveSession'
+      : dueNowCount > 0
+        ? 'DueNow'
+        : dueLaterTodayCount > 0
+          ? 'DueLaterToday'
+          : todayReviewed > 0
+            ? 'CompletedToday'
+            : 'NoCardsDueToday',
+  });
+
+  if (nextDueAtUtc) {
+    const nextDayKey = toVnDateKey(nextDueAtUtc);
+    if (nextDayKey && nextDayKey > todayKey) {
+      const existingNext = daysMap.get(nextDayKey);
+      if (existingNext) {
+        if (!existingNext.earliestDueAtUtc) {
+          existingNext.earliestDueAtUtc = nextDueAtUtc;
+        }
+      } else if (activeCardsCount > 0) {
+        daysMap.set(nextDayKey, {
+          dayKey: nextDayKey,
+          dueNowCount: 0,
+          dueLaterCount: 1,
+          dueScheduledCount: 1,
+          reviewedCount: 0,
+          rememberedCount: 0,
+          earliestDueAtUtc: nextDueAtUtc,
+          nextDueAtUtc,
+          status: 'ScheduledFuture',
+        });
+      }
+    }
+  }
+
+  return {
+    todayKey,
+    dueNowCount,
+    dueLaterTodayCount,
+    reviewedTodayCount: todayReviewed,
+    activeCardsCount,
+    nextDueAtUtc,
+    preferredReviewMode,
+    hasActiveSession,
+    activeSessionKey,
+    activeSessionStudyMode,
+    activeSessionPendingCount,
+    reminderHour,
+    reminderMinute,
+    // Scheduled review lives on the due page; the active session (any mode) resumes there.
+    reviewHref: hasActiveSession ? '/daily-srs/due/?resume=1' : '/daily-srs/due/',
+    libraryHref: '/daily-srs/library/',
+    overviewHref: '/daily-srs',
+    daysMap,
+  };
 }
 
 export function classifyHomeworkItem(item, nowMs = Date.now()) {
@@ -133,7 +304,11 @@ export function buildLearnerCalendarEvents({
   courses = [],
   homeworks = [],
   changeRequests = [],
+  notifications = [],
   srsQueue = null,
+  srsSummary = null,
+  srsCalendarDays = [],
+  activeSession = null,
   nowMs = Date.now(),
   tr = defaultTr,
   trf = defaultTrf,
@@ -207,9 +382,11 @@ export function buildLearnerCalendarEvents({
             : sessionStatusLabel(session);
 
       const courseHref = course.id ? `/my-courses/${course.id}` : '/my-courses';
+      const isCompleted = COMPLETED_STATUSES.has(session.status);
       events.push({
         id: `session-${course.id}-${session.id}`,
         eventType: 'session',
+        category: 'session',
         courseId: course.id,
         cohortId: course.cohortId,
         sessionId: session.id,
@@ -226,6 +403,10 @@ export function buildLearnerCalendarEvents({
         detail: `${course.mentorName || tr('Giáo viên')} · ${formatHm(startHour, startMinute)}–${formatHm(endHour, endMinute)}`,
         statusLabel,
         tone,
+        isCompleted,
+        isCancelled,
+        isRescheduled,
+        isLive: joinState.isLive,
         canJoin: joinState.canJoin,
         joinReason: joinState.reason,
         roomHref: joinState.roomHref,
@@ -275,9 +456,13 @@ export function buildLearnerCalendarEvents({
         ? (hw.publishedGrade.passed ? tr('Đạt') : tr('Chưa đạt'))
         : null;
 
+    const isCompleted = status.kind === 'graded' || status.kind === 'submitted';
+    const isOverdue = status.kind === 'overdue';
+
     events.push({
       id: `hw-${hw.id}`,
       eventType: 'homework',
+      category: 'homework',
       homeworkId: hw.id,
       cohortId: hw.cohortId,
       courseId: matchedCourse?.id || hw.studyCourseId || null,
@@ -291,8 +476,10 @@ export function buildLearnerCalendarEvents({
       courseTitle,
       detail: `${courseTitle} · ${tr(status.label)}`,
       statusLabel: tr(status.label),
-      tone: status.kind === 'graded' || status.kind === 'submitted' ? 'present' : 'homework',
+      tone: 'homework',
       homeworkStatusKind: status.kind,
+      isCompleted,
+      isOverdue,
       href: hwHref,
       hrefLabel: 'Mở bài tập',
       secondaryHref: workspaceHref,
@@ -308,33 +495,222 @@ export function buildLearnerCalendarEvents({
     });
   });
 
-  const dueSrsCount = extractSrsDueCount(srsQueue);
-  if (dueSrsCount > 0) {
-    const todayKey = toVnDateKey(new Date(nowMs));
-    events.push({
-      id: `srs-${todayKey}`,
-      eventType: 'srs',
-      scheduledAt: new Date(nowMs).toISOString(),
-      dayKey: todayKey,
-      startHour: 8,
-      startMinute: 0,
-      endHour: 8,
-      endMinute: 45,
-      title: trf('Ôn tập SRS hôm nay ({0} thẻ)', { 0: dueSrsCount }),
-      detail: tr('Hàng đợi thẻ ghi nhớ cần ôn trong ngày'),
-      statusLabel: trf('{0} thẻ cần ôn', { 0: dueSrsCount }),
-      tone: 'srs',
-      href: '/daily-srs',
-      hrefLabel: 'Bắt đầu ôn tập',
-      secondaryHref: '/vocabulary',
-      secondaryLabel: 'Mở từ vựng',
-      metaRows: [
-        { label: 'Số thẻ hôm nay', value: trf('{0} thẻ đến hạn', { 0: dueSrsCount }) },
-        { label: 'Loại lịch', value: tr('Ôn tập cách quãng (SRS)') },
-      ],
-      z: 1,
+  const srsState = extractSrsCalendarState({
+    srsSummary,
+    srsQueue,
+    srsCalendarDays,
+    activeSession,
+    nowMs,
+  });
+
+  const sortedSrsDays = [...srsState.daysMap.values()].sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+  sortedSrsDays.forEach((dayInfo) => {
+    const { dayKey } = dayInfo;
+    if (dayKey === srsState.todayKey) {
+      if (srsState.hasActiveSession && srsState.activeSessionPendingCount > 0) {
+        const activePending = srsState.activeSessionPendingCount;
+        events.push({
+          id: `srs-${dayKey}`,
+          eventType: 'srs',
+          category: 'srs',
+          srsState: 'active_session',
+          srsCount: dayInfo.dueNowCount,
+          activeSessionPendingCount: activePending,
+          hasActiveSession: true,
+          reviewedCount: dayInfo.reviewedCount,
+          canReviewNow: true,
+          scheduledAt: new Date(nowMs).toISOString(),
+          dayKey,
+          startHour: 7,
+          startMinute: 0,
+          endHour: 7,
+          endMinute: 45,
+          title: tr('Tiếp tục ôn tập'),
+          fullTitle: trf('Tiếp tục ôn tập · Còn {0} thẻ chưa hoàn thành', { 0: activePending }),
+          detail: trf('Còn {0} thẻ chưa hoàn thành', { 0: activePending }),
+          statusLabel: tr('Đang có phiên ôn'),
+          tone: 'srs',
+          href: srsState.reviewHref,
+          hrefLabel: 'Tiếp tục ôn',
+          secondaryHref: srsState.libraryHref,
+          secondaryLabel: 'Xem thẻ',
+          metaRows: [
+            { label: 'Hoạt động', value: tr('Tiếp tục ôn tập') },
+            { label: 'Thẻ còn lại trong phiên', value: trf('Còn {0} thẻ chưa hoàn thành', { 0: activePending }) },
+            dayInfo.dueNowCount > 0
+              ? { label: 'Số thẻ cần ôn', value: trf('{0} thẻ cần ôn', { 0: dayInfo.dueNowCount }) }
+              : null,
+            { label: 'Trạng thái', value: tr('Đang có phiên ôn tập') },
+          ].filter(Boolean),
+          z: 2,
+        });
+      } else if (dayInfo.dueNowCount > 0) {
+        const count = dayInfo.dueNowCount;
+        const statusLabel = trf('{0} thẻ cần ôn', { 0: count });
+        const detail = dayInfo.reviewedCount > 0
+          ? trf('{0} thẻ cần ôn · Đã ôn {1} lượt hôm nay', { 0: count, 1: dayInfo.reviewedCount })
+          : trf('{0} thẻ cần ôn hôm nay', { 0: count });
+
+        events.push({
+          id: `srs-${dayKey}`,
+          eventType: 'srs',
+          category: 'srs',
+          srsState: 'due_now',
+          srsCount: count,
+          activeSessionPendingCount: 0,
+          hasActiveSession: false,
+          reviewedCount: dayInfo.reviewedCount,
+          canReviewNow: true,
+          scheduledAt: new Date(nowMs).toISOString(),
+          dayKey,
+          startHour: 7,
+          startMinute: 0,
+          endHour: 7,
+          endMinute: 45,
+          title: trf('{0} thẻ cần ôn', { 0: count }),
+          fullTitle: trf('Ôn tập · {0} thẻ cần ôn', { 0: count }),
+          detail,
+          statusLabel,
+          tone: 'srs',
+          href: srsState.reviewHref,
+          hrefLabel: 'Ôn ngay',
+          secondaryHref: srsState.libraryHref,
+          secondaryLabel: 'Xem thẻ',
+          metaRows: [
+            { label: 'Hoạt động', value: tr('Ôn tập') },
+            { label: 'Số thẻ cần ôn', value: trf('{0} thẻ cần ôn', { 0: count }) },
+            dayInfo.reviewedCount > 0
+              ? { label: 'Đã ôn hôm nay', value: trf('{0} lượt', { 0: dayInfo.reviewedCount }) }
+              : null,
+            { label: 'Trạng thái', value: tr('Có thể ôn ngay') },
+          ].filter(Boolean),
+          z: 2,
+        });
+      } else if (dayInfo.dueLaterCount > 0) {
+        const count = dayInfo.dueLaterCount;
+        const dueParts = dayInfo.earliestDueAtUtc
+          ? toVnTimeParts(dayInfo.earliestDueAtUtc)
+          : {
+            hour: srsState.reminderHour,
+            minute: srsState.reminderMinute,
+            hhmm: formatHm(srsState.reminderHour, srsState.reminderMinute),
+          };
+        const { startHour, startMinute, endHour, endMinute } = clampEventWindow(dueParts, 45);
+        events.push({
+          id: `srs-${dayKey}`,
+          eventType: 'srs',
+          category: 'srs',
+          srsState: 'due_later_today',
+          srsCount: count,
+          reviewedCount: dayInfo.reviewedCount,
+          canReviewNow: false,
+          dueTimeLabel: dueParts.hhmm,
+          scheduledAt: dayInfo.earliestDueAtUtc || new Date(nowMs).toISOString(),
+          dayKey,
+          startHour,
+          startMinute,
+          endHour,
+          endMinute,
+          title: trf('{0} thẻ cần ôn', { 0: count }),
+          fullTitle: trf('Ôn tập · {0} thẻ cần ôn', { 0: count }),
+          detail: trf('Ôn tiếp lúc {0} hôm nay', { 0: dueParts.hhmm }),
+          statusLabel: trf('Ôn tiếp lúc {0}', { 0: dueParts.hhmm }),
+          tone: 'srs',
+          href: srsState.libraryHref,
+          hrefLabel: 'Xem thẻ',
+          secondaryHref: srsState.overviewHref,
+          secondaryLabel: 'Tổng quan',
+          metaRows: [
+            { label: 'Hoạt động', value: tr('Ôn tập') },
+            { label: 'Số thẻ cần ôn', value: trf('{0} thẻ cần ôn', { 0: count }) },
+            { label: 'Thời gian dự kiến', value: trf('Ôn tiếp lúc {0}', { 0: dueParts.hhmm }) },
+            { label: 'Trạng thái', value: tr('Dự kiến đến hạn trong ngày') },
+          ],
+          z: 1,
+        });
+      }
+      return;
+    }
+
+    if (dayKey > srsState.todayKey && dayInfo.dueScheduledCount > 0) {
+      const count = dayInfo.dueScheduledCount;
+      const dueParts = dayInfo.earliestDueAtUtc
+        ? toVnTimeParts(dayInfo.earliestDueAtUtc)
+        : { hour: 7, minute: 0, hhmm: '07:00' };
+      const { startHour, startMinute, endHour, endMinute } = clampEventWindow(dueParts, 45);
+      const shortDate = dayKey.split('-').reverse().join('/');
+      const scheduledIso = dayInfo.earliestDueAtUtc || `${dayKey}T00:00:00Z`;
+
+      events.push({
+        id: `srs-${dayKey}`,
+        eventType: 'srs',
+        category: 'srs',
+        srsState: 'scheduled_future',
+        srsCount: count,
+        reviewedCount: 0,
+        canReviewNow: false,
+        isFutureSrs: true,
+        dueTimeLabel: dueParts.hhmm,
+        scheduledAt: scheduledIso,
+        dayKey,
+        startHour,
+        startMinute,
+        endHour,
+        endMinute,
+        title: trf('{0} thẻ cần ôn', { 0: count }),
+        fullTitle: trf('Ôn tập · {0} thẻ cần ôn', { 0: count }),
+        detail: trf('Ôn tiếp lúc {0} · Dự kiến đến hạn', { 0: dueParts.hhmm }),
+        statusLabel: trf('Ôn tiếp lúc {0}', { 0: dueParts.hhmm }),
+        tone: 'srs',
+        href: srsState.libraryHref,
+        hrefLabel: 'Xem thẻ',
+        secondaryHref: srsState.overviewHref,
+        secondaryLabel: 'Tổng quan',
+        metaRows: [
+          { label: 'Hoạt động', value: tr('Ôn tập') },
+          { label: 'Số thẻ dự kiến', value: trf('{0} thẻ cần ôn', { 0: count }) },
+          { label: 'Thời gian dự kiến', value: `${dueParts.hhmm} · ${shortDate}` },
+          { label: 'Trạng thái', value: tr('Dự kiến đến hạn — mở ôn khi đến ngày') },
+        ],
+        z: 1,
+      });
+    }
+  });
+
+  // Actionable / schedule-related notifications (Blue reminder category) —
+  // SRS reminder notifications reconcile to the canonical SRS activity and never render a duplicate blue card.
+  reconcileCalendarScheduleNotifications(notifications, { fallbackDayKey: srsState.todayKey })
+    .slice(0, 6)
+    .forEach((n, idx) => {
+      const rawIso = n.scheduledAt || n.createdAt;
+      const dayKey = (rawIso && toVnDateKey(rawIso)) || srsState.todayKey;
+      const timeParts = rawIso ? toVnTimeParts(rawIso) : { hour: 8, minute: (idx * 15) % 60 };
+      const { startHour, startMinute, endHour, endMinute } = clampEventWindow(timeParts, 30);
+      events.push({
+        id: `reminder-${n.id || idx}`,
+        businessKey: getCalendarNotificationBusinessKey(n, dayKey),
+        eventType: 'reminder',
+        category: 'reminder',
+        notificationId: n.id,
+        scheduledAt: rawIso || new Date(nowMs).toISOString(),
+        dayKey,
+        startHour,
+        startMinute,
+        endHour,
+        endMinute,
+        title: n.title || tr('Nhắc nhở lịch học'),
+        detail: n.message || tr('Thông báo liên quan đến lịch học'),
+        statusLabel: tr('Nhắc nhở'),
+        tone: 'reminder',
+        href: n.linkUrl || '/calendar',
+        hrefLabel: 'Xem chi tiết',
+        metaRows: [
+          { label: 'Loại', value: tr('Nhắc nhở / Thông báo') },
+          n.message ? { label: 'Nội dung', value: n.message } : null,
+        ].filter(Boolean),
+        z: 1,
+      });
     });
-  }
 
   return events.sort((a, b) => {
     if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
@@ -458,12 +834,72 @@ export function buildMentorCalendarEvents({
   });
 }
 
-const SCHEDULE_NOTIF_RE = /\/my-courses|\/homework|\/work-schedule|\/mentor-availability|\/calendar|\/admin\/mentor-schedules|\/admin\/study-courses|\/mentor\/cohorts|\/mentor-study-courses|\/mentor\/schedule|buổi học|bài tập|dời lịch|lịch học|lịch dạy|khung rảnh|phòng học|điểm danh/i;
+const SCHEDULE_NOTIF_RE = /\/my-courses|\/homework|\/work-schedule|\/mentor-availability|\/calendar|\/daily-srs|\/admin\/mentor-schedules|\/admin\/study-courses|\/mentor\/cohorts|\/mentor-study-courses|\/mentor\/schedule|buổi học|bài tập|dời lịch|lịch học|lịch dạy|khung rảnh|phòng học|điểm danh|thẻ SRS|ôn tập/i;
 
 const AUTHOR_NOTIF_RE = /\/author-dashboard|\/content-manual|\/bulk-import|\/content-studio|\/lesson-cms|học liệu|nhập liệu|chờ duyệt|đã duyệt|bị từ chối/i;
 
+const SRS_NOTIFICATION_TYPES = new Set([
+  'srsreminder',
+  'srs_reminder',
+  'srsdue',
+  'srsduereminder',
+  'srs_due_reminder',
+  'srs',
+]);
+
+function normalizeNotificationLinkPath(linkUrl) {
+  if (typeof linkUrl !== 'string') return '';
+  return linkUrl.trim().split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase();
+}
+
+/** Identifies SRS reminder notifications via stable domain type / event key / route (never title strings). */
+export function isSrsActivityNotification(item) {
+  if (!item || typeof item !== 'object') return false;
+  const typeKey = String(item.type || item.notificationType || '').trim().toLowerCase();
+  if (typeKey && SRS_NOTIFICATION_TYPES.has(typeKey)) return true;
+
+  const eventTypeKey = String(item.eventType || item.category || item.entityType || '').trim().toLowerCase();
+  if (eventTypeKey === 'srs' || eventTypeKey === 'srsreminder' || eventTypeKey === 'srsreview') return true;
+
+  const idempKey = String(item.idempotencyKey || item.eventKey || '').trim().toLowerCase();
+  if (idempKey.startsWith('srs-') || idempKey.startsWith('srsreminder')) return true;
+
+  const path = normalizeNotificationLinkPath(item.linkUrl || item.href);
+  return path === '/daily-srs' || path.startsWith('/daily-srs/');
+}
+
+export function getCalendarNotificationBusinessKey(item, fallbackDayKey = '') {
+  if (!item || typeof item !== 'object') return '';
+  const rawIso = item.scheduledAt || item.createdAt;
+  const dayKey = (rawIso && toVnDateKey(rawIso)) || fallbackDayKey || '';
+  if (isSrsActivityNotification(item)) {
+    return `srs:${dayKey}`;
+  }
+  const explicitKey = String(item.idempotencyKey || item.eventKey || '').trim();
+  if (explicitKey) return `notif:${explicitKey}`;
+  if (item.id != null) return `notif:${item.id}`;
+  return `notif:${normalizeNotificationLinkPath(item.linkUrl || item.href)}:${dayKey}`;
+}
+
+export function reconcileCalendarScheduleNotifications(notifications = [], { fallbackDayKey = '' } = {}) {
+  const seen = new Set();
+  const list = [];
+  (Array.isArray(notifications) ? notifications : []).forEach((n) => {
+    if (!n || n.isRead || !isScheduleNotification(n)) return;
+    // SRS review state on Calendar is owned by canonical Yellow SRS cards (Priority 1/2/3);
+    // never emit duplicate or stale Blue SRS cards from reminder history.
+    if (isSrsActivityNotification(n)) return;
+    const key = getCalendarNotificationBusinessKey(n, fallbackDayKey);
+    if (key && seen.has(key)) return;
+    if (key) seen.add(key);
+    list.push(n);
+  });
+  return list;
+}
+
 export function isScheduleNotification(item) {
   if (!item) return false;
+  if (item.type === 'SrsReminder' && item.isRead) return false;
   const hay = `${item.linkUrl || ''} ${item.title || ''} ${item.message || ''}`;
   return SCHEDULE_NOTIF_RE.test(hay);
 }
@@ -522,10 +958,42 @@ export function buildUpcomingHeaderSummary({
   const sevenDaysEnd = toVnDateKey(new Date(nowMs + 7 * 86_400_000));
 
   const dayTonesMap = new Map();
+  const addDayTone = (dayKey, categoryKey) => {
+    if (!dayKey || !categoryKey) return;
+    if (!dayTonesMap.has(dayKey)) dayTonesMap.set(dayKey, new Set());
+    dayTonesMap.get(dayKey).add(categoryKey);
+  };
+
   events.forEach((ev) => {
     if (!ev.dayKey) return;
-    if (!dayTonesMap.has(ev.dayKey)) dayTonesMap.set(ev.dayKey, new Set());
-    dayTonesMap.get(ev.dayKey).add(ev.tone || 'session');
+    if (ev.tone === 'cancelled' || ev.isCancelled) return;
+    if (ev.eventType === 'homework' && (ev.isCompleted || ev.homeworkStatusKind === 'graded' || ev.homeworkStatusKind === 'submitted')) {
+      return;
+    }
+    if (ev.eventType === 'srs') {
+      if (ev.canReviewNow || ev.srsState === 'due_later_today' || ev.srsState === 'scheduled_future') {
+        addDayTone(ev.dayKey, 'srs');
+      }
+      return;
+    }
+    if (ev.eventType === 'homework') {
+      addDayTone(ev.dayKey, 'homework');
+      return;
+    }
+    if (ev.eventType === 'reminder' || ev.tone === 'reminder') {
+      addDayTone(ev.dayKey, 'reminder');
+      return;
+    }
+    addDayTone(ev.dayKey, ev.tone || 'session');
+  });
+
+  const scheduleNotifications = reconcileCalendarScheduleNotifications(notifications, { fallbackDayKey: todayKey });
+  scheduleNotifications.forEach((n) => {
+    const rawIso = n.scheduledAt || n.createdAt;
+    if (rawIso) {
+      const dk = toVnDateKey(rawIso);
+      if (dk) addDayTone(dk, 'reminder');
+    }
   });
 
   const sessions = events.filter((ev) => ev.eventType === 'session');
@@ -549,11 +1017,17 @@ export function buildUpcomingHeaderSummary({
     });
 
   const todayEvents = events.filter((ev) => ev.dayKey === todayKey);
-  const scheduleNotifications = (Array.isArray(notifications) ? notifications : []).filter(isScheduleNotification);
+  const todayActionCount = todayEvents.filter((ev) => {
+    if (ev.tone === 'cancelled') return false;
+    if (ev.eventType === 'srs') return ev.canReviewNow || ev.srsState === 'due_later_today';
+    if (ev.eventType === 'homework') return ev.homeworkStatusKind !== 'submitted' && ev.homeworkStatusKind !== 'graded';
+    return true;
+  }).length;
 
   return {
     todayKey,
     todayEvents,
+    todayActionCount,
     liveSessions,
     upcomingSessions,
     upcoming7DaysSessions,

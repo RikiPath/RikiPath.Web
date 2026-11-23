@@ -12,6 +12,7 @@ export const ADMIN_KEYS = {
   mentorQualifications: ['admin-mentor-qualifications'],
   mentorKpis: ['admin-mentor-kpis'],
   pendingSlots: ['admin-pending-slots'],
+  teachingProposals: ['admin-teaching-proposals'],
   mentorSlots: ['admin-mentor-slots'],
   mentorCalendar: ['admin-mentor-calendar'],
   mentorTemplates: ['admin-mentor-templates'],
@@ -39,7 +40,7 @@ export function invalidateAdminDomains(queryClient, domains = []) {
     add(ADMIN_KEYS.mentors, ADMIN_KEYS.mentorProfiles, ADMIN_KEYS.mentorVerifications, ADMIN_KEYS.mentorQualifications, ADMIN_KEYS.mentorKpis, ADMIN_KEYS.users, ADMIN_KEYS.dashboard);
   }
   if (domains.includes('schedules')) {
-    add(ADMIN_KEYS.pendingSlots, ADMIN_KEYS.mentorSlots, ADMIN_KEYS.mentorCalendar, ADMIN_KEYS.dashboard);
+    add(ADMIN_KEYS.pendingSlots, ADMIN_KEYS.teachingProposals, ADMIN_KEYS.mentorSlots, ADMIN_KEYS.mentorCalendar, ADMIN_KEYS.dashboard);
   }
   if (domains.includes('policy')) {
     add(ADMIN_KEYS.policyCurrent, ADMIN_KEYS.policyHistory, ADMIN_KEYS.policyForPlans, ADMIN_KEYS.dashboard);

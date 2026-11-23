@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
@@ -15,17 +15,21 @@ import {
 } from '@/features/practice/api/practiceExerciseApi.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
+  AnimatedScoreReveal,
   Badge,
   Banner,
   Button,
   Card,
+  CelebrationScene,
   ContextualEmptyState,
   ContextualErrorState,
   PageContainer,
+  ProgressBar,
   Radio,
   SakuraLoader,
   Textarea,
   notify,
+  shouldPlayCelebration,
 } from '@/components/ui';
 import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
 
@@ -33,6 +37,7 @@ export default function LessonPractice() {
   const { tr } = useLocale();
   const session = getSession();
   const uid = session?.userId ?? 'anon';
+  const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const lessonId = Number(params.get('lessonId')) || 0;
   const [attempt, setAttempt] = useState(null);
@@ -96,6 +101,10 @@ export default function LessonPractice() {
     onSuccess: (value) => {
       notify.success(tr('Đã nộp bài tập!'), '', { key: 'lesson-ex-submit', replace: true });
       setResult(value);
+      void queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] });
+      void queryClient.invalidateQueries({ queryKey: ['self-study-catalog'] });
+      void queryClient.invalidateQueries({ queryKey: ['learner', 'study-streak'] });
+      void queryClient.invalidateQueries({ queryKey: ['learner', 'completion-stats'] });
     },
     onError: (err) => notify.apiError(err, tr('Chưa nộp được bài tập'), { key: 'lesson-ex-submit', replace: true }),
   });
@@ -142,10 +151,11 @@ export default function LessonPractice() {
         {!lessonId && (
           <Card>
             <ContextualEmptyState
-              compact
+              variant="compact"
+              illustration="book"
               title="Chưa chọn bài học"
-              message="Vui lòng mở bài tập từ một bài học cụ thể."
-              action={<Link to="/lessons/"><Button variant="primary" size="sm">{tr('Mở danh sách bài học')}</Button></Link>}
+              description="Vui lòng mở bài tập từ một bài học cụ thể."
+              action={<Button as={Link} to="/lessons/" variant="primary" size="sm">{tr('Mở danh sách bài học')}</Button>}
             />
           </Card>
         )}
@@ -157,9 +167,10 @@ export default function LessonPractice() {
         {!attempt && exercises.length === 0 && listQuery.isSuccess && !quizQuery.isLoading && !quizQuery.isError && (
           <Card>
             <ContextualEmptyState
-              compact
+              variant="compact"
+              illustration="homework"
               title="Bài học này chưa có bài tập"
-              message="Bạn có thể quay lại bài học để tiếp tục phần nội dung khác."
+              description="Bạn có thể quay lại bài học để tiếp tục phần nội dung khác."
             />
           </Card>
         )}
@@ -250,14 +261,56 @@ export default function LessonPractice() {
         )}
 
         {result && (
-          <Card className="space-y-4">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-rp-brand-strong">{tr('Kết quả')}</p>
-              <p className="mt-1 text-[32px] font-semibold text-rp-brand-strong">{Math.round(result.scorePercent)}%</p>
-              <p className="text-xs text-rp-text-muted">
-                {result.correctCount}/{result.gradedQuestions || result.totalQuestions} {tr('câu đúng')}
-              </p>
-            </div>
+          <div className="space-y-4">
+            {(result.passed === true || (result.passed == null && Number(result.scorePercent) >= 70)) && (
+              <CelebrationScene
+                variant="inline"
+                tier="lesson"
+                onceKey={attempt?.attemptId ? `practice-${attempt.attemptId}` : undefined}
+                badge={tr('Hoàn thành bài luyện tập')}
+                title={tr('Bạn làm tốt lắm! Thêm một bước tiến rồi!')}
+                description={tr('Kết quả luyện tập đã được ghi nhận vào tiến độ học tập của bạn.')}
+                actions={(
+                  <>
+                    <Button as={Link} to="/roadmap/" variant="primary" size="sm">
+                      {tr('Về lộ trình học')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setAttempt(null);
+                        setResult(null);
+                        listQuery.refetch();
+                        quizQuery.refetch();
+                      }}
+                    >
+                      {tr('Chọn bài khác')}
+                    </Button>
+                  </>
+                )}
+              />
+            )}
+
+            <Card className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-rp-brand">{tr('Kết quả')}</p>
+                <p className="text-[32px] font-semibold tabular-nums text-rp-brand">
+                  <AnimatedScoreReveal
+                    key={attempt?.attemptId || 'practice-res'}
+                    value={Math.round(Number(result.scorePercent) || 0)}
+                    animate={
+                      attempt?.attemptId
+                        ? shouldPlayCelebration(`practice-score-${attempt.attemptId}`)
+                        : true
+                    }
+                  />
+                </p>
+                <p className="text-xs text-rp-text-muted">
+                  {result.correctCount}/{result.gradedQuestions || result.totalQuestions} {tr('câu đúng')}
+                </p>
+                <ProgressBar value={Number(result.scorePercent) || 0} max={100} label={tr('Kết quả bài tập')} />
+              </div>
             <ul className="space-y-3">
               {(result.results || []).map((item) => {
                 const q = questionLookup.get(item.questionId);
@@ -304,6 +357,7 @@ export default function LessonPractice() {
               {tr('Chọn bài khác')}
             </Button>
           </Card>
+          </div>
         )}
       </PageContainer>
     </LearnerShell>

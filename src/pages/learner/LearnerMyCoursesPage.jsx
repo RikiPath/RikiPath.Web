@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, BookCheck, CalendarDays, Clock, Compass, RefreshCw } from 'lucide-react';
+import { ArrowRight, BookCheck, Clock } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { recordDiagnostic } from '@/api/diagnostics.js';
 import { paymentStateMessage } from '@/api/apiErrors.js';
@@ -18,13 +18,14 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   PageContainer,
-  PageHeader,
   ProgressBar,
+  RefreshingIndicator,
   SakuraLoader,
-  Tabs,
+  UnifiedToolbar,
   cx,
   notify,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 
 const PAYOS_RETURN_KEYS = ['code', 'id', 'cancel', 'status', 'orderCode'];
 const COHORT_ORDER_PREFIX = 700_000_000;
@@ -160,21 +161,23 @@ export default function LearnerMyCoursesPage() {
   return (
     <LearnerShell breadcrumb={tr('Lớp của tôi')}>
       <PageContainer width="default" className="space-y-6">
-        <PageHeader
+        <IllustratedPageHeader
+          icon="group"
+          tone="sky"
           eyebrow={tr('Học nhóm')}
           title={tr('Lớp học của tôi')}
           description={tr('Mỗi lớp có không gian riêng với lịch học, bài tập, điểm danh và hỗ trợ theo đúng ngữ cảnh.')}
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Button as={Link} to="/calendar" variant="secondary" size="sm" icon={CalendarDays}>
-                {tr('Lịch học')}
-              </Button>
-              <Button as={Link} to="/cohorts" variant="primary" size="sm" icon={Compass}>
-                {tr('Khám phá thêm lớp')}
-              </Button>
-            </div>
-          }
         />
+
+        {coursesQuery.isFetching && !coursesQuery.isPending && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {actionError && (
           <Banner tone="danger" title={tr('Chưa thực hiện được')} onDismiss={() => setActionError('')}>
@@ -188,30 +191,24 @@ export default function LearnerMyCoursesPage() {
         )}
 
         {courses.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Tabs
-              variant="pill"
-              value={filter}
-              onChange={setFilter}
-              tabs={[
+          <UnifiedToolbar
+            tabs={{
+              label: tr('Lọc trạng thái lớp học'),
+              value: filter,
+              onChange: setFilter,
+              tabs: [
                 { value: 'ALL', label: tr('Tất cả') },
                 { value: 'ACTIVE', label: tr('Đang học & Sắp khai giảng') },
                 { value: 'PENDING', label: tr('Chờ thanh toán') },
                 { value: 'COMPLETED', label: tr('Đã hoàn thành / Đã hủy') },
-              ]}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => coursesQuery.refetch()}
-              disabled={coursesQuery.isFetching}
-              loading={coursesQuery.isFetching}
-              icon={RefreshCw}
-            >
-              {tr('Làm mới')}
-            </Button>
-          </div>
+              ],
+            }}
+            refresh={{
+              onRefresh: () => coursesQuery.refetch({ cancelRefetch: true }),
+              refreshing: coursesQuery.isFetching && !coursesQuery.isPending,
+              disabled: coursesQuery.isPending,
+            }}
+          />
         )}
 
         {coursesQuery.isPending ? (
@@ -230,7 +227,8 @@ export default function LearnerMyCoursesPage() {
         ) : filteredCourses.length === 0 ? (
           <Card className="p-6">
             <ContextualEmptyState
-              context="cohort"
+              context="groupLearning"
+              illustration={courses.length === 0 ? 'classroom' : 'search'}
               title={courses.length === 0 ? tr('Bạn chưa tham gia lớp nhóm nào') : tr('Không có lớp nào trong bộ lọc này')}
               description={
                 courses.length === 0

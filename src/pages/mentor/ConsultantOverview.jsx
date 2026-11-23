@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
   CalendarClock,
-  CheckCircle2,
   ClipboardCheck,
   ClipboardList,
   Radio,
@@ -25,7 +24,7 @@ import {
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
 import { toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
 import { useNow } from '@/hooks/useNow.js';
-import { Badge, Banner, Card, CardHeader, EmptyState, ErrorState, FeatureIcon, PageHeader, ProgressBar, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { Badge, Banner, Button, Card, CardHeader, EmptyState, ErrorState, FeatureIcon, PageHeader, ProgressBar, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
 // Teaching workspace. All metrics strictly reflect live Backend API responses (zero mocked/hardcoded numbers).
@@ -213,12 +212,9 @@ export default function ConsultantOverview() {
             tone="info"
             title={tr('Trang này hiển thị không gian giảng dạy cá nhân của Giáo viên')}
             actions={(
-              <Link
-                to="/admin/dashboard/"
-                className="rp-focus inline-flex h-9 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-xs font-semibold text-white hover:bg-rp-brand-strong"
-              >
+              <Button as={Link} to="/admin/dashboard/" variant="primary" size="sm">
                 {tr('Về Bảng điều khiển Quản trị')}
-              </Link>
+              </Button>
             )}
           >
             {tr('Vui lòng sử dụng khu vực Quản trị để điều phối đội ngũ Giáo viên và lớp học nhóm.')}
@@ -248,7 +244,7 @@ export default function ConsultantOverview() {
               <StaleDataBar onRetry={() => query.refetch()} retrying={query.isFetching} />
             )}
 
-            <dl style={{ '--rp-grid-min': '13rem' }} className="rp-fluid-grid">
+            <dl style={{ '--rp-grid-min': '13rem' }} className="rp-fluid-grid-fill">
               {stats.map((s) => (
                 <div key={s.label} className="rp-card-hover flex min-w-0 items-center gap-3 rounded-rp-card border border-rp-line bg-rp-surface p-[var(--rp-space-card-pad)] shadow-xs">
                   <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${s.tone}`}>
@@ -272,14 +268,14 @@ export default function ConsultantOverview() {
                   />
                   {!next ? (
                     <EmptyState
-                      compact
-                      art="calendar"
+                      variant="compact"
+                      illustration="calendar"
                       title={tr('Chưa có buổi dạy sắp tới')}
                       description={tr('Buổi học xuất hiện khi lớp nhóm của bạn được công bố và có học viên ghi danh.')}
                       action={<Link to="/mentor-shift-schedule/" className="rp-focus rp-link text-sm font-semibold">{tr('Đăng ký lịch dạy')}</Link>}
                     />
                   ) : (
-                    <div className="rounded-rp-input border border-rp-brand-soft bg-rp-brand-tint p-4">
+                    <div className="rounded-rp-input border border-rp-line bg-white p-4">
                       <div className="flex flex-wrap items-center gap-2">
                         {next.level && <Badge tone="brand" icon={false}>{next.level}</Badge>}
                         <Badge tone="info">{trf('Buổi {0}', { 0: next.number })}</Badge>
@@ -332,9 +328,12 @@ export default function ConsultantOverview() {
                   <Card>
                     <CardHeader title={tr('Chốt điểm danh chờ xử lý')} description={trf('{0} buổi đã kết thúc', { 0: pendingAttendance.length })} />
                     {pendingAttendance.length === 0 ? (
-                      <p className="flex items-center gap-2 text-sm text-rp-success">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />{' '}{tr('Không có buổi học nào trễ chốt điểm danh.')}
-                      </p>
+                      <EmptyState
+                        variant="inline"
+                        size="sm"
+                        illustration="done"
+                        title={tr('Không có buổi học nào trễ chốt điểm danh.')}
+                      />
                     ) : (
                       <ul className="space-y-2">
                         {pendingAttendance.slice(0, 4).map((p) => (
@@ -359,9 +358,12 @@ export default function ConsultantOverview() {
                     ) : homeworkQuery.isError ? (
                       <p className="text-xs text-rp-text-muted">{tr('Không tải được danh sách bài tập chờ chấm.')}</p>
                     ) : pendingGrading.length === 0 ? (
-                      <p className="flex items-center gap-2 text-sm text-rp-success">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />{' '}{tr('Đã chấm hết bài tập học viên đã nộp.')}
-                      </p>
+                      <EmptyState
+                        variant="inline"
+                        size="sm"
+                        illustration="done"
+                        title={tr('Đã chấm hết bài tập học viên đã nộp.')}
+                      />
                     ) : (
                       <ul className="space-y-2">
                         {pendingGrading.slice(0, 4).map((hw) => (

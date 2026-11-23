@@ -19,10 +19,12 @@ import {
   notify,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import { getSession } from '@/app/auth/session.js';
 import { bookmarkVocabulary, createNotebookList, getNotebookLists } from '@/features/notebook/api/notebookApi.js';
 import { getVocabulary, searchVocabulary } from '@/features/content-author/api/sharedBankApi.js';
 import HighlightableText from '@/features/notebook/components/HighlightableText.jsx';
+import SrsEnrollButton from '@/features/srs/components/SrsEnrollButton.jsx';
 
 function speakJapanese(text) {
   if (typeof window === 'undefined' || !window.speechSynthesis || !text) return;
@@ -62,14 +64,16 @@ export default function VocabWordDetail() {
     onSuccess: (res) => {
       setPickerOpen(false);
       if (res?.alreadyExists || res?.isExisting) {
-        notify.info(tr('Từ này đã có trong sổ từ'), '', { key: 'vocab-bm-dup' });
+        notify.info(tr('Từ này đã có trong Sổ tay'), '', { key: 'vocab-bm-dup' });
       } else {
-        notify.success(tr('Đã lưu vào sổ từ'), tr('Từ này đã có trong Sổ từ của bạn.'), {
+        notify.success(tr('Đã lưu từ vựng vào Sổ tay'), tr('Từ này đã được lưu vào Sổ tay cá nhân của bạn.'), {
           key: 'vocab-bm-ok',
-          action: { label: tr('Mở sổ từ'), onClick: () => navigate('/vocabulary/') },
+          action: { label: tr('Mở sổ tay'), onClick: () => navigate('/kanji-notebook/') },
         });
       }
       client.invalidateQueries({ queryKey: ['notebook-lists'] });
+      client.invalidateQueries({ queryKey: ['notebook-tree'] });
+      client.invalidateQueries({ queryKey: ['notebook-saved-items'] });
     },
     onError: (err) => {
       const code = err?.data?.errorCode || err?.errorCode;
@@ -77,7 +81,7 @@ export default function VocabWordDetail() {
         ? {
             action: {
               label: tr('Xem gói tự học'),
-              onClick: () => navigate('/plans/', { state: { from: { pathname: '/vocabulary-detail/' }, requiredFeatureLabel: tr('Sổ tay từ vựng') } }),
+              onClick: () => navigate('/plans/', { state: { from: { pathname: '/vocabulary-detail/' }, requiredFeatureLabel: tr('Sổ tay cá nhân') } }),
             },
           }
         : undefined);
@@ -118,14 +122,23 @@ export default function VocabWordDetail() {
 
   return (
     <LearnerShell breadcrumb={word?.word || tr('Chi tiết từ')}>
-      <PageContainer width="reading" density="comfortable" className="text-rp-text">
-        <Link to="/vocabulary/" className="rp-focus rp-link inline-flex items-center gap-1.5 rounded text-sm font-semibold">
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" /> {tr('Về sổ từ')}
-        </Link>
+      <PageContainer width="reading" density="comfortable" className="space-y-4 text-rp-text">
+        <IllustratedPageHeader
+          icon="vocabulary"
+          tone="mint"
+          compact
+          title={word?.word ? word.word : tr('Tra từ vựng tiếng Nhật')}
+          description={tr('Xem cách đọc, nghĩa, ví dụ và lưu nhanh vào Sổ tay cá nhân.')}
+          actions={
+            <Button as={Link} to="/kanji-notebook/" variant="secondary" size="md" icon={ArrowLeft}>
+              {tr('Về Sổ tay cá nhân')}
+            </Button>
+          }
+        />
 
         <form
           role="search"
-          className="mt-4 flex gap-2"
+          className="flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             setParams({});
@@ -158,6 +171,18 @@ export default function VocabWordDetail() {
                       {tr('Nghe')}
                     </Button>
                   )}
+                  <SrsEnrollButton
+                    vocabularyId={word.id}
+                    cardType="Vocabulary"
+                    sourceType="VocabBank"
+                    sourceId={word.id}
+                    sourceLabel={word.word}
+                    frontText={word.word}
+                    backText={word.meaning}
+                    reading={word.reading}
+                    meaning={word.meaning}
+                    jlptLevel={word.jlptLevelName}
+                  />
                   <Button variant="soft" icon={Bookmark} loading={save.isPending} onClick={handleOpenSave}>
                     {signedIn ? tr('Lưu vào sổ') : tr('Đăng nhập để lưu')}
                   </Button>
@@ -166,7 +191,7 @@ export default function VocabWordDetail() {
 
               <div className="space-y-5 px-6 py-5">
                 {!signedIn && (
-                  <Banner tone="info" actions={<Link to="/auth/"><Button variant="primary" size="sm">{tr('Đăng nhập')}</Button></Link>}>
+                  <Banner tone="info" actions={<Button as={Link} to="/auth/" variant="primary" size="sm">{tr('Đăng nhập')}</Button>}>
                     {tr('Đăng nhập tài khoản để lưu từ vào Sổ tay cá nhân và ôn tập SRS.')}
                   </Banner>
                 )}
@@ -212,12 +237,12 @@ export default function VocabWordDetail() {
           )}
 
           {wordId === 0 && !submitted && (
-            <Card><EmptyState compact icon={Search} title={tr('Tìm một từ để xem chi tiết')} description={tr('Gõ chữ Hán, cách đọc hoặc nghĩa tiếng Việt.')} /></Card>
+            <Card><EmptyState variant="compact" illustration="flashcard" title={tr('Tìm một từ để xem chi tiết')} description={tr('Gõ chữ Hán, cách đọc hoặc nghĩa tiếng Việt.')} /></Card>
           )}
           {wordId === 0 && submitted && searchQuery.isPending && <SakuraLoader variant="section" context="vocabulary" delay={160} />}
           {wordId === 0 && searchQuery.isError && <Card><ErrorState error={searchQuery.error} onRetry={() => searchQuery.refetch()} retrying={searchQuery.isFetching} compact /></Card>}
           {wordId === 0 && searchQuery.isSuccess && items.length === 0 && (
-            <Card><EmptyState compact art="search" title={tr('Không tìm thấy từ phù hợp')} description={tr('Thử từ khóa khác hoặc cách viết bằng kana.')} /></Card>
+            <Card><EmptyState variant="search" illustration="search" title={tr('Không tìm thấy từ phù hợp')} description={tr('Thử từ khóa khác hoặc cách viết bằng kana.')} /></Card>
           )}
           {items.length > 0 && wordId === 0 && (
             <ul className="space-y-2">

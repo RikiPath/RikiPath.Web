@@ -146,9 +146,10 @@ describe('Screen responsive regression guards', () => {
     assert.ok(kanaPage.includes('rp-fluid-grid'));
     assert.equal(kanaPage.includes("'grid-cols-5'"), false);
 
-    const vocab = readSrc('src/pages/learner/VocabularyNotebook.jsx');
-    assert.ok(vocab.includes('rp-scroll-x'));
-    assert.ok(vocab.includes('basis-[210px]'));
+    const notebook = readSrc('src/features/notebook/components/SmartNotebookWorkspace.jsx');
+    assert.ok(notebook.includes('lg:grid-cols-[280px_minmax(0,1fr)]'));
+    assert.ok(notebook.includes('NotebookVocabLookupSection'));
+    assert.equal(fs.existsSync(path.join(ROOT, 'src/pages/learner/VocabularyNotebook.jsx')), false);
 
     const landing = readSrc('src/pages/marketing/HomeLanding.jsx');
     const heroScene = readSrc('src/features/landing/components/HeroLearningScene.jsx');

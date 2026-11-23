@@ -44,7 +44,7 @@ function SlideImage({ slide, compact, animationPaused, priority, onError }) {
 
   return (
     <picture className="absolute inset-0 block">
-      <source type="image/webp" srcSet={srcSet(photo)} sizes={sizes} />
+      {photo.webp?.length > 0 && <source type="image/webp" srcSet={srcSet(photo)} sizes={sizes} />}
       <img
         src={photo.jpg}
         width={photo.width}
@@ -64,15 +64,37 @@ function SlideImage({ slide, compact, animationPaused, priority, onError }) {
   );
 }
 
+function SlideCopy({ slide, compact, tr }) {
+  const titleLines = slide.titleLines?.length ? slide.titleLines : [slide.caption];
+
+  return (
+    <div
+      className={cx('rp-auth-copy', compact && 'rp-auth-copy-compact')}
+      data-layout={slide.layout || 'left'}
+      data-reveal={slide.reveal || 'rise'}
+      data-title-size={slide.titleSize || 'default'}
+    >
+      {slide.eyebrow && <p className="rp-auth-copy-eyebrow rp-auth-reveal">{tr(slide.eyebrow)}</p>}
+      <h2 className="rp-auth-copy-title" aria-label={titleLines.map(tr).join(' ')}>
+        {titleLines.map((line) => (
+          <span className="rp-auth-copy-line rp-auth-reveal" key={line}>{tr(line)}</span>
+        ))}
+      </h2>
+      {!compact && slide.description && (
+        <p className="rp-auth-copy-description rp-auth-reveal">{tr(slide.description)}</p>
+      )}
+    </div>
+  );
+}
+
 /**
- * Scenic auth banner: 4-slide crossfade + subtle Ken Burns, preloaded WebP/JPG,
+ * Scenic auth banner: crossfade + subtle Ken Burns, preloaded WebP/JPG,
  * refined manual prev/next & dots controls, responsive desktop + mobile strip,
  * paused when tab hidden / off-screen, and reduced-motion compliant.
  */
 export default function AuthScenicCarousel({
   slides = AUTH_SLIDES,
   compact = false,
-  children,
   className,
 }) {
   const { trf, tr } = useLocale();
@@ -188,6 +210,7 @@ export default function AuthScenicCarousel({
         }
       }}
       onKeyDown={handleKeyDown}
+      data-paused={animationPaused}
       className={cx('relative isolate overflow-hidden bg-[#2A1520]', className)}
     >
       {layers.map((i) => {
@@ -231,9 +254,9 @@ export default function AuthScenicCarousel({
 
       {/* Vertical Japanese tagline (tategaki) on desktop */}
       {!compact && (
-        <div aria-hidden="true" className="pointer-events-none absolute left-7 top-8 z-[4] hidden flex-col items-center gap-3 sm:flex xl:left-10 xl:top-10">
+        <div key={currentSlide?.id || index} aria-hidden="true" className="rp-auth-vertical pointer-events-none absolute left-7 top-8 z-[4] hidden flex-col items-center gap-3 sm:flex xl:left-10 xl:top-10">
           <span lang="ja" className="rp-kanji text-[22px] leading-[1.25] tracking-[0.18em] text-white drop-shadow-[0_2px_10px_rgba(16,6,12,0.7)] [writing-mode:vertical-rl]">
-            日本語の学びの旅
+            {currentSlide?.verticalLabel}
           </span>
           <span className="h-10 w-px bg-white/55" />
           <svg viewBox="0 0 20 20" className="h-6 w-6 text-[#F7B6C8] drop-shadow" aria-hidden="true">
@@ -248,23 +271,22 @@ export default function AuthScenicCarousel({
       {/* Foreground content + subtle navigation dots & prev/next controls */}
       <div
         className={cx(
-          'relative z-[5] flex h-full flex-col justify-end',
+          'relative z-[5] flex h-full flex-col',
+          compact ? 'justify-between' : 'justify-end',
           compact ? 'p-3' : 'p-6 sm:p-8 xl:p-11',
         )}
       >
-        {!compact && children}
+        {currentSlide && <SlideCopy key={currentSlide.id || index} slide={currentSlide} compact={compact} tr={tr} />}
 
         {slides.length > 1 && (
           <div
             className={cx(
-              'flex items-center justify-between gap-3',
+              'relative flex items-center justify-between gap-3',
               compact ? '' : 'mt-6 border-t border-white/15 pt-4',
             )}
           >
             {compact ? (
-              <span className="truncate text-[11px] font-medium text-white/90 drop-shadow-sm">
-                {currentSlide?.caption}
-              </span>
+              <span className="sr-only">{tr(currentSlide?.caption || '')}</span>
             ) : (
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="tabular-nums text-xs font-semibold tracking-wider text-white/85">
@@ -272,7 +294,7 @@ export default function AuthScenicCarousel({
                 </span>
                 <span aria-hidden="true" className="h-3 w-px bg-white/25" />
                 <span className="truncate text-xs font-medium text-white/75">
-                  {currentSlide?.caption}
+                  {tr(currentSlide?.caption || '')}
                 </span>
               </div>
             )}
@@ -291,7 +313,7 @@ export default function AuthScenicCarousel({
                       type="button"
                       role="tab"
                       aria-selected={active}
-                      aria-label={trf('Ảnh {0}: {1}', { 0: i + 1, 1: slide.caption })}
+                      aria-label={trf('Ảnh {0}: {1}', { 0: i + 1, 1: tr(slide.caption) })}
                       onClick={() => goTo(i)}
                       className={cx(
                         'rp-focus h-1.5 rounded-full transition-all duration-300',

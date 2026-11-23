@@ -4,8 +4,8 @@ import HanziWriter from 'hanzi-writer';
 // Light practice grid (centre cross + diagonals) drawn as a CSS background, so it never intercepts pointer input.
 const GUIDE_BG = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">'
-  + '<path d="M50 0V100M0 50H100" stroke="#E8DCD5" stroke-width="0.5" stroke-dasharray="2 2" fill="none" vector-effect="non-scaling-stroke"/>'
-  + '<path d="M0 0L100 100M100 0L0 100" stroke="#F1E8E3" stroke-width="0.5" stroke-dasharray="1.5 2.5" fill="none" vector-effect="non-scaling-stroke"/>'
+  + '<path d="M50 0V100M0 50H100" stroke="#EDE5E0" stroke-width="0.5" stroke-dasharray="2 2" fill="none" vector-effect="non-scaling-stroke"/>'
+  + '<path d="M0 0L100 100M100 0L0 100" stroke="#F4EEEA" stroke-width="0.5" stroke-dasharray="1.5 2.5" fill="none" vector-effect="non-scaling-stroke"/>'
   + '</svg>',
 )}")`;
 
@@ -28,6 +28,8 @@ export default function KanjiWritingCanvas({
     onCorrectStroke,
     onMistake,
     onReady,
+    onLoadCharDataSuccess,
+    onLoadCharDataError,
     charDataLoader,
     size = 300,
     className = '',
@@ -37,21 +39,37 @@ export default function KanjiWritingCanvas({
     outline,
     quizOptions,
     guides = false,
+    drawingWidth = 38,
     ariaLabel,
 }) {
     const targetRef = useRef(null);
-    const callbacks = useRef({ onCorrectStroke, onComplete, onMistake, onReady });
+    const callbacks = useRef({
+        onCorrectStroke,
+        onComplete,
+        onMistake,
+        onReady,
+        onLoadCharDataSuccess,
+        onLoadCharDataError,
+    });
     const writerRef = useRef(null);
     const outlineRef = useRef(outline);
     const quizRef = useRef(quizOptions);
     useLayoutEffect(() => {
-        callbacks.current = { onCorrectStroke, onComplete, onMistake, onReady };
+        callbacks.current = {
+            onCorrectStroke,
+            onComplete,
+            onMistake,
+            onReady,
+            onLoadCharDataSuccess,
+            onLoadCharDataError,
+        };
         quizRef.current = quizOptions;
     });
 
     useEffect(() => {
         if (!targetRef.current || !character) return undefined;
         const target = targetRef.current;
+        let cancelled = false;
 
         const writer = HanziWriter.create(target, character, {
             width: size,
@@ -61,16 +79,20 @@ export default function KanjiWritingCanvas({
             showOutline: outlineRef.current ?? mode === 'guided',
             strokeAnimationSpeed: 0.8,
             delayBetweenStrokes: 280,
-            strokeColor: '#CC4B6B',
-            outlineColor: '#D2B5C0',
+            strokeColor: demo || showCharacter ? '#CC4B6B' : '#231B20',
+            outlineColor: '#F1C8D4',
             highlightColor: '#E05A7A',
-            drawingColor: '#3A2C33',
-            drawingWidth: 5,
+            drawingColor: '#231B20',
+            drawingWidth,
+            onLoadCharDataSuccess: (data) => {
+                if (!cancelled) callbacks.current.onLoadCharDataSuccess?.(data, writer);
+            },
+            onLoadCharDataError: (err) => {
+                if (!cancelled) callbacks.current.onLoadCharDataError?.(err);
+            },
             ...(charDataLoader ? { charDataLoader } : {}),
         });
         writerRef.current = writer;
-
-        let cancelled = false;
 
         const startQuiz = () => {
             if (cancelled) return;
@@ -103,7 +125,7 @@ export default function KanjiWritingCanvas({
             writerRef.current = null;
             target.innerHTML = '';
         };
-    }, [character, isNew, mode, charDataLoader, size, showCharacter, guideFirst, demo]);
+    }, [character, isNew, mode, charDataLoader, size, showCharacter, guideFirst, demo, drawingWidth]);
 
     // Toggle the model character without recreating the writer (keeps quiz progress).
     useEffect(() => {

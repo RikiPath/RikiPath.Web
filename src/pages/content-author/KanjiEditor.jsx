@@ -20,6 +20,7 @@ export default function KanjiEditor() {
         {
           key: 'character',
           label: 'Chữ Hán',
+          compact: true,
           render: (row) => (
             <span className="rp-jp inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rp-brand-tint text-lg font-bold text-rp-brand-strong">
               {row.character}
@@ -43,11 +44,13 @@ export default function KanjiEditor() {
         {
           key: 'strokeCount',
           label: 'Số nét',
+          compact: true,
           render: (row) => <span className="tabular-nums text-xs">{row.strokeCount}</span>,
         },
         {
           key: 'jlptLevelName',
           label: 'Cấp độ',
+          compact: true,
           render: (row) => (
             row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'
           ),

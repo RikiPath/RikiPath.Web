@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Trash2, Upload, ZoomIn } from 'lucide-react';
-import { AlertDialog, Avatar, Button, Modal, notify } from '@/components/ui';
+import { AlertDialog, Button, Modal, UserAvatar, notify } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { deleteAvatar, updateAvatar } from '../api/profileApi.js';
 
@@ -208,7 +208,7 @@ export default function AvatarUploaderModal({
                 />
               </div>
             ) : (
-              <Avatar src={profile?.avatarUrl} name={fullName} size={112} className="ring-2 ring-white shadow-rp-xs" />
+              <UserAvatar src={profile?.avatarUrl} name={fullName} size={112} eager className="ring-2 ring-white shadow-rp-xs" />
             )}
 
             <input

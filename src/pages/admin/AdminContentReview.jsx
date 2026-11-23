@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Search, X } from 'lucide-react';
+import { Check, ShieldCheck, X } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import {
   getPendingApprovals,
@@ -16,18 +16,24 @@ import {
   Badge,
   Banner,
   Button,
+  Card,
   Checkbox,
+  ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
-  Input,
   Modal,
-  PageHeader,
   Pagination,
   RefreshingIndicator,
   SakuraLoader,
   StaleDataBar,
+  Tabs,
   Textarea,
+  UnifiedToolbar,
 } from '@/components/ui';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import AdminSrsTemplatesPanel from '@/features/admin/components/AdminSrsTemplatesPanel.jsx';
+import AdminPublishManagerPanel from '@/features/admin/components/AdminPublishManagerPanel.jsx';
+import AdminModerationV2Panel from '@/features/admin/components/AdminModerationV2Panel.jsx';
 import Icon from '@/components/ui/Icon.jsx';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
@@ -138,6 +144,12 @@ function QuestionBlock({ q, index }) {
   const answerKey = pick(q, 'AnswerKey', 'answerKey');
   const audio = pick(q, 'AudioUrl', 'audioUrl');
   const image = pick(q, 'ImageUrl', 'imageUrl');
+  const interaction = pick(q, 'InteractionData', 'interactionData');
+  const passageText = interaction && typeof interaction === 'object'
+    ? [pick(interaction, 'passage', 'Passage'), pick(interaction, 'secondPassage', 'SecondPassage')]
+        .filter((s) => typeof s === 'string' && s.trim())
+        .join('\n\n---\n\n')
+    : '';
 
   return (
     <div className="rounded-lg border border-rp-line bg-white p-3">
@@ -149,6 +161,12 @@ function QuestionBlock({ q, index }) {
         <span className="shrink-0 text-[10px] text-rp-text-muted">{pick(q, 'QuestionType', 'questionType')}</span>
       </div>
 
+      {passageText && (
+        <div className="mt-2 rounded-lg border border-rp-line bg-slate-50 p-2.5 text-xs">
+          <p className="font-semibold text-rp-text">{tr('Đoạn đọc')}</p>
+          <p className="rp-jp mt-1 whitespace-pre-wrap text-rp-text-2">{passageText}</p>
+        </div>
+      )}
       {image && <img src={image} alt="" className="mt-2 max-h-40 rounded-md border border-rp-line" />}
       {audio && <audio controls src={audio} className="mt-2 h-8 w-full" />}
 
@@ -318,6 +336,12 @@ function LessonRelatedContent({ items = [] }) {
                                   </li>
                                 ))}
                               </ul>
+                              {(question.explanation ?? question.Explanation) && (
+                                <p className="mt-1 rounded bg-slate-50 px-2 py-1 text-[11.5px] text-rp-text-2">
+                                  <span className="font-semibold text-rp-text">{tr('Giải thích')}: </span>
+                                  {question.explanation ?? question.Explanation}
+                                </p>
+                              )}
                             </li>
                           ))}
                         </ol>
@@ -369,8 +393,8 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
       </div>
 
       {fields.length > 0 && (
-        <div className="overflow-auto rounded-xl border border-rp-line bg-white">
-          <table className="min-w-full table-fixed text-left">
+        <div className="rp-scroll-x rounded-xl border border-rp-line bg-white">
+          <table className="w-full min-w-[540px] text-center">
             <thead>
               <tr className="border-b border-rp-line bg-rp-table-head">
                 <th className="py-2 pl-4 pr-3 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide w-32">{tr('Trường')}</th>
@@ -391,7 +415,7 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
         {showRejectForm ? (
           <>
             <label className="text-[13px] font-semibold text-rp-text">
-              {tr('Lý do từ chối')}{' '}<span className="text-rose-600">*</span>
+              {tr('Lý do từ chối')}{' '}<span className="text-rp-danger" aria-hidden="true">*</span>
               <Textarea
                 className="mt-1.5 resize-none"
                 rows={3}
@@ -540,6 +564,7 @@ export default function AdminContentReview() {
   const { tr, trf } = useLocale();
   const { pathname } = useLocation();
   const qc = useQueryClient();
+  const [adminTab, setAdminTab] = useState('requests');
   const [entityType, setEntityType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -547,6 +572,7 @@ export default function AdminContentReview() {
 
   // State quản lý các item được chọn bằng Checkbox
   const [checkedIds, setCheckedIds] = useState([]);
+  const [batchOutcome, setBatchOutcome] = useState(null);
   const [showBatchRejectModal, setShowBatchRejectModal] = useState(false);
 
   const queryParams = { page, pageSize: PAGE_SIZE, ...(entityType ? { entityType } : {}), ...(searchQuery ? { searchQuery } : {}) };
@@ -564,9 +590,7 @@ export default function AdminContentReview() {
     return [];
   }, [data]);
 
-  const totalPages = Array.isArray(data) ? Math.max(1, Math.ceil(data.length / PAGE_SIZE)) : (data?.totalPages ?? 1);
-
-  const items = useMemo(() => {
+  const filteredItems = useMemo(() => {
     let list = allItems;
     if (entityType) list = list.filter((i) => i.entityType === entityType);
     if (searchQuery) {
@@ -576,15 +600,28 @@ export default function AdminContentReview() {
     return list;
   }, [allItems, entityType, searchQuery]);
 
+  const isPagedResponse = !Array.isArray(data) && Array.isArray(data?.items);
+  const totalCount = isPagedResponse ? (data?.totalCount ?? filteredItems.length) : filteredItems.length;
+  const totalPages = isPagedResponse ? (data?.totalPages ?? 1) : Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const items = useMemo(
+    () => (isPagedResponse ? filteredItems : filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)),
+    [filteredItems, isPagedResponse, safePage]
+  );
+
   const selectedItem = items.find((i) => i.requestId === selectedId) ?? null;
 
   const onMutationSuccess = useCallback(() => {
+    setBatchOutcome(null);
+    if (items.length <= 1 && page > 1) {
+      setPage((p) => Math.max(1, p - 1));
+    }
     qc.invalidateQueries({ queryKey: approvalKeys.all });
     invalidateAdminDomains(qc, ['content']);
     setSelectedId(null);
     setCheckedIds([]);
     setShowBatchRejectModal(false);
-  }, [qc]);
+  }, [qc, items.length, page]);
 
   // Single review mutation
   const singleReviewMutation = useMutation({
@@ -609,6 +646,7 @@ export default function AdminContentReview() {
     onError: (err) => notify.apiError(err, 'Chưa xử lý được cụm bài học', { key: 'admin-review-group-err' }),
   });
   const batchReviewMutation = useMutation({
+    onMutate: () => setBatchOutcome(null),
     mutationFn: (batchItems) => {
       notify.loading(trf('Đang xử lý {0} yêu cầu duyệt…', { 0: batchItems.length }), '', {
         key: 'admin-review-batch',
@@ -616,14 +654,26 @@ export default function AdminContentReview() {
       });
       return batchReviewContentRequests(batchItems);
     },
-    onSuccess: (_, batchItems) => {
+    onSuccess: (outcome, batchItems) => {
       onMutationSuccess();
-      const approved = batchItems?.[0]?.approve;
-      notify.success(
-        approved === false ? 'Đã từ chối hàng loạt nội dung.' : 'Đã phê duyệt hàng loạt nội dung.',
-        trf('Đã xử lý {0} mục.', { 0: batchItems?.length ?? 0 }),
-        { key: 'admin-review-batch', replace: true }
-      );
+      const successCount = Number(outcome?.successCount) || 0;
+      const failures = Array.isArray(outcome?.failures) ? outcome.failures : [];
+      setBatchOutcome({ successCount, failures });
+      if (failures.length > 0) {
+        setCheckedIds(failures.map((item) => item.requestId));
+        notify.warning(
+          'Một số mục chưa được xử lý.',
+          trf('Đã xử lý {0} mục; {1} mục chưa xử lý.', { 0: successCount, 1: failures.length }),
+          { key: 'admin-review-batch', replace: true }
+        );
+      } else {
+        const approved = batchItems?.[0]?.approve;
+        notify.success(
+          approved === false ? 'Đã từ chối hàng loạt nội dung.' : 'Đã phê duyệt hàng loạt nội dung.',
+          trf('Đã xử lý {0} mục.', { 0: successCount }),
+          { key: 'admin-review-batch', replace: true }
+        );
+      }
     },
     onError: (err) => notify.apiError(err, 'Duyệt hàng loạt thất bại', {
       key: 'admin-review-batch',
@@ -673,43 +723,82 @@ export default function AdminContentReview() {
   const isSubmitting = singleReviewMutation.isPending || batchReviewMutation.isPending || groupReviewMutation.isPending;
   const rawMutationError = singleReviewMutation.error || batchReviewMutation.error || groupReviewMutation.error;
   const mutationError = rawMutationError ? describeApiError(rawMutationError).message : '';
+  const hasFilters = Boolean(entityType || searchQuery.trim());
+  const isSourceEmpty = !isLoading && !error && !hasFilters && allItems.length === 0;
+  const showToolbar = !isLoading && (!error || allItems.length > 0) && (allItems.length > 0 || hasFilters);
+  const resetFilters = () => {
+    setEntityType('');
+    setSearchQuery('');
+    setPage(1);
+    setSelectedId(null);
+    setCheckedIds([]);
+  };
 
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Duyệt nội dung')}>
       <div className="py-[var(--rp-space-page-y)] text-rp-text">
         <div className="rp-container rp-cq">
-        <PageHeader
-          title={tr('Hàng chờ kiểm duyệt')}
-          subtitle={tr('Nội dung do Content Author gửi lên, đang chờ Admin xem xét và phê duyệt.')}
-          actions={(
-            <div className="flex items-center gap-2">
-              <Badge tone="brand" size="sm" icon={false}>
-                {trf('{0} mục chờ duyệt', { 0: items.length })}
-              </Badge>
-              <RefreshingIndicator active={isFetching && !isLoading} />
-            </div>
-          )}
+        <AdminPageHeader
+          icon={ShieldCheck}
+          title="Duyệt nội dung"
+          badge={adminTab === 'requests' && !isLoading && !error ? <Badge tone="brand" size="sm" icon={false}>{trf('{0} mục chờ duyệt', { 0: totalCount })}</Badge> : null}
         />
 
-        {/* Thanh công cụ tìm kiếm và lọc */}
-        <div className="mb-5 flex flex-wrap items-center gap-3">
-          <div className="min-w-[200px] flex-1 max-w-xs">
-            <Input
-              icon={Search}
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); setCheckedIds([]); }}
-              placeholder={tr('Tìm theo tên, ký tự...')}
-            />
-          </div>
-
-          <div className="w-[240px]">
-            <CustomSelect
-              value={entityType}
-              onChange={(val) => { setEntityType(val); setPage(1); setSelectedId(null); setCheckedIds([]); }}
-              options={ENTITY_TYPES.map((t) => ({ value: t.value, label: tr(t.label) }))}
-            />
-          </div>
+        <div className="mb-5">
+          <Tabs
+            variant="pill"
+            value={adminTab}
+            onChange={setAdminTab}
+            tabs={[
+              { value: 'moderation-v2', label: tr('Kiểm duyệt Câu hỏi & Đề thi (V2)') },
+              { value: 'requests', label: tr('Duyệt nội dung chung'), badge: totalCount || undefined },
+              { value: 'srs-templates', label: tr('Thẻ mẫu SRS') },
+              { value: 'publish-control', label: tr('Quản lý Xuất bản (An toàn)') },
+            ]}
+          />
         </div>
+
+        {adminTab === 'moderation-v2' && <AdminModerationV2Panel />}
+
+        {adminTab === 'srs-templates' && <AdminSrsTemplatesPanel />}
+
+        {adminTab === 'publish-control' && <AdminPublishManagerPanel />}
+
+        {adminTab === 'requests' && (
+        <>
+        {/* Thanh công cụ tìm kiếm và lọc (ẩn hoàn toàn khi chưa có dữ liệu gốc) */}
+        {showToolbar && (
+          <UnifiedToolbar
+            className="mb-5"
+            search={{
+              value: searchQuery,
+              onChange: (e) => { setSearchQuery(e.target.value); setPage(1); setCheckedIds([]); },
+              onClear: () => { setSearchQuery(''); setPage(1); setCheckedIds([]); },
+              placeholder: 'Tìm theo tên, ký tự…',
+              ariaLabel: 'Tìm theo tên, ký tự',
+            }}
+            filters={
+              <CustomSelect
+                fitContent
+                value={entityType}
+                aria-label={tr('Lọc theo loại nội dung')}
+                onChange={(val) => { setEntityType(val); setPage(1); setSelectedId(null); setCheckedIds([]); }}
+                options={ENTITY_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+              />
+            }
+            actions={
+              hasFilters ? (
+                <Button size="md" variant="ghost" icon={X} onClick={resetFilters}>
+                  {tr('Xóa bộ lọc')}
+                </Button>
+              ) : null
+            }
+            refresh={{
+              onRefresh: () => refetch({ cancelRefetch: true }),
+              refreshing: isFetching && !isLoading,
+            }}
+          />
+        )}
 
         {/* Thanh tác vụ hàng loạt khi chọn ít nhất 1 mục */}
         {checkedIds.length > 0 && (
@@ -747,6 +836,60 @@ export default function AdminContentReview() {
           </div>
         )}
 
+        {batchOutcome?.failures.length > 0 && (
+          <div className="mb-4">
+            <Banner tone="warning" title={tr('Một số mục chưa được xử lý.')}>
+              <p>{trf('Đã xử lý {0} mục; {1} mục chưa xử lý.', {
+                0: batchOutcome.successCount,
+                1: batchOutcome.failures.length,
+              })}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {batchOutcome.failures.map((failure, index) => (
+                  <li key={`${failure.requestId}-${index}`}>
+                    {trf('Mục #{0}: {1}', { 0: failure.requestId, 1: failure.reason })}
+                  </li>
+                ))}
+              </ul>
+            </Banner>
+          </div>
+        )}
+
+        {isLoading && !allItems.length ? (
+          <SakuraLoader variant="section" context="data" label={tr('Đang tải nội dung chờ duyệt')} delay={160} />
+        ) : error && !allItems.length ? (
+          <Card className="p-5">
+            <ContextualErrorState
+              compact
+              error={error}
+              title={tr('Chưa tải được danh sách chờ duyệt')}
+              onRetry={() => refetch()}
+              retrying={isFetching}
+            />
+          </Card>
+        ) : isSourceEmpty ? (
+          <Card className="p-6">
+            <ContextualEmptyState
+              variant="compact"
+              illustration="book"
+              title={tr('Không có nội dung đang chờ duyệt.')}
+              description={tr('Các bài học, từ vựng, Hán tự và đề thi do Biên soạn viên gửi lên sẽ hiển thị tại đây.')}
+            />
+          </Card>
+        ) : items.length === 0 && hasFilters ? (
+          <Card className="p-6">
+            <ContextualEmptyState
+              variant="search"
+              illustration="search"
+              title={tr('Không tìm thấy kết quả phù hợp')}
+              description={tr('Thử chọn loại học liệu khác hoặc xóa từ khóa tìm kiếm.')}
+              action={
+                <Button size="sm" variant="outline" onClick={resetFilters}>
+                  {tr('Xóa bộ lọc')}
+                </Button>
+              }
+            />
+          </Card>
+        ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           {/* Cột danh sách */}
           <section className="overflow-hidden rounded-2xl border border-rp-line bg-white">
@@ -757,34 +900,15 @@ export default function AdminContentReview() {
                 onChange={handleToggleSelectAll}
                 disabled={items.length === 0}
               />
-              <span className="text-[12px] text-rp-text-2">{trf('Tổng {0}', { 0: items.length })}</span>
+              <div className="flex items-center gap-2">
+                <RefreshingIndicator active={isFetching && !isLoading} delay={60} />
+                <span className="text-[12px] text-rp-text-2">{trf('Tổng {0}', { 0: totalCount })}</span>
+              </div>
             </div>
 
-            {error && !items.length && (
-              <div className="p-5">
-                <ContextualErrorState
-                  compact
-                  error={error}
-                  title={tr('Chưa tải được danh sách chờ duyệt')}
-                  onRetry={() => refetch()}
-                  retrying={isFetching}
-                />
-              </div>
-            )}
             {error && items.length > 0 && (
               <div className="px-4 pt-3">
                 <StaleDataBar onRetry={() => refetch()} retrying={isFetching} />
-              </div>
-            )}
-
-            {isLoading && (
-              <SakuraLoader variant="section" context="data" label={tr('Đang tải nội dung chờ duyệt')} delay={160} />
-            )}
-
-            {!isLoading && items.length === 0 && !error && (
-              <div className="flex flex-col items-center justify-center py-14 gap-2 text-rp-text-muted">
-                <Icon name="inbox" className="text-[44px]" />
-                <p className="text-[13px] font-medium">{tr('Không có nội dung đang chờ duyệt.')}</p>
               </div>
             )}
 
@@ -837,7 +961,7 @@ export default function AdminContentReview() {
             {totalPages > 1 && (
               <div className="border-t border-[#f0e8e4] px-4 py-2.5">
                 <Pagination
-                  currentPage={page}
+                  currentPage={Math.min(page, totalPages)}
                   totalPages={totalPages}
                   pageSize={PAGE_SIZE}
                   showPageSize={false}
@@ -852,10 +976,11 @@ export default function AdminContentReview() {
           <section className="rounded-2xl border border-rp-line bg-white p-5 overflow-y-auto max-h-[80vh] sticky top-6">
             <h2 className="mb-4 font-bold text-[15px]">{tr('Chi tiết nội dung')}</h2>
             {!selectedItem ? (
-              <div className="flex flex-col items-center justify-center py-14 gap-2 text-rp-text-muted">
-                <Icon name="open_in_new" className="text-[44px]" />
-                <p className="text-[13px] font-medium text-center">{tr('Chọn một mục để xem chi tiết và thực hiện duyệt.')}</p>
-              </div>
+              <ContextualEmptyState
+                variant="compact"
+                illustration="homework"
+                title={tr('Chọn một mục để xem chi tiết và thực hiện duyệt.')}
+              />
             ) : (
               <DetailPanel
                 key={selectedItem.requestId}
@@ -869,6 +994,7 @@ export default function AdminContentReview() {
             )}
           </section>
         </div>
+        )}
 
         {/* Modal từ chối hàng loạt có ô nhập lý do riêng cho từng item */}
         {showBatchRejectModal && (
@@ -878,6 +1004,8 @@ export default function AdminContentReview() {
             onSubmit={(batchPayload) => batchReviewMutation.mutate(batchPayload)}
             submitting={isSubmitting}
           />
+        )}
+        </>
         )}
         </div>
       </div>

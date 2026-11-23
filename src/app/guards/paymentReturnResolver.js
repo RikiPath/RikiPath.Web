@@ -1,4 +1,5 @@
 const studyOrderPrefix = 900_000_000;
+const legacyStudyOrderMax = 2_147_483_647;
 
 function positiveId(value) {
   const id = /^[0-9]+$/.test(value ?? '') ? Number(value) : 0;
@@ -15,8 +16,10 @@ export function resolvePaymentReturn({ pathname, search, legacyPlans = false }) 
   const params = new URLSearchParams(search);
   const orderCode = positiveId(params.get('orderCode'));
   const subscriptionId = positiveId(params.get('subscriptionId'));
+  // Current study orders always carry `purchaseId`; the orderCode fallback only applies to legacy 900M codes
+  // (new PayOS codes are randomised and are never turned back into an order id on the client).
   const studyId = positiveId(params.get('purchaseId'))
-    || (!subscriptionId && orderCode > studyOrderPrefix ? orderCode - studyOrderPrefix : 0);
+    || (!subscriptionId && orderCode > studyOrderPrefix && orderCode <= legacyStudyOrderMax ? orderCode - studyOrderPrefix : 0);
   if (legacyPlans && !params.has('purchaseId') && !studyId) return null;
 
   const cancelled = params.get('cancel') === 'true' || params.get('status') === 'CANCELLED';

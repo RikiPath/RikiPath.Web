@@ -2,12 +2,12 @@
 
 export const MARKETING_NAV = {
   links: [
-    { to: '/about', label: 'RikiPath là gì?' },
-    { to: '/courses', label: 'Luyện thi JLPT' },
-    { to: '/thi-thu', label: 'Thi thử' },
-    { to: '/#group-learning', label: 'Học nhóm' },
+    { id: 'roadmap', to: '/#roadmap', label: 'Lộ trình' },
+    { id: 'ecosystem', to: '/#ecosystem', label: 'Tính năng' },
+    { id: 'group-learning', to: '/#group-learning', label: 'Học nhóm' },
+    { id: 'faq', to: '/#faq', label: 'Hỏi đáp' },
   ],
   login: { to: '/auth', label: 'Đăng nhập' },
-  cta: { to: '/register', label: 'Bắt đầu ôn luyện' },
+  register: { to: '/register', label: 'Đăng ký' },
+  workspaceLabel: 'Vào trang học tập',
 };
-

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { CalendarDays, Clock, GraduationCap, Layers, Lightbulb } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clock, GraduationCap, Layers, Lightbulb } from 'lucide-react';
 import BrandMark from '@/components/brand/BrandMark.jsx';
 import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
 import OnboardingStepper from '@/features/auth/components/OnboardingStepper.jsx';
@@ -20,7 +20,7 @@ import {
   formatStudySummaryText,
   getFurthestAccessibleStep,
 } from '@/features/auth/components/onboardingWizardLogic.js';
-import { notify } from '@/components/ui';
+import { Badge, Button, CelebrationScene, notify } from '@/components/ui';
 import { buildLearningGoal, isJlptExamDate } from '@/features/learning-path/utils/learningGoal.js';
 import { getSession, patchSession } from '@/app/auth/session.js';
 import { queryClient } from '@/api/queryClient.js';
@@ -34,7 +34,7 @@ import {
 import { useLocale } from '@/locales/locale.js';
 
 export default function OnboardingSurvey() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const navigate = useNavigate();
   const session = getSession();
   const profileQuery = useLearnerProfile();
@@ -77,7 +77,7 @@ export default function OnboardingSurvey() {
   } = useCertificateLevelsQuery(activeCertId);
 
   const levels = isJlpt
-    ? certificateLevels.filter((level) => ['N5', 'N4', 'N3', 'N2', 'N1'].includes(level.code?.trim().toUpperCase()))
+    ? certificateLevels.filter((level) => ['N5', 'N4', 'N3', 'N2'].includes(level.code?.trim().toUpperCase()))
     : certificateLevels;
 
   const [selectedLevelIdState, setSelectedLevelIdState] = useState(null);
@@ -126,6 +126,7 @@ export default function OnboardingSurvey() {
   const [error, setError] = useState('');
   const [savingMode, setSavingMode] = useState(null);
   const [goalSavedPendingPlacementSync, setGoalSavedPendingPlacementSync] = useState(false);
+  const [goalCelebration, setGoalCelebration] = useState(null);
   const submittingRef = useRef(false);
 
   const busy = Boolean(savingMode) || loadingTypes || loadingLevels || profileQuery.isLoading;
@@ -267,7 +268,11 @@ export default function OnboardingSurvey() {
 
       if (saveOnly) {
         notify.success(tr('Đã cập nhật mục tiêu JLPT.'), '', { key: 'jlpt-goal-saved' });
-        navigate('/app', { replace: true });
+        setGoalCelebration({
+          levelCode: savedProfile?.targetJlptLevelName || selectedLevel?.code || selectedCert?.name || 'JLPT',
+          nextUrl: isJlpt ? '/app/placement-test/' : '/app',
+          saveOnly: true,
+        });
         return;
       }
 
@@ -276,13 +281,18 @@ export default function OnboardingSurvey() {
         targetJlptLevelName: savedProfile?.targetJlptLevelName || selectedLevel?.code,
       };
       const current = await getPlacementStatus();
+      const targetLevelCode = status.targetJlptLevelName || selectedLevel?.code || 'JLPT';
       if (current.hasActiveAttempt || current.latestCompletedAttemptId || current.attemptAllowance?.started > 0) {
         notify.success(
           tr('Đã lưu mục tiêu học tập.'),
-          tr('Đang mở bài đánh giá năng lực phù hợp.'),
+          tr('Sẵn sàng khám phá năng lực hiện tại.'),
           { key: 'jlpt-goal-saved' },
         );
-        navigate('/app/placement-test/', { replace: true });
+        setGoalCelebration({
+          levelCode: targetLevelCode,
+          nextUrl: '/app/placement-test/',
+          saveOnly: false,
+        });
         return;
       }
       const attempt = await startPlacementAttempt();
@@ -292,10 +302,14 @@ export default function OnboardingSurvey() {
       });
       notify.success(
         tr('Đã lưu mục tiêu JLPT.'),
-        tr('Bắt đầu bài đánh giá năng lực ngay bây giờ.'),
+        tr('Bài đánh giá năng lực của bạn đã sẵn sàng.'),
         { key: 'jlpt-goal-saved' },
       );
-      navigate(`/app/placement-test/?attemptId=${attempt.attemptId}`, { replace: true });
+      setGoalCelebration({
+        levelCode: targetLevelCode,
+        nextUrl: `/app/placement-test/?attemptId=${attempt.attemptId}`,
+        saveOnly: false,
+      });
     } catch (err) {
       const fallback = goalSaved
         ? 'Vui lòng thử bắt đầu lại.'
@@ -601,6 +615,61 @@ export default function OnboardingSurvey() {
           />
         </section>
       </main>
+
+      <CelebrationScene
+        open={Boolean(goalCelebration)}
+        variant="overlay"
+        tier="goal"
+        badge={goalCelebration ? `JLPT ${goalCelebration.levelCode}` : ''}
+        title={
+          goalCelebration
+            ? trf('Mục tiêu {0} đã sẵn sàng!', { 0: goalCelebration.levelCode })
+            : ''
+        }
+        description={tr('Làm bài đánh giá ngắn để kiểm tra trình độ hiện tại và chuẩn bị lộ trình phù hợp nhất cho bạn.')}
+        onSkip={() => navigate('/app', { replace: true })}
+        skipLabel={tr('Đóng')}
+        actions={
+          goalCelebration && (
+            <>
+              <Button
+                variant="primary"
+                size="lg"
+                iconRight={ArrowRight}
+                className="rp-celebrate-cta-glow"
+                onClick={() => navigate(goalCelebration.nextUrl, { replace: true })}
+              >
+                {tr('Làm bài đánh giá năng lực')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => navigate('/app', { replace: true })}
+              >
+                {tr('Về Bảng học tập')}
+              </Button>
+            </>
+          )
+        }
+      >
+        {goalCelebration && (
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Badge tone="brand" size="sm" icon={false}>
+              {selectedCert?.name || 'JLPT'} {goalCelebration.levelCode}
+            </Badge>
+            {studySummaryText && (
+              <Badge tone="neutral" size="sm" icon={false}>
+                {studySummaryText} {tr('phút / ngày')}
+              </Badge>
+            )}
+            {examContext && (
+              <Badge tone="info" size="sm" icon={false}>
+                {tr(examContext.monthKey)} · {examContext.year}
+              </Badge>
+            )}
+          </div>
+        )}
+      </CelebrationScene>
     </div>
   );
 }

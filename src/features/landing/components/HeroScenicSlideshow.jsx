@@ -13,11 +13,19 @@ import { cx } from '@/components/ui';
 //
 // `position` keeps each photo's subject in frame per breakpoint (mobile / desktop) — see landing.css.
 const SCENES = [
+  // Existing 5 hero scenes preserved + 7 remaining Japan Sakura banners added (12 unique slides total).
   { name: 'fuji', pos: ['62% 50%', '64% 46%'], kb: 'a' },
-  { name: 'bannerPagodaSunrise', pos: ['50% 45%', '58% 42%'], kb: 'b' },
-  { name: 'bannerFujiLake', pos: ['55% 50%', '60% 48%'], kb: 'c' },
-  { name: 'bannerKyotoStreet', pos: ['50% 50%', '62% 50%'], kb: 'a' },
-  { name: 'bannerJapaneseGarden', pos: ['45% 50%', '58% 50%'], kb: 'b' },
+  { name: 'bannerHokkaido', pos: ['66% 52%', '62% 52%'], kb: 'b' },
+  { name: 'bannerTokyo', pos: ['74% 44%', '68% 45%'], kb: 'c' },
+  { name: 'bannerOsaka', pos: ['74% 46%', '72% 45%'], kb: 'a' },
+  { name: 'bannerKanazawa', pos: ['60% 50%', '58% 50%'], kb: 'b' },
+  { name: 'bannerMiyajima', pos: ['64% 52%', '64% 52%'], kb: 'c' },
+  { name: 'bannerNara', pos: ['48% 58%', '52% 58%'], kb: 'a' },
+  { name: 'bannerOkinawa', pos: ['48% 52%', '54% 50%'], kb: 'b' },
+  { name: 'bannerPagodaSunrise', pos: ['50% 45%', '58% 42%'], kb: 'c' },
+  { name: 'bannerFujiLake', pos: ['55% 50%', '60% 48%'], kb: 'a' },
+  { name: 'bannerKyotoStreet', pos: ['50% 50%', '62% 50%'], kb: 'b' },
+  { name: 'bannerJapaneseGarden', pos: ['45% 50%', '58% 50%'], kb: 'c' },
 ];
 const INTERVAL_MS = 7000;
 const FADE_MS = 1600;

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { enrollCohort, getCohorts, getMentorCohortReviewSummary, INTENSITY_OPTIONS } from '@/features/cohorts/api/cohortApi';
 import { describeApiError } from '@/api/apiErrors';
 import {
@@ -112,8 +113,11 @@ export default function LearnerCohortDiscoveryPanel({
   }, [cohorts, tr]);
 
   const levelOptions = useMemo(() => {
-    const set = new Set(['N5', 'N4', 'N3', 'N2', 'N1']);
-    cohorts.forEach((c) => c.level && set.add(c.level));
+    const set = new Set(['N5', 'N4', 'N3', 'N2']);
+    cohorts.forEach((c) => {
+      const code = String(c.level || '').toUpperCase().trim();
+      if (['N5', 'N4', 'N3', 'N2'].includes(code)) set.add(code);
+    });
     return [...set];
   }, [cohorts]);
 
@@ -263,24 +267,25 @@ export default function LearnerCohortDiscoveryPanel({
   };
 
   const mentorSelectOptions = [
-    { value: '', label: tr('Tất cả Giáo viên') },
+    { value: '', label: 'Tất cả Giáo viên' },
     ...mentorOptions.map((m) => ({ value: String(m.id), label: m.name })),
   ];
   const levelSelectOptions = [
-    { value: '', label: tr('Tất cả cấp độ') },
+    { value: '', label: 'Tất cả cấp độ' },
     ...levelOptions.map((lvl) => ({ value: lvl, label: lvl })),
   ];
   const intensitySelectOptions = [
-    { value: '', label: tr('Tất cả cường độ') },
+    { value: '', label: 'Tất cả cường độ' },
     ...INTENSITY_OPTIONS.map((o) => ({
       value: o.value,
-      label: trf('{0} ({1} buổi/tuần)', { 0: o.label, 1: o.sessionsPerWeek }),
+      label: trf('{0} ({1} buổi/tuần)', { 0: tr(o.label), 1: o.sessionsPerWeek }),
     })),
   ];
   const weekdaySelectOptions = [
-    { value: '', label: tr('Bất kỳ') },
-    ...WEEKDAYS.map((w) => ({ value: w.value, label: tr(w.label) })),
+    { value: '', label: 'Bất kỳ' },
+    ...WEEKDAYS.map((w) => ({ value: w.value, label: w.label })),
   ];
+  const isSourceEmpty = cohorts.length === 0 && !hasServerFilter && !searchTerm.trim();
 
   return (
     <section className="course-box space-y-4">
@@ -304,7 +309,7 @@ export default function LearnerCohortDiscoveryPanel({
           <ul className="mt-1.5 list-disc space-y-1 pl-5 text-rp-text-2">
             {myEntitlements.map((e) => (
               <li key={e.id}>
-                {trf('{0} ({1}) · Nguồn: {2} · Trạng thái: {3}', {
+                {trf('{0} ({1}) · {2} · {3}', {
                   0: e.cohortName || tr('Lớp học nhóm'),
                   1: e.level,
                   2: tr(ENTITLEMENT_SOURCE_LABELS[e.sourceType] || 'Khác'),
@@ -316,65 +321,72 @@ export default function LearnerCohortDiscoveryPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Giáo viên')}</span>
-          <CustomSelect
-            size="sm"
-            value={filters.mentorId}
-            onChange={(val) => setFilter('mentorId', val)}
-            options={mentorSelectOptions}
-            aria-label={tr('Giáo viên')}
-          />
+      {!isSourceEmpty && (
+        <div className="flex flex-wrap items-end gap-2.5">
+          <div className="min-w-0 max-w-full space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Tìm theo tên lớp')}</span>
+            <SearchInput
+              fitContent
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onClear={() => setSearchTerm('')}
+              placeholder="Ví dụ: N3 tối…"
+            />
+          </div>
+          <div className="min-w-0 max-w-full space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Giáo viên')}</span>
+            <CustomSelect
+              fitContent
+              size="md"
+              value={filters.mentorId}
+              onChange={(val) => setFilter('mentorId', val)}
+              options={mentorSelectOptions}
+              aria-label={tr('Giáo viên')}
+            />
+          </div>
+          <div className="min-w-0 max-w-full space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Cấp độ JLPT')}</span>
+            <CustomSelect
+              fitContent
+              size="md"
+              value={filters.level}
+              onChange={(val) => setFilter('level', val)}
+              options={levelSelectOptions}
+              aria-label={tr('Cấp độ JLPT')}
+            />
+          </div>
+          <div className="min-w-0 max-w-full space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Cường độ')}</span>
+            <CustomSelect
+              fitContent
+              size="md"
+              value={filters.intensity}
+              onChange={(val) => setFilter('intensity', val)}
+              options={intensitySelectOptions}
+              aria-label={tr('Cường độ')}
+            />
+          </div>
+          <div className="min-w-0 max-w-full space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Thứ trong tuần')}</span>
+            <CustomSelect
+              fitContent
+              size="md"
+              value={filters.weekday}
+              onChange={(val) => setFilter('weekday', val)}
+              options={weekdaySelectOptions}
+              aria-label={tr('Thứ trong tuần')}
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Từ giờ')}</span>
+            <TimeInput fitContent value={filters.fromTime} onChange={(e) => setFilter('fromTime', e.target.value)} aria-label={tr('Từ giờ')} />
+          </div>
+          <div className="space-y-1">
+            <span className="block text-xs font-semibold text-rp-text-muted">{tr('Đến giờ')}</span>
+            <TimeInput fitContent value={filters.toTime} onChange={(e) => setFilter('toTime', e.target.value)} aria-label={tr('Đến giờ')} />
+          </div>
         </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Cấp độ JLPT')}</span>
-          <CustomSelect
-            size="sm"
-            value={filters.level}
-            onChange={(val) => setFilter('level', val)}
-            options={levelSelectOptions}
-            aria-label={tr('Cấp độ JLPT')}
-          />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Cường độ')}</span>
-          <CustomSelect
-            size="sm"
-            value={filters.intensity}
-            onChange={(val) => setFilter('intensity', val)}
-            options={intensitySelectOptions}
-            aria-label={tr('Cường độ')}
-          />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Thứ trong tuần')}</span>
-          <CustomSelect
-            size="sm"
-            value={filters.weekday}
-            onChange={(val) => setFilter('weekday', val)}
-            options={weekdaySelectOptions}
-            aria-label={tr('Thứ trong tuần')}
-          />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Từ giờ')}</span>
-          <TimeInput value={filters.fromTime} onChange={(e) => setFilter('fromTime', e.target.value)} aria-label={tr('Từ giờ')} />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Đến giờ')}</span>
-          <TimeInput value={filters.toTime} onChange={(e) => setFilter('toTime', e.target.value)} aria-label={tr('Đến giờ')} />
-        </div>
-        <div className="space-y-1">
-          <span className="block text-xs font-semibold text-rp-text-muted">{tr('Tìm theo tên lớp')}</span>
-          <SearchInput
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onClear={() => setSearchTerm('')}
-            placeholder={tr('Ví dụ: N3 tối…')}
-          />
-        </div>
-      </div>
+      )}
 
       {(hasServerFilter || searchTerm) && (
         <div className="flex justify-end">
@@ -411,12 +423,40 @@ export default function LearnerCohortDiscoveryPanel({
           onRetry={() => setRefreshTick((t) => t + 1)}
         />
       ) : visibleCohorts.length === 0 ? (
-        <ContextualEmptyState
-          compact
-          art="search"
-          title={tr('Chưa có lớp phù hợp với bộ lọc')}
-          description={tr('Hãy thử thay đổi bộ lọc hoặc chọn Giáo viên khác.')}
-        />
+        <div className="mx-auto max-w-md py-4">
+          <ContextualEmptyState
+            variant={isSourceEmpty ? 'compact' : 'search'}
+            size="md"
+            illustration={isSourceEmpty ? 'classroom' : 'search'}
+            title={
+              isSourceEmpty
+                ? tr('Hiện chưa có lớp học nhóm nào đang mở đăng ký')
+                : tr('Chưa có lớp phù hợp với bộ lọc')
+            }
+            description={
+              isSourceEmpty
+                ? tr('Các lớp nhóm JLPT mới sẽ hiển thị tại đây ngay khi được công bố.')
+                : tr('Hãy thử thay đổi bộ lọc hoặc chọn Giáo viên khác.')
+            }
+            action={(hasServerFilter || searchTerm) ? (
+              <Button
+                type="button"
+                variant="soft"
+                size="sm"
+                onClick={() => {
+                  setFilters(EMPTY_FILTERS);
+                  setSearchTerm('');
+                }}
+              >
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : (
+              <Button as={Link} to="/mentors" variant="soft" size="sm">
+                {tr('Tìm Giáo viên')}
+              </Button>
+            )}
+          />
+        </div>
       ) : (
         <div className="course-grid">
           {visibleCohorts.map((cohort) => {
@@ -478,6 +518,16 @@ export default function LearnerCohortDiscoveryPanel({
         onClose={() => { if (!busy) setConfirmCohort(null); }}
         title={confirmCohort ? trf('Xác nhận ghi danh: {0}', { 0: confirmCohort.name }) : ''}
         size="sm"
+        footer={confirmCohort ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => setConfirmCohort(null)}>
+              {tr('Hủy bỏ')}
+            </Button>
+            <Button type="button" variant="primary" size="sm" disabled={busy} loading={busy} onClick={handleConfirmEnroll}>
+              {confirmCohort.hasApprovedEntitlement ? tr('Xác nhận ghi danh') : tr('Xác nhận & chuyển tới PayOS')}
+            </Button>
+          </div>
+        ) : undefined}
       >
         {confirmCohort && (
           <div className="space-y-3 text-[13px] text-rp-text-2">
@@ -512,14 +562,6 @@ export default function LearnerCohortDiscoveryPanel({
                 </p>
               </div>
             )}
-            <div className="flex flex-wrap justify-end gap-2 border-t border-rp-line pt-2">
-              <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => setConfirmCohort(null)}>
-                {tr('Hủy bỏ')}
-              </Button>
-              <Button type="button" variant="primary" size="sm" disabled={busy} loading={busy} onClick={handleConfirmEnroll}>
-                {confirmCohort.hasApprovedEntitlement ? tr('Xác nhận ghi danh') : tr('Xác nhận & chuyển tới PayOS')}
-              </Button>
-            </div>
           </div>
         )}
       </Modal>

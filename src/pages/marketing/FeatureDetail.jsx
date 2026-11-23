@@ -14,12 +14,12 @@ export default function FeatureDetail() {
 
   return (
     <PublicShell pathname={pathname}>
-      <div className="min-h-screen text-rp-text" data-page="FeatureDetail">
-        <main className="mx-auto max-w-[1100px] px-5 py-12 sm:px-8">
+      <div className="min-h-screen bg-rp-bg text-rp-text" data-page="FeatureDetail">
+        <div className="mx-auto max-w-[1100px] px-5 py-12 sm:px-8">
           <nav className="mb-8 flex items-center gap-2 text-xs font-semibold text-rp-text-2">
             <Link className="hover:text-rp-brand" to="/">{tr('Trang chủ')}</Link>
             <Icon name="chevron_right" className="text-[16px]" />
-            <span className="text-on-surface">{tr(feature.title)}</span>
+            <span className="text-rp-text">{tr(feature.title)}</span>
           </nav>
 
           <section className="rp-catalog-card overflow-hidden rounded-[28px]">
@@ -40,14 +40,14 @@ export default function FeatureDetail() {
                     <Icon name="arrow_forward" className="text-[18px]" />
                   </Link>
                   <Link
-                    to="/register"
+                    to="/register/"
                     className="inline-flex items-center gap-2 rounded-full border border-rp-brand-border/70 bg-white px-6 py-3 text-sm font-bold text-rp-brand-strong hover:border-rp-brand/40"
                   >
                     {tr('Đăng ký học thử')}
                   </Link>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-3 border-t border-rp-line bg-rp-brand-tint p-[var(--rp-space-card-pad)] min-[380px]:grid-cols-3 lg:col-span-5 lg:border-l lg:border-t-0 sm:p-10">
+              <div className="grid grid-cols-1 gap-3 border-t border-rp-line bg-white p-[var(--rp-space-card-pad)] min-[380px]:grid-cols-3 lg:col-span-5 lg:border-l lg:border-t-0 sm:p-10">
                 {feature.stats.map((s) => (
                   <div key={s.k} className="rounded-2xl bg-white p-4 ring-1 ring-rp-line/80">
                     <div className="text-xl font-extrabold text-rp-brand">{s.k}</div>
@@ -114,7 +114,7 @@ export default function FeatureDetail() {
               </div>
             </aside>
           </div>
-        </main>
+        </div>
       </div>
     </PublicShell>
   );

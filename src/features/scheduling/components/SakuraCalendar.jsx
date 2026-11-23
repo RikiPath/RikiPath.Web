@@ -7,18 +7,21 @@ import {
   ChevronRight,
   Eye,
   List,
-  RefreshCw,
   X,
 } from 'lucide-react';
-import { Modal, Popover } from '@/components/ui/overlay.jsx';
+import { Modal, Popover, Tabs } from '@/components/ui/overlay.jsx';
+import { RefreshButton } from '@/components/ui/RefreshButton.jsx';
+import { RefreshingIndicator } from '@/components/ui/SakuraLoader.jsx';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
 import { StatusDotListbox } from '@/features/scheduling/components/ScheduleFilterControls.jsx';
 import { useLocale } from '@/locales/locale.js';
 import {
+  CALENDAR_CATEGORY_ORDER,
   buildMonthMatrix,
   buildWeekDays,
   formatFullDayVn,
   formatShortDateVn,
+  getCalendarCategoryMeta,
   getToneMeta,
   getViewDateRange,
   groupAgendaEvents,
@@ -181,7 +184,12 @@ function MiniMonthPicker({ anchorKey, todayKey, eventsByDay, onPickDay }) {
       <div className="mt-0.5 grid grid-cols-7 gap-0.5">
         {matrix.cells.map((cell) => {
           const isSelected = cell.key === anchorKey;
-          const hasEvents = (eventsByDay.get(cell.key)?.length || 0) > 0;
+          const dayItems = eventsByDay.get(cell.key) || [];
+          const dayCategoryTones = [...new Set(
+            dayItems
+              .filter((ev) => ev.tone !== 'cancelled' && !ev.isCancelled && !(ev.eventType === 'homework' && ev.isCompleted))
+              .map((ev) => getCalendarCategoryMeta(ev).id),
+          )].sort((a, b) => CALENDAR_CATEGORY_ORDER.indexOf(a) - CALENDAR_CATEGORY_ORDER.indexOf(b));
           return (
             <button
               key={cell.key}
@@ -198,11 +206,15 @@ function MiniMonthPicker({ anchorKey, todayKey, eventsByDay, onPickDay }) {
               }`}
             >
               <span>{cell.dateNum}</span>
-              {hasEvents && (
-                <span
-                  aria-hidden="true"
-                  className={`mt-0.5 h-1 w-1 rounded-full ${isSelected ? 'bg-white' : 'bg-rp-brand-pressed'}`}
-                />
+              {dayCategoryTones.length > 0 && (
+                <span className="mt-0.5 flex items-center gap-0.5" aria-hidden="true">
+                  {dayCategoryTones.slice(0, 4).map((catKey) => (
+                    <span
+                      key={catKey}
+                      className={`h-1 w-1 rounded-full ${isSelected ? 'bg-white' : getToneMeta(catKey).dot}`}
+                    />
+                  ))}
+                </span>
               )}
             </button>
           );
@@ -434,41 +446,22 @@ export default function SakuraCalendar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Primary Toggle: Lịch | Danh sách */}
-          <div
-            role="tablist"
-            aria-label={tr('Chế độ hiển thị')}
-            className="inline-flex items-center rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
-          >
-            <button
-              role="tab"
-              type="button"
-              aria-selected={view !== 'agenda'}
-              onClick={() => { if (view === 'agenda') setView('week'); }}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                view !== 'agenda'
-                  ? 'bg-white text-rp-brand-strong shadow-2xs'
-                  : 'text-rp-text-muted hover:text-rp-text'
-              }`}
-            >
-              <CalendarIcon className="h-3.5 w-3.5" />
-              <span>{tr('Lịch')}</span>
-            </button>
-            <button
-              role="tab"
-              type="button"
-              aria-selected={view === 'agenda'}
-              onClick={() => setView('agenda')}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                view === 'agenda'
-                  ? 'bg-white text-rp-brand-strong shadow-2xs'
-                  : 'text-rp-text-muted hover:text-rp-text'
-              }`}
-            >
-              <List className="h-3.5 w-3.5" />
-              <span>{tr('Danh sách')}</span>
-            </button>
-          </div>
+          {/* Primary Toggle: Lịch | Danh sách — shared Tabs, so the active pill slides like every other segmented control */}
+          <Tabs
+            variant="pill"
+            tone="segmented"
+            size="sm"
+            label={tr('Chế độ hiển thị')}
+            value={view === 'agenda' ? 'agenda' : 'calendar'}
+            onChange={(next) => {
+              if (next === 'agenda') setView('agenda');
+              else if (view === 'agenda') setView('week');
+            }}
+            tabs={[
+              { value: 'calendar', label: 'Lịch', icon: CalendarIcon },
+              { value: 'agenda', label: 'Danh sách', icon: List },
+            ]}
+          />
 
           {view !== 'agenda' && (
             <div
@@ -514,17 +507,16 @@ export default function SakuraCalendar({
             />
           )}
 
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={refreshing}
+          {onRefresh && !(view === 'agenda' && rangeEventsCount === 0) && (
+            <RefreshButton
+              iconOnly
+              size="sm"
+              onRefresh={onRefresh}
+              refreshing={refreshing}
+              tooltip={tr('Làm mới lịch')}
               aria-label={tr('Làm mới dữ liệu lịch')}
-              title={tr('Làm mới lịch')}
-              className="inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-rp-line bg-white text-rp-text-muted hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
+              className="!h-8.5 !w-8.5 rounded-xl"
+            />
           )}
         </div>
       </div>
@@ -550,12 +542,22 @@ export default function SakuraCalendar({
       )}
 
       {/* Body — Calendar mode NEVER renders a big Empty State above or inside the grid; only List (agenda) mode renders Empty State when empty */}
-      <div className="rp-cal-stage bg-white">
+      <div className="rp-cal-stage relative bg-white">
+        {refreshing && (
+          <div className="pointer-events-none sticky top-2 z-30 h-0 overflow-visible px-3">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} label={tr('Đang cập nhật lịch…')} />
+              </div>
+            </div>
+          </div>
+        )}
         {view === 'agenda' && rangeEventsCount === 0 && (
           <div className="p-6">
             <ContextualEmptyState
-              compact
+              variant="compact"
               context="calendar"
+              illustration="calendar"
               title={tr(emptyTitle)}
               description={tr(emptyDescription)}
             />
@@ -628,7 +630,7 @@ export default function SakuraCalendar({
               {/* Time-Grid Hour Body — ONLY the Body scrolls vertically; shares scrollbarGutter: stable with Header */}
               <div
                 data-testid="calendar-body-grid"
-                className="rp-cal-scroll grid max-h-[calc(100dvh-242px)] min-h-[490px] overflow-y-scroll bg-white"
+                className="rp-cal-scroll grid max-h-[calc(100dvh-242px)] min-h-[min(490px,calc(100dvh-250px))] overflow-y-scroll bg-white"
                 style={{
                   gridTemplateColumns: `64px repeat(${weekDays.length}, minmax(0, 1fr))`,
                   scrollbarGutter: 'stable',
@@ -715,18 +717,20 @@ export default function SakuraCalendar({
                 return (
                   <div
                     key={cell.key}
-                    className={`flex min-h-[82px] flex-col p-1.5 sm:min-h-[112px] sm:p-2 ${
+                    onClick={() => setAnchor(cell.key)}
+                    className={`flex min-h-[82px] cursor-pointer flex-col p-1.5 transition-colors sm:min-h-[112px] sm:p-2 ${
                       isSelectedCell
                         ? 'bg-rp-brand-tint/30 ring-1 ring-inset ring-rp-brand-border'
                         : cell.inCurrentMonth
-                          ? 'bg-white'
-                          : 'bg-rp-bg-2/70 text-rp-text-muted/60'
+                          ? 'bg-white hover:bg-rp-bg-2/45'
+                          : 'bg-rp-bg-2/70 text-rp-text-muted/60 hover:bg-rp-bg-2'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (cell.key === anchorKey) {
                             setView('day');
                           } else {
@@ -746,7 +750,9 @@ export default function SakuraCalendar({
                         {cell.dateNum}
                       </button>
                       {items.length > 0 && (
-                        <span className="text-[10px] font-semibold text-rp-text-muted sm:hidden">{items.length}</span>
+                        <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10px] font-semibold tabular-nums text-rp-text-muted">
+                          {items.length}
+                        </span>
                       )}
                     </div>
 
@@ -754,23 +760,39 @@ export default function SakuraCalendar({
                     <div className="mt-1 hidden space-y-1 sm:block">
                       {visible.map((ev) => {
                         const meta = getToneMeta(ev.tone);
+                        const hideClock = ev.eventType === 'srs' && (ev.srsState === 'due_now' || ev.srsState === 'completed_today' || ev.srsState === 'reviewed_past');
                         return (
                           <button
                             key={ev.id}
                             type="button"
-                            onClick={() => (ev.onClick ? ev.onClick(ev) : setSelectedEvent(ev))}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAnchor(cell.key);
+                              if (ev.onClick) ev.onClick(ev);
+                              else setSelectedEvent(ev);
+                            }}
                             className={`flex w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[10.5px] font-semibold transition hover:brightness-95 ${meta.pill}`}
                           >
                             <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
-                            <span className="shrink-0 whitespace-nowrap tabular-nums opacity-75">{clockFromMinutes(minutesOfEvent(ev).start)}</span>
-                            <span className={`min-w-0 flex-1 truncate ${ev.tone === 'cancelled' ? 'line-through' : ''}`}>{tr(ev.title)}</span>
+                            {!hideClock && (
+                              <span className="shrink-0 whitespace-nowrap tabular-nums opacity-75">
+                                {clockFromMinutes(minutesOfEvent(ev).start)}
+                              </span>
+                            )}
+                            <span className={`min-w-0 flex-1 truncate ${ev.tone === 'cancelled' ? 'line-through' : ''}`}>
+                              {tr(ev.title)}
+                            </span>
                           </button>
                         );
                       })}
                       {overflow > 0 && (
                         <button
                           type="button"
-                          onClick={() => setMonthDayModal({ dayKey: cell.key, items })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAnchor(cell.key);
+                            setMonthDayModal({ dayKey: cell.key, items });
+                          }}
                           className="block w-full rounded px-1.5 py-0.5 text-left text-[10.5px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint"
                         >
                           {trf('+{n} lịch khác', { n: overflow })}
@@ -782,7 +804,11 @@ export default function SakuraCalendar({
                     {items.length > 0 && (
                       <button
                         type="button"
-                        onClick={() => setMonthDayModal({ dayKey: cell.key, items })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAnchor(cell.key);
+                          setMonthDayModal({ dayKey: cell.key, items });
+                        }}
                         className="mt-1 flex flex-wrap gap-1 sm:hidden"
                         aria-label={trf('Xem {n} lịch ngày {date}', { n: items.length, date: L.shortDate(cell.key) })}
                       >
@@ -800,21 +826,28 @@ export default function SakuraCalendar({
 
         {/* LIST VIEW (Danh sách — Mobile Cards + Desktop 5-Column Compact Table) */}
         {view === 'agenda' && agendaGroups.length > 0 && (
-          <div className="max-h-[calc(100dvh-196px)] min-h-[320px] overflow-auto">
+          <div className="max-h-[calc(100dvh-196px)] min-h-[min(320px,calc(100dvh-220px))] overflow-auto">
             {/* Mobile Compact Cards */}
             <div className="divide-y divide-rp-line md:hidden">
               {agendaGroups.flatMap((group) => group.items.map((ev) => ({ group, ev }))).map(({ group, ev }) => {
                 const meta = getToneMeta(ev.tone);
+                const catMeta = getCalendarCategoryMeta(ev);
                 const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort || ev.eventType === 'session' || ev.eventType === 'live';
                 const typeLabel = audience === 'learner'
-                  ? (ev.eventType === 'homework' ? 'Bài tập' : ev.eventType === 'srs' ? 'Ôn tập SRS' : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
+                  ? (ev.eventType === 'homework'
+                    ? 'Bài tập'
+                    : ev.eventType === 'srs'
+                      ? 'Ôn tập'
+                      : ev.eventType === 'reminder'
+                        ? 'Nhắc nhở'
+                        : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
                   : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
                 return (
                   <div key={`m-${ev.id}`} className="space-y-2 p-3.5 text-[13px]">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-semibold text-rp-text-muted">{L.fullDay(group.dayKey, todayKey)}</span>
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
-                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${catMeta.pill || meta.pill}`}>
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${catMeta.dot || meta.dot}`} />
                         {tr(ev.statusLabel || meta.label)}
                       </span>
                     </div>
@@ -862,14 +895,22 @@ export default function SakuraCalendar({
               <tbody className="divide-y divide-rp-line/70">
                 {agendaGroups.flatMap((group) => group.items.map((ev) => ({ group, ev }))).map(({ group, ev }) => {
                   const meta = getToneMeta(ev.tone);
+                  const catMeta = getCalendarCategoryMeta(ev);
                   const isCohort = ev.tone === 'session' || ev.tone === 'booked' || ev.rawSlot?.isInCohort || ev.eventType === 'session' || ev.eventType === 'live';
+                  const isAvailabilityOnly = !isCohort && ev.eventType === 'availability';
                   const typeLabel = audience === 'learner'
-                    ? (ev.eventType === 'homework' ? 'Bài tập' : ev.eventType === 'srs' ? 'Ôn tập SRS' : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
+                    ? (ev.eventType === 'homework'
+                      ? 'Bài tập'
+                      : ev.eventType === 'srs'
+                        ? 'Ôn tập'
+                        : ev.eventType === 'reminder'
+                          ? 'Nhắc nhở'
+                          : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
                     : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
-                  const typeBadgeClass = isCohort
-                    ? 'border-[#F2CCD7] bg-[#FFF5F7] text-[#9E3350]'
-                    : 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]';
-                  const typeDotClass = isCohort ? 'bg-[#CE476D]' : 'bg-[#0D9488]';
+                  const typeBadgeClass = isAvailabilityOnly
+                    ? 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]'
+                    : catMeta.pill;
+                  const typeDotClass = isAvailabilityOnly ? 'bg-[#0D9488]' : catMeta.dot;
                   return (
                     <tr key={ev.id} className="transition-colors hover:bg-rp-bg-2/40">
                       <td className="px-4 py-2.5 font-medium text-rp-text whitespace-nowrap">

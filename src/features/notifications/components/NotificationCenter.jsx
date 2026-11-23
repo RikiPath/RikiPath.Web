@@ -85,7 +85,7 @@ export default function NotificationCenter() {
             className="rp-bell-trigger shadow-rp-xs"
             badge={
               unreadCount > 0 && (
-                <HeaderIconBadge pulse>
+                <HeaderIconBadge pulse className={unreadCount > 99 ? undefined : '!h-4 !min-w-4 !px-0.5 !text-[8px] !font-medium tracking-[-0.02em]'}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </HeaderIconBadge>
               )
@@ -122,7 +122,7 @@ export default function NotificationCenter() {
             )}
             {list.isError && <ErrorState error={list.error} onRetry={() => list.refetch()} retrying={list.isFetching} compact />}
             {!list.isLoading && !list.isError && items.length === 0 && (
-              <EmptyState compact icon={Bell} title={tr('Chưa có thông báo')} description={tr('Thông báo về lớp học, bài tập và lịch dạy sẽ xuất hiện tại đây.')} />
+              <EmptyState variant="compact" illustration="bell" title={tr('Chưa có thông báo')} description={tr('Thông báo về lớp học, bài tập và lịch dạy sẽ xuất hiện tại đây.')} />
             )}
             <ul>
               {items.map((item) => (

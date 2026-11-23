@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -5,54 +6,11 @@ import {
   ChevronsRight,
 } from 'lucide-react';
 import { CustomSelect } from './core.jsx';
+import { getSmartPaginationModel } from './paginationLogic.js';
 import { useLocale } from '@/locales/locale.js';
 
 /**
- * Generates an array of page numbers with ellipses.
- * e.g. [1, 2, '...', 7, 8, 9, '...', 42]
- */
-function getPaginationRange(currentPage, totalPages, siblingCount = 1) {
-  const totalNumbers = siblingCount * 2 + 3; // siblingCount on each side + current + 2 boundary
-  const totalBlocks = totalNumbers + 2; // + 2 for ellipses
-
-  if (totalPages <= totalBlocks) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
-  }
-
-  const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
-  const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
-
-  const shouldShowLeftDots = leftSiblingIndex > 2;
-  const shouldShowRightDots = rightSiblingIndex < totalPages - 1;
-
-  if (!shouldShowLeftDots && shouldShowRightDots) {
-    const leftItemCount = 3 + 2 * siblingCount;
-    const leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
-    return [...leftRange, '...', totalPages];
-  }
-
-  if (shouldShowLeftDots && !shouldShowRightDots) {
-    const rightItemCount = 3 + 2 * siblingCount;
-    const rightRange = Array.from(
-      { length: rightItemCount },
-      (_, i) => totalPages - rightItemCount + i + 1
-    );
-    return [1, '...', ...rightRange];
-  }
-
-  if (shouldShowLeftDots && shouldShowRightDots) {
-    const middleRange = Array.from(
-      { length: rightSiblingIndex - leftSiblingIndex + 1 },
-      (_, i) => leftSiblingIndex + i
-    );
-    return [1, '...', ...middleRange, '...', totalPages];
-  }
-
-  return Array.from({ length: totalPages }, (_, i) => i + 1);
-}
-
-/**
- * Enterprise, highly accessible Pagination component with theme styling.
+ * Enterprise, adaptive, accessible Pagination component shared across RikiPath.
  */
 export default function Pagination({
   currentPage = 1,
@@ -65,82 +23,189 @@ export default function Pagination({
   showPageSize = true,
   showTotal = true,
   showFirstLast = true,
+  showPageJump = true,
+  siblingCount,
   itemLabel = 'mục',
   variant = 'sakura', // 'sakura' | 'admin' | 'neutral'
   className = '',
 }) {
   const { tr, trf } = useLocale();
-  const pages = getPaginationRange(currentPage, totalPages);
-  const startItem = totalItems ? Math.min((currentPage - 1) * pageSize + 1, totalItems) : 0;
-  const endItem = totalItems ? Math.min(currentPage * pageSize, totalItems) : 0;
+  const rootRef = useRef(null);
+  const [jumpValue, setJumpValue] = useState('');
+  const [isCompactWidth, setIsCompactWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false,
+  );
 
-  const isSakura = variant === 'sakura';
-  const isAdmin = variant === 'admin';
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const updateWidth = (width) => {
+      if (width > 0) setIsCompactWidth(width < 520);
+    };
+    updateWidth(el.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        updateWidth(entry.contentRect?.width || 0);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-  const activeBtnClass = isSakura || isAdmin
-    ? 'bg-rp-brand-pressed text-white shadow-sm shadow-rp-brand/25 font-bold border-transparent'
-    : 'bg-rp-text text-white font-bold border-transparent';
+  const safeTotalPages = Math.max(1, totalPages || 1);
+  if (safeTotalPages <= 1) return null;
 
-  const idleBtnClass =
-    'bg-rp-surface text-rp-text border border-rp-line hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border transition-all font-medium';
+  const model = getSmartPaginationModel({
+    currentPage,
+    totalPages: safeTotalPages,
+    compact: isCompactWidth,
+    siblingCount,
+    showFirstLast,
+    showPageJump,
+  });
+
+  const safeCurrentPage = model.currentPage;
+  const safePageSize = Number(pageSize) > 0 ? Number(pageSize) : 10;
+  const normalizedPageSizeOptions = Array.from(
+    new Set([
+      ...pageSizeOptions.map(Number).filter((n) => Number.isFinite(n) && n > 0),
+      safePageSize,
+    ]),
+  ).sort((a, b) => a - b);
+  const pages = model.items;
+  const startItem = totalItems ? Math.min((safeCurrentPage - 1) * safePageSize + 1, totalItems) : 0;
+  const endItem = totalItems ? Math.min(safeCurrentPage * safePageSize, totalItems) : 0;
+
+  const isNeutral = variant === 'neutral';
+
+  const activeBtnClass =
+    'bg-rp-brand-pressed text-white shadow-sm shadow-rp-brand/25 font-bold border-transparent';
+
+  const idleBtnClass = isNeutral
+    ? 'bg-rp-surface text-rp-text border border-rp-line hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border transition-colors font-medium'
+    : 'bg-rp-surface text-rp-text border border-rp-line hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border transition-colors font-medium';
+
+  const goToPage = (target) => {
+    const clamped = Math.max(1, Math.min(safeTotalPages, Number(target) || 1));
+    if (clamped !== safeCurrentPage) onPageChange?.(clamped);
+  };
+
+  const handleJumpChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '');
+    if (!digits) {
+      setJumpValue('');
+      return;
+    }
+    const parsed = Number.parseInt(digits, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > safeTotalPages) return;
+    setJumpValue(String(parsed));
+  };
+
+  const commitJump = (e) => {
+    e?.preventDefault();
+    const parsed = Number.parseInt(String(jumpValue).trim(), 10);
+    if (!Number.isFinite(parsed)) {
+      setJumpValue('');
+      return;
+    }
+    const clamped = Math.max(1, Math.min(safeTotalPages, parsed));
+    setJumpValue('');
+    if (clamped !== safeCurrentPage) onPageChange?.(clamped);
+  };
+
+  const hasTotalInfo = showTotal && totalItems !== undefined;
+  const hasPageSizeControl = Boolean(showPageSize && onPageSizeChange);
+  const hasJumpControl = Boolean(model.showJump && (totalItems == null || totalItems > 0));
+  const hasLeftControls = hasTotalInfo || hasPageSizeControl || hasJumpControl;
 
   return (
-    <div
-      className={`flex flex-col sm:flex-row items-center justify-between gap-4 py-3.5 px-4 bg-rp-surface/95 backdrop-blur-sm border-t border-rp-line text-xs ${className}`}
+    <nav
+      ref={rootRef}
+      aria-label={tr('Phân trang')}
+      className={`flex shrink-0 max-w-full flex-wrap items-center ${hasLeftControls ? 'justify-between' : 'justify-center'} gap-2.5 border-t border-rp-line bg-rp-surface px-4 py-2.5 text-xs md:flex-nowrap ${className}`}
       data-component="Pagination"
     >
-      {/* Left: Total Records Info & Page Size */}
-      <div className="flex flex-wrap items-center gap-3 text-rp-text-2">
-        {showTotal && totalItems !== undefined && (
-          <span className="font-medium">
-            {tr('Hiển thị')}{' '}
-            <strong className="text-rp-text font-bold">
-              {totalItems === 0 ? 0 : `${startItem} - ${endItem}`}
-            </strong>{' '}
-            {tr('trong tổng số')}{' '}<strong className="text-rp-text font-bold">{totalItems}</strong> {tr(itemLabel)}
-          </span>
-        )}
+      {/* Left: Compact Total Records Info, Page Size & Fast Page Jump (hidden cleanly when empty) */}
+      {hasLeftControls && (
+        <div className="flex flex-wrap items-center gap-2 text-rp-text-2 sm:flex-nowrap">
+          {hasTotalInfo && (
+            <span className="whitespace-nowrap font-medium tabular-nums">
+              <strong className="font-bold text-rp-text">
+                {totalItems === 0 ? '0' : `${startItem}–${endItem}`}
+              </strong>
+              {' / '}
+              <strong className="font-bold text-rp-text">{totalItems}</strong> {tr(itemLabel)}
+            </span>
+          )}
 
-        {showPageSize && onPageSizeChange && (
-          <div className="flex items-center gap-2">
-            <span className="text-rp-text-muted">{tr('| Mỗi trang:')}</span>
-            <CustomSelect
-              size="sm"
-              className="w-auto min-w-[118px]"
-              label={tr('Số dòng mỗi trang')}
-              value={String(pageSize)}
-              onChange={(val) => onPageSizeChange(Number(val))}
-              options={pageSizeOptions.map((opt) => ({
-                value: String(opt),
-                label: trf('{0} / trang', { 0: opt }),
-              }))}
-            />
-          </div>
-        )}
-      </div>
+          {hasPageSizeControl && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              {hasTotalInfo && <span className="text-rp-line">|</span>}
+              <CustomSelect
+                fitContent
+                size="sm"
+                triggerClassName="h-8 rounded-lg text-xs"
+                label={tr('Số dòng mỗi trang')}
+                value={String(safePageSize)}
+                onChange={(val) => onPageSizeChange(Number(val))}
+                options={normalizedPageSizeOptions.map((opt) => ({
+                  value: String(opt),
+                  label: trf('{0} / trang', { 0: opt }),
+                }))}
+              />
+            </div>
+          )}
+
+          {hasJumpControl && (
+            <form onSubmit={commitJump} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+              {(hasTotalInfo || hasPageSizeControl) && <span className="text-rp-line">|</span>}
+              <label htmlFor="rp-page-jump" className="text-rp-text-muted whitespace-nowrap">
+                {tr('Trang')}
+              </label>
+              <input
+                id="rp-page-jump"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                aria-valuemin={1}
+                aria-valuemax={safeTotalPages}
+                value={jumpValue}
+                onChange={handleJumpChange}
+                onBlur={commitJump}
+                placeholder={String(safeCurrentPage)}
+                aria-label={tr('Đi tới trang')}
+                className="h-8 w-11 rounded-lg border border-rp-line bg-rp-surface px-1.5 text-center text-xs font-medium tabular-nums text-rp-text focus:border-rp-brand focus:outline-none"
+              />
+              <span className="text-rp-text-muted tabular-nums">/ {safeTotalPages}</span>
+            </form>
+          )}
+        </div>
+      )}
 
       {/* Right: Page Navigation Buttons */}
-      <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5">
-        {showFirstLast && (
+      <div className="flex max-w-full flex-wrap items-center justify-center gap-1 sm:shrink-0 sm:flex-nowrap">
+        {model.showFirst && (
           <button
             type="button"
-            onClick={() => onPageChange(1)}
-            disabled={currentPage <= 1}
+            onClick={() => goToPage(1)}
+            disabled={!model.canPrev}
+            aria-label={tr('Trang đầu')}
             title={tr('Trang đầu')}
-            className="hidden sm:inline-flex p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            className="rp-focus hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
-            <ChevronsLeft className="w-4 h-4" />
+            <ChevronsLeft className="h-3.5 w-3.5" />
           </button>
         )}
 
         <button
           type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage <= 1}
+          onClick={() => goToPage(safeCurrentPage - 1)}
+          disabled={!model.canPrev}
+          aria-label={tr('Trang trước')}
           title={tr('Trang trước')}
-          className="p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          className="rp-focus inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border disabled:opacity-40 disabled:pointer-events-none transition-colors"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </button>
 
         {/* Number Buttons */}
@@ -150,20 +215,23 @@ export default function Pagination({
               return (
                 <span
                   key={`ellipsis-${idx}`}
-                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-rp-text-disabled font-medium select-none"
+                  aria-hidden="true"
+                  className="inline-flex h-8 w-7 items-center justify-center text-rp-text-disabled font-medium select-none"
                 >
                   ...
                 </span>
               );
             }
 
-            const isActive = p === currentPage;
+            const isActive = p === safeCurrentPage;
             return (
               <button
                 key={`page-${p}`}
                 type="button"
-                onClick={() => onPageChange(p)}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-xs transition-all ${
+                onClick={() => goToPage(p)}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={trf('Trang {0}', { 0: p })}
+                className={`rp-focus inline-flex h-8 min-w-[32px] px-2 rounded-lg items-center justify-center text-xs tabular-nums transition-colors ${
                   isActive ? activeBtnClass : idleBtnClass
                 }`}
               >
@@ -175,26 +243,28 @@ export default function Pagination({
 
         <button
           type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage >= totalPages}
+          onClick={() => goToPage(safeCurrentPage + 1)}
+          disabled={!model.canNext}
+          aria-label={tr('Trang sau')}
           title={tr('Trang sau')}
-          className="p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          className="rp-focus inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border disabled:opacity-40 disabled:pointer-events-none transition-colors"
         >
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </button>
 
-        {showFirstLast && (
+        {model.showLast && (
           <button
             type="button"
-            onClick={() => onPageChange(totalPages)}
-            disabled={currentPage >= totalPages}
+            onClick={() => goToPage(safeTotalPages)}
+            disabled={!model.canNext}
+            aria-label={tr('Trang cuối')}
             title={tr('Trang cuối')}
-            className="hidden sm:inline-flex p-1.5 rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-bg-2 hover:text-rp-text disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            className="rp-focus hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rp-line bg-rp-surface text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-pressed hover:border-rp-brand-border disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
-            <ChevronsRight className="w-4 h-4" />
+            <ChevronsRight className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
-    </div>
+    </nav>
   );
 }

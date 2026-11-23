@@ -43,6 +43,7 @@ export function StatusDotListbox({
 
   return (
     <CustomSelect
+      fitContent
       value={value}
       onChange={(nextVal) => onChange?.(nextVal)}
       options={formattedOptions}
@@ -51,9 +52,8 @@ export function StatusDotListbox({
       align="end"
       dataTestId="status-filter-listbox-trigger"
       testIdPrefix="status-filter-option"
-      className="!w-auto shrink-0"
-      triggerClassName="!w-auto max-w-[220px]"
-      menuClassName="w-56"
+      className="shrink-0"
+      triggerClassName="max-w-[220px]"
     />
   );
 }
@@ -291,18 +291,20 @@ export function ScheduleMoreFiltersPopover({
                 {tr('Từ giờ')}
                 <TimeInput
                   data-testid="custom-time-start"
+                  size="sm"
                   value={customStartTime}
                   onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: e.target.value, end: customEndTime })}
-                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px] tabular-nums"
+                  className="mt-0.5"
                 />
               </label>
               <label className="block text-[11px] font-medium text-rp-text-2">
                 {tr('Đến giờ')}
                 <TimeInput
                   data-testid="custom-time-end"
+                  size="sm"
                   value={customEndTime}
                   onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: e.target.value })}
-                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px] tabular-nums"
+                  className="mt-0.5"
                 />
               </label>
             </div>

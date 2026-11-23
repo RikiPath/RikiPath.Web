@@ -125,14 +125,22 @@ describe('landing: motion safety', () => {
     }
   });
 
-  it('hero photo is eager / high priority (LCP) and has a fixed aspect ratio (no CLS)', () => {
+  it('hero slideshow preserves original 5 scenes + adds the remaining 7 unique Japan banners (12 unique slides total)', () => {
     const scene = readSrc('src/features/landing/components/HeroLearningScene.jsx');
-    // The scenic frame reserves a fixed aspect box; the slideshow fills only that frame (not the hero background).
     assert.match(scene, /aspect-\[4\/5\][^"]*aspect-\[6\/5\][^"]*" \/>\s*<HeroScenicSlideshow className="absolute inset-0"/);
     assert.doesNotMatch(readSrc('src/pages/marketing/HomeLanding.jsx'), /<HeroScenicSlideshow/);
-    const slides = readSrc('src/features/landing/components/HeroScenicSlideshow.jsx');
-    assert.match(slides, /\{ name: 'fuji'/); // first scene = fuji
-    assert.match(slides, /priority=\{current === 0\}/); // first frame eager + high priority
+
+    const slidesSrc = readSrc('src/features/landing/components/HeroScenicSlideshow.jsx');
+    assert.match(slidesSrc, /\{ name: 'fuji'/);
+    assert.match(slidesSrc, /priority=\{current === 0\}/);
+
+    const names = [...slidesSrc.matchAll(/\{\s*name:\s*'([^']+)'/g)].map((m) => m[1]);
+    assert.equal(names.length, 12, '5 existing hero scenes + 7 remaining Japan banners = 12 slides');
+    assert.equal(new Set(names).size, 12, 'No duplicate slide names in HeroScenicSlideshow');
+    for (const added of ['bannerHokkaido', 'bannerTokyo', 'bannerOsaka', 'bannerKanazawa', 'bannerMiyajima', 'bannerNara', 'bannerOkinawa']) {
+      assert.ok(names.includes(added), `Hero slideshow must include ${added}`);
+    }
+    assert.equal(names.includes('bannerKyotoSakura'), false, 'Kyoto banner belongs strictly to Login slideshow');
   });
 
   it('hero slideshow renders no controls and pauses when hidden / off-screen / reduced motion', () => {
@@ -141,6 +149,20 @@ describe('landing: motion safety', () => {
     assert.match(slides, /document\.hidden/);
     assert.match(slides, /IntersectionObserver/);
     assert.match(slides, /prefers-reduced-motion: reduce/);
+  });
+
+  it('public header navigates to existing Homepage sections and renders Login + Register without Bắt đầu ôn luyện', () => {
+    const navSrc = readSrc('src/layouts/navConfig.js');
+    const shellSrc = readSrc('src/layouts/PublicShell.jsx');
+    const sectionsSrc = readSrc('src/features/landing/components/LandingSections.jsx');
+    for (const id of ['roadmap', 'ecosystem', 'group-learning', 'faq']) {
+      assert.match(navSrc, new RegExp(`id:\\s*'${id}'`));
+      assert.ok(sectionsSrc.includes(`id="${id}"`), `Existing Homepage section id="${id}" must exist`);
+    }
+    assert.doesNotMatch(navSrc, /Bắt đầu ôn luyện/);
+    assert.doesNotMatch(shellSrc, /Bắt đầu ôn luyện/);
+    assert.match(shellSrc, /MARKETING_NAV\.login\.to/);
+    assert.match(shellSrc, /MARKETING_NAV\.register\.to/);
   });
 });
 

@@ -2,19 +2,18 @@ import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { describeApiError } from '@/api/apiErrors.js';
+import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { History } from 'lucide-react';
 import {
-  Badge,
   Banner,
   Button,
   Card,
   Field,
   Input,
   PageContainer,
-  PageHeader,
   useUnsavedGuard,
 } from '@/components/ui';
+import { ControlGroup, CounterPill, IllustratedPageHeader, LevelTabs, SUPPORTED_JLPT_LEVELS } from '@/features/learner-ui';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import { getCertificateTypes, getLevelsByCertificate } from '@/features/learning-path/api/certificateApi.js';
@@ -24,7 +23,7 @@ import RomajiJapaneseInput from '@/features/writing/components/RomajiJapaneseInp
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 
-const JLPT_ORDER = ['N5', 'N4', 'N3', 'N2', 'N1'];
+const JLPT_ORDER = SUPPORTED_JLPT_LEVELS;
 
 export default function SentenceStudio() {
   const { tr, trf } = useLocale();
@@ -105,22 +104,24 @@ export default function SentenceStudio() {
 
   return (
     <LearnerShell pathname="/sentence-studio" breadcrumb={tr('Chấm bài viết')}>
-      <PageContainer width="default">
-        <PageHeader
+      <PageContainer width="default" className="space-y-4">
+        <IllustratedPageHeader
+          icon="writing"
+          tone="peach"
           eyebrow={tr('LUYỆN VIẾT')}
           title={tr('Viết câu & nhận nhận xét')}
-          description={tr('Chọn cấp độ JLPT N5–N1, nhập đoạn văn tiếng Nhật để lưu bài và chấm gợi ý bằng AI.')}
+          description={tr('Chọn cấp độ JLPT N5–N2, nhập đoạn văn tiếng Nhật để lưu bài và chấm gợi ý bằng AI.')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <ControlGroup>
               {writingQuota !== null && (
-                <Badge tone={writingQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                <CounterPill tone={writingQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI viết: {0}', { 0: writingQuota })}
-                </Badge>
+                </CounterPill>
               )}
-              <Button as={Link} to="/ai-scoring/" variant="secondary" size="sm" icon={History}>
+              <Button as={Link} to="/ai-scoring/" variant="secondary" size="md" icon={History}>
                 {tr('Xem các bài đã nộp')}
               </Button>
-            </div>
+            </ControlGroup>
           }
         />
 
@@ -148,26 +149,12 @@ export default function SentenceStudio() {
               <span className="mb-2 block text-xs font-semibold text-rp-text-muted">
                 {tr('Cấp độ mục tiêu')}
               </span>
-              <div className="flex flex-wrap gap-2" role="group" aria-label={tr('Chọn cấp độ JLPT')}>
-                {levelOptions.map((level) => {
-                  const active = selectedCode === level.code;
-                  return (
-                    <button
-                      key={level.code}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setSelectedCode(level.code)}
-                      className={`rp-focus h-9 rounded-lg border px-3.5 text-sm font-semibold transition-colors ${
-                        active
-                          ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong'
-                          : 'border-rp-line bg-rp-surface text-rp-text-2 hover:bg-rp-brand-tint/50'
-                      }`}
-                    >
-                      {level.code}
-                    </button>
-                  );
-                })}
-              </div>
+              <LevelTabs
+                label={tr('Chọn cấp độ JLPT')}
+                value={selectedCode}
+                onChange={setSelectedCode}
+                levels={JLPT_ORDER}
+              />
             </div>
 
             <Field label={tr('Đề bài (tuỳ chọn)')}>
@@ -201,7 +188,7 @@ export default function SentenceStudio() {
                   ) : null
                 }
               >
-                {describeApiError(submit.error, tr('Không gửi được bài viết.'))}
+                {formatApiError(submit.error, tr('Không gửi được bài viết.'))}
               </Banner>
             )}
 

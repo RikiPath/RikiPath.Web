@@ -22,6 +22,10 @@ const PALETTE = {
   kanji: ['#E7DAF2', '#9A75B8', '#74558A'],
   kana: ['#FFD6E0', '#E8668A', '#B23A5E'],
   srs: ['#E9DBFF', '#9B62E6', '#7E2FD0'],
+  srs_flip: ['#FFD9E6', '#E56B92', '#B53D5C'],
+  srs_typing: ['#E6DCFF', '#8D69E8', '#5E3BC2'],
+  srs_mcq: ['#D8ECFF', '#5897E8', '#2864B8'],
+  srs_mixed: ['#F4DCFF', '#B562E8', '#7C2EB5'],
   listening: ['#E2D8FF', '#7B6CF0', '#5543C8'],
   reading: ['#D3E6FF', '#4A8BE0', '#1F64B5'],
   writing: ['#FFE9C7', '#D49A3A', '#8A5A16'],
@@ -145,6 +149,74 @@ const DRAW = {
         <circle r="15" fill="#FFF8EC" />
         <path d="M-7 -1a8 8 0 1 1 2 6" stroke={dark} strokeWidth="3" strokeLinecap="round" fill="none" />
         <path d="M-9 -6l2 6 6-2" stroke={dark} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </g>
+    </>
+  ),
+  srs_flip: ({ face, deep, paper, dark }) => (
+    <>
+      <rect x="20" y="24" width="54" height="64" rx="14" fill="#9B62E6" transform="rotate(-10 47 56)" />
+      <rect x="20" y="20" width="54" height="64" rx="14" fill="#DEC9FF" transform="rotate(-10 47 52)" />
+      <rect x="34" y="26" width="58" height="68" rx="15" fill={deep} transform="rotate(6 63 60)" />
+      <rect x="34" y="20" width="58" height="68" rx="15" fill={face} transform="rotate(6 63 54)" />
+      <rect x="42" y="29" width="42" height="44" rx="10" fill={paper} transform="rotate(6 63 51)" />
+      <text x="63" y="59" textAnchor="middle" fontSize="24" fill={dark} style={jp} transform="rotate(6 63 51)">表</text>
+      <path d="M44 26c10-2 24-1 34 2" stroke={gloss} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+      <g transform="translate(88 80)">
+        <circle r="16" cy="3" fill={dark} opacity="0.35" />
+        <circle r="16" fill="#FFF8EC" />
+        <path d="M-7 -3h12l-3.5-3.5M7 3H-5l3.5 3.5" stroke={dark} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </g>
+    </>
+  ),
+  srs_typing: ({ face, deep, paper, dark }) => (
+    <>
+      <rect x="26" y="16" width="68" height="34" rx="11" fill={deep} />
+      <rect x="26" y="12" width="68" height="34" rx="11" fill={paper} />
+      <text x="48" y="35" textAnchor="middle" fontSize="18" fill={dark} style={jp}>あ</text>
+      <rect x="62" y="20" width="3" height="18" rx="1.5" fill={sakura} />
+      <rect x="16" y="56" width="88" height="40" rx="14" fill={deep} />
+      <rect x="16" y="50" width="88" height="40" rx="14" fill={face} />
+      {[26, 42, 58, 74, 90].map((x) => (
+        <rect key={`r1-${x}`} x={x - 5} y="58" width="11" height="9" rx="3" fill="#FFF8EC" />
+      ))}
+      {[28, 44, 60].map((x) => (
+        <rect key={`r2-${x}`} x={x - 5} y="71" width="11" height="9" rx="3" fill="#FFF8EC" />
+      ))}
+      <rect x="71" y="71" width="24" height="9" rx="3.5" fill={sakura} />
+      <path d="M24 55c16-2 44-2 64 0" stroke={gloss} strokeWidth="3" strokeLinecap="round" fill="none" />
+    </>
+  ),
+  srs_mcq: ({ face, deep, paper, dark }) => (
+    <>
+      <rect x="20" y="22" width="72" height="76" rx="16" fill={deep} />
+      <rect x="20" y="16" width="72" height="76" rx="16" fill={face} />
+      <rect x="28" y="25" width="56" height="58" rx="11" fill={paper} />
+      <rect x="34" y="32" width="44" height="11" rx="5.5" fill="#EFE8EC" />
+      <rect x="34" y="48" width="44" height="13" rx="6.5" fill="#FFE3EC" stroke={sakura} strokeWidth="2" />
+      <circle cx="41" cy="54.5" r="3.5" fill="#E05A7A" />
+      <path d="M50 54.5h20" stroke={dark} strokeWidth="3" strokeLinecap="round" />
+      <rect x="34" y="66" width="44" height="11" rx="5.5" fill="#EFE8EC" />
+      <path d="M28 21c14-2 34-2 48 0" stroke={gloss} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+      <g transform="translate(88 76)">
+        <circle r="16" cy="3" fill="#1E824C" opacity="0.35" />
+        <circle r="16" fill="#2FA56A" />
+        <path d="M-6 0l4 4 8-8" stroke="#FFF8EC" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </g>
+    </>
+  ),
+  srs_mixed: ({ face, deep, paper, dark }) => (
+    <>
+      <rect x="16" y="28" width="46" height="58" rx="12" fill="#F28DA8" transform="rotate(-14 39 57)" />
+      <rect x="58" y="28" width="46" height="58" rx="12" fill="#64A8EE" transform="rotate(14 81 57)" />
+      <rect x="32" y="24" width="56" height="66" rx="15" fill={deep} />
+      <rect x="32" y="18" width="56" height="66" rx="15" fill={face} />
+      <rect x="40" y="27" width="40" height="38" rx="9" fill={paper} />
+      <text x="60" y="53" textAnchor="middle" fontSize="21" fill={dark} style={jp}>混</text>
+      <path d="M40 23c12-2 26-2 38 0" stroke={gloss} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+      <g transform="translate(88 78)">
+        <circle r="16" cy="3" fill={dark} opacity="0.35" />
+        <circle r="16" fill="#FFF8EC" />
+        <path d="M-7 -4h4l10 8h4M-7 4h4l10-8h4" stroke={dark} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </g>
     </>
   ),

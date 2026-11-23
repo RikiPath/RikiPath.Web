@@ -1,17 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Clock } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 import { getActivePlacement, savePlacementAnswer, submitPlacement } from '@/features/placement/api/placementApi.js';
+import ExamWorkspace from '@/features/mock-test/components/ExamWorkspace.jsx';
 import { describeApiError } from '@/api/apiErrors.js';
 import { recordDiagnostic } from '@/api/diagnostics.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 import {
-  Badge,
-  Banner,
   Button,
   Card,
   ContextualErrorState,
@@ -45,8 +44,10 @@ export default function PlacementExam() {
   const [left, setLeft] = useState(() => remainingSeconds(seeded?.expiresAt));
   const [error, setError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const autoSubmitted = useRef(false);
   const submitRef = useRef(null);
+  const queryClient = useQueryClient();
 
   const uid = getSession()?.userId ?? 'anon';
   const activeQuery = useQuery({
@@ -84,19 +85,6 @@ export default function PlacementExam() {
     submitRef.current?.mutate();
   }, [left, attempt?.attemptId]);
 
-  const sections = useMemo(() => {
-    const groups = [];
-    questions.forEach((question) => {
-      const last = groups[groups.length - 1];
-      if (!last || last.title !== question.sectionTitle) {
-        groups.push({ title: question.sectionTitle, level: question.jlptLevelName, items: [question] });
-      } else {
-        last.items.push(question);
-      }
-    });
-    return groups;
-  }, [questions]);
-
   const payload = () => questions.map((question) => ({
     questionId: question.questionId,
     selectedOptionId: answers[question.questionId] ?? null,
@@ -109,6 +97,7 @@ export default function PlacementExam() {
     },
     onSuccess: (result) => {
       setConfirmOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['learner', 'placement-status'] });
       notify.success(tr('Đã hoàn thành bài đánh giá năng lực!'), '', { key: 'placement-submit', replace: true });
       navigate(`/placement/result/${result.attemptId}`, { replace: true });
     },
@@ -124,14 +113,18 @@ export default function PlacementExam() {
   useUnsavedGuard(Boolean(attempt && !submit.isSuccess && Object.keys(answers).length > 0));
 
   const choose = (question, optionId) => {
+    setError('');
+    setSaving(true);
     setAnswers((current) => ({ ...current, [question.questionId]: optionId }));
     savePlacementAnswer(attempt.attemptId, {
       questionId: question.questionId,
       selectedOptionId: optionId,
-    }).catch((err) => {
-      recordDiagnostic({ source: 'PlacementExam', operation: 'savePlacementAnswer', error: err });
-      notify.apiError(err, tr('Chưa tự động lưu đáp án vừa chọn'), { key: 'placement-autosave-err' });
-    });
+    })
+      .catch((err) => {
+        recordDiagnostic({ source: 'PlacementExam', operation: 'savePlacementAnswer', error: err });
+        notify.apiError(err, tr('Chưa tự động lưu đáp án vừa chọn'), { key: 'placement-autosave-err' });
+      })
+      .finally(() => setSaving(false));
   };
 
   const answered = Object.keys(answers).length;
@@ -139,23 +132,12 @@ export default function PlacementExam() {
 
   return (
     <LearnerShell pathname={pathname} breadcrumb={tr('Đánh giá năng lực')}>
-      <PageContainer data-page="PlacementExam" width="reading" density="comfortable" className="text-rp-text">
-        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <Link to="/placement/" className="rp-link inline-flex items-center gap-1 text-xs font-semibold">
-              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Về trang đánh giá')}
-            </Link>
-            <h1 className="mt-1 text-xl font-semibold text-rp-text">{tr('Bài đánh giá năng lực')}</h1>
-            <p className="mt-0.5 text-xs text-rp-text-muted">
-              {answered}/{totalQuestions} {tr('câu đã chọn')}
-            </p>
-          </div>
-          {left != null && (
-            <Badge tone={left < 60 ? 'danger' : 'brand'} icon={Clock} size="md">
-              {clock(left)}
-            </Badge>
-          )}
-        </Card>
+      <PageContainer data-page="PlacementExam" width={attempt ? 'default' : 'reading'} density="comfortable" className="space-y-4 text-rp-text">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Link to="/placement/" className="rp-link inline-flex items-center gap-1 text-xs font-semibold">
+            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Về trang đánh giá')}
+          </Link>
+        </div>
 
         {activeQuery.isPending && !seeded && (
           <SakuraLoader variant="section" context="assessment" label={tr('Đang tải bài đánh giá')} delay={160} />
@@ -180,66 +162,48 @@ export default function PlacementExam() {
           </Card>
         )}
 
-        <div className="space-y-4">
-          {sections.map((section) => (
-            <Card key={section.title} className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2 border-b border-rp-line pb-2.5">
-                <h2 className="text-sm font-semibold text-rp-text">{tr(section.title)}</h2>
-                {section.level && <Badge tone="brand" icon={false} size="sm">{section.level}</Badge>}
-              </div>
-              <ol className="space-y-5">
-                {section.items.map((question, index) => (
-                  <li key={question.questionId}>
-                    <p className="text-sm leading-6 text-rp-text">
-                      <span className="mr-2 font-semibold text-rp-brand-strong">{index + 1}.</span>
-                      {question.content}
-                    </p>
-                    {question.audioUrl && <audio className="mt-2 w-full" controls src={question.audioUrl} />}
-                    {question.imageUrl && (
-                      <img alt="" src={question.imageUrl} className="mt-2 max-h-48 rounded-xl" />
-                    )}
-                    <div className="mt-2.5 space-y-2">
-                      {question.options.map((option) => {
-                        const selected = answers[question.questionId] === option.optionId;
-                        return (
-                          <div
-                            key={option.optionId}
-                            className={`rounded-xl border px-3 py-2 transition-colors ${
-                              selected ? 'border-rp-brand bg-rp-brand-tint/60' : 'border-rp-line bg-rp-surface hover:border-rp-brand-border'
-                            }`}
-                          >
-                            <Radio
-                              name={`q-${question.questionId}`}
-                              checked={selected}
-                              onChange={() => choose(question, option.optionId)}
-                              label={option.content}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </Card>
-          ))}
-        </div>
-
         {attempt && (
-          <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-            {error && <Banner tone="danger" className="w-full">{error}</Banner>}
-            <Button
-              variant="primary"
-              loading={submit.isPending}
-              disabled={submit.isPending}
-              onClick={() => {
-                setError('');
-                setConfirmOpen(true);
-              }}
-            >
-              {tr('Nộp bài')}
-            </Button>
-          </div>
+          <ExamWorkspace
+            title={tr('Bài đánh giá năng lực')}
+            subtitle={`${totalQuestions} ${tr('câu')}`}
+            questions={questions}
+            isAnswered={(q) => answers[q.questionId] != null}
+            clockLabel={left != null ? clock(left) : null}
+            secondsLeft={left}
+            urgentSecondsThreshold={60}
+            saveState={saving ? 'saving' : answered > 0 ? 'saved' : 'idle'}
+            pending={submit.isPending}
+            expired={left === 0}
+            errorMessage={error}
+            submitLabel={tr('Nộp bài')}
+            onRequestSubmit={() => {
+              setError('');
+              setConfirmOpen(true);
+            }}
+            onExpiredSubmit={() => submit.mutate()}
+            renderQuestionBody={(question) => (
+              <div className="space-y-2">
+                {question.options.map((option) => {
+                  const selected = answers[question.questionId] === option.optionId;
+                  return (
+                    <div
+                      key={option.optionId}
+                      className={`rounded-xl border px-3.5 py-2.5 transition-colors ${
+                        selected ? 'border-rp-brand bg-rp-brand-tint/65' : 'border-rp-line bg-rp-surface hover:border-rp-brand-border hover:bg-rp-brand-tint/30'
+                      }`}
+                    >
+                      <Radio
+                        name={`q-${question.questionId}`}
+                        checked={selected}
+                        onChange={() => choose(question, option.optionId)}
+                        label={option.content}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          />
         )}
 
         <Modal

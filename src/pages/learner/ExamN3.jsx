@@ -1,32 +1,50 @@
+import AssessmentResultDashboard from '@/features/mock-test/components/AssessmentResultDashboard.jsx';
+import ExamWorkspace from '@/features/mock-test/components/ExamWorkspace.jsx';
 import OrderingAnswer from '@/features/mock-test/components/OrderingAnswer.jsx';
-import SkillAssessmentChart from '@/features/mock-test/components/SkillAssessmentChart.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { getSession } from '@/app/auth/session.js';
 import { notify } from '@/components/ui/feedbackStore.js';
-import { Button, Modal, SakuraLoader } from '@/components/ui';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  Modal,
+  PageContainer,
+  Radio,
+  SakuraLoader,
+} from '@/components/ui';
 import {
   getPlacementResultActions,
   loadAssessment,
   placementAssessmentKey,
   getPlacementStatus,
+  getActivePlacementAttempt,
   savePlacementAnswers,
+  skipStandardPlacement,
   startPlacementAttempt,
   submitPlacementAttempt,
 } from '@/features/placement/api/placementApi.js';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { useLocale } from '@/locales/locale.js';
+import { IllustratedPageHeader, WebClayIcon, resolveSurfaceTone } from '@/features/learner-ui';
 
-const buttonClass = 'inline-flex items-center justify-center rounded-lg bg-rp-brand-strong px-4 py-2.5 text-sm font-semibold text-white hover:bg-rp-brand-deep disabled:opacity-50';
-const cardClass = 'rounded-xl border border-rp-line bg-white p-5';
+const PLACEMENT_SKILLS_PREVIEW = [
+  { key: 'vocabulary', label: 'Từ vựng', tone: 'mint' },
+  { key: 'grammar', label: 'Ngữ pháp', tone: 'peach' },
+  { key: 'reading', label: 'Đọc hiểu', tone: 'navy' },
+  { key: 'listening', label: 'Nghe hiểu', tone: 'sky' },
+];
+
 const assessmentUrl = '/app/placement-test';
 const chartLevelsByTarget = {
   N5: ['N5'],
   N4: ['N5', 'N4'],
   N3: ['N4', 'N3'],
   N2: ['N3', 'N2'],
-  N1: ['N2', 'N1'],
 };
 
 function placementAnswer(questionId, value) {
@@ -43,13 +61,31 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const revision = useRef(0);
   const autoSubmitted = useRef(false);
-  const deadline = attempt.localDeadline;
-  const [seconds, setSeconds] = useState(() => Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+  const [deadline, setDeadline] = useState(attempt.monotonicDeadline);
+  const [seconds, setSeconds] = useState(() => Math.max(0, Math.ceil((deadline - performance.now()) / 1000)));
 
   useEffect(() => {
-    const interval = setInterval(() => setSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 250);
+    const interval = setInterval(() => setSeconds(Math.max(0, Math.ceil((deadline - performance.now()) / 1000))), 250);
     return () => clearInterval(interval);
   }, [deadline]);
+
+  useEffect(() => {
+    const syncDeadline = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const latest = await getActivePlacementAttempt();
+        if (latest?.attemptId === attempt.attemptId) setDeadline(latest.monotonicDeadline);
+      } catch {
+        // The API remains authoritative when saving or submitting answers.
+      }
+    };
+    document.addEventListener('visibilitychange', syncDeadline);
+    window.addEventListener('pageshow', syncDeadline);
+    return () => {
+      document.removeEventListener('visibilitychange', syncDeadline);
+      window.removeEventListener('pageshow', syncDeadline);
+    };
+  }, [attempt.attemptId]);
 
   function choose(questionId, value) {
     if (pending || seconds === 0) return;
@@ -89,91 +125,95 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
   }
   const answeredCount = questions.filter(isAnswered).length;
 
-  return <>
-    <section className={cardClass}>
-      <div>
-        <h2 className="font-semibold">
-          {[attempt.isShortenedAssessment ? 'Bài đánh giá rút gọn' : 'Bài đánh giá năng lực', levels.join(' + ')].filter(Boolean).join(' ')}
-        </h2>
-        <p className="mt-1 text-xs text-rp-text-muted">{attempt.totalQuestions}{' '}{tr('câu ·')}{' '}{attempt.timeLimitMinutes}{' '}{tr('phút · Đã trả lời')}{' '}{answeredCount}/{attempt.totalQuestions}{saving && tr(' · Đang lưu đáp án…')}</p>
-      </div>
-    </section>
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-      <aside aria-label={tr('Thông tin lượt làm bài')} className={`${cardClass} lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto`}>
-        <div className="flex items-center justify-between gap-2 border-b border-rp-line pb-3">
-          <span className="text-sm font-semibold">{tr('Thời gian còn lại')}</span>
-        <span className="rounded-lg bg-rp-brand-tint px-3 py-2 font-semibold tabular-nums text-rp-brand-strong" aria-label={tr('Thời gian còn lại')}>{clock}</span>
-        </div>
-        <p className="mt-3 text-sm font-semibold">{tr('Danh sách câu hỏi')}</p>
-        <nav aria-label={tr('Chuyển đến câu hỏi')} className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-2">
-          {questions.map((question, index) => (
-            <button key={question.questionId} type="button" aria-label={trf('Câu {0}, {1}', { 0: index + 1, 1: isAnswered(question) ? 'đã trả lời' : 'chưa trả lời' })}
-              onClick={() => document.getElementById(`placement-question-${question.questionId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
-              className={`h-9 min-w-0 rounded-lg border text-sm ${isAnswered(question) ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong' : 'border-rp-line'}`}>{index + 1}</button>
-          ))}
-        </nav>
-      </aside>
-      <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-1">
-        {questions.map((question, index) => (
-          <fieldset id={`placement-question-${question.questionId}`} key={question.questionId} disabled={pending || seconds === 0} className={`${cardClass} scroll-mt-36`}>
-            <legend className="px-2 text-xs font-semibold text-rp-brand-strong">{trf('Câu {0}', { 0: index + 1 })}</legend>
-            <p className="whitespace-pre-wrap text-sm font-medium">{question.content}</p>
-            {question.imageUrl && <img src={question.imageUrl} alt={tr('Hình minh họa câu hỏi')} className="mt-3 max-h-80 max-w-full rounded-lg" />}
-            {question.audioUrl && <audio controls preload="none" src={question.audioUrl} className="mt-3 w-full" />}
-            {question.questionType === 'Ordering'
-              ? <OrderingAnswer question={question} value={answers[question.questionId]}
-                  onChange={value => choose(question.questionId, value)} />
-              : <div className="mt-4 grid gap-2">
-              {question.options.map((option, optionIndex) => (
-                <label key={option.optionId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-rp-line px-3 py-2.5 text-sm has-checked:border-rp-brand-strong has-checked:bg-rp-brand-tint">
-                  <input type="radio" className="mt-1" name={`question-${question.questionId}`} checked={answers[question.questionId] === option.optionId} onChange={() => choose(question.questionId, option.optionId)} />
-                  <span className="min-w-0 whitespace-pre-wrap">
-                    {option.content}
-                    {option.imageUrl && <img src={option.imageUrl} alt={trf('Hình đáp án {0}', { 0: optionIndex + 1 })} className="max-h-48 max-w-full rounded-md" />}
-                  </span>
-                </label>
-              ))}
-            </div>}
-          </fieldset>
-        ))}
-        <div className="flex items-center justify-end gap-3">
-          {seconds === 0 ? <>
-            <p role="status" className="text-sm text-rp-text-muted">
-              {pending ? tr('Đã hết giờ. Đang tự động nộp bài…') : tr('Đã hết thời gian làm bài.')}
-            </p>
-            {!pending && <Button variant="primary" onClick={submit}>{tr('Thử nộp lại')}</Button>}
-          </> : (
-            <Button variant="primary" loading={pending} disabled={pending} onClick={() => setConfirmSubmit(true)}>
-              {tr('Nộp bài đánh giá')}
+  return (
+    <>
+      <ExamWorkspace
+        title={[
+          attempt.isShortenedAssessment ? tr('Bài đánh giá rút gọn') : tr('Bài đánh giá năng lực'),
+          levels.join(' + '),
+        ].filter(Boolean).join(' ')}
+        subtitle={`${attempt.totalQuestions} ${tr('câu')} · ${attempt.timeLimitMinutes} ${tr('phút')}`}
+        questions={questions}
+        isAnswered={isAnswered}
+        clockLabel={clock}
+        secondsLeft={seconds}
+        urgentSecondsThreshold={60}
+        saveState={saving ? 'saving' : answeredCount > 0 ? 'saved' : 'idle'}
+        pending={pending}
+        expired={seconds === 0}
+        submitLabel={tr('Nộp bài đánh giá')}
+        onRequestSubmit={() => setConfirmSubmit(true)}
+        onExpiredSubmit={submit}
+        renderQuestionBody={(question) => (
+          question.questionType === 'Ordering' ? (
+            <OrderingAnswer
+              question={question}
+              value={answers[question.questionId]}
+              onChange={(value) => choose(question.questionId, value)}
+            />
+          ) : (
+            <div className="grid gap-2">
+              {question.options.map((option, optionIndex) => {
+                const selected = answers[question.questionId] === option.optionId;
+                return (
+                  <div
+                    key={option.optionId}
+                    className={`rounded-xl border px-3.5 py-2.5 transition-colors ${
+                      selected
+                        ? 'border-rp-brand bg-rp-brand-tint/65'
+                        : 'border-rp-line bg-rp-surface hover:border-rp-brand-border hover:bg-rp-brand-tint/30'
+                    }`}
+                  >
+                    <Radio
+                      name={`question-${question.questionId}`}
+                      checked={selected}
+                      onChange={() => choose(question.questionId, option.optionId)}
+                      label={(
+                        <span className="min-w-0 whitespace-pre-wrap">
+                          {option.content}
+                          {option.imageUrl && (
+                            <img
+                              src={option.imageUrl}
+                              alt={trf('Hình đáp án {0}', { 0: optionIndex + 1 })}
+                              className="mt-1 max-h-48 max-w-full rounded-md"
+                            />
+                          )}
+                        </span>
+                      )}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+      />
+
+      <Modal
+        open={confirmSubmit}
+        onClose={() => !pending && setConfirmSubmit(false)}
+        title="Xác nhận nộp bài đánh giá?"
+        description={trf('Bạn đã trả lời {0}/{1} câu.', { 0: answeredCount, 1: attempt.totalQuestions })}
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setConfirmSubmit(false)} disabled={pending}>
+              {tr('Quay lại')}
             </Button>
-          )}
-        </div>
-        <Modal
-          open={confirmSubmit}
-          onClose={() => !pending && setConfirmSubmit(false)}
-          title="Xác nhận nộp bài đánh giá?"
-          description={trf('Bạn đã trả lời {0}/{1} câu.', { 0: answeredCount, 1: attempt.totalQuestions })}
-          size="sm"
-          footer={(
-            <>
-              <Button variant="secondary" onClick={() => setConfirmSubmit(false)} disabled={pending}>
-                {tr('Quay lại')}
-              </Button>
-              <Button variant="primary" loading={pending} disabled={pending} onClick={submit}>
-                {tr('Xác nhận nộp bài')}
-              </Button>
-            </>
-          )}
-        >
-          <p className="text-sm text-rp-text-2">
-            {answeredCount < attempt.totalQuestions
-              ? tr('Vẫn còn câu chưa trả lời. Sau khi nộp, hệ thống sẽ chấm điểm và hiển thị kết quả ngay.')
-              : tr('Bạn đã hoàn thành toàn bộ câu hỏi. Bấm xác nhận để nhận kết quả.')}
-          </p>
-        </Modal>
-      </div>
-    </div>
-  </>;
+            <Button variant="primary" loading={pending} disabled={pending} onClick={submit}>
+              {tr('Xác nhận nộp bài')}
+            </Button>
+          </>
+        )}
+      >
+        <p className="text-sm text-rp-text-2">
+          {answeredCount < attempt.totalQuestions
+            ? tr('Vẫn còn câu chưa trả lời. Sau khi nộp, hệ thống sẽ chấm điểm và hiển thị kết quả ngay.')
+            : tr('Bạn đã hoàn thành toàn bộ câu hỏi. Bấm xác nhận để nhận kết quả.')}
+        </p>
+      </Modal>
+    </>
+  );
 }
 
 export default function ExamN3() {
@@ -210,6 +250,9 @@ export default function ExamN3() {
   const allowance = status?.attemptAllowance;
   const studyLevel = result?.skillAssessments?.find(item => item.skillCode === 'listening')?.recommendedStudyLevelCode
     ?? chartLevelsByTarget[chartTarget]?.[0] ?? chartTarget;
+  const resultLevelSummary = result?.levelBreakdowns?.map((level) => level.jlptLevelName).filter(Boolean).join(' + ')
+    || result?.screeningLevelName
+    || '';
 
 
   function openAttempt(id, data) {
@@ -251,6 +294,22 @@ export default function ExamN3() {
     }, { errorTitle: 'Không thể bắt đầu bài đánh giá', toastKey: 'placement-n3-start' });
   }
 
+  function skipAssessment() {
+    return run(async () => {
+      await skipStandardPlacement();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['learner', 'placement-status'] }),
+        queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] }),
+        queryClient.invalidateQueries({ queryKey: ['learner', 'profile'] }),
+      ]);
+      navigate('/roadmap/');
+    }, {
+      successMessage: 'Đã tạm bỏ qua bài đánh giá năng lực',
+      errorTitle: 'Không thể bỏ qua bài đánh giá',
+      toastKey: 'placement-n3-skip',
+    });
+  }
+
   function returnToCurrentAssessment() {
     return run(async () => {
       const current = await loadAssessment(null);
@@ -265,6 +324,7 @@ export default function ExamN3() {
       const completed = await submitPlacementAttempt(id, answers);
       openAttempt(completed.attemptId, { result: completed });
       void queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] });
+      void queryClient.invalidateQueries({ queryKey: ['learner', 'placement-status'] });
       // Refresh eligibility separately so a status failure never loses a submitted result.
       const latestStatus = await getPlacementStatus();
       queryClient.setQueryData(keyFor(completed.attemptId), { status: latestStatus, result: completed });
@@ -277,74 +337,197 @@ export default function ExamN3() {
   }
 
   return <LearnerShell pathname={pathname} breadcrumb={tr('Đánh giá năng lực')}>
-    <main className="min-h-full py-6 text-rp-text lg:py-8">
-      <div className={`${attempt ? 'rp-container' : 'rp-container-reading'} space-y-4`}>
-        <header className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}>
-          <h1 className="text-xl font-semibold">{tr('Đánh giá năng lực JLPT')}</h1>
-          <Link to="/onboarding" className="text-sm font-semibold rp-link">{tr('Đổi mục tiêu học tập')}</Link>
-        </header>
-        {!session?.accessToken && <Link to="/auth" className={buttonClass}>{tr('Đăng nhập để làm bài')}</Link>}
-        {visibleError && <div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
-          {visibleError}
-          {(query.error || (result && !status)) && <button type="button" disabled={pending || query.isFetching} onClick={() => { setError(''); query.refetch(); }} className="ml-3 font-semibold underline">{tr('Thử tải lại')}</button>}
-        </div>}
-        {state?.placementMessage && <p className={cardClass}>{state.placementMessage}</p>}
-        {notice && <p className={cardClass}>{notice}</p>}
-        {query.isLoading && (
-          <div className={cardClass}>
-            <SakuraLoader variant="section" context="assessment" label={tr('Đang tải bài đánh giá')} delay={160} />
-          </div>
+    <PageContainer data-page="PlacementAssessment" width={result ? 'wide' : 'default'} density="comfortable" className="space-y-4 text-rp-text">
+      <IllustratedPageHeader
+        icon="placement"
+        tone="navy"
+        eyebrow="JLPT N5 – N2"
+        title={tr('Đánh giá năng lực JLPT')}
+        description={tr('Kiểm tra trình độ hiện tại theo từng kỹ năng để nhận lộ trình học phù hợp.')}
+        actions={(
+          <Button as={Link} to="/onboarding" variant="secondary" size="md">
+            {tr('Đổi mục tiêu học tập')}
+          </Button>
         )}
-        {attempt && <AttemptForm key={attempt.attemptId} attempt={attempt} pending={pending} onSubmit={submit} reportError={setError} />}
-        {result && <section className={cardClass}>
-          <h2 className="text-lg font-semibold">
-            {tr('Kết quả')}{' '}{result.isShortenedAssessment ? tr('đánh giá rút gọn') : tr('đánh giá năng lực')} {result.levelBreakdowns?.map(level => level.jlptLevelName).filter(Boolean).join(' + ') || result.screeningLevelName}
-          </h2>
-          <p className="mt-2 text-2xl font-bold text-rp-brand-strong">{Number(result.totalScore).toLocaleString(currentIntlTag(), { maximumFractionDigits: 2 })}%</p>
-          <p className="mt-1 text-sm">{trf('{0}/{1} câu đúng', { 0: result.correctCount, 1: result.totalQuestions })}</p>
-          {allowance && matchesTarget && <p className="mt-1 text-sm text-rp-text-2">
-            {trf('Còn {0}/{1} lượt đánh giá cho mục tiêu {2}', { 0: allowance.remaining, 1: allowance.limit, 2: target })}
-          </p>}
-          {result.notStudiedCount > 0 && <p className="mt-1 text-sm text-rp-text-2">
-            {trf('Chưa học hoặc không biết · {0} câu', { 0: result.notStudiedCount })}
-          </p>}
-          <SkillAssessmentChart key={result.attemptId} result={result} targetLevel={chartTarget}
-            visibleLevels={chartLevelsByTarget[chartTarget]} />
-          {result.sections?.length > 0 && <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            {result.sections.map((section, index) => <li key={section.mockTestSectionId ?? index} className="rounded-lg bg-rp-brand-tint p-2">{section.sectionTitle || section.sectionName || section.languageSkillName} · {section.correctCount}/{section.totalQuestions ?? section.totalCount}{' '}{tr('câu')}</li>)}
-          </ul>}
-          {canStartUpdatedAssessment && <>
-            <p className="mt-3 text-sm">{trf('Bạn có thể làm lượt đánh giá mới cho mục tiêu {0}.', { 0: target })}</p>
-            <button type="button" className={`${buttonClass} mt-4 mr-2`} disabled={pending} onClick={() => start()}>{trf('Bắt đầu bài đánh giá {0} mới', { 0: target })}</button>
-          </>}
-          {result.assessmentMessage && <p className="mt-3 text-sm">{result.assessmentMessage}</p>}
-          {isDifferentGoal && <p className="mt-3 rounded-lg bg-rp-brand-tint p-3 text-sm">
-            {tr('Kết quả này thuộc bài đánh giá trước đó. Hãy quay về bài đánh giá dành cho thiết lập mục tiêu')}{' '}<strong>{target}</strong>{' '}{tr('hiện tại để tiếp tục.')}
-          </p>}
-          {!showCurrentAssessment && (canSelfStudy || canRetake) && <div className="mt-4 flex flex-wrap items-center gap-3">
-            {canSelfStudy && <>
-              <Link className={buttonClass} to="/roadmap/#self-study-roadmap-title">{tr('Xem lộ trình tự học')}</Link>
-              <Link className="text-sm font-semibold text-rp-brand-strong underline"
-                to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}>{tr('Tự ôn với audio')}</Link>
-              <Link className="text-sm font-semibold text-rp-brand-strong underline" to="/mentors/">{tr('Tìm lớp nhóm cùng Giáo viên')}</Link>
-            </>}
-            {canRetake && <button type="button" className="text-sm font-semibold text-rp-brand-strong underline" disabled={pending} onClick={() => start(true)}>
-              {trf('Làm lại bài đánh giá {0}', { 0: resultTarget })}
-            </button>}
-          </div>}
-          {showCurrentAssessment && <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={returnToCurrentAssessment}>{isDifferentGoal && status?.targetJlptLevelName ? trf('Quay về đánh giá {0}', { 0: target }) : tr('Quay về đánh giá hiện tại')}</button>}
-          {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && <Link className="mt-4 inline-block text-sm font-semibold text-rp-brand-strong underline" to="/onboarding">{tr('Kiểm tra mục tiêu học tập')}</Link>}
-        </section>}
-        {status && !attempt && !result && <section className={cardClass}>
-          <h2 className="font-semibold">{trf('Mục tiêu {0}', { 0: target })}</h2>
-          <p className="mt-2 text-sm">{tr('Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.')}</p>
-          {allowance && <p className="mt-2 text-sm">{trf('Còn {0}/{1} lượt đánh giá.', { 0: allowance.remaining, 1: allowance.limit })}</p>}
-          {status.canStartNewAttempt !== false
-            ? <button type="button" className={`${buttonClass} mt-4`} disabled={pending} onClick={() => start()}>{tr('Bắt đầu bài đánh giá')}</button>
-            : allowance?.remaining === 0 ? <p className="mt-2 text-sm">{tr('Bạn đã dùng hết lượt cho mục tiêu này.')}</p>
-              : <Link className={`${buttonClass} mt-4 inline-block`} to="/onboarding">{tr('Chọn mục tiêu và ngày thi')}</Link>}
-        </section>}
-      </div>
-    </main>
+      />
+
+      {!session?.accessToken && (
+        <Banner
+          tone="info"
+          actions={
+            <Button as={Link} to="/auth" variant="primary" size="sm">
+              {tr('Đăng nhập để làm bài')}
+            </Button>
+          }
+        >
+          {tr('Đăng nhập để bắt đầu hoặc xem lại kết quả đánh giá năng lực JLPT của bạn.')}
+        </Banner>
+      )}
+
+      {visibleError && (
+        <Banner
+          tone="danger"
+          actions={(query.error || (result && !status)) && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={pending || query.isFetching}
+              onClick={() => { setError(''); query.refetch(); }}
+            >
+              {tr('Thử tải lại')}
+            </Button>
+          )}
+        >
+          {visibleError}
+        </Banner>
+      )}
+
+      {state?.placementMessage && <Banner tone="info">{state.placementMessage}</Banner>}
+      {notice && <Banner tone="info">{notice}</Banner>}
+
+      {query.isLoading && (
+        <Card>
+          <SakuraLoader variant="section" context="assessment" label={tr('Đang tải bài đánh giá')} delay={160} />
+        </Card>
+      )}
+
+      {attempt && <AttemptForm key={attempt.attemptId} attempt={attempt} pending={pending} onSubmit={submit} reportError={setError} />}
+
+      {result && (
+        <div className="space-y-4">
+          {canStartUpdatedAssessment && (
+            <Card className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-rp-text-2">{trf('Bạn có thể làm lượt đánh giá mới cho mục tiêu {0}.', { 0: target })}</p>
+              <Button variant="primary" size="sm" disabled={pending} onClick={() => start()}>
+                {trf('Bắt đầu bài đánh giá {0} mới', { 0: target })}
+              </Button>
+            </Card>
+          )}
+
+          {isDifferentGoal && (
+            <Banner tone="info">
+              {tr('Kết quả này thuộc bài đánh giá trước đó. Hãy quay về bài đánh giá dành cho thiết lập mục tiêu')}{' '}<strong>{target}</strong>{' '}{tr('hiện tại để tiếp tục.')}
+            </Banner>
+          )}
+
+          <AssessmentResultDashboard
+            result={result}
+            onceKey={result.attemptId ? `assessment-${result.attemptId}` : undefined}
+            badgeText={
+              resultLevelSummary
+                ? `${result.isShortenedAssessment ? tr('Đánh giá rút gọn') : tr('Đánh giá năng lực')} · ${resultLevelSummary}`
+                : tr('Đánh giá năng lực')
+            }
+            targetLevelLabel={status?.targetJlptLevelName}
+            chartTarget={chartTarget}
+            visibleLevels={chartLevelsByTarget[chartTarget]}
+            allowanceText={
+              allowance && matchesTarget
+                ? trf('Còn {0}/{1} lượt đánh giá cho mục tiêu {2}', { 0: allowance.remaining, 1: allowance.limit, 2: target })
+                : undefined
+            }
+            showAiCta={!showCurrentAssessment && canSelfStudy}
+            primaryCtaTo="/roadmap/?generateAi=1"
+            primaryCtaLabel={tr('Tạo lộ trình học với AI')}
+            footerActions={
+              <>
+                {!showCurrentAssessment && (canSelfStudy || canRetake) && (
+                  <>
+                    {canSelfStudy && (
+                      <>
+                        <Button as={Link} to="/roadmap/" variant="secondary" size="sm" iconRight={ArrowRight}>
+                          {tr('Xem lộ trình học')}
+                        </Button>
+                        <Button
+                          as={Link}
+                          to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          {tr('Tự ôn với audio')}
+                        </Button>
+                        <Button as={Link} to="/cohorts/" variant="ghost" size="sm">
+                          {tr('Tìm lớp nhóm cùng Giáo viên')}
+                        </Button>
+                      </>
+                    )}
+                    {canRetake && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => start(true)}
+                      >
+                        {trf('Làm lại bài đánh giá {0}', { 0: resultTarget })}
+                      </Button>
+                    )}
+                  </>
+                )}
+
+                {showCurrentAssessment && (
+                  <Button variant="primary" size="sm" disabled={pending} onClick={returnToCurrentAssessment}>
+                    {isDifferentGoal && status?.targetJlptLevelName ? trf('Quay về đánh giá {0}', { 0: target }) : tr('Quay về đánh giá hiện tại')}
+                  </Button>
+                )}
+
+                {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && (
+                  <Link className="rp-focus rp-link inline-block text-sm font-semibold" to="/onboarding">
+                    {tr('Kiểm tra mục tiêu học tập')}
+                  </Link>
+                )}
+              </>
+            }
+          />
+        </div>
+      )}
+
+      {status && !attempt && !result && (
+        <div className="space-y-4">
+          <Card className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-1">
+              {allowance && (
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rp-brand-strong">
+                  {trf('Còn {0}/{1} lượt đánh giá.', { 0: allowance.remaining, 1: allowance.limit })}
+                </p>
+              )}
+              <h2 className="text-lg font-extrabold text-rp-navy">{trf('Mục tiêu {0}', { 0: target })}</h2>
+              <p className="text-xs leading-5 text-rp-text-2">{tr('Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.')}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {status.canStartNewAttempt !== false ? (
+                <>
+                  <Button variant="primary" size="md" disabled={pending} onClick={() => start()} iconRight={ArrowRight}>
+                    {tr('Bắt đầu bài đánh giá')}
+                  </Button>
+                  <Button type="button" variant="secondary" size="md" disabled={pending} onClick={skipAssessment}>
+                    {tr('Bỏ qua bài đánh giá năng lực')}
+                  </Button>
+                </>
+              ) : allowance?.remaining === 0 ? (
+                <Badge tone="warning" size="sm" icon={false}>{tr('Bạn đã dùng hết lượt cho mục tiêu này.')}</Badge>
+              ) : (
+                <Button as={Link} to="/onboarding" variant="primary" size="md">
+                  {tr('Chọn mục tiêu và ngày thi')}
+                </Button>
+              )}
+            </div>
+          </Card>
+
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {PLACEMENT_SKILLS_PREVIEW.map(({ key, label, tone }) => {
+              const palette = resolveSurfaceTone(tone);
+              return (
+                <li key={key} className={`flex items-center gap-3.5 rounded-2xl border p-3.5 shadow-rp-xs ${palette.card}`}>
+                  <WebClayIcon name={key} size="md" tone={tone} hover />
+                  <span className="text-sm font-extrabold text-rp-navy">{tr(label)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </PageContainer>
   </LearnerShell>;
 }

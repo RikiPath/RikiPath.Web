@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, PenLine } from 'lucide-react';
 import { ContentAuthorShell } from '@/layouts';
-import { Card, ContextualEmptyState, PageHeader } from '@/components/ui';
+import { Card, ContextualEmptyState, PageContainer, PageHeader } from '@/components/ui';
 import { ManualContentWorkspace } from './ManualContentPage.jsx';
 import { useLocale } from '@/locales/locale.js';
 
@@ -20,7 +20,7 @@ export default function CmsLessonDetail() {
 
   return (
     <ContentAuthorShell breadcrumb={tr('Chi tiết bài học')}>
-      <main data-page="CmsLessonDetail" className="mx-auto w-full min-w-0 max-w-[1040px] space-y-5">
+      <PageContainer as="div" data-page="CmsLessonDetail" width="reading" className="space-y-5">
         <Link
           to="/lesson-cms"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-rp-text-2 hover:text-rp-brand-strong"
@@ -35,7 +35,8 @@ export default function CmsLessonDetail() {
         />
         <Card className="p-6">
           <ContextualEmptyState
-            compact
+            variant="compact"
+            illustration="book"
             title={tr('Chưa chọn bài học cần xem chi tiết.')}
             description={tr('Chọn một bài học từ danh sách Bài học để mở biểu mẫu chỉnh sửa và xem trước.')}
             action={
@@ -49,7 +50,7 @@ export default function CmsLessonDetail() {
             }
           />
         </Card>
-      </main>
+      </PageContainer>
     </ContentAuthorShell>
   );
 }

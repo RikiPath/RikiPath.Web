@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Bell, Lock, Mail, RefreshCw, ShieldAlert } from 'lucide-react';
-import { Banner, Switch, notify } from '@/components/ui';
+import { Banner, Button, Switch, notify } from '@/components/ui';
+import SrsPreferencesModal from '@/features/srs/components/SrsPreferencesModal.jsx';
 import { useLocale } from '@/locales/locale.js';
 import { updateNotificationSettings } from '../api/profileApi.js';
 import { NOTIFICATION_CATEGORIES_BY_ROLE } from '../profileConstants.js';
@@ -25,6 +26,7 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
 
   const [prefs, setPrefs] = useState(() => clonePrefs(profile, categoriesMeta));
   const [failedPayload, setFailedPayload] = useState(null);
+  const [srsPrefsOpen, setSrsPrefsOpen] = useState(false);
 
   const [lastSource, setLastSource] = useState({ profile, categoriesMeta });
   if (profile !== lastSource.profile || categoriesMeta !== lastSource.categoriesMeta) {
@@ -111,14 +113,14 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
         </div>
 
         <div className="divide-y divide-[#EAE3E4] px-4">
-          <div className="flex items-center justify-between gap-4 py-4">
-            <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-h-[68px] items-center justify-between gap-4 py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFF0F4] text-rp-brand-strong">
                 <Mail aria-hidden="true" className="h-4 w-4" />
               </span>
-              <div className="min-w-0">
-                <p className="text-[13.5px] font-semibold text-rp-text">{tr('Thông báo qua email')}</p>
-                <p className="mt-0.5 text-[12px] leading-5 text-rp-text-muted">
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-[13.5px] font-semibold leading-5 text-rp-text">{tr('Thông báo qua email')}</p>
+                <p className="text-xs leading-[18px] text-rp-text-muted">
                   {tr('Nhận cập nhật quan trọng về lịch trình và hoạt động qua email tài khoản.')}
                 </p>
               </div>
@@ -131,14 +133,14 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
             />
           </div>
 
-          <div className="flex items-center justify-between gap-4 py-4">
-            <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-h-[68px] items-center justify-between gap-4 py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFF0F4] text-rp-brand-strong">
                 <Bell aria-hidden="true" className="h-4 w-4" />
               </span>
-              <div className="min-w-0">
-                <p className="text-[13.5px] font-semibold text-rp-text">{tr('Thông báo trong ứng dụng')}</p>
-                <p className="mt-0.5 text-[12px] leading-5 text-rp-text-muted">
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-[13.5px] font-semibold leading-5 text-rp-text">{tr('Thông báo trong ứng dụng')}</p>
+                <p className="text-xs leading-[18px] text-rp-text-muted">
                   {tr('Hiển thị thông báo tức thời trong trung tâm thông báo và trên thiết bị.')}
                 </p>
               </div>
@@ -163,10 +165,10 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
 
         <div className="divide-y divide-[#EAE3E4] px-4">
           {categoriesMeta.map((cat) => (
-            <div key={cat.key} className="flex items-center justify-between gap-4 py-3.5">
-              <div className="min-w-0">
-                <p className="text-[13.5px] font-medium text-rp-text">{tr(cat.title)}</p>
-                <p className="mt-0.5 text-[12px] leading-5 text-rp-text-muted">{tr(cat.description)}</p>
+            <div key={cat.key} className="flex min-h-[68px] items-center justify-between gap-4 py-3.5">
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-[13.5px] font-semibold leading-5 text-rp-text">{tr(cat.title)}</p>
+                <p className="text-xs leading-[18px] text-rp-text-muted">{tr(cat.description)}</p>
               </div>
               <Switch
                 aria-label={tr(cat.title)}
@@ -178,18 +180,18 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
           ))}
 
           {/* Mandatory Security Alerts row */}
-          <div className="flex items-center justify-between gap-4 py-3.5">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <ShieldAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-brand-strong" />
-              <div className="min-w-0">
+          <div className="flex min-h-[68px] items-center justify-between gap-4 py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <ShieldAlert aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-brand-strong" />
+              <div className="min-w-0 space-y-0.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[13.5px] font-medium text-rp-text">{tr('Cảnh báo bảo mật & thay đổi tài khoản')}</p>
+                  <p className="text-[13.5px] font-semibold leading-5 text-rp-text">{tr('Cảnh báo bảo mật & thay đổi tài khoản')}</p>
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#FAF7F8] px-2 py-0.5 text-[10.5px] font-semibold text-rp-text-muted ring-1 ring-[#EAE3E4]">
                     <Lock aria-hidden="true" className="h-3 w-3" />
                     {tr('Bắt buộc')}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[12px] leading-5 text-rp-text-muted">
+                <p className="text-xs leading-[18px] text-rp-text-muted">
                   {tr('Luôn bật cho thay đổi mật khẩu, xác thực email hoặc biến động an toàn tài khoản.')}
                 </p>
               </div>
@@ -203,6 +205,21 @@ export default function NotificationPreferencesSection({ profile, role, onProfil
           </div>
         </div>
       </section>
+
+      {(!role || role === 'Learner') && (
+        <section aria-label={tr('Nhắc ôn tập SRS hàng ngày')} className="rounded-xl border border-[#EAE3E4] bg-[#FFFCF8] p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13.5px] font-semibold text-rp-navy">{tr('Lịch nhắc ôn tập SRS thông minh')}</p>
+            <p className="mt-0.5 text-[12px] leading-5 text-rp-text-muted">
+              {tr('Cài đặt khung giờ nhắc ôn thẻ đến hạn, tần suất theo ngày và nhận email nhắc SRS.')}
+            </p>
+          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setSrsPrefsOpen(true)}>
+            {tr('Cài đặt nhắc SRS')}
+          </Button>
+          <SrsPreferencesModal open={srsPrefsOpen} onClose={() => setSrsPrefsOpen(false)} />
+        </section>
+      )}
     </div>
   );
 }
