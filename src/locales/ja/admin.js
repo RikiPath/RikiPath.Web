@@ -1350,4 +1350,6 @@ export const jaAdmin = {
   'Tạm đóng (DISABLED)': '一時停止 (DISABLED)',
   'Gói học': '学習プラン',
   'Gói lớp nhóm': 'グループクラスプラン',
+  'Vị trí dấu ★': '★の位置',
+  'Lựa chọn phát trong audio': '選択肢は音声で再生',
 };

@@ -31,4 +31,3 @@ export default function OrderingAnswer({ question, value, onChange }) {
       onClick={() => onChange(value === unknown.optionId ? [] : unknown.optionId)}>{unknown.content}</button>}
   </div>;
 }
-
