@@ -1,5 +1,5 @@
-import AudioTranscriptPanel from '../../components/AudioTranscriptPanel.jsx';
-import { useRef, useState } from 'react';
+import AudioTranscriptPanel from '@/components/AudioTranscriptPanel.jsx';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useMatch, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
@@ -8,7 +8,8 @@ import WorkbookPreview from './WorkbookPreview.jsx';
 import { workbookEditKey } from '@/features/content-author/utils/workbookModel.js';
 
 import { ContentAuthorShell } from '@/layouts';
-import { CustomSelect, FeatureIcon, PageHeader, SakuraLoader } from '@/components/ui';
+import { Button, CustomSelect, EmptyState, FeatureIcon, Modal, PageContainer, PageHeader, SakuraLoader, Tabs } from '@/components/ui';
+import UnifiedMultiFormatImportPanel from '@/features/content-author/components/UnifiedMultiFormatImportPanel.jsx';
 import { FilePlus2, History } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
@@ -101,315 +102,276 @@ function ActionBadge({ action }) {
     );
 }
 
-/** Component modal/drawer hiển thị so sánh chi tiết giữa Hệ thống (DB) và File Excel */
+/** Component modal hiển thị so sánh chi tiết giữa Hệ thống (DB) và File Excel */
 function DiffModal({ row, entityType, onClose }) {
   const { tr, trf } = useLocale();
-    if (!row) return null;
+  if (!row) return null;
 
-    const changes = Object.entries(row.changedFields ?? {});
-    const parsedFields = row.parsedFields ?? {};
-    const hasChanges = changes.length > 0;
+  const changes = Object.entries(row.changedFields ?? {});
+  const parsedFields = row.parsedFields ?? {};
+  const hasChanges = changes.length > 0;
+  const sheetLabel = ENTITY_LABELS[entityType] ?? entityType;
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
-                {/* Modal Header */}
-                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/80">
-                    <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-700 font-bold text-base">
-                            {row.rowKey?.slice(0, 2) || '#'}
-                        </span>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-base font-bold text-slate-900">
-                                    {tr('So sánh dữ liệu:')}{' '}<span className="text-sky-700">{row.rowKey}</span>
-                                </h3>
-                                <ActionBadge action={row.action} />
-                            </div>
-                            <p className="text-xs text-slate-500">
-                                {tr('Dòng')}{' '}{row.sourceRowNumber} trong file • Sheet {ENTITY_LABELS[entityType] ?? entityType}
-                                {row.targetEntityId && (
-                                    <span className="ml-2 font-mono text-slate-400">
-                                        ({trf('Bản ghi #{0}', { 0: row.targetEntityId })})
-                                    </span>
-                                )}
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
-                        title={tr('Đóng (Esc)')}
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                {/* Modal Body */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                    {/* Thông báo lỗi nếu có */}
-                    {row.errors?.length > 0 && (
-                        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-                            <div className="flex items-center gap-2 text-rose-800 font-semibold text-sm mb-1">
-                                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                </svg>
-                                <span>{tr('Phát hiện lỗi không thể import:')}</span>
-                            </div>
-                            <ul className="list-disc list-inside text-sm text-rose-700 space-y-0.5 pl-2">
-                                {row.errors.map((err, i) => (
-                                    <li key={i}>{err}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Bảng so sánh 2 cột: Hiện có trong hệ thống (DB) vs File Excel sắp ghi đè */}
-                    {hasChanges ? (
-                        <div>
-                            <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                    <span className="flex h-2 w-2 rounded-full bg-amber-500"></span>
-                                    {tr('Các trường có sự thay đổi (')}{changes.length})
-                                </h4>
-                                <span className="text-xs text-slate-500">
-                                    {tr('Giá trị từ DB sẽ được cập nhật bằng giá trị từ File Excel')}
-                                </span>
-                            </div>
-
-                            <div className="overflow-hidden rounded-xl border border-slate-200">
-                                <table className="w-full text-left text-sm">
-                                    <thead>
-                                        <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                            <th className="w-36 px-4 py-3">{tr('Trường dữ liệu')}</th>
-                                            <th className="px-4 py-3 bg-slate-100/70 border-r border-slate-200 text-slate-700">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
-                                                    {tr('Hiện tại trong DB (Cũ)')}
-                                                </div>
-                                            </th>
-                                            <th className="px-4 py-3 bg-amber-50/50 text-amber-900">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
-                                                    {tr('Trong file Excel (Mới)')}
-                                                </div>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {changes.map(([field, changeText]) => {
-                                            const { from, to } = splitChange(changeText);
-                                            return (
-                                                <tr key={field} className="hover:bg-slate-50/50 transition">
-                                                    <td className="px-4 py-3 font-semibold text-slate-700 align-top bg-slate-50/40">
-                                                        {fieldLabel(field)}
-                                                    </td>
-                                                    <td className="px-4 py-3 align-top bg-slate-100/40 border-r border-slate-200 font-mono text-xs text-slate-600 break-words whitespace-pre-wrap">
-                                                        {from ? (
-                                                            <span className="line-through decoration-rose-400 text-slate-500">
-                                                                {from}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="italic text-slate-400 font-sans">{tr('(Trống)')}</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3 align-top bg-amber-50/20 font-mono text-xs text-amber-900 font-semibold break-words whitespace-pre-wrap">
-                                                        {to ? (
-                                                            <span className="rounded bg-amber-100/80 px-1.5 py-0.5 text-amber-900">
-                                                                {to}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="italic text-slate-400 font-sans">{tr('(Trống)')}</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    ) : row.action === 'New' ? (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-sm text-emerald-800">
-                            <strong>{tr('Mục mới:')}</strong>{' '}{tr('Bản ghi này chưa tồn tại trong cơ sở dữ liệu. Sau khi import sẽ được thêm mới toàn bộ.')}
-                        </div>
-                    ) : row.action === 'Unchanged' ? (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                            <strong>{tr('Không đổi:')}</strong>{' '}{tr('Dữ liệu trong file Excel hoàn toàn trùng khớp với cơ sở dữ liệu hiện tại.')}
-                        </div>
-                    ) : null}
-
-                    {/* Toàn bộ dữ liệu được parse từ file Excel */}
-                    <div>
-                        <h4 className="text-sm font-bold text-slate-800 mb-2">
-                           {trf('Toàn bộ trường dữ liệu đọc từ file Excel ({0})', { 0: Object.keys(parsedFields).length })}
-                        </h4>
-                        <div className="rounded-xl border border-slate-200 bg-slate-50/30 p-4">
-                            <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                                {Object.entries(parsedFields).map(([k, v]) => {
-                                    const isChanged = changes.some(([chKey]) => chKey === k);
-                                    return (
-                                        <div
-                                            key={k}
-                                            className={`rounded-lg p-2.5 border transition ${isChanged
-                                                ? 'bg-amber-50/70 border-amber-200'
-                                                : 'bg-white border-slate-200'
-                                                }`}
-                                        >
-                                            <dt className="text-slate-500 font-medium flex items-center justify-between">
-                                                <span>{fieldLabel(k)}</span>
-                                                {isChanged && (
-                                                    <span className="text-[10px] font-semibold text-amber-700 uppercase bg-amber-100 rounded px-1">
-                                                        {tr('Đổi')}
-                                                    </span>
-                                                )}
-                                            </dt>
-                                            <dd className="mt-1 font-mono text-slate-800 break-words whitespace-pre-wrap font-semibold">
-                                                {v !== null && v !== undefined && String(v) !== '' ? (
-                                                    String(v)
-                                                ) : (
-                                                    <span className="text-slate-400 italic font-sans font-normal">{tr('(Trống)')}</span>
-                                                )}
-                                            </dd>
-                                        </div>
-                                    );
-                                })}
-                            </dl>
-                        </div>
-                    </div>
-
-                    {/* Hiển thị chi tiết cấu trúc Sections/Questions đối với MockTest & PracticeExercise */}
-                    {(() => {
-                        let parsedPayload = null;
-                        if (typeof row.payloadJson === 'string') {
-                            try {
-                                parsedPayload = JSON.parse(row.payloadJson);
-                            } catch {
-                                parsedPayload = null;
-                            }
-                        }
-                        if (!parsedPayload) return null;
-
-                        const sections = parsedPayload.Sections ?? (parsedPayload.Questions ? [{ Title: 'Danh sách câu hỏi', Questions: parsedPayload.Questions }] : []);
-                        if (!Array.isArray(sections) || sections.length === 0) return null;
-
-                        const totalQuestions = sections.reduce((sum, sec) => sum + (sec.Questions?.length ?? 0), 0);
-
-                        return (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between border-t border-slate-200 pt-4">
-                                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                        <svg className="w-4 h-4 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                        </svg>
-                                        {tr('Nội dung đề/bài tập chi tiết (')}{sections.length}{' '}{tr('phần ·')}{' '}{totalQuestions}{' '}{tr('câu hỏi)')}
-                                    </h4>
-                                    <span className="text-xs text-slate-500">
-                                        {tr('Trích xuất từ Payload JSON tạo bản nháp')}
-                                    </span>
-                                </div>
-
-                                <div className="space-y-3">
-                                    {sections.map((section, sIdx) => (
-                                        <div key={sIdx} className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-                                            <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
-                                                <div className="font-semibold text-slate-800 text-xs flex items-center gap-2">
-                                                    <span className="flex h-5 w-5 items-center justify-center rounded bg-sky-100 text-sky-700 text-[11px] font-bold">
-                                                        {sIdx + 1}
-                                                    </span>
-                                                    <span>{section.Title || trf('Phần {0}', { 0: sIdx + 1 })}</span>
-                                                    {section.LanguageSkillName && (
-                                                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                                                            {section.LanguageSkillName}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="text-[11px] text-slate-400">
-                                                    {section.Questions?.length ?? 0}{' '}{tr('câu')}
-                                                </span>
-                                            </div>
-
-                                            <div className="space-y-2.5">
-                                                {(section.Questions ?? []).map((q, qIdx) => (
-                                                    <div key={qIdx} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-2">
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div className="font-semibold text-slate-900 leading-snug">
-                                                                <span className="text-sky-600 mr-1.5">{tr('Câu')}{' '}{q.SortOrder ?? (qIdx + 1)}:</span>
-                                                                {q.QuestionText}
-                                                            </div>
-                                                            {q.AudioUrl && (
-                                                                <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 shrink-0">
-                                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                                                                    </svg>
-                                                                    Audio
-                                                                </span>
-                                                            )}
-                                                        </div>
-
-                                                        {q.InteractionData?.jlptItemType && <p className="font-medium text-sky-700">{q.InteractionData.jlptItemType}</p>}
-                                                        {q.InteractionData?.passage && <p className="whitespace-pre-wrap">{q.InteractionData.passage}</p>}
-                                                        {q.InteractionData?.secondPassage && <p className="whitespace-pre-wrap">{q.InteractionData.secondPassage}</p>}
-                                                        {q.InteractionData?.starPosition && <p>Vị trí ★ · {q.InteractionData.starPosition}</p>}
-                                                        {q.ImageUrl && <img src={q.ImageUrl} alt="Ảnh câu hỏi" className="max-h-40 max-w-full rounded-md object-contain" />}
-                                                        {Array.isArray(q.Options) && q.Options.length > 0 && (
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
-                                                                {q.Options.map((opt, oIdx) => (
-                                                                    <div
-                                                                        key={oIdx}
-                                                                        className={`flex items-center justify-between rounded-md px-2.5 py-1.5 border text-[11px] ${opt.IsCorrect
-                                                                            ? 'border-emerald-300 bg-emerald-50/80 font-bold text-emerald-800'
-                                                                            : 'border-slate-200 bg-white text-slate-700'
-                                                                            }`}
-                                                                    >
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${opt.IsCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                                                                                {String.fromCharCode(65 + oIdx)}
-                                                                            </span>
-                                                                            <span>{opt.OptionText}
-                                                                                {(opt.ImageUrl ?? opt.imageUrl) && <img src={opt.ImageUrl ?? opt.imageUrl} alt={tr('Hình đáp án')} className="max-h-32 max-w-full rounded-md" />}
-                                                                            </span>
-                                                                        </div>
-                                                                        {opt.IsCorrect && (
-                                                                            <span className="text-[10px] text-emerald-600 font-bold uppercase">
-                                                                                {tr('Đáp án')}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-
-                                                        {q.Explanation && (
-                                                            <div className="text-[11px] text-slate-500 bg-white rounded p-1.5 border border-slate-100">
-                                                                <strong className="text-slate-600">{tr('Giải thích:')}</strong> {q.Explanation}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })()}
-                </div>
-
-                {/* Modal Footer */}
-                <div className="flex items-center justify-end border-t border-slate-200 px-6 py-3 bg-slate-50">
-                    <button
-                        onClick={onClose}
-                        className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition"
-                    >
-                        {tr('Đóng')}
-                    </button>
-                </div>
+  return (
+    <Modal
+      open={Boolean(row)}
+      onClose={onClose}
+      size="xl"
+      title={
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <span>{tr('So sánh dữ liệu:')} <span className="text-rp-brand-strong">{row.rowKey}</span></span>
+          <ActionBadge action={row.action} />
+        </span>
+      }
+      description={`${tr('Dòng')} ${row.sourceRowNumber} · ${sheetLabel}${row.targetEntityId ? ` · ${trf('Bản ghi #{0}', { 0: row.targetEntityId })}` : ''}`}
+      footer={
+        <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+          {tr('Đóng')}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        {row.errors?.length > 0 && (
+          <div className="rounded-xl border border-rp-danger-line bg-rp-danger-bg p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-rp-danger">
+              <svg className="h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span>{tr('Phát hiện lỗi không thể import:')}</span>
             </div>
+            <ul className="list-inside list-disc space-y-0.5 pl-2 text-sm text-rp-danger">
+              {row.errors.map((err, i) => (
+                <li key={i}>{err}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {hasChanges ? (
+          <div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="flex items-center gap-2 text-sm font-bold text-rp-text">
+                <span className="flex h-2 w-2 rounded-full bg-rp-warning" />
+                {tr('Các trường có sự thay đổi (')}{changes.length})
+              </h4>
+              <span className="text-xs text-rp-text-muted">
+                {tr('Giá trị từ DB sẽ được cập nhật bằng giá trị từ File Excel')}
+              </span>
+            </div>
+
+            <div className="rp-scroll-x rounded-xl border border-rp-line">
+              <table className="w-full min-w-[540px] text-center text-sm">
+                <thead>
+                  <tr className="border-b border-rp-line bg-rp-bg-2 text-xs font-semibold uppercase tracking-wider text-rp-text-muted">
+                    <th className="w-36 px-4 py-3">{tr('Trường dữ liệu')}</th>
+                    <th className="border-r border-rp-line bg-rp-bg-2/80 px-4 py-3 text-rp-text-2">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="inline-block h-2 w-2 rounded-full bg-rp-text-disabled" />
+                        {tr('Hiện tại trong DB (Cũ)')}
+                      </div>
+                    </th>
+                    <th className="bg-amber-50/50 px-4 py-3 text-amber-900">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                        {tr('Trong file Excel (Mới)')}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rp-line/70">
+                  {changes.map(([field, changeText]) => {
+                    const { from, to } = splitChange(changeText);
+                    return (
+                      <tr key={field} className="transition hover:bg-rp-bg-2/40">
+                        <td className="bg-rp-bg-2/40 px-4 py-3 align-top font-semibold text-rp-text-2">
+                          {fieldLabel(field)}
+                        </td>
+                        <td className="break-words whitespace-pre-wrap border-r border-rp-line bg-rp-bg-2/30 px-4 py-3 align-top font-mono text-xs text-rp-text-2">
+                          {from ? (
+                            <span className="line-through decoration-rose-400 text-rp-text-muted">
+                              {from}
+                            </span>
+                          ) : (
+                            <span className="font-sans italic text-rp-text-disabled">{tr('(Trống)')}</span>
+                          )}
+                        </td>
+                        <td className="break-words whitespace-pre-wrap bg-amber-50/20 px-4 py-3 align-top font-mono text-xs font-semibold text-amber-900">
+                          {to ? (
+                            <span className="rounded bg-amber-100/80 px-1.5 py-0.5 text-amber-900">
+                              {to}
+                            </span>
+                          ) : (
+                            <span className="font-sans italic text-rp-text-disabled">{tr('(Trống)')}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : row.action === 'New' ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-sm text-emerald-800">
+            <strong>{tr('Mục mới:')}</strong>{' '}{tr('Bản ghi này chưa tồn tại trong cơ sở dữ liệu. Sau khi import sẽ được thêm mới toàn bộ.')}
+          </div>
+        ) : row.action === 'Unchanged' ? (
+          <div className="rounded-xl border border-rp-line bg-rp-bg-2 p-4 text-sm text-rp-text-2">
+            <strong>{tr('Không đổi:')}</strong>{' '}{tr('Dữ liệu trong file Excel hoàn toàn trùng khớp với cơ sở dữ liệu hiện tại.')}
+          </div>
+        ) : null}
+
+        <div>
+          <h4 className="mb-2 text-sm font-bold text-rp-text">
+            {trf('Toàn bộ trường dữ liệu đọc từ file Excel ({0})', { 0: Object.keys(parsedFields).length })}
+          </h4>
+          <div className="rounded-xl border border-rp-line bg-rp-bg-2/30 p-4">
+            <dl className="grid grid-cols-1 gap-3 text-xs md:grid-cols-2">
+              {Object.entries(parsedFields).map(([k, v]) => {
+                const isChanged = changes.some(([chKey]) => chKey === k);
+                return (
+                  <div
+                    key={k}
+                    className={`rounded-lg border p-2.5 transition ${isChanged
+                      ? 'border-amber-200 bg-amber-50/70'
+                      : 'border-rp-line bg-white'
+                      }`}
+                  >
+                    <dt className="flex items-center justify-between font-medium text-rp-text-muted">
+                      <span>{fieldLabel(k)}</span>
+                      {isChanged && (
+                        <span className="rounded bg-amber-100 px-1 text-[10px] font-semibold uppercase text-amber-700">
+                          {tr('Đổi')}
+                        </span>
+                      )}
+                    </dt>
+                    <dd className="mt-1 break-words whitespace-pre-wrap font-mono font-semibold text-rp-text">
+                      {v !== null && v !== undefined && String(v) !== '' ? (
+                        String(v)
+                      ) : (
+                        <span className="font-sans font-normal italic text-rp-text-disabled">{tr('(Trống)')}</span>
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </div>
         </div>
-    );
+
+        {(() => {
+          let parsedPayload = null;
+          if (typeof row.payloadJson === 'string') {
+            try {
+              parsedPayload = JSON.parse(row.payloadJson);
+            } catch {
+              parsedPayload = null;
+            }
+          }
+          if (!parsedPayload) return null;
+
+          const sections = parsedPayload.Sections ?? (parsedPayload.Questions ? [{ Title: 'Danh sách câu hỏi', Questions: parsedPayload.Questions }] : []);
+          if (!Array.isArray(sections) || sections.length === 0) return null;
+
+          const totalQuestions = sections.reduce((sum, sec) => sum + (sec.Questions?.length ?? 0), 0);
+
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-t border-rp-line pt-4">
+                <h4 className="flex items-center gap-2 text-sm font-bold text-rp-text">
+                  <svg className="h-4 w-4 text-rp-brand-strong" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  {tr('Nội dung đề/bài tập chi tiết (')}{sections.length}{' '}{tr('phần ·')}{' '}{totalQuestions}{' '}{tr('câu hỏi)')}
+                </h4>
+                <span className="text-xs text-rp-text-muted">
+                  {tr('Trích xuất từ Payload JSON tạo bản nháp')}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {sections.map((section, sIdx) => (
+                  <div key={sIdx} className="rounded-xl border border-rp-line bg-white p-4 shadow-2xs">
+                    <div className="mb-3 flex items-center justify-between border-b border-rp-line/60 pb-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-rp-text">
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-rp-brand-tint text-[11px] font-bold text-rp-brand-strong">
+                          {sIdx + 1}
+                        </span>
+                        <span>{section.Title || trf('Phần {0}', { 0: sIdx + 1 })}</span>
+                        {section.LanguageSkillName && (
+                          <span className="rounded bg-rp-bg-2 px-1.5 py-0.5 text-[10px] font-semibold text-rp-text-2">
+                            {section.LanguageSkillName}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-rp-text-muted">
+                        {section.Questions?.length ?? 0}{' '}{tr('câu')}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {(section.Questions ?? []).map((q, qIdx) => (
+                        <div key={qIdx} className="space-y-2 rounded-lg border border-rp-line/60 bg-rp-bg-2/50 p-3 text-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-semibold leading-snug text-rp-text">
+                              <span className="mr-1.5 text-rp-brand-strong">{tr('Câu')}{' '}{q.SortOrder ?? (qIdx + 1)}:</span>
+                              {q.QuestionText}
+                            </div>
+                            {q.AudioUrl && (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-rp-brand-tint px-1.5 py-0.5 text-[10px] font-semibold text-rp-brand-strong">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                </svg>
+                                Audio
+                              </span>
+                            )}
+                          </div>
+
+                          {Array.isArray(q.Options) && q.Options.length > 0 && (
+                            <div className="grid grid-cols-1 gap-1.5 pt-1 sm:grid-cols-2">
+                              {q.Options.map((opt, oIdx) => (
+                                <div
+                                  key={oIdx}
+                                  className={`flex items-center justify-between rounded-md border px-2.5 py-1.5 text-[11px] ${opt.IsCorrect
+                                    ? 'border-emerald-300 bg-emerald-50/80 font-bold text-emerald-800'
+                                    : 'border-rp-line bg-white text-rp-text-2'
+                                    }`}
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${opt.IsCorrect ? 'bg-emerald-600 text-white' : 'bg-rp-bg-2 text-rp-text-2'}`}>
+                                      {String.fromCharCode(65 + oIdx)}
+                                    </span>
+                                    <span>{opt.OptionText}
+                                      {(opt.ImageUrl ?? opt.imageUrl) && <img src={opt.ImageUrl ?? opt.imageUrl} alt={tr('Hình đáp án')} className="max-h-32 max-w-full rounded-md" />}
+                                    </span>
+                                  </div>
+                                  {opt.IsCorrect && (
+                                    <span className="text-[10px] font-bold uppercase text-emerald-600">
+                                      {tr('Đáp án')}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.Explanation && (
+                            <div className="rounded border border-rp-line/60 bg-white p-1.5 text-[11px] text-rp-text-2">
+                              <strong className="text-rp-text">{tr('Giải thích:')}</strong> {q.Explanation}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    </Modal>
+  );
 }
 
 /** Hiển thị tóm tắt ngắn gọn các trường đã thay đổi trong cột Chi tiết */
@@ -446,7 +408,7 @@ function RowDetail({ row, onOpenDiff }) {
                             <button
                                 type="button"
                                 onClick={onOpenDiff}
-                                className="font-bold text-sky-700 hover:text-sky-900 rp-underline inline-flex items-center gap-1"
+                                className="font-bold text-rp-brand-strong hover:text-rp-brand-deep rp-underline inline-flex items-center gap-1"
                             >
                                 {tr('So sánh đầy đủ')}
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -499,7 +461,7 @@ function RowDetail({ row, onOpenDiff }) {
                         <button
                             type="button"
                             onClick={onOpenDiff}
-                            className="text-xs text-sky-600 hover:text-sky-800 rp-underline"
+                            className="text-xs text-rp-brand-strong hover:text-rp-brand-deep rp-underline"
                         >
                             {tr('Xem chi tiết')}
                         </button>
@@ -522,8 +484,8 @@ function SummaryCard({ action, value, active, onClick }) {
             type="button"
             onClick={onClick}
             className={`text-left rounded-xl border p-4 transition-all ${active
-                ? 'border-sky-500 ring-2 ring-sky-200 bg-white shadow-sm'
-                : 'border-slate-200 bg-white hover:border-slate-300'
+                ? 'border-rp-brand-strong ring-2 ring-rp-brand/25 bg-white shadow-sm'
+                : 'border-rp-line bg-white hover:border-rp-brand-border'
                 }`}
         >
             <div className="flex items-center justify-between">
@@ -606,6 +568,68 @@ function ListeningAudioUpload() {
     </section>;
 }
 
+function ContentImageUpload() {
+    const { tr, trf } = useLocale();
+    const [uploading, setUploading] = useState(false);
+    const [files, setFiles] = useState([]);
+
+    async function uploadSelected(event) {
+        const selected = Array.from(event.target.files ?? []);
+        event.target.value = '';
+        if (!selected.length || uploading) return;
+        setUploading(true);
+        const toastKey = 'import-image-upload';
+        notify.loading(trf('Đang tải {0} ảnh…', { 0: selected.length }), '', { key: toastKey, maxWaitMs: 45000 });
+        let uploadedCount = 0;
+        let failedCount = 0;
+        try {
+            for (const file of selected) {
+                try {
+                    const { url } = await uploadContentImage(file);
+                    setFiles((current) => [...current, { name: file.name, url }]);
+                    uploadedCount += 1;
+                } catch (error) {
+                    setFiles((current) => [...current, { name: file.name, error: getErrorMessage(error) }]);
+                    failedCount += 1;
+                }
+            }
+            if (uploadedCount && !failedCount) {
+                notify.success(trf('Đã tải xong {0} ảnh.', { 0: uploadedCount }), '', { key: toastKey, replace: true });
+            } else if (uploadedCount && failedCount) {
+                notify.warning(tr('Tải ảnh hoàn tất một phần'), trf('Thành công {0}, lỗi {1}.', {
+                    0: uploadedCount, 1: failedCount,
+                }), { key: toastKey, replace: true });
+            } else {
+                notify.error(tr('Tải ảnh thất bại'), '', { key: toastKey, replace: true });
+            }
+        } finally {
+            setUploading(false);
+        }
+    }
+
+    return <details className="rounded-xl border border-rp-line bg-white p-5">
+        <summary className="cursor-pointer font-semibold text-rp-text">{tr('Ảnh cho nội dung Excel')}</summary>
+        <p className="mt-1 text-sm text-rp-text-muted">
+            {tr('Tải ảnh riêng, rồi dán đường dẫn vào cột ImageUrl hoặc OptionImageUrl trong Excel trước khi xem trước.')}
+        </p>
+        <label className="mt-3 block text-sm font-medium text-rp-text">
+            {tr('Chọn ảnh JPG, PNG, WebP hoặc GIF')}
+            <input type="file" accept=".jpg,.jpeg,.png,.webp,.gif" multiple disabled={uploading}
+                onChange={uploadSelected} className="ml-3 max-w-full text-sm" />
+        </label>
+        {uploading && <SakuraLoader variant="inline" size={16} context="data" label={tr('Đang tải ảnh…')} className="mt-2" />}
+        {files.length > 0 && <ul className="mt-3 space-y-2 text-sm">
+            {files.map((file, index) => <li key={`${file.name}-${index}`} className="rounded-lg bg-rp-brand-tint p-2">
+                <span className="font-medium">{file.name}</span>
+                {file.error
+                    ? <p role="alert" className="mt-1 text-rp-danger">{file.error}</p>
+                    : <input readOnly aria-label={trf('ImageUrl của {0}', { 0: file.name })} value={file.url}
+                        onFocus={(event) => event.target.select()} className="mt-1 w-full rounded border border-rp-line bg-white p-2" />}
+            </li>)}
+        </ul>}
+    </details>;
+}
+
 function mediaUrlsFromSheets(sheets, kind) {
     const urls = new Set();
     function visit(value) {
@@ -622,31 +646,6 @@ function mediaUrlsFromSheets(sheets, kind) {
     return [...urls];
 }
 
-function MediaUploadSelectors({ audioFiles, audioUploads, imageFiles, imageUploads, onAudioChange, onImageChange, disabled, tr, trf }) {
-    return <section className="rounded-xl border border-rp-line bg-white p-5">
-        <h2 className="font-semibold text-rp-text">{tr('Tải media cho file Excel')}</h2>
-        <p className="mt-1 text-sm text-slate-600">{tr('Chọn MP3 và hình ảnh trước khi import. Sau khi xem trước, hệ thống sẽ trả về URL lưu trữ để gắn vào dữ liệu.')}</p>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
-                {tr('File MP3 nghe hiểu')}
-                <input type="file" accept="audio/mpeg,.mp3" disabled={disabled} onChange={onAudioChange} className="mt-2 block w-full text-sm" />
-                <span className="mt-1 block break-all text-xs font-normal text-slate-500">{audioFiles.length ? audioUploads?.[0]?.url || tr('Đang tải URL…') : tr('Mỗi lần chỉ tải một file MP3.')}</span>
-                {audioUploads?.[0]?.url && <audio controls preload="metadata" src={audioUploads[0].url} className="mt-2 w-full" />}
-            </label>
-            <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-700">
-                {tr('Hình ảnh nội dung')}
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={disabled} onChange={onImageChange} className="mt-2 block w-full text-sm" />
-                <span className="mt-1 block break-all text-xs font-normal text-slate-500">{imageFiles.length ? imageUploads.length ? imageUploads.map(item => item.url).join(', ') : tr('Đang tải URL ảnh…') : tr('Ảnh câu hỏi hoặc ảnh đáp án, tối đa 10 MB mỗi ảnh.')}</span>
-                {imageUploads?.length > 0 && <div className="mt-2 grid grid-cols-3 gap-2">
-                    {imageUploads.map(item => <figure key={item.url} className="overflow-hidden rounded-lg border border-slate-200 bg-white p-1">
-                        <img src={item.url} alt={item.name} className="h-20 w-full object-contain" loading="lazy" />
-                    </figure>)}
-                </div>}
-            </label>
-        </div>
-    </section>;
-}
-
 function ContentImportPreviewPage() {
   const { tr, trf } = useLocale();
     const { pathname } = useLocation();
@@ -655,10 +654,6 @@ function ContentImportPreviewPage() {
     const [batchId, setBatchId] = useState(null);
     const inputRef = useRef(null);
     const [file, setFile] = useState(null);
-    const [audioFiles, setAudioFiles] = useState([]);
-    const [audioUploads, setAudioUploads] = useState([]);
-    const [imageFiles, setImageFiles] = useState([]);
-    const [imageUploads, setImageUploads] = useState([]);
     const [entityType, setEntityType] = useState(''); // '' = Bulk (mọi sheet)
     const [fileError, setFileError] = useState('');
     const [dragOver, setDragOver] = useState(false);
@@ -674,6 +669,7 @@ function ContentImportPreviewPage() {
     const [hasEditedFile, setHasEditedFile] = useState(false);
     const [confirmResult, setConfirmResult] = useState(null);
     const [confirmError, setConfirmError] = useState('');
+    const [importMode, setImportMode] = useState('unified');
 
     function refreshAuthorContent(savedBatchId) {
         void queryClient.invalidateQueries({ queryKey: ['author-import-batches', user?.userId] });
@@ -851,62 +847,6 @@ function ContentImportPreviewPage() {
         setFile(f);
     }
 
-    function selectAudioFiles(event) {
-        const selected = Array.from(event.target.files ?? []).filter(item => /\.mp3$/i.test(item.name)).slice(0, 1);
-        event.target.value = '';
-        if (selected.length === 0) {
-            setFileError('Vui lòng chọn một file MP3.');
-            return;
-        }
-        setAudioFiles(selected);
-        setAudioUploads([]);
-        setFileError('');
-        notify.loading('Đang tải file MP3 lên và tạo URL…', '', { key: 'import-audio-upload', maxWaitMs: 300000 });
-        uploadListeningAudio(selected[0]).then(result => {
-            setAudioUploads([{ name: selected[0].name, url: result.url }]);
-            notify.success('Đã tải MP3 thành công.', '', { key: 'import-audio-upload', replace: true });
-        }).catch(error => {
-            setAudioUploads([]);
-            setFileError(getErrorMessage(error));
-            notify.apiError(error, 'Không tải được file MP3', { key: 'import-audio-upload', replace: true });
-        });
-        preview.reset();
-        confirmImport.reset();
-        submitReview.reset();
-        setBatchId(null);
-        setConfirmResult(null);
-        setConfirmError('');
-    }
-
-    function selectImageFiles(event) {
-        const selected = Array.from(event.target.files ?? []).filter(item => /\.(jpe?g|png|webp|gif)$/i.test(item.name));
-        event.target.value = '';
-        if (selected.length > 200 || selected.reduce((sum, item) => sum + item.size, 0) + audioFiles.reduce((sum, item) => sum + item.size, 0) > 250 * 1024 * 1024) {
-            setFileError('Mỗi lần tối đa 200 ảnh; tổng ảnh và MP3 tối đa 250 MB.');
-            return;
-        }
-        if (selected.some(item => item.size < 12 || item.size > 10 * 1024 * 1024)) {
-            setFileError('Mỗi ảnh phải có dữ liệu và tối đa 10 MB.');
-            return;
-        }
-        setImageFiles(selected);
-        setImageUploads([]);
-        setFileError('');
-        preview.reset();
-        confirmImport.reset();
-        submitReview.reset();
-        setBatchId(null);
-        setConfirmResult(null);
-        setConfirmError('');
-        if (selected.length) {
-            notify.loading('Đang tải hình ảnh lên Supabase…', '', { key: 'import-image-upload', maxWaitMs: 120000 });
-            Promise.all(selected.map(file => uploadContentImage(file).then(result => ({ name: file.name, url: result.url }))))
-                .then(setImageUploads)
-                .then(() => notify.success('Đã tải hình ảnh lên Supabase.', '', { key: 'import-image-upload', replace: true }))
-                .catch(error => { setImageUploads([]); setFileError(getErrorMessage(error)); notify.apiError(error, 'Không tải được hình ảnh', { key: 'import-image-upload', replace: true }); });
-        }
-    }
-
     function handleSubmit(e) {
         e.preventDefault();
         if (!file || busy || hasChanges) return;
@@ -917,7 +857,7 @@ function ContentImportPreviewPage() {
         submitReview.reset();
         notify.loading('Đang phân tích và đối chiếu tệp Excel…', '', { key: 'import-preview', maxWaitMs: 45000 });
         preview.mutate(
-            { file, entityType, audioFiles, imageFiles },
+            { file, entityType },
             {
                 onSuccess: () => {
                     setBatchId(crypto.randomUUID());
@@ -931,28 +871,47 @@ function ContentImportPreviewPage() {
     }
 
     return (
-        <ContentAuthorShell pathname={pathname} breadcrumb={tr('Xem trước import')}>
-        <div className="rp-container space-y-6 py-6 lg:py-8">
-            <header>
-                <h1 className="text-[22px] font-medium tracking-tight text-rp-text">{tr('Nhập Excel')}</h1>
-                <p className="mt-1 text-[13px] text-rp-text-muted">{tr('Tải file .xlsx để kiểm tra, lưu bản nháp hoặc gửi admin duyệt.')}</p>
-                <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold text-rp-brand-strong underline">
-                    <Link to="?view=history">{tr('Lô Excel đã lưu')}</Link>
-                    <Link to="/content-manual/">{tr('Tạo và sửa học liệu trực tiếp')}</Link>
-                </div>
-            </header>
-
-            <MediaUploadSelectors
-                audioFiles={audioFiles}
-                audioUploads={audioUploads}
-                imageFiles={imageFiles}
-                imageUploads={imageUploads}
-                onAudioChange={selectAudioFiles}
-                onImageChange={selectImageFiles}
-                disabled={busy}
-                tr={tr}
-                trf={trf}
+        <ContentAuthorShell pathname={pathname} breadcrumb={tr('Nhập Excel')}>
+        <PageContainer as="div" width="default" className="space-y-5">
+            <PageHeader
+                eyebrow={tr('Nhập học liệu hàng loạt')}
+                title={
+                    <span className="inline-flex items-center gap-2.5">
+                        <FeatureIcon feature="overview" size="lg" />
+                        <span>{tr('Nhập Excel')}</span>
+                    </span>
+                }
+                description={tr('Tải tệp .xlsx để đối chiếu dữ liệu, chỉnh sửa trực tiếp nếu cần, lưu lô nháp hoặc gửi Admin duyệt.')}
+                actions={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button as={Link} to="?view=history" variant="secondary" size="sm" icon={History}>
+                            {tr('Lịch sử nhập liệu')}
+                        </Button>
+                        <Button as={Link} to="/content-manual/" variant="primary" size="sm" icon={FilePlus2}>
+                            {tr('Biên soạn nội dung')}
+                        </Button>
+                    </div>
+                }
             />
+
+            <Tabs
+                variant="pill"
+                value={importMode}
+                onChange={setImportMode}
+                tabs={[
+                    { value: 'unified', label: tr('Nhập đa định dạng & 7 Mẫu chuẩn') },
+                    { value: 'legacy-excel', label: tr('Nhập Excel giáo trình') },
+                ]}
+            />
+
+            {importMode === 'unified' ? (
+                <UnifiedMultiFormatImportPanel
+                    onConfirmed={() => queryClient.invalidateQueries({ queryKey: ['question-bank-v2'] })}
+                />
+            ) : (
+            <>
+            {(!entityType || entityType === 'MockTest') && <ListeningAudioUpload />}
+            <ContentImageUpload />
 
             {/* ---- Upload Card ---- */}
             <form onSubmit={handleSubmit} className="rounded-xl border border-rp-line bg-white p-5">
@@ -972,7 +931,7 @@ function ContentImportPreviewPage() {
                             setDragOver(false);
                             pickFile(e.dataTransfer.files?.[0]);
                         }}
-                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors ${dragOver ? 'border-rp-brand-strong bg-rp-brand-tint' : 'border-rp-line bg-rp-brand-tint'
+                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors ${dragOver ? 'border-rp-brand-strong bg-rp-brand-tint' : 'border-rp-line bg-white hover:border-rp-brand-border'
                             }`}
                     >
                         <input
@@ -997,13 +956,13 @@ function ContentImportPreviewPage() {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-600 mb-1">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-rp-brand-tint text-rp-brand-strong">
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                     </svg>
                                 </div>
-                                <div className="text-sm font-medium text-slate-700">{tr('Kéo thả file .xlsx vào đây')}</div>
-                                <div className="mt-0.5 text-xs text-slate-500">{tr('hoặc bấm vào khung để duyệt file từ máy tính')}</div>
+                                <div className="text-sm font-medium text-rp-text">{tr('Kéo thả file .xlsx vào đây')}</div>
+                                <div className="mt-0.5 text-xs text-rp-text-muted">{tr('hoặc bấm vào khung để duyệt file từ máy tính')}</div>
                             </div>
                         )}
                     </div>
@@ -1020,7 +979,7 @@ function ContentImportPreviewPage() {
                                     preview.reset();
                                 }}
                                 options={[
-                                    { value: '', label: tr('Tất cả sheet trong file') },
+                                    { value: '', label: 'Tất cả sheet trong file' },
                                     ...CONTENT_IMPORT_TYPES.map((t) => ({
                                         value: t.value,
                                         label: trf('Chỉ {0}', { 0: t.label }),
@@ -1028,13 +987,15 @@ function ContentImportPreviewPage() {
                                 ]}
                             />
                         </div>
-                        <button
+                        <Button
                             type="submit"
+                            variant="primary"
                             disabled={!file || busy || hasChanges}
-                            className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300 shadow-sm"
+                            loading={preview.isPending}
+                            className="w-full"
                         >
                             {preview.isPending ? tr('Đang kiểm tra & so sánh…') : tr('Xem trước & So sánh')}
-                        </button>
+                        </Button>
                         <button type="button" disabled={!file || busy} aria-expanded={showWorkbook}
                             onClick={() => showWorkbook ? setShowWorkbook(false) : openWorkbook()}
                             className="w-full rounded-xl border border-rp-line bg-white px-4 py-2.5 text-sm font-semibold text-rp-brand-strong disabled:opacity-50">
@@ -1093,8 +1054,8 @@ function ContentImportPreviewPage() {
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-                                <h2 className="text-base font-bold text-slate-900">
-                                    {tr('Kết quả kiểm tra:')}{' '}<span className="text-sky-700">{result.fileName}</span>
+                                <h2 className="text-base font-bold text-rp-text">
+                                    {tr('Kết quả kiểm tra:')}{' '}<span className="text-rp-brand-strong">{result.fileName}</span>
                                 </h2>
                             </div>
                             <p className="mt-0.5 text-xs text-slate-500">
@@ -1188,12 +1149,12 @@ function ContentImportPreviewPage() {
                                         setActionFilter('All');
                                     }}
                                     className={`flex items-center gap-2 rounded-t-xl px-4 py-2.5 text-sm font-semibold transition-all border-b-2 ${isSelected
-                                        ? 'border-sky-600 bg-sky-50/50 text-sky-800 border-b-2'
-                                        : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                        ? 'border-rp-brand-strong bg-rp-brand-tint/60 text-rp-brand-strong border-b-2'
+                                        : 'border-transparent text-rp-text-2 hover:bg-rp-bg-2 hover:text-rp-text'
                                         }`}
                                 >
                                     <span>{ENTITY_LABELS[s.entityType] ?? s.sheetName}</span>
-                                    <span className={`rounded-full px-2 py-0.5 text-xs ${isSelected ? 'bg-sky-200/70 text-sky-800' : 'bg-slate-100 text-slate-600'}`}>
+                                    <span className={`rounded-full px-2 py-0.5 text-xs ${isSelected ? 'bg-rp-brand-soft text-rp-brand-strong' : 'bg-rp-bg-2 text-rp-text-2'}`}>
                                         {s.totalRows}
                                     </span>
                                     {s.errorCount > 0 && (
@@ -1243,14 +1204,14 @@ function ContentImportPreviewPage() {
                             {/* Bảng so sánh dữ liệu */}
                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm">
+                                    <table className="w-full text-center text-sm">
                                         <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600">
                                             <tr>
-                                                <th className="w-16 px-4 py-3 text-center">{tr('Dòng')}</th>
+                                                <th className="w-16 px-4 py-3">{tr('Dòng')}</th>
                                                 <th className="w-44 px-4 py-3">{tr('Mã / Khóa')}</th>
                                                 <th className="w-28 px-4 py-3">{tr('Trạng thái')}</th>
                                                 <th className="px-4 py-3">{tr('So sánh DB ➔ File Excel / Chi tiết')}</th>
-                                                <th className="w-24 px-4 py-3 text-right">{tr('Thao tác')}</th>
+                                                <th className="w-24 px-4 py-3">{tr('Thao tác')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -1289,22 +1250,28 @@ function ContentImportPreviewPage() {
                                                                 onOpenDiff={() => setSelectedDiffRow(row)}
                                                             />
                                                         </td>
-                                                        <td className="px-4 py-3.5 align-top text-right">
-                                                            <button
+                                                        <td className="px-4 py-3.5 align-top">
+                                                            <Button
                                                                 type="button"
+                                                                variant="secondary"
+                                                                size="xs"
                                                                 onClick={() => setSelectedDiffRow(row)}
-                                                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-sky-700 shadow-2xs"
                                                             >
                                                                 {tr('So sánh')}
-                                                            </button>
+                                                            </Button>
                                                         </td>
                                                     </tr>
                                                 );
                                             })}
                                             {visibleRows.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-400">
-                                                        {tr('Không có dòng nào phù hợp với bộ lọc này.')}
+                                                    <td colSpan={5} className="px-4 py-8">
+                                                        <EmptyState
+                                                            variant="inline"
+                                                            size="sm"
+                                                            illustration="search"
+                                                            title={tr('Không có dòng nào phù hợp với bộ lọc này.')}
+                                                        />
                                                     </td>
                                                 </tr>
                                             )}
@@ -1325,7 +1292,9 @@ function ContentImportPreviewPage() {
                     onClose={() => setSelectedDiffRow(null)}
                 />
             )}
-        </div>
+            </>
+            )}
+        </PageContainer>
         </ContentAuthorShell>
     );
 }

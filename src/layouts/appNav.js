@@ -1,12 +1,17 @@
 // Role navigation for the unified AppShell. Every `to` must be a real route in
 // App.jsx (enforced by test/app_nav_routes.test.js) — no dead links.
 import {
+  ArrowLeftRight,
   BadgeCheck,
   BookOpen,
+  BookOpenCheck,
   BookOpenText,
   CalendarCheck,
+  CalendarClock,
   CalendarDays,
   ChartNoAxesCombined,
+  CalendarCheck2,
+  CirclePlay,
   ClipboardCheck,
   ClipboardList,
   Compass,
@@ -18,23 +23,30 @@ import {
   GraduationCap,
   Headphones,
   History,
+  Keyboard,
   Languages,
   Layers,
+  Layers3,
   LayoutDashboard,
+  LayoutGrid,
   Library,
   ListChecks,
+  MessageSquareWarning,
   Mic,
   NotebookPen,
   Package,
   PenLine,
+  RefreshCw,
   Repeat,
   Settings,
   ShieldCheck,
+  Shuffle,
   SlidersHorizontal,
   SpellCheck,
   Star,
-  UserCog,
+  UserCheck,
   UserRound,
+  Users,
   UsersRound,
   Wand2,
 } from 'lucide-react';
@@ -58,19 +70,18 @@ export const ROLE_NAV = {
           { to: '/placement', label: 'Đánh giá năng lực', icon: ClipboardCheck, tone: 'mock', prefix: true },
           {
             id: 'group-learning',
-            to: '/group-learning',
+            to: '/my-courses',
             label: 'Học cùng Giáo viên',
             icon: GroupClassIcon,
             tone: 'group',
             defaultOpen: true,
             children: [
-              { to: '/group-learning', label: 'Tổng quan lớp học', icon: LayoutDashboard, tone: 'group' },
-              { to: '/mentors', label: 'Tìm Giáo viên', icon: UsersRound, tone: 'mentor', prefix: true },
-              { to: '/cohorts', label: 'Khám phá lớp học', icon: Compass, tone: 'group' },
               { to: '/my-courses', label: 'Lớp của tôi', icon: GroupClassIcon, tone: 'group', prefix: true },
-              { to: '/calendar', label: 'Lịch học', icon: CalendarDays, tone: 'calendar' },
               { to: '/homework', label: 'Bài tập về nhà', icon: ClipboardList, tone: 'writing' },
+              { to: '/calendar', label: 'Lịch học', icon: CalendarDays, tone: 'calendar' },
               { to: '/group-learning/progress', label: 'Tiến độ học nhóm', icon: ChartNoAxesCombined, tone: 'present' },
+              { to: '/cohorts', label: 'Khám phá lớp học', icon: Compass, tone: 'group' },
+              { to: '/mentors', label: 'Tìm Giáo viên', icon: UsersRound, tone: 'mentor', prefix: true },
             ],
           },
         ],
@@ -78,14 +89,13 @@ export const ROLE_NAV = {
       {
         label: 'Lộ trình học JLPT',
         items: [
-          { to: '/roadmap', label: 'Lộ trình của tôi', icon: JlptRoadmapIcon, tone: 'roadmap' },
+          { to: '/roadmap', label: 'Lộ trình của tôi', icon: JlptRoadmapIcon, tone: 'roadmap', alsoActive: ['/roadmap/stages'] },
           { to: '/lessons', label: 'Khám phá bài học', icon: BookOpen, tone: 'lesson', alsoActive: ['/lesson-player', '/lesson-practice'] },
         ],
       },
       {
         label: 'Thư viện tiếng Nhật',
         items: [
-          { to: '/vocabulary', label: 'Kho từ vựng', icon: Languages, tone: 'vocabulary', alsoActive: ['/vocabulary-detail'] },
           { to: '/grammar', label: 'Ngữ pháp tiếng Nhật', icon: SpellCheck, tone: 'grammar' },
           { to: '/kanji-writing?type=kanji', label: 'Hán tự Kanji', icon: KanjiBrushIcon, tone: 'kanji' },
           { to: '/kanji-writing?type=hiragana', label: 'Bảng chữ Hiragana', icon: KanaHiraganaIcon, tone: 'kana' },
@@ -95,8 +105,74 @@ export const ROLE_NAV = {
       {
         label: 'Góc học tập của tôi',
         items: [
-          { to: '/daily-srs', label: 'Ôn tập SRS', icon: SrsLoopIcon, tone: 'srs' },
-          { to: '/kanji-notebook', label: 'Sổ tay cá nhân', icon: NotebookPen, tone: 'writing' },
+          {
+            id: 'srs-review',
+            to: '/daily-srs',
+            label: 'Ôn tập SRS',
+            icon: SrsLoopIcon,
+            tone: 'srs',
+            defaultOpen: true,
+            children: [
+              {
+                to: '/daily-srs',
+                label: 'Tổng quan',
+                icon: LayoutGrid,
+                end: true,
+                alsoActive: ['/daily-srs/progress'],
+                keywords: ['tổng quan', 'tiến độ', 'lịch ôn', 'overview', 'forecast', 'calendar'],
+              },
+              {
+                to: '/daily-srs/due',
+                label: 'Ôn thẻ đến hạn',
+                icon: CalendarCheck2,
+                keywords: ['ôn thẻ đến hạn', 'đến hạn', 'due', 'scheduled review', 'lịch ôn'],
+              },
+              {
+                id: 'srs-practice',
+                to: '/daily-srs/practice',
+                label: 'Ôn tự do',
+                icon: CirclePlay,
+                defaultOpen: true,
+                children: [
+                  {
+                    to: '/daily-srs/practice/flip',
+                    label: 'Lật thẻ',
+                    icon: Layers3,
+                    showIconInBreadcrumb: true,
+                    kind: 'radio',
+                    keywords: ['flashcard', 'flip', 'lật thẻ'],
+                  },
+                  {
+                    to: '/daily-srs/practice/typing',
+                    label: 'Gõ đáp án',
+                    icon: Keyboard,
+                    showIconInBreadcrumb: true,
+                    kind: 'radio',
+                    keywords: ['typing', 'gõ đáp án'],
+                  },
+                  {
+                    to: '/daily-srs/practice/mcq',
+                    label: 'Trắc nghiệm',
+                    icon: ListChecks,
+                    showIconInBreadcrumb: true,
+                    kind: 'radio',
+                    keywords: ['mcq', 'quiz', 'trắc nghiệm'],
+                  },
+                  {
+                    to: '/daily-srs/practice/mixed',
+                    label: 'Hỗn hợp',
+                    icon: Shuffle,
+                    showIconInBreadcrumb: true,
+                    kind: 'radio',
+                    keywords: ['mixed', 'hỗn hợp'],
+                  },
+                ],
+              },
+              { to: '/daily-srs/library', label: 'Thẻ của tôi', icon: Layers, keywords: ['thẻ của tôi', 'my cards', 'thẻ cá nhân', 'library'] },
+              { to: '/daily-srs/templates', label: 'Thư viện thẻ mẫu', icon: BookOpen, keywords: ['thư viện thẻ mẫu', 'thẻ mẫu', 'templates'] },
+            ],
+          },
+          { to: '/kanji-notebook', label: 'Sổ tay cá nhân', icon: NotebookPen, tone: 'writing', alsoActive: ['/vocabulary-detail'] },
         ],
       },
       {
@@ -106,8 +182,41 @@ export const ROLE_NAV = {
           { to: '/riki/reading', label: 'Đọc hiểu', icon: BookOpenText, tone: 'reading' },
           { to: '/riki/essay', label: 'Luyện viết', icon: PenLine, tone: 'writing', alsoActive: ['/sentence-studio', '/ai-scoring'] },
           { to: '/speech', label: 'Luyện nói', icon: Mic, tone: 'speaking', alsoActive: ['/riki/speaking'] },
-          { to: '/mock-tests', label: 'Thi thử JLPT', icon: FileCheck2, tone: 'mock' },
-          { to: '/exam-result', label: 'Lịch sử & kết quả', icon: History, tone: 'neutral' },
+          {
+            id: 'practice-exam',
+            to: '/practice-sets',
+            label: 'Luyện đề & Thi thử',
+            icon: BookOpenCheck,
+            tone: 'mock',
+            defaultOpen: false,
+            children: [
+              {
+                to: '/practice-sets',
+                label: 'Bộ đề luyện tập',
+                icon: Layers,
+                tone: 'mock',
+                prefix: true,
+                keywords: ['bộ đề', 'luyện đề', 'practice', 'kỹ năng', 'hỗn hợp'],
+              },
+              {
+                to: '/mock-tests',
+                label: 'Thi thử JLPT',
+                icon: FileCheck2,
+                tone: 'mock',
+                prefix: true,
+                alsoActive: ['/mock-test'],
+                keywords: ['thi thử', 'jlpt', 'mock test', 'đề thi'],
+              },
+              {
+                to: '/exam-result',
+                label: 'Lịch sử & kết quả',
+                icon: History,
+                tone: 'neutral',
+                prefix: true,
+                keywords: ['lịch sử', 'kết quả', 'điểm số', 'xem lại', 'history', 'result'],
+              },
+            ],
+          },
         ],
       },
       {
@@ -214,6 +323,7 @@ export const ROLE_NAV = {
             defaultOpen: true,
             children: [
               { to: '/content-manual', label: 'Biên soạn nội dung', icon: PenLine, tone: 'writing' },
+              { to: '/srs-templates', label: 'Thẻ mẫu SRS', icon: Repeat, tone: 'vocabulary' },
               { to: '/lesson-cms', label: 'Bài học', icon: BookOpen, tone: 'lesson', alsoActive: ['/lesson-cms-detail'] },
               { to: '/exam-builder', label: 'Đề thi thử', icon: FileCheck2, tone: 'mock' },
               { to: '/content-plan', label: 'Trợ lý biên soạn', icon: Wand2, tone: 'haru' },
@@ -256,76 +366,56 @@ export const ROLE_NAV = {
       {
         label: 'Điều hành',
         items: [
-          { to: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard, tone: 'neutral' },
-          { to: '/admin/users', label: 'Người dùng & vai trò', icon: UserCog, tone: 'neutral', alsoActive: ['/admin/users/detail'] },
-          { to: '/admin/payments', label: 'Thanh toán & giao dịch', icon: CreditCard, tone: 'payment' },
+          { to: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard, tone: 'sakura' },
+          { to: '/admin/users', label: 'Người dùng & vai trò', icon: Users, tone: 'sakura', alsoActive: ['/admin/users/detail'] },
+          { to: '/admin/payments', label: 'Thanh toán & giao dịch', icon: CreditCard, tone: 'sakura' },
         ],
       },
       {
-        label: 'Học cùng Giáo viên',
+        label: 'Lớp học & ghi danh',
         items: [
-          {
-            id: 'admin-cohorts',
-            to: '/admin/study-courses',
-            label: 'Điều phối lớp học',
-            icon: GroupClassIcon,
-            tone: 'group',
-            defaultOpen: true,
-            children: [
-              { to: '/admin/study-courses', label: 'Gói học, lớp & ghi danh', icon: GroupClassIcon, tone: 'group' },
-              { to: '/admin/mentor-cases', label: 'Ngoại lệ & khiếu nại', icon: Gavel, tone: 'neutral' },
-              { to: '/admin/mentor-homework', label: 'Bài tập về nhà', icon: ClipboardCheck, tone: 'writing' },
-            ],
-          },
+          { to: '/admin/study-courses', label: 'Lớp học & ghi danh', icon: GroupClassIcon, tone: 'sakura', excludeQuery: { section: 'enrollments' } },
+          { to: '/admin/retake-support', label: 'Ghi danh & ôn lại JLPT', icon: RefreshCw, tone: 'sakura', alsoMatch: ['/admin/study-courses?section=enrollments'] },
+          { to: '/admin/mentor-template', label: 'Lịch cố định tuần', icon: Repeat, tone: 'sakura' },
+        ],
+      },
+      {
+        label: 'Lịch dạy & điều phối',
+        items: [
+          { to: '/admin/mentor-schedules', label: 'Duyệt lịch dạy', icon: CalendarCheck, tone: 'sakura', alsoMatch: ['/admin/slot-review?tab=proposals', '/admin/slot-review?tab=review'] },
+          { to: '/admin/schedule-requests', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarClock, tone: 'sakura', alsoMatch: ['/admin/slot-review?tab=cancel', '/admin/slot-review?tab=change'] },
+          { to: '/admin/mentor-replacements', label: 'Đổi Giáo viên', icon: UserCheck, tone: 'sakura' },
+          { to: '/admin/transfers', label: 'Chuyển lớp', icon: ArrowLeftRight, tone: 'sakura' },
+        ],
+      },
+      {
+        label: 'Giám sát & hỗ trợ',
+        items: [
+          { to: '/admin/complaints', label: 'Khiếu nại khóa học', icon: MessageSquareWarning, tone: 'sakura', alsoMatch: ['/admin/mentor-cases?tab=complaints'] },
+          { to: '/admin/mentor-quality', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'sakura' },
         ],
       },
       {
         label: 'Giáo viên',
         items: [
-          {
-            id: 'admin-mentor-team',
-            to: '/admin/mentors',
-            label: 'Đội ngũ Giáo viên',
-            icon: UsersRound,
-            tone: 'mentor',
-            defaultOpen: true,
-            children: [
-              { to: '/admin/mentors', label: 'Hồ sơ Giáo viên', icon: UsersRound, tone: 'mentor', alsoActive: ['/admin/consultants'] },
-              { to: '/admin/mentor-verifications', label: 'Xét duyệt hồ sơ', icon: BadgeCheck, tone: 'mentor' },
-              { to: '/admin/mentor-qualifications', label: 'Phân quyền JLPT', icon: GraduationCap, tone: 'mentor' },
-            ],
-          },
-          {
-            id: 'admin-mentor-ops',
-            to: '/admin/mentor-schedules',
-            label: 'Vận hành & lịch dạy',
-            icon: CalendarCheck,
-            tone: 'calendar',
-            defaultOpen: true,
-            children: [
-              { to: '/admin/mentor-schedules', label: 'Duyệt lịch dạy', icon: CalendarCheck, tone: 'calendar' },
-              { to: '/admin/slot-review', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarDays, tone: 'calendar' },
-              { to: '/admin/mentor-template', label: 'Lịch cố định tuần', icon: Repeat, tone: 'calendar' },
-              { to: '/admin/mentor-quality', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'reading' },
-            ],
-          },
+          { to: '/admin/mentor-verifications', label: 'Xét duyệt hồ sơ', icon: BadgeCheck, tone: 'sakura', alsoActive: ['/admin/mentors', '/admin/consultants', '/admin/mentor-qualifications'] },
         ],
       },
       {
         label: 'Cấu hình',
         items: [
-          { to: '/admin/study-catalog', label: 'Chứng chỉ & cấp độ', icon: GraduationCap, tone: 'reading' },
-          { to: '/admin/certificate-sections', label: 'Phần thi', icon: Library, tone: 'reading' },
-          { to: '/admin/plans', label: 'Gói học & bảng giá', icon: Package, tone: 'payment' },
+          { to: '/admin/study-catalog', label: 'Chứng chỉ & cấp độ', icon: GraduationCap, tone: 'neutral' },
+          { to: '/admin/certificate-sections', label: 'Phần thi', icon: Library, tone: 'neutral' },
+          { to: '/admin/plans', label: 'Gói học & bảng giá', icon: Package, tone: 'neutral' },
           {
             to: '/admin/policies',
             label: 'Chính sách học tập',
             icon: SlidersHorizontal,
-            tone: 'mentor',
+            tone: 'neutral',
             alsoActive: ['/admin/mentor-group-policy'],
           },
-          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'reading', alsoActive: ['/admin/approval-content'] },
-          { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings'] },
+          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'neutral', alsoActive: ['/admin/approval-content'] },
+          { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings', '/update-email', '/change-password'] },
         ],
       },
     ],
@@ -373,35 +463,64 @@ export function isNavItemActive(item, pathname, search = '') {
   return Boolean(item.children?.some((child) => isNavItemActive(child, pathname, search)));
 }
 
-/** Finds { group, parent, item } for the current location, used to build breadcrumbs. */
-export function findActiveNav(roleKey, pathname, search = '') {
-  const nav = ROLE_NAV[roleKey];
-  if (!nav) return null;
-  for (const group of nav.groups) {
-    for (const item of group.items) {
-      if (item.children?.length) {
-        const child = item.children.find((sub) => isOwnNavItemActive(sub, pathname, search));
-        if (child) return { group, parent: item, item: child };
-      }
-      if (isOwnNavItemActive(item, pathname, search)) return { group, item };
+function findInNavBranch(items, pathname, search) {
+  for (const item of items) {
+    if (item.children?.length) {
+      const nested = findInNavBranch(item.children, pathname, search);
+      if (nested) return { item: nested.item, parents: [item, ...nested.parents] };
+    }
+    if (isOwnNavItemActive(item, pathname, search)) {
+      return { item, parents: [] };
     }
   }
   return null;
 }
 
-/** Breadcrumb trail: area home › group/parent › item › page (page only when it adds information). */
+/** Finds { group, parent, parents, item } for the current location, used to build breadcrumbs. */
+export function findActiveNav(roleKey, pathname, search = '') {
+  const nav = ROLE_NAV[roleKey];
+  if (!nav) return null;
+  for (const group of nav.groups) {
+    const found = findInNavBranch(group.items, pathname, search);
+    if (found) {
+      return {
+        group,
+        parent: found.parents[0],
+        parents: found.parents,
+        item: found.item,
+      };
+    }
+  }
+  return null;
+}
+
+/** Breadcrumb trail: area home › group/parent › ... › item › page (page only when it adds information). */
 export function buildBreadcrumbs(roleKey, pathname, search, pageLabel) {
   const nav = ROLE_NAV[roleKey];
   if (!nav) return [];
   const trail = [{ label: nav.area, to: nav.home }];
   const active = findActiveNav(roleKey, pathname, search);
   if (active && clean(active.item.to) !== clean(nav.home)) {
-    if (active.parent) {
-      trail.push({ label: active.parent.label, to: clean(active.parent.to) === clean(pathname) ? undefined : active.parent.to });
+    const ancestors = active.parents || (active.parent ? [active.parent] : []);
+    if (ancestors.length > 0) {
+      for (const anc of ancestors) {
+        trail.push({
+          label: anc.label,
+          to: clean(anc.to) === clean(pathname) ? undefined : anc.to,
+          icon: anc.showIconInBreadcrumb ? anc.icon : undefined,
+        });
+      }
     } else if (active.group.label !== active.item.label) {
       trail.push({ label: active.group.label });
     }
-    trail.push({ label: active.item.label, to: clean(active.item.to) === clean(pathname) ? undefined : active.item.to });
+    const lastAncestor = ancestors[ancestors.length - 1];
+    if (!lastAncestor || lastAncestor.label !== active.item.label) {
+      trail.push({
+        label: active.item.label,
+        to: clean(active.item.to) === clean(pathname) ? undefined : active.item.to,
+        icon: active.item.showIconInBreadcrumb ? active.item.icon : undefined,
+      });
+    }
   }
   // The page's own label is only added on sub-pages (detail views); on a page the sidebar
   // already names, legacy per-page breadcrumb strings would just repeat or contradict it.

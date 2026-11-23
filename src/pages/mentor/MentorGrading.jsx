@@ -316,7 +316,8 @@ export default function MentorGrading() {
             {!result?.grading && !result?.transcript && (
               <Card className="border-dashed bg-rp-surface/90">
                 <ContextualEmptyState
-                  compact
+                  variant="compact"
+                  illustration="homework"
                   title={tr('Kết quả đánh giá sẽ hiển thị tại đây')}
                   description={tr('Chọn kỹ năng Viết hoặc Nói, chọn cấp độ JLPT phù hợp và gửi bài để xem gợi ý nhận xét chi tiết.')}
                 />

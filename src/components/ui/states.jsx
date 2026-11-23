@@ -10,37 +10,42 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { Banner, Button } from './core.jsx';
-import { cx } from './cx.js';
-import Haru from '@/assets/illustrations/Haru.jsx';
+import HaruMascot from './HaruMascot.jsx';
 import { resolveDataState } from './dataStateLogic.js';
 import { ContextualEmptyState, ContextualErrorState, StaleDataBar } from './SmartDataBoundary.jsx';
 import { RefreshingIndicator, SakuraLoader } from './SakuraLoader.jsx';
 import { useOnlineStatus } from './hooks.js';
 import { useLocale, translateText } from '@/locales/locale.js';
 
-/* ------------------------------------------------------------------ Haru mascot */
+/* ------------------------------------------------------------------ Riki mascot */
 
-const POSE_MAP = {
-  greeting: { mood: 'happy', activity: 'wave' },
-  guiding: { mood: 'wink', activity: 'flag' },
-  studying: { mood: 'calm', activity: 'book' },
-  celebrating: { mood: 'cheer', activity: 'trophy' },
-  thinking: { mood: 'thinking', activity: 'none' },
-  listening: { mood: 'happy', activity: 'headset' },
-  writing: { mood: 'happy', activity: 'pencil' },
-  sad: { mood: 'sad', activity: 'none' },
-};
-
-/** Haru, RikiPath's study companion. Decorative unless `alt` is given. */
-export function HaruMascot({ pose = 'greeting', size = 120, className, alt = '', halo = false }) {
-  const p = POSE_MAP[pose] || POSE_MAP.greeting;
-  return <Haru mood={p.mood} activity={p.activity} size={size} title={alt || undefined} className={cx('select-none', className)} halo={halo} />;
-}
+export { HaruMascot };
 
 /* ------------------------------------------------------------------ Empty / Error states */
 
-export function EmptyState(props) {
-  return <ContextualEmptyState {...props} />;
+/**
+ * Unified RikiPath EmptyState (`variant`, `illustration`, `title`, `description`, `action`, `size`).
+ */
+export function EmptyState({
+  variant = 'default',
+  illustration,
+  title,
+  description,
+  action,
+  size,
+  ...rest
+}) {
+  return (
+    <ContextualEmptyState
+      variant={variant}
+      illustration={illustration}
+      title={title}
+      description={description}
+      action={action}
+      size={size}
+      {...rest}
+    />
+  );
 }
 
 export function ErrorState({ allowSupportDetails = false, ...props }) {

@@ -57,20 +57,17 @@ export default function ResetPassword() {
         </Banner>
       ) : (
         <form onSubmit={submit} noValidate className="space-y-4">
-          <div className="space-y-2.5">
-            <PasswordInputField
-              id="resetNewPassword"
-              name="newPassword"
-              label="Mật khẩu mới"
-              placeholder="Tạo mật khẩu mới"
-              autoComplete="new-password"
-              value={newPassword}
-              disabled={reset.isPending}
-              required
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-            <PasswordStrengthMeter evaluation={evaluation} compact />
-          </div>
+          <PasswordInputField
+            id="resetNewPassword"
+            name="newPassword"
+            label="Mật khẩu mới"
+            placeholder="Tạo mật khẩu mới"
+            autoComplete="new-password"
+            value={newPassword}
+            disabled={reset.isPending}
+            required
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
           <PasswordInputField
             id="resetConfirmPassword"
             name="confirmPassword"
@@ -86,6 +83,7 @@ export default function ResetPassword() {
             ) : null}
             onChange={(event) => setConfirmPassword(event.target.value)}
           />
+          <PasswordStrengthMeter evaluation={evaluation} compact />
           {error && <Banner tone="danger">{error}</Banner>}
           <Button
             type="submit"

@@ -14,7 +14,8 @@ export const getPlacementStatus = () => get('/status');
 function withLocalDeadline(attempt) {
   if (!attempt) return attempt;
   const remaining = Date.parse(attempt.expiresAt) - Date.parse(attempt.serverNow);
-  return { ...attempt, localDeadline: Date.now() + Math.max(0, Number.isFinite(remaining) ? remaining : 0) };
+  const duration = Math.max(0, Number.isFinite(remaining) ? remaining : 0);
+  return { ...attempt, localDeadline: Date.now() + duration, monotonicDeadline: performance.now() + duration };
 }
 
 export const getActivePlacementAttempt = async () => withLocalDeadline(await get('/attempts/active'));
@@ -91,6 +92,11 @@ const result = (data) => data?.result;
 
 export function skipPlacement() {
   return api.post('/MockTest/placement/skip').then(result);
+}
+
+export async function skipStandardPlacement() {
+  const response = await api.post(`${endpoint}/skip`);
+  return response.result;
 }
 
 export function getPlacementTest(certificateLevelId) {

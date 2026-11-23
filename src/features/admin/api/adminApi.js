@@ -144,6 +144,26 @@ export async function batchReviewContentRequests(items) {
   return aggregate;
 }
 
+export async function getModerationQueueV2(params = {}) {
+  const res = await api.get('/content-approvals/v2/queue', { params });
+  return res?.result ?? res;
+}
+
+export async function getModerationDetailV2(requestId) {
+  const res = await api.get(`/content-approvals/v2/requests/${requestId}/detail`);
+  return res?.result ?? res;
+}
+
+export async function moderateContentV2(requestId, payload) {
+  const res = await api.post(`/content-approvals/v2/requests/${requestId}/moderate`, payload);
+  return res?.result ?? res;
+}
+
+export async function unpublishContentV2(payload) {
+  const res = await api.post('/content-approvals/v2/unpublish', payload);
+  return res?.result ?? res;
+}
+
 export async function getCertificateSections(params) {
   const data = await api.get('/admin/certificate-sections', { params });
   return data?.result ?? data ?? [];
@@ -220,6 +240,17 @@ export async function createAdminSubscriptionPlan(payload) {
 
 export async function updateAdminSubscriptionPlan(id, payload) {
   const data = await api.put(`/admin/subscription-plans/${id}`, payload);
+  return data?.result ?? data;
+}
+
+export async function updateAdminFeaturePolicy(id, payload) {
+  const data = await api.put(`/admin/features/${id}/policy`, payload);
+  return data?.result ?? data;
+}
+
+export async function getAdminEntitlementPreview(planId = null) {
+  const params = planId ? { planId } : {};
+  const data = await api.get('/admin/entitlement-preview', { params });
   return data?.result ?? data;
 }
 

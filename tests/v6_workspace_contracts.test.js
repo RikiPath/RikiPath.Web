@@ -46,13 +46,17 @@ describe('V6 Multi-Role Workspace contracts', () => {
     assert.equal(notificationDestination('/my-courses/21?section=homework'), '/my-courses/21?section=homework');
   });
 
-  it('keeps every role sidebar hierarchy at <= 2 levels and includes Group Overview for Learner', () => {
+  it('keeps every role sidebar hierarchy capped (<= 2 levels, except srs-practice radio leaf group) and prioritizes Group Learning destinations for Learner', () => {
     for (const [role, nav] of Object.entries(ROLE_NAV)) {
       for (const group of nav.groups) {
         for (const item of group.items) {
           if (item.children) {
             for (const child of item.children) {
-              assert.equal(Boolean(child.children), false, `${role} nav child ${child.label} must not nest 3 levels`);
+              if (child.id === 'srs-practice' && Array.isArray(child.children)) {
+                assert.ok(child.children.length > 0 && child.children.every((sub) => sub.kind === 'radio' && !sub.children), 'srs-practice must contain terminal radio leaves only');
+              } else {
+                assert.equal(Boolean(child.children), false, `${role} nav child ${child.label} must not nest 3 levels`);
+              }
             }
           }
         }
@@ -60,7 +64,9 @@ describe('V6 Multi-Role Workspace contracts', () => {
       assert.ok(flattenNavItems(nav.groups.flatMap((g) => g.items)).length > 0);
     }
     const learnerTargets = flattenNavItems(ROLE_NAV.Learner.groups.flatMap((g) => g.items)).map((i) => i.to);
-    assert.ok(learnerTargets.includes('/group-learning'));
+    assert.equal(learnerTargets.includes('/group-learning'), false);
+    assert.ok(learnerTargets.includes('/my-courses'));
+    assert.ok(learnerTargets.includes('/homework'));
   });
 
   it('formats homework publishedGrade object DTO as /100 score instead of [object Object]', () => {
@@ -136,16 +142,26 @@ describe('V6 Multi-Role Workspace contracts', () => {
       assert.match(code, /HeaderIconBadge/, `${rel} must use shared HeaderIconBadge`);
       assert.match(code, /variant="outline"/, `${rel} must use outline circular IconButton`);
     }
+
+    const atmosphereCss = fs.readFileSync(path.join(ROOT, 'src/features/atmosphere/atmosphere.css'), 'utf8');
+    assert.match(
+      atmosphereCss,
+      /\.rp-sky-header\[data-sky='on'\]\[data-sky-tone='dark'\] \.rp-lang-globe\s*\{\s*color:\s*var\(--color-rp-text-2\);/,
+      'Globe icon must match adjacent header icons in dark/night sky mode',
+    );
   });
 
-  it('passes valid props to Tabs and schedulePatternText in V6 workspaces', () => {
+  it('passes valid props to Tabs / UnifiedToolbar and schedulePatternText in V6 workspaces', () => {
     for (const rel of [
       'src/pages/mentor/MentorClassWorkspace.jsx',
       'src/pages/admin/AdminGroupWorkspace.jsx',
       'src/pages/admin/AdminMentorCases.jsx',
     ]) {
       const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-      assert.match(code, /<Tabs[\s\S]{0,220}tabs=/, `${rel} must pass tabs= to <Tabs>`);
+      assert.ok(
+        /<Tabs[\s\S]{0,220}tabs=/.test(code) || /<UnifiedToolbar[\s\S]{0,360}tabs=/.test(code) || /toolbarTabs=/.test(code),
+        `${rel} must pass tabs= to <Tabs> or <UnifiedToolbar>`
+      );
       assert.equal(/<Tabs[\s\S]{0,160}items=/.test(code), false, `${rel} must not pass items= to <Tabs>`);
     }
     const mentorWs = fs.readFileSync(path.join(ROOT, 'src/pages/mentor/MentorClassWorkspace.jsx'), 'utf8');

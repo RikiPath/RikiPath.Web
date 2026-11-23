@@ -1,520 +1,863 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowRight,
-  Bell,
-  CalendarDays,
-  CheckCircle2,
-  HelpCircle,
+  BookOpen,
+  Flame,
+  Keyboard,
   Layers,
-  RefreshCw,
-  RotateCcw,
+  Layers3,
+  ListChecks,
+  Play,
+  Settings2,
+  Shuffle,
+  SlidersHorizontal,
   Sparkles,
-  Timer,
+  Target,
+  Trash2,
+  Trophy,
 } from 'lucide-react';
-import { LearnerShell } from '@/layouts';
-import { currentIntlTag, useLocale } from '@/locales/locale.js';
-import { getDailyReviewQueue, submitReviewResult } from '@/features/srs/api/reviewApi.js';
-import { checkTypedReading, getAcceptedReadings } from '@/features/srs/utils/srsTypedAnswer.js';
-import { describeApiError } from '@/api/apiErrors.js';
 import {
-  Badge,
   Banner,
   Button,
   Card,
-  CardHeader,
   ContextualEmptyState,
   ContextualErrorState,
+  CustomSelect,
   Field,
   Input,
+  Modal,
   PageContainer,
-  PageHeader,
-  Popover,
-  ProgressBar,
   SakuraLoader,
-  SegmentedControl,
+  Switch,
+  confirmAction,
   notify,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
+import { formatSrsCardTypeLabel, formatSrsStudyMode } from '@/features/srs/utils/srsLabels.js';
+import { LearnerShell } from '@/layouts';
+import {
+  abandonSrsSession,
+  getActiveSrsSession,
+  getDailyReviewQueue,
+  getSrsPreferences,
+  getSrsSummary,
+  startSrsSession,
+} from '@/features/srs/api/reviewApi.js';
+import { invalidateSrsAndCalendarCaches } from '@/features/srs/utils/srsCacheSync.js';
+import SrsReviewPlayer from '@/features/srs/components/SrsReviewPlayer.jsx';
+import SrsCardLibraryTab from '@/features/srs/components/SrsCardLibraryTab.jsx';
+import SrsTemplateCatalogTab from '@/features/srs/components/SrsTemplateCatalogTab.jsx';
+import SrsProgressAnalyticsTab from '@/features/srs/components/SrsProgressAnalyticsTab.jsx';
+import SrsPreferencesModal from '@/features/srs/components/SrsPreferencesModal.jsx';
+import StartReviewSessionModal from '@/features/srs/components/StartReviewSessionModal.jsx';
+import { useLocale } from '@/locales/locale.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
 
-function getContentTypeLabel(contentType) {
-  const value = String(contentType ?? '').toLowerCase();
-  if (value === '1' || value === 'kanji') return 'Kanji';
-  if (value === '2' || value === 'grammar') return 'Ngữ pháp';
-  return 'Từ vựng';
+const MODE_META = {
+  flip: { label: 'Lật thẻ', icon: Layers3, clayIcon: 'srs_flip', description: 'Lật thẻ để ghi nhớ kiến thức.' },
+  typing: { label: 'Gõ đáp án', icon: Keyboard, clayIcon: 'srs_typing', description: 'Nhập câu trả lời để kiểm tra trí nhớ.' },
+  mcq: { label: 'Trắc nghiệm', icon: ListChecks, clayIcon: 'srs_mcq', description: 'Chọn đáp án đúng để ôn tập.' },
+  mixed: { label: 'Hỗn hợp', icon: Shuffle, clayIcon: 'srs_mixed', description: 'Kết hợp nhiều cách ôn trong một phiên.' },
+};
+const VALID_MODES = new Set(['flip', 'typing', 'mcq', 'mixed']);
+const DUE_PREVIEW_LIMIT = 60;
+
+function normalizeMode(value, fallback = 'flip') {
+  const key = String(value || '').trim().toLowerCase();
+  if (VALID_MODES.has(key)) return key;
+  return VALID_MODES.has(fallback) ? fallback : 'flip';
 }
 
-function formatToday() {
-  return new Intl.DateTimeFormat(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-  }).format(new Date());
+function isResumable(session) {
+  return Boolean(
+    session
+    && session.status !== 'Completed'
+    && session.status !== 'Abandoned'
+    && !session.isFinished
+    && !session.isExpired
+    && (session.pendingItems || []).length > 0,
+  );
 }
 
-export default function DailySRS() {
+/**
+ * Learner SRS with two independent flows:
+ * - Scheduled review (`/daily-srs/due`): the server picks due cards; results update the SRS schedule.
+ * - Free practice (`/daily-srs/practice/:mode`): any active personal card, opens straight into the player,
+ *   never changes due dates / SM-2 / review history (backend `SessionKind = Practice`).
+ * The two session kinds are stored separately, so one never blocks or overwrites the other.
+ */
+export default function DailySRS({ section = 'today' }) {
   const { pathname } = useLocation();
-  const { trf, locale, tr } = useLocale();
-  const [queue, setQueue] = useState([]);
-  const [studyMode, setStudyMode] = useState('flip');
-  const [typedAnswer, setTypedAnswer] = useState('');
-  const [typedResult, setTypedResult] = useState(null);
-  const submitting = useRef(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-  const [sessionStarted, setSessionStarted] = useState(false);
-  const [sessionCards, setSessionCards] = useState([]);
-  const [sessionIndex, setSessionIndex] = useState(0);
-  const [revealed, setRevealed] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [sessionStats, setSessionStats] = useState({ correct: 0, incorrect: 0, attempts: 0 });
+  const { mode: routeMode } = useParams();
+  const [searchParams] = useSearchParams();
+  const { tr } = useLocale();
+  const [prefsOpen, setPrefsOpen] = useState(false);
 
-  const loadQueue = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const result = await getDailyReviewQueue();
-      const raw = Array.isArray(result?.items) ? result.items : [];
-      const seen = new Set();
-      const unique = raw.filter((item) => {
-        if (!item?.reviewCardId || seen.has(item.reviewCardId)) return false;
-        seen.add(item.reviewCardId);
-        return true;
-      });
-      setQueue(unique);
-    } catch (error) {
-      setLoadError(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const prefQuery = useQuery({ queryKey: ['srs-preferences'], queryFn: getSrsPreferences, staleTime: 0 });
+  const preferredMode = normalizeMode(prefQuery.data?.preferredReviewMode, 'flip');
+
+  // Legacy URLs keep their old meaning (scheduled review by mode) by landing on the due page.
+  if (section === 'mode' || section === 'progress') {
+    const resume = searchParams.get('resume') === '1';
+    if (section === 'progress') return <Navigate to="/daily-srs/#srs-progress" replace />;
+    return <Navigate to={resume ? '/daily-srs/due/?resume=1' : '/daily-srs/due/'} replace />;
+  }
+
+  const breadcrumb = section === 'due'
+    ? tr('Ôn thẻ đến hạn')
+    : section === 'practice'
+      ? tr(MODE_META[normalizeMode(routeMode)].label)
+      : section === 'library'
+        ? tr('Thẻ của tôi')
+        : section === 'templates'
+          ? tr('Thư viện thẻ mẫu')
+          : tr('Tổng quan');
+
+  return (
+    <LearnerShell pathname={pathname} breadcrumb={breadcrumb}>
+      <PageContainer data-page="DailySRS" width="default" density="comfortable" className="space-y-5 pb-24 text-rp-text sm:pb-20">
+        {section === 'today' && <OverviewView preferredMode={preferredMode} onOpenPrefs={() => setPrefsOpen(true)} />}
+        {section === 'due' && <DueReviewView prefQuery={prefQuery} preferredMode={preferredMode} onOpenPrefs={() => setPrefsOpen(true)} />}
+        {section === 'practice' && (
+          <FreePracticeView key={normalizeMode(routeMode)} mode={normalizeMode(routeMode)} prefQuery={prefQuery} />
+        )}
+        {section === 'library' && (
+          <>
+            <IllustratedPageHeader
+              icon="srs"
+              tone="lavender"
+              eyebrow={tr('Ôn tập cách quãng · Đúng thời điểm')}
+              title={tr('Thẻ của tôi')}
+              description={tr('Quản lý những thẻ bạn đã lưu và tự tạo.')}
+              actions={<SettingsButton onClick={() => setPrefsOpen(true)} />}
+            />
+            <LibraryRoute preferredMode={preferredMode} />
+          </>
+        )}
+        {section === 'templates' && (
+          <>
+            <IllustratedPageHeader
+              icon="srs"
+              tone="lavender"
+              eyebrow={tr('Ôn tập cách quãng · Đúng thời điểm')}
+              title={tr('Thư viện thẻ mẫu')}
+              description={tr('Khám phá và thêm thẻ có sẵn vào bộ thẻ của bạn.')}
+            />
+            <SrsTemplateCatalogTab />
+          </>
+        )}
+        <SrsPreferencesModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
+      </PageContainer>
+    </LearnerShell>
+  );
+}
+
+function SettingsButton({ onClick }) {
+  const { tr } = useLocale();
+  return (
+    <Button type="button" variant="secondary" icon={SlidersHorizontal} onClick={onClick}>
+      {tr('Cài đặt')}
+    </Button>
+  );
+}
+
+function LibraryRoute({ preferredMode }) {
+  const navigate = useNavigate();
+  return <SrsCardLibraryTab preferredMode={preferredMode} onBrowseTemplates={() => navigate('/daily-srs/templates/')} />;
+}
+
+/* ------------------------------------------------------------------ Shared: scheduled session state */
+
+function useScheduledSession() {
+  const { tr } = useLocale();
+  const queryClient = useQueryClient();
+  const summaryQuery = useQuery({ queryKey: ['srs-summary'], queryFn: getSrsSummary });
+  const activeQuery = useQuery({ queryKey: ['srs-active-session'], queryFn: () => getActiveSrsSession('Scheduled') });
+  const resumable = isResumable(activeQuery.data) ? activeQuery.data : null;
+
+  const abandonMut = useMutation({
+    mutationFn: (sessionKey) => abandonSrsSession(sessionKey),
+    onSuccess: async () => {
+      notify.info(tr('Đã hủy phiên ôn cũ.'));
+      await invalidateSrsAndCalendarCaches(queryClient);
+    },
+    onError: (err) => notify.apiError(err, tr('Không thể hủy phiên ôn')),
+  });
+
+  return { summaryQuery, activeQuery, resumable, abandonMut };
+}
+
+function ResumeBanner({ resumable, onResume, onAbandon, abandoning }) {
+  const { tr, trf } = useLocale();
+  if (!resumable) return null;
+  return (
+    <Banner tone="info" title={tr('Bạn có một phiên ôn tập đang dở')}>
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <p className="text-xs text-rp-text-2">
+          {trf('Chế độ {0} · Còn {1} thẻ chưa hoàn thành ({2}/{3} đã xong).', {
+            0: formatSrsStudyMode(resumable.studyMode, tr),
+            1: resumable.pendingItems.length,
+            2: (resumable.completedCardIds || []).length,
+            3: resumable.totalInitialCards || 0,
+          })}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" icon={Trash2} loading={abandoning} onClick={onAbandon}>
+            {tr('Bỏ phiên cũ')}
+          </Button>
+          <Button type="button" variant="primary" size="sm" icon={Play} onClick={onResume}>
+            {tr('Tiếp tục')}
+          </Button>
+        </div>
+      </div>
+    </Banner>
+  );
+}
+
+async function confirmAbandon(session, tr, trf) {
+  return confirmAction({
+    title: tr('Bỏ phiên ôn tập đang dở?'),
+    description: trf('Phiên {0} còn {1} thẻ chưa hoàn thành. Các thẻ bạn đã ôn xong trước đó vẫn được giữ nguyên trong Lịch sử ôn.', {
+      0: formatSrsStudyMode(session.studyMode, tr),
+      1: session.pendingItems.length,
+    }),
+    confirmLabel: tr('Bỏ phiên cũ'),
+    cancelLabel: tr('Giữ lại'),
+    tone: 'warning',
+  });
+}
+
+/* ------------------------------------------------------------------ Tổng quan */
+
+function OverviewView({ preferredMode, onOpenPrefs }) {
+  const { tr, trf } = useLocale();
+  const navigate = useNavigate();
+  const { hash } = useLocation();
+  const progressRef = useRef(null);
+  const { summaryQuery, resumable, abandonMut } = useScheduledSession();
+  const summary = summaryQuery.data;
+  const totalDue = Number(summary?.totalDueCards ?? summary?.dueTodayCount ?? 0);
 
   useEffect(() => {
-    const timer = setTimeout(() => { void loadQueue(); }, 0);
-    return () => clearTimeout(timer);
-  }, [loadQueue]);
+    if (hash !== '#srs-progress') return undefined;
+    const id = requestAnimationFrame(() => progressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    return () => cancelAnimationFrame(id);
+  }, [hash]);
 
-  const currentCard = sessionCards[sessionIndex] ?? null;
-  const typingCurrentCard = studyMode === 'type' && getAcceptedReadings(currentCard).length > 0;
-  const isSessionComplete = sessionStarted && sessionIndex >= sessionCards.length;
+  return (
+    <>
+      <IllustratedPageHeader
+        icon="srs"
+        tone="lavender"
+        eyebrow={tr('Ôn tập cách quãng · Đúng thời điểm')}
+        title={tr('Ôn tập SRS')}
+        description={tr('Theo dõi thẻ cần ôn và tiến độ học tập của bạn.')}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            <SettingsButton onClick={onOpenPrefs} />
+            <Button
+              as={Link}
+              to={resumable ? '/daily-srs/due/?resume=1' : '/daily-srs/due/'}
+              variant="primary"
+              icon={Play}
+            >
+              {resumable
+                ? trf('Tiếp tục ôn ({0})', { 0: resumable.pendingItems.length })
+                : trf('Ôn thẻ đến hạn ({0})', { 0: totalDue })}
+            </Button>
+          </div>
+        )}
+      />
 
-  function startSession() {
-    if (queue.length === 0) return;
-    setTypedAnswer('');
-    setTypedResult(null);
-    setSessionCards([...queue]);
-    setSessionIndex(0);
-    setSessionStats({ correct: 0, incorrect: 0, attempts: 0 });
-    setSubmitError('');
-    setRevealed(false);
-    setSessionStarted(true);
-  }
+      <ResumeBanner
+        resumable={resumable}
+        abandoning={abandonMut.isPending}
+        onResume={() => navigate('/daily-srs/due/?resume=1')}
+        onAbandon={async () => {
+          if (await confirmAbandon(resumable, tr, trf)) abandonMut.mutate(resumable.sessionKey);
+        }}
+      />
 
-  async function submitAnswer(quality) {
-    if (!currentCard || !revealed || submitting.current) return;
-    if (typingCurrentCard && !typedResult) return;
-    submitting.current = true;
-    if (typingCurrentCard) quality = typedResult.correct ? 4 : 1;
+      {summaryQuery.isLoading ? (
+        <SakuraLoader variant="inline" />
+      ) : summaryQuery.isError ? (
+        <Card>
+          <ContextualErrorState error={summaryQuery.error} title={tr('Chưa tải được tổng quan ôn tập')} onRetry={() => summaryQuery.refetch()} />
+        </Card>
+      ) : summary && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label={tr('Cần ôn hôm nay')} icon={<Layers className="h-4 w-4 text-rp-brand-strong" />} value={totalDue}
+            hint={trf('Mới {0} · Đang học {1} · Ôn lại {2}', {
+              0: summary.newCount,
+              1: summary.learningCount + summary.relearningCount,
+              2: summary.reviewCount,
+            })}
+          />
+          <StatCard label={tr('Đã ôn hôm nay')} icon={<Target className="h-4 w-4 text-emerald-600" />}
+            value={<>{summary.reviewedTodayCount}<span className="ml-1 text-sm font-semibold text-rp-text-muted">/ {summary.dailyReviewLimit}</span></>}
+            hint={trf('Độ chính xác: {0}%', { 0: Math.round(summary.todayAccuracyPercent || 0) })}
+          />
+          <StatCard label={tr('Đã thành thạo')} icon={<Trophy className="h-4 w-4 text-amber-600" />}
+            value={<>{summary.masteredCount}<span className="ml-1 text-sm font-semibold text-rp-text-muted">/ {summary.activeCards}</span></>}
+            hint={trf('Tổng số thẻ: {0}', { 0: summary.totalCards })}
+          />
+          <StatCard label={tr('Chuỗi ngày ôn')} icon={<Flame className="h-4 w-4 text-rose-500" />}
+            value={<>{summary.currentStreakDays} <span className="text-sm font-semibold">{tr('ngày')}</span></>}
+            hint={trf('Kỷ lục: {0} ngày', { 0: summary.longestStreakDays })}
+          />
+        </div>
+      )}
 
-    setIsSubmitting(true);
-    setSubmitError('');
-    try {
-      const result = await submitReviewResult(currentCard.reviewCardId, quality);
-      const shouldRepeat = result?.shouldRepeatInSession ?? quality <= 2;
+      {summary && (
+        <Card padding="lg" className="flex flex-wrap items-center justify-between gap-4 border-[#EAE3E4] bg-white">
+          <div className="min-w-0">
+            <h3 className="text-[16px] font-extrabold text-rp-navy">{tr('Ôn tự do')}</h3>
+            <p className="mt-0.5 text-xs text-rp-text-muted">
+              {trf('Luyện {0} thẻ của bạn bất cứ lúc nào — không thay đổi lịch ôn.', { 0: summary.activeCards ?? 0 })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(MODE_META).map(([id, meta]) => (
+              <Button key={id} as={Link} to={`/daily-srs/practice/${id}/`} variant={id === preferredMode ? 'primary' : 'secondary'} size="md" icon={meta.icon}>
+                {tr(meta.label)}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
 
-      let appended = false;
-      if (shouldRepeat) {
-        setSessionCards((cards) => {
-          const remaining = cards.slice(sessionIndex + 1);
-          if (remaining.some((c) => c.reviewCardId === currentCard.reviewCardId)) {
-            return cards;
-          }
-          appended = true;
-          return [...cards, currentCard];
-        });
+      <div id="srs-progress" ref={progressRef} className="scroll-mt-6">
+        <SrsProgressAnalyticsTab
+          embedded
+          summary={summary}
+          summaryLoading={summaryQuery.isLoading}
+          summaryError={summaryQuery.isError}
+          summaryErrorObj={summaryQuery.error}
+          onRetrySummary={() => summaryQuery.refetch()}
+        />
+      </div>
+    </>
+  );
+}
+
+function StatCard({ label, icon, value, hint }) {
+  return (
+    <Card padding="md" className="border-[#EAE3E4] bg-[#FFFCF8]">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-wider text-rp-text-muted">{label}</span>
+        {icon}
+      </div>
+      <p className="mt-2 text-2xl font-extrabold tabular-nums text-rp-navy">{value}</p>
+      <p className="mt-1 text-xs text-rp-text-muted">{hint}</p>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ Ôn thẻ đến hạn (Scheduled) */
+
+function DueReviewView({ prefQuery, preferredMode, onOpenPrefs }) {
+  const { tr, trf } = useLocale();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { summaryQuery, activeQuery, resumable, abandonMut } = useScheduledSession();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [playing, setPlaying] = useState(null);
+  const resumeIntent = searchParams.get('resume') === '1';
+
+  // The due list is mode-independent: flip accepts every due card, so it is the canonical "due cards" view.
+  const queueQuery = useQuery({
+    queryKey: ['srs-queue', { studyMode: 'flip' }],
+    queryFn: () => getDailyReviewQueue({ mode: 'flip' }),
+    enabled: !playing,
+  });
+
+  const startMut = useMutation({
+    mutationFn: (config) => startSrsSession({ sessionKind: 'Scheduled', ...config }),
+    onSuccess: async (sessionData) => {
+      if (!sessionData || (sessionData.pendingItems || []).length === 0) {
+        notify.info(tr('Hiện không có thẻ phù hợp để bắt đầu phiên ôn này.'));
+        return;
       }
-      setSessionStats((stats) => ({
-        correct: stats.correct + (shouldRepeat ? 0 : 1),
-        incorrect: stats.incorrect + (shouldRepeat ? 1 : 0),
-        attempts: stats.attempts + 1,
-      }));
-      const nextIndex = sessionIndex + 1;
-      setSessionIndex(nextIndex);
-      setRevealed(false);
-      setTypedAnswer('');
-      setTypedResult(null);
-      const totalInDeck = appended ? sessionCards.length + 1 : sessionCards.length;
-      if (nextIndex >= totalInDeck) {
-        notify.success(tr('Hoàn thành phiên ôn tập SRS!'), '', { key: 'srs-session-done' });
-      }
-    } catch (error) {
-      setSubmitError(describeApiError(error).message || tr('Không lưu được kết quả ôn tập.'));
-      notify.apiError(error, tr('Không lưu được kết quả ôn tập'), { key: 'srs-submit-err' });
-    } finally {
-      submitting.current = false;
-      setIsSubmitting(false);
+      setModalOpen(false);
+      setPlaying(sessionData);
+      await invalidateSrsAndCalendarCaches(queryClient);
+    },
+    onError: (err) => notify.apiError(err, tr('Không thể bắt đầu phiên ôn tập SRS')),
+  });
+
+  const displayed = playing || (resumeIntent && resumable ? resumable : null);
+  const summary = summaryQuery.data;
+  const items = queueQuery.data?.items || [];
+  const totalDue = Number(summary?.totalDueCards ?? queueQuery.data?.totalDueCards ?? items.length);
+
+  async function handleStart(config) {
+    if (resumable && normalizeMode(resumable.studyMode) !== config.studyMode) {
+      const ok = await confirmAction({
+        title: tr('Đang có phiên ôn tập chưa hoàn thành'),
+        description: trf('Bạn đang có phiên {0} còn {1} thẻ dở. Bắt đầu phiên {2} mới sẽ đóng phiên cũ và giữ nguyên kết quả đã lưu. Tiếp tục tạo phiên mới?', {
+          0: formatSrsStudyMode(resumable.studyMode, tr),
+          1: resumable.pendingItems.length,
+          2: formatSrsStudyMode(config.studyMode, tr),
+        }),
+        confirmLabel: tr('Bắt đầu phiên mới'),
+        cancelLabel: tr('Giữ phiên cũ'),
+        tone: 'warning',
+      });
+      if (!ok) return;
     }
+    startMut.mutate(config);
   }
 
-  function checkAnswer(event) {
-    event.preventDefault();
-    if (!currentCard || !typingCurrentCard || revealed || !typedAnswer.trim()) return;
-    setTypedResult(checkTypedReading(currentCard, typedAnswer));
-    setRevealed(true);
+  async function exitPlayer() {
+    setPlaying(null);
+    if (resumeIntent) navigate('/daily-srs/due/', { replace: true });
+    await invalidateSrsAndCalendarCaches(queryClient);
   }
 
-  async function returnToQueue() {
-    if (submitting.current) return;
-    setTypedAnswer('');
-    setTypedResult(null);
-    setSessionStarted(false);
-    setSessionCards([]);
-    setSessionIndex(0);
-    setRevealed(false);
-    await loadQueue();
+  if (displayed) {
+    return (
+      <>
+        <IllustratedPageHeader
+          icon={MODE_META[normalizeMode(displayed.studyMode)].clayIcon}
+          tone="lavender"
+          eyebrow={tr('Ôn thẻ đến hạn · Ghi vào lịch ôn')}
+          title={formatSrsStudyMode(displayed.studyMode, tr)}
+          description={tr(MODE_META[normalizeMode(displayed.studyMode)].description)}
+        />
+        <SrsReviewPlayer
+          key={displayed.sessionKey}
+          session={displayed}
+          preferences={prefQuery.isLoading ? null : (prefQuery.data ?? {})}
+          onSessionCompleted={() => invalidateSrsAndCalendarCaches(queryClient)}
+          onExitSession={exitPlayer}
+        />
+      </>
+    );
   }
 
   return (
-    <LearnerShell pathname={pathname} breadcrumb={tr('Ôn tập SRS')}>
-      <PageContainer data-page="DailySRS" width="default" density="comfortable" className="space-y-[var(--rp-space-section)] text-rp-text">
-        <PageHeader
-          eyebrow="Spaced Repetition · Ôn đúng thời điểm"
-          title="Ôn tập SRS"
-          description={studyMode === 'type'
-            ? 'Ôn các thẻ đã đến hạn bằng cách nhập cách đọc Kana/Romaji, kiểm tra rồi tiếp tục.'
-            : 'Ôn các thẻ đã đến hạn. Xem mặt trước, tự nhớ đáp án rồi lật thẻ để kiểm tra.'}
-          actions={(
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="neutral" icon={CalendarDays} size="md">
-                {locale === 'ja' ? `今日: ${formatToday()}` : trf('Hôm nay: {0}', { 0: formatToday() })}
-              </Badge>
-              <Popover
-                align="end"
-                label={tr('Cách phiên ôn hoạt động')}
-                panelClassName="w-[min(340px,calc(100vw-32px))] p-4 text-xs text-rp-text-2"
-                trigger={({ toggle, props }) => (
-                  <Button variant="secondary" size="sm" icon={HelpCircle} onClick={toggle} {...props}>
-                    {tr('Hướng dẫn')}
-                  </Button>
-                )}
-              >
-                <div className="space-y-2.5">
-                  <p className="text-sm font-semibold text-rp-text">{tr('Cách phiên ôn hoạt động')}</p>
-                  <ol className="space-y-2 leading-relaxed">
-                    <li className="flex gap-2">
-                      <strong className="text-rp-brand-strong">1.</strong>
-                      <span>{studyMode === 'type' ? tr('Nhìn thẻ và nhập cách đọc bằng Kana hoặc Romaji.') : tr('Nhìn từ hoặc cấu trúc và tự nhớ đáp án.')}</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <strong className="text-rp-brand-strong">2.</strong>
-                      <span>{studyMode === 'type' ? tr('Bấm Kiểm tra để xem đúng/sai và đáp án.') : tr('Lật thẻ để xem cách đọc, nghĩa và ghi chú.')}</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <strong className="text-rp-brand-strong">3.</strong>
-                      <span>{studyMode === 'type' ? tr('Bấm Tiếp tục để lưu kết quả vào lịch SRS.') : tr('Chọn “Đã nhớ” để sang thẻ tiếp theo.')}</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <strong className="text-rp-brand-strong">4.</strong>
-                      <span>{studyMode === 'type' ? tr('Thẻ trả lời sai sẽ xuất hiện lại ở cuối phiên.') : tr('Chọn “Chưa nhớ” để gặp lại thẻ ở cuối phiên.')}</span>
-                    </li>
-                  </ol>
-                </div>
-              </Popover>
-              {!sessionStarted && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={RefreshCw}
-                  loading={isLoading}
-                  onClick={loadQueue}
-                  aria-label={tr('Tải lại hàng ôn')}
-                >
-                  {tr('Tải lại')}
-                </Button>
-              )}
-            </div>
-          )}
-        />
-
-        {!sessionStarted && (
-          <Card density="compact" className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-rp-text">{tr('Chọn chế độ ôn tập')}</h2>
-              <p className="text-xs text-rp-text-muted">
-                {studyMode === 'type'
-                  ? tr('Gõ cách đọc bằng Kana hoặc Romaji. Thẻ thiếu cách đọc và thẻ ngữ pháp sẽ dùng lật thẻ.')
-                  : tr('Tự nhớ đáp án rồi lật thẻ và đánh giá mức ghi nhớ.')}
-              </p>
-            </div>
-            <SegmentedControl
-              label={tr('Chọn cách học SRS')}
-              value={studyMode}
-              onChange={setStudyMode}
-              options={[
-                { value: 'flip', label: 'Lật thẻ' },
-                { value: 'type', label: 'Gõ đáp án' },
-              ]}
-            />
-          </Card>
-        )}
-
-        {isLoading && !sessionStarted && queue.length === 0 ? (
-          <SakuraLoader variant="section" context="srs" delay={160} />
-        ) : sessionStarted ? (
-          <Card className="mx-auto w-full max-w-3xl space-y-6 p-6 sm:p-8">
-            {isSessionComplete ? (
-              <div className="py-6 text-center space-y-4">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rp-success-bg text-rp-success">
-                  <CheckCircle2 aria-hidden="true" className="h-8 w-8" />
-                </div>
-                <h2 className="text-2xl font-bold text-rp-text">{tr('Bạn đã hoàn thành phiên ôn!')}</h2>
-                <p className="text-sm text-rp-text-2">
-                  {locale === 'ja'
-                    ? `${sessionStats.attempts} 回回答: 覚えた ${sessionStats.correct}、再復習 ${sessionStats.incorrect}`
-                    : trf('Đã trả lời {0} lượt: nhớ {1}, cần ôn lại {2} lượt.', {
-                        0: sessionStats.attempts,
-                        1: sessionStats.correct,
-                        2: sessionStats.incorrect,
-                      })}
-                </p>
-                <div className="pt-2">
-                  <Button variant="primary" onClick={returnToQueue}>
-                    {tr('Xem hàng ôn hôm nay')}
-                  </Button>
-                </div>
-              </div>
+    <>
+      <IllustratedPageHeader
+        icon="srs"
+        tone="lavender"
+        eyebrow={tr('Ôn tập cách quãng · Đúng thời điểm')}
+        title={tr('Ôn thẻ đến hạn')}
+        description={tr('Hệ thống tự chọn các thẻ cần ôn theo lịch của bạn.')}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            <SettingsButton onClick={onOpenPrefs} />
+            {resumable ? (
+              <Button type="button" variant="primary" icon={Play} onClick={() => setPlaying(resumable)}>
+                {trf('Tiếp tục ôn ({0})', { 0: resumable.pendingItems.length })}
+              </Button>
             ) : (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-rp-brand-strong">{tr('Phiên ôn tập')}</p>
-                    <h2 className="mt-1 text-lg font-bold text-rp-text">
-                      {locale === 'ja'
-                        ? `カード ${sessionIndex + 1} / ${sessionCards.length}`
-                        : trf('Thẻ {0} / {1}', { 0: sessionIndex + 1, 1: sessionCards.length })}
-                    </h2>
-                  </div>
-                  <Button variant="secondary" size="sm" onClick={returnToQueue} disabled={isSubmitting}>
-                    {tr('Kết thúc phiên')}
-                  </Button>
-                </div>
-
-                <ProgressBar
-                  value={sessionIndex}
-                  max={sessionCards.length || 1}
-                  label={tr('Tiến độ phiên ôn')}
-                />
-
-                <div className="min-h-[260px] rounded-2xl border border-rp-line bg-rp-bg-2 px-5 py-10 text-center md:px-10">
-                  <Badge tone="brand" icon={false} size="sm">
-                    {tr(getContentTypeLabel(currentCard?.contentType))}
-                  </Badge>
-                  <p className="rp-jp mt-7 break-words text-4xl font-bold leading-tight text-rp-text md:text-6xl" lang="ja">
-                    {currentCard?.term || '—'}
-                  </p>
-                  {revealed ? (
-                    <div className="mx-auto mt-7 max-w-2xl border-t border-rp-line pt-6 space-y-2">
-                      {currentCard?.reading && <p className="rp-jp text-lg font-medium text-rp-brand-strong" lang="ja">{currentCard.reading}</p>}
-                      <p className="whitespace-pre-wrap text-xl font-semibold text-rp-text">{currentCard?.meaning || tr('Chưa có nghĩa cho thẻ này.')}</p>
-                      {currentCard?.note && <p className="text-sm text-rp-text-2">{tr('Ghi chú:')} {currentCard.note}</p>}
-                    </div>
-                  ) : (
-                    <p className="mt-5 text-sm text-rp-text-muted">
-                      {typingCurrentCard ? tr('Nhập cách đọc của thẻ bằng Kana hoặc Romaji.') : tr('Hãy tự nhớ nghĩa trước khi lật thẻ.')}
-                    </p>
-                  )}
-                </div>
-
-                {typingCurrentCard ? (
-                  !revealed ? (
-                    <form onSubmit={checkAnswer} className="mx-auto max-w-xl space-y-3">
-                      <Field label="Cách đọc của bạn" htmlFor="srs-typed-answer">
-                        <Input
-                          id="srs-typed-answer"
-                          value={typedAnswer}
-                          onChange={(event) => setTypedAnswer(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault();
-                          }}
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          spellCheck={false}
-                          placeholder={tr('Ví dụ: みず hoặc mizu')}
-                          maxLength={200}
-                        />
-                      </Field>
-                      <Button type="submit" variant="primary" className="w-full" disabled={!typedAnswer.trim()}>
-                        {tr('Kiểm tra')}
-                      </Button>
-                    </form>
-                  ) : (
-                    <div className="mx-auto max-w-xl space-y-3">
-                      <Banner
-                        tone={typedResult.correct ? 'success' : 'danger'}
-                        role="status"
-                        title={typedResult.correct ? 'Đúng rồi!' : 'Chưa đúng. Thẻ sẽ được ôn lại cuối phiên.'}
-                      >
-                        <p className="text-xs">{trf('Bạn đã nhập: {0}', { 0: typedAnswer })}</p>
-                        <p className="mt-0.5 text-xs">{trf('Cách đọc: {0}', { 0: currentCard.reading })}</p>
-                      </Banner>
-                      <Button
-                        variant="primary"
-                        className="w-full"
-                        loading={isSubmitting}
-                        disabled={isSubmitting}
-                        onClick={() => submitAnswer(typedResult.correct ? 4 : 1)}
-                      >
-                        {tr('Tiếp tục')}
-                      </Button>
-                    </div>
-                  )
-                ) : !revealed ? (
-                  <div className="flex justify-center">
-                    <Button variant="primary" icon={Sparkles} onClick={() => setRevealed(true)}>
-                      {tr('Lật thẻ xem đáp án')}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button
-                      variant="secondary"
-                      icon={RotateCcw}
-                      disabled={isSubmitting}
-                      onClick={() => submitAnswer(1)}
-                    >
-                      {tr('Chưa nhớ · lặp cuối phiên')}
-                    </Button>
-                    <Button
-                      variant="primary"
-                      icon={CheckCircle2}
-                      loading={isSubmitting}
-                      disabled={isSubmitting}
-                      onClick={() => submitAnswer(4)}
-                    >
-                      {tr('Đã nhớ · thẻ tiếp theo')}
-                    </Button>
-                  </div>
-                )}
-
-                {submitError && <Banner tone="danger">{submitError}</Banner>}
-
-                <p className="text-center text-xs leading-5 text-rp-text-muted">
-                  {studyMode === 'type' && !typingCurrentCard
-                    ? tr('Thẻ này chưa có cách đọc phù hợp để chấm tự động. Hãy lật thẻ và tự đánh giá.')
-                    : tr('Thẻ chưa nhớ sẽ được xếp lại sau các thẻ còn lại trong phiên. Lịch ôn tiếp theo vẫn được cập nhật theo SRS.')}
-                </p>
-              </>
+              <Button
+                type="button"
+                variant="primary"
+                icon={Play}
+                disabled={totalDue === 0 || queueQuery.isLoading}
+                onClick={() => setModalOpen(true)}
+              >
+                {trf('Bắt đầu ôn ({0})', { 0: totalDue })}
+              </Button>
             )}
-          </Card>
-        ) : loadError ? (
-          <Card>
-            <ContextualErrorState
-              error={loadError}
-              title={tr('Không tải được hàng ôn')}
-              onRetry={loadQueue}
-              retrying={isLoading}
-            />
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            <Card className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-              <div className="max-w-2xl space-y-3">
-                <Badge tone="brand" icon={Bell} size="sm">{tr('Hàng đợi ôn tập hôm nay')}</Badge>
-                <h2 className="text-2xl font-bold leading-snug text-rp-text md:text-[26px]">
-                  {queue.length > 0 ? (
-                    <>
-                      {locale === 'ja' ? '今日は' : tr('Hôm nay có')}{' '}
-                      <span className="text-rp-brand-strong">{queue.length} {locale === 'ja' ? '枚' : tr('thẻ')}</span>{' '}
-                      {locale === 'ja' ? 'が復習期限です。' : tr('đến hạn ôn.')}
-                    </>
-                  ) : tr('Bạn không có thẻ nào đến hạn hôm nay.')}
-                </h2>
-                <p className="text-sm leading-6 text-rp-text-muted">
-                  {studyMode === 'type'
-                    ? tr('Nhập cách đọc bằng Kana hoặc Romaji, xem kết quả rồi bấm Tiếp tục để lưu lịch ôn.')
-                    : tr('Phiên ôn hiển thị từng thẻ, cho xem đáp án rồi ghi nhận bạn đã nhớ hay cần ôn lại.')}
-                </p>
-                <div className="flex flex-wrap gap-3 pt-1">
-                  <div className="rounded-xl border border-rp-line bg-rp-bg-2 px-4 py-2.5">
-                    <p className="text-xs font-medium text-rp-text-muted">{tr('Thẻ đến hạn')}</p>
-                    <p className="mt-0.5 text-xl font-bold tabular-nums text-rp-brand-strong">{queue.length}</p>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-xl border border-rp-line bg-rp-bg-2 px-4 py-2.5">
-                    <Timer aria-hidden="true" className="h-4 w-4 text-rp-brand-strong" />
-                    <div>
-                      <p className="text-xs font-medium text-rp-text-muted">{tr('Nhịp ôn tập')}</p>
-                      <p className="mt-0.5 text-sm font-semibold text-rp-text">{tr('Tùy tốc độ ôn của bạn')}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="w-full rounded-2xl border border-rp-line bg-rp-bg-2 p-5 text-center lg:max-w-xs">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rp-brand-tint text-rp-brand-strong">
-                  <Layers aria-hidden="true" className="h-6 w-6" />
-                </div>
-                <h3 className="mt-3 text-base font-bold text-rp-text">{tr('Sẵn sàng ôn tập?')}</h3>
-                <p className="mt-1 text-xs leading-5 text-rp-text-muted">{tr('Thẻ sai được đưa về cuối phiên để thử lại.')}</p>
-                <Button
-                  variant="primary"
-                  iconRight={ArrowRight}
-                  className="mt-4 w-full"
-                  disabled={queue.length === 0 || isLoading}
-                  onClick={startSession}
-                >
-                  {locale === 'ja' ? `復習を始める（${queue.length} 枚）` : trf('Bắt đầu phiên ôn ({0} thẻ)', { 0: queue.length })}
-                </Button>
-              </div>
-            </Card>
-
-            <Card>
-              <CardHeader
-                title="Thẻ ưu tiên trong hàng ôn"
-                description={locale === 'ja' ? `${queue.length} 枚が期限` : trf('{0} thẻ đến hạn', { 0: queue.length })}
-              />
-              {queue.length === 0 ? (
-                <div className="mt-3">
-                  <ContextualEmptyState
-                    compact
-                    context="srs"
-                    title="Hàng ôn hôm nay đã trống"
-                    message="Thẻ sẽ quay lại hàng ôn khi đến lịch tiếp theo. Bạn có thể lưu thêm từ từ bài học hoặc Sổ tay."
-                    action={(
-                      <div className="flex flex-wrap justify-center gap-2">
-                        <Link to="/vocabulary/"><Button variant="primary" size="sm">{tr('Mở sổ từ vựng')}</Button></Link>
-                        <Link to="/lessons/"><Button variant="secondary" size="sm">{tr('Học bài mới')}</Button></Link>
-                      </div>
-                    )}
-                  />
-                </div>
-              ) : (
-                <div className="mt-4 space-y-2">
-                  {queue.slice(0, 8).map((card, index) => (
-                    <div key={card.reviewCardId} className="flex items-center justify-between gap-4 rounded-xl border border-rp-line bg-rp-bg-2 px-4 py-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rp-brand-tint text-sm font-bold text-rp-brand-strong">
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="rp-jp truncate font-semibold text-rp-text" lang="ja">{card.term || '—'}</p>
-                          <p className="truncate text-xs text-rp-text-muted">{card.reading || tr(getContentTypeLabel(card.contentType))}</p>
-                        </div>
-                      </div>
-                      <Badge tone="brand" icon={false} size="sm">{tr('Đến hạn')}</Badge>
-                    </div>
-                  ))}
-                  {queue.length > 8 && (
-                    <p className="pt-1 text-xs text-rp-text-muted">
-                      {locale === 'ja' ? `セッションにあと ${queue.length - 8} 枚` : trf('Còn {0} thẻ nữa trong hàng ôn.', { 0: queue.length - 8 })}
-                    </p>
-                  )}
-                </div>
-              )}
-            </Card>
           </div>
         )}
-      </PageContainer>
-    </LearnerShell>
+      />
+
+      <ResumeBanner
+        resumable={resumable}
+        abandoning={abandonMut.isPending}
+        onResume={() => setPlaying(resumable)}
+        onAbandon={async () => {
+          if (await confirmAbandon(resumable, tr, trf)) abandonMut.mutate(resumable.sessionKey);
+        }}
+      />
+
+      <DueCardsSection queueQuery={queueQuery} items={items} totalDue={totalDue} summary={summary} activeLoading={activeQuery.isLoading} />
+
+      <StartReviewSessionModal
+        key={modalOpen ? 'open' : 'closed'}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        defaultMode={preferredMode}
+        defaultMaxCards={25}
+        totalDueCards={totalDue}
+        submitting={startMut.isPending}
+        onStart={handleStart}
+      />
+    </>
+  );
+}
+
+function DueCardsSection({ queueQuery, items, totalDue, summary }) {
+  const { tr, trf } = useLocale();
+  if (queueQuery.isLoading) return <SakuraLoader variant="section" context="srs" />;
+  if (queueQuery.isError) {
+    return (
+      <Card>
+        <ContextualErrorState
+          error={queueQuery.error}
+          title={tr('Không tải được danh sách thẻ cần ôn')}
+          onRetry={() => queueQuery.refetch()}
+          retrying={queueQuery.isFetching}
+        />
+      </Card>
+    );
+  }
+
+  const preview = items.slice(0, DUE_PREVIEW_LIMIT);
+  const remaining = Math.max(0, totalDue - preview.length);
+  const emptyReason = queueQuery.data?.emptyReason || '';
+
+  return (
+    <Card padding="lg" className="space-y-4 border-[#EAE3E4] bg-white">
+      <div>
+        <h3 className="text-[16px] font-extrabold text-rp-navy">{tr('Thẻ cần ôn')}</h3>
+        <p className="mt-0.5 text-xs text-rp-text-muted">
+          {totalDue > 0
+            ? <span className="font-semibold text-rp-cal-srs-text">{trf('{0} thẻ đến hạn', { 0: totalDue })}</span>
+            : summary?.nextDueAtUtc
+              ? trf('Lượt ôn tiếp theo: {0}', { 0: formatVnDateTime(summary.nextDueAtUtc) })
+              : tr('Chưa có thẻ đến hạn')}
+        </p>
+      </div>
+
+      {items.length === 0 ? (
+        emptyReason === 'NoCardsYet' || (summary?.totalCards || 0) === 0 ? (
+          <ContextualEmptyState
+            variant="compact"
+            framed={false}
+            context="srs"
+            illustration="flashcard"
+            title={tr('Bạn chưa có thẻ nào')}
+            description={tr('Hoàn thành bài học, lưu từ Sổ tay hoặc thêm từ Thư viện thẻ mẫu để bắt đầu.')}
+            action={(
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button as={Link} to="/daily-srs/templates/" variant="primary" size="sm" icon={Sparkles}>{tr('Thư viện thẻ mẫu')}</Button>
+                <Button as={Link} to="/kanji-notebook/" variant="secondary" size="sm" icon={BookOpen}>{tr('Mở Sổ tay cá nhân')}</Button>
+              </div>
+            )}
+          />
+        ) : (
+          <ContextualEmptyState
+            variant="compact"
+            framed={false}
+            context="srs"
+            illustration="flashcard"
+            title={emptyReason === 'DailyLimitReached' ? tr('Bạn đã đạt giới hạn thẻ mới hôm nay') : tr('Chưa có thẻ cần ôn lúc này')}
+            description={summary?.nextDueAtUtc ? trf('Lượt ôn tiếp theo: {0}.', { 0: formatVnDateTime(summary.nextDueAtUtc) }) : undefined}
+            action={(
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button as={Link} to="/daily-srs/practice/flip/" variant="primary" size="sm" icon={Play}>{tr('Ôn tự do')}</Button>
+                <Button as={Link} to="/daily-srs/library/" variant="secondary" size="sm">{tr('Quản lý Thẻ của tôi')}</Button>
+              </div>
+            )}
+          />
+        )
+      ) : (
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,156px),1fr))] gap-2.5" aria-label={tr('Thẻ cần ôn')}>
+          {preview.map((card) => (
+            <li
+              key={card.reviewCardId}
+              className="rp-srs-card-hover flex min-w-0 flex-col justify-between gap-2 rounded-2xl border border-rp-cal-srs-border bg-rp-cal-srs-bg px-3.5 py-3"
+            >
+              <p className="rp-jp min-w-0 break-words text-base font-extrabold leading-snug text-rp-navy" lang="ja">{card.term || '—'}</p>
+              <span className="inline-flex w-fit items-center rounded-full border border-rp-cal-srs-border bg-white/90 px-2 py-0.5 text-[11px] font-bold text-rp-cal-srs-accent-text">
+                {formatSrsCardTypeLabel(card.cardType || card.contentType, tr)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {remaining > 0 && <p className="text-xs font-medium text-rp-text-muted">{trf('Còn {0} thẻ đến hạn.', { 0: remaining })}</p>}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ Ôn tự do (Free Practice) */
+
+const PRACTICE_SETTINGS_KEY = 'rp.srs.practice.settings.v1';
+const DEFAULT_PRACTICE_SETTINGS = { maxCards: 20, shuffle: true, timeLimitEnabled: false, timeLimitMinutes: 10, cardType: '' };
+
+function readPracticeSettings() {
+  try {
+    const raw = window.localStorage.getItem(PRACTICE_SETTINGS_KEY);
+    return raw ? { ...DEFAULT_PRACTICE_SETTINGS, ...JSON.parse(raw) } : DEFAULT_PRACTICE_SETTINGS;
+  } catch {
+    return DEFAULT_PRACTICE_SETTINGS;
+  }
+}
+
+function writePracticeSettings(next) {
+  try {
+    window.localStorage.setItem(PRACTICE_SETTINGS_KEY, JSON.stringify(next));
+  } catch {
+    // Per-viewer convenience only; ignore private-mode / quota errors.
+  }
+}
+
+function FreePracticeView({ mode, prefQuery }) {
+  const { tr, trf } = useLocale();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const location = useLocation();
+  // Entry from "Thẻ của tôi → Tạo phiên ôn tập": that exact config starts a fresh round once.
+  const [entry] = useState(() => (location.state?.practiceConfig
+    ? { config: location.state.practiceConfig, nonce: location.state.practiceNonce || Date.now() }
+    : null));
+  const [settings, setSettings] = useState(() => {
+    const stored = readPracticeSettings();
+    if (!entry) return stored;
+    const { cardType, maxCards, shuffle, timeLimitEnabled, timeLimitMinutes } = entry.config;
+    return { ...stored, cardType: cardType || '', maxCards, shuffle: Boolean(shuffle), timeLimitEnabled: Boolean(timeLimitEnabled), timeLimitMinutes };
+  });
+  // 0 = quick entry from the sidebar (resume same-mode round or auto-start); anything else = fresh round.
+  const [generation, setGeneration] = useState(() => (entry ? `entry-${entry.nonce}` : 0));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const summaryQuery = useQuery({ queryKey: ['srs-summary'], queryFn: getSrsSummary });
+
+  // Opening a mode goes straight to the player: resume this mode's unfinished practice round, otherwise
+  // start one automatically. Scheduled sessions are a different kind and are never touched here.
+  const sessionQuery = useQuery({
+    queryKey: ['srs-practice-session', mode, generation],
+    queryFn: async () => {
+      if (generation === 0) {
+        const active = await getActiveSrsSession('Practice');
+        if (isResumable(active) && normalizeMode(active.studyMode) === mode) return active;
+      }
+      return startSrsSession({
+        sessionKind: 'Practice',
+        studyMode: mode,
+        selectionScope: 'all',
+        cardType: settings.cardType || undefined,
+        shuffle: Boolean(settings.shuffle),
+        timeLimitMinutes: settings.timeLimitEnabled ? Number(settings.timeLimitMinutes) : undefined,
+        maxCards: Number(settings.maxCards) || 20,
+      });
+    },
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  // Once the configured round exists, drop the one-shot navigation state so F5 resumes it instead of
+  // starting another round with the same config.
+  const sessionReady = sessionQuery.isSuccess;
+  useEffect(() => {
+    if (sessionReady && location.state?.practiceConfig) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [sessionReady, location.state, location.pathname, navigate]);
+
+  const session = sessionQuery.data;
+  const meta = MODE_META[mode];
+  const activeCards = Number(summaryQuery.data?.activeCards ?? 0);
+
+  // Audio is a playback preference only: toggling it never restarts the round or touches the deck.
+  const roundKeys = ['maxCards', 'shuffle', 'timeLimitEnabled', 'timeLimitMinutes', 'cardType'];
+  const practicePreferences = prefQuery.isLoading
+    ? null
+    : { ...(prefQuery.data ?? {}), ...(settings.autoPlayAudio != null ? { autoPlayAudio: settings.autoPlayAudio } : {}) };
+
+  async function applySettings(next) {
+    const roundChanged = roundKeys.some((k) => String(next[k] ?? '') !== String(settings[k] ?? ''));
+    if (!roundChanged) {
+      writePracticeSettings(next);
+      setSettings(next);
+      setSettingsOpen(false);
+      return;
+    }
+    const hasProgress = (session?.completedCardIds || []).length > 0;
+    if (hasProgress) {
+      const ok = await confirmAction({
+        title: tr('Áp dụng cài đặt mới?'),
+        description: tr('Một lượt luyện mới sẽ bắt đầu với cài đặt này. Lượt hiện tại kết thúc; lịch ôn của bạn không thay đổi.'),
+        confirmLabel: tr('Bắt đầu lượt mới'),
+        cancelLabel: tr('Giữ lượt hiện tại'),
+        tone: 'warning',
+      });
+      if (!ok) return;
+    }
+    writePracticeSettings(next);
+    setSettings(next);
+    setSettingsOpen(false);
+    setGeneration(`round-${Date.now()}`);
+  }
+
+  const header = (
+    <IllustratedPageHeader
+      icon={meta.clayIcon}
+      tone="lavender"
+      eyebrow={tr('Ôn tự do · Không thay đổi lịch ôn')}
+      title={tr(meta.label)}
+      description={tr(meta.description)}
+    />
+  );
+
+  if (sessionQuery.isPending) {
+    return (
+      <>
+        {header}
+        <SakuraLoader variant="section" context="srs" label={tr('Đang chuẩn bị thẻ luyện tập…')} />
+      </>
+    );
+  }
+
+  if (sessionQuery.isError || !session || (session.pendingItems || []).length === 0) {
+    const noCards = activeCards === 0;
+    return (
+      <>
+        {header}
+        <Card className="border-[#EAE3E4] bg-white">
+          <ContextualEmptyState
+            variant="compact"
+            framed={false}
+            context="srs"
+            illustration="flashcard"
+            title={noCards ? tr('Bạn chưa có thẻ nào') : trf('Chưa có thẻ phù hợp cho {0}', { 0: tr(meta.label) })}
+            description={noCards
+              ? tr('Thêm thẻ từ Thư viện thẻ mẫu hoặc tự tạo thẻ để bắt đầu luyện.')
+              : mode === 'mcq'
+                ? tr('Trắc nghiệm cần thẻ có đủ phương án nhiễu thật. Hãy thử Lật thẻ hoặc Gõ đáp án.')
+                : mode === 'typing'
+                  ? tr('Gõ đáp án cần thẻ có cách đọc hoặc nghĩa rõ ràng. Hãy thử Lật thẻ.')
+                  : (sessionQuery.error?.message || tr('Hãy thử bỏ bộ lọc loại thẻ trong Tùy chỉnh.'))}
+            action={(
+              <div className="flex flex-wrap justify-center gap-2">
+                {noCards ? (
+                  <Button as={Link} to="/daily-srs/templates/" variant="primary" size="sm" icon={Sparkles}>{tr('Thư viện thẻ mẫu')}</Button>
+                ) : (
+                  <>
+                    {mode !== 'flip' && <Button as={Link} to="/daily-srs/practice/flip/" variant="primary" size="sm">{tr('Luyện bằng Lật thẻ')}</Button>}
+                    <Button type="button" variant="secondary" size="sm" icon={Settings2} onClick={() => setSettingsOpen(true)}>{tr('Tùy chỉnh')}</Button>
+                  </>
+                )}
+              </div>
+            )}
+          />
+        </Card>
+        <PracticeSettingsModal open={settingsOpen} settings={settings} onClose={() => setSettingsOpen(false)} onApply={applySettings} />
+      </>
+    );
+  }
+
+  const requested = Math.min(Number(settings.maxCards) || 20, activeCards || Infinity);
+  const fewerThanRequested = (session.totalInitialCards || 0) < requested && (mode === 'mcq' || mode === 'typing');
+
+  return (
+    <>
+      {header}
+      {fewerThanRequested && (
+        <Banner tone="info" title={trf('Lượt này có {0} thẻ phù hợp với {1}', { 0: session.totalInitialCards, 1: tr(meta.label) })}>
+          {mode === 'mcq'
+            ? tr('Chỉ những thẻ có đủ 4 phương án thật được dùng cho Trắc nghiệm.')
+            : tr('Chỉ những thẻ có đủ cách đọc hoặc nghĩa được dùng cho Gõ đáp án.')}
+        </Banner>
+      )}
+      <SrsReviewPlayer
+        key={session.sessionKey}
+        session={session}
+        preferences={practicePreferences}
+        exitLabel={tr('Kết thúc')}
+        completedExitLabel={tr('Về Tổng quan')}
+        toolbarActions={(
+          <Button type="button" variant="ghost" size="sm" icon={Settings2} onClick={() => setSettingsOpen(true)}>
+            {tr('Tùy chỉnh')}
+          </Button>
+        )}
+        onRetryPractice={() => setGeneration(`round-${Date.now()}`)}
+        onSessionCompleted={() => queryClient.invalidateQueries({ queryKey: ['srs-active-session', 'Practice'] })}
+        onExitSession={() => navigate('/daily-srs/')}
+      />
+      <PracticeSettingsModal
+        open={settingsOpen}
+        settings={settings}
+        defaultAutoPlay={prefQuery.data?.autoPlayAudio ?? true}
+        onClose={() => setSettingsOpen(false)}
+        onApply={applySettings}
+      />
+    </>
+  );
+}
+
+function PracticeSettingsModal({ open, settings, defaultAutoPlay = true, onClose, onApply }) {
+  const { tr } = useLocale();
+  return open
+    ? <PracticeSettingsForm key="open" settings={settings} defaultAutoPlay={defaultAutoPlay} onClose={onClose} onApply={onApply} tr={tr} />
+    : null;
+}
+
+function PracticeSettingsForm({ settings, defaultAutoPlay, onClose, onApply, tr }) {
+  const [draft, setDraft] = useState(() => ({ ...settings, autoPlayAudio: settings.autoPlayAudio ?? defaultAutoPlay }));
+  const count = Number.parseInt(draft.maxCards, 10);
+  const minutes = Number.parseInt(draft.timeLimitMinutes, 10);
+  const countInvalid = !Number.isInteger(count) || count < 1 || count > 100;
+  const timeInvalid = draft.timeLimitEnabled && (!Number.isInteger(minutes) || minutes < 1 || minutes > 180);
+  const patch = (next) => setDraft((d) => ({ ...d, ...next }));
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={tr('Tùy chỉnh lượt luyện')}
+      footer={(
+        <>
+          <Button type="button" variant="secondary" size="md" onClick={onClose}>{tr('Hủy')}</Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={countInvalid || timeInvalid}
+            onClick={() => onApply({ ...draft, maxCards: count, timeLimitMinutes: draft.timeLimitEnabled ? minutes : draft.timeLimitMinutes })}
+          >
+            {tr('Áp dụng')}
+          </Button>
+        </>
+      )}
+    >
+      <div className="space-y-3.5">
+        <Field label={tr('Số thẻ')} error={countInvalid ? tr('Số thẻ phải từ 1 đến 100.') : undefined}>
+          {({ id, invalid }) => (
+            <Input id={id} type="number" inputMode="numeric" min={1} max={100} value={draft.maxCards} invalid={invalid} onChange={(e) => patch({ maxCards: e.target.value })} />
+          )}
+        </Field>
+        <Field label={tr('Loại thẻ')}>
+          {({ id }) => (
+            <CustomSelect
+              id={id}
+              value={draft.cardType}
+              onChange={(v) => patch({ cardType: v })}
+              options={[
+                { value: '', label: tr('Tất cả') },
+                { value: 'Vocabulary', label: tr('Từ vựng') },
+                { value: 'Kanji', label: tr('Kanji') },
+              ]}
+            />
+          )}
+        </Field>
+        <Switch fullWidth className="flex-row-reverse justify-between" checked={draft.shuffle} onCheckedChange={(v) => patch({ shuffle: v })} label={tr('Xáo trộn thẻ')} description={tr('Đổi thứ tự thẻ ngẫu nhiên.')} />
+        <Switch
+          fullWidth
+          className="flex-row-reverse justify-between"
+          checked={Boolean(draft.autoPlayAudio)}
+          onCheckedChange={(v) => patch({ autoPlayAudio: v })}
+          label={tr('Tự động phát âm')}
+          description={tr('Đọc từ khi sang thẻ mới.')}
+        />
+        <Switch fullWidth className="flex-row-reverse justify-between" checked={draft.timeLimitEnabled} onCheckedChange={(v) => patch({ timeLimitEnabled: v })} label={tr('Giới hạn thời gian')} description={tr('Đếm ngược cho lượt luyện.')} />
+        {draft.timeLimitEnabled && (
+          <Field label={tr('Thời lượng (phút)')} error={timeInvalid ? tr('Thời lượng phải là số nguyên từ 1 đến 180 phút.') : undefined}>
+            {({ id, invalid }) => (
+              <Input id={id} type="number" inputMode="numeric" min={1} max={180} value={draft.timeLimitMinutes} invalid={invalid} onChange={(e) => patch({ timeLimitMinutes: e.target.value })} />
+            )}
+          </Field>
+        )}
+      </div>
+    </Modal>
   );
 }

@@ -4,17 +4,39 @@ const endpoint = '/MockTest';
 
 function withDeadline(attempt) {
   const remaining = attempt.expiresAt ? Date.parse(attempt.expiresAt) - Date.parse(attempt.serverNow) : NaN;
-  return { ...attempt, localDeadline: Number.isFinite(remaining) ? Date.now() + Math.max(0, remaining) : null };
+  const duration = Number.isFinite(remaining) ? Math.max(0, remaining) : null;
+  return { ...attempt, localDeadline: duration == null ? null : Date.now() + duration,
+    monotonicDeadline: duration == null ? null : performance.now() + duration };
 }
 
 export async function getMockTestLevels() {
   const { result } = await api.get('/CertificateLevel/jlpt');
-  return (result ?? []).filter(level => ['N5', 'N4', 'N3', 'N2'].includes(level.code));
+  const supported = (result ?? []).filter(level => ['N5', 'N4', 'N3', 'N2'].includes(level.code));
+  const available = await Promise.all(supported.map(async (level) => ({
+    level,
+    tests: await getMockTestsByLevel(level.id),
+  })));
+  return available.filter(({ tests }) => tests.length > 0).map(({ level }) => level);
 }
 
 export async function getMockTestsByLevel(levelId) {
   const { result } = await api.get(endpoint + '/by-level/' + levelId);
   return result ?? [];
+}
+
+export async function getPracticeSets(params = {}) {
+  const { result } = await api.get(endpoint + '/practice-sets', { params });
+  return result ?? [];
+}
+
+export async function getFullMockTests(params = {}) {
+  const { result } = await api.get(endpoint + '/mock-exams', { params });
+  return result ?? [];
+}
+
+export async function getMockTestInfo(mockTestId) {
+  const { result } = await api.get(`${endpoint}/${mockTestId}/info`);
+  return result;
 }
 
 export async function startMockTest(mockTestId) {

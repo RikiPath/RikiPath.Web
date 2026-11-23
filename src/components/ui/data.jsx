@@ -1,4 +1,4 @@
-import { isValidElement, useId, useMemo, useRef, useState } from 'react';
+import { isValidElement, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -14,6 +14,7 @@ import Pagination from './Pagination.jsx';
 import { Button } from './core.jsx';
 import { cx } from './cx.js';
 import { getColumnPriorityClass, normalizeDensity } from './layoutLogic.js';
+import { resolveEmptyIllustration } from './dataStateLogic.js';
 import { FEATURE_TONES, MAX_UPLOAD_BYTES, formatBytes, monthGrid, validateUploadFile } from './logic.js';
 import { EmptyState, ErrorState } from './states.jsx';
 import { Skeleton } from './core.jsx';
@@ -162,10 +163,14 @@ export function DataTable({
   columns,
   rows,
   rowKey = (row) => row.id,
+  keyField,
+  onRowClick,
   loading = false,
   error,
   onRetry,
   empty,
+  emptyIllustration,
+  emptyContext,
   caption,
   pageSize: pageSizeProp = 10,
   page: pageProp,
@@ -173,18 +178,38 @@ export function DataTable({
   onPageChange,
   onPageSizeChange,
   rowActions,
+  actionsHeader = false,
+  actionsCompact = true,
+  paginationVariant = 'neutral',
+  alwaysShowPagination = false,
+  stickyHeader = false,
+  fillHeight = false,
+  scrollClassName,
   itemLabel = 'dòng',
   density = 'compact',
+  align = 'center',
   minTableWidth = 'min-w-[560px]',
+  // Changes whenever the caller's filters/search change (e.g. `${status}|${query}`): client-paged tables return to
+  // page 1 instead of staying on a page that no longer exists or now shows unrelated rows.
+  resetPageKey,
   className,
 }) {
+  const resolveRowKey = (row, idx) => (keyField && row?.[keyField] != null ? row[keyField] : rowKey(row) ?? idx);
   const { tr } = useLocale();
   const [sort, setSort] = useState(null);
   const [localPage, setLocalPage] = useState(1);
   const [localSize, setLocalSize] = useState(pageSizeProp);
+  const [sizeCustomized, setSizeCustomized] = useState(false);
+  const [adaptiveSize, setAdaptiveSize] = useState(0);
+  const rootRef = useRef(null);
+  const tableRef = useRef(null);
+  const [lastResetKey, setLastResetKey] = useState(resetPageKey);
+  if (resetPageKey !== lastResetKey) {
+    setLastResetKey(resetPageKey);
+    setLocalPage(1);
+  }
   const serverPaged = typeof onPageChange === 'function' && pageProp != null;
   const page = serverPaged ? pageProp : localPage;
-  const pageSize = serverPaged ? pageSizeProp : localSize;
 
   const sorted = useMemo(() => {
     const list = Array.isArray(rows) ? [...rows] : [];
@@ -194,6 +219,49 @@ export function DataTable({
     list.sort((a, b) => compareValues(get(a), get(b)) * (sort.dir === 'asc' ? 1 : -1));
     return list;
   }, [rows, sort, columns, serverPaged]);
+
+  // A viewport-locked table can show more client-side rows when there is room. Never
+  // infer extra server pages from the current response, and respect a manual page size.
+  const pageSize = serverPaged ? pageSizeProp : sizeCustomized ? localSize : Math.max(localSize, fillHeight ? adaptiveSize : 0);
+
+  useEffect(() => {
+    if (!fillHeight || serverPaged || loading || error || sorted.length === 0 || typeof ResizeObserver === 'undefined') return undefined;
+    const root = rootRef.current;
+    const table = tableRef.current;
+    const parent = root?.parentElement;
+    if (!parent || !table) return undefined;
+
+    let frame = 0;
+    const measure = () => {
+      const sampleRows = Array.from(table.tBodies[0]?.rows || []).slice(0, 4);
+      const header = table.tHead;
+      if (sampleRows.length === 0 || !header) return;
+      const parentRect = parent.getBoundingClientRect();
+      const available = Math.min(parentRect.height, window.innerHeight - parentRect.top - 16);
+      const rowHeight = Math.max(...sampleRows.map((row) => row.getBoundingClientRect().height));
+      if (available <= 0 || rowHeight <= 0) return;
+      const headerHeight = header.getBoundingClientRect().height;
+      const pagerHeight = root.querySelector('[data-component="Pagination"]')?.getBoundingClientRect().height || 56;
+      const withoutPager = Math.max(1, Math.floor((available - headerHeight - 2) / rowHeight));
+      const withPager = Math.max(1, Math.floor((available - headerHeight - pagerHeight - 2) / rowHeight));
+      const next = Math.min(100, sorted.length <= withoutPager ? sorted.length : withPager);
+      setAdaptiveSize((current) => current === next ? current : next);
+    };
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measure);
+    };
+    const observer = new ResizeObserver(scheduleMeasure);
+    observer.observe(parent);
+    observer.observe(table);
+    window.addEventListener('resize', scheduleMeasure);
+    scheduleMeasure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [fillHeight, serverPaged, loading, error, sorted.length, pageSize]);
 
   const totalItems = serverPaged ? total ?? sorted.length : sorted.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -205,19 +273,58 @@ export function DataTable({
   }
 
   const resolvedDensity = normalizeDensity(density);
-  const allColumns = rowActions ? [...columns, { key: '__actions', header: <span className="sr-only">{tr('Thao tác')}</span>, align: 'right', render: rowActions }] : columns;
+  const actionsHeaderLabel = actionsHeader
+    ? tr(typeof actionsHeader === 'string' ? actionsHeader : 'Thao tác')
+    : <span className="sr-only">{tr('Thao tác')}</span>;
+  const resolveAlignClass = (dir) => {
+    const effective = dir || align;
+    if (effective === 'right') return 'text-right';
+    if (effective === 'left') return 'text-left';
+    return 'text-center';
+  };
+  const getColumnSizeClass = (col) => cx(
+    col.compact && 'w-[1%] whitespace-nowrap',
+    col.width,
+  );
+  const allColumns = rowActions
+    ? [...columns, { key: '__actions', header: actionsHeaderLabel, align: 'right', headerAlign: 'center', compact: actionsCompact, render: rowActions }]
+    : columns;
+  const resolveColumnAlign = (col, index) => resolveAlignClass(
+    col.align || (index === 0 ? 'left' : index === allColumns.length - 1 ? 'right' : align),
+  );
+  const edgeCellPadding = (index) => index === 0
+    ? 'pl-[var(--rp-table-cell-x)] pr-[var(--rp-table-cell-x)] sm:pl-3'
+    : index === allColumns.length - 1
+      ? 'pl-[var(--rp-table-cell-x)] pr-[var(--rp-table-cell-x)] sm:pr-3'
+      : '';
+  const isAdminTable = paginationVariant === 'admin';
 
   return (
     <div
+      ref={rootRef}
+      data-rp-surface="true"
       data-density={resolvedDensity}
-      className={cx('w-full max-w-full min-w-0 overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface', className)}
+      className={cx(
+        'flex w-full max-w-full min-w-0 flex-col overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface',
+        // Short lists stay compact; long lists are capped by the workspace and scroll inside.
+        fillHeight && 'min-h-0 max-h-full',
+        className,
+      )}
     >
-      <div className="rp-scroll-x">
-        <table className={cx('w-full border-collapse text-left rp-type-body', minTableWidth)}>
+      <div
+        className={cx(
+          stickyHeader || scrollClassName || fillHeight ? 'rp-table-scroll' : 'rp-scroll-x',
+          fillHeight && 'min-h-0',
+          fillHeight && !scrollClassName && 'max-h-[clamp(260px,68vh,740px)] lg:max-h-full',
+          stickyHeader && !fillHeight && !scrollClassName && 'max-h-[clamp(260px,62vh,640px)]',
+          scrollClassName,
+        )}
+      >
+        <table ref={tableRef} className={cx('w-full border-collapse rp-type-body', resolveAlignClass(align), minTableWidth)}>
           {caption && <caption className="sr-only">{tr(caption)}</caption>}
           <thead className="bg-rp-table-head">
             <tr>
-              {allColumns.map((col) => {
+              {allColumns.map((col, index) => {
                 const sortable = col.sortable !== false && col.key !== '__actions' && !serverPaged;
                 const dir = sort?.key === col.key ? sort.dir : null;
                 return (
@@ -226,14 +333,19 @@ export function DataTable({
                     scope="col"
                     aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : undefined}
                     className={cx(
-                      'border-b border-rp-line px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] text-xs font-semibold uppercase tracking-[0.04em] text-rp-text-muted',
-                      col.align === 'right' && 'text-right',
+                      'border-b border-rp-line px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] text-xs uppercase tracking-[0.04em]',
+                      stickyHeader && 'sticky top-0 z-10 shadow-[0_1px_0_var(--color-rp-line)]',
+                      stickyHeader && !isAdminTable && 'bg-rp-table-head',
+                      isAdminTable ? 'bg-[#FAF7F8] font-bold text-rp-text-2' : 'font-semibold text-rp-text-muted',
+                      col.headerAlign ? resolveAlignClass(col.headerAlign) : resolveColumnAlign(col, index),
+                      edgeCellPadding(index),
                       getColumnPriorityClass(col.priority),
+                      getColumnSizeClass(col),
                       col.headerClassName,
                     )}
                   >
                     {sortable ? (
-                      <button type="button" onClick={() => toggleSort(col.key)} className="rp-focus inline-flex items-center gap-1 rounded hover:text-rp-text">
+                      <button type="button" onClick={() => toggleSort(col.key)} className={cx('rp-focus inline-flex items-center gap-1 rounded hover:text-rp-text', col.headerButtonClassName)}>
                         {col.header}
                         {dir === 'asc' ? <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" /> : dir === 'desc' ? <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" /> : <ArrowUpDown aria-hidden="true" className="h-3.5 w-3.5 opacity-50" />}
                       </button>
@@ -249,15 +361,18 @@ export function DataTable({
             {loading &&
               Array.from({ length: Math.min(pageSize, 6) }, (_, i) => (
                 <tr key={`sk-${i}`} className="border-b border-rp-line last:border-0">
-                  {allColumns.map((col) => (
+                  {allColumns.map((col, index) => (
                     <td
                       key={col.key}
                       className={cx(
                         'px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)]',
+                        resolveColumnAlign(col, index),
+                        edgeCellPadding(index),
                         getColumnPriorityClass(col.priority),
+                        getColumnSizeClass(col),
                       )}
                     >
-                      <Skeleton className="h-3.5 w-3/4" />
+                      <Skeleton className={cx('h-3.5 w-3/4', (col.align || align) === 'center' && 'mx-auto', (col.align || align) === 'right' && 'ml-auto')} />
                     </td>
                   ))}
                 </tr>
@@ -269,13 +384,19 @@ export function DataTable({
               <tr>
                 <td colSpan={allColumns.length}>
                   {empty == null ? (
-                    <EmptyState compact />
+                    <EmptyState
+                      variant="compact"
+                      illustration={emptyIllustration || resolveEmptyIllustration({ context: emptyContext, title: itemLabel })}
+                      context={emptyContext}
+                    />
                   ) : isValidElement(empty) || typeof empty !== 'object' ? (
                     empty
                   ) : (
                     <EmptyState
-                      compact
-                      context={empty.context}
+                      variant={empty.variant || 'compact'}
+                      illustration={empty.illustration || emptyIllustration}
+                      context={empty.context || emptyContext}
+                      size={empty.size}
                       title={empty.title}
                       description={empty.description ?? empty.message}
                       icon={empty.icon}
@@ -288,15 +409,31 @@ export function DataTable({
                 </td>
               </tr>
             )}
-            {!loading && !error && visible.map((row) => (
-              <tr key={rowKey(row)} className="border-b border-rp-line transition-colors duration-150 last:border-0 hover:bg-rp-row-hover">
-                {allColumns.map((col) => (
+            {!loading && !error && visible.map((row, rowIdx) => (
+              <tr
+                key={resolveRowKey(row, rowIdx)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onRowClick(row);
+                  }
+                } : undefined}
+                className={cx(
+                  'border-b border-rp-line transition-colors duration-150 last:border-0 hover:bg-rp-row-hover',
+                  onRowClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rp-brand/35',
+                )}
+              >
+                {allColumns.map((col, index) => (
                   <td
                     key={col.key}
                     className={cx(
                       'px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] align-middle text-rp-text',
-                      col.align === 'right' && 'text-right',
+                      resolveColumnAlign(col, index),
+                      edgeCellPadding(index),
                       getColumnPriorityClass(col.priority),
+                      getColumnSizeClass(col),
                       col.className,
                     )}
                   >
@@ -308,18 +445,20 @@ export function DataTable({
           </tbody>
         </table>
       </div>
-      {!loading && !error && totalItems > pageSize && (
+      {!loading && !error && (alwaysShowPagination ? totalItems > 0 : totalPages > 1) && (
         <Pagination
           currentPage={safePage}
           totalPages={totalPages}
           pageSize={pageSize}
           totalItems={totalItems}
           itemLabel={itemLabel}
-          variant="neutral"
+          variant={paginationVariant}
+          className="shrink-0"
           onPageChange={(p) => (serverPaged ? onPageChange(p) : setLocalPage(p))}
           onPageSizeChange={(size) => {
             if (onPageSizeChange) onPageSizeChange(size);
             else {
+              setSizeCustomized(true);
               setLocalSize(size);
               setLocalPage(1);
             }

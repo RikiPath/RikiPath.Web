@@ -12,18 +12,14 @@ import { useMentorScheduleWorkspace } from '@/features/scheduling/hooks/useMento
 import { useNow } from '@/hooks/useNow.js';
 import { useAuth } from '@/app/auth/authContext.js';
 import { backendUtcDate } from '@/utils/mentorSchedule.js';
-import { Banner, ContextualErrorState, PageHeader, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { Banner, Button, ContextualErrorState, PageContainer, PageHeader, SakuraLoader, StaleDataBar } from '@/components/ui';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 import { AdminShell, MentorShell } from '@/layouts';
 
-const focusClass =
-  'focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-rp-brand-strong/35 focus-visible:ring-offset-2';
-
 const SESSION_FILTERS = [
-  { id: 'ALL', label: 'Tất cả', dot: 'bg-[#CE476D]' },
-  { id: 'upcoming', label: 'Sắp diễn ra', dot: 'bg-[#CE476D]' },
-  { id: 'completed', label: 'Đã hoàn thành', dot: 'bg-[#16A34A]' },
+  { id: 'ALL', label: 'Tất cả', dot: 'bg-rp-cal-class' },
+  { id: 'upcoming', label: 'Sắp diễn ra', dot: 'bg-rp-cal-class' },
+  { id: 'completed', label: 'Đã hoàn thành', dot: 'bg-rp-cal-class' },
 ];
 
 export default function WorkSchedule() {
@@ -200,12 +196,9 @@ export default function WorkSchedule() {
             tone="info"
             title={tr('Trang này dành riêng cho lịch dạy cá nhân của Giáo viên')}
             actions={(
-              <Link
-                to="/admin/mentor-schedules/"
-                className="rp-focus inline-flex h-9 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-xs font-semibold text-white hover:bg-rp-brand-strong"
-              >
+              <Button as={Link} to="/admin/mentor-schedules/" variant="primary" size="sm">
                 {tr('Mở điều phối lịch dạy Giáo viên')}
-              </Link>
+              </Button>
             )}
           >
             {tr('Tài khoản Quản trị viên vui lòng xem và điều phối lịch giảng dạy tại khu vực Quản trị đội ngũ Giáo viên.')}
@@ -217,9 +210,12 @@ export default function WorkSchedule() {
 
   return (
     <Shell pathname={pathname} breadcrumb={tr('Lịch làm việc')}>
-      <div
+      <PageContainer
+        as="div"
         data-page="WorkSchedule"
-        className="rp-container rp-cq pt-2.5 pb-1.5 text-rp-text space-y-2"
+        width="default"
+        paddedY={false}
+        className="pt-2.5 pb-1.5 text-rp-text space-y-2"
       >
         <PageHeader
           className="!mb-1.5"
@@ -227,14 +223,9 @@ export default function WorkSchedule() {
           description="Theo dõi các buổi dạy chính thức đã xếp lớp (sắp diễn ra và đã hoàn thành)."
           actions={(
             <div className="flex flex-wrap items-center gap-2">
-              <RefreshingIndicator active={isRefreshing} />
-              <Link
-                to="/mentor-shift-schedule/"
-                className={`inline-flex h-9 items-center gap-1.5 rounded-rp-input bg-rp-brand-pressed px-3.5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong ${focusClass}`}
-              >
-                <CalendarDays className="h-4 w-4" />
-                <span>{tr('Đăng ký lịch dạy')}</span>
-              </Link>
+              <Button as={Link} to="/mentor-shift-schedule/" variant="primary" size="sm" icon={CalendarDays}>
+                {tr('Đăng ký lịch dạy')}
+              </Button>
             </div>
           )}
         />
@@ -269,10 +260,10 @@ export default function WorkSchedule() {
               events={visibleEvents}
               anchorKey={anchorKey}
               onAnchorChange={setAnchorKey}
-              onRefresh={() => {
-                cohortsQuery.refetch();
-                coursesQuery.refetch();
-              }}
+              onRefresh={() => Promise.all([
+                cohortsQuery.refetch({ cancelRefetch: true }),
+                coursesQuery.refetch({ cancelRefetch: true }),
+              ])}
               refreshing={isRefreshing}
               showToneFilter={false}
               agendaSortSmart
@@ -289,7 +280,7 @@ export default function WorkSchedule() {
             />
           </>
         )}
-      </div>
+      </PageContainer>
     </Shell>
   );
 }

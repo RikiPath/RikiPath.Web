@@ -2,8 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computeContentVersionHash,
+  countChecklistInDoc,
+  extractPlainTextFromDoc,
   isNotebookCaptureSupportedOnPath,
   matchHighlightAnchorInText,
+  normalizeRichDocument,
   parseNotebookEntry,
   parseNotebookList,
   sanitizeNotebookText,
@@ -89,9 +92,16 @@ describe('RikiPath Smart Notebook V6.5 — Model, Mobile Parity & Highlight Anch
     }, 42);
 
     assert.equal(parsedWebEntry.kind, 'highlight');
-    assert.equal(parsedWebEntry.color, 'amber');
+    assert.equal(parsedWebEntry.color, 'yellow'); // legacy 'amber' normalizes to V4.1 Cream Yellow
     assert.equal(parsedWebEntry.hasSrs, false);
     assert.equal(parsedWebEntry.sourcePath, '/lesson-player/?lessonId=12');
+
+    // Check strict 3-color V4.1 palette round-trip
+    for (const cId of ['yellow', 'mint', 'sakura']) {
+      const n = serializeEntryNote({ kind: 'highlight', color: cId });
+      const p = parseNotebookEntry({ noteEntryId: 11, term: '本', meaning: 'book', note: n }, 42);
+      assert.equal(p.color, cId);
+    }
   });
 
   it('anchors highlights reliably and flags stale content versions when lesson text changes', () => {
@@ -137,5 +147,25 @@ describe('RikiPath Smart Notebook V6.5 — Model, Mobile Parity & Highlight Anch
       selectionAllowed: false,
       reason: 'exam-policy',
     });
+  });
+
+  it('normalizes V3 rich documents, sanitizes XSS fragments, and tracks checklist counts accurately', () => {
+    const doc = normalizeRichDocument(
+      '# Tiêu đề chính\n- [ ] Ôn chữ 桜<script>alert(1)</script>\n- [x] Thuộc nghĩa hoa anh đào\n1. Đọc lại ví dụ',
+    );
+    assert.equal(doc.type, 'doc');
+    assert.equal(doc.blocks[0].type, 'heading');
+    assert.equal(doc.blocks[0].level, 1);
+    assert.equal(doc.blocks[1].type, 'checklist_item');
+    assert.equal(doc.blocks[1].checked, false);
+    assert.equal(doc.blocks[2].checked, true);
+    assert.equal(doc.blocks[3].type, 'ordered_item');
+
+    const plain = extractPlainTextFromDoc(doc);
+    assert.equal(plain.includes('<script'), false);
+    assert.ok(plain.includes('桜'));
+
+    const progress = countChecklistInDoc(doc);
+    assert.deepEqual(progress, { total: 2, completed: 1 });
   });
 });

@@ -1,1125 +1,1067 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   BookOpen,
-  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   FolderOpen,
-  FolderPlus,
-  Highlighter,
   Loader2,
-  MapPin,
-  NotebookPen,
+  MoreHorizontal,
+  PanelLeft,
   Pencil,
   Plus,
   Repeat,
   Save,
-  Search,
-  Sparkles,
   Star,
   Trash2,
-  Volume2,
 } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
 import {
+  Badge,
   Button,
+  ContextualEmptyState,
   ContextualErrorState,
-  CustomSelect,
   Drawer,
+  Popover,
   SakuraLoader,
+  Tabs,
   confirmAction,
   notify,
 } from '@/components/ui';
-import { searchKanji } from '@/features/content-author/api/sharedBankApi.js';
-import { useSmartNotebook } from '@/features/notebook/hooks/useSmartNotebook.js';
+import { IllustratedPageHeader } from '@/features/learner-ui';
+import { getNotebookPage, updateNotebookPage } from '@/features/notebook/api/notebookApi.js';
+import { NOTEBOOK_PAGE_QUERY_KEY, NOTEBOOK_TREE_QUERY_KEY, useSmartNotebook } from '@/features/notebook/hooks/useSmartNotebook.js';
 import {
-  DEFAULT_FOLDER_NAME,
+  countChecklistInDoc,
+  getEntryKindLabel,
   getHighlightColorMeta,
-  groupNotePagesByFolder,
-  HIGHLIGHT_COLORS,
-  NOTEBOOK_CONTENT_KINDS,
+  mapSavedItemDto,
+  normalizeRichDocument,
+  serializeRichDocument,
 } from '@/features/notebook/utils/notebookModel.js';
-import { SakuraFolderIcon, SakuraNotebookBubbleIcon, SakuraNotePageIcon } from './SakuraNotebookIcons.jsx';
-import SafeRichNoteRenderer from './SafeRichNoteRenderer.jsx';
-
-const KANJI_SAMPLES = ['日', '水', '学', '人', '月'];
-
-function speakJapanese(text) {
-  if (typeof window === 'undefined' || !window.speechSynthesis || !text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ja-JP';
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
-}
+import NotebookNavTree from './NotebookNavTree.jsx';
+import NotebookRichEditor from './NotebookRichEditor.jsx';
+import NotebookVocabLookupSection from './NotebookVocabLookupSection.jsx';
+import {
+  AllSavedItemsView,
+  FavoritePagesView,
+  FileContextView,
+  FolderContextView,
+  NotebookSearchView,
+} from './NotebookContextualViews.jsx';
+import SavedItemDetailDrawer from './SavedItemDetailDrawer.jsx';
+import {
+  NotebookCreateModal,
+  NotebookLookupDrawer,
+  NotebookRenameMoveModal,
+} from './NotebookModals.jsx';
 
 /**
- * Unified 3-column Smart Learning Notebook Workspace for RikiPath Web V6.5.
- * Replaces Kanji-only notebook experience while keeping Kanji dictionary search/save intact.
+ * Keyed per-page Editor & Saved Items workspace pane so switching pages or reloading latest revision
+ * cleanly mounts isolated draft state without synchronous `useEffect` setState cascades.
  */
+function ActivePageEditorPane({
+  pageDetail,
+  uid,
+  nb,
+  flushRef,
+  onNavigateSelection,
+  onOpenRenameMove,
+  onDeletePage,
+  onOpenLookup,
+  onOpenCreateItem,
+  onOpenItemDrawer,
+  onReloadLatest,
+}) {
+  const { tr } = useLocale();
+  const queryClient = useQueryClient();
+
+  const [editorMode, setEditorMode] = useState('write'); // 'write' | 'preview'
+  const [titleDraft, setTitleDraft] = useState(pageDetail.title || '');
+  const [docDraft, setDocDraft] = useState(() =>
+    normalizeRichDocument(pageDetail.contentJson || pageDetail.contentPlainText || '', { ensureNonEmpty: true }),
+  );
+  const [dirty, setDirty] = useState(false);
+  const [localSaveState, setLocalSaveState] = useState({ status: 'saved', error: '', errorCode: '' });
+  const [savedItemsExpanded, setSavedItemsExpanded] = useState(true);
+
+  const autoSaveTimerRef = useRef(null);
+  const saveSeqRef = useRef(0);
+  const serverRevisionRef = useRef(pageDetail.revision ?? 1);
+  const snapshotRef = useRef({ title: titleDraft, doc: docDraft, dirty: false });
+
+  useEffect(() => {
+    snapshotRef.current = { title: titleDraft, doc: docDraft, dirty };
+  }, [titleDraft, docDraft, dirty]);
+
+  const persistCurrentPage = useCallback(async () => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    const snap = snapshotRef.current;
+    if (!snap.dirty) return true;
+
+    const cleanTitle = snap.title.trim() || tr('Trang không tiêu đề');
+    const seq = ++saveSeqRef.current;
+    setLocalSaveState({ status: 'saving', error: '', errorCode: '' });
+
+    try {
+      const updated = await updateNotebookPage(pageDetail.id, {
+        title: cleanTitle,
+        contentJson: serializeRichDocument(snap.doc),
+        expectedRevision: serverRevisionRef.current,
+      });
+
+      if (updated) {
+        serverRevisionRef.current = updated.revision ?? (serverRevisionRef.current + 1);
+        queryClient.setQueryData([NOTEBOOK_PAGE_QUERY_KEY, uid, Number(pageDetail.id)], updated);
+        queryClient.invalidateQueries({ queryKey: [NOTEBOOK_TREE_QUERY_KEY, uid] });
+      }
+
+      if (seq === saveSeqRef.current) {
+        setDirty(false);
+        setLocalSaveState({ status: 'saved', error: '', errorCode: '' });
+      }
+      return true;
+    } catch (err) {
+      const code = err?.data?.errorCode || err?.errorCode || '';
+      if (seq === saveSeqRef.current) {
+        setLocalSaveState({
+          status: 'error',
+          errorCode: code,
+          error: err?.message || tr('Chưa lưu được thay đổi. Nội dung vẫn được giữ an toàn trên màn hình.'),
+        });
+      }
+      return false;
+    }
+  }, [pageDetail.id, queryClient, tr, uid]);
+
+  useEffect(() => {
+    flushRef.current = () => (snapshotRef.current.dirty ? persistCurrentPage() : Promise.resolve(true));
+    return () => {
+      flushRef.current = null;
+    };
+  }, [flushRef, persistCurrentPage]);
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    autoSaveTimerRef.current = setTimeout(() => {
+      persistCurrentPage();
+    }, 900);
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [dirty, titleDraft, docDraft, persistCurrentPage]);
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty]);
+
+  const pageSavedItems = useMemo(
+    () => (Array.isArray(pageDetail?.savedItems) ? pageDetail.savedItems : []).map(mapSavedItemDto).filter(Boolean),
+    [pageDetail],
+  );
+  const checklistProgress = useMemo(() => countChecklistInDoc(docDraft), [docDraft]);
+
+  return (
+    <div className="space-y-4">
+      {localSaveState.status === 'error' && localSaveState.errorCode === 'NOTEBOOK_REVISION_CONFLICT' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
+            <span>{tr('Trang này vừa được cập nhật từ nơi khác. Tải bản mới nhất để tránh ghi đè.')}</span>
+          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={onReloadLatest}>
+            {tr('Tải bản mới nhất')}
+          </Button>
+        </div>
+      )}
+
+      {/* Page Editor Header */}
+      <div className="rounded-2xl border border-rp-line bg-white px-5 py-4 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-rp-text-muted">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {pageDetail.folderId ? (
+              <button
+                type="button"
+                onClick={() => onNavigateSelection('folder', pageDetail.folderId)}
+                className="rp-focus inline-flex items-center gap-1 rounded hover:text-rp-brand-strong"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                <span className="truncate max-w-[140px]">{pageDetail.folderName}</span>
+              </button>
+            ) : (
+              <span>{pageDetail.folderName}</span>
+            )}
+            <span>›</span>
+            <button
+              type="button"
+              onClick={() => onNavigateSelection('file', pageDetail.fileId)}
+              className="rp-focus truncate max-w-[160px] rounded font-medium text-rp-text-2 hover:text-rp-brand-strong"
+            >
+              {pageDetail.fileName}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SaveStatusIndicator
+              status={localSaveState.status}
+              dirty={dirty}
+              onRetry={() => persistCurrentPage()}
+            />
+
+            {checklistProgress.total > 0 && (
+              <Badge tone={checklistProgress.completed === checklistProgress.total ? 'success' : 'sakura'} size="sm">
+                {checklistProgress.completed}/{checklistProgress.total}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <input
+            type="text"
+            value={titleDraft}
+            maxLength={200}
+            aria-label={tr('Tiêu đề trang ghi chú')}
+            onChange={(e) => {
+              setTitleDraft(e.target.value);
+              setDirty(true);
+              setLocalSaveState({ status: 'dirty', error: '', errorCode: '' });
+            }}
+            placeholder={tr('Tiêu đề trang…')}
+            className="rp-focus rp-jp min-w-[200px] flex-1 rounded-xl border border-transparent bg-transparent px-1.5 py-1 text-[21px] font-bold text-rp-text transition-colors hover:bg-rp-bg-2 focus:border-rp-brand-border focus:bg-white"
+          />
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              title={pageDetail.isFavorite ? tr('Bỏ yêu thích') : tr('Đánh dấu yêu thích')}
+              aria-label={pageDetail.isFavorite ? tr('Bỏ yêu thích') : tr('Đánh dấu yêu thích')}
+              onClick={() => nb.toggleFavoritePage.mutateAsync({ pageId: pageDetail.id, isFavorite: !pageDetail.isFavorite })}
+              className={`rp-focus inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+                pageDetail.isFavorite
+                  ? 'border-amber-200 bg-amber-50 text-amber-600'
+                  : 'border-rp-line bg-white text-rp-text-muted hover:border-rp-brand-border hover:text-amber-500'
+              }`}
+            >
+              <Star className={`h-4 w-4 ${pageDetail.isFavorite ? 'fill-amber-400' : ''}`} />
+            </button>
+
+            <Tabs
+              variant="pill"
+              tone="segmented"
+              value={editorMode}
+              onChange={setEditorMode}
+              tabs={[
+                { id: 'write', label: tr('Soạn') },
+                { id: 'preview', label: tr('Xem') },
+              ]}
+            />
+
+            <Popover
+              align="end"
+              label={tr('Tùy chọn trang')}
+              trigger={
+                <button
+                  type="button"
+                  aria-label={tr('Tùy chọn trang')}
+                  className="rp-focus inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2 hover:text-rp-text"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              }
+            >
+              {({ close }) => (
+                <div className="min-w-[195px] space-y-0.5 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      persistCurrentPage();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] font-medium text-rp-text hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    <span>{tr('Lưu ngay (Ctrl+S)')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      onOpenRenameMove(pageDetail);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] font-medium text-rp-text hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    <span>{tr('Đổi tên / Di chuyển trang')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      onOpenLookup();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] font-medium text-rp-text hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    <span>{tr('Tra cứu từ vựng / Hán tự')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      onDeletePage(pageDetail);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] font-medium text-rp-danger hover:bg-rp-danger-bg"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>{tr('Xóa trang')}</span>
+                  </button>
+                </div>
+              )}
+            </Popover>
+          </div>
+        </div>
+      </div>
+
+      {/* Focused Modern Rich Note Editor */}
+      <NotebookRichEditor
+        pageId={pageDetail.id}
+        valueDoc={docDraft}
+        readOnly={editorMode === 'preview'}
+        onChangeDoc={(nextDoc) => {
+          setDocDraft(nextDoc);
+          setDirty(true);
+          setLocalSaveState({ status: 'dirty', error: '', errorCode: '' });
+        }}
+        onManualSave={() => persistCurrentPage()}
+      />
+
+      {/* Collapsible Saved Items Inside Current Page */}
+      <section className="rounded-2xl border border-rp-line bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setSavedItemsExpanded((v) => !v)}
+            className="rp-focus flex items-center gap-2 rounded-lg py-0.5 text-left"
+          >
+            {savedItemsExpanded ? (
+              <ChevronUp className="h-4 w-4 text-rp-text-muted" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-rp-text-muted" />
+            )}
+            <h3 className="text-[14.5px] font-bold text-rp-text">
+              {tr('Mục đã lưu')} ({pageSavedItems.length})
+            </h3>
+          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon={BookOpen}
+              onClick={onOpenLookup}
+            >
+              {tr('Tra cứu thêm')}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon={Plus}
+              onClick={onOpenCreateItem}
+            >
+              {tr('Thêm mục')}
+            </Button>
+          </div>
+        </div>
+
+        {savedItemsExpanded && (
+          <div className="border-t border-rp-line px-4 py-3.5">
+            {pageSavedItems.length === 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-rp-line bg-rp-bg-2/70 px-4 py-3">
+                <p className="text-[13px] text-rp-text-muted">
+                  {tr('Trang này chưa có mục đã lưu nào. Bấm “+ Thêm mục” hoặc bôi đen chữ khi học để lưu vào đây.')}
+                </p>
+                <Button type="button" variant="secondary" size="sm" icon={Plus} onClick={onOpenCreateItem}>
+                  {tr('Thêm mục')}
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {pageSavedItems.map((item) => {
+                  const tone = item.highlightColor ? getHighlightColorMeta(item.highlightColor) : null;
+                  return (
+                    <div
+                      key={item.noteEntryId}
+                      className="flex flex-col justify-between gap-2 rounded-xl border border-rp-line bg-white p-3.5 transition-colors hover:border-rp-brand-border hover:bg-rp-row-hover"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onOpenItemDrawer(item)}
+                        className="rp-focus text-left"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="rp-jp text-[16px] font-bold text-rp-text">{item.term}</span>
+                            {item.reading && (
+                              <span className="rp-jp ml-2 text-[12.5px] font-medium text-rp-brand-strong">{item.reading}</span>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {tone && <span className={`h-2.5 w-2.5 rounded-full ${tone.dotClass}`} />}
+                            <Badge tone="neutral" size="sm">{tr(getEntryKindLabel(item.kind))}</Badge>
+                          </div>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-[13px] text-rp-text-2">{item.meaning}</p>
+                      </button>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-rp-line/60 pt-2 text-[11.5px]">
+                        <div className="flex items-center gap-2">
+                          {item.vocabularyId && (
+                            <Link
+                              to={`/vocabulary-detail/?id=${item.vocabularyId}`}
+                              className="rp-link inline-flex items-center gap-1 font-medium text-rp-brand-strong"
+                            >
+                              <span>{tr('Từ điển')}</span>
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </Link>
+                          )}
+                          {item.hasSrs && (
+                            <Link
+                              to="/daily-srs/"
+                              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 hover:bg-emerald-100"
+                            >
+                              <Repeat className="h-2.5 w-2.5" />
+                              <span>{tr('Ôn tập SRS')}</span>
+                            </Link>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onOpenItemDrawer(item)}
+                          className="rp-focus rp-link text-[12px] font-semibold text-rp-brand-strong"
+                        >
+                          {tr('Chi tiết')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function SmartNotebookWorkspace() {
   const { tr, trf } = useLocale();
-  const [params] = useSearchParams();
-  const nb = useSmartNotebook({ enabled: true });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const nb = useSmartNotebook();
+  const queryClient = useQueryClient();
 
-  const requestedNoteId = Number(params.get('noteId')) || null;
-  const requestedEntryId = Number(params.get('entryId')) || null;
+  const paramPageId = searchParams.get('pageId');
+  const paramNoteId = searchParams.get('noteId');
+  const paramEntryId = searchParams.get('entryId');
+  const paramTab = searchParams.get('tab');
 
-  const [mode, setMode] = useState('workspace'); // 'workspace' | 'kanji-bank'
-  const [selectedFolderFilter, setSelectedFolderFilter] = useState('__ALL__');
-  const [pickedNoteId, setPickedNoteId] = useState(requestedNoteId);
-  const [pickedEntryId, setPickedEntryId] = useState(requestedEntryId);
-  const [search, setSearch] = useState('');
-  const [kindFilter, setKindFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'alpha' | 'srs'
+  const [navSearch, setNavSearch] = useState('');
+  const [explicitSelection, setExplicitSelection] = useState(null);
+  const [expandedFolders, setExpandedFolders] = useState({});
+  const [expandedFiles, setExpandedFiles] = useState({});
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Folder / Note Page creation & rename state
-  const [newFolderModal, setNewFolderModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [creatingNoteTitle, setCreatingNoteTitle] = useState('');
-  const [renamingNoteId, setRenamingNoteId] = useState(null);
-  const [renamingNoteValue, setRenamingNoteValue] = useState('');
+  const [createModal, setCreateModal] = useState({ open: false, kind: 'page', folderId: null, fileId: null, pageId: null });
+  const [renameMoveTarget, setRenameMoveTarget] = useState(null);
+  const [activeItemDrawer, setActiveItemDrawer] = useState(null);
+  const [dismissedEntryParam, setDismissedEntryParam] = useState(false);
+  const [lookupDrawer, setLookupDrawer] = useState({ open: false, mode: 'vocab-bank' });
+  const [dismissedTabParam, setDismissedTabParam] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
-  // Quick manual entry form
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickDraft, setQuickDraft] = useState({ word: '', reading: '', meaning: '', note: '', kind: 'vocabulary', enrollSrs: false });
+  const flushActivePageRef = useRef(null);
 
-  // Rich Note Page Editor state (protected against overwrite on save error)
-  const notePages = nb.notePages;
-  const activeNotePage = useMemo(() => {
-    if (pickedNoteId && notePages.some((p) => p.id === pickedNoteId)) {
-      return notePages.find((p) => p.id === pickedNoteId) || null;
+  // Derive current view selection cleanly without useEffect-triggered cascading state updates
+  const selection = useMemo(() => {
+    if (explicitSelection) {
+      if (explicitSelection.view === 'all-items' || explicitSelection.view === 'favorites') return explicitSelection;
+      if (explicitSelection.view === 'folder' && nb.folders.some((f) => f.id === explicitSelection.id)) return explicitSelection;
+      if (explicitSelection.view === 'file' && nb.allFiles.some((f) => f.id === explicitSelection.id)) return explicitSelection;
+      if (explicitSelection.view === 'page' && nb.notePages.some((p) => p.id === explicitSelection.id)) return explicitSelection;
     }
-    return notePages[0] || null;
-  }, [pickedNoteId, notePages]);
+    if (paramPageId) {
+      const m = nb.notePages.find((p) => p.id === Number(paramPageId));
+      if (m) return { view: 'page', id: m.id };
+      // A deep link (e.g. from Sổ tay nhanh) to a page that is deleted or not owned by this learner
+      // must not silently open some other page.
+      if (nb.treeQuery.isSuccess) return { view: 'all-items', id: null, missingPageId: Number(paramPageId) };
+    }
+    if (paramNoteId) {
+      const m = nb.notePages.find((p) => p.fileId === Number(paramNoteId));
+      if (m) return { view: 'page', id: m.id };
+    }
+    if (nb.notePages[0]) return { view: 'page', id: nb.notePages[0].id };
+    if (nb.allFiles[0]) return { view: 'file', id: nb.allFiles[0].id };
+    if (nb.folders[0]) return { view: 'folder', id: nb.folders[0].id };
+    return { view: 'all-items', id: null };
+  }, [explicitSelection, nb.folders, nb.allFiles, nb.notePages, paramPageId, paramNoteId, nb.treeQuery.isSuccess]);
 
-  const [editorPageId, setEditorPageId] = useState(null);
-  const [editorBody, setEditorBody] = useState('');
-  const [editorSummary, setEditorSummary] = useState('');
-  const [editorTags, setEditorTags] = useState('');
-  const [editorDirty, setEditorDirty] = useState(false);
-  const [editorMode, setEditorMode] = useState('split'); // 'write' | 'preview' | 'split'
-  const textareaRef = useRef(null);
-
-  if (activeNotePage?.id != null && activeNotePage.id !== editorPageId) {
-    setEditorPageId(activeNotePage.id);
-    setEditorBody(activeNotePage.body || '');
-    setEditorSummary(activeNotePage.summary || '');
-    setEditorTags((activeNotePage.tags || []).join(', '));
-    setEditorDirty(false);
-  }
-
-  // Debounced auto-save for Rich Note Page (only when user changed text; preserves dirty text on error!)
+  const missingPageNotifiedRef = useRef(null);
   useEffect(() => {
-    if (!activeNotePage || !editorDirty) return undefined;
-    const timer = window.setTimeout(() => {
-      void nb.updateNotePage.mutateAsync({
-        id: activeNotePage.id,
-        title: activeNotePage.title,
-        folder: activeNotePage.folder,
-        summary: editorSummary,
-        body: editorBody,
-        tags: editorTags.split(',').map((t) => t.trim()).filter(Boolean),
-        favorite: activeNotePage.favorite,
-        sourcePath: activeNotePage.sourcePath,
-        sourceTitle: activeNotePage.sourceTitle,
-      }).then(() => setEditorDirty(false)).catch(() => {
-        // Keep editorDirty = true so user edits are NEVER overwritten on error!
-      });
-    }, 1100);
-    return () => window.clearTimeout(timer);
-  }, [activeNotePage, editorBody, editorSummary, editorTags, editorDirty, nb.updateNotePage]);
+    const missing = selection.missingPageId;
+    if (!missing || missingPageNotifiedRef.current === missing) return;
+    missingPageNotifiedRef.current = missing;
+    notify.info(tr('Không tìm thấy trang ghi chú này'), tr('Trang có thể đã bị xóa hoặc không còn trong Sổ tay của bạn.'), { key: 'nb-missing-page' });
+  }, [selection.missingPageId, tr]);
 
-  // Folder groups
-  const folderGroups = useMemo(() => groupNotePagesByFolder(notePages), [notePages]);
+  const activePageId = selection.view === 'page' ? selection.id : null;
 
-  // Visible entries across selected scope (specific Note Page, Special filter Favorite/All/Folder)
-  const visibleEntries = useMemo(() => {
-    let base;
-    if (selectedFolderFilter === '__ALL__' && !pickedNoteId) {
-      base = nb.allEntries;
-    } else if (selectedFolderFilter === '__FAVORITES__') {
-      const favPageIds = new Set(notePages.filter((p) => p.favorite).map((p) => p.id));
-      base = nb.allEntries.filter((e) => e.favorite || favPageIds.has(e.learnerNoteId));
-    } else if (activeNotePage) {
-      base = (nb.entriesByPageId.get(activeNotePage.id) || []).map((e) => ({
-        ...e,
-        notePageTitle: activeNotePage.title,
-        folderName: activeNotePage.folder,
-      }));
-    } else {
-      base = nb.allEntries;
-    }
-
-    const q = search.trim().toLowerCase();
-    const filtered = base.filter((e) => {
-      if (kindFilter !== 'all' && e.kind !== kindFilter) return false;
-      if (!q) return true;
-      return [e.term, e.reading, e.meaning, e.personalNote, e.sourceTitle, e.notePageTitle, ...(e.tags || [])]
-        .join(' ')
-        .toLowerCase()
-        .includes(q);
-    });
-
-    if (sortBy === 'alpha') {
-      return [...filtered].sort((a, b) => a.term.localeCompare(b.term, 'ja'));
-    }
-    if (sortBy === 'srs') {
-      return [...filtered].sort((a, b) => Number(b.hasSrs) - Number(a.hasSrs));
-    }
-    return [...filtered].sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
-  }, [selectedFolderFilter, pickedNoteId, activeNotePage, nb.allEntries, nb.entriesByPageId, notePages, search, kindFilter, sortBy]);
-
-  const activeEntry = useMemo(
-    () => visibleEntries.find((e) => e.noteEntryId === pickedEntryId) || visibleEntries[0] || null,
-    [visibleEntries, pickedEntryId]
-  );
-
-  // Entry personal note edit buffer
-  const [entryEditId, setEntryEditId] = useState(null);
-  const [entryPersonalNoteDraft, setEntryPersonalNoteDraft] = useState('');
-  const [entryMeaningDraft, setEntryMeaningDraft] = useState('');
-
-  if (activeEntry?.noteEntryId != null && activeEntry.noteEntryId !== entryEditId) {
-    setEntryEditId(activeEntry.noteEntryId);
-    setEntryPersonalNoteDraft(activeEntry.personalNote || '');
-    setEntryMeaningDraft(activeEntry.meaning || '');
-  }
-
-  // Kanji Search & Save integration inside "Tra cứu Kanji" mode
-  const [kanjiKeyword, setKanjiKeyword] = useState('');
-  const [kanjiSubmitted, setKanjiSubmitted] = useState('');
-  const [selectedKanjiDetail, setSelectedKanjiDetail] = useState(null);
-  const kanjiSearchQuery = useQuery({
-    queryKey: ['kanji-search', kanjiSubmitted],
-    queryFn: () => searchKanji(kanjiSubmitted),
-    enabled: mode === 'kanji-bank' && kanjiSubmitted.length > 0,
-  });
-  const savedKanjiIds = useMemo(
-    () => new Set(nb.allEntries.map((e) => e.kanjiId).filter(Boolean)),
-    [nb.allEntries]
-  );
-
-  const saveKanjiBookmark = useMutation({
-    mutationFn: async (kanjiItem) => {
-      const targetId = activeNotePage?.id || notePages[0]?.id || null;
-      return nb.quickSaveCapture.mutateAsync({
-        targetNoteId: targetId,
-        newNoteTitle: targetId ? '' : 'Kanji đã lưu',
-        folderName: activeNotePage?.folder || 'Kanji',
-        kind: 'kanji',
-        term: kanjiItem.character,
-        reading: [kanjiItem.onYomi, kanjiItem.kunYomi].filter(Boolean).join(' · '),
-        meaning: kanjiItem.meaning,
-        kanjiId: kanjiItem.id,
-        enrollSrs: true,
-      });
-    },
-    onSuccess: () => notify.success(tr('Đã lưu Hán tự vào Sổ tay'), '', { key: 'nb-kanji-save' }),
-    onError: (err) => notify.apiError(err, tr('Chưa lưu được Hán tự')),
+  const pageDetailQuery = useQuery({
+    queryKey: [NOTEBOOK_PAGE_QUERY_KEY, nb.uid, activePageId],
+    queryFn: () => getNotebookPage(activePageId),
+    enabled: Boolean(nb.active && activePageId),
+    staleTime: 20_000,
   });
 
-  function applyEditorFormat(prefix, suffix = '', placeholder = '') {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? editorBody.length;
-    const end = el.selectionEnd ?? editorBody.length;
-    const selected = editorBody.slice(start, end) || placeholder;
-    const next = `${editorBody.slice(0, start)}${prefix}${selected}${suffix}${editorBody.slice(end)}`;
-    setEditorBody(next);
-    setEditorDirty(true);
-    window.setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
-    }, 0);
-  }
+  const activePageDetail = pageDetailQuery.data;
+  const pageSavedItems = useMemo(
+    () => (Array.isArray(activePageDetail?.savedItems) ? activePageDetail.savedItems : []).map(mapSavedItemDto).filter(Boolean),
+    [activePageDetail],
+  );
+  const hasEntriesInScope = (nb.stats?.totalSavedItems ?? 0) > 0 || pageSavedItems.length > 0;
 
-  async function handleManualSavePage() {
-    if (!activeNotePage) return;
-    try {
-      await nb.updateNotePage.mutateAsync({
-        id: activeNotePage.id,
-        title: activeNotePage.title,
-        folder: activeNotePage.folder,
-        summary: editorSummary,
-        body: editorBody,
-        tags: editorTags.split(',').map((t) => t.trim()).filter(Boolean),
-        favorite: activeNotePage.favorite,
-        sourcePath: activeNotePage.sourcePath,
-        sourceTitle: activeNotePage.sourceTitle,
-      });
-      setEditorDirty(false);
-      notify.success(tr('Đã lưu trang ghi chú'), '', { key: 'nb-page-save-ok' });
-    } catch (err) {
-      notify.apiError(err, tr('Chưa lưu được trang ghi chú'));
+  const lookupOpen = lookupDrawer.open || (!dismissedTabParam && (paramTab === 'vocab-bank' || paramTab === 'kanji-bank'));
+  const lookupMode = lookupDrawer.open ? lookupDrawer.mode : (paramTab === 'kanji-bank' ? 'kanji-bank' : 'vocab-bank');
+
+  const resolvedItemDrawer = useMemo(() => {
+    if (activeItemDrawer) return activeItemDrawer;
+    if (paramEntryId && !dismissedEntryParam && pageSavedItems.length > 0) {
+      return pageSavedItems.find((x) => x.noteEntryId === Number(paramEntryId)) || null;
     }
-  }
+    return null;
+  }, [activeItemDrawer, paramEntryId, dismissedEntryParam, pageSavedItems]);
 
-  async function handleCreateFolderAndPage(e) {
-    e.preventDefault();
-    const fname = newFolderName.trim();
-    if (!fname) return;
-    try {
-      const created = await nb.createNotePage.mutateAsync({
-        title: 'Ghi chú tổng quan',
-        folder: fname,
-      });
-      setNewFolderName('');
-      setNewFolderModal(false);
-      if (created?.id) {
-        setSelectedFolderFilter(fname);
-        setPickedNoteId(created.id);
+  const navigateSelection = useCallback(async (nextView, nextId = null) => {
+    if (flushActivePageRef.current) {
+      const ok = await flushActivePageRef.current();
+      if (!ok) {
+        const leave = await confirmAction({
+          title: tr('Thay đổi chưa kịp lưu lên máy chủ'),
+          message: tr('Không thể tự động lưu trang hiện tại ngay lúc này. Bạn muốn thử lưu lại hay chuyển trang?'),
+          confirmText: tr('Vẫn chuyển trang'),
+          cancelText: tr('Ở lại thử lại'),
+          danger: true,
+        });
+        if (!leave) return;
       }
-      notify.success(tr('Đã tạo thư mục mới'), '', { key: 'nb-create-folder' });
-    } catch (err) {
-      notify.apiError(err, tr('Không tạo được thư mục'));
+    }
+
+    if (nextView === 'page' && nextId) {
+      const match = nb.notePages.find((p) => p.id === nextId);
+      if (match) {
+        setExpandedFolders((prev) => ({ ...prev, [match.folderId]: true }));
+        setExpandedFiles((prev) => ({ ...prev, [match.fileId]: true }));
+      }
+    } else if (nextView === 'file' && nextId) {
+      const matchFile = nb.allFiles.find((f) => f.id === nextId);
+      if (matchFile?.folderId) {
+        setExpandedFolders((prev) => ({ ...prev, [matchFile.folderId]: true }));
+      }
+      setExpandedFiles((prev) => ({ ...prev, [nextId]: true }));
+    } else if (nextView === 'folder' && nextId) {
+      setExpandedFolders((prev) => ({ ...prev, [nextId]: true }));
+    }
+
+    setExplicitSelection({ view: nextView, id: nextId });
+    setMobileNavOpen(false);
+  }, [nb.allFiles, nb.notePages, tr]);
+
+  const activeFolder = useMemo(
+    () => (selection.view === 'folder' ? nb.folders.find((f) => f.id === selection.id) : null),
+    [selection, nb.folders],
+  );
+  const activeFile = useMemo(
+    () => (selection.view === 'file' ? nb.allFiles.find((f) => f.id === selection.id) : null),
+    [selection, nb.allFiles],
+  );
+  const activePageSummary = useMemo(
+    () => (selection.view === 'page' ? nb.notePages.find((p) => p.id === selection.id) : null),
+    [selection, nb.notePages],
+  );
+
+  function handleBannerCreate() {
+    if (selection.view === 'folder' && selection.id) {
+      setCreateModal({ open: true, kind: 'file', folderId: selection.id, fileId: null, pageId: null });
+    } else if (selection.view === 'file' && selection.id) {
+      const file = nb.allFiles.find((f) => f.id === selection.id);
+      setCreateModal({ open: true, kind: 'page', folderId: file?.folderId || null, fileId: selection.id, pageId: null });
+    } else if (selection.view === 'page' && selection.id) {
+      const page = nb.notePages.find((p) => p.id === selection.id);
+      setCreateModal({ open: true, kind: 'item', folderId: page?.folderId || null, fileId: page?.fileId || null, pageId: selection.id });
+    } else {
+      setCreateModal({ open: true, kind: 'folder', folderId: null, fileId: null, pageId: null });
     }
   }
 
-  async function handleCreateNotePage(e, folderName) {
-    e.preventDefault();
-    const title = creatingNoteTitle.trim();
-    if (!title) return;
-    try {
-      const created = await nb.createNotePage.mutateAsync({
-        title,
-        folder: folderName || DEFAULT_FOLDER_NAME,
+  async function handleDeleteNode({ kind, item }) {
+    if (!item) return;
+
+    if (kind === 'folder') {
+      const fileCount = item.fileCount ?? item.files?.length ?? 0;
+      const confirmed = await confirmAction({
+        title: tr('Xóa thư mục này?'),
+        message: fileCount > 0
+          ? trf('Thư mục “{0}” đang chứa {1} tệp ghi chú. Khi xác nhận, toàn bộ tệp và trang bên trong sẽ bị xóa khỏi sổ tay (thẻ ôn tập SRS đã tạo vẫn được giữ nguyên).', { 0: item.name, 1: fileCount })
+          : trf('Xóa thư mục trống “{0}” khỏi sổ tay?', { 0: item.name }),
+        confirmText: tr('Xóa thư mục'),
+        cancelText: tr('Hủy'),
+        danger: true,
       });
-      setCreatingNoteTitle('');
-      if (created?.id) setPickedNoteId(created.id);
-      notify.success(tr('Đã tạo trang ghi chú mới'), '', { key: 'nb-create-page' });
-    } catch (err) {
-      notify.apiError(err, tr('Không tạo được trang ghi chú'));
-    }
-  }
+      if (!confirmed) return;
 
-  async function handleDeleteNotePage(page) {
-    const ok = await confirmAction({
-      title: trf('Xóa trang "{0}"?', { 0: page.title }),
-      description: tr('Toàn bộ mục đã lưu bên trong trang này cũng sẽ bị xóa.'),
-      confirmLabel: tr('Xóa trang'),
-    });
-    if (!ok) return;
-    try {
-      await nb.removeNotePage.mutateAsync(page.id);
-      if (pickedNoteId === page.id) setPickedNoteId(null);
-      notify.success(tr('Đã xóa trang ghi chú'), '');
-    } catch (err) {
-      notify.apiError(err, tr('Không xóa được trang ghi chú'));
+      try {
+        await nb.removeFolder.mutateAsync({ folderId: item.id, cascade: fileCount > 0 });
+        notify.success(tr('Đã xóa thư mục'), '', { key: 'nb-del-folder' });
+        if (selection.view === 'folder' && selection.id === item.id) {
+          setExplicitSelection({ view: 'all-items', id: null });
+        }
+      } catch (err) {
+        notify.apiError(err, tr('Không thể xóa thư mục'));
+      }
+      return;
     }
-  }
 
-  async function handleQuickAddEntry(e) {
-    e.preventDefault();
-    if (!quickDraft.word.trim()) return;
-    try {
-      await nb.quickSaveCapture.mutateAsync({
-        targetNoteId: activeNotePage?.id || null,
-        newNoteTitle: activeNotePage ? '' : 'Sổ tay của tôi',
-        kind: quickDraft.kind,
-        term: quickDraft.word.trim(),
-        reading: quickDraft.reading.trim(),
-        meaning: quickDraft.meaning.trim(),
-        personalNote: quickDraft.note.trim(),
-        enrollSrs: quickDraft.enrollSrs,
+    if (kind === 'file') {
+      const pageCount = item.pageCount ?? item.pages?.length ?? 0;
+      const confirmed = await confirmAction({
+        title: tr('Xóa tệp ghi chú này?'),
+        message: pageCount > 0
+          ? trf('Tệp “{0}” đang có {1} trang ghi chú. Thẻ SRS đã lưu trước đây sẽ không bị mất khi xóa tệp.', { 0: item.name, 1: pageCount })
+          : trf('Xóa tệp “{0}” khỏi sổ tay?', { 0: item.name }),
+        confirmText: tr('Xóa tệp'),
+        cancelText: tr('Hủy'),
+        danger: true,
       });
-      setQuickDraft({ word: '', reading: '', meaning: '', note: '', kind: 'vocabulary', enrollSrs: false });
-      setShowQuickAdd(false);
-      notify.success(tr('Đã thêm mục mới vào Sổ tay'), '');
-    } catch (err) {
-      notify.apiError(err, tr('Chưa thêm được mục mới'));
+      if (!confirmed) return;
+
+      try {
+        await nb.removeFile.mutateAsync({ fileId: item.id, cascade: pageCount > 0 });
+        notify.success(tr('Đã xóa tệp ghi chú'), '', { key: 'nb-del-file' });
+        if ((selection.view === 'file' && selection.id === item.id) || (selection.view === 'page' && activePageSummary?.fileId === item.id)) {
+          if (item.folderId) setExplicitSelection({ view: 'folder', id: item.folderId });
+          else setExplicitSelection({ view: 'all-items', id: null });
+        }
+      } catch (err) {
+        notify.apiError(err, tr('Không thể xóa tệp ghi chú'));
+      }
+      return;
+    }
+
+    if (kind === 'page') {
+      const confirmed = await confirmAction({
+        title: tr('Xóa trang ghi chú này?'),
+        message: trf('Trang “{0}” và các mục đã lưu trong trang sẽ bị xóa khỏi sổ tay. Các thẻ ôn tập SRS đã tạo vẫn được giữ nguyên.', { 0: item.title }),
+        confirmText: tr('Xóa trang'),
+        cancelText: tr('Hủy'),
+        danger: true,
+      });
+      if (!confirmed) return;
+
+      // Leave the page before it disappears so the editor never refetches a deleted page:
+      // prefer a sibling page in the same file, otherwise the file view (or All saved items).
+      const wasActive = selection.view === 'page' && selection.id === item.id;
+      const previousSelection = wasActive ? selection : null;
+      if (wasActive) {
+        const siblings = nb.notePages.filter((p) => p.fileId === item.fileId);
+        const idx = siblings.findIndex((p) => p.id === item.id);
+        const fallback = siblings[idx + 1] || siblings[idx - 1] || null;
+        if (fallback) setExplicitSelection({ view: 'page', id: fallback.id });
+        else if (item.fileId) setExplicitSelection({ view: 'file', id: item.fileId });
+        else setExplicitSelection({ view: 'all-items', id: null });
+      }
+
+      try {
+        await nb.removePage.mutateAsync(item.id);
+        notify.success(tr('Đã xóa trang ghi chú'), '', { key: 'nb-del-page' });
+      } catch (err) {
+        if (previousSelection) setExplicitSelection(previousSelection);
+        notify.apiError(err, tr('Không thể xóa trang ghi chú'));
+      }
     }
   }
 
-  if (nb.listsQuery.isPending) {
-    return <SakuraLoader variant="section" context="writing" label={tr('Đang tải Sổ tay thông minh…')} delay={150} />;
+  // Renaming the page that is open in the editor: flush pending edits first, send the freshest
+  // revision, then remount the editor so its title draft and revision match the server.
+  async function handleUpdatePage(payload) {
+    const isOpenInEditor = activePageId && Number(payload.pageId) === Number(activePageId);
+    let expectedRevision = payload.expectedRevision;
+    if (isOpenInEditor) {
+      if (flushActivePageRef.current) await flushActivePageRef.current();
+      const cached = queryClient.getQueryData([NOTEBOOK_PAGE_QUERY_KEY, nb.uid, Number(payload.pageId)]);
+      if (cached?.revision != null) expectedRevision = cached.revision;
+    }
+    const updated = await nb.updatePage.mutateAsync({ ...payload, expectedRevision });
+    if (isOpenInEditor) setReloadNonce((n) => n + 1);
+    return updated;
   }
 
-  if (nb.listsQuery.isError || (nb.entriesError && !nb.allEntries.length)) {
+  async function handleReloadLatestAfterConflict() {
+    await pageDetailQuery.refetch();
+    setReloadNonce((n) => n + 1);
+  }
+
+  if (nb.treeQuery.isPending) {
+    return <SakuraLoader variant="page" context="writing" />;
+  }
+
+  if (nb.treeQuery.isError) {
     return (
       <ContextualErrorState
-        error={nb.listsQuery.error || nb.entriesError}
-        title={tr('Chưa tải được dữ liệu Sổ tay')}
-        onRetry={() => nb.refetchAll()}
+        error={nb.treeQuery.error}
+        title={tr('Chưa tải được Sổ tay cá nhân')}
+        onRetry={() => nb.treeQuery.refetch()}
+        retrying={nb.treeQuery.isFetching}
       />
     );
   }
 
+  const navTreeProps = {
+    searchQuery: navSearch,
+    onSearchChange: setNavSearch,
+    stats: nb.stats,
+    folders: nb.folders,
+    selection,
+    expandedFolders,
+    expandedFiles,
+    onToggleFolderExpand: (fid) => setExpandedFolders((prev) => ({ ...prev, [fid]: !(prev[fid] ?? true) })),
+    onToggleFileExpand: (flId) => setExpandedFiles((prev) => ({ ...prev, [flId]: !(prev[flId] ?? true) })),
+    onSelectView: navigateSelection,
+    onRequestCreate: ({ kind, folderId = null, fileId = null, pageId = null }) => {
+      setMobileNavOpen(false);
+      setCreateModal({ open: true, kind, folderId, fileId, pageId });
+    },
+    onRequestRenameOrMove: ({ kind, item, renameOnly = false }) => {
+      setMobileNavOpen(false);
+      setRenameMoveTarget({ kind, item, renameOnly });
+    },
+    onRequestDelete: handleDeleteNode,
+  };
+
   return (
-    <div data-page="SmartNotebookWorkspace" className="space-y-3">
-      {/* Top Header Strip */}
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-white px-4 py-3 shadow-[0_6px_24px_-8px_rgba(181,61,92,0.08)]">
-        <div className="flex min-w-0 items-center gap-3">
-          <SakuraNotebookBubbleIcon className="h-9 w-9 shrink-0" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-[19px] font-bold tracking-tight text-rp-text">{tr('Sổ tay học tập thông minh')}</h1>
-              {nb.saveState.status === 'saving' && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-rp-brand-tint px-2 py-0.5 text-[11px] font-semibold text-rp-brand-strong">
-                  <Loader2 className="h-3 w-3 animate-spin" /> {tr('Đang lưu…')}
-                </span>
-              )}
-              {nb.saveState.status === 'saved' && !editorDirty && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" /> {tr('Đã lưu đồng bộ')}
-                </span>
-              )}
-              {nb.saveState.status === 'error' && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                  <AlertCircle className="h-3 w-3" /> {nb.saveState.error || tr('Lỗi khi lưu')}
-                </span>
-              )}
-            </div>
-            <p className="text-[12px] text-rp-text-muted">
-              {trf('{0} trang ghi chú · {1} mục đã lưu (từ vựng, ngữ pháp, Hán tự & highlight bài học)', {
-                0: notePages.length,
-                1: nb.allEntries.length,
-              })}
-            </p>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <IllustratedPageHeader
+        compact
+        icon="notebook"
+        eyebrow={tr('Góc học tập của tôi')}
+        title={tr('Sổ tay cá nhân')}
+        description={tr('Ghi lại và tổ chức kiến thức của bạn.')}
+        actions={(
+          <Button type="button" variant="primary" size="md" icon={Plus} onClick={handleBannerCreate}>
+            {tr('Tạo mới')}
+          </Button>
+        )}
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-xl border border-rp-line bg-[#FCFAFB] p-0.5 text-[12px]">
-            <button
-              type="button"
-              onClick={() => setMode('workspace')}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 font-semibold transition-colors ${
-                mode === 'workspace' ? 'bg-white text-rp-brand-strong shadow-2xs' : 'text-rp-text-2 hover:text-rp-text'
-              }`}
-            >
-              <NotebookPen className="h-3.5 w-3.5" />
-              <span>{tr('Sổ tay')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('kanji-bank')}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 font-semibold transition-colors ${
-                mode === 'kanji-bank' ? 'bg-white text-rp-brand-strong shadow-2xs' : 'text-rp-text-2 hover:text-rp-text'
-              }`}
-            >
-              <Search className="h-3.5 w-3.5" />
-              <span>{tr('Tra cứu Kanji')}</span>
-            </button>
-          </div>
+      <div className="flex items-center justify-between gap-2 lg:hidden">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon={PanelLeft}
+          onClick={() => setMobileNavOpen(true)}
+        >
+          {tr('Cây sổ tay')}
+        </Button>
+        <span className="truncate text-[12.5px] font-medium text-rp-text-muted">
+          {selection.view === 'page' && activePageSummary
+            ? `${activePageSummary.folderName} › ${activePageSummary.fileName}`
+            : selection.view === 'file' && activeFile
+              ? `${activeFile.folderName} › ${activeFile.name}`
+              : selection.view === 'folder' && activeFolder
+                ? activeFolder.name
+                : selection.view === 'favorites'
+                  ? tr('Trang yêu thích')
+                  : tr('Tất cả mục đã lưu')}
+        </span>
+      </div>
 
-          <button
-            type="button"
-            onClick={() => setShowQuickAdd((v) => !v)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white hover:bg-rp-brand-strong"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>{tr('Thêm nhanh')}</span>
-          </button>
-        </div>
-      </header>
+      {/* Two-Panel Workspace Layout (Left 280px Nav + Right Focused Workspace) */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="sticky top-4 hidden rounded-2xl border border-rp-line bg-white p-3.5 shadow-[0_2px_10px_-6px_rgba(45,40,42,0.06)] lg:block lg:max-h-[calc(100vh-140px)] lg:overflow-y-auto">
+          <NotebookNavTree {...navTreeProps} />
+        </aside>
 
-      {/* Quick Add Inline Drawer */}
-      {showQuickAdd && (
-        <form onSubmit={handleQuickAddEntry} className="rounded-2xl border border-rp-brand-border bg-[#FFF9FB] p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[13.5px] font-bold text-rp-text">
-              {tr('Thêm mục mới vào trang')} {activeNotePage ? `“${activeNotePage.title}”` : ''}
-            </h2>
-            <button type="button" onClick={() => setShowQuickAdd(false)} className="text-[12px] font-semibold text-rp-text-muted hover:text-rp-text">
-              {tr('Đóng')}
-            </button>
-          </div>
-          <div className="grid gap-2.5 sm:grid-cols-4">
-            <CustomSelect
-              size="sm"
-              value={quickDraft.kind}
-              onChange={(val) => setQuickDraft((d) => ({ ...d, kind: val }))}
-              options={NOTEBOOK_CONTENT_KINDS.filter((k) => k.id !== 'all').map((k) => ({
-                value: k.id,
-                label: tr(k.label),
-              }))}
+        <main className="min-w-0 space-y-4">
+          {navSearch.trim().length > 0 ? (
+            <NotebookSearchView
+              uid={nb.uid}
+              query={navSearch}
+              onClearSearch={() => setNavSearch('')}
+              onSelectFolder={(fid) => navigateSelection('folder', fid)}
+              onSelectFile={(flId) => navigateSelection('file', flId)}
+              onSelectPage={(pid) => navigateSelection('page', pid)}
+              onSelectItem={(item) => setActiveItemDrawer(item)}
             />
-            <input
-              required
-              placeholder={tr('Từ / Nội dung *')}
-              value={quickDraft.word}
-              onChange={(e) => setQuickDraft((d) => ({ ...d, word: e.target.value }))}
-              className="h-9 rounded-xl border border-rp-line bg-white px-3 text-[12.5px]"
+          ) : selection.view === 'all-items' ? (
+            <AllSavedItemsView
+              uid={nb.uid}
+              totalGlobalItems={nb.stats?.totalSavedItems ?? 0}
+              onSelectItem={(item) => setActiveItemDrawer(item)}
+              onSelectPage={(pid) => navigateSelection('page', pid)}
+              onAddItem={() => setCreateModal({ open: true, kind: 'item', folderId: null, fileId: null, pageId: nb.notePages[0]?.id || null })}
+              onOpenLookup={() => setLookupDrawer({ open: true, mode: 'vocab-bank' })}
             />
-            <input
-              placeholder={tr('Cách đọc (Furigana)')}
-              value={quickDraft.reading}
-              onChange={(e) => setQuickDraft((d) => ({ ...d, reading: e.target.value }))}
-              className="h-9 rounded-xl border border-rp-line bg-white px-3 text-[12.5px]"
+          ) : selection.view === 'favorites' ? (
+            <FavoritePagesView
+              pages={nb.favoritePages}
+              isLoading={nb.favoritesQuery.isPending}
+              error={nb.favoritesQuery.error}
+              onRetry={() => nb.favoritesQuery.refetch()}
+              onSelectPage={(pid) => navigateSelection('page', pid)}
+              onToggleFavorite={(pid, nextFav) => nb.toggleFavoritePage.mutateAsync({ pageId: pid, isFavorite: nextFav })}
             />
-            <input
-              placeholder={tr('Nghĩa tiếng Việt')}
-              value={quickDraft.meaning}
-              onChange={(e) => setQuickDraft((d) => ({ ...d, meaning: e.target.value }))}
-              className="h-9 rounded-xl border border-rp-line bg-white px-3 text-[12.5px]"
+          ) : selection.view === 'folder' && activeFolder ? (
+            <FolderContextView
+              folder={activeFolder}
+              onSelectFile={(flId) => navigateSelection('file', flId)}
+              onCreateFile={(fid) => setCreateModal({ open: true, kind: 'file', folderId: fid, fileId: null, pageId: null })}
+              onRenameFolder={(f) => setRenameMoveTarget({ kind: 'folder', item: f })}
+              onDeleteFolder={(f) => handleDeleteNode({ kind: 'folder', item: f })}
+              onRenameMoveFile={(file) => setRenameMoveTarget({ kind: 'file', item: file })}
+              onDeleteFile={(file) => handleDeleteNode({ kind: 'file', item: file })}
             />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <input
-              placeholder={tr('Ghi chú cá nhân…')}
-              value={quickDraft.note}
-              onChange={(e) => setQuickDraft((d) => ({ ...d, note: e.target.value }))}
-              className="h-9 min-w-[240px] flex-1 rounded-xl border border-rp-line bg-white px-3 text-[12.5px]"
+          ) : selection.view === 'file' && activeFile ? (
+            <FileContextView
+              file={activeFile}
+              onSelectFolder={(fid) => navigateSelection('folder', fid)}
+              onSelectPage={(pid) => navigateSelection('page', pid)}
+              onCreatePage={(flId) => setCreateModal({ open: true, kind: 'page', folderId: activeFile.folderId, fileId: flId, pageId: null })}
+              onRenameMoveFile={(file) => setRenameMoveTarget({ kind: 'file', item: file })}
+              onDeleteFile={(file) => handleDeleteNode({ kind: 'file', item: file })}
+              onToggleFavorite={(pid, nextFav) => nb.toggleFavoritePage.mutateAsync({ pageId: pid, isFavorite: nextFav })}
+              onDeletePage={(page) => handleDeleteNode({ kind: 'page', item: page })}
             />
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-rp-text-2">
-              <input
-                type="checkbox"
-                checked={quickDraft.enrollSrs}
-                onChange={(e) => setQuickDraft((d) => ({ ...d, enrollSrs: e.target.checked }))}
-                className="accent-rp-brand-pressed"
+          ) : selection.view === 'page' && selection.id ? (
+            pageDetailQuery.isPending ? (
+              <SakuraLoader variant="section" context="writing" />
+            ) : pageDetailQuery.isError ? (
+              <ContextualErrorState
+                error={pageDetailQuery.error}
+                title={tr('Chưa tải được trang ghi chú')}
+                onRetry={() => pageDetailQuery.refetch()}
+                retrying={pageDetailQuery.isFetching}
               />
-              {tr('Thêm vào SRS')}
-            </label>
-            <button type="submit" disabled={nb.quickSaveCapture.isPending} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-4 text-[12px] font-semibold text-white hover:bg-rp-brand-strong">
-              {tr('Lưu mục')}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Kanji Search Mode (preserves original Sổ Kanji functionality cleanly) */}
-      {mode === 'kanji-bank' ? (
-        <section className="rounded-2xl border border-rp-line bg-white p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[16px] font-bold text-rp-text">{tr('Tra cứu & lưu Hán tự từ kho dùng chung')}</h2>
-              <p className="text-[12.5px] text-rp-text-muted">{tr('Lưu trực tiếp vào Sổ tay hiện tại và đồng bộ với hàng chờ ôn tập SRS.')}</p>
-            </div>
-            <button type="button" onClick={() => setMode('workspace')} className="rounded-xl border border-rp-line px-3 py-1.5 text-[12px] font-semibold text-rp-brand-strong hover:bg-rp-brand-tint">
-              {tr('← Về Sổ tay')}
-            </button>
-          </div>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setKanjiSubmitted(kanjiKeyword.trim());
-            }}
-          >
-            <input
-              value={kanjiKeyword}
-              onChange={(e) => setKanjiKeyword(e.target.value)}
-              placeholder={tr('Gõ chữ Hán, âm đọc hoặc nghĩa…')}
-              className="h-10 flex-1 rounded-xl border border-rp-line bg-rp-bg-2 px-3.5 text-[13.5px]"
-            />
-            <button type="submit" className="h-10 rounded-xl bg-rp-brand-pressed px-5 text-[13px] font-semibold text-white hover:bg-rp-brand-strong">
-              {tr('Tìm')}
-            </button>
-          </form>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] text-rp-text-muted">{tr('Gợi ý')}:</span>
-            {KANJI_SAMPLES.map((s) => (
-              <button key={s} type="button" onClick={() => { setKanjiKeyword(s); setKanjiSubmitted(s); }} className="h-7.5 rounded-full bg-rp-brand-tint px-3 text-[13px] font-semibold text-rp-brand-strong hover:bg-rp-brand-soft">
-                {s}
-              </button>
-            ))}
-          </div>
-
-          {kanjiSearchQuery.isPending && kanjiSubmitted && <SakuraLoader variant="section" context="writing" delay={140} />}
-          {kanjiSearchQuery.isError && (
-            <ContextualErrorState
-              variant="inline"
-              compact
-              error={kanjiSearchQuery.error}
-              title={tr('Chưa tìm được dữ liệu Kanji')}
-              onRetry={() => kanjiSearchQuery.refetch()}
-              retrying={kanjiSearchQuery.isFetching}
-            />
-          )}
-          {kanjiSearchQuery.isSuccess && (kanjiSearchQuery.data?.items || []).length === 0 && (
-            <p className="py-4 text-center text-sm text-rp-text-muted">{tr('Không tìm thấy chữ Kanji phù hợp.')}</p>
-          )}
-          {kanjiSearchQuery.isSuccess && (kanjiSearchQuery.data?.items || []).length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {(kanjiSearchQuery.data?.items || []).map((item) => {
-                const stored = savedKanjiIds.has(item.id);
-                return (
-                  <div key={item.id} className="flex gap-3 rounded-2xl border border-rp-line p-3.5">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedKanjiDetail(item)}
-                      className="rp-focus flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-[32px] font-bold text-rp-brand-deep hover:bg-rp-brand-soft"
-                      aria-label={trf('Xem chi tiết chữ {0}', { 0: item.character })}
-                    >
-                      {item.character}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold text-rp-text">{item.meaning}</p>
-                      <p className="mt-0.5 truncate text-[12px] text-rp-text-muted">
-                        {[item.onYomi && `On: ${item.onYomi}`, item.kunYomi && `Kun: ${item.kunYomi}`].filter(Boolean).join(' · ')}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedKanjiDetail(item)}>
-                          {tr('Chi tiết')}
-                        </Button>
-                        <button
-                          type="button"
-                          disabled={stored || saveKanjiBookmark.isPending}
-                          onClick={() => saveKanjiBookmark.mutate(item)}
-                          className={`h-7.5 rounded-full px-3 text-[11.5px] font-semibold ${
-                            stored ? 'bg-emerald-50 text-emerald-700' : 'border border-rp-brand-border text-rp-brand-strong hover:bg-rp-brand-tint'
-                          }`}
-                        >
-                          {stored ? tr('Đã có trong sổ') : tr('Lưu Kanji')}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <Drawer
-            open={Boolean(selectedKanjiDetail)}
-            onClose={() => setSelectedKanjiDetail(null)}
-            title={selectedKanjiDetail ? `Kanji: ${selectedKanjiDetail.character}` : ''}
-            width="w-[min(420px,100vw)]"
-          >
-            {selectedKanjiDetail && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 rounded-xl border border-rp-line bg-rp-bg-2 p-4">
-                  <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-rp-brand-tint text-5xl font-bold text-rp-brand-deep">
-                    {selectedKanjiDetail.character}
-                  </span>
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-base font-bold text-rp-text">{selectedKanjiDetail.meaning}</p>
-                    {selectedKanjiDetail.sinoVietnamese && (
-                      <p className="text-xs text-rp-text-2">{tr('Hán Việt')}: {selectedKanjiDetail.sinoVietnamese}</p>
-                    )}
-                    {selectedKanjiDetail.jlptLevelName && (
-                      <span className="inline-block rounded-full bg-rp-brand-tint px-2 py-0.5 text-xs font-semibold text-rp-brand-strong">
-                        JLPT {selectedKanjiDetail.jlptLevelName}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <dl className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
-                    <dt className="text-rp-text-muted">Onyomi</dt>
-                    <dd className="mt-0.5 font-semibold text-rp-text">{selectedKanjiDetail.onYomi || '—'}</dd>
-                  </div>
-                  <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
-                    <dt className="text-rp-text-muted">Kunyomi</dt>
-                    <dd className="mt-0.5 font-semibold text-rp-text">{selectedKanjiDetail.kunYomi || '—'}</dd>
-                  </div>
-                </dl>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={savedKanjiIds.has(selectedKanjiDetail.id) || saveKanjiBookmark.isPending}
-                    onClick={() => saveKanjiBookmark.mutate(selectedKanjiDetail)}
-                  >
-                    {savedKanjiIds.has(selectedKanjiDetail.id) ? tr('Đã có trong sổ') : tr('Lưu vào Sổ tay')}
+            ) : activePageDetail ? (
+              <ActivePageEditorPane
+                key={`${activePageDetail.id}-${reloadNonce}`}
+                pageDetail={activePageDetail}
+                uid={nb.uid}
+                nb={nb}
+                flushRef={flushActivePageRef}
+                onNavigateSelection={navigateSelection}
+                onOpenRenameMove={(detail) => setRenameMoveTarget({ kind: 'page', item: detail })}
+                onDeletePage={(detail) => handleDeleteNode({ kind: 'page', item: detail })}
+                onOpenLookup={() => setLookupDrawer({ open: true, mode: 'vocab-bank' })}
+                onOpenCreateItem={() => setCreateModal({
+                  open: true,
+                  kind: 'item',
+                  folderId: activePageDetail.folderId,
+                  fileId: activePageDetail.fileId,
+                  pageId: activePageDetail.id,
+                })}
+                onOpenItemDrawer={(item) => setActiveItemDrawer(item)}
+                onReloadLatest={handleReloadLatestAfterConflict}
+              />
+            ) : null
+          ) : (
+            <div className="rounded-2xl border border-rp-line bg-white p-6">
+              <ContextualEmptyState
+                variant="compact"
+                framed={false}
+                illustration="flashcard"
+                title={hasEntriesInScope ? tr('Chọn một trang hoặc mục để xem') : tr('Bắt đầu cuốn sổ tay đầu tiên của bạn')}
+                description={tr('Tạo thư mục, tệp ghi chú và trang mới để viết bài học hoặc lưu kiến thức trọng tâm.')}
+                action={(
+                  <Button type="button" variant="primary" size="md" icon={Plus} onClick={handleBannerCreate}>
+                    {tr('Tạo mới')}
                   </Button>
-                  <Button variant="secondary" size="sm" icon={Volume2} onClick={() => speakJapanese(selectedKanjiDetail.character)}>
-                    {tr('Nghe')}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Drawer>
-        </section>
-      ) : (
-        /* 3-Column Smart Notebook Workspace */
-        <div className="grid items-start gap-3 lg:grid-cols-[260px_minmax(280px,360px)_minmax(0,1fr)]">
-          {/* LEFT: Folder -> Note Page Navigator */}
-          <aside className="rounded-2xl border border-rp-line bg-white p-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">{tr('Thư mục & Trang')}</span>
-              <button
-                type="button"
-                onClick={() => setNewFolderModal((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg bg-rp-brand-tint px-2 py-1 text-[11px] font-semibold text-rp-brand-strong hover:bg-rp-brand-soft"
-              >
-                <FolderPlus className="h-3 w-3" /> {tr('Thư mục')}
-              </button>
-            </div>
-
-            {newFolderModal && (
-              <form onSubmit={handleCreateFolderAndPage} className="flex gap-1.5">
-                <input
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder={tr('Tên thư mục (VD: JLPT N4)')}
-                  className="h-8 min-w-0 flex-1 rounded-lg border border-rp-line px-2.5 text-[12px]"
-                />
-                <button type="submit" className="h-8 rounded-lg bg-rp-brand-pressed px-2.5 text-[11.5px] font-semibold text-white">
-                  {tr('Tạo')}
-                </button>
-              </form>
-            )}
-
-            {/* Special views */}
-            <div className="space-y-1 text-[12.5px]">
-              <button
-                type="button"
-                onClick={() => { setSelectedFolderFilter('__ALL__'); setPickedNoteId(null); }}
-                className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 font-semibold transition-colors ${
-                  selectedFolderFilter === '__ALL__' && !pickedNoteId ? 'bg-rp-brand-tint text-rp-brand-strong' : 'text-rp-text-2 hover:bg-rp-bg-2'
-                }`}
-              >
-                <span className="flex items-center gap-2"><BookOpen className="h-3.5 w-3.5" /> {tr('Tất cả mục đã lưu')}</span>
-                <span className="text-[11px] opacity-75">{nb.allEntries.length}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setSelectedFolderFilter('__FAVORITES__'); setPickedNoteId(null); }}
-                className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 font-semibold transition-colors ${
-                  selectedFolderFilter === '__FAVORITES__' ? 'bg-rp-brand-tint text-rp-brand-strong' : 'text-rp-text-2 hover:bg-rp-bg-2'
-                }`}
-              >
-                <span className="flex items-center gap-2"><Star className="h-3.5 w-3.5 text-amber-500" /> {tr('Trang yêu thích')}</span>
-                <span className="text-[11px] opacity-75">{notePages.filter((p) => p.favorite).length}</span>
-              </button>
-            </div>
-
-            {/* Folders tree */}
-            <div className="space-y-2 border-t border-rp-line pt-2.5">
-              {folderGroups.map((folder) => (
-                <div key={folder.name} className="space-y-1">
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-bold text-rp-text">
-                    <span className="flex items-center gap-1.5 truncate">
-                      <SakuraFolderIcon open className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{folder.name}</span>
-                    </span>
-                    <span className="text-[10.5px] font-medium text-rp-text-muted">{folder.totalEntries}</span>
-                  </div>
-                  <div className="space-y-0.5 pl-3">
-                    {folder.pages.map((page) => {
-                      const active = pickedNoteId === page.id || (!pickedNoteId && selectedFolderFilter === folder.name && activeNotePage?.id === page.id);
-                      return (
-                        <div key={page.id} className="group flex items-center gap-1">
-                          {renamingNoteId === page.id ? (
-                            <form
-                              className="flex flex-1 gap-1"
-                              onSubmit={async (e) => {
-                                e.preventDefault();
-                                if (!renamingNoteValue.trim()) return;
-                                await nb.updateNotePage.mutateAsync({ ...page, title: renamingNoteValue.trim() });
-                                setRenamingNoteId(null);
-                              }}
-                            >
-                              <input
-                                autoFocus
-                                value={renamingNoteValue}
-                                onChange={(e) => setRenamingNoteValue(e.target.value)}
-                                className="h-7 min-w-0 flex-1 rounded-lg border border-rp-brand-border px-2 text-[12px]"
-                              />
-                              <button type="submit" className="rounded-lg bg-rp-brand-pressed px-2 text-[11px] font-semibold text-white">{tr('Lưu')}</button>
-                            </form>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedFolderFilter(folder.name);
-                                  setPickedNoteId(page.id);
-                                }}
-                                className={`flex min-w-0 flex-1 items-center justify-between gap-1.5 rounded-lg px-2 py-1.5 text-left text-[12.5px] transition-colors ${
-                                  active ? 'bg-[#FFF0F4] font-semibold text-rp-brand-strong' : 'text-rp-text-2 hover:bg-rp-bg-2'
-                                }`}
-                              >
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                  <SakuraNotePageIcon className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="truncate">{page.title}</span>
-                                </span>
-                                <span className="shrink-0 text-[11px] text-rp-text-muted">{page.entryCount}</span>
-                              </button>
-                              <button
-                                type="button"
-                                title={tr('Đổi tên trang')}
-                                onClick={() => { setRenamingNoteId(page.id); setRenamingNoteValue(page.title); }}
-                                className="hidden rounded p-1 text-rp-text-muted hover:bg-rp-bg-2 group-hover:inline-flex"
-                              >
-                                <Pencil className="h-3 w-3" aria-hidden="true" />
-                              </button>
-                              <button
-                                type="button"
-                                title={tr('Xóa trang')}
-                                onClick={() => handleDeleteNotePage(page)}
-                                className="hidden rounded p-1 text-rp-text-muted hover:bg-red-50 hover:text-red-700 group-hover:inline-flex"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-
-              {/* New Note Page inline form */}
-              <form
-                onSubmit={(e) => handleCreateNotePage(e, activeNotePage?.folder || DEFAULT_FOLDER_NAME)}
-                className="flex gap-1.5 pt-2"
-              >
-                <input
-                  value={creatingNoteTitle}
-                  onChange={(e) => setCreatingNoteTitle(e.target.value)}
-                  placeholder={tr('+ Trang mới (VD: Từ mới bài 3)')}
-                  className="h-8 min-w-0 flex-1 rounded-lg border border-rp-line bg-[#FCFAFB] px-2.5 text-[12px]"
-                />
-                {creatingNoteTitle.trim() && (
-                  <button type="submit" className="h-8 rounded-lg bg-rp-brand-pressed px-2.5 text-[11.5px] font-semibold text-white">
-                    {tr('Tạo')}
-                  </button>
                 )}
-              </form>
+              />
             </div>
-          </aside>
+          )}
+        </main>
+      </div>
 
-          {/* MIDDLE: Search, Filter & Saved Entries */}
-          <section className="rounded-2xl border border-rp-line bg-white p-3 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <label className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-rp-text-muted" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={tr('Tìm từ, ghi chú, nguồn học…')}
-                  className="h-9 w-full rounded-xl border border-rp-line bg-[#FCFAFB] pl-8.5 pr-3 text-[12.5px]"
-                />
-              </label>
-              <div className="w-32 shrink-0">
-                <CustomSelect
-                  size="sm"
-                  aria-label={tr('Sắp xếp')}
-                  value={sortBy}
-                  onChange={setSortBy}
-                  options={[
-                    { value: 'recent', label: tr('Mới nhất') },
-                    { value: 'alpha', label: tr('Theo chữ') },
-                    { value: 'srs', label: tr('Ưu tiên SRS') },
-                  ]}
-                />
-              </div>
-            </div>
+      <Drawer
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        side="left"
+        size="sm"
+        title={tr('Sổ tay cá nhân')}
+      >
+        <NotebookNavTree {...navTreeProps} />
+      </Drawer>
 
-            <div className="flex flex-wrap gap-1">
-              {NOTEBOOK_CONTENT_KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  onClick={() => setKindFilter(k.id)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                    kindFilter === k.id ? 'bg-rp-brand-pressed text-white' : 'bg-rp-bg-2 text-rp-text-2 hover:bg-rp-brand-tint'
-                  }`}
-                >
-                  {tr(k.label)}
-                </button>
-              ))}
-            </div>
+      <NotebookCreateModal
+        open={createModal.open}
+        onClose={() => setCreateModal((prev) => ({ ...prev, open: false }))}
+        initialKind={createModal.kind}
+        initialFolderId={createModal.folderId}
+        initialFileId={createModal.fileId}
+        initialPageId={createModal.pageId}
+        folders={nb.folders}
+        allFiles={nb.allFiles}
+        allPages={nb.notePages}
+        onCreateFolder={(payload) => nb.createFolder.mutateAsync(payload)}
+        onCreateFile={(payload) => nb.createFile.mutateAsync(payload)}
+        onCreatePage={(payload) => nb.createPage.mutateAsync(payload)}
+        onAddSavedItem={(payload) => nb.addSavedItem.mutateAsync(payload)}
+        onSuccessCreated={({ kind, created }) => {
+          if (kind === 'folder' && created?.id) {
+            setExpandedFolders((prev) => ({ ...prev, [created.id]: true }));
+            setExplicitSelection({ view: 'folder', id: created.id });
+          } else if (kind === 'file' && created?.id) {
+            if (created.folderId) setExpandedFolders((prev) => ({ ...prev, [created.folderId]: true }));
+            setExpandedFiles((prev) => ({ ...prev, [created.id]: true }));
+            if (created.pages?.[0]?.id) {
+              setExplicitSelection({ view: 'page', id: created.pages[0].id });
+            } else {
+              setExplicitSelection({ view: 'file', id: created.id });
+            }
+          } else if (kind === 'page' && created?.id) {
+            if (created.folderId) setExpandedFolders((prev) => ({ ...prev, [created.folderId]: true }));
+            if (created.fileId) setExpandedFiles((prev) => ({ ...prev, [created.fileId]: true }));
+            setExplicitSelection({ view: 'page', id: created.id });
+          } else if (kind === 'item' && created?.notebookPageId) {
+            setExplicitSelection({ view: 'page', id: created.notebookPageId });
+          }
+        }}
+      />
 
-            <div className="max-h-[540px] space-y-1.5 overflow-y-auto pr-0.5">
-              {visibleEntries.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-rp-line bg-[#FCFAFB] px-4 py-8 text-center text-[12.5px] text-rp-text-muted">
-                  <Sparkles className="mx-auto mb-2 h-5 w-5 text-rp-brand-strong/70" />
-                  <p>{tr('Chưa có mục nào khớp bộ lọc.')}</p>
-                  <p className="mt-1 text-[11.5px]">{tr('Bấm "Thêm nhanh" hoặc bôi đen chữ khi đọc bài học để lưu.')}</p>
-                </div>
-              ) : visibleEntries.map((entry) => {
-                const selected = activeEntry?.noteEntryId === entry.noteEntryId;
-                const tone = getHighlightColorMeta(entry.color);
-                return (
-                  <button
-                    key={entry.noteEntryId}
-                    type="button"
-                    onClick={() => setPickedEntryId(entry.noteEntryId)}
-                    className={`w-full rounded-xl border p-2.5 text-left transition-colors ${
-                      selected
-                        ? 'border-rp-brand-pressed bg-[#FFF5F7]'
-                        : 'border-rp-line bg-white hover:border-rp-brand-border'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="font-bold text-rp-text">{entry.term}</span>
-                        {entry.reading && <span className="ml-1.5 text-[11.5px] text-rp-brand-strong">{entry.reading}</span>}
-                      </div>
-                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone.bgClass} ${tone.borderClass} ${tone.textClass}`}>
-                        {tr(NOTEBOOK_CONTENT_KINDS.find((k) => k.id === entry.kind)?.label || entry.kind)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 line-clamp-2 text-[12px] text-rp-text-2">{entry.meaning}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-rp-text-muted">
-                      {entry.hasSrs && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
-                          <Repeat className="h-2.5 w-2.5" /> SRS
-                        </span>
-                      )}
-                      {entry.sourceTitle && (
-                        <span className="inline-flex items-center gap-1 truncate">
-                          <MapPin className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
-                          <span className="truncate">{entry.sourceTitle}</span>
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+      <NotebookRenameMoveModal
+        target={renameMoveTarget}
+        onClose={() => setRenameMoveTarget(null)}
+        folders={nb.folders}
+        allFiles={nb.allFiles}
+        onRenameFolder={(payload) => nb.renameFolder.mutateAsync(payload)}
+        onUpdateFile={(payload) => nb.updateFile.mutateAsync(payload)}
+        onUpdatePage={handleUpdatePage}
+      />
 
-          {/* RIGHT: Rich Note Page Editor & Selected Entry Inspector */}
-          <main className="space-y-3">
-            {/* Active Note Page Editor */}
-            {activeNotePage && (
-              <section className="rounded-2xl border border-rp-line bg-white p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line pb-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <SakuraNotePageIcon className="h-5 w-5 shrink-0" />
-                    <div className="min-w-0">
-                      <h2 className="truncate text-[16px] font-bold text-rp-text">{activeNotePage.title}</h2>
-                      <p className="text-[11.5px] text-rp-text-muted">
-                        <FolderOpen className="mr-1 inline h-3 w-3" />
-                        {activeNotePage.folder}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      title={activeNotePage.favorite ? tr('Bỏ yêu thích') : tr('Đánh dấu yêu thích')}
-                      onClick={() => nb.updateNotePage.mutate({ ...activeNotePage, summary: editorSummary, body: editorBody, favorite: !activeNotePage.favorite })}
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border ${
-                        activeNotePage.favorite ? 'border-amber-300 bg-amber-50 text-amber-600' : 'border-rp-line text-rp-text-muted hover:bg-rp-bg-2'
-                      }`}
-                    >
-                      <Star className="h-3.5 w-3.5" />
-                    </button>
-                    <div className="w-40 shrink-0">
-                      <CustomSelect
-                        size="sm"
-                        aria-label={tr('Di chuyển trang sang thư mục')}
-                        value={activeNotePage.folder}
-                        onChange={(val) => nb.updateNotePage.mutate({ ...activeNotePage, summary: editorSummary, body: editorBody, folder: val })}
-                        options={folderGroups.map((f) => ({ value: f.name, label: `${tr('Thư mục')}: ${f.name}` }))}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={nb.updateNotePage.isPending}
-                      onClick={handleManualSavePage}
-                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-rp-brand-pressed px-3 text-[12px] font-semibold text-white hover:bg-rp-brand-strong"
-                    >
-                      <Save className="h-3.5 w-3.5" />
-                      <span>{editorDirty ? tr('Lưu ngay*') : tr('Lưu trang')}</span>
-                    </button>
-                  </div>
-                </div>
+      <SavedItemDetailDrawer
+        item={resolvedItemDrawer}
+        open={Boolean(resolvedItemDrawer)}
+        onClose={() => {
+          setActiveItemDrawer(null);
+          if (paramEntryId) {
+            setDismissedEntryParam(true);
+            const next = new URLSearchParams(searchParams);
+            next.delete('entryId');
+            setSearchParams(next, { replace: true });
+          }
+        }}
+        allPages={nb.notePages}
+        folders={nb.folders}
+        onOpenPage={(pid) => navigateSelection('page', pid)}
+        onUpdateItem={async (payload) => {
+          const updated = await nb.updateEntry.mutateAsync(payload);
+          if (updated) setActiveItemDrawer(mapSavedItemDto(updated));
+        }}
+        onMoveItem={async (entryId, nextPageId, revision) => {
+          const updated = await nb.updateEntry.mutateAsync({
+            noteEntryId: entryId,
+            notebookPageId: nextPageId,
+            expectedRevision: revision,
+          });
+          if (updated) setActiveItemDrawer(mapSavedItemDto(updated));
+        }}
+        onEnrollSrs={async (entryId) => {
+          const updated = await nb.enrollToSrs.mutateAsync(entryId);
+          if (updated) setActiveItemDrawer(mapSavedItemDto(updated));
+        }}
+        onDeleteItem={(entryId) => nb.deleteEntry.mutateAsync(entryId)}
+        updating={nb.updateEntry.isPending}
+        enrolling={nb.enrollToSrs.isPending}
+        deleting={nb.deleteEntry.isPending}
+      />
 
-                {/* Formatting Toolbar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-[#FCFAFB] px-2.5 py-1.5 text-[11.5px]">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <button type="button" onClick={() => applyEditorFormat('## ', '', 'Tiêu đề')} className="rounded px-2 py-1 font-bold hover:bg-white">H2</button>
-                    <button type="button" onClick={() => applyEditorFormat('**', '**', 'chữ đậm')} className="rounded px-2 py-1 font-bold hover:bg-white">B</button>
-                    <button type="button" onClick={() => applyEditorFormat('*', '*', 'chữ nghiêng')} className="rounded px-2 py-1 italic hover:bg-white">I</button>
-                    <button type="button" title={tr('Đánh dấu nổi bật')} aria-label={tr('Đánh dấu nổi bật')} onClick={() => applyEditorFormat('==', '==', 'nội dung quan trọng')} className="inline-flex items-center gap-1 rounded bg-[#FCE8EF] px-2 py-1 font-semibold text-[#8C2D4B] hover:brightness-95"><Highlighter className="h-3 w-3" aria-hidden="true" /><span>{tr('Đánh dấu')}</span></button>
-                    <button type="button" onClick={() => applyEditorFormat('`', '`', '日本語')} className="rounded px-2 py-1 font-semibold text-rp-brand-strong hover:bg-white">あ/漢</button>
-                    <button type="button" onClick={() => applyEditorFormat('- ', '', 'Ý chính')} className="rounded px-2 py-1 hover:bg-white">• List</button>
-                    <button type="button" onClick={() => applyEditorFormat('1. ', '', 'Bước 1')} className="rounded px-2 py-1 hover:bg-white">1. List</button>
-                  </div>
-                  <div className="inline-flex rounded-lg border border-rp-line bg-white p-0.5 text-[11px]">
-                    {['write', 'split', 'preview'].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setEditorMode(m)}
-                        className={`rounded px-2 py-0.5 font-semibold ${editorMode === m ? 'bg-rp-brand-tint text-rp-brand-strong' : 'text-rp-text-muted'}`}
-                      >
-                        {m === 'write' ? tr('Soạn') : m === 'preview' ? tr('Xem') : tr('Song song')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Editor + Safe Preview */}
-                <div className={`grid gap-3 ${editorMode === 'split' ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
-                  {editorMode !== 'preview' && (
-                    <textarea
-                      ref={textareaRef}
-                      rows={6}
-                      value={editorBody}
-                      onChange={(e) => { setEditorBody(e.target.value); setEditorDirty(true); }}
-                      onKeyDown={(e) => {
-                        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-                          e.preventDefault();
-                          applyEditorFormat('**', '**', 'chữ đậm');
-                        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
-                          e.preventDefault();
-                          applyEditorFormat('*', '*', 'chữ nghiêng');
-                        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-                          e.preventDefault();
-                          void handleManualSavePage();
-                        }
-                      }}
-                      placeholder={tr('Viết tóm tắt bài học, cấu trúc ngữ pháp, ví dụ tiếng Nhật (`日本語`) và ghi chú cá nhân tại đây…')}
-                      className="w-full rounded-xl border border-rp-line bg-white p-3 text-[13px] leading-relaxed"
-                    />
-                  )}
-                  {editorMode !== 'write' && (
-                    <div className="max-h-[210px] overflow-y-auto rounded-xl border border-rp-line bg-[#FCFAFB] p-3">
-                      <SafeRichNoteRenderer content={editorBody} />
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Selected Saved Entry Inspector */}
-            {activeEntry && (
-              <section className="rounded-2xl border border-rp-line bg-white p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-[20px] font-bold text-rp-text">{activeEntry.term}</h3>
-                      {activeEntry.reading && <span className="rounded-full bg-rp-brand-tint px-2.5 py-0.5 text-[12px] font-semibold text-rp-brand-strong">{activeEntry.reading}</span>}
-                      <button
-                        type="button"
-                        onClick={() => speakJapanese(activeEntry.term)}
-                        title={tr('Nghe phát âm')}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-rp-line text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-                      >
-                        <Volume2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    {activeEntry.sourcePath && (
-                      <Link
-                        to={activeEntry.sourcePath}
-                        className="rp-link mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-rp-brand-strong"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        <span>{tr('Quay lại nguồn học')}: {activeEntry.sourceTitle || activeEntry.sourcePath}</span>
-                      </Link>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {activeEntry.hasSrs ? (
-                      <span className="inline-flex h-8 items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[12px] font-semibold text-emerald-700">
-                        <Check className="h-3.5 w-3.5" /> {tr('Đã có trong SRS')}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={nb.enrollToSrs.isPending}
-                        onClick={async () => {
-                          await nb.enrollToSrs.mutateAsync(activeEntry.noteEntryId);
-                          notify.success(tr('Đã thêm vào hàng chờ ôn tập SRS'), '');
-                        }}
-                        className="inline-flex h-8 items-center gap-1 rounded-xl border border-rp-brand-border bg-rp-brand-tint px-3 text-[12px] font-semibold text-rp-brand-strong hover:bg-rp-brand-soft"
-                      >
-                        <Repeat className="h-3.5 w-3.5" /> {tr('Thêm vào ôn tập SRS')}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const ok = await confirmAction({ title: tr('Xóa mục này khỏi Sổ tay?'), confirmLabel: tr('Xóa') });
-                        if (ok) await nb.deleteEntry.mutateAsync(activeEntry.noteEntryId);
-                      }}
-                      className="inline-flex h-8 items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-2.5 text-[12px] font-semibold text-red-700 hover:bg-red-100"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Read-only shared vocabulary notice if linked to shared bank */}
-                {(activeEntry.vocabularyId || activeEntry.kanjiId) ? (
-                  <div className="rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2 text-[12.5px]">
-                    <span className="font-semibold text-rp-text">{tr('Nghĩa từ điển gốc')}:</span> {activeEntry.meaning}
-                    <span className="ml-2 text-[11px] text-rp-text-muted">({tr('Dữ liệu từ điển chung được bảo toàn; bạn chỉ chỉnh ghi chú cá nhân bên dưới')})</span>
-                  </div>
-                ) : (
-                  <label className="block text-[12px] font-semibold text-rp-text-2">
-                    {tr('Nghĩa / Nội dung chính')}
-                    <input
-                      value={entryMeaningDraft}
-                      onChange={(e) => setEntryMeaningDraft(e.target.value)}
-                      className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px] font-normal"
-                    />
-                  </label>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11.5px] font-semibold text-rp-text-muted">{tr('Màu highlight')}:</span>
-                    {HIGHLIGHT_COLORS.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => nb.updateEntry.mutate({
-                          noteEntryId: activeEntry.noteEntryId,
-                          personalNote: entryPersonalNoteDraft,
-                          meta: { ...activeEntry, color: c.id },
-                        })}
-                        style={{ backgroundColor: c.markBg, borderColor: c.markBorder }}
-                        className={`h-5 w-5 rounded-full border ${activeEntry.color === c.id ? 'ring-2 ring-rp-brand-pressed ring-offset-1' : 'opacity-80'}`}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="w-56 shrink-0">
-                    <CustomSelect
-                      size="sm"
-                      aria-label={tr('Chuyển sang trang ghi chú khác')}
-                      value={String(activeNotePage?.id || activeEntry.learnerNoteId || '')}
-                      onChange={(val) => nb.updateEntry.mutate({
-                        noteEntryId: activeEntry.noteEntryId,
-                        learnerNoteId: Number(val),
-                        personalNote: entryPersonalNoteDraft,
-                        meta: activeEntry,
-                      })}
-                      options={notePages.map((p) => ({
-                        value: String(p.id),
-                        label: `${tr('Chuyển tới')}: ${p.folder} / ${p.title}`,
-                      }))}
-                    />
-                  </div>
-                </div>
-
-                <label className="block text-[12px] font-semibold text-rp-text-2">
-                  {tr('Ghi chú cá nhân')}
-                  <textarea
-                    rows={3}
-                    value={entryPersonalNoteDraft}
-                    onChange={(e) => setEntryPersonalNoteDraft(e.target.value)}
-                    placeholder={tr('Ghi lại cách dùng, mẹo nhớ hoặc ví dụ riêng của bạn…')}
-                    className="mt-1 w-full rounded-xl border border-rp-line p-2.5 text-[13px] font-normal"
-                  />
-                </label>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    disabled={nb.updateEntry.isPending}
-                    onClick={async () => {
-                      await nb.updateEntry.mutateAsync({
-                        noteEntryId: activeEntry.noteEntryId,
-                        meaning: activeEntry.vocabularyId || activeEntry.kanjiId ? null : entryMeaningDraft,
-                        personalNote: entryPersonalNoteDraft,
-                        meta: activeEntry,
-                      });
-                      notify.success(tr('Đã cập nhật ghi chú cá nhân'), '');
-                    }}
-                    className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-4 text-[12px] font-semibold text-white hover:bg-rp-brand-strong"
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    <span>{tr('Lưu thay đổi mục')}</span>
-                  </button>
-                </div>
-              </section>
-            )}
-          </main>
-        </div>
-      )}
+      <NotebookLookupDrawer
+        open={lookupOpen}
+        onClose={() => {
+          setLookupDrawer((prev) => ({ ...prev, open: false }));
+          if (paramTab) {
+            setDismissedTabParam(true);
+            const next = new URLSearchParams(searchParams);
+            next.delete('tab');
+            setSearchParams(next, { replace: true });
+          }
+        }}
+        initialMode={lookupMode}
+        nb={nb}
+        activePage={activePageDetail || activePageSummary || null}
+        notePages={nb.notePages}
+      />
     </div>
+  );
+}
+
+export { NotebookVocabLookupSection };
+
+function SaveStatusIndicator({ status, dirty, onRetry }) {
+  const { tr } = useLocale();
+
+  if (status === 'saving') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-rp-bg-2 px-2.5 py-0.5 text-[11.5px] font-medium text-rp-text-2">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span>{tr('Đang lưu…')}</span>
+      </span>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-rp-danger-bg px-2.5 py-0.5 text-[11.5px] font-semibold text-rp-danger">
+        <AlertCircle className="h-3 w-3" />
+        <span>{tr('Lưu thất bại')}</span>
+        <button type="button" onClick={onRetry} className="underline hover:no-underline">
+          {tr('Thử lại')}
+        </button>
+      </span>
+    );
+  }
+
+  if (dirty || status === 'dirty') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11.5px] font-medium text-amber-800">
+        <span>{tr('Chưa lưu…')}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11.5px] font-semibold text-emerald-700">
+      <CheckCircle2 className="h-3 w-3" />
+      <span>{tr('Đã lưu')}</span>
+    </span>
   );
 }

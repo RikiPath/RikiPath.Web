@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, BookOpen, CheckCircle2, Clock3, Headphones, LockKeyhole, NotebookPen, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, Headphones, LockKeyhole, NotebookPen, PauseCircle, Sparkles } from 'lucide-react';
 import { SpotArt } from '@/assets/illustrations/SpotArt.jsx';
 import { Button, Modal, cx } from '@/components/ui';
+import { LearningPathUnlockGuide } from '@/features/learning-path/components/LearningPathUnlockGuide.jsx';
 import { useLocale } from '@/locales/locale.js';
-import { ACCESS } from '../featureAccess.js';
+import { ACCESS, LOCK_KIND, featureLockKind } from '../featureAccess.js';
 import { useStudyAccess } from '../useStudyAccess.js';
 import { LOCK_REASON, UnlockContext, plansLinkState, unlockInfoFor, useStudyUnlock } from '../studyUnlock.js';
 
@@ -12,7 +13,7 @@ import { LOCK_REASON, UnlockContext, plansLinkState, unlockInfoFor, useStudyUnlo
 const BENEFITS = [
   { icon: BookOpen, text: 'Toàn bộ bài học JLPT theo cấp độ, kèm bài luyện tập' },
   { icon: Headphones, text: 'Bài nghe hiểu và đọc hiểu có câu hỏi luyện tập' },
-  { icon: NotebookPen, text: 'Sổ tay từ vựng và Hán tự cá nhân' },
+  { icon: NotebookPen, text: 'Lưu tiến độ học tập, đánh dấu & đồng bộ ôn tập SRS' },
   { icon: Sparkles, text: 'Lượt góp ý AI đi kèm theo từng gói' },
 ];
 
@@ -45,7 +46,7 @@ export function StudyUnlockContent({ featureLabel, description, status, compact 
         {description && <p className="mt-1.5 text-sm leading-6 text-rp-text-2">{tr(description)}</p>}
         <ul className="mt-3.5 grid gap-2 sm:grid-cols-2">
           {BENEFITS.map(({ icon: Icon, text }) => (
-            <li key={text} className="flex items-start gap-2 rounded-xl bg-rp-bg-2 px-3 py-2 text-[13px] leading-5 text-rp-text-2">
+            <li key={text} className="flex items-start gap-2 rounded-xl border border-rp-line bg-white px-3 py-2 text-[13px] leading-5 text-rp-text-2">
               <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-brand-strong" />
               {tr(text)}
             </li>
@@ -70,7 +71,7 @@ export function StudyUnlockContent({ featureLabel, description, status, compact 
  * Keyboard: focus-trapped by Modal, Escape / backdrop / "Để sau" close it. Works with touch.
  */
 export function StudyUnlockDialog({ target, status, onClose }) {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const navigate = useNavigate();
   const open = Boolean(target);
   const explore = () => {
@@ -78,6 +79,64 @@ export function StudyUnlockDialog({ target, status, onClose }) {
     onClose();
     navigate('/plans/', { state: plansLinkState(info.path, info.featureLabel) });
   };
+
+  // An Admin suspension is not a purchase problem: no plan CTA, no "you lack a plan/credits" wording.
+  if (target?.kind === LOCK_KIND.ADMIN_DISABLED) {
+    return (
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={tr('Tính năng đang tạm ngừng cung cấp')}
+        size="sm"
+        footer={<Button onClick={onClose}>{tr('Đã hiểu')}</Button>}
+      >
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rp-muted text-rp-text-2">
+            <PauseCircle className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold text-rp-text">{tr(target.featureLabel)}</p>
+            <p className="mt-1 text-sm leading-6 text-rp-text-2">
+              {tr('Tính năng này hiện chưa khả dụng. Bạn có thể quay lại sử dụng khi hệ thống mở lại.')}
+            </p>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (target?.kind === LOCK_KIND.CREDIT || target?.kind === LOCK_KIND.PLAN_AND_CREDIT) {
+    const needsPlan = target.kind === LOCK_KIND.PLAN_AND_CREDIT;
+    return (
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={needsPlan ? tr('Tính năng cần gói học và lượt AI') : tr('Tính năng cần lượt AI')}
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={onClose}>{tr('Để sau')}</Button>
+            <Button onClick={explore} iconRight={ArrowRight}>{tr('Xem các gói học')}</Button>
+          </>
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rp-brand-tint text-rp-brand-strong">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold text-rp-text">{trf('Mở khóa {0}', { 0: tr(target.featureLabel) })}</p>
+            <p className="mt-1 text-sm leading-6 text-rp-text-2">
+              {needsPlan
+                ? tr('Bạn cần có gói học phù hợp và lượt AI để sử dụng tính năng này.')
+                : tr('Bạn cần thêm lượt AI để sử dụng tính năng này.')}
+            </p>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       open={open}
@@ -96,21 +155,57 @@ export function StudyUnlockDialog({ target, status, onClose }) {
   );
 }
 
+export function LearningPathUnlockDialog({ open, roadmapAccess, onClose }) {
+  const { tr } = useLocale();
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={tr('Lộ trình của tôi')}
+      size="lg"
+    >
+      <LearningPathUnlockGuide
+        compact
+        flow={roadmapAccess}
+        targetLevelName={roadmapAccess?.profile?.targetJlptLevelName}
+        latestAttemptId={roadmapAccess?.placementStatus?.latestCompletedAttemptId}
+        onNavigate={onClose}
+        headingAs="h3"
+      />
+    </Modal>
+  );
+}
+
 /* ------------------------------------------------------------------ app-wide controller */
 
 /**
- * Hosts one unlock dialog for a whole shell. Consumers call `requestUnlock(to, label)`.
- * Falls back to a local dialog when used outside a provider (e.g. a page rendered in isolation).
+ * Hosts unlock dialogs for a whole shell (`[RequireFeature]` / self-study routes).
+ * Consumers call `requestUnlock(to, label)`.
  */
 export function StudyUnlockProvider({ children }) {
-  const access = useStudyAccess();
+  const studyAccess = useStudyAccess();
   const [target, setTarget] = useState(null);
-  const requestUnlock = useCallback((to, label) => setTarget(unlockInfoFor(to, label)), []);
+
+  const features = studyAccess.features;
+  const requestUnlock = useCallback((to, label) => {
+    setTarget({ ...unlockInfoFor(to, label), kind: featureLockKind(to, features) ?? LOCK_KIND.PLAN });
+  }, [features]);
+
+  const access = useMemo(
+    () => ({
+      ...studyAccess,
+      lockStateFor: (to) => studyAccess.lockStateFor(to),
+      lockReasonFor: (to) => studyAccess.lockReasonFor(to),
+      isLocked: (to) => studyAccess.isLocked(to),
+    }),
+    [studyAccess],
+  );
+
   const value = useMemo(() => ({ access, requestUnlock }), [access, requestUnlock]);
   return (
     <UnlockContext.Provider value={value}>
       {children}
-      <StudyUnlockDialog target={target} status={access.status} onClose={() => setTarget(null)} />
+      <StudyUnlockDialog target={target} status={studyAccess.status} onClose={() => setTarget(null)} />
     </UnlockContext.Provider>
   );
 }
@@ -129,7 +224,10 @@ export function FeatureLink({ to, label, className, children, showLock = true, s
   if (access.lockStateFor(to) !== 'locked') {
     return <Link to={to} state={state} className={className} {...rest}>{children}</Link>;
   }
-  const open = () => (ctx ? ctx.requestUnlock(to, label) : setLocalTarget(unlockInfoFor(to, label)));
+  const open = () => (ctx
+    ? ctx.requestUnlock(to, label)
+    : setLocalTarget({ ...unlockInfoFor(to, label), kind: featureLockKind(to, access.features) ?? LOCK_KIND.PLAN }));
+  const lockReason = access.lockReasonFor?.(to) || LOCK_REASON;
   return (
     <>
       <button
@@ -137,13 +235,13 @@ export function FeatureLink({ to, label, className, children, showLock = true, s
         onClick={open}
         aria-haspopup="dialog"
         data-locked="true"
-        aria-label={label ? `${tr(label)} — ${tr(LOCK_REASON)}` : undefined}
-        title={tr(LOCK_REASON)}
-        className={cx(className, 'relative text-left')}
+        aria-label={label ? `${tr(label)} — ${tr(lockReason)}` : undefined}
+        title={tr(lockReason)}
+        className={cx(className, 'group relative cursor-pointer text-left')}
       >
         {children}
         {showLock && (
-          <span aria-hidden="true" className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-rp-surface/90 text-rp-text-muted ring-1 ring-rp-line">
+          <span aria-hidden="true" className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-rp-surface/90 text-rp-text-muted ring-1 ring-rp-line transition-colors group-hover:text-rp-brand-strong group-hover:ring-rp-brand-border">
             <LockKeyhole className="h-3 w-3" />
           </span>
         )}

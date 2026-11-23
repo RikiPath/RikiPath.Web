@@ -57,6 +57,7 @@ export const jaWorkspace = {
   // Admin navigation
   'Quản trị': '管理',
   'Điều hành': '運営',
+  'Quản lý lớp học': 'クラス管理',
   'Người dùng & vai trò': 'ユーザーとロール',
   'Thanh toán & giao dịch': '決済・取引管理',
   'Cấu hình': '設定',

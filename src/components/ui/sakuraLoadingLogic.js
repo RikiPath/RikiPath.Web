@@ -46,7 +46,7 @@ const PATH_CONTEXT_RULES = [
   [/^\/(app|dashboard|admin\/dashboard|mentor-overview|author-dashboard|cms-studio)(\/|$)/, 'dashboard'],
   [/^\/roadmap(\/|$)/, 'roadmap'],
   [/^\/(lessons|lesson-player|riki\/(listening|reading)|lesson-cms|content-manual|bulk-import|content-studio)(\/|$)/, 'lesson'],
-  [/^\/(vocabulary|vocabulary-detail|vocabulary-editor)(\/|$)/, 'vocabulary'],
+  [/^\/(vocabulary-detail|vocabulary-editor)(\/|$)/, 'vocabulary'],
   [/^\/(grammar|content-library)(\/|$)/, 'grammar'],
   [/^\/(kanji-writing|kanji-notebook|kanji-editor)(\/|$)/, 'writing'],
   [/^\/daily-srs(\/|$)/, 'srs'],

@@ -8,7 +8,7 @@ import { useLocale } from '@/locales/locale.js';
 import { setStudyLevel } from '../api/profileApi.js';
 
 export default function LearningGoalsSection({ profile, onProfileUpdated }) {
-  const { tr } = useLocale();
+  const { tr, trf, locale } = useLocale();
   const { data: certificateTypes = [], isPending: loadingTypes } = useCertificateTypesQuery();
 
   const targetCertId = useMemo(() => {
@@ -20,7 +20,9 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
   const { data: levels = [], isPending: loadingLevels } = useCertificateLevelsQuery(targetCertId);
 
   const sortedLevels = useMemo(() => {
-    return [...levels].sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
+    return [...levels]
+      .filter((lvl) => ['N5', 'N4', 'N3', 'N2'].includes(lvl.code?.trim().toUpperCase()))
+      .sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
   }, [levels]);
 
   const [selectedLevelId, setSelectedLevelId] = useState(null);
@@ -79,11 +81,15 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
             <Flag aria-hidden="true" className="h-4 w-4 text-rp-brand-strong" />
             {tr('Mục tiêu đang chọn')}
           </div>
-          <p className="mt-2 text-[22px] font-semibold text-rp-brand-strong">
+          <p className="mt-2 text-[22px] font-semibold text-rp-brand">
             {targetLevelLabel ? `JLPT ${targetLevelLabel}` : tr('Chưa thiết lập')}
           </p>
           <p className="mt-1 text-[11.5px] text-rp-text-muted">
-            {profile?.targetExamSession || tr('Đích hướng tới cho toàn lộ trình cá nhân hóa.')}
+            {profile?.targetExamDate
+              ? trf('Ngày dự thi: {0}', {
+                  0: new Date(profile.targetExamDate).toLocaleDateString(locale === 'ja' ? 'ja-JP' : 'vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+                })
+              : tr('Đích hướng tới cho toàn lộ trình cá nhân hóa.')}
           </p>
         </div>
 
@@ -93,10 +99,10 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
             {tr('Trình độ đánh giá đầu vào')}
           </div>
           <p className="mt-2 text-[22px] font-semibold text-rp-text">
-            {profile?.assessedLevel ? `JLPT ${profile.assessedLevel}` : tr('Chưa làm bài')}
+            {profile?.assessedJlptLevelName ? `JLPT ${profile.assessedJlptLevelName}` : tr('Chưa làm bài')}
           </p>
-          <Link to="/placement" className="rp-focus rp-link mt-1 inline-flex items-center gap-1 text-[11.5px] font-semibold text-rp-brand-strong">
-            {profile?.assessedLevel ? tr('Xem lại đánh giá') : tr('Làm đánh giá năng lực')}
+          <Link to="/app/placement-test" className="rp-focus rp-link mt-1 inline-flex items-center gap-1 text-[11.5px]">
+            {profile?.assessedJlptLevelName ? tr('Xem lại đánh giá') : tr('Làm đánh giá năng lực')}
             <ArrowRight aria-hidden="true" className="h-3 w-3" />
           </Link>
         </div>
@@ -130,7 +136,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
         </div>
       </div>
 
-      {/* Dynamic Study Level Selector (N5 - N1 from Backend) */}
+      {/* Dynamic Study Level Selector (N5 - N2 from Backend) */}
       <section aria-label={tr('Cấp độ đang học')} className="rounded-xl border border-[#EAE3E4] bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -140,7 +146,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
             <div>
               <h4 className="text-[14.5px] font-semibold text-rp-text">{tr('Cấp độ đang học trên lộ trình')}</h4>
               <p className="mt-0.5 text-[12px] text-rp-text-muted">
-                {tr('Danh sách cấp độ được đồng bộ trực tiếp từ hệ thống chứng chỉ (bao gồm N5 đến N1).')}
+                {tr('Danh sách cấp độ được đồng bộ trực tiếp từ hệ thống chứng chỉ (hỗ trợ JLPT N5 đến N2).')}
               </p>
             </div>
           </div>

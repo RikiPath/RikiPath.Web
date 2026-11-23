@@ -3,35 +3,35 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
-  Eye,
   GraduationCap,
-  Lock,
   Plus,
-  Search,
-  Unlock,
   X,
 } from 'lucide-react';
 import {
   AlertDialog,
+  Avatar,
   Badge,
   Banner,
   Button,
-  Card,
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
-  DataTable,
   Drawer,
   Field,
-  IconButton,
   Input,
   Modal,
-  Pagination,
   RefreshingIndicator,
   SakuraLoader,
+  SearchInput,
   notify,
 } from '@/components/ui';
-import { usePagination } from '@/hooks/usePagination.js';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminStatusBadge,
+  AdminToolbar,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import AdminMentorScheduleCalendar from './AdminMentorScheduleCalendar.jsx';
 import {
   createAdminMentor,
@@ -62,7 +62,7 @@ function getInitials(name) {
   return name.trim().split(/\s+/).slice(-2).map((p) => p[0]).join('').toUpperCase() || 'GV';
 }
 
-export default function AdminConsultants() {
+export default function AdminConsultants({ fillHeight = false } = {}) {
   const { tr, trf } = useLocale();
   const queryClient = useQueryClient();
 
@@ -71,9 +71,28 @@ export default function AdminConsultants() {
   const [sortBy, setSortBy] = useState('name');
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSession, setCreateSession] = useState(0);
+  const [createAutofillLocked, setCreateAutofillLocked] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
+
+  const openCreateMentor = () => {
+    setForm({ ...EMPTY_FORM });
+    setFormErrors({});
+    setSubmitError('');
+    setCreateAutofillLocked(true);
+    setCreateSession((n) => n + 1);
+    setCreateOpen(true);
+  };
+
+  const closeCreateMentor = () => {
+    if (createMutation.isPending) return;
+    setCreateOpen(false);
+    setForm({ ...EMPTY_FORM });
+    setFormErrors({});
+    setSubmitError('');
+  };
 
   const [detailMentor, setDetailMentor] = useState(null);
   const [scheduleMentor, setScheduleMentor] = useState(null);
@@ -140,7 +159,6 @@ export default function AdminConsultants() {
     });
   }, [rawMentors, search, statusFilter, sortBy]);
 
-  const pagination = usePagination(filtered, { initialPageSize: 10 });
   const hasFilters = search.trim() !== '' || statusFilter !== 'active';
 
   function validateCreate() {
@@ -172,13 +190,11 @@ export default function AdminConsultants() {
       render: (row) => {
         const name = getName(row);
         return (
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rp-brand-tint text-xs font-bold text-rp-brand-strong">
-              {getInitials(name)}
-            </span>
+          <div className="mx-auto flex w-[250px] max-w-full items-center gap-3 text-left">
+            <Avatar src={row.avatarUrl} name={name} size={32} className="ring-1 ring-rp-line" />
             <div className="min-w-0">
-              <p className="truncate font-semibold text-rp-text">{name}</p>
-              <p className="truncate text-xs text-rp-text-muted">{row.email}</p>
+              <p title={name} className="truncate font-semibold text-rp-text">{name}</p>
+              <p title={row.email} className="truncate text-xs text-rp-text-muted">{row.email}</p>
             </div>
           </div>
         );
@@ -187,11 +203,13 @@ export default function AdminConsultants() {
     {
       key: 'phoneNumber',
       header: tr('Liên hệ'),
+      compact: true,
       render: (row) => <span className="text-sm text-rp-text-2">{row.phoneNumber || '—'}</span>,
     },
     {
       key: 'verificationStatus',
       header: tr('Hồ sơ'),
+      compact: true,
       render: (row) => {
         const meta = VERIFY_META[row.verificationStatus] || VERIFY_META.Unverified;
         return <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>;
@@ -202,7 +220,7 @@ export default function AdminConsultants() {
       header: tr('Quyền dạy JLPT'),
       render: (row) => (
         row.teachingLevels?.length ? (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap justify-center gap-1">
             {row.teachingLevels.map((lvl) => (
               <Badge key={lvl} tone="info" size="sm" icon={false}>{lvl}</Badge>
             ))}
@@ -215,84 +233,89 @@ export default function AdminConsultants() {
     {
       key: 'isActive',
       header: tr('Trạng thái'),
+      compact: true,
       render: (row) => (
-        <Badge tone={row.isActive !== false ? 'success' : 'danger'} size="sm" icon={false}>
-          {row.isActive !== false ? tr('Hoạt động') : tr('Tạm khóa')}
-        </Badge>
+        <AdminStatusBadge
+          tone={row.isActive !== false ? 'success' : 'danger'}
+          label={row.isActive !== false ? 'Hoạt động' : 'Tạm khóa'}
+        />
       ),
     },
   ];
 
   return (
-    <div data-page="AdminConsultants" className="space-y-4">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="min-w-[210px] flex-1">
-            <Input
-              type="search"
-              icon={Search}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tr('Tìm theo họ tên, email hoặc số điện thoại…')}
-              aria-label={tr('Tìm kiếm Giáo viên')}
-            />
-          </div>
+    <div data-page="AdminConsultants" className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
+      {mentorsQuery.isSuccess && rawMentors.length > 0 && <AdminToolbar
+        refresh={{
+          onRefresh: () => mentorsQuery.refetch({ cancelRefetch: true }),
+          refreshing: mentorsQuery.isFetching && !mentorsQuery.isPending,
+        }}
+        actions={
+          <Button
+            size="sm"
+            className="h-9"
+            icon={Plus}
+            onClick={openCreateMentor}
+          >
+            {tr('Thêm Giáo viên')}
+          </Button>
+        }
+      >
+        <SearchInput
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch('')}
+          placeholder="Tìm họ tên, email, SĐT…"
+          aria-label={tr('Tìm kiếm Giáo viên')}
+          className="w-full sm:w-[240px]"
+        />
 
-          <div className="w-full sm:w-[170px]">
-            <CustomSelect
-              value={statusFilter}
-              aria-label={tr('Lọc theo trạng thái')}
-              onChange={setStatusFilter}
-              options={[
-                { value: 'active', label: tr('Đang hoạt động'), dot: '#22c55e' },
-                { value: 'inactive', label: tr('Tạm khóa'), dot: '#ef4444' },
-                { value: 'all', label: tr('Tất cả trạng thái') },
-              ]}
-            />
-          </div>
+        <CustomSelect
+          fitContent
+          value={statusFilter}
+          aria-label={tr('Lọc theo trạng thái')}
+          onChange={setStatusFilter}
+          options={[
+            { value: 'active', label: tr('Đang hoạt động'), dotClass: 'bg-rp-success' },
+            { value: 'inactive', label: tr('Tạm khóa'), dotClass: 'bg-rp-danger' },
+            { value: 'all', label: tr('Tất cả trạng thái') },
+          ]}
+        />
 
-          <div className="w-full sm:w-[160px]">
-            <CustomSelect
-              value={sortBy}
-              aria-label={tr('Sắp xếp danh sách')}
-              onChange={setSortBy}
-              options={[
-                { value: 'name', label: tr('Tên A–Z') },
-                { value: 'newest', label: tr('Mới nhất') },
-              ]}
-            />
-          </div>
+        <CustomSelect
+          fitContent
+          value={sortBy}
+          aria-label={tr('Sắp xếp danh sách')}
+          onChange={setSortBy}
+          options={[
+            { value: 'name', label: tr('Tên A–Z') },
+            { value: 'newest', label: tr('Mới nhất') },
+          ]}
+        />
 
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={X}
-              onClick={() => {
-                setSearch('');
-                setStatusFilter('active');
-              }}
-            >
-              {tr('Xóa bộ lọc')}
-            </Button>
-          )}
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9"
+            icon={X}
+            onClick={() => {
+              setSearch('');
+              setStatusFilter('active');
+            }}
+          >
+            {tr('Xóa bộ lọc')}
+          </Button>
+        )}
+      </AdminToolbar>}
 
-          <div className="ml-auto flex items-center gap-2">
-            <RefreshingIndicator active={mentorsQuery.isFetching && !mentorsQuery.isPending} />
-            <Button
-              icon={Plus}
-              onClick={() => {
-                setForm(EMPTY_FORM);
-                setFormErrors({});
-                setSubmitError('');
-                setCreateOpen(true);
-              }}
-            >
-              {tr('Thêm Giáo viên')}
-            </Button>
+      {mentorsQuery.isSuccess && mentorsQuery.isFetching && (
+        <div className="pointer-events-none sticky top-2 z-20 flex h-0 justify-end overflow-visible">
+          <div className="mr-1 mt-1">
+            <RefreshingIndicator active delay={60} />
           </div>
         </div>
-      </Card>
+      )}
 
       {mentorsQuery.isPending ? (
         <SakuraLoader variant="section" context="data" label={tr('Đang tải danh sách Giáo viên')} delay={140} />
@@ -304,10 +327,14 @@ export default function AdminConsultants() {
         />
       ) : filtered.length === 0 ? (
         <ContextualEmptyState
-          title={hasFilters ? tr('Không tìm thấy Giáo viên phù hợp') : tr('Chưa có Giáo viên nào')}
-          description={tr('Thêm tài khoản Giáo viên hoặc điều chỉnh bộ lọc trạng thái.')}
+          variant={rawMentors.length > 0 && hasFilters ? 'search' : 'default'}
+          illustration={rawMentors.length > 0 && hasFilters ? 'search' : 'mentor'}
+          title={rawMentors.length > 0 && hasFilters ? tr('Không tìm thấy Giáo viên phù hợp') : tr('Chưa có Giáo viên nào')}
+          description={rawMentors.length > 0 ? tr('Thêm tài khoản Giáo viên hoặc điều chỉnh bộ lọc trạng thái.') : ''}
           action={
-            hasFilters ? (
+            rawMentors.length === 0 ? (
+              <Button size="sm" icon={Plus} onClick={openCreateMentor}>{tr('Thêm Giáo viên')}</Button>
+            ) : hasFilters ? (
               <Button variant="outline" onClick={() => { setSearch(''); setStatusFilter('active'); }}>
                 {tr('Xóa bộ lọc')}
               </Button>
@@ -315,63 +342,48 @@ export default function AdminConsultants() {
           }
         />
       ) : (
-        <div className="space-y-4">
-          <DataTable
-            columns={columns}
-            rows={pagination.paginatedData}
-            rowKey={(row) => row.id}
-            rowActions={(row) => {
-              const active = row.isActive !== false;
-              return (
-                <div className="flex items-center justify-end gap-1">
-                  <IconButton
-                    icon={Eye}
-                    size="sm"
-                    variant="ghost"
-                    label={tr('Xem hồ sơ tóm tắt')}
-                    onClick={() => setDetailMentor(row)}
-                  />
-                  <IconButton
-                    icon={Calendar}
-                    size="sm"
-                    variant="ghost"
-                    label={tr('Xem lịch giảng dạy')}
-                    onClick={() => setScheduleMentor(row)}
-                  />
-                  <IconButton
-                    icon={active ? Lock : Unlock}
-                    size="sm"
-                    variant="ghost"
-                    label={active ? tr('Tạm khóa tài khoản') : tr('Kích hoạt lại')}
-                    onClick={() => setToggleTarget({ mentor: row, nextActive: !active })}
-                  />
-                </div>
-              );
-            }}
-          />
-
-          <Pagination
-            currentPage={pagination.currentPage}
-            totalPages={pagination.totalPages}
-            pageSize={pagination.pageSize}
-            totalItems={filtered.length}
-            onPageChange={pagination.setCurrentPage}
-            onPageSizeChange={pagination.setPageSize}
-            pageSizeOptions={[10, 20, 50]}
-            itemLabel={tr('Giáo viên')}
-          />
-        </div>
+        <AdminDataTable
+          columns={columns}
+          rows={filtered}
+          rowKey={(row) => row.id}
+          itemLabel="Giáo viên"
+          fillHeight={fillHeight}
+          rowActions={(row) => {
+            const active = row.isActive !== false;
+            return (
+              <AdminRowActions>
+                <AdminIconAction
+                  kind="view"
+                  tooltip="Xem hồ sơ tóm tắt Giáo viên"
+                  onClick={() => setDetailMentor(row)}
+                />
+                <AdminIconAction
+                  icon={Calendar}
+                  tone="brand"
+                  tooltip="Xem lịch dạy Giáo viên"
+                  onClick={() => setScheduleMentor(row)}
+                />
+                <AdminIconAction
+                  kind={active ? 'lock' : 'unlock'}
+                  tone={active ? 'danger' : 'success'}
+                  tooltip={active ? 'Khóa tài khoản Giáo viên' : 'Mở khóa tài khoản Giáo viên'}
+                  onClick={() => setToggleTarget({ mentor: row, nextActive: !active })}
+                />
+              </AdminRowActions>
+            );
+          }}
+        />
       )}
 
       {/* Create Mentor Modal */}
       <Modal
         open={createOpen}
-        onClose={() => !createMutation.isPending && setCreateOpen(false)}
+        onClose={closeCreateMentor}
         title={tr('Thêm tài khoản Giáo viên')}
         size="md"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" disabled={createMutation.isPending} onClick={() => setCreateOpen(false)}>
+            <Button variant="ghost" disabled={createMutation.isPending} onClick={closeCreateMentor}>
               {tr('Hủy')}
             </Button>
             <Button loading={createMutation.isPending} onClick={handleCreate}>
@@ -380,10 +392,12 @@ export default function AdminConsultants() {
           </div>
         }
       >
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form key={createSession} autoComplete="off" onSubmit={handleCreate} className="space-y-4">
           {submitError && <Banner tone="danger">{submitError}</Banner>}
           <Field label={tr('Họ và tên')} required error={formErrors.fullName}>
             <Input
+              name={`mentor-fullname-${createSession}`}
+              autoComplete="off"
               value={form.fullName}
               onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
               placeholder={tr('Ví dụ: Sensei Takahashi')}
@@ -393,6 +407,13 @@ export default function AdminConsultants() {
           <Field label={tr('Email')} required error={formErrors.email}>
             <Input
               type="email"
+              name={`mentor-email-${createSession}`}
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
+              readOnly={createAutofillLocked}
+              onFocus={() => setCreateAutofillLocked(false)}
+              onPointerDown={() => setCreateAutofillLocked(false)}
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               placeholder="teacher@rikipath.local"
@@ -402,6 +423,13 @@ export default function AdminConsultants() {
           <Field label={tr('Mật khẩu tạm thời')} required error={formErrors.password} hint={tr('Ít nhất 6 ký tự.')}>
             <Input
               type="password"
+              name={`mentor-password-${createSession}`}
+              autoComplete="new-password"
+              data-lpignore="true"
+              data-form-type="other"
+              readOnly={createAutofillLocked}
+              onFocus={() => setCreateAutofillLocked(false)}
+              onPointerDown={() => setCreateAutofillLocked(false)}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               invalid={Boolean(formErrors.password)}
@@ -409,6 +437,8 @@ export default function AdminConsultants() {
           </Field>
           <Field label={tr('Số điện thoại')}>
             <Input
+              name={`mentor-phone-${createSession}`}
+              autoComplete="off"
               value={form.phoneNumber}
               onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
             />
@@ -421,7 +451,6 @@ export default function AdminConsultants() {
         open={Boolean(detailMentor)}
         onClose={() => setDetailMentor(null)}
         title={detailMentor ? getName(detailMentor) : ''}
-        description={detailMentor?.email}
         size="md"
         footer={
           detailMentor && (

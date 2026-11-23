@@ -5,7 +5,7 @@ import BrandMark from '@/components/brand/BrandMark.jsx';
 import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
 import { useUpdateEmailMutation } from '@/features/auth/hooks/useAuthMutations.js';
 import { useLocale } from '@/locales/locale.js';
-import { notify } from '@/components/ui/feedbackStore.js';
+import { Banner, Button, Field, Input, notify } from '@/components/ui';
 
 export default function UpdateEmail() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function UpdateEmail() {
 
   function goToVerify(email, notice) {
     savePendingVerify({ email, userId: session?.userId, purpose: 'changeEmail' });
-    navigate(`/verify-email?email=${encodeURIComponent(email)}&userId=${session?.userId || ''}`, {
+    navigate(`/verify-email/?email=${encodeURIComponent(email)}&userId=${session?.userId || ''}`, {
       state: notice ? { notice } : undefined,
     });
   }
@@ -103,56 +103,54 @@ export default function UpdateEmail() {
             {currentEmail}
           </p>
 
-          <form className="mt-5" onSubmit={handleSubmit}>
+          <form className="mt-5 space-y-3.5" onSubmit={handleSubmit}>
             {error ? (
-              <p role="alert" className="mb-3.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
-                {tr(error)}
-              </p>
+              <Banner tone="danger">{tr(error)}</Banner>
             ) : null}
 
-            <label className="block text-[12px] font-medium text-rp-text-muted" htmlFor="newEmail">
-              {tr('Email mới')}
-            </label>
-            <input
-              id="newEmail"
-              required
-              type="email"
-              autoComplete="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="ten.moi@email.com"
-              className="mt-1.5 block h-10 w-full rounded-xl border border-rp-line bg-white px-3.5 text-sm text-rp-text outline-none focus:border-rp-brand focus:ring-2 focus:ring-rp-brand/20"
-            />
-            <label className="mt-3.5 block text-[12px] font-medium text-rp-text-muted" htmlFor="currentPassword">
-              {tr('Mật khẩu hiện tại')}
-            </label>
-            <input
-              id="currentPassword"
-              required
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder={tr('Nhập mật khẩu hiện tại')}
-              className="mt-1.5 block h-10 w-full rounded-xl border border-rp-line bg-white px-3.5 text-sm text-rp-text outline-none focus:border-rp-brand focus:ring-2 focus:ring-rp-brand/20"
-            />
-            <p className="mt-2 text-[11px] leading-5 text-rp-text-muted">
+            <Field label="Email mới" required>
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="ten.moi@email.com"
+                />
+              )}
+            </Field>
+            <Field label="Mật khẩu hiện tại" required>
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  required
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder={tr('Nhập mật khẩu hiện tại')}
+                />
+              )}
+            </Field>
+            <p className="text-[11px] leading-5 text-rp-text-muted">
               {tr('Mã được gửi tới email mới, email hiện tại giữ nguyên đến khi xác thực xong.')}
             </p>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-4 flex h-[42px] w-full items-center justify-center rounded-[10px] bg-rp-brand-pressed text-[14px] font-semibold text-white hover:bg-rp-brand disabled:cursor-wait disabled:opacity-60 rp-press"
-            >
+            <Button type="submit" size="lg" className="w-full" loading={loading}>
               {loading ? tr('Đang cập nhật...') : tr('Cập nhật email')}
-            </button>
+            </Button>
           </form>
 
           <p className="mt-5 text-center text-[12px] text-rp-text-muted">
-            <Link className="font-medium rp-link" to="/change-password">{tr('Đổi mật khẩu')}</Link>
+            <Link className="font-medium rp-link" to="/change-password/">{tr('Đổi mật khẩu')}</Link>
             {' · '}
-            <Link className="font-medium rp-link" to="/profile?tab=security">{tr('Quay lại hồ sơ')}</Link>
+            <Link className="font-medium rp-link" to="/profile/?tab=security">{tr('Quay lại hồ sơ')}</Link>
           </p>
         </section>
       </main>

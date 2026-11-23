@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Eye, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { FileText } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors';
 import {
   Badge,
@@ -8,14 +8,19 @@ import {
   Card,
   ContextualEmptyState,
   CustomSelect,
-  DataTable,
   Drawer,
   Field,
-  IconButton,
   Input,
   SmartDataBoundary,
   Textarea,
 } from '@/components/ui';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminStatusBadge,
+  AdminToolbar,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
 import {
   approveTransfer,
@@ -71,7 +76,14 @@ function CohortCard({ cohort, selected, onSelect }) {
   );
 }
 
-export default function AdminCohortTransferQueuePanel({ busy, initialTransferId = null, onRun }) {
+export default function AdminCohortTransferQueuePanel({
+  busy,
+  fillHeight = false,
+  initialTransferId = null,
+  toolbarTabs = null,
+  refreshSignal = 0,
+  onRun,
+}) {
   const { tr, trf } = useLocale();
   const initialIdNum = initialTransferId ? Number(initialTransferId) : null;
   const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
@@ -83,7 +95,12 @@ export default function AdminCohortTransferQueuePanel({ busy, initialTransferId 
   const [rejectReason, setRejectReason] = useState('');
   const [error, setError] = useState('');
 
-  const query = useAsyncResource(() => getTransferRequests(status || undefined), [status]);
+  const query = useAsyncResource(() => getTransferRequests(), []);
+  const queryRefetch = query.refetch;
+  useEffect(() => {
+    if (refreshSignal > 0) queryRefetch();
+  }, [refreshSignal, queryRefetch]);
+  const hasRecords = query.isSuccess && Array.isArray(query.data) && query.data.length > 0;
 
   const loadList = () => query.refetch();
   const loadDetail = (id) =>
@@ -119,6 +136,7 @@ export default function AdminCohortTransferQueuePanel({ busy, initialTransferId 
     {
       key: 'id',
       header: '#',
+      compact: true,
       render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span>,
     },
     {
@@ -139,44 +157,48 @@ export default function AdminCohortTransferQueuePanel({ busy, initialTransferId 
     {
       key: 'createdAtUtc',
       header: tr('Gửi lúc'),
+      compact: true,
       render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span>,
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      compact: true,
       render: (r) => {
         const meta = STATUS_META[r.status] || { label: r.status, tone: 'neutral' };
-        return <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>;
+        return <AdminStatusBadge tone={meta.tone} label={meta.label} />;
       },
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-rp-text">{tr('Yêu cầu chuyển lớp của học viên')}</h2>
-            <p className="text-xs text-rp-text-muted">
-              {tr('Máy chủ kiểm tra sức chứa, lịch học và điều kiện chính sách trước khi duyệt chuyển lớp.')}
-            </p>
-          </div>
-          <div className="w-full sm:w-[200px]">
+    <div className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
+      {(toolbarTabs || hasRecords) && (
+        <AdminToolbar
+          tabs={toolbarTabs}
+          refresh={{
+            when: hasRecords,
+            onRefresh: query.refetch,
+            refreshing: query.isFetching && !query.isPending,
+          }}
+        >
+          {hasRecords && (
             <CustomSelect
+              fitContent
               value={status}
               aria-label={tr('Lọc trạng thái chuyển lớp')}
               onChange={setStatus}
               options={[
-                { value: 'Pending', label: tr('Chờ duyệt'), dot: '#f59e0b' },
-                { value: 'Approved', label: tr('Đã duyệt'), dot: '#22c55e' },
-                { value: 'Rejected', label: tr('Từ chối'), dot: '#ef4444' },
-                { value: 'Withdrawn', label: tr('Đã rút'), dot: '#94a3b8' },
+                { value: 'Pending', label: tr('Chờ duyệt'), dotClass: 'bg-[#f59e0b]' },
+                { value: 'Approved', label: tr('Đã duyệt'), dotClass: 'bg-[#22c55e]' },
+                { value: 'Rejected', label: tr('Từ chối'), dotClass: 'bg-[#ef4444]' },
+                { value: 'Withdrawn', label: tr('Đã rút'), dotClass: 'bg-[#94a3b8]' },
                 { value: '', label: tr('Tất cả trạng thái') },
               ]}
             />
-          </div>
-        </div>
-      </Card>
+          )}
+        </AdminToolbar>
+      )}
 
       {error && <Banner tone="danger">{error}</Banner>}
 
@@ -188,13 +210,27 @@ export default function AdminCohortTransferQueuePanel({ busy, initialTransferId 
         errorTitle={tr('Chưa tải được hàng đợi chuyển lớp')}
         compact
         diagnosticScope="AdminCohortTransferQueuePanel"
-        empty={<ContextualEmptyState compact context="adminQueue" title={tr('Không có yêu cầu chuyển lớp.')} />}
+        className={fillHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}
+        empty={
+          <ContextualEmptyState
+            variant="compact"
+            context="adminQueue"
+            illustration="appointment"
+            title={tr('Không có yêu cầu chuyển lớp.')}
+            description=""
+          />
+        }
       >
-        {(list) => (
-          <DataTable
+        {(list) => {
+          const visible = status ? list.filter((item) => item.status === status) : list;
+          return visible.length === 0 ? (
+            <ContextualEmptyState variant="search" illustration="search" title={tr('Không tìm thấy kết quả phù hợp')} description={tr('Thử chọn trạng thái khác hoặc xóa bộ lọc.')} action={<Button size="sm" variant="outline" onClick={() => setStatus('')}>{tr('Xóa bộ lọc')}</Button>} />
+          ) : <AdminDataTable
             columns={columns}
-            rows={list}
+            rows={visible}
             rowKey={(r) => r.id}
+            itemLabel="yêu cầu"
+            fillHeight={fillHeight}
             onRowClick={(r) => {
               setSelectedId(r.id);
               setNote('');
@@ -202,21 +238,21 @@ export default function AdminCohortTransferQueuePanel({ busy, initialTransferId 
               loadDetail(r.id);
             }}
             rowActions={(r) => (
-              <IconButton
-                icon={Eye}
-                size="sm"
-                variant="ghost"
-                label={tr('Xem chi tiết')}
-                onClick={() => {
-                  setSelectedId(r.id);
-                  setNote('');
-                  setRejectReason('');
-                  loadDetail(r.id);
-                }}
-              />
+              <AdminRowActions>
+                <AdminIconAction
+                  kind="view"
+                  tooltip="Xem & xử lý yêu cầu chuyển lớp"
+                  onClick={() => {
+                    setSelectedId(r.id);
+                    setNote('');
+                    setRejectReason('');
+                    loadDetail(r.id);
+                  }}
+                />
+              </AdminRowActions>
             )}
-          />
-        )}
+          />;
+        }}
       </SmartDataBoundary>
 
       <Drawer

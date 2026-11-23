@@ -15,6 +15,7 @@ import {
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
+  AlertDialog,
   Badge,
   Banner,
   Button,
@@ -22,16 +23,24 @@ import {
   Checkbox,
   ContextualErrorState,
   CustomSelect,
-  DataTable,
   DateInput,
-  Drawer,
+  DrawerBody,
+  DrawerFooter,
+  DrawerHeader,
   EmptyState,
   Field,
   Input,
   Modal,
+  RefreshButton,
   SakuraLoader,
+  SideDrawer,
   Tabs,
 } from '@/components/ui';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -121,12 +130,12 @@ const POLICY_COMPARE_FIELDS = [
   { key: 'kpiReportingPeriodDays', label: 'Chu kỳ báo cáo KPI (ngày)' },
 ];
 
-export default function AdminMentorGroupPolicy() {
+export default function AdminMentorGroupPolicy({ renderToolbar } = {}) {
   const { tr, trf } = useLocale();
   const client = useQueryClient();
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState('class');
   const [compareTarget, setCompareTarget] = useState(null);
 
@@ -180,12 +189,21 @@ export default function AdminMentorGroupPolicy() {
   const formInvalid = sessionsCsvInvalid || defaultSpwInvalid || minLearnersInvalid || maxLearnersInvalid;
 
   const setField = (key, value) => setForm({ ...draft, [key]: value });
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
   const openWizard = () => {
     setForm(null);
     setWizardStep('class');
     setError('');
-    setDrawerOpen(true);
+    setConfirmDiscardOpen(false);
+    setWizardOpen(true);
+  };
+
+  const closeWizardImmediate = () => {
+    setWizardOpen(false);
+    setConfirmDiscardOpen(false);
+    setForm(null);
+    setError('');
   };
 
   const createVersion = useMutation({
@@ -229,8 +247,8 @@ export default function AdminMentorGroupPolicy() {
     onSuccess: async (saved) => {
       setError('');
       setForm(null);
-      setDrawerOpen(false);
-      const msg = trf('Đã ban hành chính sách phiên bản v{0}. Lớp và buổi đã công bố vẫn giữ snapshot cũ.', { 0: saved?.version ?? '' });
+      setWizardOpen(false);
+      const msg = trf('Đã ban hành chính sách phiên bản v{0}. Lớp và buổi đã công bố vẫn giữ cấu hình cũ.', { 0: saved?.version ?? '' });
       setNotice(msg);
       notify.success(tr('Đã ban hành chính sách lớp nhóm mới.'), msg, {
         key: 'admin-group-policy-save',
@@ -342,25 +360,36 @@ export default function AdminMentorGroupPolicy() {
     },
   ], [tr, trf, current?.version]);
 
+  const policyActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {!currentQuery.isPending && !currentBlocked && (Boolean(current) || history.length > 0) && (
+        <RefreshButton
+          onRefresh={() => Promise.all([currentQuery.refetch({ cancelRefetch: true }), historyQuery.refetch({ cancelRefetch: true })])}
+          refreshing={(currentQuery.isFetching && !currentQuery.isPending) || (historyQuery.isFetching && !historyQuery.isPending)}
+          disabled={currentQuery.isPending}
+        />
+      )}
+      <Button
+        variant="primary"
+        size="sm"
+        icon={Plus}
+        disabled={currentQuery.isPending || currentBlocked}
+        onClick={openWizard}
+        data-testid="open-policy-wizard-btn"
+      >
+        {tr('Ban hành phiên bản mới')}
+      </Button>
+    </div>
+  );
+
   return (
     <div className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[20px] font-semibold text-rp-text">{tr('Chính sách lớp nhóm & lịch dạy')}</h2>
-          <p className="mt-1 text-[13px] text-rp-text-muted">
-            {tr('Mọi thay đổi tạo phiên bản mới có hiệu lực từ 00:00 giờ Việt Nam; lớp và buổi đã công bố giữ nguyên snapshot tại thời điểm tạo.')}
-          </p>
-        </div>
-        <Button
-          variant="primary"
-          icon={Plus}
-          disabled={currentQuery.isPending || currentBlocked}
-          onClick={openWizard}
-          data-testid="open-policy-wizard-btn"
-        >
-          {tr('Ban hành phiên bản mới')}
-        </Button>
-      </div>
+      {/* No visual section title (breadcrumb + page tabs name it). Actions join the host page's toolbar row when one is
+          provided (Chính sách học tập), otherwise they sit in one right-aligned row. */}
+      <h2 className="sr-only">{tr('Chính sách lớp nhóm & lịch dạy')}</h2>
+      {renderToolbar ? renderToolbar(policyActions) : (
+        <div className="flex flex-wrap items-center justify-end gap-3">{policyActions}</div>
+      )}
 
       {currentQuery.isPending && (
         <SakuraLoader variant="section" context="data" label={tr('Đang tải chính sách lớp nhóm…')} delay={160} />
@@ -390,9 +419,12 @@ export default function AdminMentorGroupPolicy() {
         <Banner tone="danger" title={tr('Không ban hành được chính sách')}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>{error}</span>
-            <Button size="xs" variant="secondary" onClick={() => { currentQuery.refetch(); historyQuery.refetch(); }}>
-              {tr('Tải lại phiên bản mới nhất')}
-            </Button>
+            <RefreshButton
+              size="xs"
+              label="Tải lại phiên bản mới nhất"
+              onRefresh={() => Promise.all([currentQuery.refetch({ cancelRefetch: true }), historyQuery.refetch({ cancelRefetch: true })])}
+              refreshing={(currentQuery.isFetching && !currentQuery.isPending) || (historyQuery.isFetching && !historyQuery.isPending)}
+            />
           </div>
         </Banner>
       )}
@@ -454,32 +486,32 @@ export default function AdminMentorGroupPolicy() {
         </section>
       )}
 
-      <Card padded={false} className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line px-4 py-3">
-          <div>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line pb-3">
+          <div className="flex items-center gap-2">
             <h3 className="text-[15px] font-semibold text-rp-text">{tr('Lịch sử phiên bản chính sách')}</h3>
-            <p className="text-[12px] text-rp-text-muted">{tr('Chọn So sánh để xem thay đổi giữa các phiên bản.')}</p>
+            <Badge tone="neutral" size="sm" icon={false}>{trf('{0} phiên bản', { 0: history.length })}</Badge>
           </div>
-          <Badge tone="neutral" size="sm" icon={false}>{trf('{0} phiên bản', { 0: history.length })}</Badge>
         </div>
-        <DataTable
+        <AdminDataTable
           columns={historyColumns}
           rows={history}
           rowKey={(item) => item.id ?? item.version}
           loading={historyQuery.isPending}
-          empty={<EmptyState art="empty" title={tr('Chưa có phiên bản chính sách nào.')} />}
+          itemLabel="phiên bản"
+          empty={<EmptyState variant="compact" illustration="certificate" title={tr('Chưa có phiên bản chính sách nào.')} />}
           rowActions={(row) => (
-            <Button
-              size="xs"
-              variant="outline"
-              icon={GitCompare}
-              onClick={() => setCompareTarget(row)}
-            >
-              {tr('So sánh')}
-            </Button>
+            <AdminRowActions>
+              <AdminIconAction
+                icon={GitCompare}
+                tone="brand"
+                tooltip="So sánh & xem chi tiết phiên bản chính sách"
+                onClick={() => setCompareTarget(row)}
+              />
+            </AdminRowActions>
           )}
         />
-      </Card>
+      </div>
 
       {/* Version Diff Comparison Modal */}
       {compareTarget && (
@@ -490,13 +522,13 @@ export default function AdminMentorGroupPolicy() {
           description={
             compareBaseline && compareBaseline.version !== compareTarget.version
               ? trf('So sánh cấu hình v{0} với v{1}.', { 0: compareTarget.version, 1: compareBaseline.version })
-              : tr('Chi tiết toàn bộ tham số của phiên bản này.')
+              : undefined
           }
           size="lg"
         >
-          <div className="max-h-[65vh] overflow-auto rounded-xl border border-rp-line">
-            <table className="w-full border-collapse text-left text-[13px]">
-              <thead className="bg-rp-table-head text-xs uppercase text-rp-text-muted">
+          <div className="rounded-xl border border-rp-line">
+            <table className="w-full border-collapse text-center text-[13px]">
+              <thead className="sticky top-0 z-10 bg-rp-table-head text-xs uppercase text-rp-text-muted shadow-[0_1px_0_var(--color-rp-line)]">
                 <tr>
                   <th className="border-b border-rp-line px-3.5 py-2.5">{tr('Tham số')}</th>
                   {compareBaseline && compareBaseline.version !== compareTarget.version && (
@@ -511,7 +543,7 @@ export default function AdminMentorGroupPolicy() {
                   const valB = formatCompareValue(compareTarget, meta);
                   const changed = Boolean(compareBaseline && compareBaseline.version !== compareTarget.version && valA !== valB);
                   return (
-                    <tr key={meta.key} className={changed ? 'bg-amber-50/70' : 'transition-colors duration-150 hover:bg-rp-row-hover'}>
+                    <tr key={meta.key} className={changed ? 'bg-amber-50/75' : 'transition-colors duration-150 hover:bg-rp-row-hover'}>
                       <td className="px-3.5 py-2 font-medium text-rp-text">
                         {tr(meta.label)}
                         {changed && <Badge tone="warning" size="sm" className="ml-2" icon={false}>{tr('Thay đổi')}</Badge>}
@@ -519,7 +551,7 @@ export default function AdminMentorGroupPolicy() {
                       {compareBaseline && compareBaseline.version !== compareTarget.version && (
                         <td className="px-3.5 py-2 text-rp-text-muted">{valA}</td>
                       )}
-                      <td className="px-3.5 py-2 font-semibold text-rp-text">{valB}</td>
+                      <td className={changed ? 'px-3.5 py-2 font-semibold text-rp-brand-strong' : 'px-3.5 py-2 font-medium text-rp-text-2'}>{valB}</td>
                     </tr>
                   );
                 })}
@@ -529,265 +561,331 @@ export default function AdminMentorGroupPolicy() {
         </Modal>
       )}
 
-      {/* 6-Step Create Version Drawer Wizard */}
-      <Drawer
-        open={drawerOpen}
-        onClose={() => !createVersion.isPending && setDrawerOpen(false)}
-        title={tr('Ban hành phiên bản chính sách mới')}
-        width="w-[min(940px,100vw)]"
-        footer={(
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {stepIndex > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  icon={ArrowLeft}
-                  onClick={() => setWizardStep(WIZARD_STEPS[stepIndex - 1].value)}
-                >
-                  {tr('Bước trước')}
-                </Button>
-              )}
-              {stepIndex < WIZARD_STEPS.length - 1 && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setWizardStep(WIZARD_STEPS[stepIndex + 1].value)}
-                >
-                  {tr('Tiếp theo')} <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={createVersion.isPending}
-                onClick={() => setDrawerOpen(false)}
-              >
-                {tr('Hủy')}
-              </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                icon={CheckCircle2}
-                disabled={createVersion.isPending || currentQuery.isPending || currentBlocked || formInvalid}
-                loading={createVersion.isPending}
-                onClick={() => createVersion.mutate()}
-                data-testid="publish-policy-version-btn"
-              >
-                {createVersion.isPending ? tr('Đang lưu phiên bản…') : tr('Tạo phiên bản chính sách mới')}
-              </Button>
-            </div>
-          </div>
-        )}
+      {/* 6-Step Create Version Right-Side Drawer */}
+      <SideDrawer
+        open={wizardOpen}
+        onClose={() => {
+          if (createVersion.isPending) return;
+          if (form && (draftDiffs.length > 0 || draft.effectiveDate !== defaultEffectiveDate)) {
+            setConfirmDiscardOpen(true);
+            return;
+          }
+          closeWizardImmediate();
+        }}
+        side="right"
+        size="2xl"
+        title={tr('Ban hành chính sách')}
+        dismissible={!createVersion.isPending}
       >
-        <div className="space-y-5">
-          <Tabs
-            variant="pill"
-            label={tr('Các bước cấu hình chính sách')}
-            value={wizardStep}
-            onChange={setWizardStep}
-            tabs={WIZARD_STEPS.map((s) => ({ value: s.value, label: tr(s.label) }))}
-          />
+        {({ titleId }) => {
+          const requestClose = () => {
+            if (createVersion.isPending) return;
+            if (form && (draftDiffs.length > 0 || draft.effectiveDate !== defaultEffectiveDate)) {
+              setConfirmDiscardOpen(true);
+              return;
+            }
+            closeWizardImmediate();
+          };
+          const currentStepLabel = WIZARD_STEPS[stepIndex]?.label || '';
+          return (
+            <>
+              <DrawerHeader
+                titleId={titleId}
+                title={tr('Ban hành chính sách')}
+                subtitle={trf('Bước {0}/{1} · {2}', {
+                  0: stepIndex + 1,
+                  1: WIZARD_STEPS.length,
+                  2: tr(currentStepLabel.replace(/^\d+\.\s*/, '')),
+                })}
+                onClose={requestClose}
+              />
 
-          {formInvalid && (
-            <Banner tone="warning" title={tr('Cần chỉnh sửa tham số chưa hợp lệ')}>
-              {tr('Kiểm tra lại sĩ số tối thiểu/tối đa, danh sách cường độ buổi/tuần hoặc cường độ mặc định.')}
-            </Banner>
-          )}
-
-          {wizardStep === 'class' && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr('Ngày hiệu lực (00:00 GMT+7)')}>
-                <DateInput value={draft.effectiveDate} onChange={(e) => setField('effectiveDate', e.target.value)} />
-              </Field>
-              <Field
-                label={tr('Sĩ số tối đa mỗi lớp (1–20)')}
-                error={maxLearnersInvalid ? tr('Sĩ số tối đa phải nằm trong khoảng 1–20.') : undefined}
-              >
-                <Input type="number" min={1} max={20} invalid={maxLearnersInvalid} value={draft.maxLearners} onChange={(e) => setField('maxLearners', e.target.value)} />
-              </Field>
-              <Field
-                label={tr('Số học viên tối thiểu để khai giảng')}
-                error={minLearnersInvalid ? tr('Không được lớn hơn sĩ số tối đa và phải ≥ 1.') : undefined}
-              >
-                <Input
-                  type="number"
-                  min={1}
-                  max={Number(draft.maxLearners) || 20}
-                  invalid={minLearnersInvalid}
-                  value={draft.minLearnersToStart}
-                  onChange={(e) => setField('minLearnersToStart', e.target.value)}
-                />
-              </Field>
-              <Field label={tr('Thời lượng khóa lớp nhóm (tuần)')}>
-                <Input type="number" min={1} max={52} value={draft.courseDurationWeeks} onChange={(e) => setField('courseDurationWeeks', e.target.value)} />
-              </Field>
-              <Field
-                label={tr('Cường độ buổi học của mỗi lớp nhóm / tuần (VD: 2,3,4)')}
-                error={sessionsCsvInvalid ? tr('Nhập các số 1–7, cách nhau bởi dấu phẩy.') : undefined}
-              >
-                <Input
-                  value={draft.allowedSessionsPerWeekCsv}
-                  invalid={sessionsCsvInvalid}
-                  onChange={(e) => setField('allowedSessionsPerWeekCsv', e.target.value)}
-                />
-              </Field>
-              <Field
-                label={tr('Cường độ lớp nhóm mặc định (khuyến nghị)')}
-                error={defaultSpwInvalid ? tr('Giá trị mặc định phải nằm trong danh sách được phép.') : undefined}
-              >
-                <CustomSelect
-                  value={String(draft.defaultSessionsPerWeek)}
-                  invalid={defaultSpwInvalid}
-                  onChange={(val) => setField('defaultSessionsPerWeek', val)}
-                  options={(allowedSessionsPerWeek.length ? allowedSessionsPerWeek : [Number(draft.defaultSessionsPerWeek)]).map((n) => ({
-                    value: String(n),
-                    label: trf('{0} buổi/tuần', { 0: n }),
-                  }))}
-                />
-              </Field>
-              <Field label={tr('Thời gian giữ chỗ khi thanh toán (phút)')}>
-                <Input type="number" min={1} max={120} value={draft.checkoutHoldMinutes} onChange={(e) => setField('checkoutHoldMinutes', e.target.value)} />
-              </Field>
-            </div>
-          )}
-
-          {wizardStep === 'schedule' && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr('Thời lượng buổi (phút)')}>
-                <Input type="number" min={30} max={180} value={draft.sessionMinutes} onChange={(e) => setField('sessionMinutes', e.target.value)} />
-              </Field>
-              <Field label={tr('Nghỉ giữa buổi (phút)')}>
-                <Input type="number" min={0} max={120} value={draft.restMinutes} onChange={(e) => setField('restMinutes', e.target.value)} />
-              </Field>
-              <Field label={tr('Số khung giờ tối đa Giáo viên đăng ký / ngày')}>
-                <Input type="number" min={1} max={12} value={draft.dailySessionCap} onChange={(e) => setField('dailySessionCap', e.target.value)} />
-              </Field>
-              <Field label={tr('Hạn mức khung giờ Giáo viên / tuần (0 = không giới hạn)')}>
-                <Input type="number" min={0} max={84} value={draft.weeklySessionCap} onChange={(e) => setField('weeklySessionCap', e.target.value)} />
-              </Field>
-              <Field label={tr('Hạn công bố lịch (ngày)')}>
-                <Input type="number" min={1} max={365} value={draft.publicationHorizonDays} onChange={(e) => setField('publicationHorizonDays', e.target.value)} />
-              </Field>
-            </div>
-          )}
-
-          {wizardStep === 'changes' && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr('Khóa ghi danh trước khai giảng (phút)')}>
-                <Input type="number" min={0} max={10080} value={draft.enrollmentCutoffMinutesBeforeFirstSession} onChange={(e) => setField('enrollmentCutoffMinutesBeforeFirstSession', e.target.value)} />
-              </Field>
-              <Field label={tr('Báo trước hủy lịch (giờ)')}>
-                <Input type="number" min={0} max={720} value={draft.cancellationLeadHours} onChange={(e) => setField('cancellationLeadHours', e.target.value)} />
-              </Field>
-              <Field label={tr('Báo trước dời lịch (giờ)')}>
-                <Input type="number" min={0} max={720} value={draft.reschedulingLeadHours} onChange={(e) => setField('reschedulingLeadHours', e.target.value)} />
-              </Field>
-              <Field label={tr('Báo trước khi thay giáo viên chính (giờ)')}>
-                <Input type="number" min={0} max={720} value={draft.mentorReplacementLeadHours} onChange={(e) => setField('mentorReplacementLeadHours', e.target.value)} />
-              </Field>
-              <div className="sm:col-span-2 space-y-2.5 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
-                <Checkbox
-                  checked={Boolean(draft.learnerTransferEnabled)}
-                  onChange={(e) => setField('learnerTransferEnabled', e.target.checked)}
-                  label={tr('Cho phép học viên gửi yêu cầu chuyển lớp (luôn cần Admin duyệt)')}
-                />
-                <Checkbox
-                  checked={false}
-                  disabled
-                  readOnly
-                  onChange={() => {}}
-                  label={tr('Cho phép chuyển khi lớp hiện tại đã khai giảng')}
-                />
-                <p id="transfer-after-start-note" className="text-[11.5px] text-rp-brand-strong">
-                  {tr('Theo chính sách hiện hành: không chuyển lớp sau khi khóa học bắt đầu.')}
-                </p>
-                <Checkbox
-                  checked={Boolean(draft.mentorReplacementEnabled)}
-                  onChange={(e) => setField('mentorReplacementEnabled', e.target.checked)}
-                  label={tr('Cho phép Admin thay giáo viên chính cho phần còn lại của lớp')}
+              {/* Wizard layout: fixed header → fixed step navigation → scrolling body → fixed footer. */}
+              <div className="shrink-0 overflow-x-auto border-b border-rp-line bg-rp-surface px-5 py-2.5">
+                <Tabs
+                  variant="pill"
+                  tone="segmented"
+                  size="sm"
+                  className="min-w-max sm:flex-nowrap"
+                  label={tr('Các bước cấu hình chính sách')}
+                  value={wizardStep}
+                  onChange={setWizardStep}
+                  tabs={WIZARD_STEPS.map((s) => ({ value: s.value, label: tr(s.label) }))}
                 />
               </div>
-            </div>
-          )}
 
-          {wizardStep === 'homework' && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr('Hạn nộp bài tập mặc định (ngày)')}>
-                <Input type="number" min={1} max={365} value={draft.homeworkDeadlineDays} onChange={(e) => setField('homeworkDeadlineDays', e.target.value)} />
-              </Field>
-              <Field label={tr('Giới hạn lượt đánh giá năng lực')}>
-                <Input type="number" min={1} max={20} value={draft.placementAttemptLimit} onChange={(e) => setField('placementAttemptLimit', e.target.value)} />
-              </Field>
-              <Field label={tr('Ngưỡng nộp bài tập để xét học lại (%)')}>
-                <Input type="number" min={0.01} max={100} step="0.01" value={draft.remediationCompletionThresholdPercent} onChange={(e) => setField('remediationCompletionThresholdPercent', e.target.value)} />
-              </Field>
-              <Field label={tr('Điều kiện so sánh tỷ lệ nộp bài tập')}>
-                <CustomSelect
-                  value={draft.remediationThresholdComparison}
-                  onChange={(val) => setField('remediationThresholdComparison', val)}
-                  options={[
-                    { value: '>', label: tr('> (lớn hơn hẳn)') },
-                    { value: '>=', label: tr('>= (từ ngưỡng trở lên)') },
-                  ]}
-                />
-              </Field>
-              <div className="sm:col-span-2 space-y-2.5 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
-                <Checkbox checked disabled onChange={() => {}} label={tr('Bắt buộc minh chứng kỳ thi JLPT (theo quy định)')} />
-                <Checkbox checked disabled onChange={() => {}} label={tr('Admin duyệt yêu cầu học lại (theo quy định)')} />
-              </div>
-            </div>
-          )}
+              <DrawerBody padded={false}>
+                <div className="space-y-5 px-5 py-4">
 
-          {wizardStep === 'kpi' && (
-            <div className="space-y-4">
-              <Field label={tr('Chu kỳ báo cáo KPI (ngày)')}>
-                <Input type="number" min={1} max={366} value={draft.kpiReportingPeriodDays} onChange={(e) => setField('kpiReportingPeriodDays', e.target.value)} />
-              </Field>
-              <Banner tone="info" title={tr('Nguyên tắc snapshot theo phiên bản')}>
-                {tr('Phiên bản mới chỉ áp dụng cho lớp nhóm, lịch đăng ký và yêu cầu phát sinh từ thời điểm hiệu lực; dữ liệu đã công bố giữ nguyên snapshot tại thời điểm tạo.')}
-              </Banner>
-            </div>
-          )}
+                  {formInvalid && (
+                    <Banner tone="warning" title={tr('Cần chỉnh sửa tham số chưa hợp lệ')}>
+                      {tr('Kiểm tra lại sĩ số tối thiểu/tối đa, danh sách cường độ buổi/tuần hoặc cường độ mặc định.')}
+                    </Banner>
+                  )}
 
-          {wizardStep === 'review' && (
-            <div className="space-y-4">
-              <Banner tone={draftDiffs.length > 0 ? 'info' : 'warning'} title={tr('Tóm tắt thay đổi so với phiên bản hiện hành')}>
-                {draftDiffs.length > 0
-                  ? trf('Có {0} tham số thay đổi so với v{1}.', { 0: draftDiffs.length, 1: current?.version ?? 0 })
-                  : tr('Chưa có tham số nào khác với phiên bản hiện hành (chỉ cập nhật ngày hiệu lực nếu tiếp tục).')}
-              </Banner>
-              <div className="max-h-[42vh] overflow-auto rounded-xl border border-rp-line">
-                <table className="w-full border-collapse text-left text-[13px]">
-                  <thead className="bg-rp-table-head text-xs uppercase text-rp-text-muted">
-                    <tr>
-                      <th className="border-b border-rp-line px-3.5 py-2">{tr('Tham số')}</th>
-                      <th className="border-b border-rp-line px-3.5 py-2">{tr('Hiện hành')}</th>
-                      <th className="border-b border-rp-line px-3.5 py-2">{tr('Dự thảo mới')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-rp-line">
-                    {POLICY_COMPARE_FIELDS.map((meta) => {
-                      const prev = formatCompareValue(current, meta);
-                      const next = formatCompareValue(draft, meta);
-                      const changed = current && prev !== next;
-                      return (
-                        <tr key={meta.key} className={changed ? 'bg-amber-50/70' : 'transition-colors duration-150 hover:bg-rp-row-hover'}>
-                          <td className="px-3.5 py-2 font-medium text-rp-text">{tr(meta.label)}</td>
-                          <td className="px-3.5 py-2 text-rp-text-muted">{prev}</td>
-                          <td className="px-3.5 py-2 font-semibold text-rp-text">{next}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </Drawer>
+                  {wizardStep === 'class' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label={tr('Ngày hiệu lực (00:00 GMT+7)')}>
+                        <DateInput
+                          value={draft.effectiveDate}
+                          onChange={(e) => setField('effectiveDate', e?.target ? e.target.value : e)}
+                        />
+                      </Field>
+                      <Field
+                        label={tr('Sĩ số tối đa mỗi lớp (1–20)')}
+                        error={maxLearnersInvalid ? tr('Sĩ số tối đa phải nằm trong khoảng 1–20.') : undefined}
+                      >
+                        <Input type="number" min={1} max={20} invalid={maxLearnersInvalid} value={draft.maxLearners} onChange={(e) => setField('maxLearners', e.target.value)} />
+                      </Field>
+                      <Field
+                        label={tr('Số học viên tối thiểu để khai giảng')}
+                        error={minLearnersInvalid ? tr('Không được lớn hơn sĩ số tối đa và phải ≥ 1.') : undefined}
+                      >
+                        <Input
+                          type="number"
+                          min={1}
+                          max={Number(draft.maxLearners) || 20}
+                          invalid={minLearnersInvalid}
+                          value={draft.minLearnersToStart}
+                          onChange={(e) => setField('minLearnersToStart', e.target.value)}
+                        />
+                      </Field>
+                      <Field label={tr('Thời lượng khóa lớp nhóm (tuần)')}>
+                        <Input type="number" min={1} max={52} value={draft.courseDurationWeeks} onChange={(e) => setField('courseDurationWeeks', e.target.value)} />
+                      </Field>
+                      <Field
+                        label={tr('Cường độ buổi học của mỗi lớp nhóm / tuần (VD: 2,3,4)')}
+                        error={sessionsCsvInvalid ? tr('Nhập các số 1–7, cách nhau bởi dấu phẩy.') : undefined}
+                      >
+                        <Input
+                          value={draft.allowedSessionsPerWeekCsv}
+                          invalid={sessionsCsvInvalid}
+                          onChange={(e) => setField('allowedSessionsPerWeekCsv', e.target.value)}
+                        />
+                      </Field>
+                      <Field
+                        label={tr('Cường độ lớp nhóm mặc định (khuyến nghị)')}
+                        error={defaultSpwInvalid ? tr('Giá trị mặc định phải nằm trong danh sách được phép.') : undefined}
+                      >
+                        <CustomSelect
+                          value={String(draft.defaultSessionsPerWeek)}
+                          invalid={defaultSpwInvalid}
+                          onChange={(val) => setField('defaultSessionsPerWeek', val)}
+                          options={(allowedSessionsPerWeek.length ? allowedSessionsPerWeek : [Number(draft.defaultSessionsPerWeek)]).map((n) => ({
+                            value: String(n),
+                            label: trf('{0} buổi/tuần', { 0: n }),
+                          }))}
+                        />
+                      </Field>
+                      <Field label={tr('Thời gian giữ chỗ khi thanh toán (phút)')}>
+                        <Input type="number" min={1} max={120} value={draft.checkoutHoldMinutes} onChange={(e) => setField('checkoutHoldMinutes', e.target.value)} />
+                      </Field>
+                    </div>
+                  )}
+
+                  {wizardStep === 'schedule' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label={tr('Thời lượng buổi (phút)')}>
+                        <Input type="number" min={30} max={180} value={draft.sessionMinutes} onChange={(e) => setField('sessionMinutes', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Nghỉ giữa buổi (phút)')}>
+                        <Input type="number" min={0} max={120} value={draft.restMinutes} onChange={(e) => setField('restMinutes', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Số khung giờ tối đa Giáo viên đăng ký / ngày')}>
+                        <Input type="number" min={1} max={12} value={draft.dailySessionCap} onChange={(e) => setField('dailySessionCap', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Hạn mức khung giờ Giáo viên / tuần (0 = không giới hạn)')}>
+                        <Input type="number" min={0} max={84} value={draft.weeklySessionCap} onChange={(e) => setField('weeklySessionCap', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Hạn công bố lịch (ngày)')}>
+                        <Input type="number" min={1} max={365} value={draft.publicationHorizonDays} onChange={(e) => setField('publicationHorizonDays', e.target.value)} />
+                      </Field>
+                    </div>
+                  )}
+
+                  {wizardStep === 'changes' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label={tr('Khóa ghi danh trước khai giảng (phút)')}>
+                        <Input type="number" min={0} max={10080} value={draft.enrollmentCutoffMinutesBeforeFirstSession} onChange={(e) => setField('enrollmentCutoffMinutesBeforeFirstSession', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Báo trước hủy lịch (giờ)')}>
+                        <Input type="number" min={0} max={720} value={draft.cancellationLeadHours} onChange={(e) => setField('cancellationLeadHours', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Báo trước dời lịch (giờ)')}>
+                        <Input type="number" min={0} max={720} value={draft.reschedulingLeadHours} onChange={(e) => setField('reschedulingLeadHours', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Báo trước khi thay giáo viên chính (giờ)')}>
+                        <Input type="number" min={0} max={720} value={draft.mentorReplacementLeadHours} onChange={(e) => setField('mentorReplacementLeadHours', e.target.value)} />
+                      </Field>
+                      <div className="sm:col-span-2 space-y-2.5 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
+                        <Checkbox
+                          checked={Boolean(draft.learnerTransferEnabled)}
+                          onChange={(e) => setField('learnerTransferEnabled', e.target.checked)}
+                          label={tr('Cho phép học viên gửi yêu cầu chuyển lớp (luôn cần Admin duyệt)')}
+                        />
+                        <Checkbox
+                          checked={false}
+                          disabled
+                          readOnly
+                          onChange={() => {}}
+                          label={tr('Cho phép chuyển khi lớp hiện tại đã khai giảng')}
+                        />
+                        <p id="transfer-after-start-note" className="text-[11.5px] text-rp-brand-strong">
+                          {tr('Theo chính sách hiện hành: không chuyển lớp sau khi khóa học bắt đầu.')}
+                        </p>
+                        <Checkbox
+                          checked={Boolean(draft.mentorReplacementEnabled)}
+                          onChange={(e) => setField('mentorReplacementEnabled', e.target.checked)}
+                          label={tr('Cho phép Admin thay giáo viên chính cho phần còn lại của lớp')}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {wizardStep === 'homework' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label={tr('Hạn nộp bài tập mặc định (ngày)')}>
+                        <Input type="number" min={1} max={365} value={draft.homeworkDeadlineDays} onChange={(e) => setField('homeworkDeadlineDays', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Giới hạn lượt đánh giá năng lực')}>
+                        <Input type="number" min={1} max={20} value={draft.placementAttemptLimit} onChange={(e) => setField('placementAttemptLimit', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Ngưỡng nộp bài tập để xét học lại (%)')}>
+                        <Input type="number" min={0.01} max={100} step="0.01" value={draft.remediationCompletionThresholdPercent} onChange={(e) => setField('remediationCompletionThresholdPercent', e.target.value)} />
+                      </Field>
+                      <Field label={tr('Điều kiện so sánh tỷ lệ nộp bài tập')}>
+                        <CustomSelect
+                          value={draft.remediationThresholdComparison}
+                          onChange={(val) => setField('remediationThresholdComparison', val)}
+                          options={[
+                            { value: '>', label: tr('> (lớn hơn hẳn)') },
+                            { value: '>=', label: tr('>= (từ ngưỡng trở lên)') },
+                          ]}
+                        />
+                      </Field>
+                      <div className="sm:col-span-2 space-y-2.5 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
+                        <Checkbox checked disabled onChange={() => {}} label={tr('Bắt buộc minh chứng kỳ thi JLPT (theo quy định)')} />
+                        <Checkbox checked disabled onChange={() => {}} label={tr('Admin duyệt yêu cầu học lại (theo quy định)')} />
+                      </div>
+                    </div>
+                  )}
+
+                  {wizardStep === 'kpi' && (
+                    <div className="space-y-4">
+                      <Field label={tr('Chu kỳ báo cáo KPI (ngày)')}>
+                        <Input type="number" min={1} max={366} value={draft.kpiReportingPeriodDays} onChange={(e) => setField('kpiReportingPeriodDays', e.target.value)} />
+                      </Field>
+                      <Banner tone="info" title={tr('Hiệu lực áp dụng theo phiên bản')}>
+                        {tr('Phiên bản mới chỉ áp dụng cho lớp và lịch phát sinh từ 00:00 GMT+7 ngày hiệu lực; dữ liệu đã công bố giữ nguyên cấu hình tại thời điểm tạo.')}
+                      </Banner>
+                    </div>
+                  )}
+
+                  {wizardStep === 'review' && (
+                    <div className="space-y-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/70 px-3.5 py-2.5 text-xs">
+                        <span className="font-semibold text-rp-text">
+                          {draftDiffs.length > 0
+                            ? trf('Có {0} tham số thay đổi so với v{1}', { 0: draftDiffs.length, 1: current?.version ?? 0 })
+                            : tr('Chưa có thay đổi tham số (chỉ cập nhật ngày hiệu lực nếu ban hành)')}
+                        </span>
+                        <Badge tone={draftDiffs.length > 0 ? 'warning' : 'neutral'} size="sm" icon={false}>
+                          {trf('{0} / {1} thay đổi', { 0: draftDiffs.length, 1: POLICY_COMPARE_FIELDS.length })}
+                        </Badge>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-surface">
+                        <table className="w-full table-fixed border-collapse text-center text-[13px]">
+                          <thead className="sticky top-0 z-10 bg-rp-table-head text-xs uppercase text-rp-text-muted shadow-[0_1px_0_var(--color-rp-line)]">
+                            <tr>
+                              <th className="w-[48%] px-3.5 py-2.5">{tr('Tham số')}</th>
+                              <th className="w-[26%] px-3.5 py-2.5">{tr('Hiện hành')}</th>
+                              <th className="w-[26%] px-3.5 py-2.5">{tr('Dự thảo mới')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-rp-line">
+                            {POLICY_COMPARE_FIELDS.map((meta) => {
+                              const prev = formatCompareValue(current, meta);
+                              const next = formatCompareValue(draft, meta);
+                              const changed = Boolean(current && prev !== next);
+                              return (
+                                <tr key={meta.key} className={changed ? 'bg-amber-50/75' : 'transition-colors duration-150 hover:bg-rp-row-hover'}>
+                                  <td className="px-3.5 py-2 font-medium text-rp-text">
+                                    <span className="align-middle">{tr(meta.label)}</span>
+                                    {changed && <Badge tone="warning" size="sm" className="ml-2" icon={false}>{tr('Thay đổi')}</Badge>}
+                                  </td>
+                                  <td className="px-3.5 py-2 tabular-nums text-rp-text-muted">{prev}</td>
+                                  <td className={changed ? 'px-3.5 py-2 font-bold tabular-nums text-rp-brand-strong' : 'px-3.5 py-2 font-medium tabular-nums text-rp-text-2'}>
+                                    {next}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DrawerBody>
+
+              <DrawerFooter>
+                <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                  <div>
+                    {stepIndex > 0 && (
+                      <Button
+                        variant="outline"
+                        icon={ArrowLeft}
+                        onClick={() => setWizardStep(WIZARD_STEPS[stepIndex - 1].value)}
+                      >
+                        {tr('Bước trước')}
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={createVersion.isPending}
+                      onClick={requestClose}
+                    >
+                      {tr('Hủy')}
+                    </Button>
+                    {stepIndex < WIZARD_STEPS.length - 1 && (
+                      <Button
+                        variant="secondary"
+                        iconRight={ArrowRight}
+                        onClick={() => setWizardStep(WIZARD_STEPS[stepIndex + 1].value)}
+                      >
+                        {tr('Tiếp theo')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="primary"
+                      icon={CheckCircle2}
+                      disabled={createVersion.isPending || currentQuery.isPending || currentBlocked || formInvalid}
+                      loading={createVersion.isPending}
+                      onClick={() => createVersion.mutate()}
+                      data-testid="publish-policy-version-btn"
+                    >
+                      {createVersion.isPending ? tr('Đang ban hành…') : tr('Ban hành')}
+                    </Button>
+                  </div>
+                </div>
+              </DrawerFooter>
+            </>
+          );
+        }}
+      </SideDrawer>
+
+      <AlertDialog
+        open={confirmDiscardOpen}
+        onClose={() => setConfirmDiscardOpen(false)}
+        onConfirm={closeWizardImmediate}
+        tone="warning"
+        title={tr('Bỏ thay đổi chính sách chưa ban hành?')}
+        description={tr('Các tham số dự thảo hiện tại sẽ không được lưu nếu bạn đóng bảng cấu hình.')}
+        confirmLabel={tr('Đóng & bỏ thay đổi')}
+        cancelLabel={tr('Tiếp tục chỉnh sửa')}
+      />
     </div>
   );
 }

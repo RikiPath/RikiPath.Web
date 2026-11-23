@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
 import { getMySubscription } from '@/features/checkout/api/subscriptionApi.js';
-import { ACCESS, featureLockState, studyAccessStatus } from './featureAccess.js';
+import { LOCK_REASON } from './studyUnlock.js';
+import { ACCESS, featureLockReason, featureLockState, studyAccessStatus } from './featureAccess.js';
 
 /** Shared React Query key — every consumer (sidebar, search, dashboard, route gate, plans page) reads one cache entry. */
 export function studyAccessQueryKey(userId) {
@@ -37,14 +38,39 @@ export function useStudyAccess({ freshness = 'nav' } = {}) {
     data: query.data,
   });
 
-  const lockStateFor = useCallback((to) => featureLockState(to, status), [status]);
+  const features = useMemo(
+    () => (Array.isArray(query.data?.features) ? query.data.features : []),
+    [query.data],
+  );
+
+  const featureByCode = useMemo(() => {
+    const map = {};
+    for (const item of features) {
+      const code = String(item?.code || '').trim().toUpperCase();
+      if (code) map[code] = item;
+    }
+    return map;
+  }, [features]);
+
+  const lockStateFor = useCallback(
+    (to) => featureLockState(to, status, features),
+    [status, features],
+  );
+
+  const lockReasonFor = useCallback(
+    (to) => featureLockReason(to, features, LOCK_REASON),
+    [features],
+  );
 
   return {
     status,
     query,
     data: query.data,
+    features,
+    featureByCode,
     isActive: status === ACCESS.ACTIVE,
     lockStateFor,
+    lockReasonFor,
     isLocked: (to) => lockStateFor(to) === 'locked',
     refetch: query.refetch,
   };

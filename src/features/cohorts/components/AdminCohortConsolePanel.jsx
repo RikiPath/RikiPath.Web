@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CheckCircle2,
   KeyRound,
-  Pencil,
-  Plus,
-  Search,
   ShieldAlert,
   Trash2,
   X,
@@ -19,13 +17,20 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
-  DataTable,
   Drawer,
   Field,
   Input,
   Modal,
   SakuraLoader,
+  SearchInput,
 } from '@/components/ui';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminStatusBadge,
+  AdminToolbar,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import {
   getCohortEntitlements,
   grantCohortEntitlement,
@@ -83,8 +88,14 @@ export default function AdminCohortConsolePanel({
   cohorts = [],
   mentors = [],
   adminSlots = [],
+  approvedProposals = [],
+  initialProposalId = null,
   groupPolicy = null,
+  toolbarTabs = null,
+  onRefresh = null,
+  refreshing = false,
   busy = false,
+  fillHeight = false,
   onRun,
 }) {
   const { tr, trf } = useLocale();
@@ -95,13 +106,15 @@ export default function AdminCohortConsolePanel({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [cohortModalOpen, setCohortModalOpen] = useState(false);
   const [editingCohort, setEditingCohort] = useState(null);
+  const [sourceProposalId, setSourceProposalId] = useState('');
   const [planId, setPlanId] = useState('');
   const [name, setName] = useState('');
   const [mentorId, setMentorId] = useState('');
   const [capacity, setCapacity] = useState(defaultPolicyCap);
-  const [publish, setPublish] = useState(true);
+  const [publish, setPublish] = useState(false);
   const [pickedSlots, setPickedSlots] = useState([]);
   const [formErrors, setFormErrors] = useState({});
+  const [appliedInitialProposal, setAppliedInitialProposal] = useState(false);
 
   const [entitlementCohort, setEntitlementCohort] = useState(null);
   const [entitlements, setEntitlements] = useState([]);
@@ -146,20 +159,66 @@ export default function AdminCohortConsolePanel({
     });
   }, [cohorts, cohortSearch, statusFilter]);
 
-  function openCreateCohort() {
-    setEditingCohort(null);
-    setPlanId('');
-    setName('');
-    setMentorId('');
-    setCapacity(defaultPolicyCap);
-    setPublish(true);
-    setPickedSlots([]);
+  function applyApprovedProposal(proposal) {
+    if (!proposal) {
+      setSourceProposalId('');
+      return;
+    }
+    setSourceProposalId(String(proposal.id));
+    setMentorId(String(proposal.mentorId));
+    const matchedPlan = (proposal.coursePlanId && groupPlans.find((p) => Number(p.id) === Number(proposal.coursePlanId)))
+      || groupPlans.find((p) => String(p.level) === String(proposal.jlptLevelCode) && Number(p.sessionsPerWeek) === Number(proposal.weeklySessionCount))
+      || null;
+    if (matchedPlan) {
+      setPlanId(String(matchedPlan.id));
+      if (matchedPlan.capacity) setCapacity(Math.min(Number(matchedPlan.capacity), defaultPolicyCap));
+    } else {
+      setPlanId('');
+      setCapacity(defaultPolicyCap);
+    }
+    setName(
+      proposal.courseTitle?.trim()
+      || `${proposal.jlptLevelCode ? `JLPT ${proposal.jlptLevelCode}` : 'Lớp nhóm'} – ${proposal.mentorName || `#${proposal.mentorId}`}`
+    );
+    const validSlotIds = new Set(
+      adminSlots
+        .filter((s) => s.isApproved && !s.rejectedAt && !s.isInCohort && Number(s.bookedCount || 0) === 0)
+        .map((s) => s.id)
+    );
+    const proposalSlots = (proposal.generatedAvailabilityIds || []).filter((id) => validSlotIds.has(id));
+    setPickedSlots(proposalSlots);
+    setPublish(false);
     setFormErrors({});
+  }
+
+  useEffect(() => {
+    if (!initialProposalId || appliedInitialProposal || approvedProposals.length === 0) return undefined;
+    const match = approvedProposals.find((p) => String(p.id) === String(initialProposalId));
+    if (!match) return undefined;
+    let alive = true;
+    Promise.resolve().then(() => {
+      if (!alive) return;
+      setAppliedInitialProposal(true);
+      setEditingCohort(null);
+      applyApprovedProposal(match);
+      setCohortModalOpen(true);
+    });
+    return () => {
+      alive = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProposalId, appliedInitialProposal, approvedProposals]);
+
+  function openFromProposal(proposal) {
+    if (!proposal) return;
+    setEditingCohort(null);
+    applyApprovedProposal(proposal);
     setCohortModalOpen(true);
   }
 
   function startEditCohort(c) {
     setEditingCohort(c);
+    setSourceProposalId(c.sourceProposalId ? String(c.sourceProposalId) : '');
     setPlanId(c.planId ? String(c.planId) : '');
     setName(c.name || '');
     setMentorId(c.mentorId ? String(c.mentorId) : '');
@@ -261,6 +320,7 @@ export default function AdminCohortConsolePanel({
         availabilityIds: pickedSlots,
         publish,
         revision: editingCohort?.revision ?? 1,
+        sourceProposalId: !editingCohort && sourceProposalId ? Number(sourceProposalId) : null,
       });
       setCohortModalOpen(false);
       setEditingCohort(null);
@@ -281,7 +341,8 @@ export default function AdminCohortConsolePanel({
     {
       key: 'level',
       header: tr('Cấp độ'),
-      render: (row) => <Badge tone="neutral" size="sm" icon={false}>{row.level}</Badge>,
+      compact: true,
+      render: (row) => <AdminStatusBadge tone="brand" withDot={false} label={row.level} />,
     },
     {
       key: 'mentorName',
@@ -291,6 +352,7 @@ export default function AdminCohortConsolePanel({
     {
       key: 'capacity',
       header: tr('Sĩ số'),
+      compact: true,
       render: (row) => (
         <span className="tabular-nums text-sm font-medium text-rp-text">
           {row.enrolledCount ?? 0}/{row.capacity}
@@ -300,104 +362,163 @@ export default function AdminCohortConsolePanel({
     {
       key: 'startsAt',
       header: tr('Khai giảng'),
+      compact: true,
       render: (row) => <span className="whitespace-nowrap text-xs text-rp-text-2">{fmtDate(row.startsAt)}</span>,
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      compact: true,
       render: (row) => (
-        <Badge tone={row.status === 'Published' ? 'success' : 'neutral'} size="sm" icon={false}>
-          {row.status === 'Published' ? tr('Đang mở') : row.status === 'Draft' ? tr('Nháp') : row.status}
-        </Badge>
+        <AdminStatusBadge
+          tone={row.status === 'Published' ? 'success' : 'neutral'}
+          label={row.status === 'Published' ? 'Đang mở' : row.status === 'Draft' ? 'Bản nháp' : row.status}
+        />
       ),
     },
   ];
 
   const hasFilters = cohortSearch.trim() !== '' || statusFilter !== 'ALL';
+  const hasAnyCohorts = cohorts.length > 0;
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="min-w-[220px] flex-1">
-            <Input
-              type="search"
-              icon={Search}
-              value={cohortSearch}
-              onChange={(e) => setCohortSearch(e.target.value)}
-              placeholder={tr('Tìm lớp theo tên, cấp độ, Giáo viên…')}
-              aria-label={tr('Tìm lớp nhóm')}
-            />
-          </div>
+    <div className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
+      {/* Unified Toolbar (Tabs left when provided + Search/Filter/Refresh right) */}
+      {(toolbarTabs || hasAnyCohorts) && (
+        <AdminToolbar
+          tabs={toolbarTabs}
+          refresh={
+            onRefresh
+              ? {
+                  onRefresh,
+                  refreshing,
+                  disabled: busy,
+                }
+              : undefined
+          }
+        >
+          {hasAnyCohorts && (
+            <>
+              <SearchInput
+                value={cohortSearch}
+                onChange={(e) => setCohortSearch(e.target.value)}
+                onClear={() => setCohortSearch('')}
+                placeholder="Tìm lớp, cấp độ, Giáo viên…"
+                aria-label={tr('Tìm lớp nhóm')}
+                className="w-full sm:w-[245px]"
+              />
 
-          <div className="w-full sm:w-[175px]">
-            <CustomSelect
-              value={statusFilter}
-              aria-label={tr('Lọc theo trạng thái lớp')}
-              onChange={setStatusFilter}
-              options={[
-                { value: 'ALL', label: tr('Tất cả trạng thái') },
-                { value: 'Published', label: tr('Đang mở'), dot: '#22c55e' },
-                { value: 'Draft', label: tr('Bản nháp'), dot: '#94a3b8' },
-              ]}
-            />
-          </div>
+              <CustomSelect
+                fitContent
+                value={statusFilter}
+                aria-label={tr('Lọc theo trạng thái lớp')}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'ALL', label: tr('Tất cả trạng thái') },
+                  { value: 'Published', label: tr('Đang mở'), dotClass: 'bg-[#16A34A]' },
+                  { value: 'Draft', label: tr('Bản nháp'), dotClass: 'bg-[#94A3B8]' },
+                ]}
+              />
 
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={X}
-              onClick={() => {
-                setCohortSearch('');
-                setStatusFilter('ALL');
-              }}
-            >
-              {tr('Xóa bộ lọc')}
-            </Button>
+              {hasFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9"
+                  icon={X}
+                  onClick={() => {
+                    setCohortSearch('');
+                    setStatusFilter('ALL');
+                  }}
+                >
+                  {tr('Xóa bộ lọc')}
+                </Button>
+              )}
+            </>
           )}
+        </AdminToolbar>
+      )}
 
-          <div className="ml-auto">
-            <Button icon={Plus} onClick={openCreateCohort}>
-              {tr('Tạo lớp nhóm')}
-            </Button>
-          </div>
-        </div>
-      </Card>
+      {approvedProposals.length > 0 && (
+        <Banner
+          tone="info"
+          title={trf('Có {0} đề xuất mở lớp đã duyệt từ Giáo viên sẵn sàng điều phối', { 0: approvedProposals.length })}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => openFromProposal(approvedProposals[0])}>
+                {tr('Mở lớp từ đề xuất đã duyệt')}
+              </Button>
+              <Button as={Link} to="/admin/mentor-schedules/" size="sm" variant="outline">
+                {tr('Xem đề xuất mở lớp')}
+              </Button>
+            </div>
+          }
+        >
+          {tr('Lớp học được khởi tạo theo lịch cố định và đề xuất do Giáo viên đăng ký và đã được phê duyệt.')}
+        </Banner>
+      )}
 
       {/* Cohorts Table */}
       {filteredCohorts.length === 0 ? (
         <ContextualEmptyState
-          title={hasFilters ? tr('Không có lớp nhóm nào khớp bộ lọc') : tr('Chưa có lớp nhóm nào')}
-          description={tr('Nhấn Tạo lớp nhóm để gán gói học, Giáo viên và khung giờ đã duyệt.')}
+          variant={hasAnyCohorts && hasFilters ? 'search' : 'default'}
+          illustration={hasAnyCohorts && hasFilters ? 'search' : 'classroom'}
+          title={hasAnyCohorts && hasFilters ? tr('Không có lớp nhóm nào khớp bộ lọc') : tr('Chưa có lớp nhóm nào')}
+          description={
+            hasAnyCohorts && hasFilters
+              ? tr('Thử thay đổi trạng thái hoặc xóa từ khóa tìm kiếm.')
+              : tr('Các lớp nhóm sẽ được tạo sau khi Giáo viên gửi đề xuất lịch dạy và được Admin phê duyệt.')
+          }
           action={
-            <Button icon={Plus} onClick={openCreateCohort}>{tr('Tạo lớp nhóm')}</Button>
+            hasAnyCohorts && hasFilters ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCohortSearch('');
+                  setStatusFilter('ALL');
+                }}
+              >
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : (
+              <Button as={Link} to="/admin/mentor-schedules/" variant="outline">
+                {tr('Đi tới Duyệt lịch dạy')}
+              </Button>
+            )
           }
         />
       ) : (
-        <DataTable
+        <AdminDataTable
           columns={columns}
           rows={filteredCohorts}
           rowKey={(r) => r.id}
+          itemLabel="lớp nhóm"
+          fillHeight={fillHeight}
           rowActions={(row) => (
-            <div className="flex items-center justify-end gap-1.5">
-              <Button size="sm" variant="outline" icon={Pencil} onClick={() => startEditCohort(row)}>
-                {tr('Sửa lớp')}
-              </Button>
-              <Button size="sm" variant="ghost" icon={KeyRound} onClick={() => setEntitlementCohort(row)}>
-                {tr('Quyền ghi danh')}
-              </Button>
-            </div>
+            <AdminRowActions>
+              <AdminIconAction
+                kind="edit"
+                tone="brand"
+                tooltip="Chỉnh sửa lớp nhóm"
+                onClick={() => startEditCohort(row)}
+              />
+              <AdminIconAction
+                icon={KeyRound}
+                tone="neutral"
+                tooltip="Quản lý quyền ghi danh"
+                onClick={() => setEntitlementCohort(row)}
+              />
+            </AdminRowActions>
           )}
         />
       )}
 
-      {/* Create / Edit Cohort Modal */}
+      {/* Proposal-based Create / Edit Cohort Modal */}
       <Modal
         open={cohortModalOpen}
         onClose={() => !busy && setCohortModalOpen(false)}
-        title={editingCohort ? trf('Sửa lớp nhóm: {0}', { 0: editingCohort.name }) : tr('Tạo lớp học nhóm mới')}
+        title={editingCohort ? trf('Sửa lớp nhóm: {0}', { 0: editingCohort.name }) : tr('Mở lớp từ đề xuất đã duyệt')}
         size="xl"
         footer={
           <div className="flex justify-end gap-2">
@@ -415,6 +536,28 @@ export default function AdminCohortConsolePanel({
         }
       >
         <form onSubmit={handleSaveCohort} className="space-y-4">
+          {!editingCohort && approvedProposals.length > 0 && (
+            <div className="rounded-2xl border border-[#F2CCD7] bg-[#FFF5F7]/60 p-3.5 space-y-2">
+              <Field
+                label={tr('Đề xuất mở lớp đã duyệt từ Giáo viên')}
+                hint={tr('Tự động điền Giáo viên, gói phù hợp và các buổi học 10 tuần đã duyệt.')}
+              >
+                <CustomSelect
+                  value={sourceProposalId}
+                  aria-label={tr('Chọn đề xuất mở lớp đã duyệt')}
+                  onChange={(val) => {
+                    const found = approvedProposals.find((p) => String(p.id) === String(val));
+                    if (found) applyApprovedProposal(found);
+                  }}
+                  options={approvedProposals.map((p) => ({
+                    value: String(p.id),
+                    label: `#${p.id} · ${p.jlptLevelCode || 'JLPT'} · ${p.mentorName} · ${p.courseTitle?.trim() || trf('{0} buổi/tuần', { 0: p.weeklySessionCount })} (${p.generatedAvailabilityIds?.length || 0} buổi)`,
+                  }))}
+                />
+              </Field>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr('Gói học nhóm')} required error={formErrors.planId}>
               <CustomSelect
@@ -605,7 +748,7 @@ export default function AdminCohortConsolePanel({
                   onRetry={() => setEntitlementTick((t) => t + 1)}
                 />
               ) : entitlements.length === 0 ? (
-                <ContextualEmptyState compact title={tr('Chưa có quyền ghi danh nào được cấp cho lớp này.')} />
+                <ContextualEmptyState variant="compact" illustration="certificate" title={tr('Chưa có quyền ghi danh nào được cấp cho lớp này.')} />
               ) : (
                 <div className="space-y-2.5">
                   {entitlements.map((ent) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Award, Layers, Pencil, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Award, GraduationCap, Layers, Pencil, Plus } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import { api } from '@/api/client';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -11,19 +11,17 @@ import {
   Button,
   Checkbox,
   ContextualEmptyState,
-  ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   Field,
   IconButton,
   Input,
   Modal,
-  PageHeader,
-  RefreshingIndicator,
-  SakuraLoader,
   StaleDataBar,
-  Tabs,
   Textarea,
+  UnifiedToolbar,
 } from '@/components/ui';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -508,38 +506,24 @@ export default function AdminStudyCatalog() {
   return (
     <AdminShell breadcrumb={tr('Chứng chỉ & cấp độ')}>
       <main className="rp-container py-[var(--rp-space-page-y)] text-rp-text">
-        <PageHeader
-          title={tr('Chứng chỉ & cấp độ')}
-          description={tr('Quản lý các chứng chỉ và cấp độ học tập.')}
-          actions={(
-            <div className="flex items-center gap-3">
-              <RefreshingIndicator active={refreshing} />
-              <Button
-                variant="primary"
-                icon={Plus}
-                disabled={loading || isMutating || Boolean(loadError && !hasInitialData)}
-                onClick={() => openCreateModal(kind)}
-                data-testid="catalog-add-btn"
-              >
-                {kind === 'levels' ? tr('Thêm cấp độ') : tr('Thêm chứng chỉ')}
-              </Button>
-            </div>
-          )}
+        <AdminPageHeader
+          icon={GraduationCap}
+          title="Chứng chỉ & cấp độ"
         />
 
-        {/* Segmented Tabs + Optional Multi-Certificate Filter */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <Tabs
-            variant="pill"
-            label={tr('Danh mục chứng chỉ và cấp độ')}
-            value={kind}
-            onChange={(nextKind) => setKind(nextKind)}
-            tabs={tabItems}
-          />
-
-          {kind === 'levels' && types.length > 1 && (
-            <div className="w-full sm:w-56">
+        {/* Unified Tabs + Optional Multi-Certificate Filter + Refresh */}
+        <UnifiedToolbar
+          className="mb-4"
+          tabs={{
+            label: tr('Danh mục chứng chỉ và cấp độ'),
+            value: kind,
+            onChange: (nextKind) => setKind(nextKind),
+            tabs: tabItems,
+          }}
+          filters={
+            kind === 'levels' && types.length > 1 ? (
               <CustomSelect
+                fitContent
                 aria-label={tr('Lọc theo chứng chỉ')}
                 label={tr('Lọc theo chứng chỉ')}
                 value={certFilterId}
@@ -548,30 +532,43 @@ export default function AdminStudyCatalog() {
                   { value: 'ALL', label: tr('Tất cả chứng chỉ') },
                   ...types.map((t) => ({ value: String(t.id), label: t.name })),
                 ]}
-                size="sm"
-                className="w-full"
+                size="md"
                 triggerClassName="bg-white"
               />
-            </div>
+            ) : null
+          }
+          actions={(
+            <Button
+              variant="primary"
+              size="md"
+              icon={Plus}
+              disabled={loading || isMutating || Boolean(loadError && !hasInitialData)}
+              onClick={() => openCreateModal(kind)}
+              data-testid="catalog-add-btn"
+            >
+              {kind === 'levels' ? tr('Thêm cấp độ') : tr('Thêm chứng chỉ')}
+            </Button>
           )}
-        </div>
+          refresh={{
+            when: !loading && !loadError && (kind === 'levels' ? levels.length > 0 : types.length > 0),
+            onRefresh: () => load({ silent: hasInitialData }),
+            refreshing,
+            disabled: loading,
+          }}
+        />
 
         {/* Loading / Error / Data States */}
-        {loading ? (
-          <div className="rounded-rp-card border border-rp-line bg-rp-surface p-6 shadow-rp-xs">
-            <SakuraLoader variant="section" context="data" label={tr('Đang tải danh mục JLPT')} delay={160} />
-          </div>
-        ) : loadError && !hasInitialData ? (
-          <div className="rounded-rp-card border border-rp-line bg-rp-surface px-5 shadow-rp-xs">
-            <ContextualErrorState
-              compact
-              error={loadError}
-              title={tr('Chưa tải được danh mục JLPT')}
-              onRetry={() => load()}
-              retrying={loading}
-            />
-          </div>
-        ) : (
+        <DataRefreshBoundary
+          loading={loading}
+          refreshing={refreshing}
+          error={loadError}
+          hasData={hasInitialData}
+          loadingContext="data"
+          loadingLabel={tr('Đang tải danh mục JLPT')}
+          errorTitle={tr('Chưa tải được danh mục JLPT')}
+          onRetry={() => load({ silent: hasInitialData })}
+          compact
+        >
           <div className="space-y-3">
             {loadError && <StaleDataBar onRetry={() => load({ silent: true })} retrying={refreshing} />}
 
@@ -580,27 +577,31 @@ export default function AdminStudyCatalog() {
               types.length === 0 ? (
                 <div className="rounded-rp-card border border-rp-line bg-rp-surface px-5 shadow-rp-xs">
                   <ContextualEmptyState
-                    compact
+                    variant="compact"
+                    illustration="certificate"
                     title={tr('Chưa có chứng chỉ nào.')}
                     description={tr('Nhấn "Thêm chứng chỉ" để tạo chứng chỉ học tập đầu tiên.')}
-                    actionLabel={tr('Thêm chứng chỉ')}
-                    onAction={() => openCreateModal('certificates')}
+                    action={
+                      <Button variant="primary" size="sm" onClick={() => openCreateModal('certificates')}>
+                        {tr('Thêm chứng chỉ')}
+                      </Button>
+                    }
                   />
                 </div>
               ) : (
                 <>
                   {/* Desktop Table */}
                   <div className="hidden overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-xs md:block">
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-left text-sm" data-testid="certificates-table">
-                        <thead>
+                    <div className="rp-table-scroll max-h-[calc(100vh-280px)]">
+                      <table className="w-full border-collapse text-center text-sm" data-testid="certificates-table">
+                        <thead className="sticky top-0 z-10 bg-rp-table-head shadow-[0_1px_0_var(--color-rp-line)]">
                           <tr className="border-b border-rp-line bg-rp-table-head text-xs font-semibold uppercase tracking-[0.04em] text-rp-text-muted">
                             <th scope="col" className="w-[18%] px-5 py-3">{tr('Tên chứng chỉ')}</th>
                             <th scope="col" className="px-4 py-3">{tr('Mô tả')}</th>
-                            <th scope="col" className="w-[120px] px-4 py-3 text-center">{tr('Số cấp độ')}</th>
-                            <th scope="col" className="w-[148px] px-4 py-3 text-center">{tr('Thứ tự')}</th>
+                            <th scope="col" className="w-[120px] px-4 py-3">{tr('Số cấp độ')}</th>
+                            <th scope="col" className="w-[148px] px-4 py-3">{tr('Thứ tự')}</th>
                             <th scope="col" className="w-[152px] px-4 py-3">{tr('Trạng thái')}</th>
-                            <th scope="col" className="w-[110px] px-5 py-3 text-right">{tr('Thao tác')}</th>
+                            <th scope="col" className="w-[110px] px-5 py-3">{tr('Thao tác')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-rp-line/70">
@@ -647,7 +648,7 @@ export default function AdminStudyCatalog() {
                                     {cert.isActive ? tr('Hoạt động') : tr('Ngừng sử dụng')}
                                   </Badge>
                                 </td>
-                                <td className="px-5 py-3.5 text-right">
+                                <td className="px-5 py-3.5">
                                   <Button
                                     size="sm"
                                     variant="secondary"
@@ -736,27 +737,31 @@ export default function AdminStudyCatalog() {
               filteredLevels.length === 0 ? (
                 <div className="rounded-rp-card border border-rp-line bg-rp-surface px-5 shadow-rp-xs">
                   <ContextualEmptyState
-                    compact
+                    variant="compact"
+                    illustration="certificate"
                     title={tr('Chưa có cấp độ nào.')}
                     description={tr('Nhấn "Thêm cấp độ" để bổ sung cấp độ cho chứng chỉ.')}
-                    actionLabel={tr('Thêm cấp độ')}
-                    onAction={() => openCreateModal('levels')}
+                    action={
+                      <Button variant="primary" size="sm" onClick={() => openCreateModal('levels')}>
+                        {tr('Thêm cấp độ')}
+                      </Button>
+                    }
                   />
                 </div>
               ) : (
                 <>
                   {/* Desktop Table */}
                   <div className="hidden overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-xs md:block">
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-left text-sm" data-testid="levels-table">
-                        <thead>
+                    <div className="rp-table-scroll max-h-[calc(100vh-280px)]">
+                      <table className="w-full border-collapse text-center text-sm" data-testid="levels-table">
+                        <thead className="sticky top-0 z-10 bg-rp-table-head shadow-[0_1px_0_var(--color-rp-line)]">
                           <tr className="border-b border-rp-line bg-rp-table-head text-xs font-semibold uppercase tracking-[0.04em] text-rp-text-muted">
                             <th scope="col" className="w-[14%] px-5 py-3">{tr('Cấp độ')}</th>
                             <th scope="col" className="w-[15%] px-4 py-3">{tr('Chứng chỉ')}</th>
                             <th scope="col" className="px-4 py-3">{tr('Mô tả')}</th>
-                            <th scope="col" className="w-[148px] px-4 py-3 text-center">{tr('Thứ tự')}</th>
+                            <th scope="col" className="w-[148px] px-4 py-3">{tr('Thứ tự')}</th>
                             <th scope="col" className="w-[152px] px-4 py-3">{tr('Trạng thái')}</th>
-                            <th scope="col" className="w-[110px] px-5 py-3 text-right">{tr('Thao tác')}</th>
+                            <th scope="col" className="w-[110px] px-5 py-3">{tr('Thao tác')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-rp-line/70">
@@ -811,7 +816,7 @@ export default function AdminStudyCatalog() {
                                     {lv.isActive ? tr('Hoạt động') : tr('Ngừng sử dụng')}
                                   </Badge>
                                 </td>
-                                <td className="px-5 py-3.5 text-right">
+                                <td className="px-5 py-3.5">
                                   <Button
                                     size="sm"
                                     variant="secondary"
@@ -902,7 +907,7 @@ export default function AdminStudyCatalog() {
               )
             )}
           </div>
-        )}
+        </DataRefreshBoundary>
       </main>
 
       {/* Create / Edit Modal */}

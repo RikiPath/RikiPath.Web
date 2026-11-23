@@ -1,24 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { GraduationCap, Plus, Search, ShieldOff, X } from 'lucide-react';
+import { BadgeCheck, GraduationCap, Plus, ShieldOff, X } from 'lucide-react';
 import {
   Badge,
   Banner,
   Button,
-  Card,
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
-  DataTable,
   Field,
-  Input,
   Modal,
   RefreshingIndicator,
   SakuraLoader,
+  SearchInput,
   Textarea,
   notify,
 } from '@/components/ui';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminToolbar,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import {
   getAdminMentorQualifications,
   grantAdminMentorQualification,
@@ -29,7 +32,7 @@ import { describeApiError } from '@/api/apiErrors.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
-export default function AdminMentorQualifications() {
+export default function AdminMentorQualifications({ fillHeight = false } = {}) {
   const { tr, trf } = useLocale();
   const queryClient = useQueryClient();
 
@@ -159,7 +162,7 @@ export default function AdminMentorQualifications() {
       key: 'verificationStatus',
       header: tr('Hồ sơ & Chứng chỉ'),
       render: (row) => (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
           <Badge tone={row.verificationStatus === 'Approved' ? 'success' : 'warning'} size="sm" icon={false}>
             {row.verificationStatus === 'Approved' ? tr('Đã duyệt hồ sơ') : tr(row.verificationStatus)}
           </Badge>
@@ -175,7 +178,7 @@ export default function AdminMentorQualifications() {
       key: 'activeQualifications',
       header: tr('Quyền giảng dạy hiện tại'),
       render: (row) => (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
           {row.activeQualifications?.length ? (
             row.activeQualifications.map((badge) => (
               <span
@@ -213,48 +216,51 @@ export default function AdminMentorQualifications() {
   }, [grantTarget, levels]);
 
   return (
-    <div data-page="AdminMentorQualifications" className="space-y-4">
-      <Banner tone="info" title={tr('Phân biệt Chứng chỉ cá nhân & Quyền giảng dạy')}>
-        {tr('Giáo viên phải được duyệt hồ sơ trước khi cấp quyền giảng dạy, và chỉ được cấp tối đa đến cấp độ JLPT tương ứng với chứng chỉ đã xác minh. Mọi thao tác cấp hoặc thu hồi đều lưu nhật ký kiểm toán và không làm mất lịch sử lớp cũ.')}
-      </Banner>
+    <div data-page="AdminMentorQualifications" className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
+      {qualQuery.isSuccess && mentors.length > 0 && <AdminToolbar
+        refresh={{
+          onRefresh: () => qualQuery.refetch({ cancelRefetch: true }),
+          refreshing: qualQuery.isFetching && !qualQuery.isPending,
+        }}
+      >
+        <SearchInput
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch('')}
+          placeholder="Tìm Giáo viên, email, chứng chỉ…"
+          aria-label={tr('Tìm Giáo viên')}
+          className="w-full sm:w-[240px]"
+        />
 
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="min-w-[200px] flex-1">
-            <Input
-              type="search"
-              icon={Search}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tr('Tìm theo tên Giáo viên, email hoặc chứng chỉ…')}
-              aria-label={tr('Tìm Giáo viên')}
-            />
+        <CustomSelect
+          fitContent
+          value={levelFilter}
+          aria-label={tr('Lọc theo quyền giảng dạy')}
+          onChange={setLevelFilter}
+          options={[
+            { value: 'ALL', label: tr('Mọi cấp độ phân quyền') },
+            { value: 'NONE', label: tr('Chưa cấp quyền nào') },
+            ...levels.map((lvl) => ({
+              value: String(lvl.id),
+              label: `${lvl.certificateCode} · ${lvl.code}`,
+            })),
+          ]}
+        />
+
+        {hasFilters && (
+          <Button variant="ghost" size="sm" icon={X} onClick={() => { setSearch(''); setLevelFilter('ALL'); }}>
+            {tr('Xóa bộ lọc')}
+          </Button>
+        )}
+      </AdminToolbar>}
+
+      {qualQuery.isFetching && !qualQuery.isPending && (
+        <div className="pointer-events-none sticky top-2 z-20 flex h-0 justify-end overflow-visible">
+          <div className="mr-1 mt-1">
+            <RefreshingIndicator active delay={60} />
           </div>
-
-          <div className="w-full sm:w-[210px]">
-            <CustomSelect
-              value={levelFilter}
-              aria-label={tr('Lọc theo quyền giảng dạy')}
-              onChange={setLevelFilter}
-              options={[
-                { value: 'ALL', label: tr('Mọi cấp độ phân quyền') },
-                { value: 'NONE', label: tr('Chưa cấp quyền nào') },
-                ...levels.map((lvl) => ({
-                  value: String(lvl.id),
-                  label: `${lvl.certificateCode} · ${lvl.code}`,
-                })),
-              ]}
-            />
-          </div>
-
-          {hasFilters && (
-            <Button variant="ghost" size="sm" icon={X} onClick={() => { setSearch(''); setLevelFilter('ALL'); }}>
-              {tr('Xóa bộ lọc')}
-            </Button>
-          )}
-          <RefreshingIndicator active={qualQuery.isFetching && !qualQuery.isPending} />
         </div>
-      </Card>
+      )}
 
       {qualQuery.isPending ? (
         <SakuraLoader variant="section" context="data" label={tr('Đang tải dữ liệu phân quyền')} delay={140} />
@@ -266,35 +272,44 @@ export default function AdminMentorQualifications() {
         />
       ) : filtered.length === 0 ? (
         <ContextualEmptyState
-          title={hasFilters ? tr('Không có Giáo viên nào khớp bộ lọc') : tr('Chưa có Giáo viên nào')}
-          description={tr('Hãy kiểm tra hồ sơ Giáo viên hoặc bỏ bộ lọc để xem toàn bộ danh sách.')}
+          variant={mentors.length > 0 && hasFilters ? 'search' : 'default'}
+          illustration={mentors.length > 0 && hasFilters ? 'search' : 'mentor'}
+          title={mentors.length > 0 && hasFilters ? tr('Không có Giáo viên nào khớp bộ lọc') : tr('Chưa có Giáo viên nào')}
+          description={mentors.length > 0 ? tr('Hãy kiểm tra hồ sơ Giáo viên hoặc bỏ bộ lọc để xem toàn bộ danh sách.') : ''}
+          action={
+            mentors.length > 0 && hasFilters ? (
+              <Button variant="outline" size="sm" onClick={() => { setSearch(''); setLevelFilter('ALL'); }}>
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : null
+          }
         />
       ) : (
-        <DataTable
+        <AdminDataTable
           columns={columns}
           rows={filtered}
           rowKey={(row) => row.mentorId}
+          itemLabel="Giáo viên"
+          fillHeight={fillHeight}
           rowActions={(row) => (
-            <div className="flex items-center justify-end gap-2">
+            <AdminRowActions>
               {row.verificationStatus === 'Approved' ? (
-                <Button
-                  size="sm"
-                  variant="outline"
+                <AdminIconAction
                   icon={Plus}
+                  tone="brand"
+                  tooltip="Cấp quyền giảng dạy JLPT"
                   disabled={levels.length === 0 || (row.activeQualifications?.length || 0) >= levels.length}
                   onClick={() => openGrantModal(row)}
-                >
-                  {tr('Cấp quyền')}
-                </Button>
+                />
               ) : (
-                <Link
-                  to={`/admin/mentor-verifications/?mentorId=${row.mentorId}`}
-                  className="rp-link text-xs font-semibold text-rp-brand-strong"
-                >
-                  {tr('Duyệt hồ sơ trước')} →
-                </Link>
+                <AdminIconAction
+                  icon={BadgeCheck}
+                  tone="warning"
+                  tooltip="Mở xét duyệt hồ sơ Giáo viên"
+                  onClick={() => window.location.assign(`/admin/mentor-verifications/?mentorId=${row.mentorId}`)}
+                />
               )}
-            </div>
+            </AdminRowActions>
           )}
         />
       )}

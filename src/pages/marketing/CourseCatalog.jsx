@@ -82,7 +82,7 @@ const MORE = [
     cta: 'Tìm hiểu AI Haru',
   },
   {
-    to: '/roadmap',
+    to: '/courses/#lo-trinh',
     t: 'Lộ trình ôn luyện',
     d: 'Sắp xếp nội dung ôn luyện theo từng bước để duy trì việc học.',
     cta: 'Khám phá lộ trình',
@@ -123,13 +123,13 @@ export default function CourseCatalog() {
                 </p>
                 <div className="mt-7 flex flex-wrap gap-3">
                   <Link
-                    to="/register"
+                    to="/register/"
                     className="inline-flex rounded-full bg-rp-brand-soft px-5 py-2.5 text-[14px] font-semibold text-rp-brand-strong"
                   >
                     {tr('Bắt đầu ôn luyện')}
                   </Link>
                   <Link
-                    to="/plans"
+                    to="/plans/"
                     className="inline-flex rounded-full bg-white px-5 py-2.5 text-[14px] font-semibold text-rp-text"
                   >
                     {tr('Xem gói tự học')}
@@ -191,7 +191,7 @@ export default function CourseCatalog() {
                 ))}
               </ul>
             </div>
-            <aside className="rounded-[28px] bg-rp-brand-tint p-6 sm:p-7">
+            <aside className="rounded-[28px] border border-rp-line bg-white p-6 shadow-rp-xs sm:p-7">
               <h3 className="text-[20px] font-extrabold">{tr('Bắt đầu ngay')}</h3>
               <p className="mt-2 text-[14px] leading-relaxed text-rp-text-2">{tr('Tạo tài khoản, làm một bài thi thử, hoặc học nhóm cùng Giáo viên.')}</p>
               <div className="mt-4 flex flex-col items-start gap-2 text-[14px] font-semibold text-rp-brand-strong">

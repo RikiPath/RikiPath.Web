@@ -8,13 +8,12 @@ import {
   Layers,
   List,
   Pencil,
-  Search,
   Send,
   Trash2,
   X,
 } from 'lucide-react';
 import { api } from '@/api/client.js';
-import { describeApiError } from '@/api/apiErrors.js';
+import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { ContentAuthorShell } from '@/layouts';
 import {
   AlertDialog,
@@ -25,15 +24,16 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
+  DataRefreshBoundary,
   DataTable,
   FeatureIcon,
   IconButton,
   Modal,
+  PageContainer,
   PageHeader,
-  RefreshingIndicator,
   SakuraLoader,
   Tabs,
-  Input,
+  UnifiedToolbar,
   notify,
 } from '@/components/ui';
 import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLookups.js';
@@ -247,9 +247,9 @@ export default function AuthorDashboard() {
       key: 'rowKey',
       header: tr('Tên học liệu'),
       render: (row) => (
-        <div className="min-w-0 max-w-[320px] space-y-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rp-jp truncate font-semibold text-rp-text">{row.rowKey || '—'}</span>
+        <div className="mx-auto min-w-0 max-w-[380px] space-y-1">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <span title={row.rowKey || ''} className="rp-jp truncate font-semibold text-rp-text">{row.rowKey || '—'}</span>
           </div>
           {row.status === 'Rejected' && row.reviewNote && (
             <p className="line-clamp-2 rounded-lg bg-rose-50 px-2 py-1 text-xs text-rose-800">
@@ -257,7 +257,7 @@ export default function AuthorDashboard() {
             </p>
           )}
           {row.sourceFileName && (
-            <p className="truncate text-xs text-rp-text-muted">{row.sourceFileName}</p>
+            <p title={row.sourceFileName} className="truncate text-xs text-rp-text-muted">{row.sourceFileName}</p>
           )}
         </div>
       ),
@@ -265,6 +265,7 @@ export default function AuthorDashboard() {
     {
       key: 'entityType',
       header: tr('Loại'),
+      compact: true,
       render: (row) => (
         <Badge tone="brand" size="sm" icon={false}>
           {tr(definitions[row.entityType]?.label || row.entityType)}
@@ -274,6 +275,7 @@ export default function AuthorDashboard() {
     {
       key: 'level',
       header: tr('Cấp độ'),
+      compact: true,
       render: (row) => {
         const code = row.certificateLevelCode || levelById.get(Number(row.certificateLevelId))?.code;
         return code ? <Badge tone="neutral" size="sm" icon={false}>{code}</Badge> : <span className="text-xs text-rp-text-muted">—</span>;
@@ -282,6 +284,7 @@ export default function AuthorDashboard() {
     {
       key: 'status',
       header: tr('Trạng thái'),
+      compact: true,
       render: (row) => (
         <Badge tone={STATUS_BADGE_TONES[row.status] || 'neutral'} size="sm" icon={false}>
           {tr(statuses[row.status]?.label ?? row.status)}
@@ -291,6 +294,7 @@ export default function AuthorDashboard() {
     {
       key: 'updatedAt',
       header: tr('Cập nhật'),
+      compact: true,
       render: (row) => (
         <span className="whitespace-nowrap text-xs text-rp-text-2">
           {formatVnDateTime(row.updatedAt || row.submittedAt)}
@@ -302,7 +306,7 @@ export default function AuthorDashboard() {
   const renderRowActions = (row) => {
     const canModify = Boolean(row.targetEntityId) && (row.status === 'Draft' || row.status === 'Rejected');
     return (
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center justify-center gap-1">
         {row.targetEntityId && (
           <IconButton
             icon={Eye}
@@ -346,7 +350,7 @@ export default function AuthorDashboard() {
 
   return (
     <ContentAuthorShell breadcrumb={tr('Nội dung của tôi')}>
-      <main data-page="author-dashboard" className="mx-auto w-full min-w-0 max-w-[1280px] space-y-5">
+      <PageContainer as="div" data-page="author-dashboard" width="default" className="space-y-5">
         <PageHeader
           eyebrow={tr('Quản lý sản xuất học liệu')}
           title={
@@ -358,7 +362,6 @@ export default function AuthorDashboard() {
           description={tr('Theo dõi toàn bộ bài học, từ vựng, Hán tự, ngữ pháp và đề thi theo trạng thái kiểm duyệt.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <RefreshingIndicator active={mineQuery.isFetching && !mineQuery.isPending} />
               <Link
                 to="/bulk-import/"
                 className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input border border-rp-line bg-white px-3.5 text-sm font-medium text-rp-text-2 hover:border-rp-brand-border"
@@ -391,115 +394,117 @@ export default function AuthorDashboard() {
           </Banner>
         )}
 
-        {/* Status Tabs + View Toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs
-            variant="pill"
-            label={tr('Lọc theo trạng thái')}
-            value={statusFilter}
-            onChange={handleStatusChange}
-            tabs={STATUS_TABS.map((tab) => ({
-              value: tab.id,
-              label: tr(tab.label),
-              count: counts[tab.id] || 0,
-            }))}
+        {/* Unified Workspace Toolbar: Status Tabs + Search + Filters + View Toggle (hidden when author has 0 items total) */}
+        {mineQuery.isSuccess && items.length > 0 && (
+          <UnifiedToolbar
+            tabs={{
+              label: tr('Lọc theo trạng thái'),
+              value: statusFilter,
+              onChange: handleStatusChange,
+              tabs: STATUS_TABS.map((tab) => ({
+                value: tab.id,
+                label: tr(tab.label),
+                count: counts[tab.id] || 0,
+              })),
+            }}
+            search={{
+              value: searchText,
+              onChange: (e) => setSearchText(e.target.value),
+              onClear: () => setSearchText(''),
+              placeholder: 'Tìm tên mục, tệp, góp ý…',
+              ariaLabel: 'Tìm kiếm nội dung',
+              className: 'sm:max-w-[205px] xl:max-w-[220px]',
+            }}
+            filters={
+              <>
+                <CustomSelect
+                  fitContent
+                  value={typeFilter}
+                  aria-label={tr('Loại học liệu')}
+                  onChange={setTypeFilter}
+                  options={[
+                    { value: 'ALL', label: tr('Tất cả loại') },
+                    ...(entityTypesPresent.length > 0 ? entityTypesPresent : Object.keys(definitions)).map((key) => ({
+                      value: key,
+                      label: tr(definitions[key]?.label || key),
+                    })),
+                  ]}
+                />
+
+                <CustomSelect
+                  fitContent
+                  value={levelFilter}
+                  aria-label={tr('Cấp độ')}
+                  onChange={setLevelFilter}
+                  options={[
+                    { value: 'ALL', label: tr('Mọi cấp độ') },
+                    ...levels.map((lvl) => ({
+                      value: String(lvl.id),
+                      label: `${lvl.certificate} · ${lvl.code}`,
+                    })),
+                  ]}
+                />
+
+                <CustomSelect
+                  fitContent
+                  value={sortBy}
+                  aria-label={tr('Sắp xếp')}
+                  onChange={setSortBy}
+                  options={[
+                    { value: 'recent', label: tr('Mới cập nhật') },
+                    { value: 'name', label: tr('Tên A–Z') },
+                    { value: 'oldest', label: tr('Cũ nhất') },
+                  ]}
+                />
+              </>
+            }
+            actions={
+              <>
+                {hasFilters && (
+                  <Button variant="ghost" icon={X} onClick={resetFilters}>
+                    {tr('Xóa bộ lọc')}
+                  </Button>
+                )}
+                <Tabs
+                  variant="pill"
+                  label={tr('Kiểu hiển thị')}
+                  value={viewMode}
+                  onChange={setViewMode}
+                  tabs={[
+                    { value: 'flat', label: tr('Tất cả mục'), icon: List },
+                    { value: 'grouped', label: tr('Nhóm theo bài / lô'), icon: Layers },
+                  ]}
+                />
+              </>
+            }
+            refresh={{
+              onRefresh: () => mineQuery.refetch({ cancelRefetch: true }),
+              refreshing: mineQuery.isFetching && !mineQuery.isPending,
+              disabled: mineQuery.isPending,
+            }}
           />
-          <Tabs
-            variant="pill"
-            label={tr('Kiểu hiển thị')}
-            value={viewMode}
-            onChange={setViewMode}
-            tabs={[
-              { value: 'flat', label: tr('Tất cả mục'), icon: List },
-              { value: 'grouped', label: tr('Nhóm theo bài / lô'), icon: Layers },
-            ]}
-          />
-        </div>
-
-        {/* Search & Filters */}
-        <Card className="p-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="min-w-[210px] flex-1">
-              <Input
-                type="search"
-                icon={Search}
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder={tr('Tìm theo tên mục, tệp nguồn hoặc góp ý…')}
-                aria-label={tr('Tìm kiếm nội dung')}
-              />
-            </div>
-
-            <div className="w-full sm:w-[175px]">
-              <CustomSelect
-                value={typeFilter}
-                aria-label={tr('Loại học liệu')}
-                onChange={setTypeFilter}
-                options={[
-                  { value: 'ALL', label: tr('Tất cả loại') },
-                  ...(entityTypesPresent.length > 0 ? entityTypesPresent : Object.keys(definitions)).map((key) => ({
-                    value: key,
-                    label: tr(definitions[key]?.label || key),
-                  })),
-                ]}
-              />
-            </div>
-
-            <div className="w-full sm:w-[165px]">
-              <CustomSelect
-                value={levelFilter}
-                aria-label={tr('Cấp độ')}
-                onChange={setLevelFilter}
-                options={[
-                  { value: 'ALL', label: tr('Mọi cấp độ') },
-                  ...levels.map((lvl) => ({
-                    value: String(lvl.id),
-                    label: `${lvl.certificate} · ${lvl.code}`,
-                  })),
-                ]}
-              />
-            </div>
-
-            <div className="w-full sm:w-[165px]">
-              <CustomSelect
-                value={sortBy}
-                aria-label={tr('Sắp xếp')}
-                onChange={setSortBy}
-                options={[
-                  { value: 'recent', label: tr('Mới cập nhật') },
-                  { value: 'name', label: tr('Tên A–Z') },
-                  { value: 'oldest', label: tr('Cũ nhất') },
-                ]}
-              />
-            </div>
-
-            {hasFilters && (
-              <Button variant="ghost" size="sm" icon={X} onClick={resetFilters}>
-                {tr('Xóa bộ lọc')}
-              </Button>
-            )}
-          </div>
-        </Card>
+        )}
 
         {/* Data Area */}
-        {mineQuery.isPending ? (
-          <SakuraLoader variant="section" context="lesson" delay={140} />
-        ) : mineQuery.isError ? (
-          <ContextualErrorState
-            error={mineQuery.error}
-            title={tr('Chưa tải được danh sách nội dung')}
-            onRetry={() => mineQuery.refetch()}
-          />
-        ) : filteredItems.length === 0 ? (
+        <DataRefreshBoundary
+          query={mineQuery}
+          hasData={items.length > 0}
+          context="lesson"
+          loadingLabel={tr('Đang tải nội dung của bạn…')}
+          errorTitle={tr('Chưa tải được danh sách nội dung')}
+        >
+          {filteredItems.length === 0 ? (
           <ContextualEmptyState
-            title={hasFilters ? tr('Không có mục nào khớp bộ lọc') : tr('Chưa có học liệu nào')}
+            variant={items.length > 0 && hasFilters ? 'search' : 'default'}
+            illustration={items.length > 0 && hasFilters ? 'search' : 'book'}
+            title={items.length > 0 && hasFilters ? tr('Không có mục nào khớp bộ lọc') : tr('Chưa có học liệu nào')}
             description={
-              hasFilters
+              items.length > 0 && hasFilters
                 ? tr('Thử đổi trạng thái, cấp độ hoặc xóa bộ lọc để xem toàn bộ mục của bạn.')
                 : tr('Bắt đầu tạo bài học, từ vựng hoặc nhập lô Excel mới để gửi duyệt.')
             }
             action={
-              hasFilters ? (
+              items.length > 0 && hasFilters ? (
                 <Button variant="outline" onClick={resetFilters}>
                   {tr('Xóa bộ lọc')}
                 </Button>
@@ -571,7 +576,8 @@ export default function AuthorDashboard() {
               </Card>
             ))}
           </div>
-        )}
+          )}
+        </DataRefreshBoundary>
 
         {/* Quick Preview Modal */}
         <Modal
@@ -630,7 +636,7 @@ export default function AuthorDashboard() {
               compact
               error={detailQuery.error}
               title={tr('Không tải được chi tiết mục cần sửa')}
-              description={describeApiError(detailQuery.error)}
+              description={formatApiError(detailQuery.error)}
               onRetry={() => detailQuery.refetch()}
             />
           ) : detailQuery.data ? (
@@ -675,7 +681,7 @@ export default function AuthorDashboard() {
           description={deleteTarget ? trf('Bản nháp "{0}" sẽ bị xóa khỏi danh sách của bạn.', { 0: deleteTarget.rowKey }) : ''}
           confirmLabel={tr('Xóa bản nháp')}
         />
-      </main>
+      </PageContainer>
     </ContentAuthorShell>
   );
 }

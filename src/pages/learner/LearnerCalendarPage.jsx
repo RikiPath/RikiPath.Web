@@ -2,15 +2,18 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
+  BellRing,
   BookCheck,
+  CalendarDays,
   Clock,
-  RefreshCw,
+  Layers3,
   Sparkles,
   Video,
 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import SakuraCalendar from '@/features/scheduling/components/SakuraCalendar.jsx';
-import { toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
+import { CALENDAR_CATEGORIES, getCalendarCategoryMeta, getToneMeta, toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
+import { notificationDestination } from '@/features/notifications/utils/notificationDedupe.js';
 import { useWorkspaceCalendar } from '@/features/calendar/hooks/useWorkspaceCalendar.js';
 import { displayCourseTitle, homeworkStatusMeta } from '@/features/calendar/utils/calendarEventsModel.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
@@ -19,21 +22,26 @@ import {
   Badge,
   Card,
   ContextualErrorState,
-  FeatureIcon,
-  PageHeader,
+  EmptyState,
+  RefreshButton,
   RefreshingIndicator,
   SakuraLoader,
   cx,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 
 export default function LearnerCalendarPage() {
   const { tr, trf } = useLocale();
-  const calendar = useWorkspaceCalendar({ roleKey: 'Learner' });
+  const [anchorKey, setAnchorKey] = useState(() => toVnDateKey(new Date()));
+  const [selectedCohortFilter, setSelectedCohortFilter] = useState('ALL');
+
+  const calendar = useWorkspaceCalendar({ roleKey: 'Learner', anchorKey });
   const {
     nowMs,
     events,
     courses,
     summary,
+    srsState,
     srsDueCount,
     partialErrors,
     hardError,
@@ -41,9 +49,6 @@ export default function LearnerCalendarPage() {
     isFetching,
     refetchAll,
   } = calendar;
-
-  const [anchorKey, setAnchorKey] = useState(() => toVnDateKey(new Date()));
-  const [selectedCohortFilter, setSelectedCohortFilter] = useState('ALL');
 
   const cohortOptions = useMemo(() => {
     const active = courses.filter((c) => c && c.status !== 'Cancelled' && c.status !== 'Transferred');
@@ -78,142 +83,54 @@ export default function LearnerCalendarPage() {
     });
   }, [events, selectedCohortFilter]);
 
-  const { liveSessions, upcomingSessions, upcoming7DaysSessions, pendingHomeworks } = summary;
-  const nextSession = liveSessions[0] || upcomingSessions[0] || null;
+  const { todayKey, liveSessions, upcomingSessions, pendingHomeworks, scheduleNotifications = [] } = summary;
+
+  const selectedDayGroups = useMemo(() => {
+    const dayItems = filteredEvents.filter((ev) => ev.dayKey === anchorKey);
+    return {
+      total: dayItems.length,
+      sessions: dayItems.filter((ev) => ev.eventType === 'session'),
+      homeworks: dayItems.filter((ev) => ev.eventType === 'homework'),
+      srs: dayItems.filter((ev) => ev.eventType === 'srs'),
+      reminders: dayItems.filter((ev) => ev.eventType === 'reminder'),
+    };
+  }, [filteredEvents, anchorKey]);
+
+  const anchorDateLabel = useMemo(() => {
+    const formatted = String(anchorKey || '').split('-').reverse().join('/');
+    return anchorKey === todayKey ? `${tr('Hôm nay')} (${formatted})` : formatted;
+  }, [anchorKey, todayKey, tr]);
 
   return (
     <LearnerShell breadcrumb={tr('Lịch học')}>
       <div className="rp-container space-y-6 py-6 lg:py-8">
-        <PageHeader
+        <IllustratedPageHeader
+          icon="calendar"
+          tone="sky"
           eyebrow={tr('Học nhóm')}
           title={tr('Lịch học tập trung')}
           description={tr('Theo dõi toàn bộ buổi học lớp nhóm, hạn nộp bài tập và ôn tập SRS theo giờ Việt Nam (GMT+7).')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              {isFetching && !isLoading && <RefreshingIndicator active label={tr('Đang đồng bộ')} />}
-              <button
-                type="button"
-                onClick={refetchAll}
-                disabled={isFetching}
-                className="rp-focus inline-flex h-10 items-center gap-2 rounded-xl border border-rp-line bg-rp-surface px-3.5 text-sm font-semibold text-rp-text transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint/40"
-              >
-                <RefreshCw className={cx('h-4 w-4 text-rp-brand-strong', isFetching && 'animate-spin')} />
-                {tr('Làm mới lịch')}
-              </button>
-              <Link
-                to="/homework"
-                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl border border-rp-line bg-rp-surface px-3.5 text-sm font-semibold text-rp-text hover:bg-rp-muted"
-              >
-                <BookCheck className="h-4 w-4 text-[#4F46E5]" />
-                {tr('Bài tập về nhà')}
-              </Link>
-            </div>
+            !isLoading && !hardError && events.length > 0 ? (
+              <RefreshButton
+                size="md"
+                onRefresh={refetchAll}
+                refreshing={isFetching && !isLoading}
+                disabled={isLoading}
+              />
+            ) : null
           }
         />
 
-        {/* Summary KPI Strip */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="p-4">
-            <div className="flex items-start gap-3">
-              <FeatureIcon feature="calendar" size="md" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Buổi học 7 ngày tới')}</p>
-                {isLoading ? (
-                  <SakuraLoader variant="inline" size={18} context="data" delay={120} />
-                ) : (
-                  <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
-                    {upcoming7DaysSessions.length}
-                  </p>
-                )}
+        {isFetching && !isLoading && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} label={tr('Đang đồng bộ')} />
               </div>
             </div>
-            {nextSession && (
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-rp-line/70 pt-2.5 text-xs">
-                <span className="truncate text-rp-text-muted">{formatVnDateTime(nextSession.scheduledAt)}</span>
-                {nextSession.canJoin ? (
-                  <Link
-                    to={nextSession.roomHref}
-                    className="shrink-0 font-bold text-[#0F766E] rp-underline"
-                  >
-                    {tr('Vào phòng')}
-                  </Link>
-                ) : (
-                  <Link
-                    to={nextSession.secondaryHref || '/my-courses'}
-                    className="shrink-0 font-semibold rp-link"
-                  >
-                    {tr('Chi tiết')}
-                  </Link>
-                )}
-              </div>
-            )}
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF2FF] text-[#4F46E5]">
-                <BookCheck className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Bài tập cần làm')}</p>
-                {isLoading ? (
-                  <SakuraLoader variant="inline" size={18} context="data" delay={120} />
-                ) : (
-                  <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
-                    {pendingHomeworks.length}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-3 border-t border-rp-line/70 pt-2.5 text-xs">
-              <Link to="/homework" className="inline-flex items-center gap-1 font-semibold rp-link">
-                {tr('Xem tất cả bài tập')} <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-start gap-3">
-              <FeatureIcon feature="srs" size="md" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Thẻ SRS hôm nay')}</p>
-                {isLoading ? (
-                  <SakuraLoader variant="inline" size={18} context="data" delay={120} />
-                ) : (
-                  <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
-                    {srsDueCount}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-3 border-t border-rp-line/70 pt-2.5 text-xs">
-              <Link to="/daily-srs" className="inline-flex items-center gap-1 font-semibold rp-link">
-                {srsDueCount > 0 ? tr('Ôn tập ngay') : tr('Mở ôn tập SRS')} <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-start gap-3">
-              <FeatureIcon feature="group" size="md" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Lớp học tham gia')}</p>
-                {isLoading ? (
-                  <SakuraLoader variant="inline" size={18} context="data" delay={120} />
-                ) : (
-                  <p className="mt-0.5 text-2xl font-bold tabular-nums text-rp-text">
-                    {cohortOptions.length}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-3 border-t border-rp-line/70 pt-2.5 text-xs">
-              <Link to="/my-courses" className="inline-flex items-center gap-1 font-semibold rp-link">
-                {tr('Quản lý lớp của tôi')} <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </Card>
-        </section>
+          </div>
+        )}
 
         {/* Partial Error Banner */}
         {partialErrors.length > 0 && (
@@ -233,39 +150,67 @@ export default function LearnerCalendarPage() {
           </div>
         )}
 
-        {/* Class Filter Pills */}
-        {cohortOptions.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-rp-text-muted">{tr('Lọc theo lớp:')}</span>
-            <button
-              type="button"
-              onClick={() => setSelectedCohortFilter('ALL')}
-              className={cx(
-                'rp-focus rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                selectedCohortFilter === 'ALL'
-                  ? 'bg-rp-brand-pressed text-white'
-                  : 'border border-rp-line bg-rp-surface text-rp-text-2 hover:border-rp-brand-border',
-              )}
-            >
-              {tr('Tất cả lớp')}
-            </button>
-            {cohortOptions.map((c) => (
+        {/* Unified 4-Category Legend & Class Filter Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div
+            data-testid="calendar-category-legend"
+            className="flex flex-wrap items-center gap-2 text-xs font-semibold"
+          >
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-cal-class-border bg-rp-cal-class-bg px-2.5 py-1 text-rp-cal-class-text">
+              <span className="h-2 w-2 rounded-full bg-rp-cal-class" />
+              <CalendarDays className="h-3.5 w-3.5 text-rp-cal-class" />
+              {tr('Lớp học')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-cal-homework-border bg-rp-cal-homework-bg px-2.5 py-1 text-rp-cal-homework-text">
+              <span className="h-2 w-2 rounded-full bg-rp-cal-homework" />
+              <BookCheck className="h-3.5 w-3.5 text-rp-cal-homework" />
+              {tr('Bài tập về nhà')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-cal-srs-border bg-rp-cal-srs-bg px-2.5 py-1 text-rp-cal-srs-text">
+              <span className="h-2 w-2 rounded-full bg-rp-cal-srs" />
+              <Layers3 className="h-3.5 w-3.5 text-rp-cal-srs" />
+              {tr('Ôn tập')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-cal-reminder-border bg-rp-cal-reminder-bg px-2.5 py-1 text-rp-cal-reminder-text">
+              <span className="h-2 w-2 rounded-full bg-rp-cal-reminder" />
+              <BellRing className="h-3.5 w-3.5 text-rp-cal-reminder" />
+              {tr('Nhắc nhở')}
+            </span>
+          </div>
+
+          {cohortOptions.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-rp-text-muted">{tr('Lọc theo lớp:')}</span>
               <button
-                key={c.key}
                 type="button"
-                onClick={() => setSelectedCohortFilter(c.key)}
+                onClick={() => setSelectedCohortFilter('ALL')}
                 className={cx(
                   'rp-focus rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                  selectedCohortFilter === c.key
+                  selectedCohortFilter === 'ALL'
                     ? 'bg-rp-brand-pressed text-white'
                     : 'border border-rp-line bg-rp-surface text-rp-text-2 hover:border-rp-brand-border',
                 )}
               >
-                {c.label}
+                {tr('Tất cả lớp')}
               </button>
-            ))}
-          </div>
-        )}
+              {cohortOptions.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setSelectedCohortFilter(c.key)}
+                  className={cx(
+                    'rp-focus rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                    selectedCohortFilter === c.key
+                      ? 'bg-rp-brand-pressed text-white'
+                      : 'border border-rp-line bg-rp-surface text-rp-text-2 hover:border-rp-brand-border',
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Main Workspace Grid */}
         {isLoading ? (
@@ -313,19 +258,19 @@ export default function LearnerCalendarPage() {
               />
             </div>
 
-            {/* Right Rail: Upcoming Action Queue */}
+            {/* Right Rail: Selected Day Details + SRS + Upcoming Action Queue */}
             <aside className="space-y-4">
               {liveSessions.length > 0 && (
-                <Card className="border-[#99F6E4] bg-[#F0FDFA] p-4">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0F766E]">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[#0F766E]" />
+                <Card className="border-l-[3.5px] border-rp-cal-class-border border-l-rp-cal-class bg-rp-cal-class-bg p-4 text-rp-cal-class-text">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-rp-cal-class-text">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-rp-cal-class" />
                     {tr('Phòng học đang mở')}
                   </div>
-                  <p className="mt-1.5 font-bold text-[#115E59]">{liveSessions[0].title}</p>
-                  <p className="mt-0.5 text-xs text-[#0F766E]/90">{liveSessions[0].detail}</p>
+                  <p className="mt-1.5 font-bold text-rp-cal-class-text">{liveSessions[0].title}</p>
+                  <p className="mt-0.5 text-xs text-rp-cal-class-text/85">{liveSessions[0].detail}</p>
                   <Link
                     to={liveSessions[0].roomHref}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0F766E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#115E59]"
+                    className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-rp-cal-class px-4 py-2 text-xs font-semibold text-white hover:opacity-95"
                   >
                     <Video className="h-4 w-4" />
                     {tr('Vào phòng học ngay')}
@@ -333,27 +278,317 @@ export default function LearnerCalendarPage() {
                 </Card>
               )}
 
+              {/* Selected Day Details (Lớp học · Bài tập · Ôn tập · Nhắc nhở) */}
+              <Card className="p-4 space-y-3" data-testid="calendar-selected-day-details">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <CalendarDays className="h-4 w-4 shrink-0 text-rp-brand-strong" />
+                    <h2 className="truncate text-sm font-bold text-rp-text">
+                      {trf('Chi tiết ngày {0}', { 0: anchorDateLabel })}
+                    </h2>
+                  </div>
+                  <Badge tone="brand" size="sm" icon={false}>
+                    {selectedDayGroups.total}
+                  </Badge>
+                </div>
+
+                {selectedDayGroups.total === 0 ? (
+                  <p className="rounded-xl border border-dashed border-rp-line bg-rp-bg-2/50 px-3 py-3 text-center text-xs text-rp-text-muted">
+                    {tr('Không có lớp học, bài tập hay lịch ôn tập trong ngày này.')}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedDayGroups.sessions.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-rp-cal-class-text">
+                          <span className="h-2 w-2 rounded-full bg-rp-cal-class" />
+                          {tr('Lớp học')} ({selectedDayGroups.sessions.length})
+                        </p>
+                        <ul className="space-y-1.5">
+                          {selectedDayGroups.sessions.map((ev) => {
+                            const catMeta = getCalendarCategoryMeta(ev);
+                            const toneMeta = getToneMeta(ev.tone);
+                            return (
+                              <li key={ev.id} className={cx('rounded-xl p-2.5 text-xs', catMeta.card)}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className={cx('font-bold', ev.tone === 'cancelled' && 'line-through opacity-75')}>
+                                    {ev.title}
+                                  </span>
+                                  <span className={cx('inline-flex shrink-0 items-center gap-1 rounded-full bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold', toneMeta.pill)}>
+                                    <span className={cx('h-1.5 w-1.5 rounded-full', catMeta.dot)} />
+                                    {tr(ev.statusLabel)}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-[11.5px] opacity-85">{ev.detail}</p>
+                                {ev.href && (
+                                  <div className="mt-2 flex justify-end">
+                                    <Link
+                                      to={ev.href}
+                                      className="rp-focus inline-flex items-center gap-1 rounded-lg bg-rp-cal-class px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-95"
+                                    >
+                                      <span>{tr(ev.hrefLabel || 'Xem lịch lớp')}</span>
+                                      <ArrowRight className="h-3 w-3" />
+                                    </Link>
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {selectedDayGroups.homeworks.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-rp-cal-homework-text">
+                          <span className="h-2 w-2 rounded-full bg-rp-cal-homework" />
+                          {tr('Bài tập')} ({selectedDayGroups.homeworks.length})
+                        </p>
+                        <ul className="space-y-1.5">
+                          {selectedDayGroups.homeworks.map((ev) => {
+                            const catMeta = getCalendarCategoryMeta(ev);
+                            return (
+                              <li key={ev.id} className={cx('rounded-xl p-2.5 text-xs', catMeta.card)}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-bold">{ev.title}</span>
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rp-cal-homework-border bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold text-rp-cal-homework-text">
+                                    <span className={cx('h-1.5 w-1.5 rounded-full', catMeta.dot)} />
+                                    {tr(ev.statusLabel)}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-[11.5px] opacity-85">
+                                  {ev.scheduledAt ? formatVnDateTime(ev.scheduledAt) : ev.detail}
+                                </p>
+                                {ev.href && (
+                                  <div className="mt-2 flex justify-end">
+                                    <Link
+                                      to={ev.href}
+                                      className="rp-focus inline-flex items-center gap-1 rounded-lg bg-rp-cal-homework px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-95"
+                                    >
+                                      <BookCheck className="h-3 w-3" />
+                                      <span>{tr(ev.hrefLabel || 'Mở bài tập')}</span>
+                                    </Link>
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {selectedDayGroups.srs.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-rp-cal-srs-text">
+                          <span className="h-2 w-2 rounded-full bg-rp-cal-srs" />
+                          {tr('Ôn tập')}
+                        </p>
+                        {selectedDayGroups.srs.map((ev) => {
+                          const catMeta = getCalendarCategoryMeta(ev);
+                          return (
+                            <div key={ev.id} className={cx('rounded-xl p-2.5 text-xs', catMeta.card)}>
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-bold">{ev.title}</span>
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rp-cal-srs-border bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold text-rp-cal-srs-text">
+                                  <span className={cx('h-1.5 w-1.5 rounded-full', catMeta.dot)} />
+                                  {tr(ev.statusLabel)}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-[11.5px] opacity-85">{ev.detail}</p>
+                              <div className="mt-2 flex items-center justify-end gap-2">
+                                {ev.secondaryHref && (
+                                  <Link
+                                    to={ev.secondaryHref}
+                                    className="rp-focus rounded-lg border border-rp-cal-srs-border bg-white/90 px-2 py-1 text-[11px] font-semibold text-rp-cal-srs-text hover:bg-white"
+                                  >
+                                    {tr(ev.secondaryLabel || 'Xem thẻ')}
+                                  </Link>
+                                )}
+                                {ev.href && (
+                                  <Link
+                                    to={ev.href}
+                                    className="rp-focus inline-flex items-center gap-1 rounded-lg bg-rp-cal-srs px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-95"
+                                  >
+                                    <span>{tr(ev.hrefLabel || 'Xem thẻ')}</span>
+                                    <ArrowRight className="h-3 w-3" />
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {selectedDayGroups.reminders.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-rp-cal-reminder-text">
+                          <span className="h-2 w-2 rounded-full bg-rp-cal-reminder" />
+                          {tr('Nhắc nhở')} ({selectedDayGroups.reminders.length})
+                        </p>
+                        <ul className="space-y-1.5">
+                          {selectedDayGroups.reminders.map((ev) => {
+                            const catMeta = getCalendarCategoryMeta(ev);
+                            return (
+                              <li key={ev.id} className={cx('rounded-xl p-2.5 text-xs', catMeta.card)}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-bold">{tr(ev.title)}</span>
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rp-cal-reminder-border bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold text-rp-cal-reminder-text">
+                                    <span className={cx('h-1.5 w-1.5 rounded-full', catMeta.dot)} />
+                                    {tr(ev.statusLabel || 'Nhắc nhở')}
+                                  </span>
+                                </div>
+                                {ev.detail && <p className="mt-1 text-[11.5px] opacity-85">{tr(ev.detail)}</p>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+
+              {/* Authoritative SRS Summary Card — Yellow SRS Category (#D5A12F / #FFF8E7) */}
+              <Card className="p-4 space-y-2.5" data-testid="calendar-srs-digest-card">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Layers3 className="h-4 w-4 text-rp-cal-srs" />
+                    <h2 className="text-sm font-bold text-rp-text">{tr('Ôn tập hôm nay')}</h2>
+                  </div>
+                  <Link to="/daily-srs" className="text-xs font-semibold rp-link">
+                    {tr('Mở SRS')}
+                  </Link>
+                </div>
+
+                {srsState?.hasActiveSession && (srsState?.activeSessionPendingCount || 0) > 0 ? (
+                  <div className="rounded-xl border border-l-[3.5px] border-rp-cal-srs-border border-l-rp-cal-srs bg-rp-cal-srs-bg p-3 space-y-2 text-rp-cal-srs-text">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-rp-cal-srs-text">
+                        {tr('Tiếp tục ôn tập')}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rp-cal-srs-border bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold text-rp-cal-srs-text">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-srs" />
+                        {tr('Đang ôn')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-rp-cal-srs-text/85">
+                      {trf('Còn {0} thẻ chưa hoàn thành', { 0: srsState.activeSessionPendingCount })}
+                    </p>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <Link
+                        to={srsState?.reviewHref || '/daily-srs'}
+                        className="group rp-focus inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-rp-cal-srs px-3 py-1.5 text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 hover:shadow-rp-xs"
+                      >
+                        <span>{tr('Tiếp tục ôn')}</span>
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+                      </Link>
+                      <Link
+                        to={srsState?.libraryHref || '/daily-srs/library/'}
+                        className="rp-focus inline-flex items-center justify-center rounded-xl border border-rp-cal-srs-border bg-white px-3 py-1.5 text-xs font-semibold text-rp-cal-srs-text transition-colors hover:bg-[#FFEFCA]"
+                      >
+                        {tr('Xem thẻ')}
+                      </Link>
+                    </div>
+                  </div>
+                ) : srsDueCount > 0 ? (
+                  <div className="rounded-xl border border-l-[3.5px] border-rp-cal-srs-border border-l-rp-cal-srs bg-rp-cal-srs-bg p-3 space-y-2 text-rp-cal-srs-text">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-rp-cal-srs-text">
+                        {trf('{0} thẻ cần ôn', { 0: srsDueCount })}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rp-cal-srs-border bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold text-rp-cal-srs-text">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-srs" />
+                        {tr('Đến hạn')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-rp-cal-srs-text/85">
+                      {(srsState?.reviewedTodayCount || 0) > 0
+                        ? trf('Đã ôn {0} lượt hôm nay.', { 0: srsState.reviewedTodayCount })
+                        : tr('Các thẻ đã đến hạn ôn tập trong ngày.')}
+                    </p>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <Link
+                        to={srsState?.reviewHref || '/daily-srs'}
+                        className="group rp-focus inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-rp-cal-srs px-3 py-1.5 text-xs font-semibold text-white transition-all duration-150 hover:opacity-95 hover:shadow-rp-xs"
+                      >
+                        <span>{tr('Ôn ngay')}</span>
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+                      </Link>
+                      <Link
+                        to={srsState?.libraryHref || '/daily-srs/library/'}
+                        className="rp-focus inline-flex items-center justify-center rounded-xl border border-rp-cal-srs-border bg-white px-3 py-1.5 text-xs font-semibold text-rp-cal-srs-text transition-colors hover:bg-[#FFEFCA]"
+                      >
+                        {tr('Xem thẻ')}
+                      </Link>
+                    </div>
+                  </div>
+                ) : srsState?.nextDueAtUtc ? (
+                  <div className="rounded-xl border border-l-[3.5px] border-rp-cal-srs-border border-l-rp-cal-srs bg-rp-cal-srs-bg p-3 space-y-1.5 text-rp-cal-srs-text">
+                    <p className="text-xs font-semibold text-rp-cal-srs-text">
+                      {tr('Chưa có thẻ cần ôn lúc này')}
+                    </p>
+                    <p className="text-xs text-rp-cal-srs-text/80">
+                      {trf('Ôn tiếp lúc {0} ({1})', {
+                        0: toVnTimeParts(srsState.nextDueAtUtc).hhmm,
+                        1: toVnDateKey(srsState.nextDueAtUtc).split('-').slice(1).reverse().join('/'),
+                      })}
+                    </p>
+                    <Link
+                      to={srsState?.libraryHref || '/daily-srs/library/'}
+                      className="rp-focus rp-underline inline-flex items-center gap-1 text-xs font-semibold text-rp-cal-srs-text"
+                    >
+                      <span>{tr('Xem thẻ')}</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="text-xs text-rp-text-muted">
+                    {tr('Chưa có thẻ trong lịch ôn. Lưu từ bài học hoặc thêm thẻ mới tại Thẻ của tôi.')}
+                  </p>
+                )}
+              </Card>
+
               <Card className="p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-bold text-rp-text">{tr('Buổi học sắp diễn ra')}</h2>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rp-cal-class" />
+                    <h2 className="text-sm font-bold text-rp-text">{tr('Buổi học sắp diễn ra')}</h2>
+                  </div>
                   <Badge tone="neutral" size="sm">GMT+7</Badge>
                 </div>
                 {upcomingSessions.length === 0 ? (
-                  <p className="text-xs text-rp-text-muted">{tr('Không có buổi học nào trong 7 ngày tới.')}</p>
+                  <EmptyState
+                    variant="inline"
+                    size="sm"
+                    illustration="calendar"
+                    title={tr('Không có buổi học nào trong 7 ngày tới.')}
+                  />
                 ) : (
                   <ul className="space-y-2.5">
                     {upcomingSessions.slice(0, 5).map((ev) => (
-                      <li key={ev.id} className="rounded-xl border border-rp-line/85 bg-rp-bg-2/50 p-2.5">
+                      <li key={ev.id}>
                         <Link
                           to={ev.secondaryHref || '/my-courses'}
-                          className="block truncate text-[13px] font-semibold text-rp-text hover:text-rp-brand-strong"
+                          className={cx(
+                            'group rp-focus flex items-center justify-between gap-2 rounded-xl p-2.5',
+                            CALENDAR_CATEGORIES.class.card,
+                            CALENDAR_CATEGORIES.class.hoverCard,
+                          )}
                         >
-                          {ev.title}
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-semibold text-rp-cal-class-text">
+                              {ev.title}
+                            </span>
+                            <p className="mt-0.5 flex items-center gap-1 text-[11.5px] text-rp-cal-class-text/80">
+                              <Clock className="h-3 w-3 shrink-0 text-rp-cal-class" />
+                              {formatVnDateTime(ev.scheduledAt)} · {ev.statusLabel}
+                            </p>
+                          </div>
+                          <span aria-hidden="true" className={CALENDAR_CATEGORIES.class.arrowChip}>
+                            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+                          </span>
                         </Link>
-                        <p className="mt-0.5 flex items-center gap-1 text-[11.5px] text-rp-text-muted">
-                          <Clock className="h-3 w-3 shrink-0" />
-                          {formatVnDateTime(ev.scheduledAt)}
-                        </p>
                       </li>
                     ))}
                   </ul>
@@ -362,13 +597,21 @@ export default function LearnerCalendarPage() {
 
               <Card className="p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-bold text-rp-text">{tr('Bài tập chưa nộp')}</h2>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rp-cal-homework" />
+                    <h2 className="text-sm font-bold text-rp-text">{tr('Bài tập chưa nộp')}</h2>
+                  </div>
                   <Link to="/homework" className="text-xs font-semibold rp-link">
                     {tr('Tất cả')}
                   </Link>
                 </div>
                 {pendingHomeworks.length === 0 ? (
-                  <p className="text-xs text-rp-text-muted">{tr('Bạn đã hoàn thành toàn bộ bài tập hiện có.')}</p>
+                  <EmptyState
+                    variant="inline"
+                    size="sm"
+                    illustration="done"
+                    title={tr('Bạn đã hoàn thành toàn bộ bài tập hiện có.')}
+                  />
                 ) : (
                   <ul className="space-y-2">
                     {pendingHomeworks.slice(0, 4).map((hw) => {
@@ -377,13 +620,19 @@ export default function LearnerCalendarPage() {
                         <li key={hw.id}>
                           <Link
                             to={hw.cohortId ? `/homework/?cohortId=${hw.cohortId}` : '/homework'}
-                            className="block rounded-xl border border-rp-line/85 bg-rp-bg-2/50 p-2.5 transition-colors hover:border-rp-brand-border"
+                            className={cx(
+                              'group rp-focus block rounded-xl p-2.5',
+                              CALENDAR_CATEGORIES.homework.card,
+                              CALENDAR_CATEGORIES.homework.hoverCard,
+                            )}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="truncate text-[13px] font-semibold text-rp-text">{hw.title}</span>
-                              <Badge tone={meta.tone} size="sm">{tr(meta.label)}</Badge>
+                              <span className="truncate text-[13px] font-semibold text-rp-cal-homework-text">{hw.title}</span>
+                              <span className="inline-flex shrink-0 items-center rounded-full border border-rp-cal-homework-border bg-white/85 px-2 py-0.5 text-[10.5px] font-semibold text-rp-cal-homework-text">
+                                {tr(meta.label)}
+                              </span>
                             </div>
-                            <p className="mt-0.5 text-[11.5px] text-rp-text-muted">
+                            <p className="mt-0.5 text-[11.5px] text-rp-cal-homework-text/80">
                               {hw.dueAt ? formatVnDateTime(hw.dueAt) : tr('Chưa đặt hạn')}
                             </p>
                           </Link>
@@ -393,6 +642,40 @@ export default function LearnerCalendarPage() {
                   </ul>
                 )}
               </Card>
+
+              {scheduleNotifications.length > 0 && (
+                <Card className="p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-rp-cal-reminder" />
+                      <h2 className="text-sm font-bold text-rp-text">{tr('Thông báo lịch học')}</h2>
+                    </div>
+                  </div>
+                  <ul className="space-y-2">
+                    {scheduleNotifications.slice(0, 3).map((n) => {
+                      const dest = notificationDestination(n.linkUrl) || '/calendar';
+                      return (
+                        <li key={n.id}>
+                          <Link
+                            to={dest}
+                            className={cx(
+                              'group rp-focus flex items-start gap-2 rounded-xl p-2.5 text-xs',
+                              CALENDAR_CATEGORIES.reminder.card,
+                              CALENDAR_CATEGORIES.reminder.hoverCard,
+                            )}
+                          >
+                            <BellRing className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rp-cal-reminder" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-semibold">{tr(n.title)}</p>
+                              {n.message && <p className="mt-0.5 line-clamp-2 opacity-85">{tr(n.message)}</p>}
+                            </div>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </Card>
+              )}
 
               <Card className="border-dashed bg-rp-bg-2/60 p-4 text-xs text-rp-text-muted">
                 <div className="flex items-start gap-2">

@@ -1,18 +1,60 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { AuthContext } from './authContext.js';
 import { getSession, saveSession, clearSession, patchSession, saveAuthRedirectNotice, saveRememberedLogin } from './session.js';
 import { extractUserFromToken, normalizeRole } from './jwt.js';
 import { homePathForRole, getAuthMe } from '@/features/auth/api/authApi.js';
 import { queryClient } from '@/api/queryClient.js';
 import { notify } from '@/components/ui/feedbackStore.js';
+import { normalizeAvatarUrl } from '@/components/ui/userAvatarLogic.js';
+
+function buildSessionPatchFromUser(me) {
+  if (!me || typeof me !== 'object') return null;
+  const patch = {
+    _meSynced: undefined,
+  };
+  if (me.userId != null) patch.userId = me.userId;
+  if (me.fullName) patch.fullName = String(me.fullName).trim();
+  if (me.email) patch.email = String(me.email).trim();
+  if (me.role) patch.role = me.role;
+  if ('avatarUrl' in me) patch.avatarUrl = normalizeAvatarUrl(me.avatarUrl);
+  if ('phoneNumber' in me) patch.phoneNumber = me.phoneNumber ?? null;
+  if ('pendingEmail' in me) patch.pendingEmail = me.pendingEmail ?? null;
+  if ('isEmailVerified' in me) patch.isEmailVerified = Boolean(me.isEmailVerified);
+  if (typeof me.hasPassword === 'boolean') patch.hasPassword = me.hasPassword;
+  if ('googleLinked' in me) patch.googleLinked = Boolean(me.googleLinked);
+  return patch;
+}
 
 export function AuthProvider({ children }) {
   const [session, setSessionState] = useState(() => getSession());
+  const [meSyncedToken, setMeSyncedToken] = useState(null);
+  const activeIdentityRef = useRef({
+    userId: session?.userId ?? null,
+    token: session?.accessToken || session?.token || null,
+  });
 
   useEffect(() => {
-    // Listen for storage changes if updated in another tab
+    activeIdentityRef.current = {
+      userId: session?.userId ?? null,
+      token: session?.accessToken || session?.token || null,
+    };
+  }, [session?.userId, session?.accessToken, session?.token]);
+
+  useEffect(() => {
+    // Sync across browser tabs and clear React Query cache immediately on logout or account switch
     const handleStorageChange = () => {
-      setSessionState(getSession());
+      const next = getSession();
+      const prev = activeIdentityRef.current;
+      const nextToken = next?.accessToken || next?.token || null;
+      const switchedOrLoggedOut =
+        (Boolean(prev.token || prev.userId) && !next) ||
+        (prev.userId != null && next?.userId != null && String(next.userId) !== String(prev.userId)) ||
+        (Boolean(prev.token) && Boolean(nextToken) && nextToken !== prev.token);
+      if (switchedOrLoggedOut) {
+        queryClient.clear();
+        setMeSyncedToken(null);
+      }
+      setSessionState(next);
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -41,18 +83,28 @@ export function AuthProvider({ children }) {
   // Merge stored user details with JWT claims (session values win for mutable profile fields)
   const user = useMemo(() => {
     if (!token && !session?.user && !session?.userId) return null;
-    const resolvedName = session?.fullName || session?.user?.fullName || decodedUser?.fullName || decodedUser?.name || 'User';
+    const resolvedName = String(
+      session?.fullName || session?.user?.fullName || decodedUser?.fullName || decodedUser?.name || '',
+    ).trim() || 'User';
+    const resolvedAvatarUrl = normalizeAvatarUrl(session?.avatarUrl ?? session?.user?.avatarUrl);
+    const resolvedEmail = session?.email || decodedUser?.email || session?.user?.email || '';
+    const resolvedId = decodedUser?.userId || session?.userId || session?.user?.id || '0';
+    const resolvedVerified = typeof session?.isEmailVerified === 'boolean' ? session.isEmailVerified : true;
     return {
       ...session?.user,
       ...decodedUser,
-      userId: decodedUser?.userId || session?.userId || session?.user?.id || '0',
-      email: session?.email || decodedUser?.email || session?.user?.email || '',
+      id: resolvedId,
+      userId: resolvedId,
+      email: resolvedEmail,
       pendingEmail: session?.pendingEmail ?? null,
+      displayName: resolvedName,
       fullName: resolvedName,
       name: resolvedName,
       phoneNumber: session?.phoneNumber ?? null,
-      avatarUrl: session?.avatarUrl ?? session?.user?.avatarUrl ?? null,
-      isEmailVerified: typeof session?.isEmailVerified === 'boolean' ? session.isEmailVerified : true,
+      avatarUrl: resolvedAvatarUrl,
+      role: primaryRole,
+      emailVerified: resolvedVerified,
+      isEmailVerified: resolvedVerified,
       hasPassword: typeof session?.hasPassword === 'boolean' ? session.hasPassword : true,
       googleLinked: Boolean(session?.googleLinked),
       roles,
@@ -60,35 +112,33 @@ export function AuthProvider({ children }) {
     };
   }, [decodedUser, session, roles, primaryRole, token]);
 
-  const isAuthenticated = Boolean(token && (!decodedUser || !decodedUser.isExpired));
+  // The API validates JWT lifetime; the device clock must not sign users out.
+  const isAuthenticated = Boolean(token);
+  const userLoading = Boolean(isAuthenticated && !session?.isPreview && meSyncedToken !== token);
 
   useEffect(() => {
-    if (!isAuthenticated || !token || session?.isPreview || session?._meSynced) return undefined;
+    if (!isAuthenticated || !token || session?.isPreview || meSyncedToken === token) return undefined;
     let active = true;
     getAuthMe()
       .then((res) => {
-        if (!active) return;
+        if (!active || getSession()?.accessToken !== token) return;
         const me = res?.result;
-        if (!me) return;
-        const updated = patchSession({
-          fullName: me.fullName || session?.fullName,
-          avatarUrl: me.avatarUrl ?? null,
-          phoneNumber: me.phoneNumber ?? null,
-          pendingEmail: me.pendingEmail ?? null,
-          isEmailVerified: Boolean(me.isEmailVerified),
-          hasPassword: typeof me.hasPassword === 'boolean' ? me.hasPassword : true,
-          googleLinked: Boolean(me.googleLinked),
-          _meSynced: true,
-        });
-        if (updated) setSessionState(updated);
+        if (me) {
+          const patch = buildSessionPatchFromUser(me);
+          if (patch) {
+            const updated = patchSession(patch);
+            if (updated) setSessionState(updated);
+          }
+        }
+        setMeSyncedToken(token);
       })
       .catch(() => {
-        // Silent best-effort hydration on reload; explicit errors surface in Account pages.
+        if (active) setMeSyncedToken(token);
       });
     return () => {
       active = false;
     };
-  }, [isAuthenticated, token, session?.isPreview, session?._meSynced, session?.fullName]);
+  }, [isAuthenticated, token, session?.isPreview, meSyncedToken]);
 
   const hasRole = useCallback(
     (roleToCheck) => {
@@ -120,8 +170,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback((sessionData, remember = true) => {
-    saveSession(sessionData, remember);
-    setSessionState(sessionData);
+    const cleanSession = sessionData ? { ...sessionData, avatarUrl: normalizeAvatarUrl(sessionData.avatarUrl) } : sessionData;
+    saveSession(cleanSession, remember);
+    setMeSyncedToken(cleanSession?.accessToken || null);
+    setSessionState(cleanSession);
   }, []);
 
   const logout = useCallback((options = {}) => {
@@ -130,6 +182,7 @@ export function AuthProvider({ children }) {
       notify.error('Chưa đăng xuất được', 'Vui lòng thử lại.', { key: 'auth-logout-error' });
       return;
     }
+    setMeSyncedToken(null);
     queryClient.clear();
     if (options?.email) {
       saveRememberedLogin({ email: options.email, remember: true });
@@ -157,6 +210,8 @@ export function AuthProvider({ children }) {
   /** Session expired (401 from the API or JWT exp passed): clear it without a full reload so the return path survives. */
   const expireSession = useCallback(() => {
     clearSession();
+    setMeSyncedToken(null);
+    queryClient.clear();
     setSessionState(null);
   }, []);
 
@@ -165,10 +220,19 @@ export function AuthProvider({ children }) {
     setSessionState(updated);
   }, []);
 
+  const syncUserProfile = useCallback((serverUser) => {
+    const patch = buildSessionPatchFromUser(serverUser);
+    if (!patch) return null;
+    const updated = patchSession(patch);
+    if (updated) setSessionState(updated);
+    return updated;
+  }, []);
+
   const value = {
     session,
     token,
     user,
+    userLoading,
     roles,
     primaryRole,
     isAdmin,
@@ -183,6 +247,7 @@ export function AuthProvider({ children }) {
     logout,
     expireSession,
     updateSession,
+    syncUserProfile,
     refreshSession,
   };
 

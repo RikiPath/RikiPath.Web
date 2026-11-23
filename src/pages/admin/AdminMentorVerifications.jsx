@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   FileText,
   MessageSquarePlus,
-  Search,
   X,
   XCircle,
 } from 'lucide-react';
@@ -19,11 +18,11 @@ import {
   ContextualErrorState,
   CustomSelect,
   Field,
-  Input,
   Modal,
   Pagination,
   RefreshingIndicator,
   SakuraLoader,
+  SearchInput,
   StaleDataBar,
   Textarea,
   notify,
@@ -39,14 +38,15 @@ import {
 } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { AdminToolbar } from '@/features/admin/components/AdminPrimitives.jsx';
 import { useLocale } from '@/locales/locale.js';
 
 const STATUS_META = {
-  Pending: { label: 'Chờ xét duyệt', tone: 'warning', dot: '#f59e0b' },
-  ChangesRequested: { label: 'Cần bổ sung thông tin', tone: 'info', dot: '#0284c7' },
-  Rejected: { label: 'Không được phê duyệt', tone: 'danger', dot: '#ef4444' },
-  Approved: { label: 'Đã phê duyệt', tone: 'success', dot: '#22c55e' },
-  Unverified: { label: 'Chưa gửi hồ sơ', tone: 'neutral', dot: '#94a3b8' },
+  Pending: { label: 'Chờ xét duyệt', tone: 'warning', dotClass: 'bg-rp-warning' },
+  ChangesRequested: { label: 'Cần bổ sung thông tin', tone: 'info', dotClass: 'bg-rp-info' },
+  Rejected: { label: 'Không được phê duyệt', tone: 'danger', dotClass: 'bg-rp-danger' },
+  Approved: { label: 'Đã phê duyệt', tone: 'success', dotClass: 'bg-rp-success' },
+  Unverified: { label: 'Chưa gửi hồ sơ', tone: 'neutral', dotClass: 'bg-rp-text-disabled' },
 };
 
 const fullName = (row) =>
@@ -173,51 +173,57 @@ export default function AdminMentorVerifications() {
 
   return (
     <div data-page="AdminMentorVerifications" className="space-y-4">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="min-w-[200px] flex-1">
-            <Input
-              type="search"
-              icon={Search}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tr('Tìm tên, email hoặc chuyên môn Giáo viên…')}
-              aria-label={tr('Tìm Giáo viên')}
-            />
-          </div>
+      {listQuery.isSuccess && rows.length > 0 && <AdminToolbar
+        refresh={{
+          onRefresh: () => listQuery.refetch({ cancelRefetch: true }),
+          refreshing: listQuery.isFetching && !listQuery.isPending,
+        }}
+      >
+        <SearchInput
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch('')}
+          placeholder="Tìm tên, email, chuyên môn…"
+          aria-label={tr('Tìm Giáo viên')}
+          className="w-full sm:w-[240px]"
+        />
 
-          <div className="w-full sm:w-[220px]">
-            <CustomSelect
-              value={status}
-              aria-label={tr('Lọc theo trạng thái hồ sơ')}
-              onChange={(val) => {
-                setStatus(val);
-                const next = new URLSearchParams(params);
-                next.set('status', val);
-                setParams(next, { replace: true });
-              }}
-              options={[
-                { value: 'All', label: tr('Tất cả trạng thái') },
-                ...Object.entries(STATUS_META).map(([value, meta]) => ({
-                  value,
-                  label: tr(meta.label),
-                  dot: meta.dot,
-                })),
-              ]}
-            />
-          </div>
+        <CustomSelect
+          fitContent
+          value={status}
+          aria-label={tr('Lọc theo trạng thái hồ sơ')}
+          onChange={(val) => {
+            setStatus(val);
+            const next = new URLSearchParams(params);
+            next.set('status', val);
+            setParams(next, { replace: true });
+          }}
+          options={[
+            { value: 'All', label: 'Tất cả trạng thái' },
+            ...Object.entries(STATUS_META).map(([value, meta]) => ({
+              value,
+              label: meta.label,
+              dotClass: meta.dotClass,
+            })),
+          ]}
+        />
 
-          {hasFilters && (
-            <Button variant="ghost" size="sm" icon={X} onClick={() => { setStatus('Pending'); setSearch(''); }}>
-              {tr('Mặc định')}
-            </Button>
-          )}
-          <RefreshingIndicator active={listQuery.isFetching && !listQuery.isPending} />
-        </div>
-      </Card>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" className="h-9" icon={X} onClick={() => { setStatus('Pending'); setSearch(''); }}>
+            {tr('Mặc định')}
+          </Button>
+        )}
+      </AdminToolbar>}
 
       {listQuery.isError && listQuery.data && (
         <StaleDataBar onRetry={() => listQuery.refetch()} retrying={listQuery.isFetching} />
+      )}
+      {listQuery.isFetching && !listQuery.isPending && (
+        <div className="pointer-events-none sticky top-2 z-20 flex h-0 justify-end overflow-visible">
+          <div className="mr-1 mt-1">
+            <RefreshingIndicator active delay={60} />
+          </div>
+        </div>
       )}
 
       {listQuery.isPending ? (
@@ -230,15 +236,17 @@ export default function AdminMentorVerifications() {
         />
       ) : filtered.length === 0 ? (
         <ContextualEmptyState
-          title={tr('Không có hồ sơ nào khớp bộ lọc')}
+          variant={rows.length === 0 ? 'compact' : 'search'}
+          illustration={rows.length === 0 || status === 'Pending' ? 'mentor' : 'search'}
+          title={tr(rows.length === 0 ? 'Chưa có hồ sơ Giáo viên nào' : 'Không có hồ sơ nào khớp bộ lọc')}
           description={
-            status === 'Pending'
+            rows.length === 0 ? '' : status === 'Pending'
               ? tr('Hiện không có hồ sơ Giáo viên nào đang chờ xét duyệt.')
               : tr('Thử chuyển bộ lọc trạng thái sang Tất cả để xem các hồ sơ đã xử lý.')
           }
           action={
-            status !== 'All' ? (
-              <Button variant="outline" onClick={() => setStatus('All')}>{tr('Xem tất cả trạng thái')}</Button>
+            rows.length > 0 && (status !== 'All' || search.trim() !== '') ? (
+              <Button variant="outline" onClick={() => { setStatus('All'); setSearch(''); }}>{tr('Xem tất cả trạng thái')}</Button>
             ) : null
           }
         />
@@ -304,7 +312,8 @@ export default function AdminMentorVerifications() {
           <Card className="space-y-4 p-5">
             {!selectedId ? (
               <ContextualEmptyState
-                compact
+                variant="compact"
+                illustration="mentor"
                 title={tr('Chọn một hồ sơ bên trái để kiểm tra')}
                 description={tr('Xem thông tin chuyên môn, mở chứng chỉ bảo vệ và ra quyết định xét duyệt.')}
               />

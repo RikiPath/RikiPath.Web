@@ -47,7 +47,6 @@ import {
   FileUpload,
   Input,
   PageContainer,
-  PageHeader,
   ProgressBar,
   SakuraLoader,
   Tabs,
@@ -55,6 +54,7 @@ import {
   confirmAction,
   cx,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import '@/pages/shared/studyCourses.css';
 
 const SECTIONS = [
@@ -208,7 +208,9 @@ export default function CohortWorkspacePage() {
             {tr('Quay lại Lớp của tôi')}
           </Link>
 
-          <PageHeader
+          <IllustratedPageHeader
+            icon="group"
+            tone="sky"
             eyebrow={current?.level ? `JLPT ${current.level} · ${tr('Học nhóm')}` : tr('Không gian lớp học')}
             title={title}
             description={
@@ -227,7 +229,7 @@ export default function CohortWorkspacePage() {
                   {nextJoinState?.canJoin && (
                     <Link
                       to={nextJoinState.roomHref}
-                      className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-sm font-semibold text-white hover:opacity-95"
+                      className="rp-focus inline-flex h-11 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-sm font-semibold text-white hover:opacity-95"
                     >
                       <Video className="h-4 w-4" />
                       {tr('Vào phòng học ngay')}
@@ -266,16 +268,13 @@ export default function CohortWorkspacePage() {
         ) : !current ? (
           <Card className="p-6">
             <ContextualEmptyState
-              context="cohort"
+              illustration="classroom"
               title={tr('Không tìm thấy lớp học này')}
               description={tr('Lớp có thể đã bị hủy hoặc không thuộc tài khoản của bạn.')}
               action={
-                <Link
-                  to="/my-courses"
-                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white"
-                >
+                <Button as={Link} to="/my-courses" variant="primary" size="md">
                   {tr('Về Lớp của tôi')}
-                </Link>
+                </Button>
               }
             />
           </Card>
@@ -329,8 +328,8 @@ export default function CohortWorkspacePage() {
                     </div>
                   ) : (
                     <ContextualEmptyState
-                      compact
-                      context="calendar"
+                      variant="compact"
+                      illustration="calendar"
                       title={tr('Không còn buổi học sắp tới')}
                       description={tr('Tất cả các buổi trong khóa này đã diễn ra hoặc chưa được xếp thêm.')}
                     />
@@ -474,7 +473,12 @@ export default function CohortWorkspacePage() {
               <div className="course-page" style={{ padding: 0 }}>
                 <CohortSessionsCalendar course={current} cohort={currentCohort}>
                   {sessions.length === 0 ? (
-                    <p className="course-meta">{tr('Chưa có buổi học nào được xếp lịch.')}</p>
+                    <ContextualEmptyState
+                      variant="inline"
+                      size="sm"
+                      illustration="calendar"
+                      title={tr('Chưa có buổi học nào được xếp lịch.')}
+                    />
                   ) : (
                     sessions.map((s) => {
                       const joinState = getSessionJoinState(s, current, nowMs);
@@ -690,7 +694,7 @@ export default function CohortWorkspacePage() {
                           </Banner>
                         )}
                         {r.mentorSupportPlan && (
-                          <div className="space-y-1 rounded-xl border border-rp-brand-soft bg-rp-brand-tint/70 p-3">
+                          <div className="space-y-1 rounded-xl border border-rp-brand-border bg-white p-3">
                             <p className="font-semibold text-rp-brand-strong">{tr('Kế hoạch hỗ trợ ôn lại từ Giáo viên')}</p>
                             <p className="whitespace-pre-wrap text-rp-text">{r.mentorSupportPlan}</p>
                             {r.mentorSupportPlanAtUtc && (

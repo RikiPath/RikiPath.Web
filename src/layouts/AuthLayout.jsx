@@ -6,29 +6,13 @@ import AuthScenicCarousel from '@/features/auth/components/AuthScenicCarousel.js
 import SakuraPetalBackground from '@/features/auth/components/SakuraPetalBackground.jsx';
 import { useLocale } from '@/locales/locale.js';
 
-const COPY = {
-  login: {
-    heading: 'Học tiếng Nhật theo cách của bạn',
-    sub: 'Lộ trình rõ ràng, luyện thi JLPT có tính giờ và lớp nhóm nhỏ cùng Giáo viên.',
-  },
-  register: {
-    heading: 'Bắt đầu hành trình JLPT của bạn',
-    sub: 'Chọn mục tiêu, làm bài đánh giá và nhận lộ trình phù hợp với trình độ.',
-  },
-  verify: {
-    heading: 'Chỉ còn một bước nữa',
-    sub: 'Xác thực email để lưu tiến độ học và nhận thông báo lớp học.',
-  },
-};
-
 /**
  * Floating auth card (Web editorial): scenic slideshow + form, with per-screen column ratios
  * (`variant`: login | register | verify). Brand lives in the form header, not on the photo.
  * The card centres when there is room and falls back to top-aligned scrolling when content is long.
  */
-export default function AuthLayout({ variant = 'login', title, subtitle, children, footer, aside }) {
+export default function AuthLayout({ variant = 'login', title, subtitle, children, footer }) {
   const { tr } = useLocale();
-  const copy = COPY[variant] || COPY.login;
   return (
     <div className="relative isolate flex min-h-dvh flex-col px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
       <SakuraPetalBackground />
@@ -38,12 +22,7 @@ export default function AuthLayout({ variant = 'login', title, subtitle, childre
         className="rp-auth-card rp-card-enter relative m-auto w-full max-w-[1360px] overflow-hidden rounded-[28px] border border-[#F0E2E5] bg-[#FFFDFC] shadow-[0_30px_80px_-30px_rgba(120,40,70,0.28),0_2px_8px_rgba(45,40,42,0.04)]"
       >
         {/* Desktop: slideshow column (adapts cleanly to low viewport heights & zoom) */}
-        <AuthScenicCarousel className="hidden lg:m-2 lg:block lg:min-h-[clamp(480px,72dvh,640px)] lg:rounded-[28px]">
-          <div className="max-w-xl">
-            <h2 className="rp-type-display text-white drop-shadow-sm">{aside || copy.heading}</h2>
-            <p className="rp-type-body mt-3 max-w-md text-white/85">{copy.sub}</p>
-          </div>
-        </AuthScenicCarousel>
+        <AuthScenicCarousel className="hidden lg:m-2 lg:block lg:min-h-[clamp(480px,72dvh,640px)] lg:rounded-[28px]" />
 
         {/* Form column */}
         <main className="flex min-w-0 flex-col p-[clamp(1.25rem,3vw,2.75rem)]">
@@ -58,7 +37,7 @@ export default function AuthLayout({ variant = 'login', title, subtitle, childre
             </div>
           </header>
 
-          {/* Mobile/tablet: compact responsive 4-banner slideshow strip */}
+          {/* Mobile/tablet: compact scenic slideshow strip */}
           <AuthScenicCarousel compact className="mt-4 h-32 rounded-2xl sm:h-40 lg:hidden" />
 
           <div className="flex flex-1 flex-col justify-center py-[clamp(1rem,2vw,1.75rem)]">

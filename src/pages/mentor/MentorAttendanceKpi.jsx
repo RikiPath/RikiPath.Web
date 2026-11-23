@@ -10,12 +10,14 @@ import {
   Button,
   Card,
   CardHeader,
+  ContextualEmptyState,
   ContextualErrorState,
   DataTable,
   DateRangePicker,
   PageContainer,
   PageHeader,
   Popover,
+  RefreshButton,
   RefreshingIndicator,
   SakuraLoader,
   SegmentedControl,
@@ -207,13 +209,15 @@ export default function MentorAttendanceKpi() {
     {
       key: 'level',
       header: 'JLPT',
+      compact: true,
       render: (s) => (s.jlptLevel ? <Badge tone="brand" icon={false} size="sm">{s.jlptLevel}</Badge> : '—'),
     },
     {
       key: 'time',
       header: 'Thời gian',
+      compact: true,
       sortValue: (s) => s.scheduledStartUtc || '',
-      render: (s) => <span className="text-xs text-rp-text-2">{fmtDate(s.scheduledStartUtc)}</span>,
+      render: (s) => <span className="whitespace-nowrap text-xs text-rp-text-2">{fmtDate(s.scheduledStartUtc)}</span>,
     },
     {
       key: 'duration',
@@ -223,6 +227,7 @@ export default function MentorAttendanceKpi() {
     {
       key: 'status',
       header: 'Trạng thái',
+      compact: true,
       render: (s) => (
         <Badge tone={s.isValidCompleted ? 'success' : 'neutral'} size="sm">
           {tr(KPI_SESSION_STATUS[s.status] || 'Khác')}
@@ -239,25 +244,27 @@ export default function MentorAttendanceKpi() {
           title="Chấm công & KPI giảng dạy"
           description="Tổng hợp lịch giảng dạy được phân công, thời lượng điểm danh thực tế, tình trạng bài tập và đánh giá từ học viên theo kỳ."
           actions={(
-            <Popover
-              align="end"
-              label={tr('Cách tính chỉ số')}
-              panelClassName="w-[min(360px,calc(100vw-32px))] p-4 text-xs text-rp-text-2"
-              trigger={({ toggle, props }) => (
-                <Button variant="secondary" size="sm" icon={Info} onClick={toggle} {...props}>
-                  {tr('Cách tính chỉ số')}
-                </Button>
-              )}
-            >
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-rp-text">{tr('Cách tính chỉ số')}</p>
-                <ul className="list-disc space-y-1.5 pl-4 leading-relaxed">
-                  {KPI_RULES.map((text) => (
-                    <li key={text}>{tr(text)}</li>
-                  ))}
-                </ul>
-              </div>
-            </Popover>
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover
+                align="end"
+                label={tr('Cách tính chỉ số')}
+                panelClassName="w-[min(360px,calc(100vw-32px))] p-4 text-xs text-rp-text-2"
+                trigger={({ toggle, props }) => (
+                  <Button variant="secondary" size="sm" icon={Info} onClick={toggle} {...props}>
+                    {tr('Cách tính chỉ số')}
+                  </Button>
+                )}
+              >
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-rp-text">{tr('Cách tính chỉ số')}</p>
+                  <ul className="list-disc space-y-1.5 pl-4 leading-relaxed">
+                    {KPI_RULES.map((text) => (
+                      <li key={text}>{tr(text)}</li>
+                    ))}
+                  </ul>
+                </div>
+              </Popover>
+            </div>
           )}
         />
 
@@ -276,18 +283,27 @@ export default function MentorAttendanceKpi() {
                 </Button>
               ))}
             </div>
-            <DateRangePicker
-              from={fromDate}
-              to={toDate}
-              onFromChange={(val) => {
-                setFromDate(val);
-                setActivePreset('');
-              }}
-              onToChange={(val) => {
-                setToDate(val);
-                setActivePreset('');
-              }}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <DateRangePicker
+                from={fromDate}
+                to={toDate}
+                onFromChange={(val) => {
+                  setFromDate(val);
+                  setActivePreset('');
+                }}
+                onToChange={(val) => {
+                  setToDate(val);
+                  setActivePreset('');
+                }}
+              />
+              {Boolean(kpi) && !kpiQuery.isError && !kpiQuery.isPending && (
+                <RefreshButton
+                  onRefresh={() => kpiQuery.refetch({ cancelRefetch: true })}
+                  refreshing={kpiQuery.isFetching && !kpiQuery.isPending}
+                  disabled={kpiQuery.isPending || invalidRange}
+                />
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-rp-line pt-3">
@@ -311,7 +327,15 @@ export default function MentorAttendanceKpi() {
           </div>
         </Card>
 
-        <RefreshingIndicator active={kpiQuery.isFetching && !kpiQuery.isLoading} />
+        {kpiQuery.isFetching && !kpiQuery.isLoading && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
+            </div>
+          </div>
+        )}
         {kpiQuery.isLoading && !invalidRange && (
           <SakuraLoader
             variant="section"
@@ -476,16 +500,19 @@ export default function MentorAttendanceKpi() {
                       columns={periodColumns}
                       rows={periods}
                       rowKey={(p) => p.periodKey}
-                      empty={{ context: 'data', title: 'Chưa có dữ liệu theo chu kỳ', description: 'Chưa có dữ liệu trong khoảng thời gian đã chọn.' }}
+                      empty={{ illustration: 'chart', context: 'analytics', title: 'Chưa có dữ liệu theo chu kỳ', description: 'Chưa có dữ liệu trong khoảng thời gian đã chọn.' }}
                       density="compact"
                       itemLabel="chu kỳ"
                     />
                   </div>
                   <div className="mt-3 space-y-2.5 md:hidden">
                     {periods.length === 0 ? (
-                      <p className="py-4 text-center text-sm text-rp-text-muted">
-                        {tr('Chưa có dữ liệu trong khoảng thời gian đã chọn.')}
-                      </p>
+                      <ContextualEmptyState
+                        variant="inline"
+                        size="sm"
+                        illustration="chart"
+                        title={tr('Chưa có dữ liệu trong khoảng thời gian đã chọn.')}
+                      />
                     ) : periods.map((p) => (
                       <div key={p.periodKey} className="rounded-xl border border-rp-line bg-rp-bg-2 p-3 text-xs">
                         <div className="flex items-center justify-between gap-2">
@@ -517,16 +544,19 @@ export default function MentorAttendanceKpi() {
                     columns={sessionColumns}
                     rows={recentSessions}
                     rowKey={(s) => `${s.sourceType}-${s.bookingOrSessionId}`}
-                    empty={{ context: 'data', title: 'Chưa có buổi dạy nào', description: 'Chưa có buổi dạy nào trong khoảng thời gian đã chọn.' }}
+                    empty={{ illustration: 'clock', context: 'history', title: 'Chưa có buổi dạy nào', description: 'Chưa có buổi dạy nào trong khoảng thời gian đã chọn.' }}
                     density="compact"
                     itemLabel="buổi dạy"
                   />
                 </div>
                 <div className="mt-3 space-y-2.5 md:hidden">
                   {recentSessions.length === 0 ? (
-                    <p className="py-4 text-center text-sm text-rp-text-muted">
-                      {tr('Chưa có buổi dạy nào trong khoảng thời gian đã chọn.')}
-                    </p>
+                    <ContextualEmptyState
+                      variant="inline"
+                      size="sm"
+                      illustration="clock"
+                      title={tr('Chưa có buổi dạy nào trong khoảng thời gian đã chọn.')}
+                    />
                   ) : recentSessions.map((s) => (
                     <div
                       key={`${s.sourceType}-${s.bookingOrSessionId}`}

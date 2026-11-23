@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Eye } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
   approveCohortScheduleRequest,
   getAdminCohortScheduleRequests,
@@ -16,14 +15,19 @@ import {
   Card,
   ContextualEmptyState,
   CustomSelect,
-  DataTable,
   Drawer,
   Field,
-  IconButton,
   Input,
   SmartDataBoundary,
   Textarea,
 } from '@/components/ui';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminStatusBadge,
+  AdminToolbar,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import ScheduleConflictList from './ScheduleConflictList';
@@ -102,7 +106,14 @@ export function ShiftPreviewDetails({ preview }) {
   );
 }
 
-export default function AdminCohortScheduleRequestsPanel({ busy = false, initialRequestId = null, onRun }) {
+export default function AdminCohortScheduleRequestsPanel({
+  busy = false,
+  fillHeight = false,
+  initialRequestId = null,
+  toolbarTabs = null,
+  refreshSignal = 0,
+  onRun,
+}) {
   const { trf, tr } = useLocale();
   const initialIdNum = initialRequestId ? Number(initialRequestId) : null;
   const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
@@ -112,8 +123,13 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, initial
   const [note, setNote] = useState('');
   const [rejectReason, setRejectReason] = useState('');
 
-  const query = useAsyncResource(() => getAdminCohortScheduleRequests(status || undefined), [status]);
-  const rows = Array.isArray(query.data) ? query.data : [];
+  const query = useAsyncResource(() => getAdminCohortScheduleRequests(), []);
+  const queryRefetch = query.refetch;
+  useEffect(() => {
+    if (refreshSignal > 0) queryRefetch();
+  }, [refreshSignal, queryRefetch]);
+  const rows = Array.isArray(query.data) ? (status ? query.data.filter((item) => item.status === status) : query.data) : [];
+  const hasRecords = query.isSuccess && Array.isArray(query.data) && query.data.length > 0;
   const selected = rows.find((r) => r.id === selectedId) || null;
 
   const [previewedInitialId, setPreviewedInitialId] = useState(null);
@@ -140,7 +156,7 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, initial
   const blocked = selected?.kind === 'ShiftWeeks' && preview && !preview.eligible;
 
   const columns = [
-    { key: 'id', header: '#', render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span> },
+    { key: 'id', header: '#', compact: true, render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span> },
     { key: 'cohortName', header: tr('Lớp'), render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || `#${r.cohortId}`}</span> },
     {
       key: 'kind',
@@ -152,31 +168,35 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, initial
         </span>
       ),
     },
-    { key: 'requestedByRole', header: tr('Người gửi'), render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedByRole}</span> },
-    { key: 'createdAtUtc', header: tr('Gửi lúc'), render: (r) => <span className="text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
+    { key: 'requestedByRole', header: tr('Người gửi'), compact: true, render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedByRole}</span> },
+    { key: 'createdAtUtc', header: tr('Gửi lúc'), compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      compact: true,
       render: (r) => (
-        <Badge tone={STATUS_TONE[r.status] || 'neutral'} size="sm" icon={false}>
-          {tr(SCHEDULE_REQUEST_STATUS[r.status] || r.status)}
-        </Badge>
+        <AdminStatusBadge
+          tone={STATUS_TONE[r.status] || 'neutral'}
+          label={SCHEDULE_REQUEST_STATUS[r.status] || r.status}
+        />
       ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-rp-text">{tr('Yêu cầu dời/hủy lớp nhóm')}</h2>
-            <p className="text-xs text-rp-text-muted">
-              {tr('Giáo viên hoặc Admin gửi yêu cầu; máy chủ kiểm tra lại toàn bộ điều kiện trước khi duyệt.')}
-            </p>
-          </div>
-          <div className="w-full sm:w-[200px]">
+    <div className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
+      {(toolbarTabs || hasRecords) && (
+        <AdminToolbar
+          tabs={toolbarTabs}
+          refresh={{
+            when: hasRecords,
+            onRefresh: query.refetch,
+            refreshing: query.isFetching && !query.isPending,
+          }}
+        >
+          {hasRecords && (
             <CustomSelect
+              fitContent
               value={status}
               aria-label={tr('Lọc trạng thái yêu cầu dời/hủy')}
               onChange={setStatus}
@@ -185,9 +205,9 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, initial
                 { value: '', label: tr('Tất cả trạng thái') },
               ]}
             />
-          </div>
-        </div>
-      </Card>
+          )}
+        </AdminToolbar>
+      )}
 
       <SmartDataBoundary
         query={query}
@@ -197,19 +217,39 @@ export default function AdminCohortScheduleRequestsPanel({ busy = false, initial
         errorTitle={tr('Chưa tải được yêu cầu dời/hủy lớp')}
         compact
         diagnosticScope="AdminCohortScheduleRequestsPanel"
-        empty={<ContextualEmptyState compact context="adminQueue" title={tr('Không có yêu cầu dời/hủy lớp.')} />}
+        className={fillHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}
+        empty={
+          <ContextualEmptyState
+            variant="compact"
+            context="adminQueue"
+            illustration="appointment"
+            title={tr('Không có yêu cầu dời/hủy lớp.')}
+            description=""
+          />
+        }
       >
-        {(list) => (
-          <DataTable
+        {(list) => {
+          const visible = status ? list.filter((item) => item.status === status) : list;
+          return visible.length === 0 ? (
+            <ContextualEmptyState variant="search" illustration="search" title={tr('Không tìm thấy kết quả phù hợp')} description={tr('Thử chọn trạng thái khác hoặc xóa bộ lọc.')} action={<Button size="sm" variant="outline" onClick={() => setStatus('')}>{tr('Xóa bộ lọc')}</Button>} />
+          ) : <AdminDataTable
             columns={columns}
-            rows={list}
+            rows={visible}
             rowKey={(r) => r.id}
+            itemLabel="yêu cầu"
+            fillHeight={fillHeight}
             onRowClick={choose}
             rowActions={(r) => (
-              <IconButton icon={Eye} size="sm" variant="ghost" label={tr('Xem chi tiết')} onClick={() => choose(r)} />
+              <AdminRowActions>
+                <AdminIconAction
+                  kind="view"
+                  tooltip="Xem chi tiết yêu cầu dời lịch"
+                  onClick={() => choose(r)}
+                />
+              </AdminRowActions>
             )}
-          />
-        )}
+          />;
+        }}
       </SmartDataBoundary>
 
       <Drawer

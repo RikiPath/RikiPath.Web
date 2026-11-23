@@ -9,6 +9,10 @@ export function loginAccount(payload) {
   return api.post('/Auth/login', payload);
 }
 
+export function getGoogleAuthConfig() {
+  return api.get('/Auth/google-config');
+}
+
 export function loginWithGoogle(payload) {
   return api.post('/Auth/google', payload);
 }
@@ -19,6 +23,10 @@ export function continueWithGoogle(credential, currentPassword) {
 
 export function verifyEmail(payload) {
   return api.post('/Auth/verify-email', payload);
+}
+
+export function verifyEmailByLink(token) {
+  return api.post('/Auth/verify-email-link', { token });
 }
 
 export function resendVerificationEmail(email) {

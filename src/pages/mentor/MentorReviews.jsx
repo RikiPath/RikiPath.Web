@@ -7,6 +7,7 @@ import { AdminShell, MentorShell } from '@/layouts';
 import {
   Badge,
   Banner,
+  Button,
   Card,
   ContextualEmptyState,
   ContextualErrorState,
@@ -15,9 +16,8 @@ import {
   PageHeader,
   RefreshingIndicator,
   SakuraLoader,
-  SearchInput,
   StaleDataBar,
-  Tabs,
+  UnifiedToolbar,
 } from '@/components/ui';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getMentorCohortReviewSummary } from '@/features/cohorts/api/cohortApi.js';
@@ -84,7 +84,7 @@ function CohortReviewCard({ review, onOpenDetail }) {
         <button
           type="button"
           onClick={() => onOpenDetail(review)}
-          className="rp-focus rp-link inline-flex items-center gap-1 text-xs font-semibold text-rp-brand-strong"
+          className="rp-focus rp-link inline-flex items-center gap-1 text-xs"
         >
           <MessageSquareText aria-hidden="true" className="h-3.5 w-3.5" />
           {tr('Xem chi tiết')}
@@ -150,12 +150,9 @@ export default function MentorReviews() {
             tone="info"
             title={tr('Trang này hiển thị đánh giá riêng cho tài khoản Giáo viên')}
             actions={(
-              <Link
-                to="/admin/mentors/"
-                className="rp-focus inline-flex h-9 items-center rounded-rp-input bg-rp-brand-pressed px-4 text-xs font-semibold text-white hover:bg-rp-brand-strong"
-              >
+              <Button as={Link} to="/admin/mentors/" variant="primary" size="sm">
                 {tr('Xem danh sách Giáo viên')}
-              </Link>
+              </Button>
             )}
           >
             {tr('Tài khoản Quản trị viên vui lòng xem đánh giá tổng hợp từng Giáo viên trong mục Quản trị.')}
@@ -173,16 +170,22 @@ export default function MentorReviews() {
           description="Tổng hợp điểm trung bình và nhận xét ẩn danh từ học viên các lớp học nhóm bạn đã tham gia giảng dạy."
           actions={(
             <div className="flex flex-wrap items-center gap-2">
-              <RefreshingIndicator active={summary.isFetching && !summary.isPending} />
-              <Link
-                to="/mentor-study-courses/"
-                className="rp-focus inline-flex h-9 items-center rounded-rp-input border border-rp-line bg-rp-surface px-3.5 text-xs font-semibold text-rp-brand-strong hover:bg-rp-brand-tint"
-              >
+              <Button as={Link} to="/mentor-study-courses/" variant="secondary" size="sm">
                 {tr('Về lớp phụ trách')}
-              </Link>
+              </Button>
             </div>
           )}
         />
+
+        {summary.isFetching && !summary.isPending && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {mentorId <= 0 ? (
           <Card>
@@ -208,64 +211,68 @@ export default function MentorReviews() {
               <StaleDataBar onRetry={() => summary.refetch()} retrying={summary.isFetching} />
             )}
 
-            <section className="grid gap-3 sm:grid-cols-3">
-              <Card density="compact">
-                <p className="text-xs text-rp-text-muted">{tr('Điểm trung bình')}</p>
-                <p className="mt-1 text-2xl font-bold text-rp-brand-strong">
-                  {Number.isFinite(average) && total > 0 ? `${average.toFixed(1)} / 5` : tr('Chưa có')}
-                </p>
-              </Card>
-              <Card density="compact">
-                <p className="text-xs text-rp-text-muted">{tr('Số lượt đánh giá công khai')}</p>
-                <p className="mt-1 text-2xl font-bold text-rp-text">{total}</p>
-              </Card>
-              <Card density="compact">
-                <p className="text-xs text-rp-text-muted">{tr('Nhận xét kèm văn bản')}</p>
-                <p className="mt-1 text-2xl font-bold text-rp-text">
-                  {rows.filter((r) => Boolean(String(r.comment || '').trim())).length}
-                </p>
-              </Card>
-            </section>
+            {rows.length > 0 && (
+              <section className="grid gap-3 sm:grid-cols-3">
+                <Card density="compact">
+                  <p className="text-xs text-rp-text-muted">{tr('Điểm trung bình')}</p>
+                  <p className="mt-1 text-2xl font-bold text-rp-brand-strong">
+                    {Number.isFinite(average) && total > 0 ? `${average.toFixed(1)} / 5` : tr('Chưa có')}
+                  </p>
+                </Card>
+                <Card density="compact">
+                  <p className="text-xs text-rp-text-muted">{tr('Số lượt đánh giá công khai')}</p>
+                  <p className="mt-1 text-2xl font-bold text-rp-text">{total}</p>
+                </Card>
+                <Card density="compact">
+                  <p className="text-xs text-rp-text-muted">{tr('Nhận xét kèm văn bản')}</p>
+                  <p className="mt-1 text-2xl font-bold text-rp-text">
+                    {rows.filter((r) => Boolean(String(r.comment || '').trim())).length}
+                  </p>
+                </Card>
+              </section>
+            )}
 
             {rows.length > 0 && (
-              <Card density="compact" className="space-y-3">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <Tabs
-                    variant="pill"
-                    value={ratingFilter}
-                    onChange={setRatingFilter}
-                    label={tr('Lọc đánh giá')}
-                    tabs={[
-                      { value: 'all', label: 'Tất cả', count: rows.length },
-                      { value: 'commented', label: 'Có nhận xét' },
-                      { value: '5', label: '5 sao' },
-                      { value: '4', label: '4 sao' },
-                      { value: 'low', label: 'Từ 3 sao trở xuống' },
+              <UnifiedToolbar
+                tabs={{
+                  label: tr('Lọc đánh giá'),
+                  value: ratingFilter,
+                  onChange: setRatingFilter,
+                  tabs: [
+                    { value: 'all', label: 'Tất cả', count: rows.length },
+                    { value: 'commented', label: 'Có nhận xét' },
+                    { value: '5', label: '5 sao' },
+                    { value: '4', label: '4 sao' },
+                    { value: 'low', label: 'Từ 3 sao trở xuống' },
+                  ],
+                }}
+                search={{
+                  value: search,
+                  onChange: (e) => setSearch(e.target.value),
+                  onClear: () => setSearch(''),
+                  placeholder: 'Tìm theo lớp hoặc nội dung…',
+                  ariaLabel: tr('Tìm đánh giá'),
+                }}
+                filters={
+                  <CustomSelect
+                    fitContent
+                    size="sm"
+                    value={sortOrder}
+                    onChange={setSortOrder}
+                    label={tr('Sắp xếp')}
+                    options={[
+                      { value: 'newest', label: 'Mới nhất' },
+                      { value: 'highest', label: 'Điểm cao trước' },
+                      { value: 'lowest', label: 'Cần lưu ý trước' },
                     ]}
                   />
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <SearchInput
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      onClear={() => setSearch('')}
-                      placeholder="Tìm theo lớp hoặc nội dung…"
-                      className="sm:w-64"
-                    />
-                    <CustomSelect
-                      size="sm"
-                      value={sortOrder}
-                      onChange={setSortOrder}
-                      className="sm:w-44"
-                      label={tr('Sắp xếp')}
-                      options={[
-                        { value: 'newest', label: 'Mới nhất' },
-                        { value: 'highest', label: 'Điểm cao trước' },
-                        { value: 'lowest', label: 'Cần lưu ý trước' },
-                      ]}
-                    />
-                  </div>
-                </div>
-              </Card>
+                }
+                refresh={{
+                  onRefresh: () => summary.refetch({ cancelRefetch: true }),
+                  refreshing: summary.isFetching && !summary.isPending,
+                  disabled: summary.isPending,
+                }}
+              />
             )}
 
             {filteredRows.length > 0 ? (
@@ -281,12 +288,27 @@ export default function MentorReviews() {
             ) : (
               <Card>
                 <ContextualEmptyState
-                  compact
+                  variant={rows.length === 0 ? 'compact' : 'search'}
+                  illustration={rows.length === 0 ? 'review' : 'search'}
                   title={rows.length === 0 ? tr('Chưa có đánh giá lớp nhóm công khai.') : tr('Không có đánh giá khớp bộ lọc')}
                   description={
                     rows.length === 0
                       ? tr('Khi học viên hoàn tất đánh giá lớp học nhóm của bạn, nhận xét sẽ hiển thị tại đây.')
                       : tr('Thử thay đổi bộ lọc số sao hoặc từ khóa tìm kiếm.')
+                  }
+                  action={
+                    rows.length > 0 && (ratingFilter !== 'all' || search.trim() !== '') ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setRatingFilter('all');
+                          setSearch('');
+                        }}
+                      >
+                        {tr('Xóa bộ lọc')}
+                      </Button>
+                    ) : null
                   }
                 />
               </Card>

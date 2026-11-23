@@ -129,8 +129,12 @@ export default function MentorProfile() {
 
   const [syncedProfile, setSyncedProfile] = useState(null);
   if (query.data && query.data !== syncedProfile) {
+    const prevSignature = normalizedSignature(syncedProfile ? toForm(syncedProfile) : emptyForm);
+    const hasUnsavedFormEdits = Boolean(syncedProfile) && normalizedSignature(form) !== prevSignature;
     setSyncedProfile(query.data);
-    setForm(toForm(query.data));
+    if (!hasUnsavedFormEdits) {
+      setForm(toForm(query.data));
+    }
   }
 
   const profile = query.data;
@@ -287,19 +291,21 @@ export default function MentorProfile() {
           title="Hồ sơ chuyên môn"
           description="Cập nhật giới thiệu, trình độ JLPT và chứng chỉ giảng dạy để đủ điều kiện đứng lớp và nhận lịch."
           actions={(
-            <Button
-              type="submit"
-              form="mentor-profile-form"
-              variant="primary"
-              loading={save.isPending}
-              disabled={query.isPending || loadBlocked || isPendingReview || !isDirty || Boolean(videoUrlError)}
-            >
-              {tr('Lưu hồ sơ')}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <RefreshingIndicator active={query.isFetching && !query.isPending} />
+              <Button
+                type="submit"
+                form="mentor-profile-form"
+                variant="primary"
+                loading={save.isPending}
+                disabled={query.isPending || loadBlocked || isPendingReview || !isDirty || Boolean(videoUrlError)}
+              >
+                {tr('Lưu hồ sơ')}
+              </Button>
+            </div>
           )}
         />
 
-        <RefreshingIndicator active={query.isFetching && !query.isPending} className="mb-3" />
         {query.isPending && <SakuraLoader variant="section" context="profile" delay={160} className="mb-4" />}
 
         {loadBlocked && (
@@ -371,9 +377,10 @@ export default function MentorProfile() {
                       </span>
                       {profile?.hasVerificationDocument && (
                         <Button
-                          variant="link"
+                          variant="ghost"
                           size="sm"
                           icon={FileText}
+                          className="rp-link"
                           loading={openingDoc}
                           onClick={handleViewDoc}
                         >

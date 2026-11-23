@@ -1,112 +1,182 @@
-import { sanitizeNotebookText } from '@/features/notebook/utils/notebookModel.js';
+import { Fragment } from 'react';
+import { Check } from 'lucide-react';
+import {
+  getHighlightColorMeta,
+  normalizeRichDocument,
+} from '@/features/notebook/utils/notebookModel.js';
 
-/**
- * Safe structured rich-text renderer for RikiPath Note Pages.
- * Parses headings (# / ##), bullets (- / *), numbered lists (1.), **bold**, *italic*, ==highlight==,
- * Japanese inline `[ja:text]` tokens and clean URLs into React elements (zero dangerouslySetInnerHTML).
- */
-function renderInlineTokens(line, keyPrefix) {
-  const tokenRegex = /(\*\*[^*]+\*\*|\*[^*]+\*|==[^=]+==|`[^`]+`)/g;
-  const parts = String(line || '').split(tokenRegex);
-  return parts.map((part, i) => {
-    const key = `${keyPrefix}-${i}`;
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={key} className="font-bold text-rp-text">{part.slice(2, -2)}</strong>;
+function renderInlineRuns(runs = []) {
+  if (!Array.isArray(runs) || runs.length === 0) {
+    return null;
+  }
+
+  return runs.map((run, idx) => {
+    let node = <Fragment key={idx}>{run.text}</Fragment>;
+
+    if (run.italic) {
+      node = <em className="italic">{node}</em>;
     }
-    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
-      return <em key={key} className="italic text-rp-text-2">{part.slice(1, -1)}</em>;
+    if (run.bold) {
+      node = <strong className="font-bold text-rp-text">{node}</strong>;
     }
-    if (part.startsWith('==') && part.endsWith('==') && part.length > 4) {
-      return (
-        <mark key={key} className="rounded bg-[#FCE8EF] px-1 py-0.5 text-[#8C2D4B]">
-          {part.slice(2, -2)}
+    if (run.highlight) {
+      const tone = getHighlightColorMeta(run.highlight);
+      node = (
+        <mark
+          className="rounded px-1 py-0.5 text-rp-text"
+          style={{
+            backgroundColor: tone.markBg,
+            boxShadow: `inset 0 -1px 0 ${tone.markBorder}`,
+          }}
+        >
+          {node}
         </mark>
       );
     }
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return (
-        <span key={key} lang="ja" className="rp-jp rounded bg-rp-brand-tint/80 px-1.5 py-0.5 font-medium text-rp-brand-strong">
-          {part.slice(1, -1)}
-        </span>
-      );
-    }
-    return part;
+
+    return <Fragment key={idx}>{node}</Fragment>;
   });
 }
 
-export default function SafeRichNoteRenderer({ content = '', emptyText = 'Chưa có nội dung ghi chú cho trang này.' }) {
-  const safe = sanitizeNotebookText(content);
-  if (!safe) {
-    return <p className="text-[13px] italic text-rp-text-muted">{emptyText}</p>;
+/**
+ * Zero-dangerouslySetInnerHTML Safe Rich Note Renderer.
+ * Accepts either V3 structured JSON AST (`{ type: 'doc', version: 1, blocks: [...] }`)
+ * or legacy plain/markdown note strings, rendering clean React elements with interactive optional checklist callbacks.
+ */
+export default function SafeRichNoteRenderer({
+  content,
+  doc: docProp = null,
+  className = '',
+  emptyText = '',
+  onToggleChecklist = null,
+}) {
+  const doc = docProp
+    ? normalizeRichDocument(docProp, { ensureNonEmpty: false })
+    : normalizeRichDocument(content, { ensureNonEmpty: false });
+
+  const hasVisibleContent = doc.blocks.some(
+    (b) => b.runs.length > 0 || b.type === 'checklist_item' || b.type === 'heading',
+  );
+
+  if (!hasVisibleContent) {
+    return emptyText ? (
+      <p className={`text-[13.5px] italic text-rp-text-muted ${className}`}>{emptyText}</p>
+    ) : null;
   }
 
-  const lines = safe.split(/\r?\n/);
-  const blocks = [];
-  let listBuffer = null;
+  // Group consecutive bullet_item / ordered_item blocks into proper <ul> / <ol> lists for clean semantics.
+  const elements = [];
+  let i = 0;
+  while (i < doc.blocks.length) {
+    const block = doc.blocks[i];
 
-  const flushList = () => {
-    if (!listBuffer) return;
-    blocks.push(listBuffer);
-    listBuffer = null;
-  };
-
-  lines.forEach((rawLine, idx) => {
-    const line = rawLine.trimEnd();
-    if (/^\s*[-*]\s+/.test(line)) {
-      if (!listBuffer || listBuffer.type !== 'ul') {
-        flushList();
-        listBuffer = { type: 'ul', items: [], key: `ul-${idx}` };
+    if (block.type === 'bullet_item') {
+      const listItems = [];
+      while (i < doc.blocks.length && doc.blocks[i].type === 'bullet_item') {
+        listItems.push(doc.blocks[i]);
+        i += 1;
       }
-      listBuffer.items.push(line.replace(/^\s*[-*]\s+/, ''));
-      return;
-    }
-    if (/^\s*\d+\.\s+/.test(line)) {
-      if (!listBuffer || listBuffer.type !== 'ol') {
-        flushList();
-        listBuffer = { type: 'ol', items: [], key: `ol-${idx}` };
-      }
-      listBuffer.items.push(line.replace(/^\s*\d+\.\s+/, ''));
-      return;
+      elements.push(
+        <ul key={`ul-${listItems[0].id}`} className="my-1.5 list-disc space-y-1 pl-5 text-[14.5px] leading-relaxed text-rp-text">
+          {listItems.map((item) => (
+            <li key={item.id} className="rp-jp break-words">
+              {item.runs.length > 0 ? renderInlineRuns(item.runs) : <span className="text-rp-text-muted">&nbsp;</span>}
+            </li>
+          ))}
+        </ul>,
+      );
+      continue;
     }
 
-    flushList();
-    if (!line.trim()) {
-      blocks.push({ type: 'spacer', key: `sp-${idx}` });
-    } else if (line.startsWith('### ')) {
-      blocks.push({ type: 'h3', text: line.slice(4), key: `h3-${idx}` });
-    } else if (line.startsWith('## ')) {
-      blocks.push({ type: 'h2', text: line.slice(3), key: `h2-${idx}` });
-    } else if (line.startsWith('# ')) {
-      blocks.push({ type: 'h1', text: line.slice(2), key: `h1-${idx}` });
+    if (block.type === 'ordered_item') {
+      const listItems = [];
+      while (i < doc.blocks.length && doc.blocks[i].type === 'ordered_item') {
+        listItems.push(doc.blocks[i]);
+        i += 1;
+      }
+      elements.push(
+        <ol key={`ol-${listItems[0].id}`} className="my-1.5 list-decimal space-y-1 pl-5 text-[14.5px] leading-relaxed text-rp-text">
+          {listItems.map((item) => (
+            <li key={item.id} className="rp-jp break-words">
+              {item.runs.length > 0 ? renderInlineRuns(item.runs) : <span className="text-rp-text-muted">&nbsp;</span>}
+            </li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+
+    if (block.type === 'checklist_item') {
+      const checked = Boolean(block.checked);
+      elements.push(
+        <div key={block.id} className="my-1 flex items-start gap-2.5">
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            disabled={!onToggleChecklist}
+            onClick={() => onToggleChecklist?.(block.id)}
+            className={`rp-focus mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border transition-colors ${
+              checked
+                ? 'border-rp-brand-pressed bg-rp-brand-pressed text-white'
+                : 'border-rp-line-strong bg-white text-transparent hover:border-rp-brand'
+            } ${onToggleChecklist ? 'cursor-pointer' : 'cursor-default'}`}
+          >
+            <Check className="h-3 w-3 stroke-[2.6]" />
+          </button>
+          <div
+            className={`rp-jp min-w-0 flex-1 break-words text-[14.5px] leading-relaxed ${
+              checked ? 'text-rp-text-muted line-through' : 'text-rp-text'
+            }`}
+          >
+            {block.runs.length > 0 ? renderInlineRuns(block.runs) : <span className="text-rp-text-muted">&nbsp;</span>}
+          </div>
+        </div>,
+      );
+      i += 1;
+      continue;
+    }
+
+    if (block.type === 'heading') {
+      const level = block.level || 2;
+      const cls = level === 1
+        ? 'mt-3 mb-1.5 text-[20px] font-bold tracking-tight text-rp-text'
+        : level === 2
+          ? 'mt-2.5 mb-1 text-[17px] font-bold text-rp-text'
+          : 'mt-2 mb-1 text-[15px] font-bold text-rp-brand-strong';
+      elements.push(
+        <div key={block.id} className={`rp-jp break-words ${cls}`}>
+          {block.runs.length > 0 ? renderInlineRuns(block.runs) : null}
+        </div>,
+      );
+      i += 1;
+      continue;
+    }
+
+    if (block.type === 'quote') {
+      elements.push(
+        <blockquote
+          key={block.id}
+          className="rp-jp my-1.5 rounded-r-xl border-l-3 border-rp-brand bg-rp-bg-2 px-3 py-2 text-[14px] leading-relaxed text-rp-text-2 break-words"
+        >
+          {block.runs.length > 0 ? renderInlineRuns(block.runs) : null}
+        </blockquote>,
+      );
+      i += 1;
+      continue;
+    }
+
+    if (block.runs.length === 0) {
+      elements.push(<div key={block.id} className="h-2.5" aria-hidden="true" />);
     } else {
-      blocks.push({ type: 'p', text: line, key: `p-${idx}` });
+      elements.push(
+        <p key={block.id} className="rp-jp my-1 break-words text-[14.5px] leading-[1.7] text-rp-text">
+          {renderInlineRuns(block.runs)}
+        </p>,
+      );
     }
-  });
-  flushList();
+    i += 1;
+  }
 
-  return (
-    <div className="space-y-2 text-[13.5px] leading-relaxed text-rp-text">
-      {blocks.map((block) => {
-        if (block.type === 'spacer') return <div key={block.key} className="h-1" />;
-        if (block.type === 'h1') return <h2 key={block.key} className="text-[17px] font-bold text-rp-text">{renderInlineTokens(block.text, block.key)}</h2>;
-        if (block.type === 'h2') return <h3 key={block.key} className="text-[15px] font-bold text-rp-text">{renderInlineTokens(block.text, block.key)}</h3>;
-        if (block.type === 'h3') return <h4 key={block.key} className="text-[13.5px] font-bold text-rp-brand-strong">{renderInlineTokens(block.text, block.key)}</h4>;
-        if (block.type === 'ul') {
-          return (
-            <ul key={block.key} className="list-disc space-y-1 pl-5">
-              {block.items.map((item, idx) => <li key={`${block.key}-${idx}`}>{renderInlineTokens(item, `${block.key}-${idx}`)}</li>)}
-            </ul>
-          );
-        }
-        if (block.type === 'ol') {
-          return (
-            <ol key={block.key} className="list-decimal space-y-1 pl-5">
-              {block.items.map((item, idx) => <li key={`${block.key}-${idx}`}>{renderInlineTokens(item, `${block.key}-${idx}`)}</li>)}
-            </ol>
-          );
-        }
-        return <p key={block.key}>{renderInlineTokens(block.text, block.key)}</p>;
-      })}
-    </div>
-  );
+  return <div className={`space-y-0.5 ${className}`}>{elements}</div>;
 }

@@ -168,7 +168,8 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
         diagnosticScope="LearnerCohortTransferPanel"
         empty={
           <ContextualEmptyState
-            compact
+            variant="compact"
+            illustration="appointment"
             title={tr('Chưa có yêu cầu chuyển lớp nào.')}
             description={tr('Bạn có thể gửi yêu cầu chuyển lớp ở biểu mẫu phía trên khi cần hỗ trợ.')}
           />

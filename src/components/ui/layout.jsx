@@ -251,3 +251,25 @@ export function DataPanel({
     </Tag>
   );
 }
+
+/**
+ * Shared height-animated disclosure region (tree branches, nav groups, optional form sections).
+ * Animates `grid-template-rows` 0fr ↔ 1fr so content of any height opens without measuring,
+ * keeps collapsed content `inert` (no focus/AT exposure) and honours `prefers-reduced-motion`.
+ */
+export function Collapsible({ open, children, className, innerClassName, as: Tag = 'div', id }) {
+  return (
+    <Tag
+      id={id}
+      inert={!open || undefined}
+      aria-hidden={!open || undefined}
+      className={cx(
+        'grid transition-[grid-template-rows,opacity] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+        open ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0',
+        className,
+      )}
+    >
+      <div className={cx('min-h-0 overflow-hidden', innerClassName)}>{children}</div>
+    </Tag>
+  );
+}

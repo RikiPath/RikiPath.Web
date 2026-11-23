@@ -153,8 +153,8 @@ test('classifyScheduleEvent, filterScheduleEvents and sortScheduleEvents separat
   // Verify canonical 4+2 semantic status colors in CALENDAR_TONES (plus Draft selection)
   assert.equal(CALENDAR_TONES.pending.hex, '#E4A020');
   assert.equal(CALENDAR_TONES.approved.hex, '#0D9488');
-  assert.equal(CALENDAR_TONES.session.hex, '#CE476D');
-  assert.equal(CALENDAR_TONES.present.hex, '#16A34A');
+  assert.equal(CALENDAR_TONES.session.hex, '#2F9B6B');
+  assert.equal(CALENDAR_TONES.present.hex, '#2F9B6B');
   assert.equal(CALENDAR_TONES.rejected.hex, '#DC3545');
   assert.equal(CALENDAR_TONES.cancelled.hex, '#8B8B97');
   assert.equal(CALENDAR_TONES.selected.hex, '#22C55E');

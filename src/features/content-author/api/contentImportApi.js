@@ -84,27 +84,33 @@ export async function confirmContentImport(payload) {
 }
 
 export async function uploadListeningAudio(file) {
-  const formData = new FormData();
-  formData.append('file', file);
   if (!/\.mp3$/i.test(file.name) || file.size < 4 || file.size > 500 * 1024 * 1024) {
     throw new Error('Chọn file MP3 có dữ liệu, tối đa 500 MB.');
   }
+  const formData = new FormData();
+  formData.append('file', file);
   const response = await api.post('/content-import/listening-audio', formData, {
-    timeout: 60000,
-    transformRequest: [(data, headers) => { delete headers['Content-Type']; return data; }],
+    timeout: 300000,
+    transformRequest: [(payload, headers) => {
+      delete headers['Content-Type'];
+      return payload;
+    }],
   });
   return response?.result ?? response;
 }
 
 export async function uploadContentImage(file) {
+  if (!/\.(jpe?g|png|webp|gif)$/i.test(file.name) || file.size < 12 || file.size > 10 * 1024 * 1024) {
+    throw new Error('Chọn ảnh JPG, PNG, WebP hoặc GIF có dữ liệu, tối đa 10 MB.');
+  }
   const formData = new FormData();
   formData.append('file', file);
-  if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type) || file.size < 1 || file.size > 10 * 1024 * 1024) {
-    throw new Error('Chọn hình ảnh JPG, PNG, WebP hoặc GIF, tối đa 10 MB.');
-  }
   const response = await api.post('/content-import/content-image', formData, {
     timeout: 120000,
-    transformRequest: [(data, headers) => { delete headers['Content-Type']; return data; }],
+    transformRequest: [(payload, headers) => {
+      delete headers['Content-Type'];
+      return payload;
+    }],
   });
   return response?.result ?? response;
 }

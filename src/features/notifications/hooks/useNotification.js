@@ -54,6 +54,17 @@ export function useMarkAllAsReadMutation() {
         mutationFn: markAllNotificationsAsRead,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+            queryClient.invalidateQueries({ queryKey: ['workspace-calendar', 'notifications'] });
+        },
+    });
+}
+
+export function useMarkAllNotificationsAsRead() {
+    return useMutation({
+        mutationFn: markAllNotificationsAsRead,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+            queryClient.invalidateQueries({ queryKey: ['workspace-calendar', 'notifications'] });
         },
     });
 }
@@ -69,6 +80,7 @@ const shouldSurface = createNotificationDeduper();
 
 function refreshLists() {
     queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    queryClient.invalidateQueries({ queryKey: ['workspace-calendar'] });
 }
 
 function surface(raw) {
@@ -76,6 +88,11 @@ function surface(raw) {
     const item = normalizeRealtimeNotification(raw);
     if (!item || !shouldSurface(item)) return;
     window.dispatchEvent(new CustomEvent(NOTIFICATION_EVENT, { detail: item }));
+    if (String(item.type || '').toLowerCase() === 'srsreminder' || String(item.linkUrl || '').toLowerCase().startsWith('/daily-srs')) {
+        queryClient.invalidateQueries({ queryKey: ['srs-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['srs-queue'] });
+        queryClient.invalidateQueries({ queryKey: ['srs-calendar'] });
+    }
     if (item.type === 'MentorVerification') {
         queryClient.invalidateQueries({ queryKey: ['admin-mentor-verifications'] });
         window.dispatchEvent(new CustomEvent('rikipath:mentor-verification', { detail: raw }));

@@ -16,6 +16,10 @@
  * Textarea, Select, Checkbox, Field. Prefer those for new code; these rules cover the long tail.
  */
 
+::highlight(rp-auto-highlight-yellow) { background-color: rgba(246, 213, 109, 0.55); }
+::highlight(rp-auto-highlight-mint) { background-color: rgba(142, 218, 196, 0.55); }
+::highlight(rp-auto-highlight-sakura) { background-color: rgba(245, 169, 196, 0.55); }
+
 :root {
   /* Motion */
   --rp-dur-fast: 140ms;        /* hover colour, press feedback */
@@ -27,10 +31,10 @@
   --rp-hover-lift: translateY(-1px);
   --rp-press-scale: scale(0.985);
 
-  /* Controls — fluid sizing synced with tokens.css */
-  --rp-control-h-sm: clamp(2rem, 1.95rem + 0.15vw, 2.125rem);
-  --rp-control-h-md: clamp(2.375rem, 2.32rem + 0.2vw, 2.625rem);
-  --rp-control-h-lg: clamp(2.75rem, 2.68rem + 0.25vw, 3rem);
+  /* Controls — unified standardized sizing synced with tokens.css (32px / 40px / 48px) */
+  --rp-control-h-sm: 2rem;
+  --rp-control-h-md: 2.5rem;
+  --rp-control-h-lg: 3rem;
   --rp-check-size: 18px;
   --rp-radius-check: 5px;
   --rp-radius-control: 12px;
@@ -71,6 +75,7 @@
     transition-duration: var(--rp-dur-fast);
     transition-timing-function: var(--rp-ease-standard);
   }
+  :where(button, [role="button"]):not(:disabled, [aria-disabled="true"]) { cursor: pointer; }
   :where(button, [role="button"]):disabled,
   :where(button, [role="button"])[aria-disabled="true"] { cursor: not-allowed; }
 
@@ -102,13 +107,15 @@
       background-size var(--rp-dur-standard) var(--rp-ease-spring),
       box-shadow var(--rp-dur-fast) var(--rp-ease-standard);
   }
+  :is(input[type="checkbox"]),
+  :is(input[type="radio"]) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M2.6 8.3 6.3 12 13.4 4.2' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
   :is(input[type="checkbox"]) {
     border-radius: var(--rp-radius-check);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M2.6 8.3 6.3 12 13.4 4.2' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
   :is(input[type="radio"]) {
     border-radius: 9999px;
-    background-image: radial-gradient(circle, #fff 0 34%, transparent 36%);
   }
   :is(input[type="checkbox"], input[type="radio"]):hover:not(:disabled) { border-color: var(--rp-control-border-hover); }
   :is(input[type="checkbox"], input[type="radio"]):checked,
@@ -163,6 +170,19 @@
 @supports selector(::picker-icon) {
   :is(select).appearance-none::picker-icon { display: none; }
 }
+/* Normalize native date/time picker intrinsic vertical padding so height matches standard 40px controls cleanly */
+:is(input[type="date"], input[type="time"], input[type="datetime-local"]).rp-control {
+  display: inline-flex;
+  align-items: center;
+  line-height: normal;
+}
+:is(input[type="date"], input[type="time"], input[type="datetime-local"]).rp-control::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.25em;
+}
+:is(input[type="date"], input[type="time"], input[type="datetime-local"]).rp-control::-webkit-datetime-edit {
+  padding: 0;
+}
 
 /* ------------------------------------------------------------------ Links */
 /* Inline text link (body copy): brand colour + underline that sweeps in. Defined in tokens.css as .rp-link. */
@@ -211,6 +231,31 @@
 }
 .rp-press:hover:not(:disabled, [aria-disabled="true"]) { transform: var(--rp-hover-lift); }
 .rp-press:active:not(:disabled, [aria-disabled="true"]) { transform: var(--rp-press-scale); transition-duration: 90ms; }
+.rp-press:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+
+.rp-btn-primary:not(:disabled, [aria-disabled="true"]):hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 24px -8px rgba(194, 67, 98, 0.45);
+}
+.rp-btn-primary:not(:disabled, [aria-disabled="true"]):active {
+  transform: scale(0.985);
+  transition-duration: 100ms;
+}
+.rp-btn-arrow {
+  transition: transform var(--rp-dur-standard) var(--rp-ease-out);
+}
+.rp-press:not(:disabled, [aria-disabled="true"]):hover .rp-btn-arrow,
+.rp-press:not(:disabled, [aria-disabled="true"]):focus-visible .rp-btn-arrow {
+  transform: translateX(2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-btn-primary:not(:disabled, [aria-disabled="true"]):hover,
+  .rp-btn-primary:not(:disabled, [aria-disabled="true"]):active,
+  .rp-btn-arrow {
+    transition: none;
+    transform: none !important;
+  }
+}
 
 /* One checkbox/radio size everywhere: unlayered so stray h-4/w-5 utilities on raw inputs can't drift. */
 :where(input[type="checkbox"], input[type="radio"]) {

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Check, Image as ImageIcon, Maximize2, PanelLeftOpen, Plus, ScanText } from 'lucide-react';
 
 import { api } from '@/api/client.js';
-import { describeApiError } from '@/api/apiErrors.js';
+import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import {
   Badge,
   Banner,
@@ -15,11 +15,13 @@ import {
   EmptyState,
   ErrorState,
   PageContainer,
-  PageHeader,
+  RefreshButton,
+  RefreshingIndicator,
   SakuraLoader,
   useUnsavedGuard,
 } from '@/components/ui';
 import Icon from '@/components/ui/Icon.jsx';
+import { ControlGroup, CounterPill, IllustratedPageHeader } from '@/features/learner-ui';
 import { confirmAction, notify } from '@/components/ui/feedbackStore.js';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import { getPracticeLevelId } from '@/features/practice/api/practiceGradingApi.js';
@@ -113,20 +115,43 @@ export default function LearnerEssayPage() {
 
   useUnsavedGuard(changed);
 
-  const loadEssays = useCallback(async () => {
-    setLoading(true);
+  const [refreshingList, setRefreshingList] = useState(false);
+  const essaySeqRef = useRef(0);
+  const inFlightEssaysRef = useRef(null);
+  const essaysCountRef = useRef(0);
+
+  const loadEssays = useCallback((opts = {}) => {
+    if (inFlightEssaysRef.current) return inFlightEssaysRef.current;
+    const seq = ++essaySeqRef.current;
+    const background = Boolean(opts?.background ?? essaysCountRef.current > 0);
+    if (background) setRefreshingList(true);
+    else setLoading(true);
     setListError('');
-    try {
-      const result = await getLearnerEssays();
-      if (!Array.isArray(result)) {
-        throw new Error(tr('Danh sách bài viết chưa đúng định dạng.'));
-      }
-      setEssays(result);
-    } catch (err) {
-      setListError(describeApiError(err, tr('Không tải được danh sách.')));
-    } finally {
-      setLoading(false);
-    }
+    const job = Promise.resolve()
+      .then(async () => {
+        const result = await getLearnerEssays();
+        if (!Array.isArray(result)) {
+          throw new Error(tr('Danh sách bài viết chưa đúng định dạng.'));
+        }
+        if (essaySeqRef.current === seq) {
+          essaysCountRef.current = result.length;
+          setEssays(result);
+        }
+      })
+      .catch((err) => {
+        if (essaySeqRef.current === seq) {
+          setListError(formatApiError(err, tr('Không tải được danh sách.')));
+        }
+      })
+      .finally(() => {
+        if (inFlightEssaysRef.current === job) inFlightEssaysRef.current = null;
+        if (essaySeqRef.current === seq) {
+          setLoading(false);
+          setRefreshingList(false);
+        }
+      });
+    inFlightEssaysRef.current = job;
+    return job;
   }, [tr]);
 
   useEffect(() => {
@@ -202,7 +227,7 @@ export default function LearnerEssayPage() {
       setFile(null);
       setPreviewUrl('');
     } catch (err) {
-      setError(describeApiError(err, tr('Không mở được bài viết.')));
+      setError(formatApiError(err, tr('Không mở được bài viết.')));
     } finally {
       setOperation('');
     }
@@ -249,7 +274,7 @@ export default function LearnerEssayPage() {
       const code = err?.data?.errorCode || err?.errorCode;
       const needsUpgrade = QUOTA_ERROR_CODES.has(code) || err?.status === 403;
       setGradeQuotaError(needsUpgrade);
-      setError(describeApiError(err, tr('Không thể nhận dạng văn bản.')));
+      setError(formatApiError(err, tr('Không thể nhận dạng văn bản.')));
       notify.apiError(err, tr('Không thể nhận dạng văn bản từ ảnh'), {
         key: toastKey,
         replace: true,
@@ -297,7 +322,7 @@ export default function LearnerEssayPage() {
       const code = err?.data?.errorCode || err?.errorCode;
       const needsUpgrade = QUOTA_ERROR_CODES.has(code) || err?.status === 403;
       setGradeQuotaError(needsUpgrade);
-      setError(describeApiError(err, tr('Không chấm được bài viết.')));
+      setError(formatApiError(err, tr('Không chấm được bài viết.')));
       notify.apiError(err, tr('Không chấm được bài viết'), {
         key: toastKey,
         replace: true,
@@ -338,7 +363,7 @@ export default function LearnerEssayPage() {
       notify.success(tr('Đã lưu bản nháp bài viết.'), '', { key: toastKey, replace: true });
       await loadEssays();
     } catch (err) {
-      setError(describeApiError(err, tr('Không lưu được bài viết.')));
+      setError(formatApiError(err, tr('Không lưu được bài viết.')));
       notify.apiError(err, tr('Không lưu được bài viết'), { key: toastKey, replace: true });
     } finally {
       setOperation('');
@@ -374,7 +399,7 @@ export default function LearnerEssayPage() {
       notify.success(tr('Đã xóa bài viết.'), '', { key: toastKey });
       await loadEssays();
     } catch (err) {
-      setError(describeApiError(err, tr('Không xóa được bài viết.')));
+      setError(formatApiError(err, tr('Không xóa được bài viết.')));
       notify.apiError(err, tr('Không xóa được bài viết'), { key: toastKey });
     } finally {
       setOperation('');
@@ -391,22 +416,24 @@ export default function LearnerEssayPage() {
 
   return (
     <LearnerShell pathname={pathname} breadcrumb={tr('Luyện viết')}>
-      <PageContainer width="default">
-        <PageHeader
-          eyebrow="JLPT N5 – N1"
+      <PageContainer width="default" className="space-y-4">
+        <IllustratedPageHeader
+          icon="writing"
+          tone="peach"
+          eyebrow="JLPT N5 – N2"
           title={tr('Luyện viết tiếng Nhật')}
           description={tr('Soạn bài trực tiếp hoặc quét chữ từ ảnh viết tay, lưu bản nháp và nhận chấm điểm AI.')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <ControlGroup>
               {writingQuota !== null && (
-                <Badge tone={writingQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                <CounterPill tone={writingQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI viết: {0}', { 0: writingQuota })}
-                </Badge>
+                </CounterPill>
               )}
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
+                size="md"
                 onClick={() => setFocusMode((v) => !v)}
                 icon={focusMode ? PanelLeftOpen : Maximize2}
               >
@@ -415,7 +442,7 @@ export default function LearnerEssayPage() {
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
+                size="md"
                 disabled={busy}
                 onClick={() => setScanDrawerOpen(true)}
                 icon={ScanText}
@@ -425,14 +452,14 @@ export default function LearnerEssayPage() {
               <Button
                 type="button"
                 variant="primary"
-                size="sm"
+                size="md"
                 onClick={newEssay}
                 disabled={busy}
                 icon={Plus}
               >
                 {tr('Bài mới')}
               </Button>
-            </div>
+            </ControlGroup>
           }
         />
 
@@ -532,18 +559,30 @@ export default function LearnerEssayPage() {
               <div className="flex items-center justify-between border-b border-rp-line px-4 py-3">
                 <h2 className="text-xs font-semibold text-rp-text">
                   {tr('Bài viết của tôi')}
-                  <span className="ml-2 text-rp-text-muted">{loading ? '…' : essays.length}</span>
+                  <span className="ml-2 text-rp-text-muted">{loading && essays.length === 0 ? '…' : essays.length}</span>
                 </h2>
-                <button
-                  type="button"
-                  onClick={loadEssays}
-                  disabled={loading || busy}
-                  aria-label={tr('Tải lại danh sách')}
-                  className="rp-focus rounded p-1 text-rp-text-muted hover:bg-rp-brand-tint disabled:opacity-40"
-                >
-                  {loading ? <SakuraLoader variant="inline" size={16} /> : <Icon name="refresh" className="text-[17px]" />}
-                </button>
+                {!loading && !listError && essays.length > 0 && (
+                  <RefreshButton
+                    iconOnly
+                    size="sm"
+                    onRefresh={() => loadEssays({ background: essays.length > 0 })}
+                    refreshing={refreshingList}
+                    disabled={busy}
+                    tooltip={tr('Tải lại danh sách')}
+                    aria-label={tr('Tải lại danh sách')}
+                    className="!h-7 !w-7 rounded-lg"
+                  />
+                )}
               </div>
+              {refreshingList && (
+                <div className="pointer-events-none sticky top-1 z-20 h-0 overflow-visible px-2">
+                  <div className="flex justify-end">
+                    <div className="pointer-events-auto">
+                      <RefreshingIndicator active delay={60} />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {loading && essays.length === 0 ? (
                 <SakuraLoader
@@ -559,7 +598,9 @@ export default function LearnerEssayPage() {
                 </div>
               ) : essays.length === 0 ? (
                 <EmptyState
-                  compact
+                  variant="inline"
+                  size="sm"
+                  illustration="homework"
                   title={tr('Chưa có bài viết')}
                   description={tr('Soạn bài mới hoặc quét ảnh bài viết tay để bắt đầu.')}
                 />

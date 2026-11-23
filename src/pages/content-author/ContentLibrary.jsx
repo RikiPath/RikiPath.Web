@@ -32,11 +32,12 @@ export default function ContentLibrary() {
         {
           key: 'explanation',
           label: 'Giải thích',
-          render: (row) => <span className="line-clamp-2 max-w-[360px] text-sm text-rp-text-2">{row.explanation || '—'}</span>,
+          render: (row) => <span title={row.explanation || ''} className="mx-auto line-clamp-2 max-w-[440px] text-sm text-rp-text-2">{row.explanation || '—'}</span>,
         },
         {
           key: 'jlptLevelName',
           label: 'Cấp độ',
+          compact: true,
           render: (row) => (
             row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'
           ),

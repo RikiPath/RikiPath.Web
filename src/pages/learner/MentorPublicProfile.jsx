@@ -47,7 +47,7 @@ export default function MentorPublicProfile() {
 
         {!valid ? (
           <Card>
-            <EmptyState art="search" title={tr('Không tìm thấy Giáo viên')} description={tr('Đường dẫn hồ sơ không hợp lệ.')} />
+            <EmptyState illustration="mentor" title={tr('Không tìm thấy Giáo viên')} description={tr('Đường dẫn hồ sơ không hợp lệ.')} />
           </Card>
         ) : profileQuery.isPending ? (
           <SakuraLoader variant="section" context="profile" label={tr('Đang tải hồ sơ Giáo viên')} delay={160} />
@@ -144,7 +144,8 @@ export default function MentorPublicProfile() {
           ) : cohorts.length === 0 ? (
             <Card>
               <EmptyState
-                art="calendar"
+                variant="compact"
+                illustration="classroom"
                 title={tr('Giáo viên chưa có lớp đang mở đăng ký')}
                 description={tr('Bạn có thể quay lại sau hoặc xem lớp của Giáo viên khác.')}
               />

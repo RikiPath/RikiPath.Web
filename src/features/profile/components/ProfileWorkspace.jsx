@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Bell, ShieldCheck, SlidersHorizontal, Target, UserRound } from 'lucide-react';
@@ -16,6 +16,7 @@ import AccountSecuritySection from './AccountSecuritySection.jsx';
 import NotificationPreferencesSection from './NotificationPreferencesSection.jsx';
 import PreferencesSection from './PreferencesSection.jsx';
 import LearningGoalsSection from './LearningGoalsSection.jsx';
+import LearnerAchievementsSection from '@/features/learning-moments/LearnerAchievementsSection.jsx';
 
 const TAB_ICONS = {
   UserRound,
@@ -34,7 +35,7 @@ function RoleAccountShell({ role, breadcrumb, children }) {
 
 export default function ProfileWorkspace({ defaultTab = 'profile' }) {
   const { tr } = useLocale();
-  const { primaryRole, user, updateSession } = useAuth();
+  const { primaryRole, user, syncUserProfile } = useAuth();
   const role = primaryRole || 'Learner';
   const queryClient = useQueryClient();
   const { search } = useLocation();
@@ -63,22 +64,30 @@ export default function ProfileWorkspace({ defaultTab = 'profile' }) {
 
   const profile = profileQuery.data;
 
+  // Keep AuthContext / Header / Dropdown synchronized whenever server profile refreshes
+  useEffect(() => {
+    if (!profile) return;
+    const nextAvatar = profile.avatarUrl?.trim() || null;
+    const prevAvatar = user?.avatarUrl?.trim() || null;
+    if (
+      (profile.fullName && profile.fullName !== user?.fullName) ||
+      nextAvatar !== prevAvatar ||
+      (profile.email && profile.email !== user?.email)
+    ) {
+      syncUserProfile(profile);
+    }
+  }, [profile, user?.fullName, user?.avatarUrl, user?.email, syncUserProfile]);
+
   function syncAccountCaches(updatedProfile) {
     if (updatedProfile) {
       queryClient.setQueryData(profileQueryKey, updatedProfile);
       queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
-      updateSession({
-        fullName: updatedProfile.fullName || undefined,
-        avatarUrl: updatedProfile.avatarUrl ?? null,
-        phoneNumber: updatedProfile.phoneNumber ?? null,
-        pendingEmail: updatedProfile.pendingEmail ?? null,
-        isEmailVerified: typeof updatedProfile.isEmailVerified === 'boolean' ? updatedProfile.isEmailVerified : true,
-        hasPassword: typeof updatedProfile.hasPassword === 'boolean' ? updatedProfile.hasPassword : true,
-        googleLinked: Boolean(updatedProfile.googleLinked),
-      });
+      queryClient.invalidateQueries({ queryKey: ['my-mentor-profile'] });
+      syncUserProfile(updatedProfile);
     } else {
       queryClient.invalidateQueries({ queryKey: profileQueryKey });
       queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      queryClient.invalidateQueries({ queryKey: ['my-mentor-profile'] });
     }
   }
 
@@ -221,10 +230,13 @@ export default function ProfileWorkspace({ defaultTab = 'profile' }) {
                     />
                   )}
                   {activeTab === 'goals' && role === 'Learner' && (
-                    <LearningGoalsSection
-                      profile={profile}
-                      onProfileUpdated={syncAccountCaches}
-                    />
+                    <div className="space-y-5">
+                      <LearningGoalsSection
+                        profile={profile}
+                        onProfileUpdated={syncAccountCaches}
+                      />
+                      <LearnerAchievementsSection />
+                    </div>
                   )}
                 </section>
               </div>

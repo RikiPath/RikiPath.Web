@@ -197,7 +197,7 @@ export const jaAccountProfile = {
   'Cấp độ đang học': '現在学習中のレベル',
   'Hiện tại': '現在',
   'Cấp độ đang học trên lộ trình': 'ロードマップ上の学習レベル',
-  'Danh sách cấp độ được đồng bộ trực tiếp từ hệ thống chứng chỉ (bao gồm N5 đến N1).': '資格マスターから同期された最新のJLPTレベル一覧（N5〜N1対応）です。',
+  'Danh sách cấp độ được đồng bộ trực tiếp từ hệ thống chứng chỉ (hỗ trợ JLPT N5 đến N2).': '資格マスターから同期された最新のJLPTレベル一覧（N5〜N2対応）です。',
   'Chỉnh sửa mục tiêu đầy đủ': '目標設定を詳しく編集',
   'Thiết lập mục tiêu': '学習目標を設定',
   'Áp dụng cấp độ đang học': '学習レベルを適用',
@@ -253,4 +253,5 @@ export const jaAccountProfile = {
   'Vui lòng kiểm tra lại thông tin vừa nhập.': '入力内容をご確認ください。',
   'Thông tin hồ sơ không có thay đổi mới.': 'プロフィール情報に変更はありません。',
   'Đã hủy các chỉnh sửa chưa lưu.': '保存していない変更を破棄しました。',
+  'Hãy lưu hoặc hủy thay đổi trước khi làm mới': '更新する前に変更を保存または破棄してください',
 };

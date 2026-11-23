@@ -34,8 +34,20 @@ export function getKanji(id) {
   return api.get(`/SharedBank/kanji/${id}`).then(result);
 }
 
-export function searchGrammar(keyword) {
-  return api.post('/SharedBank/grammar/search', { keyword, page: 1, pageSize: 12 }).then(result);
+export async function searchGrammar(keyword) {
+  const pageSize = 100;
+  const firstPage = result(await api.post('/SharedBank/grammar/search', { keyword, page: 1, pageSize }));
+  const totalPages = Math.ceil((firstPage.totalCount || 0) / pageSize);
+  if (totalPages <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      api.post('/SharedBank/grammar/search', { keyword, page: index + 2, pageSize }).then(result)),
+  );
+  return {
+    ...firstPage,
+    items: [firstPage, ...remainingPages].flatMap((page) => page.items || []),
+  };
 }
 
 export function getGrammar(id) {

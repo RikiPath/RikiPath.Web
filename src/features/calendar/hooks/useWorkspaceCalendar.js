@@ -10,7 +10,8 @@ import {
   getCohorts,
 } from '@/features/cohorts/api/cohortApi.js';
 import { getNotifications } from '@/features/notifications/api/notificationApi.js';
-import { getDailyReviewQueue } from '@/features/srs/api/reviewApi.js';
+import { getDailyReviewQueue, getSrsCalendar, getSrsSummary } from '@/features/srs/api/reviewApi.js';
+import { toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
 import { navRoleFor } from '@/layouts/appNav.js';
 import { useLocale } from '@/locales/locale.js';
 import { useNow } from '@/hooks/useNow.js';
@@ -24,6 +25,7 @@ import {
   buildLearnerCalendarEvents,
   buildMentorCalendarEvents,
   buildUpcomingHeaderSummary,
+  extractSrsCalendarState,
   extractSrsDueCount,
   isContentAuthorNotification,
   summarizeAuthorApprovals,
@@ -54,7 +56,12 @@ function normalizeResultList(raw) {
  * Shared smart calendar hook backing the Global Header Calendar Popover, /calendar workspace,
  * and dashboard workspace preview cards using only real Backend APIs.
  */
-export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = true, enabled: extraEnabled = true } = {}) {
+export function useWorkspaceCalendar({
+  roleKey: explicitRoleKey,
+  includeSrs = true,
+  enabled: extraEnabled = true,
+  anchorKey = null,
+} = {}) {
   const { tr, trf } = useLocale();
   const queryClient = useQueryClient();
   const session = getSession();
@@ -67,6 +74,11 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
   const isMentor = roleKey === 'Mentor';
   const isAdmin = roleKey === 'Admin';
   const isContentAuthor = roleKey === 'ContentAuthor';
+
+  const effectiveDayKey = anchorKey && /^\d{4}-\d{2}-\d{2}$/.test(String(anchorKey))
+    ? String(anchorKey)
+    : toVnDateKey(new Date(nowMs));
+  const [anchorYear, anchorMonth] = effectiveDayKey.split('-').map(Number);
 
   const coursesQuery = useQuery({
     queryKey: isLearner ? ['learner-courses-summary', uid] : ['workspace-calendar', 'courses', roleKey, uid],
@@ -92,8 +104,23 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
     retry: shouldRetry,
   });
 
+  const srsSummaryQuery = useQuery({
+    queryKey: ['srs-summary', uid],
+    queryFn: async () => {
+      try {
+        return await getSrsSummary();
+      } catch (err) {
+        if (err?.status === 403 || err?.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled: enabled && isLearner && includeSrs,
+    staleTime: 30_000,
+    retry: shouldRetry,
+  });
+
   const srsQuery = useQuery({
-    queryKey: ['workspace-calendar', 'srs-queue', uid],
+    queryKey: ['srs-queue', { studyMode: 'flip', scope: 'workspace-calendar', uid }],
     queryFn: async () => {
       try {
         return await getDailyReviewQueue();
@@ -103,7 +130,22 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
       }
     },
     enabled: enabled && isLearner && includeSrs,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    retry: shouldRetry,
+  });
+
+  const srsCalendarQuery = useQuery({
+    queryKey: ['srs-calendar', anchorYear, anchorMonth, uid],
+    queryFn: async () => {
+      try {
+        return await getSrsCalendar(anchorYear, anchorMonth);
+      } catch (err) {
+        if (err?.status === 403 || err?.status === 404) return [];
+        throw err;
+      }
+    },
+    enabled: enabled && isLearner && includeSrs && Number.isFinite(anchorYear) && Number.isFinite(anchorMonth),
+    staleTime: 30_000,
     retry: shouldRetry,
   });
 
@@ -196,13 +238,26 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
   const authorSummary = useMemo(() => summarizeAuthorApprovals(authorApprovals), [authorApprovals]);
   const editorialNotifications = useMemo(() => notifications.filter(isContentAuthorNotification), [notifications]);
 
+  const srsState = useMemo(
+    () => extractSrsCalendarState({
+      srsSummary: srsSummaryQuery.data,
+      srsQueue: srsQuery.data,
+      srsCalendarDays: srsCalendarQuery.data,
+      nowMs,
+    }),
+    [srsSummaryQuery.data, srsQuery.data, srsCalendarQuery.data, nowMs],
+  );
+
   const events = useMemo(() => {
     if (isLearner) {
       return buildLearnerCalendarEvents({
         courses,
         homeworks,
         changeRequests,
+        notifications,
         srsQueue: srsQuery.data,
+        srsSummary: srsSummaryQuery.data,
+        srsCalendarDays: srsCalendarQuery.data,
         nowMs,
         tr,
         trf,
@@ -225,7 +280,10 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
     courses,
     homeworks,
     changeRequests,
+    notifications,
     srsQuery.data,
+    srsSummaryQuery.data,
+    srsCalendarQuery.data,
     cohortsQuery.data,
     availabilityQuery.data,
     nowMs,
@@ -303,6 +361,8 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
 
   const isFetching = coursesQuery.isFetching
     || homeworksQuery.isFetching
+    || srsSummaryQuery.isFetching
+    || srsQuery.isFetching
     || availabilityQuery.isFetching
     || adminRequestsQuery.isFetching
     || adminPendingSlotsQuery.isFetching
@@ -323,7 +383,11 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
     if (isLearner) {
       homeworksQuery.refetch();
       changeRequestsQuery.refetch();
-      if (includeSrs) srsQuery.refetch();
+      if (includeSrs) {
+        srsSummaryQuery.refetch();
+        srsQuery.refetch();
+        srsCalendarQuery.refetch();
+      }
     }
     if (isMentor) {
       cohortsQuery.refetch();
@@ -351,7 +415,9 @@ export function useWorkspaceCalendar({ roleKey: explicitRoleKey, includeSrs = tr
     homeworks,
     changeRequests,
     srsQueue: srsQuery.data || null,
-    srsDueCount: extractSrsDueCount(srsQuery.data),
+    srsSummary: srsSummaryQuery.data || null,
+    srsState,
+    srsDueCount: extractSrsDueCount(srsQuery.data, srsSummaryQuery.data),
     notifications,
     editorialNotifications,
     adminCohortRequests,

@@ -5,6 +5,18 @@ export async function getStudyStreak() {
   return data.result;
 }
 
+/** Today's server-derived streak celebration event (read-only; never creates activity or events). */
+export async function getStreakCelebration() {
+  const data = await api.get('/Analytics/streak-celebration');
+  return data.result;
+}
+
+/** Claims today's celebration once per learner across tabs/devices; only `claimed: true` may show the modal. */
+export async function claimStreakCelebration(eventId) {
+  const data = await api.post('/Analytics/streak-celebration/claim', { eventId });
+  return data.result;
+}
+
 export async function getCompletionStats() {
   const data = await api.get('/Analytics/completion-stats');
   return data.result;

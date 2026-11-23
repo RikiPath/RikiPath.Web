@@ -301,15 +301,19 @@ describe('Global toast architecture & domain safety contracts', () => {
     assert.match(authPage, /Không thể kết nối đến hệ thống\. Vui lòng thử lại\./);
   });
 
-  it('never claims Paid on PayOS redirect or Pending polling in StudyPayment, Receipt, or StudyCoursesPage', () => {
-    const studyPayment = readSrc('src/pages/learner/StudyPayment.jsx');
-    assert.match(studyPayment, /notify\.info\(\s*tr\('Đang chuyển sang PayOS'\)/);
-    assert.doesNotMatch(studyPayment, /notify\.success\([^)]*Thanh toán thành công/);
+  it('never claims Paid on PayOS redirect or Pending polling in the checkout modal, Receipt, or StudyCoursesPage', () => {
+    // Checkout confirmation moved from the /study-payment page into the /plans modal; the legacy page only redirects.
+    const checkout = readSrc('src/features/checkout/components/StudyCheckoutModal.jsx');
+    assert.match(checkout, /notify\.info\(\s*tr\('Đang chuyển sang PayOS'\)/);
+    assert.doesNotMatch(checkout, /notify\.success\(/);
+    const legacy = readSrc('src/pages/learner/StudyPayment.jsx');
+    assert.match(legacy, /<Navigate to=\{to\} replace \/>/);
+    assert.doesNotMatch(legacy, /notify\.success\(/);
 
     const receipt = readSrc('src/pages/learner/StudyPaymentReceipt.jsx');
     assert.match(receipt, /announcedRef\.current === status/);
-    assert.match(receipt, /status === 'Paid'[\s\S]*notify\.success\('Thanh toán thành công'/);
-    assert.match(receipt, /status === 'Pending'[\s\S]*notify\.info\('Đang xác nhận thanh toán'/);
+    assert.match(receipt, /status === 'Paid'[\s\S]*notify\.success\(tr\('Thanh toán thành công'\)/);
+    assert.match(receipt, /status === 'Pending'[\s\S]*notify\.info\(tr\('Đang xác nhận thanh toán'\)/);
 
     const courses = readSrc('src/pages/shared/StudyCoursesPage.jsx');
     assert.match(courses, /Thanh toán đã được xác nhận\. Bạn đã ghi danh thành công!/);

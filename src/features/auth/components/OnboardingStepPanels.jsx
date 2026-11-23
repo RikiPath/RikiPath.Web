@@ -26,6 +26,7 @@ import {
   Button,
   Checkbox,
   CustomSelect,
+  EmptyState,
   Input,
   SakuraLoader,
   cx,
@@ -116,19 +117,22 @@ export function Step1CertificatePanel({
 
   if (certificateTypes.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-rp-line bg-rp-bg-2 p-6 text-center">
-        <p className="text-sm font-medium text-rp-text-2">
-          {tr('Hiện chưa có chứng chỉ đang mở. Vui lòng thử tải lại sau ít phút.')}
-        </p>
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={RefreshCw}
-          className="mt-3"
-          onClick={onRefetchTypes}
-        >
-          {tr('Thử lại')}
-        </Button>
+      <div className="rounded-2xl border border-dashed border-rp-line bg-rp-bg-2 p-5">
+        <EmptyState
+          variant="compact"
+          illustration="certificate"
+          title={tr('Hiện chưa có chứng chỉ đang mở. Vui lòng thử tải lại sau ít phút.')}
+          action={(
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={RefreshCw}
+              onClick={onRefetchTypes}
+            >
+              {tr('Thử lại')}
+            </Button>
+          )}
+        />
       </div>
     );
   }
@@ -243,7 +247,7 @@ export function Step2LevelPanel({
   return (
     <div className="space-y-4">
       {profile?.targetJlptLevelId && (
-        <div className="rounded-2xl border border-rp-brand-border/70 bg-rp-brand-tint/80 px-4 py-3 text-[13px] text-rp-brand-strong">
+        <div className="rounded-2xl border border-rp-brand-border/70 bg-white px-4 py-3 text-[13px] text-rp-brand-strong">
           <Link to="/app/placement-test" className="rp-underline inline-block font-semibold text-rp-brand-strong">
             {tr('Tiếp tục bài đánh giá hiện tại')}
           </Link>
@@ -281,8 +285,13 @@ export function Step2LevelPanel({
           </div>
         </div>
       ) : levels.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-rp-line bg-rp-bg-2 p-6 text-center text-[13px] text-rp-text-muted">
-          {tr('Chưa có danh sách cấp độ cho chứng chỉ này. Vui lòng chọn chứng chỉ khác.')}
+        <div className="rounded-2xl border border-dashed border-rp-line bg-rp-bg-2 p-4">
+          <EmptyState
+            variant="inline"
+            size="sm"
+            illustration="book"
+            title={tr('Chưa có danh sách cấp độ cho chứng chỉ này. Vui lòng chọn chứng chỉ khác.')}
+          />
         </div>
       ) : (
         <div
@@ -805,10 +814,6 @@ export function Step4ExamSchedulePanel({
           {tr(validationMessage)}
         </p>
       )}
-
-      <div className="rounded-xl border border-rp-line bg-white px-3.5 py-2.5 text-[12px] leading-5 text-rp-text-muted">
-        {tr('Ngày thi và thời gian học được lưu để hệ thống đề xuất lộ trình học tiếp theo. Lộ trình hiện tại chưa tự động thay đổi.')}
-      </div>
     </div>
   );
 }
@@ -880,8 +885,8 @@ export function Step5ReviewPanel({
   return (
     <div className="min-w-0 space-y-3">
       {/* Sakura Hero Preview Banner (mirrors Mobile SakuraLearningPlanPreview) */}
-      <div className="min-w-0 overflow-hidden rounded-2xl border border-rp-brand-border/80 bg-white shadow-rp-xs">
-        <div className="relative bg-gradient-to-br from-[#FFF0F4] via-[#FFF7F9] to-white px-3.5 py-3 sm:px-5 sm:py-3.5">
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-rp-line bg-white shadow-rp-xs">
+        <div className="relative bg-white px-3.5 py-3 sm:px-5 sm:py-3.5">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-rp-brand-strong">
@@ -964,7 +969,7 @@ export function Step5ReviewPanel({
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-rp-brand-border/60 bg-rp-brand-tint/60 px-4 py-3 text-[12px] text-rp-text-2">
+        <div className="flex items-center gap-2.5 rounded-2xl border border-rp-line bg-white px-4 py-3 text-[12px] text-rp-text-2">
           <Sparkles className="h-4 w-4 shrink-0 text-rp-brand-pressed" aria-hidden="true" />
           <p className="leading-5">
             {tr('Bạn đã sẵn sàng lưu mục tiêu và bắt đầu bài đánh giá năng lực để hệ thống đề xuất lộ trình tối ưu.')}

@@ -30,11 +30,12 @@ export default function VocabularyEditor() {
         {
           key: 'meaning',
           label: 'Nghĩa',
-          render: (row) => <span className="line-clamp-2 max-w-[320px]">{row.meaning}</span>,
+          render: (row) => <span title={row.meaning || ''} className="mx-auto line-clamp-2 max-w-[420px]">{row.meaning}</span>,
         },
         {
           key: 'jlptLevelName',
           label: 'Cấp độ',
+          compact: true,
           render: (row) => (
             row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'
           ),

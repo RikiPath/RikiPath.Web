@@ -10,11 +10,11 @@ import {
   ErrorState,
   FeatureIcon,
   PageContainer,
-  PageHeader,
   ProgressBar,
   SakuraLoader,
   Tabs,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import { useAuth } from '@/app/auth/authContext.js';
 import { LearnerShell } from '@/layouts';
 import { getMockTestHistory } from '@/features/mock-test/api/mockTestApi.js';
@@ -58,9 +58,11 @@ export default function ExamResult() {
     retry: false,
   });
 
+  const allAttempts = history.data ?? [];
+  const hasAnyHistory = history.isSuccess && allAttempts.length > 0;
   const referenceTime = history.dataUpdatedAt || nowMs;
   const cutoff = referenceTime - days * 86_400_000;
-  const attempts = (history.data ?? []).filter((attempt) => {
+  const attempts = allAttempts.filter((attempt) => {
     if (!days) return true;
     const parsed = parseUtcDate(attempt.submittedAt);
     return parsed ? parsed.getTime() >= cutoff : false;
@@ -73,13 +75,15 @@ export default function ExamResult() {
 
   return (
     <LearnerShell breadcrumb={tr('Lịch sử & kết quả')}>
-      <PageContainer data-page="ExamResult" width="default">
-        <PageHeader
+      <PageContainer data-page="ExamResult" width="default" className="space-y-4">
+        <IllustratedPageHeader
+          icon="progress"
+          tone="navy"
           eyebrow={tr('Thi thử JLPT')}
           title={tr('Lịch sử & kết quả')}
           description={tr('Kết quả thi thử dùng để theo dõi tiến bộ, không phải chứng nhận JLPT chính thức.')}
           actions={
-            <Button as={Link} to="/mock-tests/" variant="primary" size="sm" icon={FileCheck2}>
+            <Button as={Link} to="/mock-tests/" variant="primary" size="md" icon={FileCheck2}>
               {tr('Chọn đề thi thử')}
             </Button>
           }
@@ -96,11 +100,36 @@ export default function ExamResult() {
           >
             {tr('Đăng nhập để lưu và theo dõi lịch sử làm đề thi thử của bạn.')}
           </Banner>
+        ) : history.isPending ? (
+          <Card className="p-5">
+            <SakuraLoader variant="section" context="mocktest" label={tr('Đang tải lịch sử thi thử')} delay={160} />
+          </Card>
+        ) : history.isError ? (
+          <Card className="p-5">
+            <ErrorState
+              error={history.error}
+              onRetry={() => history.refetch()}
+              retrying={history.isFetching}
+              compact
+            />
+          </Card>
+        ) : !hasAnyHistory ? (
+          <Card className="p-6">
+            <EmptyState
+              variant="compact"
+              illustration="certificate"
+              title={tr('Bạn chưa có lượt thi thử JLPT nào')}
+              description={tr('Làm một đề thi thử để xem điểm theo từng phần và lỗi cần ôn lại.')}
+              action={
+                <Button as={Link} to="/mock-tests/" variant="primary" size="sm" icon={FileCheck2}>
+                  {tr('Làm đề thi thử')}
+                </Button>
+              }
+            />
+          </Card>
         ) : (
           <div className="space-y-5">
-            {history.isSuccess && history.data.length > 0 && (
-              <MockTestProgress key={user?.userId} attempts={history.data} userId={user?.userId} />
-            )}
+            <MockTestProgress key={user?.userId} attempts={allAttempts} userId={user?.userId} />
 
             <Card padded={false}>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rp-line px-5 py-4">
@@ -108,7 +137,7 @@ export default function ExamResult() {
                   <div>
                     <dt className="text-xs text-rp-text-muted">{tr('Số lượt thi')}</dt>
                     <dd className="text-xl font-bold tabular-nums text-rp-text">
-                      {history.isSuccess ? attempts.length : '—'}
+                      {attempts.length}
                     </dd>
                   </div>
                   <div>
@@ -133,40 +162,25 @@ export default function ExamResult() {
                 />
               </div>
 
-              {history.isPending && (
-                <div className="p-5">
-                  <SakuraLoader variant="section" context="mocktest" label={tr('Đang tải lịch sử thi thử')} delay={160} />
-                </div>
-              )}
-
-              {history.isError && (
-                <div className="p-5">
-                  <ErrorState
-                    error={history.error}
-                    onRetry={() => history.refetch()}
-                    retrying={history.isFetching}
-                    compact
-                  />
-                </div>
-              )}
-
-              {history.isSuccess && attempts.length === 0 && (
+              {attempts.length === 0 && (
                 <div className="p-5">
                   <EmptyState
-                    compact
-                    mascot="studying"
+                    variant="search"
+                    illustration="clock"
                     title={tr('Chưa có lượt thi thử trong khoảng thời gian này')}
-                    description={tr('Làm một đề thi thử để xem điểm theo từng phần và lỗi cần ôn lại.')}
+                    description={tr('Thử chọn khoảng thời gian rộng hơn hoặc xem Tất cả lượt thi.')}
                     action={
-                      <Link to="/mock-tests/" className="rp-link text-sm font-semibold">
-                        {tr('Làm đề thi thử')}
-                      </Link>
+                      days !== 0 ? (
+                        <Button variant="outline" size="sm" onClick={() => setDays(0)}>
+                          {tr('Xem tất cả')}
+                        </Button>
+                      ) : null
                     }
                   />
                 </div>
               )}
 
-              {history.isSuccess && attempts.length > 0 && (
+              {attempts.length > 0 && (
                 <ul className="divide-y divide-rp-line">
                   {attempts.map((attempt) => (
                     <li key={attempt.attemptId}>

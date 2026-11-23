@@ -243,10 +243,11 @@ export default function CohortHomeworkPanel({
 
       {items.length === 0 ? (
         <ContextualEmptyState
-          compact
+          variant="compact"
           context="homework"
+          illustration="homework"
           title="Chưa có bài tập nhóm nào được giao"
-          message={isMentor ? 'Bấm "Giao bài tập" để giao bài luyện tập hoặc viết cho lớp.' : 'Khi Giáo viên giao bài, danh sách sẽ hiển thị tại đây.'}
+          description={isMentor ? 'Bấm "Giao bài tập" để giao bài luyện tập hoặc viết cho lớp.' : 'Khi Giáo viên giao bài, danh sách sẽ hiển thị tại đây.'}
         />
       ) : (
         <div className="space-y-3">

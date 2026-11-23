@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AdminShell, MentorShell, LearnerShell } from '@/layouts';
-import { ContextualEmptyState, ContextualErrorState, FeatureIcon, SakuraLoader, notify } from '@/components/ui';
+import { ContextualEmptyState, ContextualErrorState, FeatureIcon, RefreshButton, RefreshingIndicator, SakuraLoader, notify } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import { recordDiagnostic } from '@/api/diagnostics.js';
 import HoldCountdown from '@/features/checkout/components/HoldCountdown.jsx';
 import {
@@ -167,7 +168,10 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
   const [cancelReason, setCancelReason] = useState('');
   const [supportDrafts, setSupportDrafts] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const refreshSeqRef = useRef(0);
+  const inFlightRefreshRef = useRef(null);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState(null);
   const [notice, setNotice] = useState('');
@@ -490,6 +494,32 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
     }
   }
 
+  function handleRefresh() {
+    if (inFlightRefreshRef.current) return inFlightRefreshRef.current;
+    const seq = ++refreshSeqRef.current;
+    setRefreshing(true);
+    setError('');
+    const job = Promise.all([
+      load(),
+      current?.cohortId && !admin
+        ? getCohortHomework(current.cohortId)
+            .then((hw) => { if (refreshSeqRef.current === seq) setCohortHomework(hw); })
+            .catch(() => {})
+        : Promise.resolve(),
+    ])
+      .catch((e) => {
+        if (refreshSeqRef.current === seq) {
+          setError(describeApiError(e).message);
+        }
+      })
+      .finally(() => {
+        if (inFlightRefreshRef.current === job) inFlightRefreshRef.current = null;
+        if (refreshSeqRef.current === seq) setRefreshing(false);
+      });
+    inFlightRefreshRef.current = job;
+    return job;
+  }
+
   const post = (path, body, message) => action(() => coursePost(`/${current.id}${path}`, body), message);
   const changePlan = (key, value) =>
     setPlan((p) => {
@@ -501,19 +531,55 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
   return (
     <Shell breadcrumb={learner ? tr('Lớp học nhóm') : mentor ? tr('Quản lý lớp nhóm') : tr('Gói học, lớp & ghi danh')}>
       <main className="course-page">
-        <header>
-          <div className="flex items-start gap-3">
-            <FeatureIcon feature="mentor" size="lg" />
-            <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand">{tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}</p>
-            <h1>{admin ? tr('Quản lý Lớp nhóm, Quyền & Khóa JLPT') : mentor ? tr('Lớp phụ trách & bài tập về nhà') : tr('Lớp ôn JLPT & Khóa học của tôi')}</h1>
-            <p className="course-meta">{tr('Học theo lớp nhóm cố định · Điểm danh, bài tập chung và bài tập cá nhân, hỗ trợ ôn lại JLPT minh bạch.')}</p>
+        {learner ? (
+          <IllustratedPageHeader
+            icon="group"
+            tone="sky"
+            className="mb-3"
+            eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
+            title={tr('Lớp ôn JLPT & Khóa học của tôi')}
+            description={tr('Học theo lớp nhóm cố định · Điểm danh, bài tập chung và bài tập cá nhân, hỗ trợ ôn lại JLPT minh bạch.')}
+            actions={
+              !loading && !(loadError && courses.length === 0 && cohorts.length === 0)
+                && (tab === 'cohorts' ? cohorts.length > 0 : courses.length > 0) ? (
+                  <RefreshButton
+                    size="md"
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    disabled={loading}
+                  />
+                ) : null
+            }
+          />
+        ) : (
+          <header>
+            <div className="flex items-start gap-3">
+              <FeatureIcon feature="mentor" size="lg" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand">{tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}</p>
+                <h1>{admin ? tr('Quản lý Lớp nhóm, Quyền & Khóa JLPT') : tr('Lớp phụ trách & bài tập về nhà')}</h1>
+                <p className="course-meta">{tr('Học theo lớp nhóm cố định · Điểm danh, bài tập chung và bài tập cá nhân, hỗ trợ ôn lại JLPT minh bạch.')}</p>
+              </div>
+            </div>
+            {!loading && !(loadError && courses.length === 0 && cohorts.length === 0) && courses.length > 0 && (
+              <RefreshButton
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                disabled={loading}
+              />
+            )}
+          </header>
+        )}
+
+        {refreshing && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
             </div>
           </div>
-          <button disabled={busy || loading} onClick={() => action(load, '', { silentLoading: true, errorTitle: 'Không tải lại được dữ liệu' })}>
-            {tr('Tải lại')}
-          </button>
-        </header>
+        )}
 
         {learner && (
           <nav className="course-tabs" aria-label={tr('Điều hướng học tập')}>
@@ -717,8 +783,9 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                     />
                   ) : courses.length === 0 ? (
                     <ContextualEmptyState
-                      compact
+                      variant="compact"
                       context="groupLearning"
+                      illustration="classroom"
                       action={learner && <button type="button" className="course-primary" onClick={() => setTab('cohorts')}>{tr('Xem lớp ôn JLPT')}</button>}
                     />
                   ) : (
@@ -925,7 +992,12 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
 
                     <CohortSessionsCalendar course={current} cohort={currentCohort}>
                       {current.sessions.length === 0 ? (
-                        <p className="course-meta">{tr('Chưa có buổi học nào.')}</p>
+                        <ContextualEmptyState
+                          variant="inline"
+                          size="sm"
+                          illustration="calendar"
+                          title={tr('Chưa có buổi học nào.')}
+                        />
                       ) : (
                         current.sessions.map((s) => {
                           const roomId = findRoomId(s, currentCohort);
@@ -1030,7 +1102,14 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                       )}
 
                       {current.requests.length === 0 ? (
-                        <p className="course-meta" style={{ marginTop: 10 }}>{tr('Chưa có yêu cầu hỗ trợ JLPT nào.')}</p>
+                        <div className="mt-2.5">
+                          <ContextualEmptyState
+                            variant="inline"
+                            size="sm"
+                            illustration="certificate"
+                            title={tr('Chưa có yêu cầu hỗ trợ JLPT nào.')}
+                          />
+                        </div>
                       ) : (
                         current.requests.map((r) => (
                           <article className="course-row" key={r.id}>

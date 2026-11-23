@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui';
 import { recognizeDrawnKanji } from '@/features/kanji/api/kanjiWritingApi.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -16,7 +17,7 @@ export default function KanjiRecognitionPad({ onCandidates }) {
   function redraw() {
     const context = canvas.current.getContext('2d');
     context.fillStyle = '#fff'; context.fillRect(0, 0, 480, 480);
-    context.strokeStyle = '#30272b'; context.lineWidth = 9;
+    context.strokeStyle = '#231B20'; context.lineWidth = 12;
     context.lineCap = 'round'; context.lineJoin = 'round';
     for (const points of strokes.current) {
       context.beginPath(); context.moveTo(...points[0]);
@@ -78,12 +79,26 @@ export default function KanjiRecognitionPad({ onCandidates }) {
       <div className="pointer-events-none absolute inset-y-0 left-1/2 border-l border-dashed border-rp-line" />
       {!count && <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-rp-text-muted">{tr('Vẽ một chữ tại đây')}</span>}
     </div>
-    <div className="mt-3 flex flex-wrap gap-2">
-      <button type="button" disabled={!count || busy} onClick={() => clear(true)} className="rounded-xl border border-rp-line px-3 py-2 text-sm disabled:opacity-40">{tr('Hoàn tác')}</button>
-      <button type="button" disabled={!count && !busy} onClick={() => clear()} className="rounded-xl border border-rp-line px-3 py-2 text-sm disabled:opacity-40">{tr('Xóa nét')}</button>
-      <button type="button" disabled={!count || busy} onClick={recognize} className="ml-auto rounded-xl bg-rp-brand-strong px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 rp-press">{busy ? tr('Đang nhận dạng…') : tr('Nhận dạng')}</button>
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Button type="button" variant="secondary" size="md" disabled={!count || busy} onClick={() => clear(true)}>
+        {tr('Hoàn tác')}
+      </Button>
+      <Button type="button" variant="secondary" size="md" disabled={!count && !busy} onClick={() => clear()}>
+        {tr('Xóa nét')}
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        loading={busy}
+        disabled={!count || busy}
+        onClick={recognize}
+        className="ml-auto"
+      >
+        {busy ? tr('Đang nhận dạng…') : tr('Nhận dạng')}
+      </Button>
     </div>
-    <p className="mt-3 text-xs leading-5 text-rp-text-2">{tr('Vẽ một chữ rõ nét rồi bấm Nhận dạng. Ảnh chữ vẽ được gửi tới dịch vụ OCR, không lưu thành bài viết.')}</p>
+    <p className="mt-3 text-xs leading-5 text-rp-text-2">{tr('Vẽ một chữ rõ nét rồi bấm Nhận dạng để tìm chữ tương ứng.')}</p>
     {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
   </div>;
 }

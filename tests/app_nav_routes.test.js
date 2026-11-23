@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { ROLE_NAV, allNavTargets, buildBreadcrumbs, flattenNavItems, isNavItemActive } from '@/layouts/appNav.js';
 import { canAccessPath, homeForRole, matchRoute } from '@/app/routes/routeTable.js';
@@ -27,15 +29,28 @@ describe('role sidebars', () => {
     assert.doesNotMatch(labels, /Tư vấn 1-1|booking|payout|payroll|lương|compensation|mentor-plans|consultation-/i);
   });
 
-  it('Learner reaches Group Learning workspace hierarchy', () => {
+  it('Learner reaches Group Learning workspace hierarchy prioritized by active study needs', () => {
     const learner = allNavTargets();
-    assert.ok(learner.includes('/group-learning'));
-    assert.ok(learner.includes('/mentors'));
-    assert.ok(learner.includes('/cohorts'));
-    assert.ok(learner.includes('/my-courses'));
-    assert.ok(learner.includes('/calendar'));
-    assert.ok(learner.includes('/homework'));
-    assert.ok(learner.includes('/group-learning/progress'));
+    assert.equal(learner.includes('/group-learning'), false, 'Tổng quan lớp học (/group-learning) must be removed from sidebar');
+
+    const groupBranch = ROLE_NAV.Learner.groups.flatMap((g) => g.items).find((i) => i.id === 'group-learning');
+    assert.equal(groupBranch.to, '/my-courses');
+    assert.deepEqual(
+      groupBranch.children.map((c) => c.to),
+      ['/my-courses', '/homework', '/calendar', '/group-learning/progress', '/cohorts', '/mentors'],
+    );
+  });
+
+  it('removes duplicate Kho từ vựng from all role sidebars while keeping Grammar, Kanji, Kana, SRS, and Sổ tay cá nhân', () => {
+    const allItems = Object.values(ROLE_NAV).flatMap((nav) => nav.groups.flatMap((g) => flattenNavItems(g.items)));
+    assert.equal(allItems.some((i) => i.to === '/vocabulary' || i.label === 'Kho từ vựng'), false);
+
+    const learnerTargets = new Set(
+      ROLE_NAV.Learner.groups.flatMap((g) => flattenNavItems(g.items)).map((i) => i.to),
+    );
+    for (const required of ['/grammar', '/kanji-writing?type=kanji', '/kanji-writing?type=hiragana', '/kanji-writing?type=katakana', '/daily-srs', '/kanji-notebook']) {
+      assert.ok(learnerTargets.has(required), `Learner sidebar missing ${required}`);
+    }
   });
 
   it('uses Giáo viên consistently in user-facing role navigation', () => {
@@ -57,12 +72,43 @@ describe('active state and breadcrumbs', () => {
     assert.equal(isNavItemActive(groupBranch, '/calendar', ''), true);
     assert.equal(isNavItemActive(groupBranch, '/my-courses/7', ''), true);
     assert.equal(isNavItemActive(groupBranch, '/roadmap', ''), false);
+
+    const srsBranch = ROLE_NAV.Learner.groups.flatMap((g) => g.items).find((i) => i.id === 'srs-review');
+    assert.ok(srsBranch, 'Learner sidebar must define expandable srs-review branch');
+    assert.deepEqual(
+      srsBranch.children.map((c) => c.label),
+      ['Tổng quan', 'Ôn thẻ đến hạn', 'Ôn tự do', 'Thẻ của tôi', 'Thư viện thẻ mẫu'],
+    );
+    const srsModes = srsBranch.children.find((c) => c.id === 'srs-practice');
+    assert.equal(Boolean(srsModes.dividerAfter), false, 'SRS modes subgroup must not render horizontal dividerAfter');
+    assert.deepEqual(
+      srsModes.children.map((c) => ({ to: c.to, kind: c.kind, hasDesc: Boolean(c.description), hasIcon: Boolean(c.icon) })),
+      [
+        { to: '/daily-srs/practice/flip', kind: 'radio', hasDesc: false, hasIcon: true },
+        { to: '/daily-srs/practice/typing', kind: 'radio', hasDesc: false, hasIcon: true },
+        { to: '/daily-srs/practice/mcq', kind: 'radio', hasDesc: false, hasIcon: true },
+        { to: '/daily-srs/practice/mixed', kind: 'radio', hasDesc: false, hasIcon: true },
+      ],
+    );
+    const modeIconSet = new Set(srsModes.children.map((c) => c.icon));
+    assert.equal(modeIconSet.size, 4, 'Each SRS review mode must use a distinct icon');
+    assert.equal(isNavItemActive(srsBranch, '/daily-srs/practice/typing/', ''), true);
+    assert.equal(isNavItemActive(srsModes, '/daily-srs/practice/mcq/', ''), true);
+    assert.equal(isNavItemActive(srsModes, '/daily-srs/due/', ''), false);
+    assert.equal(isNavItemActive(srsModes, '/daily-srs/library/', ''), false);
+
+    const srsModeTrail = buildBreadcrumbs('Learner', '/daily-srs/practice/typing/', '', 'Gõ đáp án');
+    assert.deepEqual(srsModeTrail.map((c) => c.label), ['Học viên', 'Ôn tập SRS', 'Ôn tự do', 'Gõ đáp án']);
+    assert.ok(srsModeTrail[srsModeTrail.length - 1].icon, 'Active mode breadcrumb must carry mode icon');
+
+    const srsProgressTrail = buildBreadcrumbs('Learner', '/daily-srs/progress/', '', 'Tổng quan');
+    assert.deepEqual(srsProgressTrail.map((c) => c.label), ['Học viên', 'Ôn tập SRS', 'Tổng quan']);
   });
 
   it('builds area › group › item › page trails', () => {
     const trail = buildBreadcrumbs('Learner', '/mentors/12/', '', 'Sensei Aoi');
     assert.deepEqual(trail.map((c) => c.label), ['Học viên', 'Học cùng Giáo viên', 'Tìm Giáo viên', 'Sensei Aoi']);
-    assert.equal(trail[1].to, '/group-learning');
+    assert.equal(trail[1].to, '/my-courses');
     assert.equal(trail[2].to, '/mentors');
   });
 
@@ -89,6 +135,26 @@ describe('active state and breadcrumbs', () => {
     assert.ok(adminTargets.includes('/admin/payments'));
     assert.ok(adminTargets.includes('/admin/policies'));
     assert.ok(!ROLE_NAV.Admin.groups.some((g) => g.label === 'Nội dung'));
+
+    assert.deepEqual(
+      ROLE_NAV.Admin.groups.map((g) => g.label),
+      ['Điều hành', 'Lớp học & ghi danh', 'Lịch dạy & điều phối', 'Giám sát & hỗ trợ', 'Giáo viên', 'Cấu hình'],
+    );
+    const adminItems = ROLE_NAV.Admin.groups.flatMap((g) => g.items);
+    assert.equal(adminItems.length, 19);
+
+    for (const group of ROLE_NAV.Admin.groups) {
+      const expectedTone = group.label === 'Cấu hình' ? 'neutral' : 'sakura';
+      for (const item of group.items) {
+        assert.equal(item.tone, expectedTone, `${group.label} item ${item.label} should use tone=${expectedTone}`);
+      }
+    }
+
+    const complaintsTrail = buildBreadcrumbs('Admin', '/admin/complaints/', '', 'Khiếu nại khóa học');
+    assert.deepEqual(complaintsTrail.map((c) => c.label), ['Quản trị', 'Giám sát & hỗ trợ', 'Khiếu nại khóa học']);
+
+    const transfersTrail = buildBreadcrumbs('Admin', '/admin/transfers/', '', 'Chuyển lớp');
+    assert.deepEqual(transfersTrail.map((c) => c.label), ['Quản trị', 'Lịch dạy & điều phối', 'Chuyển lớp']);
   });
 
   it('builds ContentAuthor Studio VNext labels and breadcrumbs', () => {
@@ -100,5 +166,81 @@ describe('active state and breadcrumbs', () => {
 
     const historyTrail = buildBreadcrumbs('ContentAuthor', '/bulk-import/', '?view=history', 'Lịch sử nhập liệu');
     assert.deepEqual(historyTrail.map((c) => c.label), ['Tác giả nội dung', 'Nhập liệu', 'Lịch sử nhập liệu']);
+  });
+
+  it('restructures Learner Luyện tập & Thi thử with Luyện đề & Thi thử accordion and exact active/breadcrumb states', () => {
+    const practiceGroup = ROLE_NAV.Learner.groups.find((g) => g.label === 'Luyện tập & Thi thử');
+    assert.ok(practiceGroup, 'Learner sidebar must include Luyện tập & Thi thử group');
+    assert.deepEqual(
+      practiceGroup.items.map((i) => i.label),
+      ['Nghe hiểu', 'Đọc hiểu', 'Luyện viết', 'Luyện nói', 'Luyện đề & Thi thử'],
+    );
+
+    const branch = practiceGroup.items.find((i) => i.id === 'practice-exam');
+    assert.ok(branch, 'practice-exam accordion branch must exist');
+    assert.equal(branch.defaultOpen, false);
+    assert.deepEqual(
+      branch.children.map((c) => ({ label: c.label, to: c.to })),
+      [
+        { label: 'Bộ đề luyện tập', to: '/practice-sets' },
+        { label: 'Thi thử JLPT', to: '/mock-tests' },
+        { label: 'Lịch sử & kết quả', to: '/exam-result' },
+      ],
+    );
+
+    const [practiceChild, mockChild, historyChild] = branch.children;
+    const assertSingleActive = (pathname, search, expectedChild) => {
+      assert.equal(isNavItemActive(branch, pathname, search), true, `${pathname}${search} must activate parent branch`);
+      const activeCount = [practiceChild, mockChild, historyChild].filter((c) => isNavItemActive(c, pathname, search)).length;
+      assert.equal(activeCount, 1, `${pathname}${search} must highlight exactly one child`);
+      assert.equal(isNavItemActive(expectedChild, pathname, search), true, `${pathname}${search} must activate ${expectedChild.label}`);
+    };
+
+    assertSingleActive('/practice-sets', '', practiceChild);
+    assertSingleActive('/practice-sets/', '', practiceChild);
+    assertSingleActive('/practice-sets', '?level=N3', practiceChild);
+    assertSingleActive('/practice-sets/42', '', practiceChild);
+
+    assertSingleActive('/mock-tests', '', mockChild);
+    assertSingleActive('/mock-tests/', '?attemptId=55', mockChild);
+    assertSingleActive('/mock-tests/12', '', mockChild);
+    assertSingleActive('/mock-test', '', mockChild);
+
+    assertSingleActive('/exam-result', '', historyChild);
+    assertSingleActive('/exam-result/', '', historyChild);
+    assertSingleActive('/exam-result', '?attemptId=55', historyChild);
+    assertSingleActive('/exam-result/12', '', historyChild);
+
+    for (const [otherPath, otherSearch] of [['/riki/listening', ''], ['/app', '']]) {
+      assert.equal(isNavItemActive(branch, otherPath, otherSearch), false);
+      assert.equal(isNavItemActive(practiceChild, otherPath, otherSearch), false);
+      assert.equal(isNavItemActive(mockChild, otherPath, otherSearch), false);
+      assert.equal(isNavItemActive(historyChild, otherPath, otherSearch), false);
+    }
+
+    assert.deepEqual(
+      buildBreadcrumbs('Learner', '/practice-sets/', '', 'Bộ đề luyện tập').map((c) => c.label),
+      ['Học viên', 'Luyện đề & Thi thử', 'Bộ đề luyện tập'],
+    );
+    assert.deepEqual(
+      buildBreadcrumbs('Learner', '/mock-tests/', '?attemptId=55', 'Thi thử').map((c) => c.label),
+      ['Học viên', 'Luyện đề & Thi thử', 'Thi thử JLPT'],
+    );
+    assert.deepEqual(
+      buildBreadcrumbs('Learner', '/exam-result/', '', 'Lịch sử & kết quả').map((c) => c.label),
+      ['Học viên', 'Luyện đề & Thi thử', 'Lịch sử & kết quả'],
+    );
+
+    for (const target of ['/practice-sets', '/mock-tests', '/mock-test', '/exam-result']) {
+      const route = matchRoute(target);
+      assert.ok(route, `Route ${target} must remain registered`);
+      assert.equal(Boolean(route.study), false, `Route ${target} must not be forced-locked by nav restructuring`);
+    }
+
+    const appShellSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/layouts/AppShell.jsx'), 'utf8');
+    assert.ok(appShellSrc.includes('aria-expanded={isOpen}'));
+    assert.ok(appShellSrc.includes('aria-controls={subId}'));
+    assert.ok(appShellSrc.includes('motion-reduce:transition-none'));
+    assert.ok(appShellSrc.includes("item.to && lockStateFor(item) !== 'locked'"));
   });
 });

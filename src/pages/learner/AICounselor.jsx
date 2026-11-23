@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { Card, FeatureIcon, HaruMascot, cx } from '@/components/ui';
+import { Card, FeatureIcon, cx } from '@/components/ui';
+import SakuraFox3DActor from '@/features/companion/SakuraFox3DActor.jsx';
+import { COMPANION_REACTIONS, COMPANION_STATES } from '@/features/companion/companionMachine.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 import Icon from '@/components/ui/Icon.jsx';
@@ -22,8 +24,8 @@ const PRACTICE_OPTIONS = [
     ],
     to: '/daily-srs',
     action: 'Ôn từ hôm nay',
-    secondaryTo: '/vocabulary',
-    secondaryLabel: 'Mở kho từ vựng',
+    secondaryTo: '/kanji-notebook?tab=vocab-bank',
+    secondaryLabel: 'Mở Sổ tay cá nhân',
   },
   {
     id: 'reading',
@@ -40,7 +42,7 @@ const PRACTICE_OPTIONS = [
     ],
     to: '/riki/reading',
     action: 'Luyện đọc hiểu',
-    secondaryTo: '/vocabulary',
+    secondaryTo: '/kanji-notebook?tab=vocab-bank',
     secondaryLabel: 'Tra lại từ vựng',
   },
   {
@@ -112,22 +114,45 @@ const FEATURE_OF = { vocabulary: 'vocabulary', reading: 'reading', listening: 'l
 export default function AICounselor() {
   const { tr } = useLocale();
   const [focusId, setFocusId] = useState('vocabulary');
+  const [foxState, setFoxState] = useState(COMPANION_STATES.IDLE);
+  const [foxReaction, setFoxReaction] = useState(COMPANION_REACTIONS.NONE);
   const focus = PRACTICE_OPTIONS.find((item) => item.id === focusId) || PRACTICE_OPTIONS[0];
 
   return (
     <LearnerShell breadcrumb="Haru AI">
       <div data-page="AICounselor" className="rp-container rp-cq py-[var(--rp-space-page-y)]">
-        <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
-          <div className="rp-pattern-seigaiha absolute inset-0 opacity-60" aria-hidden="true" />
+        <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-white shadow-rp-xs">
           <div className="relative flex items-center gap-6 p-6 sm:p-8">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tone-haru">Haru · {tr('gợi ý ôn tập')}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tone-haru">Riki · {tr('gợi ý ôn tập')}</p>
               <h1 className="mt-2 text-2xl font-bold tracking-[-0.01em] text-rp-text sm:text-[28px]">{tr('Hôm nay mình ôn gì?')}</h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-rp-text-2">
-                {tr('Chọn một kỹ năng, bắt đầu từ một phần nhỏ. Haru chấm bài viết trong Luyện viết và góp ý bài nói trong Luyện nói.')}
+                {tr('Chọn một kỹ năng, bắt đầu từ một phần nhỏ. Chạm vào cáo Sakura hoặc dùng trợ lý ở góc màn hình để trò chuyện và tra cứu ngay.')}
               </p>
             </div>
-            <HaruMascot pose="guiding" size={132} className="hidden shrink-0 sm:block" />
+            <button
+              type="button"
+              onPointerEnter={() => {
+                setFoxState(COMPANION_STATES.HOVER);
+                setFoxReaction(COMPANION_REACTIONS.WAVING);
+              }}
+              onPointerLeave={() => {
+                setFoxState(COMPANION_STATES.IDLE);
+                setFoxReaction(COMPANION_REACTIONS.NONE);
+              }}
+              onClick={() => {
+                setFoxState(COMPANION_STATES.CELEBRATING);
+                setFoxReaction(COMPANION_REACTIONS.JUMPING);
+                window.setTimeout(() => {
+                  setFoxState(COMPANION_STATES.IDLE);
+                  setFoxReaction(COMPANION_REACTIONS.NONE);
+                }, 1100);
+              }}
+              aria-label={tr('Chạm để tương tác với cáo Sakura')}
+              className="rp-focus hidden shrink-0 rounded-full p-1 sm:block"
+            >
+              <SakuraFox3DActor state={foxState} reaction={foxReaction} size={132} interactive />
+            </button>
           </div>
         </section>
 
@@ -188,7 +213,7 @@ export default function AICounselor() {
 
         <section aria-labelledby="haru-more" className="mt-6">
           <h2 id="haru-more" className="mb-3 text-sm font-bold uppercase tracking-[0.1em] text-rp-text-muted">{tr('Tiếp tục hành trình')}</h2>
-          <ul style={{ '--rp-grid-min': '14.5rem' }} className="rp-fluid-grid">
+          <ul style={{ '--rp-grid-min': '14.5rem' }} className="rp-fluid-grid-fill">
             {QUICK_LINKS.map((item) => (
               <li key={item.to}>
                 <Link to={item.to} className="rp-focus group flex items-center gap-3 rounded-rp-card border border-rp-line bg-rp-surface p-4 transition-colors hover:border-rp-brand-border">

@@ -1,22 +1,21 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
-import { CalendarDays, Repeat } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Repeat } from 'lucide-react';
 import { getAdminMentorShiftTemplate, getAdminMentors, unwrapApiList, unwrapApiResult } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS } from '@/features/admin/api/adminQueryKeys.js';
 import { AdminShell } from '@/layouts';
 import {
   Badge,
-  Banner,
   Card,
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
-  FeatureIcon,
-  Field,
-  PageHeader,
+  RefreshingIndicator,
   SakuraLoader,
 } from '@/components/ui';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import { AdminToolbar } from '@/features/admin/components/AdminPrimitives.jsx';
 import { translateTemplate, useLocale } from '@/locales/locale.js';
 
 const WEEK = [
@@ -83,64 +82,57 @@ export default function AdminMentorTemplate() {
 
   const rules = template.data?.rules || [];
 
+  const hasToolbar = mentors.isSuccess && mentorOptions.length > 0;
+  const isRefreshingTemplate = (mentors.isFetching && !mentors.isPending) || (template.isFetching && !template.isPending);
+  const refreshTemplate = () =>
+    Promise.all([
+      mentors.refetch({ cancelRefetch: true }),
+      mentorId ? template.refetch({ cancelRefetch: true }) : Promise.resolve(),
+    ]);
+
   return (
     <AdminShell pathname={pathname} breadcrumb={tr('Lịch cố định tuần')}>
       <main data-page="AdminMentorTemplate" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
-        <PageHeader
-          eyebrow={tr('Vận hành & lịch dạy')}
-          title={
-            <span className="inline-flex items-center gap-2.5">
-              <FeatureIcon feature="calendar" icon={Repeat} size="lg" />
-              <span>{tr('Lịch cố định tuần (mẫu ca tham khảo)')}</span>
-            </span>
-          }
-          description={tr('Xem khung ca cố định hàng tuần do Giáo viên khai báo. Để phê duyệt các buổi dạy thực tế, hãy mở Duyệt lịch dạy.')}
-          actions={
-            <Link
-              to="/admin/mentor-schedules/"
-              className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-rp-input bg-rp-brand-strong px-4 text-sm font-semibold text-white hover:bg-rp-brand-deep"
-            >
-              <CalendarDays className="h-4 w-4" />
-              <span>{tr('Mở Duyệt lịch dạy')}</span>
-            </Link>
-          }
+        <AdminPageHeader
+          icon={Repeat}
+          title="Lịch cố định tuần"
         />
 
-        <Banner tone="info" title={tr('Phân biệt Mẫu ca & Lịch dạy chính thức')}>
-          {tr('Mẫu ca chỉ phản ánh khung thời gian đăng ký lặp lại tham khảo. Chỉ các khung giờ đã được Admin duyệt tại mục Duyệt lịch dạy mới dùng để mở lớp.')}
-        </Banner>
+        {hasToolbar && (
+          <AdminToolbar
+            refresh={{
+              onRefresh: refreshTemplate,
+              refreshing: isRefreshingTemplate,
+            }}
+          >
+            <CustomSelect
+              fitContent
+              className="max-w-full sm:min-w-[260px]"
+              value={mentorId}
+              aria-label={tr('Chọn Giáo viên')}
+              onChange={setMentorId}
+              options={[{ value: '', label: tr('Chọn Giáo viên để xem mẫu ca') }, ...mentorOptions]}
+            />
+          </AdminToolbar>
+        )}
 
-        <Card className="p-4">
-          <div className="max-w-md">
-            <Field label={tr('Chọn Giáo viên')}>
-              <CustomSelect
-                value={mentorId}
-                aria-label={tr('Chọn Giáo viên')}
-                onChange={setMentorId}
-                options={[{ value: '', label: tr('Chọn Giáo viên để xem mẫu ca') }, ...mentorOptions]}
-              />
-            </Field>
+        {isRefreshingTemplate && (
+          <div className="pointer-events-none sticky top-2 z-20 flex h-0 justify-end overflow-visible">
+            <div className="mr-1 mt-1">
+              <RefreshingIndicator active delay={60} />
+            </div>
           </div>
-          {mentors.isError && (
-            <div className="mt-3">
-              <ContextualErrorState
-                compact
-                error={mentors.error}
-                title={tr('Chưa tải được danh sách Giáo viên')}
-                onRetry={() => mentors.refetch()}
-              />
-            </div>
-          )}
-          {mentors.isPending && (
-            <div className="mt-3">
-              <SakuraLoader variant="inline" size={16} context="profile" label={tr('Đang tải danh sách Giáo viên')} delay={140} />
-            </div>
-          )}
-        </Card>
+        )}
 
-        {!mentorId ? (
+        {mentors.isPending ? (
+          <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách Giáo viên')} delay={140} />
+        ) : mentors.isError ? (
+          <ContextualErrorState error={mentors.error} title={tr('Chưa tải được danh sách Giáo viên')} onRetry={() => mentors.refetch()} />
+        ) : mentorOptions.length === 0 && !mentorId ? (
+          <ContextualEmptyState illustration="mentor" title={tr('Chưa có Giáo viên nào')} description="" />
+        ) : !mentorId ? (
           <ContextualEmptyState
-            icon={Repeat}
+            illustration="mentor"
             title={tr('Chưa chọn Giáo viên')}
             description={tr('Chọn một Giáo viên ở trên để xem cấu hình lịch cố định tuần hiện tại.')}
           />
@@ -162,7 +154,7 @@ export default function AdminMentorTemplate() {
                 { label: tr('Chế độ sinh ca'), value: template.data.autoPublish ? tr('Tự động') : tr('Thủ công') },
                 { label: tr('Đã sinh đến'), value: template.data.generatedThrough ? dayText(template.data.generatedThrough) : tr('Chưa sinh') },
               ].map((fact) => (
-                <div key={fact.label} className="rounded-2xl border border-rp-line bg-rp-brand-tint/40 px-3.5 py-3">
+                <div key={fact.label} className="rounded-2xl border border-rp-line bg-white px-3.5 py-3">
                   <p className="text-xs text-rp-text-muted">{fact.label}</p>
                   <p className="mt-1 truncate text-sm font-semibold text-rp-text">{fact.value}</p>
                 </div>

@@ -9,11 +9,11 @@ import {
   Card,
   CustomSelect,
   PageContainer,
-  PageHeader,
   Popover,
 } from '@/components/ui';
+import { ControlGroup, CounterPill, IllustratedPageHeader } from '@/features/learner-ui';
 import Icon from '@/components/ui/Icon.jsx';
-import { describeApiError } from '@/api/apiErrors.js';
+import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { LearnerShell } from '@/layouts';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import GradingFeedback from '@/features/practice/components/GradingFeedback.jsx';
@@ -90,7 +90,7 @@ export default function SpeakingPracticePage() {
   const errorMessage = error
     ? typeof error === 'string'
       ? error
-      : describeApiError(error, tr('Chưa chấm được bài nói.'))
+      : formatApiError(error, tr('Chưa chấm được bài nói.'))
     : '';
 
   function handleToggleListening() {
@@ -113,16 +113,33 @@ export default function SpeakingPracticePage() {
           <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
           {tr('Lộ trình ôn luyện')}
         </Link>
-        <PageHeader
-          eyebrow="JLPT N5 – N1"
+        <IllustratedPageHeader
+          icon="speaking"
+          tone="mint"
+          className="mb-4"
+          eyebrow="JLPT N5 – N2"
           title={tr('Luyện nói tiếng Nhật')}
           description={tr('Thu âm câu mẫu để nghe lại và nhận bản chép lời cùng nhận xét phát âm.')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <ControlGroup>
+              <div className="min-w-[205px] max-w-full sm:w-[235px]">
+                <CustomSelect
+                  size="md"
+                  aria-label={tr('Bài luyện nói')}
+                  value={String(lessonIndex)}
+                  disabled={loading || isListening}
+                  onChange={(next) => {
+                    resetTranscript();
+                    setShowReading(false);
+                    setLessonIndex(Number(next));
+                  }}
+                  options={lessonOptions}
+                />
+              </div>
               {speakingQuota !== null && (
-                <Badge tone={speakingQuota > 0 ? 'brand' : 'warning'} icon={false}>
+                <CounterPill tone={speakingQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI nói: {0}', { 0: speakingQuota })}
-                </Badge>
+                </CounterPill>
               )}
               <Popover
                 align="end"
@@ -131,7 +148,7 @@ export default function SpeakingPracticePage() {
                 trigger={({ toggle, props }) => (
                   <Button
                     variant="secondary"
-                    size="sm"
+                    size="md"
                     icon={HelpCircle}
                     onClick={toggle}
                     {...props}
@@ -152,7 +169,7 @@ export default function SpeakingPracticePage() {
                   </p>
                 </div>
               </Popover>
-            </div>
+            </ControlGroup>
           }
         />
 
@@ -175,22 +192,6 @@ export default function SpeakingPracticePage() {
         )}
 
         <div className="mx-auto w-full max-w-4xl space-y-5">
-          <div className="max-w-sm">
-            <label className="mb-1.5 block text-xs font-semibold text-rp-text-muted">
-              {tr('Bài luyện nói')}
-            </label>
-            <CustomSelect
-              value={String(lessonIndex)}
-              disabled={loading || isListening}
-              onChange={(next) => {
-                resetTranscript();
-                setShowReading(false);
-                setLessonIndex(Number(next));
-              }}
-              options={lessonOptions}
-            />
-          </div>
-
           <Card padded={false} className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line px-5 py-3.5">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-rp-text">
@@ -224,7 +225,7 @@ export default function SpeakingPracticePage() {
               </button>
 
               {showReading && (
-                <div id="sentence-reading" className="mt-3 rounded-xl border border-rp-brand-soft bg-rp-brand-tint px-4 py-3">
+                <div id="sentence-reading" className="mt-3 rounded-xl border border-rp-line bg-white px-4 py-3">
                   <p lang="ja" className="font-['Noto_Sans_JP',sans-serif] text-sm leading-7 text-rp-brand-strong">
                     {lesson.reading}
                   </p>
@@ -232,7 +233,7 @@ export default function SpeakingPracticePage() {
               )}
             </div>
 
-            <div className="border-y border-rp-line bg-rp-brand-tint/60 px-5 py-4 sm:px-6">
+            <div className="border-y border-rp-line bg-white px-5 py-4 sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span
@@ -346,11 +347,11 @@ export default function SpeakingPracticePage() {
                   {tr('Nội dung nhận dạng có thể khác nhẹ lời nói thực tế; AI đánh giá dựa trên bản ghi và câu mẫu.')}
                 </p>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <ControlGroup>
                   <Button
                     type="button"
                     variant="secondary"
-                    size="sm"
+                    size="md"
                     onClick={resetTranscript}
                     disabled={loading || isListening || (!hasText && !audioFile && !grading)}
                     icon={RotateCcw}
@@ -362,14 +363,14 @@ export default function SpeakingPracticePage() {
                     <Button
                       type="button"
                       variant="primary"
-                      size="sm"
+                      size="md"
                       disabled={loading || isListening}
                       onClick={() => gradeRecording(lesson.text, lesson.level)}
                     >
                       {loading ? tr('Đang chấm…') : tr('Chấm bài bằng AI · 1 lượt')}
                     </Button>
                   )}
-                </div>
+                </ControlGroup>
               </div>
             </div>
           </Card>

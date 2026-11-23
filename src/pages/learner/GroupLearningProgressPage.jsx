@@ -18,10 +18,10 @@ import {
   ContextualErrorState,
   FeatureIcon,
   PageContainer,
-  PageHeader,
   ProgressBar,
   SakuraLoader,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 
 function daysAgoVnKey(days) {
   return toVnDateKey(new Date(Date.now() - days * 86_400_000));
@@ -75,24 +75,12 @@ export default function GroupLearningProgressPage() {
   return (
     <LearnerShell breadcrumb={tr('Tiến độ học nhóm')}>
       <PageContainer width="default" className="space-y-6">
-        <PageHeader
+        <IllustratedPageHeader
+          icon="progress"
+          tone="sky"
           eyebrow={tr('Học nhóm')}
           title={tr('Tiến độ học nhóm & chuyên cần')}
           description={tr('Tổng hợp tỷ lệ tham gia buổi học, bài tập đã nộp và tiến độ hoàn thành theo từng lớp nhóm (trong 90 ngày gần nhất & toàn khóa).')}
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to="/homework">
-                <Button variant="secondary" size="sm" icon={BookCheck}>
-                  {tr('Bài tập về nhà')}
-                </Button>
-              </Link>
-              <Link to="/my-courses">
-                <Button variant="primary" size="sm" iconRight={ArrowRight}>
-                  {tr('Lớp của tôi')}
-                </Button>
-              </Link>
-            </div>
-          }
         />
 
         {(reportQuery.isError || homeworksQuery.isError) && (
@@ -224,16 +212,13 @@ export default function GroupLearningProgressPage() {
         ) : activeOrCompleted.length === 0 ? (
           <Card className="p-6">
             <ContextualEmptyState
-              context="cohort"
+              illustration="chart"
               title={tr('Chưa có lớp nhóm để thống kê')}
               description={tr('Hãy đăng ký lớp nhóm đầu tiên để theo dõi chuyên cần và kết quả bài tập theo tuần.')}
               action={
-                <Link
-                  to="/cohorts"
-                  className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-brand-strong px-4 text-sm font-semibold text-white"
-                >
+                <Button as={Link} to="/cohorts" variant="primary" size="md">
                   {tr('Khám phá lớp học')}
-                </Link>
+                </Button>
               }
             />
           </Card>

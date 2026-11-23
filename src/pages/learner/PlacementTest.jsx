@@ -16,13 +16,13 @@ import {
   useCertificateTypesQuery,
 } from '@/features/learning-path/hooks/useCertificates.js';
 import { JlptThumb } from '@/assets/illustrations';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import {
   Banner,
   Button,
   Card,
   CardHeader,
   ErrorState,
-  HaruMascot,
   PageContainer,
   SakuraLoader,
   notify,
@@ -33,7 +33,6 @@ const FALLBACK_LEVELS = [
   { id: 2, code: 'N4', name: 'N4' },
   { id: 3, code: 'N3', name: 'N3' },
   { id: 4, code: 'N2', name: 'N2' },
-  { id: 5, code: 'N1', name: 'N1' },
 ];
 
 export default function PlacementTest() {
@@ -56,7 +55,7 @@ export default function PlacementTest() {
   );
   const { data: apiLevels = [] } = useCertificateLevelsQuery(jlptCertId);
   const levels = useMemo(() => {
-    const filtered = apiLevels.filter((l) => ['N5', 'N4', 'N3', 'N2', 'N1'].includes((l.code || l.name || '').trim().toUpperCase()));
+    const filtered = apiLevels.filter((l) => ['N5', 'N4', 'N3', 'N2'].includes((l.code || l.name || '').trim().toUpperCase()));
     return filtered.length > 0 ? filtered : FALLBACK_LEVELS;
   }, [apiLevels]);
 
@@ -99,24 +98,18 @@ export default function PlacementTest() {
   return (
     <LearnerShell breadcrumb={tr('Đánh giá năng lực')}>
       <PageContainer data-page="PlacementTest" width="reading" density="comfortable" className="text-rp-text">
-        <section className="relative overflow-hidden rounded-rp-card-lg border border-rp-line bg-rp-surface">
-          <div className="rp-pattern-seigaiha absolute inset-0 opacity-70" aria-hidden="true" />
-          <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rp-brand">{tr('Đánh giá năng lực')}</p>
-              <h1 className="mt-2 rp-type-page-title text-rp-text">{tr('Biết mình đang ở đâu trước khi ôn')}</h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-rp-text-2">
-                {tr('Làm một lượt để hệ thống ước tính trình độ JLPT hiện tại và gợi ý lộ trình. Có thể bỏ qua và làm sau.')}
-              </p>
-              <div className="mt-3">
-                <Link to="/app/placement-test" className="rp-link inline-flex items-center gap-1 text-xs font-semibold">
-                  {tr('Mở đánh giá năng lực chuẩn hóa theo mục tiêu')} <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            </div>
-            <HaruMascot pose="thinking" size={128} className="hidden shrink-0 sm:block" />
-          </div>
-        </section>
+        <IllustratedPageHeader
+          icon="placement"
+          tone="sky"
+          eyebrow={tr('Đánh giá năng lực')}
+          title={tr('Biết mình đang ở đâu trước khi ôn')}
+          description={tr('Làm một lượt để hệ thống ước tính trình độ JLPT hiện tại và gợi ý lộ trình. Có thể bỏ qua và làm sau.')}
+          actions={
+            <Button as={Link} to="/app/placement-test" variant="secondary" size="md" iconRight={ArrowRight}>
+              {tr('Mở đánh giá chuẩn hóa')}
+            </Button>
+          }
+        />
 
         <div className="mt-5 space-y-4">
           {statusQuery.isPending && (
@@ -161,9 +154,9 @@ export default function PlacementTest() {
           <Card>
             <CardHeader
               title="Chọn cấp độ đề"
-              description="Chọn cấp độ JLPT (N5–N1) bạn muốn kiểm tra nhanh. Đề có giới hạn thời gian."
+              description="Chọn cấp độ JLPT (N5–N2) bạn muốn kiểm tra nhanh. Đề có giới hạn thời gian."
             />
-            <div role="radiogroup" aria-label={tr('Cấp độ đề')} style={{ '--rp-grid-min': '9.5rem' }} className="rp-fluid-grid">
+            <div role="radiogroup" aria-label={tr('Cấp độ đề')} style={{ '--rp-grid-min': '9.5rem' }} className="rp-fluid-grid-fill">
               {levels.map((level) => {
                 const code = (level.code || level.name || '').trim().toUpperCase();
                 const active = effectiveLevelId === level.id;

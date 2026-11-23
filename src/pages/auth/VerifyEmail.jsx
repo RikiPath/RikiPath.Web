@@ -6,8 +6,8 @@ import { homeForRole } from '@/app/routes/routeTable.js';
 import { CircleAlert, MailCheck, RefreshCw } from 'lucide-react';
 import AuthLayout from '@/layouts/AuthLayout.jsx';
 import AuthPromptLinks from '@/features/auth/components/AuthPromptLinks.jsx';
-import { Banner, Button, Modal, notify } from '@/components/ui';
-import { useChangeUnverifiedEmailMutation, useResendPendingEmailMutation, useResendVerificationMutation, useVerifyEmailMutation } from '@/features/auth/hooks/useAuthMutations.js';
+import { Banner, Button, Field, Input, Modal, notify } from '@/components/ui';
+import { useChangeUnverifiedEmailMutation, useResendPendingEmailMutation, useResendVerificationMutation, useVerifyEmailLinkMutation, useVerifyEmailMutation } from '@/features/auth/hooks/useAuthMutations.js';
 import { useLocale } from '@/locales/locale.js';
 
 function CodeBoxes({ value, onChange, disabled, invalid }) {
@@ -15,7 +15,14 @@ function CodeBoxes({ value, onChange, disabled, invalid }) {
   const digits = Array.from({ length: 6 }, (_, index) => value[index] || '');
 
   function write(index, raw) {
-    const digit = raw.replace(/\D/g, '').slice(-1);
+    const clean = raw.replace(/\D/g, '');
+    if (clean.length > 1) {
+      const clipped = clean.slice(0, 6);
+      onChange(clipped);
+      refs.current[Math.min(clipped.length, 5)]?.focus();
+      return;
+    }
+    const digit = clean.slice(-1);
     const next = digits.slice();
     next[index] = digit;
     onChange(next.join(''));
@@ -54,7 +61,7 @@ function CodeBoxes({ value, onChange, disabled, invalid }) {
           autoFocus={index === 0 && !disabled}
           autoComplete={index === 0 ? 'one-time-code' : 'off'}
           aria-label={`${index + 1}`}
-          maxLength={1}
+          maxLength={index === 0 ? 6 : 1}
           value={digit}
           disabled={disabled}
           onChange={(event) => write(index, event.target.value)}
@@ -79,12 +86,15 @@ export default function VerifyEmail() {
 
   const pending = getPendingVerify();
   const requestedEmail = params.get('email') || '';
+  const verificationToken = (params.get('token') || '').trim();
   const email = pending?.email || '';
   const userId = Number(pending?.userId || 0);
   const changeEmailFlow = pending?.purpose === 'changeEmail';
 
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [linkError, setLinkError] = useState('');
+  const [preferManualOtp, setPreferManualOtp] = useState(false);
   const [resendMessage, setResendMessage] = useState('');
   const [resendRequested, setResendRequested] = useState(false);
   const [resendError, setResendError] = useState('');
@@ -97,13 +107,16 @@ export default function VerifyEmail() {
   const [emailChangeError, setEmailChangeError] = useState('');
 
   const verifyMutation = useVerifyEmailMutation();
+  const verifyLinkMutation = useVerifyEmailLinkMutation();
   const resendMutation = useResendVerificationMutation();
   const pendingResendMutation = useResendPendingEmailMutation();
   const changeEmailMutation = useChangeUnverifiedEmailMutation();
   const loading = verifyMutation.isPending;
+  const linkLoading = verifyLinkMutation.isPending;
   const resending = resendMutation.isPending || pendingResendMutation.isPending;
   const validSession = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     (!requestedEmail || requestedEmail.trim().toLowerCase() === email.trim().toLowerCase());
+  const isOneClickMode = Boolean(verificationToken) && !preferManualOtp;
 
   useEffect(() => {
     if (cooldown <= 0) return undefined;
@@ -151,6 +164,29 @@ export default function VerifyEmail() {
         notify.apiError(err, tr('Chưa gửi lại được mã'), { key: 'auth-resend-error' });
         const wait = message.match(/(\d+)\s*giây/);
         if (wait) setCooldown(Number(wait[1]));
+      },
+    });
+  }
+
+  function handleVerifyByLink(event) {
+    event.preventDefault();
+    if (linkLoading || !verificationToken) return;
+    setLinkError('');
+
+    verifyLinkMutation.mutate(verificationToken, {
+      onSuccess: () => {
+        notify.success(tr('Xác thực email thành công!'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-success' });
+        goToLogin();
+      },
+      onError: (err) => {
+        const message = err?.message || tr('Liên kết xác thực không hợp lệ hoặc đã hết hạn.');
+        if (/đã được xác thực/i.test(message)) {
+          notify.info(tr('Email này đã được xác thực'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-already' });
+          goToLogin(true);
+          return;
+        }
+        setLinkError(message);
+        notify.apiError(err, tr('Chưa xác thực được email'), { key: 'auth-verify-error' });
       },
     });
   }
@@ -229,7 +265,7 @@ export default function VerifyEmail() {
     });
   }
 
-  if (isAuthenticated && user?.isEmailVerified && !changeEmailFlow) {
+  if (!isOneClickMode && isAuthenticated && user?.isEmailVerified && !changeEmailFlow) {
     return <Navigate to={homeForRole(primaryRole)} replace />;
   }
 
@@ -237,56 +273,87 @@ export default function VerifyEmail() {
     <AuthLayout
       variant="verify"
       title={tr('Xác thực email')}
-      subtitle={resendRequested
+      subtitle={isOneClickMode
+        ? tr('Nhấn nút bên dưới để hoàn tất xác thực email cho tài khoản RikiPath của bạn.')
+        : resendRequested
         ? tr('Nếu tài khoản đang chờ xác thực, hãy kiểm tra hộp thư để lấy mã mới.')
         : !emailDispatched
         ? tr('Hãy gửi lại mã xác thực rồi kiểm tra hộp thư của bạn.')
         : email ? <>{tr('Nhập mã 6 chữ số đã gửi tới')} <strong className="font-semibold text-rp-text">{email}</strong></> : tr('Nhập mã 6 chữ số trong email xác thực.')}
     >
-      <form noValidate onSubmit={handleVerify} className="space-y-4" data-page="VerifyEmail">
-        {notice && <Banner tone="info">{notice}</Banner>}
-        {!validSession && (
-          <Banner tone="warning" title={tr('Không tìm thấy phiên đăng ký')}>
-            {tr('Mở trang này từ bước đăng ký, hoặc đăng ký lại để nhận mã mới.')} <Link to="/register/" className="rp-focus rp-link rounded-sm">{tr('Đăng ký')}</Link>
+      {isOneClickMode ? (
+        <form noValidate onSubmit={handleVerifyByLink} className="space-y-4" data-page="VerifyEmailLink">
+          <Banner tone="info">
+            {tr('Liên kết xác thực chỉ sử dụng một lần. Nhấn nút xác nhận bên dưới để kích hoạt email và quay lại đăng nhập.')}
           </Banner>
-        )}
-        <fieldset disabled={loading || !validSession}>
-          <legend className="text-[13px] font-semibold text-rp-text">{tr('Mã xác thực')}</legend>
-          <CodeBoxes value={code} onChange={(next) => { setCode(next); setError(''); }} disabled={loading || !validSession} invalid={Boolean(error)} />
-        </fieldset>
-        {error && (
-          <p role="alert" className="flex items-start gap-1.5 text-[13px] font-medium text-rp-danger">
-            <CircleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> {error}
-          </p>
-        )}
-        <Button type="submit" size="lg" className="w-full" icon={MailCheck} loading={loading} disabled={!validSession || code.length !== 6}>
-          {tr('Xác thực')}
-        </Button>
-      </form>
+          {linkError && (
+            <p role="alert" className="flex items-start gap-1.5 text-[13px] font-medium text-rp-danger">
+              <CircleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> {linkError}
+            </p>
+          )}
+          <Button type="submit" size="lg" className="w-full" icon={MailCheck} loading={linkLoading}>
+            {linkLoading ? tr('Đang xác thực...') : tr('Xác thực email')}
+          </Button>
+          {validSession && (
+            <div className="pt-1 text-center text-sm">
+              <button
+                type="button"
+                className="rp-focus rp-link rounded-sm font-semibold"
+                onClick={() => setPreferManualOtp(true)}
+              >
+                {tr('Hoặc nhập mã 6 chữ số thủ công')}
+              </button>
+            </div>
+          )}
+        </form>
+      ) : (
+        <>
+          <form noValidate onSubmit={handleVerify} className="space-y-4" data-page="VerifyEmail">
+            {notice && <Banner tone="info">{notice}</Banner>}
+            {!validSession && (
+              <Banner tone="warning" title={tr('Không tìm thấy phiên đăng ký')}>
+                {tr('Mở trang này từ bước đăng ký, hoặc đăng ký lại để nhận mã mới.')} <Link to="/register/" className="rp-focus rp-link rounded-sm">{tr('Đăng ký')}</Link>
+              </Banner>
+            )}
+            <fieldset disabled={loading || !validSession}>
+              <legend className="text-[13px] font-semibold text-rp-text">{tr('Mã xác thực')}</legend>
+              <CodeBoxes value={code} onChange={(next) => { setCode(next); setError(''); }} disabled={loading || !validSession} invalid={Boolean(error)} />
+            </fieldset>
+            {error && (
+              <p role="alert" className="flex items-start gap-1.5 text-[13px] font-medium text-rp-danger">
+                <CircleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+              </p>
+            )}
+            <Button type="submit" size="lg" className="w-full" icon={MailCheck} loading={loading} disabled={!validSession || code.length !== 6}>
+              {tr('Xác thực')}
+            </Button>
+          </form>
 
-      <div className="mt-5 rounded-rp-input border border-rp-line bg-rp-bg-2 p-4 text-sm">
-        <p className="text-rp-text-2">{tr('Chưa nhận được email? Kiểm tra cả thư mục Spam hoặc gửi lại mã.')}</p>
-        {resendMessage && <p role="status" className="mt-2 font-medium text-rp-success">{resendMessage}</p>}
-        {resendError && <p role="alert" className="mt-2 font-medium text-rp-danger">{resendError}</p>}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="mt-3"
-          icon={RefreshCw}
-          loading={resending}
-          disabled={!validSession || cooldown > 0 || (changeEmailFlow && !isAuthenticated)}
-          onClick={handleResend}
-        >
-          {cooldown > 0 ? `${tr('Gửi lại sau')} ${cooldown}s` : tr('Gửi lại mã')}
-        </Button>
-      </div>
+          <div className="mt-5 rounded-rp-input border border-rp-line bg-rp-bg-2 p-4 text-sm">
+            <p className="text-rp-text-2">{tr('Chưa nhận được email? Kiểm tra cả thư mục Spam hoặc gửi lại mã.')}</p>
+            {resendMessage && <p role="status" className="mt-2 font-medium text-rp-success">{resendMessage}</p>}
+            {resendError && <p role="alert" className="mt-2 font-medium text-rp-danger">{resendError}</p>}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3"
+              icon={RefreshCw}
+              loading={resending}
+              disabled={!validSession || cooldown > 0 || (changeEmailFlow && !isAuthenticated)}
+              onClick={handleResend}
+            >
+              {cooldown > 0 ? `${tr('Gửi lại sau')} ${cooldown}s` : tr('Gửi lại mã')}
+            </Button>
+          </div>
 
-      {email && (
-        <div className="mt-4 text-sm">
-          <button type="button" className="rp-focus rp-link rounded-sm font-semibold" onClick={() => setShowEmailChange(true)}>
-            {tr('Dùng email khác để xác thực')}
-          </button>
-        </div>
+          {email && (
+            <div className="mt-4 text-sm">
+              <button type="button" className="rp-focus rp-link rounded-sm font-semibold" onClick={() => setShowEmailChange(true)}>
+                {tr('Dùng email khác để xác thực')}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <Modal
@@ -298,10 +365,16 @@ export default function VerifyEmail() {
         dismissible={!changeEmailMutation.isPending}
       >
         <form onSubmit={handleEmailChange} className="space-y-3 text-sm">
-          <label className="block font-medium text-rp-text" htmlFor="new-verification-email">{tr('Email mới')}</label>
-          <input id="new-verification-email" type="email" autoComplete="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} className="rp-focus w-full rounded-rp-input border border-rp-line bg-white px-3 py-2 text-rp-text" required />
-          <label className="block font-medium text-rp-text" htmlFor="registration-password">{tr('Mật khẩu đã đăng ký')}</label>
-          <input id="registration-password" type="password" autoComplete="current-password" value={registrationPassword} onChange={(event) => setRegistrationPassword(event.target.value)} className="rp-focus w-full rounded-rp-input border border-rp-line bg-white px-3 py-2 text-rp-text" required />
+          <Field label="Email mới" required>
+            {({ id, describedBy, invalid }) => (
+              <Input id={id} aria-describedby={describedBy} invalid={invalid} type="email" autoComplete="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} required />
+            )}
+          </Field>
+          <Field label="Mật khẩu đã đăng ký" required>
+            {({ id, describedBy, invalid }) => (
+              <Input id={id} aria-describedby={describedBy} invalid={invalid} type="password" autoComplete="current-password" value={registrationPassword} onChange={(event) => setRegistrationPassword(event.target.value)} required />
+            )}
+          </Field>
           {emailChangeError && <p role="alert" className="text-rp-danger">{emailChangeError}</p>}
           <Button type="submit" size="md" className="w-full" loading={changeEmailMutation.isPending} disabled={changeEmailMutation.isPending} aria-label={tr('Cập nhật email và gửi mã')}>
             {changeEmailMutation.isPending ? null : tr('Cập nhật email và gửi mã')}

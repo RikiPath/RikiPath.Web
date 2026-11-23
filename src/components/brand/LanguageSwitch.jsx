@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Globe } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
 import { HeaderIconBadge, IconButton, cx, notify } from '@/components/ui';
@@ -23,37 +24,72 @@ function Flag({ src }) {
   );
 }
 
-/** `variant="icon"` renders the circular Globe trigger with a red language tag badge; `variant="pill"` keeps the wider flag+code pill for auth/public headers. */
-export default function LanguageSwitch({ className, variant = 'pill' }) {
+/** Circular blue Globe trigger with a red language tag; the pill remains available when explicitly requested. */
+export default function LanguageSwitch({ className, variant = 'icon' }) {
   const { locale, setLocale, t } = useLocale();
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(null);
   const rootRef = useRef(null);
+  const menuRef = useRef(null);
   const triggerRef = useRef(null);
   const listRef = useRef(null);
   const listId = useId();
   const current = OPTIONS.find((o) => o.id === locale) || OPTIONS[0];
 
+  const calcMenuPosition = useCallback(() => {
+    if (!triggerRef.current || typeof window === 'undefined') return null;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = Math.min(188, window.innerWidth - 24);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const flip = spaceBelow < 160 && rect.top > spaceBelow;
+    const left = Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12));
+    return {
+      position: 'fixed',
+      left,
+      width,
+      zIndex: 130,
+      ...(flip ? { bottom: Math.max(12, window.innerHeight - rect.top + 8) } : { top: rect.bottom + 8 }),
+    };
+  }, []);
+
+  const toggleMenu = useCallback(() => {
+    setOpen((prev) => {
+      const next = !prev;
+      setMenuStyle(next ? calcMenuPosition() : null);
+      return next;
+    });
+  }, [calcMenuPosition]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onPointer = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false);
+      if (!rootRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) {
+        setOpen(false);
+        setMenuStyle(null);
+      }
     };
     const onKey = (event) => {
       if (event.key === 'Escape') {
         setOpen(false);
+        setMenuStyle(null);
         triggerRef.current?.focus();
       }
     };
+    const onReposition = () => setMenuStyle(calcMenuPosition());
     document.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
     // Move focus to the active option for keyboard users.
     const raf = window.requestAnimationFrame(() => listRef.current?.querySelector('[aria-selected="true"]')?.focus());
     return () => {
       document.removeEventListener('pointerdown', onPointer);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
       window.cancelAnimationFrame(raf);
     };
-  }, [open]);
+  }, [open, calcMenuPosition]);
 
   function choose(id) {
     if (id !== locale) {
@@ -87,13 +123,13 @@ export default function LanguageSwitch({ className, variant = 'pill' }) {
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleMenu}
           className={cx(
-            'shadow-rp-xs',
+            'rp-lang-globe shadow-rp-xs',
             open && 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong',
           )}
           badge={(
-            <HeaderIconBadge key={current.code} className="rp-anim-fade tracking-[-0.01em]">
+            <HeaderIconBadge key={current.code} className="rp-anim-fade !h-4 !min-w-4 !px-0.5 !text-[8px] !font-medium tracking-[-0.02em]">
               {current.code}
             </HeaderIconBadge>
           )}
@@ -106,7 +142,7 @@ export default function LanguageSwitch({ className, variant = 'pill' }) {
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
           aria-label={`${t('langLabel')}: ${t(current.labelKey)}`}
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleMenu}
           className={cx(
             'rp-focus inline-flex h-9 items-center gap-2 rounded-[10px] border bg-rp-surface pl-2.5 pr-2 text-[13px] font-semibold text-rp-text shadow-rp-xs transition-[border-color,background-color,box-shadow] duration-150',
             open ? 'border-rp-brand-border bg-rp-brand-tint' : 'border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint',
@@ -118,9 +154,11 @@ export default function LanguageSwitch({ className, variant = 'pill' }) {
         </button>
       )}
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div
-          className="rp-lang-pop absolute right-0 top-[calc(100%+8px)] z-[95] w-[188px] max-w-[calc(100vw-24px)] origin-top-right rounded-rp-card border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
+          ref={menuRef}
+          style={menuStyle || { position: 'fixed', left: 12, top: 64, zIndex: 130, visibility: 'hidden' }}
+          className="rp-lang-pop max-w-[calc(100vw-24px)] origin-top-right rounded-rp-card border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
         >
           <p className="flex items-center gap-2 px-2 pb-2 pt-1 text-xs font-semibold text-rp-text">
             <Globe aria-hidden="true" className="h-4 w-4 text-rp-brand" />
@@ -159,7 +197,8 @@ export default function LanguageSwitch({ className, variant = 'pill' }) {
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

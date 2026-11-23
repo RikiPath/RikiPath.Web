@@ -1,26 +1,27 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Briefcase, Search } from 'lucide-react';
+import { ArrowRight, Briefcase, X } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { searchMentors } from '@/features/mentor/api/mentorProfileApi.js';
 import {
   Avatar,
   Badge,
+  Button,
   CustomSelect,
   EmptyState,
   ErrorState,
-  Input,
   PageContainer,
-  PageHeader,
   RefreshingIndicator,
   SakuraLoader,
+  UnifiedToolbar,
   useDebouncedValue,
 } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import Pagination from '@/components/ui/Pagination.jsx';
 import { useLocale } from '@/locales/locale.js';
 
-const LEVELS = ['', 'N5', 'N4', 'N3', 'N2', 'N1'];
+const LEVELS = ['', 'N5', 'N4', 'N3', 'N2'];
 const PAGE_SIZE = 9;
 
 /**
@@ -46,8 +47,18 @@ export default function MentorDirectory() {
     placeholderData: (prev) => prev,
   });
 
+  const unfilteredCountQuery = useQuery({
+    queryKey: ['mentor-directory-unfiltered-count'],
+    queryFn: () => searchMentors({ page: 1, pageSize: 1 }),
+    staleTime: 60_000,
+    enabled: Boolean(search || level),
+  });
+
   const items = query.data?.items || [];
   const total = query.data?.totalCount ?? items.length;
+  const hasNoMentors = query.isSuccess && (search || level
+    ? unfilteredCountQuery.isSuccess && unfilteredCountQuery.data?.totalCount === 0
+    : total === 0);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const levelOptions = LEVELS.map((l) => ({
@@ -55,48 +66,76 @@ export default function MentorDirectory() {
     label: l ? trf('Dạy JLPT {0}', { 0: l }) : tr('Mọi trình độ'),
   }));
 
+  const showDirectoryToolbar = !query.isPending && !query.isError && !hasNoMentors;
+  const hasFilters = Boolean(term.trim() || level);
+
   return (
     <LearnerShell breadcrumb={tr('Tìm Giáo viên')}>
-      <PageContainer width="default">
-        <PageHeader
+      <PageContainer width="default" className="relative space-y-4">
+        <IllustratedPageHeader
+          icon="group"
+          tone="sakura"
           eyebrow={tr('Học cùng Giáo viên')}
           title={tr('Chọn Giáo viên đồng hành')}
           description={tr('Xem hồ sơ Giáo viên, các lớp nhóm đang mở đăng ký và chọn cường độ phù hợp với lịch của bạn. Mỗi lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.')}
         />
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-          <label className="relative block">
-            <span className="sr-only">{tr('Tìm theo tên hoặc chuyên môn')}</span>
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted"
-            />
-            <Input
-              type="search"
-              value={term}
-              onChange={(e) => {
+        {showDirectoryToolbar && (
+          <UnifiedToolbar
+            search={{
+              value: term,
+              onChange: (e) => {
                 setTerm(e.target.value);
                 setPage(1);
-              }}
-              placeholder={tr('Tìm theo tên hoặc chuyên môn…')}
-              className="pl-10"
-            />
-          </label>
-          <div>
-            <span className="sr-only">{tr('Trình độ giảng dạy')}</span>
-            <CustomSelect
-              value={level}
-              onChange={(nextLevel) => {
-                setLevel(nextLevel);
+              },
+              onClear: () => {
+                setTerm('');
                 setPage(1);
-              }}
-              options={levelOptions}
-              aria-label={tr('Trình độ giảng dạy')}
-            />
-          </div>
-        </div>
+              },
+              placeholder: 'Tìm theo tên hoặc chuyên môn…',
+              ariaLabel: tr('Tìm theo tên hoặc chuyên môn'),
+            }}
+            filters={
+              <CustomSelect
+                fitContent
+                size="md"
+                value={level}
+                onChange={(nextLevel) => {
+                  setLevel(nextLevel);
+                  setPage(1);
+                }}
+                options={levelOptions}
+                aria-label={tr('Trình độ giảng dạy')}
+              />
+            }
+            actions={
+              hasFilters ? (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  icon={X}
+                  onClick={() => {
+                    setTerm('');
+                    setLevel('');
+                    setPage(1);
+                  }}
+                >
+                  {tr('Xóa bộ lọc')}
+                </Button>
+              ) : null
+            }
+          />
+        )}
 
-        <RefreshingIndicator active={query.isFetching && !query.isPending} className="mb-3" />
+        {query.isFetching && !query.isPending && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {query.isPending ? (
           <SakuraLoader variant="section" context="profile" label={tr('Đang tải danh sách Giáo viên')} delay={160} />
@@ -104,19 +143,21 @@ export default function MentorDirectory() {
           <ErrorState error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />
         ) : items.length === 0 ? (
           <EmptyState
-            art="search"
-            title={search || level ? tr('Không tìm thấy Giáo viên phù hợp') : tr('Chưa có Giáo viên công khai')}
+            variant={!hasNoMentors && (search || level) ? 'search' : 'default'}
+            illustration={!hasNoMentors && (search || level) ? 'search' : 'mentor'}
+            title={!hasNoMentors && (search || level) ? tr('Không tìm thấy Giáo viên phù hợp') : tr('Chưa có Giáo viên công khai')}
             description={
-              search || level
+              !hasNoMentors && (search || level)
                 ? tr('Thử bỏ bớt bộ lọc hoặc tìm bằng từ khóa khác.')
                 : tr('Danh sách sẽ hiển thị khi Giáo viên được duyệt hồ sơ.')
             }
+            action={!hasNoMentors && (search || level) ? <Button size="sm" variant="outline" onClick={() => { setTerm(''); setLevel(''); setPage(1); }}>{tr('Xóa bộ lọc')}</Button> : null}
           />
         ) : (
           <>
             <ul
               style={{ '--rp-grid-min': '18.5rem' }}
-              className={`rp-fluid-grid ${query.isFetching ? 'opacity-70' : ''}`}
+              className={`rp-fluid-grid-fill ${query.isFetching ? 'opacity-70' : ''}`}
               aria-busy={query.isFetching}
             >
               {items.map((m) => (
@@ -164,7 +205,7 @@ export default function MentorDirectory() {
             {totalPages > 1 && (
               <div className="mt-6">
                 <Pagination
-                  currentPage={page}
+                  currentPage={Math.min(page, totalPages)}
                   totalPages={totalPages}
                   pageSize={PAGE_SIZE}
                   totalItems={total}

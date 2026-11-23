@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarCheck2, CalendarClock, CalendarOff, Check, ChevronRight } from 'lucide-react';
+import { CalendarCheck2, CalendarClock, CalendarOff, Check } from 'lucide-react';
 import { jlptExamDate } from '@/features/learning-path/utils/learningGoal.js';
 import { Input, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
@@ -116,7 +116,7 @@ export default function JlptExamDatePicker({
       </div>
 
       {/* Quick year selector pills + manual year input */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-rp-line bg-rp-bg-2 p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-rp-bg-2 px-3.5 py-2.5">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tr('Chọn năm dự thi')}>
           <span className="px-1.5 text-[12px] font-medium text-rp-text-muted">{tr('Năm')}:</span>
           {availableYears.slice(0, 4).map((yr) => {
@@ -141,8 +141,8 @@ export default function JlptExamDatePicker({
           })}
         </div>
 
-        <label className="flex items-center gap-2 text-[12px] text-rp-text-muted">
-          <span>{tr('Năm khác')}</span>
+        <label className="flex shrink-0 items-center gap-2.5 whitespace-nowrap text-[12px] font-medium text-rp-text-muted">
+          <span className="whitespace-nowrap">{tr('Năm khác')}</span>
           <Input
             type="number"
             min={baseYear}
@@ -159,7 +159,7 @@ export default function JlptExamDatePicker({
               }
             }}
             aria-label={tr('Nhập năm dự thi')}
-            className="h-8 w-20 px-2.5 text-center text-[13px] font-semibold tabular-nums"
+            className="h-8 w-24 px-3 text-center text-[13px] font-semibold tabular-nums"
           />
         </label>
       </div>
@@ -256,15 +256,15 @@ export default function JlptExamDatePicker({
         className={cx(
           'rp-focus flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150',
           !value
-            ? 'border-rp-brand-border bg-rp-brand-tint/70 text-rp-brand-strong'
-            : 'border-rp-line bg-rp-bg-2 text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint/35',
+            ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong shadow-rp-xs'
+            : 'border-rp-line bg-white text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint/45',
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
           <span
             className={cx(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-              !value ? 'bg-rp-brand-pressed text-white' : 'bg-white text-rp-text-muted border border-rp-line',
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors',
+              !value ? 'bg-rp-brand-pressed text-white shadow-xs' : 'bg-rp-bg-2 text-rp-text-muted border border-rp-line',
             )}
           >
             <CalendarOff className="h-4 w-4" />
@@ -278,7 +278,17 @@ export default function JlptExamDatePicker({
             </p>
           </div>
         </div>
-        <ChevronRight aria-hidden="true" className={cx('h-4 w-4 shrink-0', !value ? 'text-rp-brand-pressed' : 'text-rp-text-disabled')} />
+        <span
+          aria-hidden="true"
+          className={cx(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors',
+            !value
+              ? 'rp-onboarding-check-pop bg-rp-brand-pressed text-white'
+              : 'border border-[#DCD1D6] bg-white',
+          )}
+        >
+          {!value && <Check className="h-3.5 w-3.5" strokeWidth={2.6} />}
+        </span>
       </button>
 
       {futureCount === 0 && /^\d{4}$/.test(activeYear) && (
@@ -297,10 +307,6 @@ export default function JlptExamDatePicker({
           </button>
         </div>
       )}
-
-      <p className="text-[12px] leading-5 text-rp-text-muted">
-        {tr('Ngày thi được điền theo Chủ nhật đầu tiên của tháng 7 hoặc tháng 12.')}
-      </p>
     </div>
   );
 }

@@ -143,4 +143,16 @@ export const jaLanding = {
   // Closing CTA
   'Bắt đầu từ mục tiêu JLPT của bạn': 'JLPTの目標から始めよう',
   'Tạo tài khoản, chọn cấp độ mục tiêu và làm bài đánh giá năng lực đầu tiên.': 'アカウントを作成し、目標レベルを選んで、最初のレベル診断を受けましょう。',
+
+  // Public header navigation & Japan banner captions/alt texts
+  'Tính năng': '機能',
+  'Kyoto · Phố cổ và đền chùa mùa anh đào': '京都・桜の季節の古い町並みと寺院',
+  'Cánh đồng hoa anh đào và núi tuyết Hokkaido trong nắng mai mùa xuân': '春の朝日に照らされる北海道の花畑と雪山',
+  'Phố cổ Kyoto ánh đèn lồng ấm áp cùng chùa tháp và núi Phú Sĩ phía xa': '温かい提灯の灯る京都の古い町並みと五重塔・遠方の富士山',
+  'Đường chân trời Tokyo rực sáng cùng tháp Tokyo và sắc hoa anh đào buổi sớm': '朝焼けの東京スカイライン、東京タワーと桜',
+  'Lâu đài Osaka uy nghiêm phản chiếu trên mặt nước dưới rặng hoa anh đào': '桜並木の下で水面に映える荘厳な大阪城',
+  'Khu vườn Kenrokuen Kanazawa tĩnh lặng với cầu cong, đèn đá và mặt hồ soi bóng hoa': '反り橋と石灯籠、花影を映す静かな金沢・兼六園の池',
+  'Cổng torii son đỏ nổi trên mặt biển Miyajima trong ánh hoàng hôn dịu êm': '穏やかな夕映えの宮島の海に浮かぶ朱塗りの大鳥居',
+  'Lối đèn đá công viên Nara với hươu hiền hòa hướng về chính điện cổ kính': '穏やかな鹿と石灯籠が本殿へと続く奈良公園の参道',
+  'Vịnh biển xanh trong Okinawa bên cổng đá ngói đỏ Ryukyu và hoa dâm bụt mùa xuân': '琉球の赤瓦の石門とハイビスカスが映える透明な沖縄の海',
 };

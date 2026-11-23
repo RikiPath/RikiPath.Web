@@ -1,14 +1,16 @@
-import LearnerFeedbackPanel from '../../components/LearnerFeedbackPanel.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ListChecks, Send, Timer } from 'lucide-react';
+import { Download, History } from 'lucide-react';
+import { exportExamFile, triggerBlobDownload } from '@/features/content-author/api/contentAuthoringV2Api.js';
 import { useAuth } from '@/app/auth/authContext.js';
 import { LearnerShell } from '@/layouts';
+import ExamWorkspace from '@/features/mock-test/components/ExamWorkspace.jsx';
 import OrderingAnswer from '@/features/mock-test/components/OrderingAnswer.jsx';
 import {
   getMockTestAttempt,
   getMockTestLevels,
+  getMockTestInfo,
   getMockTestQuestions,
   getMockTestReview,
   getMockTestsByLevel,
@@ -16,7 +18,7 @@ import {
   startMockTest,
   submitMockTestAttempt,
 } from '@/features/mock-test/api/mockTestApi.js';
-import { describeApiError } from '@/api/apiErrors.js';
+import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import {
   Badge,
   Banner,
@@ -29,7 +31,7 @@ import {
   EmptyState,
   Input,
   PageContainer,
-  PageHeader,
+  ProgressBar,
   Radio,
   SakuraLoader,
   StaleDataBar,
@@ -39,6 +41,7 @@ import {
   useOnlineStatus,
   useUnsavedGuard,
 } from '@/components/ui';
+import { ControlGroup, filterSupportedJlptLevels, IllustratedPageHeader, LevelTabs } from '@/features/learner-ui';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
 function formatPercent(v) {
@@ -106,34 +109,28 @@ function MockAnswer({ question, value, onChange }) {
           const checked = multiple ? choices.includes(id) : value === id;
           const imgLabel = trf('Hình đáp án {0}', { 0: index + 1 });
           return multiple ? (
-            <div
-              key={id}
-              className={`rounded-xl border px-3.5 py-2.5 transition-colors ${
-                checked ? 'border-rp-brand bg-rp-brand-tint' : 'border-rp-line hover:bg-rp-brand-tint/40'
-              }`}
-            >
               <Checkbox
+                key={id}
+                className={`min-h-12 w-full rounded-xl border px-3.5 py-2.5 transition-colors ${
+                  checked ? 'border-rp-brand bg-rp-brand-tint' : 'border-rp-line hover:bg-rp-brand-tint/40'
+                }`}
                 checked={checked}
                 onChange={() =>
                   onChange(multiple ? (checked ? choices.filter((item) => item !== id) : [...choices, id]) : id)
                 }
                 label={optionContent(option, imgLabel)}
               />
-            </div>
           ) : (
-            <div
-              key={id}
-              className={`rounded-xl border px-3.5 py-2.5 transition-colors ${
-                checked ? 'border-rp-brand bg-rp-brand-tint' : 'border-rp-line hover:bg-rp-brand-tint/40'
-              }`}
-            >
               <Radio
+                key={id}
+                className={`min-h-12 w-full rounded-xl border px-3.5 py-2.5 transition-colors ${
+                  checked ? 'border-rp-brand bg-rp-brand-tint' : 'border-rp-line hover:bg-rp-brand-tint/40'
+                }`}
                 name={`mock-${question.questionId}`}
                 checked={checked}
                 onChange={() => onChange(id)}
                 label={optionContent(option, imgLabel)}
               />
-            </div>
           );
         })}
       </div>
@@ -224,10 +221,12 @@ function MockAttempt({ attempt, onComplete }) {
   const [saveState, setSaveState] = useState('idle');
   const submission = useRef(false);
   const saveQueue = useRef(Promise.resolve());
+  const failedAnswers = useRef(new Map());
+  const queuedSaves = useRef(0);
   const autoSubmitted = useRef(false);
-  const deadline = attempt.localDeadline;
+  const [deadline, setDeadline] = useState(attempt.monotonicDeadline);
   const remaining = useCallback(
-    () => (deadline == null ? null : Math.max(0, Math.ceil((deadline - Date.now()) / 1000))),
+    () => (deadline == null ? null : Math.max(0, Math.ceil((deadline - performance.now()) / 1000))),
     [deadline],
   );
   const [seconds, setSeconds] = useState(remaining);
@@ -240,22 +239,53 @@ function MockAttempt({ attempt, onComplete }) {
     return () => clearInterval(timer);
   }, [deadline, remaining]);
 
+  useEffect(() => {
+    const syncDeadline = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const latest = await getMockTestQuestions(attempt.attemptId);
+        if (latest?.monotonicDeadline != null) setDeadline(latest.monotonicDeadline);
+      } catch {
+        // The next answer or submit request still enforces the server deadline.
+      }
+    };
+    document.addEventListener('visibilitychange', syncDeadline);
+    window.addEventListener('pageshow', syncDeadline);
+    return () => {
+      document.removeEventListener('visibilitychange', syncDeadline);
+      window.removeEventListener('pageshow', syncDeadline);
+    };
+  }, [attempt.attemptId]);
+
   function choose(questionId, value) {
     if (submission.current || remaining() === 0) return;
     setAnswers((current) => ({ ...current, [questionId]: value }));
+    queueAnswer(questionId, value);
+  }
+
+  function queueAnswer(questionId, value) {
     setError('');
     setSaveState('saving');
+    queuedSaves.current += 1;
     saveQueue.current = saveQueue.current
       .then(() => saveMockTestAnswers(attempt.attemptId, [answerItem(questionId, value)]))
       .then(() => {
-        setSaveState('saved');
+        failedAnswers.current.delete(questionId);
       })
       .catch((err) => {
         if (!['MOCK_TEST_EXPIRED', 'MOCK_TEST_COMPLETED'].includes(err?.data?.errorCode)) {
-          setSaveState('error');
-          setError(describeApiError(err, tr('Chưa lưu được câu trả lời.')));
+          failedAnswers.current.set(questionId, value);
+          setError(formatApiError(err, tr('Chưa lưu được câu trả lời.')));
         }
+      })
+      .finally(() => {
+        queuedSaves.current -= 1;
+        setSaveState(failedAnswers.current.size ? 'error' : queuedSaves.current ? 'saving' : 'saved');
       });
+  }
+
+  function retrySave() {
+    for (const [questionId, value] of failedAnswers.current) queueAnswer(questionId, value);
   }
 
   const submit = useCallback(async () => {
@@ -275,7 +305,7 @@ function MockAttempt({ attempt, onComplete }) {
       notify.success(tr('Đã nộp bài thi thử thành công!'), '', { key: toastKey, replace: true });
       onComplete(result);
     } catch (err) {
-      setError(describeApiError(err, tr('Chưa nộp được bài thi thử.')));
+      setError(formatApiError(err, tr('Chưa nộp được bài thi thử.')));
       notify.apiError(err, tr('Chưa nộp được bài thi thử'), { key: toastKey, replace: true });
     } finally {
       submission.current = false;
@@ -287,14 +317,13 @@ function MockAttempt({ attempt, onComplete }) {
   const answeredCount = attempt.questions.filter((q) => hasAnswerValue(answers[q.questionId])).length;
   const unanswered = attempt.questions.length - answeredCount;
 
-  async function askSubmit() {
+  async function askSubmit({ flaggedCount = 0 } = {}) {
     const ok = await confirmAction({
-      title: tr('Nộp bài thi thử?'),
-      description:
-        unanswered > 0
-          ? trf('Bạn còn {0} câu chưa trả lời. Sau khi nộp, bạn không thể sửa bài.', { 0: unanswered })
-          : tr('Bạn đã trả lời tất cả câu hỏi. Sau khi nộp, bạn không thể sửa bài.'),
-      confirmLabel: tr('Nộp bài'),
+      title: tr('Bạn đã sẵn sàng nộp bài?'),
+      description: trf('Tổng {0} câu · đã làm {1} · chưa làm {2} · đánh dấu {3}. Sau khi nộp, bạn không thể sửa bài.', {
+        0: attempt.questions.length, 1: answeredCount, 2: unanswered, 3: flaggedCount,
+      }),
+      confirmLabel: tr('Xác nhận nộp bài'),
       cancelLabel: tr('Tiếp tục làm bài'),
       tone: unanswered > 0 ? 'warning' : 'info',
     });
@@ -307,18 +336,13 @@ function MockAttempt({ attempt, onComplete }) {
     void submit();
   }, [online, pending, seconds, submit]);
 
+  const clockLabel =
+    seconds != null
+      ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+      : null;
+
   return (
     <>
-      <Card>
-        <h2 className="text-lg font-bold text-rp-text">
-          {attempt.title ? tr(attempt.title) : trf('Đề thi thử {0}', { 0: attempt.jlptLevelName })}
-        </h2>
-        <p className="mt-1 text-sm text-rp-text-2">
-          {trf('{0} câu', { 0: attempt.questions.length })}
-          {attempt.timeLimitMinutes > 0 && ` · ${trf('{0} phút', { 0: attempt.timeLimitMinutes })}`}
-        </p>
-      </Card>
-
       <BlockingOverlay open={pending} label={tr('Đang nộp bài, vui lòng không đóng trang')} />
 
       {!online && (
@@ -329,176 +353,42 @@ function MockAttempt({ attempt, onComplete }) {
         </Banner>
       )}
 
-      <div
-        className="sticky top-[calc(var(--spacing-rp-topbar)+8px)] z-10 flex flex-wrap items-center justify-between gap-3 rounded-rp-card border border-rp-line bg-rp-surface/95 px-4 py-2.5 text-sm shadow-rp-card backdrop-blur"
-        role="status"
-        aria-live="off"
-      >
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-2 text-rp-text-2">
-            <ListChecks aria-hidden="true" className="h-4 w-4 text-rp-brand-strong" />
-            {tr('Đã làm')}{' '}
-            <strong className="tabular-nums text-rp-text">
-              {answeredCount}/{attempt.questions.length}
-            </strong>
-            {unanswered > 0 && <span className="text-rp-warning">{trf('· còn {0} câu', { 0: unanswered })}</span>}
-          </span>
-          {saveState === 'saving' && (
-            <Badge tone="neutral" size="sm" icon={false}>
-              {tr('Đang lưu…')}
-            </Badge>
-          )}
-          {saveState === 'saved' && (
-            <Badge tone="success" size="sm" icon={false}>
-              {tr('Đã lưu')}
-            </Badge>
-          )}
-        </div>
-
-        {seconds != null && (
-          <span className={`flex items-center gap-2 ${seconds <= 300 ? 'text-rp-danger' : 'text-rp-text-2'}`}>
-            <Timer aria-hidden="true" className="h-4 w-4" />
-            {tr('Thời gian còn lại')}
-            <strong className="tabular-nums text-base">
-              {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-            </strong>
-          </span>
+      <ExamWorkspace
+        title={attempt.title ? tr(attempt.title) : trf('Đề thi thử {0}', { 0: attempt.jlptLevelName })}
+        subtitle={
+          attempt.timeLimitMinutes > 0
+            ? `${trf('{0} câu', { 0: attempt.questions.length })} · ${trf('{0} phút', { 0: attempt.timeLimitMinutes })}`
+            : trf('{0} câu', { 0: attempt.questions.length })
+        }
+        questions={attempt.questions}
+        isAnswered={(question) => hasAnswerValue(answers[question.questionId])}
+        clockLabel={clockLabel}
+        secondsLeft={seconds}
+        urgentSecondsThreshold={300}
+        saveState={saveState}
+        pending={pending}
+        expired={seconds === 0}
+        offline={!online}
+        errorMessage={error}
+        onRetrySave={failedAnswers.current.size ? retrySave : undefined}
+        submitLabel={tr('Nộp bài thi thử')}
+        expiredSubmitLabel={tr('Nộp bài đã hết giờ')}
+        onRequestSubmit={askSubmit}
+        onExpiredSubmit={submit}
+        renderQuestionBody={(question) => (
+          <MockAnswer
+            question={question}
+            value={answers[question.questionId]}
+            onChange={(value) => choose(question.questionId, value)}
+          />
         )}
-      </div>
-
-      <details className="rounded-rp-card border border-rp-line bg-rp-surface p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-rp-text">{tr('Chuyển đến câu hỏi')}</summary>
-        <nav aria-label={tr('Danh sách câu hỏi thi thử')} className="mt-3 flex flex-wrap gap-2">
-          {attempt.questions.map((question, index) => {
-            const done = hasAnswerValue(answers[question.questionId]);
-            return (
-              <a
-                key={question.questionId}
-                href={`#mock-question-${question.questionId}`}
-                aria-label={trf('Câu {0}{1}', { 0: index + 1, 1: done ? tr(' (đã làm)') : tr(' (chưa làm)') })}
-                className={`rp-focus rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  done
-                    ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong'
-                    : 'border-dashed border-rp-line text-rp-text-2 hover:bg-rp-brand-tint/40'
-                }`}
-              >
-                {index + 1}
-              </a>
-            );
-          })}
-        </nav>
-        <p className="mt-2 text-xs text-rp-text-muted">{tr('Ô tô màu: đã trả lời · Ô viền đứt: chưa trả lời')}</p>
-      </details>
-
-      {attempt.questions.map((question, index) => (
-        <div key={question.questionId} className="space-y-2">
-          {(index === 0 || attempt.questions[index - 1].mockTestSectionId !== question.mockTestSectionId) && (
-            <h3 className="mt-4 text-base font-bold text-rp-text">{question.sectionTitle}</h3>
-          )}
-          <fieldset
-            id={`mock-question-${question.questionId}`}
-            className="scroll-mt-28 rounded-rp-card border border-rp-line bg-rp-surface p-5"
-            disabled={pending || seconds === 0}
-          >
-            <legend className="px-2 text-xs font-semibold text-rp-brand-strong">
-              {trf('Câu {0}', { 0: index + 1 })}
-            </legend>
-            <p className="whitespace-pre-wrap text-sm font-medium text-rp-text">{question.content}</p>
-            {question.imageUrl && (
-              <img src={question.imageUrl} alt={tr('Hình minh họa câu hỏi')} className="mt-3 max-h-80 max-w-full rounded-lg" />
-            )}
-            {question.audioUrl && <audio controls preload="none" src={question.audioUrl} className="mt-3 w-full" />}
-            <MockAnswer
-              question={question}
-              value={answers[question.questionId]}
-              onChange={(value) => choose(question.questionId, value)}
-            />
-          </fieldset>
-        </div>
-      ))}
-
-      {error && (
-        <Banner tone="danger" title={tr('Chưa lưu/nộp được bài')}>
-          {error}
-        </Banner>
-      )}
-
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {seconds === 0 ? (
-          <Button type="button" variant="primary" loading={pending} disabled={pending || !online} onClick={submit}>
-            {pending ? tr('Đang nộp bài…') : tr('Nộp bài đã hết giờ')}
-          </Button>
-        ) : (
-          <Button type="button" icon={Send} loading={pending} disabled={!online} onClick={askSubmit}>
-            {tr('Nộp bài thi thử')}
-          </Button>
-        )}
-      </div>
+      />
     </>
   );
 }
 
-function MockReviewQuestion({ attemptId, question, number }) {
-  const queryClient = useQueryClient();
-  const ai = useMutation({
-    mutationFn: () => getMockQuestionExplanation(attemptId, question.questionId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['study-subscription'] }),
-  });
-  const selectedOptions = new Set(question.questionType?.toLowerCase() === 'multiplechoice' && Array.isArray(question.response)
-    ? question.response : [question.selectedOptionId]);
-  const reasons = new Map((ai.data?.options ?? []).map(option => [option.optionId, option.reason]));
-  const star = question.interactionData?.starPosition;
-  const hasStarAnswer = Boolean(star && Array.isArray(question.answerKey));
-
-  return <article className={card + ' space-y-3 text-sm'}>
-    <h3 className="flex flex-wrap items-center justify-between gap-2">
-      <span className="font-semibold">Câu {number}</span>
-      <span className={question.isCorrect ? 'font-semibold text-emerald-800' : 'font-semibold text-rose-800'}>
-        {question.isCorrect ? 'Đúng' : 'Sai hoặc bỏ trống'}
-      </span>
-    </h3>
-    <MockQuestionContext question={question} />
-    {question.questionText && <p className="whitespace-pre-wrap font-semibold">{question.questionText}</p>}
-    {hasStarAnswer && <>
-      <p><strong>Dấu ★</strong> · {question.answerKey[star - 1]}</p>
-      <p><strong>Thứ tự đúng</strong> · {question.answerKey.join(' / ')}</p>
-      {Array.isArray(question.response) && question.response.length > 0 &&
-        <p><strong>Thứ tự bạn chọn</strong> · {question.response.join(' / ')}</p>}
-    </>}
-    {question.answerKey != null && !hasStarAnswer && !question.options?.length && <p>
-      <strong>Đáp án đúng</strong> · {Array.isArray(question.answerKey) && question.answerKey.every(value => typeof value === 'string')
-        ? question.answerKey.join(' / ') : typeof question.answerKey === 'string' ? question.answerKey : JSON.stringify(question.answerKey)}
-    </p>}
-    {question.explanation && <p className="whitespace-pre-wrap text-[#765E6B]">{question.explanation}</p>}
-    {ai.data && <div className="space-y-2 rounded-lg border border-[#EADFE5] bg-[#FCF8FA] p-3" aria-live="polite">
-      <h4 className="font-semibold text-[#AD3155]">Giải thích của AI</h4>
-      <p className="font-medium">Điểm câu hỏi · {ai.data.score}/{ai.data.maxScore}</p>
-      <p className="whitespace-pre-wrap">{ai.data.explanation}</p>
-    </div>}
-    {Boolean(question.options?.length) && <ul className="grid gap-2">
-      {question.options.map((option, index) => <li key={option.optionId}
-        className={'space-y-2 rounded-lg border p-3 ' + (option.isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-[#EADFE5]')}>
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="font-semibold">Đáp án {index + 1}</span>
-          {option.isCorrect && <span className="text-emerald-800">Đáp án đúng</span>}
-          {selectedOptions.has(option.optionId) && <span className="text-[#AD3155]">Bạn chọn</span>}
-        </div>
-        {!question.interactionData?.optionsInAudio && optionContent(option, 'Hình đáp án ' + (index + 1))}
-        {reasons.has(option.optionId) && <p className="whitespace-pre-wrap">{reasons.get(option.optionId)}</p>}
-      </li>)}
-    </ul>}
-    {!ai.data && <button className={button} type="button" disabled={ai.isPending} onClick={() => ai.mutate()}>
-      {ai.isPending ? 'AI đang phân tích…' : 'Chấm và giải thích câu này · 1 lượt khi tạo'}
-    </button>}
-    {ai.isError && <p role="alert" className="text-rose-800">
-      {ai.error.message}{' '}
-      {ai.error.data?.errorCode === 'AI_CREDIT_REQUIRED' && <Link className={linkClass} to="/plans/">Xem gói ôn luyện</Link>}
-    </p>}
-  </article>;
-}
-
 function MockResult({ result, userId, returnToList }) {
-  const { tr, trf } = useLocale();
+  const { tr } = useLocale();
   const [showReview, setShowReview] = useState(false);
   const [reviewFilter, setReviewFilter] = useState('wrong');
 
@@ -512,24 +402,60 @@ function MockResult({ result, userId, returnToList }) {
   const allQuestions = review.data?.questions ?? [];
   const wrong = allQuestions.filter((question) => !question.isCorrect);
   const visibleQuestions = reviewFilter === 'wrong' ? wrong : allQuestions;
+  const weakestSection = result.sections?.filter((section) => Number(section.totalCount) > 0)
+    .reduce((weakest, section) => !weakest || Number(section.score) < Number(weakest.score) ? section : weakest, null);
 
   return (
     <>
-      <Card>
-        <h2 className="text-base font-bold text-rp-text">{tr('Kết quả thi thử')}</h2>
-        <p className="mt-2 text-3xl font-bold tabular-nums text-rp-brand-strong">{formatPercent(result.totalScore)}%</p>
-        <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          {result.sections?.map((section) => (
-            <li key={section.mockTestSectionId} className="rounded-xl border border-rp-line bg-rp-brand-tint p-3">
-              {trf('{0} · {1}/{2} câu đúng', { 0: section.sectionTitle, 1: section.correctCount, 2: section.totalCount })}
-            </li>
-          ))}
+      <Card className="space-y-4">
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-bold text-rp-text">{tr('Kết quả thi thử (Simulated JLPT)')}</h2>
+            {result.mockTestId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                icon={Download}
+                onClick={async () => {
+                  try {
+                    const { blob, fileName } = await exportExamFile(result.mockTestId, 'pdf', false);
+                    triggerBlobDownload(blob, fileName);
+                  } catch (err) {
+                    notify.apiError(err, tr('Không tải được đề PDF'), { key: 'mock-pdf-err' });
+                  }
+                }}
+              >
+                {tr('Tải đề PDF')}
+              </Button>
+            )}
+          </div>
+          <p className="mt-2 text-3xl font-bold tabular-nums text-rp-brand">{formatPercent(result.totalScore)}%</p>
+        </div>
+        <ProgressBar value={Number(result.totalScore) || 0} max={100} label={tr('Tổng điểm thi thử')} />
+        <ul className="grid gap-2.5 text-sm sm:grid-cols-2">
+          {result.sections?.map((section) => {
+            const total = Number(section.totalCount) || 0;
+            const correct = Number(section.correctCount) || 0;
+            const pct = total > 0 ? Math.round((correct / total) * 100) : null;
+            return (
+              <li key={section.mockTestSectionId} className="space-y-1.5 rounded-rp-input border border-rp-line bg-rp-bg-2/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-rp-text">{section.sectionTitle}</span>
+                  <span className="shrink-0 text-xs font-medium tabular-nums text-rp-text-muted">
+                    {total > 0 ? `${correct}/${total} ${tr('câu đúng')}` : tr('Chưa đánh giá')}
+                  </span>
+                </div>
+                {pct != null && <ProgressBar value={pct} max={100} label={section.sectionTitle} />}
+              </li>
+            );
+          })}
         </ul>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 pt-1">
           <Button type="button" variant="primary" size="sm" onClick={() => setShowReview((value) => !value)}>
             {showReview ? tr('Ẩn xem lại đáp án') : tr('Xem lại câu làm')}
           </Button>
-          <Link className="rp-link text-sm font-semibold" to="/exam-result/">
+          <Link className="rp-focus rp-link text-sm font-semibold" to="/exam-result/">
             {tr('Lịch sử và so sánh')}
           </Link>
           <Button type="button" variant="ghost" size="sm" onClick={returnToList}>
@@ -537,6 +463,20 @@ function MockResult({ result, userId, returnToList }) {
           </Button>
         </div>
       </Card>
+
+      {weakestSection && (
+        <Card className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-rp-brand-strong">{tr('Ưu tiên ôn tập')}</p>
+            <p className="mt-1 font-semibold text-rp-text">{tr(weakestSection.sectionTitle)}</p>
+            <p className="text-sm text-rp-text-muted">{tr('Ôn lại phần này để cải thiện kết quả ở lần luyện tập tiếp theo.')}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button as={Link} to="/lessons/" variant="secondary" size="sm">{tr('Khám phá bài học')}</Button>
+            <Button as={Link} to="/roadmap/" variant="secondary" size="sm">{tr('Xem lộ trình học')}</Button>
+          </div>
+        </Card>
+      )}
 
       {showReview && (
         <div className="space-y-4">
@@ -569,12 +509,23 @@ function MockResult({ result, userId, returnToList }) {
 
           {review.isSuccess && reviewFilter === 'wrong' && wrong.length === 0 && (
             <Card>
-              <p className="text-sm font-medium text-rp-success">{tr('Bạn đã làm đúng tất cả các câu.')}</p>
+              <EmptyState
+                variant="inline"
+                size="sm"
+                illustration="done"
+                title={tr('Bạn đã làm đúng tất cả các câu.')}
+              />
             </Card>
           )}
 
           {visibleQuestions.map((question, idx) => {
             const answerKeyText = formatAnswerKey(question.answerKey);
+            const resolvedPassageText =
+              question.passageText ||
+              [question.interactionData?.passage, question.interactionData?.secondPassage]
+                .filter((s) => typeof s === 'string' && s.trim())
+                .join('\n\n---\n\n') ||
+              '';
             return (
               <Card key={question.questionId} className="space-y-2.5 text-sm">
                 <div className="flex items-center justify-between gap-2">
@@ -583,7 +534,19 @@ function MockResult({ result, userId, returnToList }) {
                   </Badge>
                   <span className="text-xs text-rp-text-muted">#{idx + 1}</span>
                 </div>
+                {resolvedPassageText && (
+                  <div className="rounded-lg border border-rp-line bg-slate-50 p-2.5 text-xs">
+                    <p className="font-semibold text-rp-text">{question.passageTitle || tr('Đoạn đọc')}</p>
+                    <p className="rp-jp mt-1 whitespace-pre-wrap">{resolvedPassageText}</p>
+                  </div>
+                )}
                 <p className="whitespace-pre-wrap font-semibold text-rp-text">{question.questionText}</p>
+                {question.reviewTranscript && (
+                  <div className="rounded-lg border border-rp-line bg-slate-50 p-2.5 text-xs text-rp-text-2">
+                    <strong>{tr('Transcript (mở sau nộp bài)')}:</strong>{' '}
+                    <span className="rp-jp whitespace-pre-wrap">{question.reviewTranscript}</span>
+                  </div>
+                )}
                 {question.options
                   ?.filter((option) => option.isCorrect)
                   .map((option) => (
@@ -614,17 +577,23 @@ export default function MockTestPage() {
   const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
   const attemptId = Number(params.get('attemptId')) || null;
+  const selectedTestId = Number(params.get('testId')) || null;
   const levelCode = params.get('level');
-  const unfinished = params.get('view') === 'unfinished';
-  const viewParams = unfinished ? { view: 'unfinished' } : {};
   const attemptKey = ['mock-test-page', user?.userId, attemptId];
 
   const levels = useQuery({ queryKey: ['mock-test-levels'], queryFn: getMockTestLevels, enabled: !attemptId });
-  const activeLevel = levels.data?.find((level) => level.code === levelCode) ?? levels.data?.[0];
+  const supportedLevels = filterSupportedJlptLevels(levels.data || []);
+  const activeLevel = supportedLevels.find((level) => level.code === levelCode) ?? supportedLevels[0];
   const tests = useQuery({
     queryKey: ['mock-tests-by-level', activeLevel?.id],
     queryFn: () => getMockTestsByLevel(activeLevel.id),
     enabled: !attemptId && Boolean(activeLevel),
+  });
+  const testInfo = useQuery({
+    queryKey: ['mock-test-info', selectedTestId],
+    queryFn: () => getMockTestInfo(selectedTestId),
+    enabled: !attemptId && Boolean(selectedTestId),
+    retry: false,
   });
 
   const current = useQuery({
@@ -662,7 +631,7 @@ export default function MockTestPage() {
 
   const returnToList = () => {
     start.reset();
-    setParams({ ...viewParams, ...(levelCode ? { level: levelCode } : {}) });
+    setParams(levelCode ? { level: levelCode } : {});
   };
 
   const blockingError = !attemptId
@@ -684,24 +653,69 @@ export default function MockTestPage() {
   return (
     <LearnerShell breadcrumb={tr('Thi thử')}>
       <PageContainer data-page="MockTestPage" width="default" className="space-y-4">
-        <PageHeader
-          eyebrow="JLPT N5 – N1"
+        {(!attemptId || current.data?.result) && <IllustratedPageHeader
+          icon="mock"
+          tone="navy"
+          eyebrow="JLPT N5 – N2"
           title={tr('Thi thử JLPT')}
           description={tr('Làm bài theo thời gian thực để đo mức độ sẵn sàng từng kỹ năng.')}
           actions={
-            <div className="flex flex-wrap items-center gap-3">
-              <Link className="rp-link text-sm font-semibold" to="/exam-result/">
+            <ControlGroup>
+              {!attemptId && !selectedTestId && levels.data?.length > 0 && (
+                <LevelTabs
+                  label={tr('Cấp độ thi thử')}
+                  value={activeLevel?.code ?? ''}
+                  onChange={(code) => {
+                    if (start.isPending) return;
+                    start.reset();
+                    setParams({ level: code });
+                  }}
+                  levels={supportedLevels}
+                />
+              )}
+              <Button as={Link} to="/exam-result/" variant="primary" size="md" icon={History}>
                 {tr('Lịch sử & kết quả')}
-              </Link>
-              <Link className="rp-link text-sm font-semibold" to="/app/placement-test/">
-                {tr('Đánh giá năng lực')}
-              </Link>
-            </div>
+              </Button>
+            </ControlGroup>
           }
-        />
+        />}
+
+        {!attemptId && selectedTestId && (
+          testInfo.isPending ? <SakuraLoader variant="section" context="mocktest" delay={160} /> :
+          testInfo.isError ? (
+            <Card><ContextualErrorState error={testInfo.error} onRetry={() => testInfo.refetch()}
+              retrying={testInfo.isFetching} compact /></Card>
+          ) : (
+            <Card className="space-y-5">
+              <div>
+                <Badge tone="brand" icon={false}>{testInfo.data.jlptLevelName}</Badge>
+                <h2 className="mt-2 text-xl font-bold text-rp-text">{tr(testInfo.data.title)}</h2>
+                {testInfo.data.description && <p className="mt-1 text-sm text-rp-text-2">{tr(testInfo.data.description)}</p>}
+              </div>
+              <div className="flex flex-wrap gap-3 text-sm text-rp-text-2">
+                <span>{trf('{0} phút', { 0: testInfo.data.timeLimitMinutes })}</span>
+                <span>{trf('{0} câu', { 0: testInfo.data.questionCount })}</span>
+              </div>
+              <ul className="divide-y divide-rp-line rounded-xl border border-rp-line">
+                {testInfo.data.sections.map((section, index) => (
+                  <li key={`${section.title}-${index}`} className="flex flex-wrap justify-between gap-2 px-4 py-3 text-sm">
+                    <span className="font-medium text-rp-text">{tr(section.title)}</span>
+                    <span className="text-rp-text-muted">{trf('{0} câu', { 0: section.questionCount })}{section.requiresAudio ? ` · ${tr('Cần nghe audio')}` : ''}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-rp-text-2">{tr('Đồng hồ bắt đầu khi bạn xác nhận làm bài. Tải lại trang sẽ tiếp tục lượt thi đang làm; hết giờ, máy chủ chấm các đáp án đã lưu.')}</p>
+              <div className="flex flex-wrap gap-2.5">
+                <Button variant="secondary" size="md" onClick={() => setParams({ level: levelCode || testInfo.data.jlptLevelName })}>{tr('Về danh sách đề')}</Button>
+                <Button variant="primary" size="md" disabled={start.isPending} loading={start.isPending}
+                  onClick={() => start.mutate(selectedTestId)}>{tr('Bắt đầu thi thử')}</Button>
+              </div>
+            </Card>
+          )
+        )}
 
         {start.error && (
-          <Banner tone="danger">{describeApiError(start.error, tr('Không thể bắt đầu bài thi thử.'))}</Banner>
+          <Banner tone="danger">{formatApiError(start.error, tr('Không thể bắt đầu bài thi thử.'))}</Banner>
         )}
 
         {blockingError && (
@@ -734,48 +748,29 @@ export default function MockTestPage() {
           <MockResult key={attemptId} result={current.data.result} userId={user?.userId} returnToList={returnToList} />
         )}
 
-        {!attemptId && (
+        {!attemptId && !selectedTestId && (
           <>
-            <Card>
-              <h2 className="text-sm font-semibold text-rp-text">{tr('Chọn cấp độ JLPT')}</h2>
-              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tr('Cấp độ thi thử')}>
-                {levels.data?.map((level) => {
-                  const active = activeLevel?.id === level.id;
-                  return (
-                    <button
-                      key={level.id}
-                      type="button"
-                      aria-pressed={active}
-                      disabled={start.isPending}
-                      className={`rp-focus rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
-                        active
-                          ? 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong'
-                          : 'border-rp-line bg-rp-surface text-rp-text-2 hover:bg-rp-brand-tint/40'
-                      }`}
-                      onClick={() => {
-                        start.reset();
-                        setParams({ level: level.code });
-                      }}
-                    >
-                      {level.code}
-                    </button>
-                  );
-                })}
-              </div>
-              {(levels.isPending || (activeLevel && tests.isLoading)) && (
-                <SakuraLoader variant="section" context="mocktest" delay={160} className="mt-3" />
-              )}
-              {levels.isSuccess && levels.data.length === 0 && (
-                <p className="mt-3 text-sm text-rp-text-muted">{tr('Chưa có cấp độ thi thử.')}</p>
-              )}
-            </Card>
+            {(levels.isPending || (activeLevel && tests.isLoading)) && (
+              <SakuraLoader variant="section" context="mocktest" delay={160} />
+            )}
+
+            {levels.isSuccess && levels.data.length === 0 && (
+              <Card>
+                <EmptyState
+                  variant="compact"
+                  illustration="certificate"
+                  title={tr('Chưa có cấp độ thi thử.')}
+                  description={tr('Đề thi thử sẽ hiển thị tại đây ngay khi được Quản trị viên phê duyệt.')}
+                />
+              </Card>
+            )}
 
             {tests.isSuccess &&
               (tests.data.length ? (
-                <ul className="space-y-3">
+                <ul className="grid gap-3 sm:grid-cols-2">
                   {tests.data.map((test) => (
                     <li key={test.mockTestId}>
-                      <Card className="flex flex-wrap items-center justify-between gap-4">
+                      <Card className="flex h-full flex-col justify-between gap-4">
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-semibold text-rp-text">{tr(test.title)}</h3>
@@ -795,14 +790,10 @@ export default function MockTestPage() {
                         <Button
                           type="button"
                           variant="primary"
-                          size="sm"
-                          disabled={start.isPending}
-                          loading={start.isPending && start.variables === test.mockTestId}
-                          onClick={() => start.mutate(test.mockTestId)}
+                          size="md"
+                          onClick={() => setParams({ level: activeLevel?.code || '', testId: String(test.mockTestId) })}
                         >
-                          {start.isPending && start.variables === test.mockTestId
-                            ? tr('Đang mở đề…')
-                            : tr('Bắt đầu thi thử')}
+                          {tr('Xem thông tin đề')}
                         </Button>
                       </Card>
                     </li>
@@ -811,7 +802,8 @@ export default function MockTestPage() {
               ) : (
                 <Card>
                   <EmptyState
-                    compact
+                    variant="compact"
+                    illustration="certificate"
                     title={trf('Chưa có đề thi thử {0}.', { 0: activeLevel?.code || '' })}
                     description={tr('Hãy chọn một cấp độ JLPT khác hoặc làm bài đánh giá năng lực.')}
                   />

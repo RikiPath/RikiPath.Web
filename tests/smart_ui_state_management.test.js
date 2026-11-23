@@ -508,4 +508,79 @@ describe('Smart UI State Management — Component SSR & HomeLearner Integration'
     const tokens = readSrc('src/styles/tokens.css');
     assert.match(tokens, /\.rp-cq-two-col:has\(>\s*aside:empty\)\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\);?\s*\}/);
   });
+
+  it('standardizes non-inline EmptyStateCard, ContextualEmptyState, and ContextualErrorState into unified white cards without double borders inside nested surfaces', async () => {
+    const { EmptyStateCard, ContextualEmptyState, ContextualErrorState } = BoundaryMod;
+    const statesMod = await viteServer.ssrLoadModule('/src/components/ui/states.jsx');
+    const coreMod = await viteServer.ssrLoadModule('/src/components/ui/core.jsx');
+    const tokens = readSrc('src/styles/tokens.css');
+
+    assert.match(tokens, /\.rp-state-card\s*\{[\s\S]*min-height:\s*240px[\s\S]*background-color:\s*var\(--color-rp-surface\)/);
+    assert.ok(tokens.includes("[data-rp-surface='true']"), 'Nested surface selector must suppress double borders');
+    assert.ok(tokens.includes('.course-box'), 'Legacy .course-box card must suppress double borders');
+
+    const emptyHtml = renderInShell(
+      React.createElement(ContextualEmptyState, {
+        variant: 'compact',
+        illustration: 'message',
+        title: 'Không có khiếu nại nào.',
+      }),
+    );
+    assert.ok(emptyHtml.includes('rp-state-card'));
+    assert.ok(emptyHtml.includes('data-empty-framed="true"'));
+
+    const searchEmptyHtml = renderInShell(
+      React.createElement(statesMod.EmptyState, {
+        variant: 'search',
+        title: 'Không tìm thấy kết quả phù hợp',
+      }),
+    );
+    assert.ok(searchEmptyHtml.includes('rp-state-card'));
+
+    const inlineEmptyHtml = renderInShell(
+      React.createElement(ContextualEmptyState, {
+        variant: 'inline',
+        title: 'Chưa có dữ liệu',
+      }),
+    );
+    assert.equal(inlineEmptyHtml.includes('rp-state-card'), false);
+    assert.ok(inlineEmptyHtml.includes('data-empty-framed="false"'));
+
+    const errorHtml = renderInShell(
+      React.createElement(ContextualErrorState, {
+        error: new Error('500'),
+        onRetry: () => {},
+      }),
+    );
+    assert.ok(errorHtml.includes('rp-state-card'));
+    assert.ok(errorHtml.includes('Thử lại'));
+
+    const inlineErrorHtml = renderInShell(
+      React.createElement(ContextualErrorState, {
+        variant: 'inline',
+        error: new Error('500'),
+        onRetry: () => {},
+      }),
+    );
+    assert.equal(inlineErrorHtml.includes('rp-state-card'), false);
+
+    const cardWrapperHtml = renderInShell(
+      React.createElement(
+        coreMod.Card,
+        null,
+        React.createElement(ContextualEmptyState, { title: 'Chưa có dữ liệu' }),
+      ),
+    );
+    assert.ok(cardWrapperHtml.includes('data-rp-surface="true"'));
+
+    const explicitEmptyCardHtml = renderInShell(
+      React.createElement(
+        EmptyStateCard,
+        null,
+        React.createElement(ContextualEmptyState, { title: 'Chưa có yêu cầu chuyển lớp.' }),
+      ),
+    );
+    assert.ok(explicitEmptyCardHtml.includes('data-empty-card="true"'));
+    assert.ok(explicitEmptyCardHtml.includes('bg-rp-surface'));
+  });
 });

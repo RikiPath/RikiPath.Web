@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, RefreshCw, Table2 } from 'lucide-react';
+import { CalendarDays, Table2 } from 'lucide-react';
 import {
   Badge,
-  Button,
   ContextualEmptyState,
   ContextualErrorState,
   DataTable,
+  RefreshButton,
   RefreshingIndicator,
   SakuraLoader,
   StaleDataBar,
@@ -85,17 +85,28 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
 
   const events = useMemo(
     () =>
-      slots.map((slot) => {
+      slots.flatMap((slot) => {
+        const dayKey = toVnDateKey(slot.startTime);
+        if (!dayKey) return [];
+        const startParts = toVnTimeParts(slot.startTime);
+        const endParts = toVnTimeParts(slot.endTime);
         const state = STATES[slot.state] || STATES.Available;
         const learners = activeBookings(slot).map((b) => b.learnerName).filter(Boolean).join(', ');
-        return {
+        return [{
           id: slot.id,
+          dayKey,
+          startHour: startParts.hour,
+          startMinute: startParts.minute,
+          endHour: endParts.hour,
+          endMinute: endParts.minute,
           startTime: slot.startTime,
           endTime: slot.endTime,
           title: learners || tr(state.label),
-          subtitle: `${clock(slot.startTime)}–${clock(slot.endTime)}`,
+          subtitle: `${startParts.hhmm}–${endParts.hhmm}`,
+          tone: state.calendarStatus,
           status: state.calendarStatus,
-        };
+          statusLabel: tr(state.label),
+        }];
       }),
     [slots, tr],
   );
@@ -136,7 +147,7 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-rp-brand-tint/40 px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-white px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-2 text-xs text-rp-text-2">
           <span>{email || tr('Lịch giảng dạy')}</span>
           <span>·</span>
@@ -156,15 +167,12 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
               { value: 'table', label: tr('Bảng ngày'), icon: Table2 },
             ]}
           />
-          <Button
-            size="sm"
-            variant="outline"
-            icon={RefreshCw}
-            disabled={query.isFetching}
-            onClick={() => query.refetch()}
-          >
-            {tr('Làm mới')}
-          </Button>
+          {!query.isPending && !(query.isError && !query.data) && !(displayMode === 'table' && slots.length === 0) && (
+            <RefreshButton
+              onRefresh={() => query.refetch({ cancelRefetch: true })}
+              refreshing={query.isFetching}
+            />
+          )}
         </div>
       </div>
 
@@ -194,7 +202,8 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
         />
       ) : slots.length === 0 ? (
         <ContextualEmptyState
-          compact
+          variant="compact"
+          illustration="calendar"
           title={tr('Chưa có khung giờ nào trong khoảng thời gian này')}
           description={tr('Hãy chọn tuần khác hoặc chuyển sang chế độ Lịch để xem chi tiết.')}
         />

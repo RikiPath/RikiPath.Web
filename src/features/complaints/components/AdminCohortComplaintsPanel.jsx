@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Eye, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { FileText } from 'lucide-react';
 import {
   COMPLAINT_CATEGORIES,
   COMPLAINT_STATUS_LABELS,
@@ -16,13 +16,18 @@ import {
   Card,
   ContextualEmptyState,
   CustomSelect,
-  DataTable,
   Drawer,
   Field,
-  IconButton,
   SmartDataBoundary,
   Textarea,
 } from '@/components/ui';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminStatusBadge,
+  AdminToolbar,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { ComplaintHistory } from './CohortComplaintPanel';
@@ -32,7 +37,14 @@ const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
 const categoryLabel = (v) => COMPLAINT_CATEGORIES.find((c) => c.value === v)?.label || v;
 const STATUS_TONE = { Open: 'warning', UnderReview: 'info', Resolved: 'success', Rejected: 'danger' };
 
-export default function AdminCohortComplaintsPanel({ busy = false, initialComplaintId = null, onRun }) {
+export default function AdminCohortComplaintsPanel({
+  busy = false,
+  fillHeight = false,
+  initialComplaintId = null,
+  toolbarTabs = null,
+  refreshSignal = 0,
+  onRun,
+}) {
   const { tr, trf } = useLocale();
   const initialIdNum = initialComplaintId ? Number(initialComplaintId) : null;
   const [status, setStatus] = useState(initialIdNum ? '' : 'Open');
@@ -42,7 +54,12 @@ export default function AdminCohortComplaintsPanel({ busy = false, initialCompla
   const [decision, setDecision] = useState('');
   const [error, setError] = useState('');
 
-  const query = useAsyncResource(() => getCohortComplaints(status || undefined), [status]);
+  const query = useAsyncResource(() => getCohortComplaints(), []);
+  const hasRecords = query.isSuccess && Array.isArray(query.data) && query.data.length > 0;
+  const queryRefetch = query.refetch;
+  useEffect(() => {
+    if (refreshSignal > 0) queryRefetch();
+  }, [refreshSignal, queryRefetch]);
 
   const loadDetail = (id) =>
     getCohortComplaint(id)
@@ -70,7 +87,7 @@ export default function AdminCohortComplaintsPanel({ busy = false, initialCompla
   const decidable = item && (item.status === 'Open' || item.status === 'UnderReview');
 
   const columns = [
-    { key: 'id', header: '#', render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span> },
+    { key: 'id', header: '#', compact: true, render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span> },
     {
       key: 'cohortName',
       header: tr('Lớp / Khóa'),
@@ -80,37 +97,41 @@ export default function AdminCohortComplaintsPanel({ busy = false, initialCompla
       key: 'category',
       header: tr('Loại khiếu nại'),
       render: (r) => (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
           <span>{tr(categoryLabel(r.category))}</span>
           {r.refundReviewRequested && <Badge tone="warning" size="sm" icon={false}>{tr('Xin xem xét hoàn tiền')}</Badge>}
         </div>
       ),
     },
     { key: 'mentorName', header: tr('Giáo viên'), render: (r) => <span className="text-sm text-rp-text-2">{r.mentorName || '—'}</span> },
-    { key: 'createdAtUtc', header: tr('Gửi lúc'), render: (r) => <span className="text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
+    { key: 'createdAtUtc', header: tr('Gửi lúc'), compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      compact: true,
       render: (r) => (
-        <Badge tone={STATUS_TONE[r.status] || 'neutral'} size="sm" icon={false}>
-          {tr(COMPLAINT_STATUS_LABELS[r.status] || r.status)}
-        </Badge>
+        <AdminStatusBadge
+          tone={STATUS_TONE[r.status] || 'neutral'}
+          label={COMPLAINT_STATUS_LABELS[r.status] || r.status}
+        />
       ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-rp-text">{tr('Khiếu nại khóa học')}</h2>
-            <p className="text-xs text-rp-text-muted">
-              {tr('Yêu cầu xem xét hoàn tiền chỉ là đề nghị của học viên; hệ thống không hoàn tiền tự động.')}
-            </p>
-          </div>
-          <div className="w-full sm:w-[200px]">
+    <div className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
+      {(toolbarTabs || hasRecords) && (
+        <AdminToolbar
+          tabs={toolbarTabs}
+          refresh={{
+            when: hasRecords,
+            onRefresh: query.refetch,
+            refreshing: query.isFetching && !query.isPending,
+          }}
+        >
+          {hasRecords && (
             <CustomSelect
+              fitContent
               value={status}
               aria-label={tr('Lọc trạng thái khiếu nại')}
               onChange={setStatus}
@@ -119,9 +140,9 @@ export default function AdminCohortComplaintsPanel({ busy = false, initialCompla
                 { value: '', label: tr('Tất cả trạng thái') },
               ]}
             />
-          </div>
-        </div>
-      </Card>
+          )}
+        </AdminToolbar>
+      )}
 
       {error && <Banner tone="danger">{error}</Banner>}
 
@@ -133,19 +154,39 @@ export default function AdminCohortComplaintsPanel({ busy = false, initialCompla
         errorTitle={tr('Chưa tải được danh sách khiếu nại')}
         compact
         diagnosticScope="AdminCohortComplaintsPanel"
-        empty={<ContextualEmptyState compact context="adminQueue" title={tr('Không có khiếu nại nào.')} />}
+        className={fillHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}
+        empty={
+          <ContextualEmptyState
+            variant="compact"
+            context="adminQueue"
+            illustration="message"
+            title={tr('Không có khiếu nại nào.')}
+            description=""
+          />
+        }
       >
-        {(rows) => (
-          <DataTable
+        {(rows) => {
+          const visible = status ? rows.filter((item) => item.status === status) : rows;
+          return visible.length === 0 ? (
+            <ContextualEmptyState variant="search" illustration="search" title={tr('Không tìm thấy kết quả phù hợp')} description={tr('Thử chọn trạng thái khác hoặc xóa bộ lọc.')} action={<Button size="sm" variant="outline" onClick={() => setStatus('')}>{tr('Xóa bộ lọc')}</Button>} />
+          ) : <AdminDataTable
             columns={columns}
-            rows={rows}
+            rows={visible}
             rowKey={(r) => r.id}
+            itemLabel="khiếu nại"
+            fillHeight={fillHeight}
             onRowClick={choose}
             rowActions={(r) => (
-              <IconButton icon={Eye} size="sm" variant="ghost" label={tr('Xem chi tiết')} onClick={() => choose(r)} />
+              <AdminRowActions>
+                <AdminIconAction
+                  kind="view"
+                  tooltip="Xem & xử lý khiếu nại"
+                  onClick={() => choose(r)}
+                />
+              </AdminRowActions>
             )}
-          />
-        )}
+          />;
+        }}
       </SmartDataBoundary>
 
       <Drawer

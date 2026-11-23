@@ -11,6 +11,7 @@ import {
   setPassword,
   updateEmail,
   verifyEmail,
+  verifyEmailByLink,
 } from '@/features/auth/api/authApi.js';
 import { setJlptGoal } from '@/features/profile/api/profileApi.js';
 import { queryClient } from '@/api/queryClient.js';
@@ -26,6 +27,10 @@ export function useLoginMutation() {
 
 export function useVerifyEmailMutation() {
   return useMutation({ mutationFn: verifyEmail });
+}
+
+export function useVerifyEmailLinkMutation() {
+  return useMutation({ mutationFn: verifyEmailByLink });
 }
 
 export function useResendVerificationMutation() {

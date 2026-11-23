@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,7 +9,6 @@ import {
   Clock,
   Layers,
   MessageSquareWarning,
-  RefreshCw,
   Users,
   Video,
 } from 'lucide-react';
@@ -30,10 +29,12 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  RefreshButton,
+  RefreshingIndicator,
   SakuraLoader,
-  SearchInput,
   Tabs,
   Textarea,
+  UnifiedToolbar,
   cx,
   notify,
 } from '@/components/ui';
@@ -129,11 +130,14 @@ export default function MentorClassWorkspace() {
   const [homeworkTick, setHomeworkTick] = useState(0);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const refreshSeqRef = useRef(0);
+  const inFlightRefreshRef = useRef(null);
 
   const [selectedSessionNumber, setSelectedSessionNumber] = useState(null);
   const [attendanceModal, setAttendanceModal] = useState(null); // { course, session, status, note }
@@ -314,6 +318,38 @@ export default function MentorClassWorkspace() {
     const idNum = Number(activeCohortIdParam);
     return mentorCohortEntries.find((c) => c.cohortId === idNum) || null;
   }, [activeCohortIdParam, mentorCohortEntries]);
+
+  function handleRefresh() {
+    if (inFlightRefreshRef.current) return inFlightRefreshRef.current;
+    const seq = ++refreshSeqRef.current;
+    setRefreshing(true);
+    const activeCohortId = selectedCohort?.cohortId;
+    const job = Promise.all([
+      loadAll(),
+      activeCohortId
+        ? getCohortHomework(activeCohortId)
+            .then((rows) => {
+              if (refreshSeqRef.current === seq) {
+                setCohortHomework(Array.isArray(rows) ? rows : []);
+                setHomeworkError(null);
+              }
+            })
+            .catch(() => {})
+        : Promise.resolve(),
+    ])
+      .catch((e) => {
+        if (refreshSeqRef.current === seq) {
+          if (mentorCohortEntries.length === 0) setLoadError(e);
+          else notify.apiError(e, tr('Không thể làm mới dữ liệu lớp.'));
+        }
+      })
+      .finally(() => {
+        if (inFlightRefreshRef.current === job) inFlightRefreshRef.current = null;
+        if (refreshSeqRef.current === seq) setRefreshing(false);
+      });
+    inFlightRefreshRef.current = job;
+    return job;
+  }
 
   useEffect(() => {
     if (!selectedCohort?.cohortId) return undefined;
@@ -498,11 +534,10 @@ export default function MentorClassWorkspace() {
       key: 'actions',
       header: 'Thao tác',
       sortable: false,
-      align: 'right',
       render: (c) => {
         const hasApprovedRetake = (c.requests || []).some((r) => r.status === 'Approved');
         return (
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => openSkillModal(c)}>
               {tr('Hồ sơ năng lực')}
             </Button>
@@ -548,7 +583,6 @@ export default function MentorClassWorkspace() {
       key: 'action',
       header: 'Điểm danh',
       sortable: false,
-      align: 'right',
       render: ({ course, session }) => {
         const canMark = course.status === 'Active' && session.status === 'Scheduled';
         return canMark ? (
@@ -575,7 +609,16 @@ export default function MentorClassWorkspace() {
 
   return (
     <MentorShell breadcrumb={selectedCohort ? selectedCohort.name : tr('Lớp đang phụ trách')}>
-      <PageContainer width="default" density="comfortable" className="space-y-[var(--rp-space-section)] text-rp-text">
+      <PageContainer width="default" density="comfortable" className="relative space-y-[var(--rp-space-section)] text-rp-text">
+        {refreshing && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
+            </div>
+          </div>
+        )}
         {loading ? (
           <SakuraLoader variant="section" context="cohort" delay={160} />
         ) : loadError && mentorCohortEntries.length === 0 ? (
@@ -583,8 +626,8 @@ export default function MentorClassWorkspace() {
             <ContextualErrorState
               error={loadError}
               title={tr('Chưa tải được danh sách lớp phụ trách')}
-              onRetry={() => runAction(loadAll, '', { silentLoading: true })}
-              retrying={busy}
+              onRetry={() => handleRefresh()}
+              retrying={refreshing}
             />
           </Card>
         ) : !selectedCohort ? (
@@ -594,20 +637,9 @@ export default function MentorClassWorkspace() {
               title="Lớp học nhóm đang phụ trách"
               description="Chọn một lớp học để xem danh sách học viên, điểm danh theo buổi, giao/chấm bài tập và quản lý lịch dạy."
               actions={(
-                <>
-                  <Button as={Link} to="/work-schedule/" variant="secondary" size="sm" icon={CalendarDays}>
-                    {tr('Lịch làm việc')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={RefreshCw}
-                    loading={busy}
-                    onClick={() => runAction(loadAll, 'Đã cập nhật danh sách lớp.', { silentLoading: true })}
-                  >
-                    {tr('Tải lại')}
-                  </Button>
-                </>
+                <Button as={Link} to="/work-schedule/" variant="secondary" size="sm" icon={CalendarDays}>
+                  {tr('Lịch làm việc')}
+                </Button>
               )}
             />
 
@@ -617,60 +649,89 @@ export default function MentorClassWorkspace() {
               </Banner>
             )}
 
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Card interactive className="p-4">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Lớp phụ trách')}</p>
-                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">{mentorCohortEntries.length}</p>
-              </Card>
-              <Card interactive className="p-4">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Tổng học viên đang học')}</p>
-                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">
-                  {mentorCohortEntries.reduce((n, e) => n + e.enrolledCourses.filter((c) => c.status === 'Active' || c.status === 'Ready').length, 0)}
-                </p>
-              </Card>
-              <Card interactive className="p-4">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Lượt buổi chờ điểm danh')}</p>
-                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-brand-strong">
-                  {mentorCohortEntries.reduce((n, e) => n + e.pendingAttendanceCount, 0)}
-                </p>
-              </Card>
-              <Card interactive className="p-4">
-                <p className="text-xs font-medium text-rp-text-muted">{tr('Khiếu nại cần lưu ý')}</p>
-                <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">{totalOpenComplaints}</p>
-              </Card>
-            </section>
+            {mentorCohortEntries.length > 0 && (
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Card interactive className="p-4">
+                  <p className="text-xs font-medium text-rp-text-muted">{tr('Lớp phụ trách')}</p>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">{mentorCohortEntries.length}</p>
+                </Card>
+                <Card interactive className="p-4">
+                  <p className="text-xs font-medium text-rp-text-muted">{tr('Tổng học viên đang học')}</p>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">
+                    {mentorCohortEntries.reduce((n, e) => n + e.enrolledCourses.filter((c) => c.status === 'Active' || c.status === 'Ready').length, 0)}
+                  </p>
+                </Card>
+                <Card interactive className="p-4">
+                  <p className="text-xs font-medium text-rp-text-muted">{tr('Lượt buổi chờ điểm danh')}</p>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-brand-strong">
+                    {mentorCohortEntries.reduce((n, e) => n + e.pendingAttendanceCount, 0)}
+                  </p>
+                </Card>
+                <Card interactive className="p-4">
+                  <p className="text-xs font-medium text-rp-text-muted">{tr('Khiếu nại cần lưu ý')}</p>
+                  <p className="mt-1.5 text-2xl font-bold tabular-nums text-rp-text">{totalOpenComplaints}</p>
+                </Card>
+              </section>
+            )}
 
-            <Card density="compact" className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0 flex-1 lg:max-w-sm">
-                <SearchInput
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onClear={() => setSearch('')}
-                  placeholder="Tìm theo tên lớp, trình độ JLPT hoặc học viên…"
-                />
-              </div>
-              <Tabs
-                variant="pill"
-                className="flex-wrap sm:flex-nowrap"
-                label={tr('Lọc trạng thái lớp')}
-                value={statusFilter}
-                onChange={setStatusFilter}
-                tabs={[
-                  { value: 'ALL', label: 'Tất cả' },
-                  { value: 'Active', label: 'Đang học' },
-                  { value: 'Ready', label: 'Chờ khai giảng' },
-                  { value: 'Open', label: 'Đang mở đăng ký' },
-                  { value: 'Completed', label: 'Đã hoàn thành' },
-                ]}
+            {mentorCohortEntries.length > 0 && (
+              <UnifiedToolbar
+                tabs={{
+                  label: tr('Lọc trạng thái lớp'),
+                  value: statusFilter,
+                  onChange: setStatusFilter,
+                  tabs: [
+                    { value: 'ALL', label: 'Tất cả' },
+                    { value: 'Active', label: 'Đang học' },
+                    { value: 'Ready', label: 'Chờ khai giảng' },
+                    { value: 'Open', label: 'Đang mở đăng ký' },
+                    { value: 'Completed', label: 'Đã hoàn thành' },
+                  ],
+                }}
+                search={{
+                  value: search,
+                  onChange: (e) => setSearch(e.target.value),
+                  onClear: () => setSearch(''),
+                  placeholder: 'Tìm tên lớp, JLPT, học viên…',
+                  ariaLabel: tr('Tìm lớp học'),
+                }}
+                refresh={{
+                  onRefresh: handleRefresh,
+                  refreshing,
+                }}
               />
-            </Card>
+            )}
 
             {filteredList.length === 0 ? (
               <Card>
                 <ContextualEmptyState
                   context="groupLearning"
-                  title="Không tìm thấy lớp học nhóm phù hợp"
-                  description="Các lớp bạn phụ trách sẽ hiển thị tại đây khi được mở lớp hoặc có học viên ghi danh."
+                  variant={mentorCohortEntries.length === 0 ? 'default' : 'search'}
+                  illustration={mentorCohortEntries.length === 0 ? 'classroom' : 'search'}
+                  title={
+                    mentorCohortEntries.length === 0
+                      ? tr('Bạn chưa có lớp học nhóm nào đang phụ trách')
+                      : tr('Không tìm thấy lớp học nhóm phù hợp')
+                  }
+                  description={
+                    mentorCohortEntries.length === 0
+                      ? tr('Các lớp bạn phụ trách sẽ hiển thị tại đây khi được mở lớp hoặc có học viên ghi danh.')
+                      : tr('Thử chọn trạng thái khác hoặc xóa từ khóa tìm kiếm.')
+                  }
+                  action={
+                    mentorCohortEntries.length > 0 && (statusFilter !== 'ALL' || search.trim() !== '') ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setStatusFilter('ALL');
+                          setSearch('');
+                        }}
+                      >
+                        {tr('Xóa bộ lọc')}
+                      </Button>
+                    ) : null
+                  }
                 />
               </Card>
             ) : (
@@ -799,15 +860,10 @@ export default function MentorClassWorkspace() {
                       {tr('Vào phòng học chung')}
                     </Button>
                   )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={RefreshCw}
-                    loading={busy}
-                    onClick={() => runAction(loadAll, 'Đã làm mới dữ liệu lớp.', { silentLoading: true })}
-                  >
-                    {tr('Tải lại')}
-                  </Button>
+                  <RefreshButton
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                  />
                 </div>
               </div>
 
@@ -878,7 +934,7 @@ export default function MentorClassWorkspace() {
                   {selectedCohort.nextSession ? (
                     <div className={cx(
                       'rounded-xl border p-4',
-                      selectedCohort.nextSession.canJoin ? 'border-rp-success-line bg-rp-success-bg/70' : 'border-rp-brand-border/60 bg-rp-brand-tint/35',
+                      selectedCohort.nextSession.canJoin ? 'border-rp-success-line bg-rp-success-bg/70' : 'border-rp-line bg-white',
                     )}>
                       <p className="text-xs font-semibold uppercase tracking-wide text-rp-brand-strong">
                         {selectedCohort.nextSession.canJoin ? tr('Phòng học đang mở') : tr('Buổi dạy tiếp theo')}
@@ -957,7 +1013,8 @@ export default function MentorClassWorkspace() {
                 />
                 {selectedCohort.allCourses.length === 0 ? (
                   <ContextualEmptyState
-                    compact
+                    variant="compact"
+                    illustration="mentor"
                     title="Lớp chưa có học viên ghi danh"
                     description="Khi học viên đăng ký thành công, hồ sơ học tập sẽ hiển thị tại đây."
                   />
@@ -1129,7 +1186,7 @@ export default function MentorClassWorkspace() {
                 </div>
 
                 {selectedCohort.sessions.length === 0 ? (
-                  <ContextualEmptyState compact title="Lớp chưa có lịch buổi học để điểm danh" />
+                  <ContextualEmptyState variant="compact" illustration="calendar" title="Lớp chưa có lịch buổi học để điểm danh" />
                 ) : (
                   <>
                     <div className="flex flex-wrap items-center gap-3">
@@ -1160,7 +1217,7 @@ export default function MentorClassWorkspace() {
                     </div>
 
                     {sessionRoster.length === 0 ? (
-                      <ContextualEmptyState compact title="Chưa có học viên nào ghi danh vào buổi học này." />
+                      <ContextualEmptyState variant="compact" illustration="mentor" title="Chưa có học viên nào ghi danh vào buổi học này." />
                     ) : (
                       <>
                         <div className="hidden md:block">
@@ -1229,14 +1286,15 @@ export default function MentorClassWorkspace() {
                   />
                   {selectedCohort.approvedRetakeRequests.length === 0 ? (
                     <ContextualEmptyState
-                      compact
+                      variant="compact"
+                      illustration="certificate"
                       title="Chưa có yêu cầu hỗ trợ ôn lại"
                       description="Chưa có học viên nào cần lập kế hoạch ôn lại trong lớp này."
                     />
                   ) : (
                     <div className="space-y-3">
                       {selectedCohort.approvedRetakeRequests.map((r) => (
-                        <Card key={r.id} density="compact" className="space-y-2 bg-rp-bg-2">
+                        <div key={r.id} className="space-y-2 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <strong className="text-sm text-rp-text">{r.learnerName || tr('Học viên')}</strong>
                             <span className="text-xs text-rp-text-muted">
@@ -1267,7 +1325,7 @@ export default function MentorClassWorkspace() {
                               {tr(r.mentorSupportPlan ? 'Cập nhật lộ trình' : 'Lập lộ trình hỗ trợ')}
                             </Button>
                           </div>
-                        </Card>
+                        </div>
                       ))}
                     </div>
                   )}

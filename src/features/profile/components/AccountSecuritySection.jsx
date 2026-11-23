@@ -305,7 +305,7 @@ export default function AccountSecuritySection({ profile }) {
       <div className="flex items-start gap-3 rounded-xl border border-[#EAE3E4] bg-[#FAF7F8] px-4 py-3 text-[12px] leading-5 text-rp-text-muted">
         <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-brand-strong" />
         <p>
-          {tr('Bảo vệ phiên đăng nhập đang bật: mọi thay đổi mật khẩu, xác nhận email mới hoặc cập nhật phân quyền đều tự động thu hồi token cũ trên mọi thiết bị.')}
+          {tr('Bảo vệ phiên đăng nhập đang bật: khi đổi mật khẩu, xác nhận email mới hoặc cập nhật phân quyền, các thiết bị khác sẽ tự động đăng xuất.')}
         </p>
       </div>
     </div>

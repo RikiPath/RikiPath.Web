@@ -28,12 +28,14 @@ import {
 import '@/pages/shared/studyCourses.css';
 import './availabilityPlanner.css';
 import {
+  CalendarCheck,
   Info,
   AlertCircle,
   CheckCircle2,
   XCircle,
   Scissors,
 } from 'lucide-react';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
 import { useLocale } from '@/locales/locale.js';
 
 const dayKey = (value) => toVnDateKey(value);
@@ -169,7 +171,10 @@ function MentorInteractiveAvailabilityWorkspace({ embedded = false }) {
             policy={policy}
             anchorKey={week}
             onAnchorChange={setWeek}
-            onRefresh={() => { availabilityQuery.refetch(); scheduleQuery.refetch(); }}
+            onRefresh={() => Promise.all([
+              availabilityQuery.refetch({ cancelRefetch: true }),
+              scheduleQuery.refetch({ cancelRefetch: true }),
+            ])}
             refreshing={availabilityQuery.isFetching || scheduleQuery.isFetching}
             busy={busy}
             onCreateAvailability={({ startTime, endTime, repeatUntil, weekdays, idempotencyKey, count, silentToast }) =>
@@ -385,14 +390,14 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
     <Shell {...(embedded ? {} : { breadcrumb: tr('Duyệt lịch Giáo viên') })}>
       <div className={embedded ? 'space-y-3' : 'rp-container py-3 text-rp-text space-y-3'}>
         {!embedded && (
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h1 className="text-[20px] font-bold tracking-tight text-rp-text">{tr('Duyệt lịch Giáo viên')}</h1>
-              <p className="text-[12.5px] text-rp-text-muted">{tr('Kiểm tra đăng ký và duyệt khung giờ dạy học cho Giáo viên.')}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-[220px]">
+          <AdminPageHeader
+            icon={CalendarCheck}
+            title="Duyệt lịch dạy"
+            className="mb-0"
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
                 <CustomSelect
+                  fitContent
                   size="sm"
                   searchable
                   label={tr('Lọc theo Giáo viên')}
@@ -400,31 +405,30 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
                   onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
                   options={mentorOptions}
                 />
-              </div>
-              {splittable.length > 0 && (
-                <Button variant="secondary" size="sm" icon={Scissors} onClick={() => setSplitModalOpen(true)}>
-                  {trf('Chia khung gộp ({0})', { 0: splittable.length })}
+                {splittable.length > 0 && (
+                  <Button variant="secondary" size="sm" icon={Scissors} onClick={() => setSplitModalOpen(true)}>
+                    {trf('Chia khung gộp ({0})', { 0: splittable.length })}
+                  </Button>
+                )}
+                <Button variant="primary" size="sm" icon={CheckCircle2} onClick={() => setBatchReviewModalOpen(true)}>
+                  {trf('Duyệt hàng loạt ({0})', { 0: pending.length })}
                 </Button>
-              )}
-              <Button variant="primary" size="sm" icon={CheckCircle2} onClick={() => setBatchReviewModalOpen(true)}>
-                {trf('Duyệt hàng loạt ({0})', { 0: pending.length })}
-              </Button>
-            </div>
-          </header>
+              </div>
+            }
+          />
         )}
 
         {embedded && (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="w-[220px]">
-              <CustomSelect
-                size="sm"
-                searchable
-                label={tr('Lọc theo Giáo viên')}
-                value={mentorFilter}
-                onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
-                options={mentorOptions}
-              />
-            </div>
+            <CustomSelect
+              fitContent
+              size="sm"
+              searchable
+              label={tr('Lọc theo Giáo viên')}
+              value={mentorFilter}
+              onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
+              options={mentorOptions}
+            />
             <div className="flex flex-wrap items-center gap-2">
               {splittable.length > 0 && (
                 <Button variant="secondary" size="sm" icon={Scissors} onClick={() => setSplitModalOpen(true)}>

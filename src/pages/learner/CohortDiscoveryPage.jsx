@@ -1,10 +1,10 @@
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, RefreshCw } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LearnerShell } from '@/layouts';
 import LearnerCohortDiscoveryPanel from '@/features/cohorts/components/LearnerCohortDiscoveryPanel';
 import { useLearnerCohortWorkspace } from '@/features/cohorts/hooks/useLearnerCohortWorkspace.js';
 import { useLocale } from '@/locales/locale.js';
-import { Banner, Button, Card, ContextualErrorState, PageContainer, PageHeader, SakuraLoader } from '@/components/ui';
+import { Banner, Button, Card, ContextualErrorState, PageContainer, RefreshButton, RefreshingIndicator, SakuraLoader } from '@/components/ui';
+import { IllustratedPageHeader } from '@/features/learner-ui';
 import '@/pages/shared/studyCourses.css';
 
 export default function CohortDiscoveryPage() {
@@ -31,21 +31,35 @@ export default function CohortDiscoveryPage() {
   return (
     <LearnerShell breadcrumb={tr('Khám phá lớp học')}>
       <PageContainer width="default" className="space-y-5">
-        <PageHeader
+        <IllustratedPageHeader
+          icon="group"
+          tone="sky"
           eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
           title={tr('Khám phá lớp học nhóm JLPT')}
           description={tr('So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán PayOS.')}
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Button as={Link} to="/mentors" variant="secondary" size="sm">
-                {tr('Tìm Giáo viên')}
-              </Button>
-              <Button as={Link} to="/my-courses" variant="primary" size="sm" iconRight={ArrowRight}>
-                {tr('Lớp của tôi')}
-              </Button>
-            </div>
+            !cohortsQuery.isPending && !cohortsQuery.isError && cohorts.length > 0 ? (
+              <RefreshButton
+                onRefresh={() => Promise.all([
+                  cohortsQuery.refetch({ cancelRefetch: true }),
+                  entitlementsQuery.refetch({ cancelRefetch: true }),
+                ])}
+                refreshing={(cohortsQuery.isFetching || entitlementsQuery.isFetching) && !cohortsQuery.isPending}
+                disabled={cohortsQuery.isPending}
+              />
+            ) : null
           }
         />
+
+        {(cohortsQuery.isFetching || entitlementsQuery.isFetching) && !cohortsQuery.isPending && (
+          <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
+            <div className="flex justify-end">
+              <div className="pointer-events-auto">
+                <RefreshingIndicator active delay={60} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {actionError && (
           <Banner tone="danger" title={tr('Chưa thực hiện được')} onDismiss={() => setActionError('')}>
@@ -73,11 +87,11 @@ export default function CohortDiscoveryPage() {
         )}
 
         {cohortsQuery.isPending ? (
-          <Card className="p-8">
+          <Card className="py-6">
             <SakuraLoader context="cohort" label={tr('Đang tải danh sách lớp nhóm...')} />
           </Card>
         ) : cohortsQuery.isError ? (
-          <Card className="p-6">
+          <Card>
             <ContextualErrorState
               error={cohortsQuery.error}
               title={tr('Chưa tải được danh sách lớp')}
@@ -87,19 +101,6 @@ export default function CohortDiscoveryPage() {
           </Card>
         ) : (
           <div className="course-page" style={{ padding: 0 }}>
-            <div className="mb-3 flex justify-end">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => cohortsQuery.refetch()}
-                disabled={cohortsQuery.isFetching}
-                loading={cohortsQuery.isFetching}
-                icon={RefreshCw}
-              >
-                {tr('Làm mới danh sách')}
-              </Button>
-            </div>
             <LearnerCohortDiscoveryPanel
               cohorts={cohorts}
               enrolledCourses={courses}

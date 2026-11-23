@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CustomSelect, EmptyState } from '@/components/ui';
 import { workbookEditKey } from '@/features/content-author/utils/workbookModel.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -27,7 +28,13 @@ function SheetGrid({ sheet, editing, changes, onCellChange }) {
   const rows = sheet.rows.slice(rowPage * rowsPerPage, (rowPage + 1) * rowsPerPage);
   const columns = sheet.columns.slice(columnPage * columnsPerPage, (columnPage + 1) * columnsPerPage);
 
-  if (sheet.rows.length === 0) return <p className="p-4 text-sm text-slate-600">{tr('Sheet này chưa có dữ liệu.')}</p>;
+  if (sheet.rows.length === 0) {
+    return (
+      <div className="p-4">
+        <EmptyState variant="compact" illustration="table" title={tr('Sheet này chưa có dữ liệu.')} />
+      </div>
+    );
+  }
 
   return <>
     <div tabIndex={0} role="region" aria-label={'Bảng dữ liệu ' + sheet.name} className="max-h-[32rem] overflow-auto">
@@ -108,15 +115,26 @@ export default function WorkbookPreview({ workbook, changes, onCellChange, onApp
       </div>}
       {applyError && <p role="alert" className="text-sm text-rose-700">{tr(applyError.message)}</p>}
       {workbook.isTruncated && <p role="status" className="text-sm text-amber-900">{tr('File lớn, chỉ hiển thị một phần dữ liệu xem trước.')}</p>}
-      {sheet && <label className="flex flex-wrap items-center gap-2 text-sm font-medium">
-        Sheet
-        <select value={activeSheet} onChange={event => setActiveSheet(Number(event.target.value))}
-          className="max-w-full rounded-lg border border-rp-line bg-white px-3 py-1.5">
-          {workbook.sheets.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
-        </select>
-      </label>}
+      {sheet && (
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <span>Sheet</span>
+          <div className="w-56 max-w-full">
+            <CustomSelect
+              size="sm"
+              aria-label="Sheet"
+              value={String(activeSheet)}
+              onChange={(val) => setActiveSheet(Number(val))}
+              options={workbook.sheets.map((item, index) => ({ value: String(index), label: item.name }))}
+            />
+          </div>
+        </div>
+      )}
     </header>
     {sheet ? <SheetGrid key={activeSheet + ':' + editing} sheet={sheet} editing={editing && !busy}
-      changes={changes} onCellChange={onCellChange} /> : <p className="p-4 text-sm text-slate-600">{tr('File chưa có sheet hiển thị.')}</p>}
+      changes={changes} onCellChange={onCellChange} /> : (
+        <div className="p-4">
+          <EmptyState variant="compact" illustration="table" title={tr('File chưa có sheet hiển thị.')} />
+        </div>
+      )}
   </section>;
 }

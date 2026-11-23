@@ -4,6 +4,8 @@
  * here; free/credit-on-action routes stay directly accessible to Learners.
  */
 
+import { findFeatureForPath } from '@/features/entitlements/featureAccess.js';
+
 const FEATURE_CATALOG = {
   '/lessons': {
     featureLabel: 'Bài học JLPT',
@@ -21,14 +23,6 @@ const FEATURE_CATALOG = {
     featureLabel: 'Luyện đọc hiểu',
     description: 'Đoạn văn đọc hiểu JLPT theo cấp độ và câu hỏi luyện tập.',
   },
-  '/vocabulary': {
-    featureLabel: 'Sổ tay từ vựng cá nhân',
-    description: 'Tạo danh sách từ vựng cá nhân, ghi chú và đồng bộ thẻ ôn tập.',
-  },
-  '/kanji-notebook': {
-    featureLabel: 'Sổ tay Hán tự cá nhân',
-    description: 'Lưu chữ Kanji đã học vào sổ cá nhân để theo dõi và ôn tập.',
-  },
 };
 
 export function normalizeGuardPath(pathname = '/') {
@@ -45,7 +39,7 @@ export function studyFeatureInfo(pathname) {
 
 /**
  * Computes the guard state without performing an implicit navigation to `/plans`.
- * @returns {'allow' | 'login' | 'loading' | 'error' | 'plan-required'}
+ * @returns {'allow' | 'login' | 'loading' | 'error' | 'plan-required' | 'disabled'}
  */
 export function evaluateStudyPlanAccess({
   pathname,
@@ -63,6 +57,12 @@ export function evaluateStudyPlanAccess({
   if (!isLearner) return 'allow';
   if (isPending) return 'loading';
   if (isError) return 'error';
+  const matched = findFeatureForPath(path, subscriptionData?.features);
+  if (matched) {
+    if (matched.allowed === true) return 'allow';
+    if (String(matched.accessMode || '').toUpperCase() === 'DISABLED') return 'disabled';
+    return 'plan-required';
+  }
   if (!subscriptionData?.[feature]) return 'plan-required';
   return 'allow';
 }

@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarClock,
   CheckCircle2,
-  Eye,
-  Search,
+  MessageSquareReply,
   X,
   XCircle,
 } from 'lucide-react';
@@ -18,7 +17,17 @@ import {
   unwrapApiList,
 } from '@/features/admin/api/adminApi.js';
 import { resolveSlotChange } from '@/features/scheduling/api/mentorScheduleApi.js';
+import { getAdminTeachingProposals } from '@/features/scheduling/api/teachingProposalApi.js';
+import AdminTeachingProposalReviewPanel from '@/features/scheduling/components/AdminTeachingProposalReviewPanel.jsx';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
+import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminToolbar,
+  AdminWorkspace,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import { AdminShell } from '@/layouts';
 import {
   Badge,
@@ -29,17 +38,12 @@ import {
   ContextualEmptyState,
   ContextualErrorState,
   CustomSelect,
-  DataTable,
   Drawer,
-  FeatureIcon,
   Field,
-  IconButton,
-  Input,
   Modal,
-  PageHeader,
   RefreshingIndicator,
   SakuraLoader,
-  Tabs,
+  SearchInput,
   Textarea,
   notify,
 } from '@/components/ui';
@@ -47,7 +51,8 @@ import { parseUtcDate } from '@/utils/vnDateTime.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 
 const TABS = [
-  { id: 'review', label: 'Chờ duyệt' },
+  { id: 'proposals', label: 'Đề xuất mở lớp' },
+  { id: 'review', label: 'Khung giờ chờ duyệt' },
   { id: 'cancel', label: 'Xin hủy' },
   { id: 'change', label: 'Xin đổi tiết' },
 ];
@@ -67,12 +72,28 @@ function formatSlotTime(value) {
   });
 }
 
-export default function AdminSlotReview() {
+export default function AdminSlotReview({
+  embedded = false,
+  fillHeight = false,
+  allowedTabs = null,
+  initialTabOverride = null,
+  toolbarTabsOverride = null,
+} = {}) {
   const { tr, trf } = useLocale();
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = useState('review');
+  const visibleTabs = useMemo(
+    () => (Array.isArray(allowedTabs) && allowedTabs.length > 0 ? TABS.filter((t) => allowedTabs.includes(t.id)) : TABS),
+    [allowedTabs],
+  );
+  const urlTab = searchParams.get('tab');
+  const initialTab = (urlTab && visibleTabs.some((t) => t.id === urlTab) ? urlTab : null) || initialTabOverride;
+  const initialProposalId = searchParams.get('proposalId');
+  const [tab, setTab] = useState(() => (
+    visibleTabs.some((t) => t.id === initialTab) ? initialTab : (visibleTabs[0]?.id || 'proposals')
+  ));
   const [search, setSearch] = useState('');
   const [mentorFilter, setMentorFilter] = useState('ALL');
   const [picked, setPicked] = useState([]);
@@ -81,10 +102,20 @@ export default function AdminSlotReview() {
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
 
-  const pending = useQuery({ queryKey: ADMIN_KEYS.pendingSlots, queryFn: getPendingMentorSlots });
+  const pendingProposals = useQuery({
+    queryKey: [...ADMIN_KEYS.teachingProposals, 'PendingReview'],
+    queryFn: () => getAdminTeachingProposals({ status: 'PendingReview' }),
+    enabled: visibleTabs.some((item) => item.id === 'proposals'),
+  });
+  const pending = useQuery({
+    queryKey: ADMIN_KEYS.pendingSlots,
+    queryFn: getPendingMentorSlots,
+    enabled: visibleTabs.some((item) => item.id === 'review'),
+  });
   const all = useQuery({
     queryKey: ADMIN_KEYS.mentorSlots,
     queryFn: async () => unwrapApiList(await getAdminMentorAvailabilities()),
+    enabled: visibleTabs.some((item) => item.id === 'cancel' || item.id === 'change'),
   });
 
   const refreshAll = async () => {
@@ -170,7 +201,12 @@ export default function AdminSlotReview() {
     });
   }, [tabRows, mentorFilter, search]);
 
-  const counts = { review: pendingRows.length, cancel: cancelRows.length, change: changeRows.length };
+  const counts = {
+    proposals: Array.isArray(pendingProposals.data) ? pendingProposals.data.length : 0,
+    review: pendingRows.length,
+    cancel: cancelRows.length,
+    change: changeRows.length,
+  };
   const busy = reviewBatch.isPending || reviewOne.isPending || cancelBatch.isPending || changeResolve.isPending;
   const listLoading = tab === 'review' ? pending.isPending : all.isPending;
   const listError = tab === 'review' ? pending.error : all.error;
@@ -211,6 +247,7 @@ export default function AdminSlotReview() {
       ? [
           {
             key: 'select',
+            compact: true,
             header: (
               <Checkbox
                 checked={visibleRows.length > 0 && visibleRows.every((r) => picked.includes(r.id))}
@@ -240,6 +277,7 @@ export default function AdminSlotReview() {
     {
       key: 'startTime',
       header: tr('Thời gian (GMT+7)'),
+      compact: true,
       render: (row) => (
         <span className="whitespace-nowrap text-xs font-medium text-rp-text-2">
           {formatSlotTime(row.startTime)}
@@ -249,6 +287,7 @@ export default function AdminSlotReview() {
     {
       key: 'kind',
       header: tr('Loại yêu cầu'),
+      compact: true,
       render: () => (
         <Badge tone={tab === 'cancel' ? 'danger' : tab === 'change' ? 'warning' : 'brand'} size="sm" icon={false}>
           {tab === 'cancel' ? tr('Xin hủy khung giờ') : tab === 'change' ? tr('Xin đổi giờ dạy') : tr('Đăng ký khung giờ')}
@@ -258,123 +297,149 @@ export default function AdminSlotReview() {
     {
       key: 'reason',
       header: tr('Lý do / Ghi chú'),
-      render: (row) => (
-        <span className="line-clamp-2 max-w-[260px] text-xs text-rp-text-muted">
-          {row.cancelReason || row.changeReason || tr('Đăng ký lịch mới')}
-        </span>
-      ),
+      render: (row) => {
+        const text = row.cancelReason || row.changeReason || tr('Đăng ký lịch mới');
+        return (
+          <span title={text} className="mx-auto line-clamp-2 max-w-[360px] text-xs text-rp-text-muted">
+            {text}
+          </span>
+        );
+      },
     },
   ];
 
-  return (
-    <AdminShell pathname={pathname} breadcrumb={tr('Yêu cầu đổi/hủy lịch')}>
-      <main data-page="AdminSlotReview" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
-        <PageHeader
-          eyebrow={tr('Vận hành & lịch dạy')}
-          title={
-            <span className="inline-flex items-center gap-2.5">
-              <FeatureIcon feature="calendar" icon={CalendarClock} size="lg" />
-              <span>{tr('Yêu cầu đổi / hủy & duyệt khung giờ')}</span>
-            </span>
-          }
-          description={tr('Kiểm tra xung đột lịch, khoảng nghỉ giữa buổi và phê duyệt hoặc phản hồi yêu cầu từ Giáo viên.')}
-          actions={<RefreshingIndicator active={pending.isFetching || all.isFetching} />}
+  const useFill = (!embedded && tab !== 'proposals') || fillHeight;
+
+  const toolbarTabs = toolbarTabsOverride || (visibleTabs.length > 1
+    ? {
+        label: tr('Phân loại yêu cầu lịch'),
+        value: tab,
+        onChange: (nextTab) => {
+          setTab(nextTab);
+          setPicked([]);
+          setMentorFilter('ALL');
+          setSearch('');
+        },
+        tabs: visibleTabs.map((t) => ({ value: t.id, label: tr(t.label), count: counts[t.id] })),
+      }
+    : null);
+
+  const batchActions = picked.length > 0 && tab === 'review' ? (
+    <>
+      <Button
+        size="sm"
+        icon={CheckCircle2}
+        disabled={busy}
+        onClick={() => reviewBatch.mutate({ ids: picked, approve: true })}
+      >
+        {trf('Duyệt ({0})', { 0: picked.length })}
+      </Button>
+      <Button
+        size="sm"
+        variant="danger"
+        icon={XCircle}
+        disabled={busy}
+        onClick={() => {
+          setReason('');
+          setReasonError('');
+          setModalAction({ mode: 'reject-batch', ids: picked });
+        }}
+      >
+        {trf('Từ chối ({0})', { 0: picked.length })}
+      </Button>
+    </>
+  ) : picked.length > 0 && tab === 'cancel' ? (
+    <>
+      <Button
+        size="sm"
+        icon={CheckCircle2}
+        disabled={busy}
+        onClick={() => cancelBatch.mutate({ ids: picked, approve: true })}
+      >
+        {trf('Chấp thuận hủy ({0})', { 0: picked.length })}
+      </Button>
+      <Button
+        size="sm"
+        variant="danger"
+        icon={XCircle}
+        disabled={busy}
+        onClick={() => {
+          setReason('');
+          setReasonError('');
+          setModalAction({ mode: 'reject-cancel', ids: picked });
+        }}
+      >
+        {trf('Từ chối hủy ({0})', { 0: picked.length })}
+      </Button>
+    </>
+  ) : null;
+
+  const activeQuery = tab === 'review' ? pending : all;
+  const isTabRefreshing = tab === 'proposals' ? pendingProposals.isFetching : activeQuery.isFetching && !activeQuery.isPending;
+  const refreshActiveTab = () =>
+    (tab === 'review' ? pending.refetch({ cancelRefetch: true }) : all.refetch({ cancelRefetch: true }));
+
+  const showNonProposalToolbar = Boolean(toolbarTabs || (!listLoading && !listError && tabRows.length > 0));
+
+  const bodyContent = (
+    <div className={useFill ? 'flex min-h-0 flex-1 flex-col gap-4 text-rp-text' : 'space-y-4 text-rp-text'}>
+      {!embedded && (
+        <AdminPageHeader
+          icon={CalendarClock}
+          title="Yêu cầu đổi/hủy lịch"
         />
+      )}
 
-        <Tabs
-          variant="pill"
-          label={tr('Phân loại yêu cầu lịch')}
-          value={tab}
-          onChange={(nextTab) => {
-            setTab(nextTab);
-            setPicked([]);
-            setMentorFilter('ALL');
-            setSearch('');
-          }}
-          tabs={TABS.map((t) => ({ value: t.id, label: tr(t.label), count: counts[t.id] }))}
-        />
+      {tab === 'proposals' ? (
+        <AdminTeachingProposalReviewPanel initialProposalId={initialProposalId} toolbarTabs={toolbarTabs} fillHeight={useFill} />
+      ) : (
+        <>
+          {showNonProposalToolbar && (
+            <AdminToolbar
+              tabs={toolbarTabs}
+              refresh={{
+                when: !listLoading && !listError && tabRows.length > 0,
+                onRefresh: refreshActiveTab,
+                refreshing: isTabRefreshing,
+              }}
+              actions={batchActions}
+            >
+              {!listLoading && !listError && tabRows.length > 0 && (
+                <>
+                  <SearchInput
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onClear={() => setSearch('')}
+                    placeholder="Tìm Giáo viên hoặc lý do…"
+                    aria-label={tr('Tìm kiếm yêu cầu')}
+                    className="w-full sm:w-[245px]"
+                  />
 
-        <Card className="p-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="min-w-[200px] flex-1">
-              <Input
-                type="search"
-                icon={Search}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={tr('Tìm theo tên Giáo viên hoặc lý do yêu cầu…')}
-                aria-label={tr('Tìm kiếm yêu cầu')}
-              />
+                  <CustomSelect
+                    fitContent
+                    value={mentorFilter}
+                    aria-label={tr('Lọc theo Giáo viên')}
+                    onChange={setMentorFilter}
+                    options={[{ value: 'ALL', label: tr('Tất cả Giáo viên') }, ...mentorOptions]}
+                  />
+
+                  {hasFilters && (
+                    <Button variant="ghost" size="sm" icon={X} onClick={() => { setSearch(''); setMentorFilter('ALL'); }}>
+                      {tr('Xóa bộ lọc')}
+                    </Button>
+                  )}
+                </>
+              )}
+            </AdminToolbar>
+          )}
+
+        {isTabRefreshing && (
+          <div className="pointer-events-none sticky top-2 z-20 flex h-0 justify-end overflow-visible">
+            <div className="mr-1 mt-1">
+              <RefreshingIndicator active delay={60} />
             </div>
-
-            <div className="w-full sm:w-[210px]">
-              <CustomSelect
-                value={mentorFilter}
-                aria-label={tr('Lọc theo Giáo viên')}
-                onChange={setMentorFilter}
-                options={[{ value: 'ALL', label: tr('Tất cả Giáo viên') }, ...mentorOptions]}
-              />
-            </div>
-
-            {hasFilters && (
-              <Button variant="ghost" size="sm" icon={X} onClick={() => { setSearch(''); setMentorFilter('ALL'); }}>
-                {tr('Xóa bộ lọc')}
-              </Button>
-            )}
-
-            {picked.length > 0 && tab === 'review' && (
-              <div className="ml-auto flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  icon={CheckCircle2}
-                  disabled={busy}
-                  onClick={() => reviewBatch.mutate({ ids: picked, approve: true })}
-                >
-                  {trf('Duyệt ({0})', { 0: picked.length })}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  icon={XCircle}
-                  disabled={busy}
-                  onClick={() => {
-                    setReason('');
-                    setReasonError('');
-                    setModalAction({ mode: 'reject-batch', ids: picked });
-                  }}
-                >
-                  {trf('Từ chối ({0})', { 0: picked.length })}
-                </Button>
-              </div>
-            )}
-
-            {picked.length > 0 && tab === 'cancel' && (
-              <div className="ml-auto flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  icon={CheckCircle2}
-                  disabled={busy}
-                  onClick={() => cancelBatch.mutate({ ids: picked, approve: true })}
-                >
-                  {trf('Chấp thuận hủy ({0})', { 0: picked.length })}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  icon={XCircle}
-                  disabled={busy}
-                  onClick={() => {
-                    setReason('');
-                    setReasonError('');
-                    setModalAction({ mode: 'reject-cancel', ids: picked });
-                  }}
-                >
-                  {trf('Từ chối hủy ({0})', { 0: picked.length })}
-                </Button>
-              </div>
-            )}
           </div>
-        </Card>
+        )}
 
         {listLoading ? (
           <SakuraLoader variant="section" context="cohort" delay={140} />
@@ -386,86 +451,88 @@ export default function AdminSlotReview() {
           />
         ) : visibleRows.length === 0 ? (
           <ContextualEmptyState
-            title={hasFilters ? tr('Không có yêu cầu nào khớp bộ lọc') : tr('Hiện không có yêu cầu nào trong mục này')}
-            description={tr('Mọi khung giờ hoặc yêu cầu mới từ Giáo viên sẽ tự động hiển thị tại đây.')}
+            variant={tabRows.length > 0 && hasFilters ? 'search' : 'default'}
+            illustration={tabRows.length > 0 && hasFilters ? 'search' : 'appointment'}
+            title={tabRows.length > 0 && hasFilters ? tr('Không có yêu cầu nào khớp bộ lọc') : tr('Hiện không có yêu cầu nào trong mục này')}
+            description={tabRows.length > 0 && hasFilters ? tr('Thử thay đổi bộ lọc để xem các yêu cầu khác.') : ''}
+            action={tabRows.length > 0 && hasFilters ? <Button variant="outline" size="sm" onClick={() => { setSearch(''); setMentorFilter('ALL'); }}>{tr('Xóa bộ lọc')}</Button> : null}
           />
         ) : (
-          <DataTable
+          <AdminDataTable
             columns={columns}
             rows={visibleRows}
             rowKey={(r) => r.id}
+            itemLabel="yêu cầu"
+            fillHeight={useFill}
             rowActions={(row) => (
-              <div className="flex items-center justify-end gap-1.5">
-                <IconButton
-                  icon={Eye}
-                  size="sm"
-                  variant="ghost"
-                  label={tr('Xem chi tiết')}
+              <AdminRowActions>
+                <AdminIconAction
+                  kind="view"
+                  tooltip="Xem chi tiết khung giờ"
                   onClick={() => setDetailSlot(row)}
                 />
                 {tab === 'review' && (
                   <>
-                    <Button
-                      size="sm"
+                    <AdminIconAction
+                      icon={CheckCircle2}
+                      tone="success"
+                      tooltip="Phê duyệt khung giờ dạy"
                       disabled={busy}
                       onClick={() => reviewOne.mutate({ id: row.id, approve: true })}
-                    >
-                      {tr('Duyệt')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    />
+                    <AdminIconAction
+                      icon={XCircle}
+                      tone="danger"
+                      tooltip="Từ chối khung giờ dạy"
                       disabled={busy}
                       onClick={() => {
                         setReason('');
                         setReasonError('');
                         setModalAction({ mode: 'reject-one', ids: [row.id] });
                       }}
-                    >
-                      {tr('Từ chối')}
-                    </Button>
+                    />
                   </>
                 )}
                 {tab === 'cancel' && (
                   <>
-                    <Button
-                      size="sm"
+                    <AdminIconAction
+                      icon={CheckCircle2}
+                      tone="success"
+                      tooltip="Chấp thuận hủy khung giờ"
                       disabled={busy}
                       onClick={() => cancelBatch.mutate({ ids: [row.id], approve: true })}
-                    >
-                      {tr('Duyệt hủy')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    />
+                    <AdminIconAction
+                      icon={XCircle}
+                      tone="danger"
+                      tooltip="Từ chối yêu cầu hủy khung giờ"
                       disabled={busy}
                       onClick={() => {
                         setReason('');
                         setReasonError('');
                         setModalAction({ mode: 'reject-cancel', ids: [row.id] });
                       }}
-                    >
-                      {tr('Từ chối')}
-                    </Button>
+                    />
                   </>
                 )}
                 {tab === 'change' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <AdminIconAction
+                    icon={MessageSquareReply}
+                    tone="brand"
+                    tooltip="Phản hồi yêu cầu đổi tiết"
                     disabled={busy}
                     onClick={() => {
                       setReason('');
                       setReasonError('');
                       setModalAction({ mode: 'resolve-change', ids: [row.id] });
                     }}
-                  >
-                    {tr('Phản hồi đổi tiết')}
-                  </Button>
+                  />
                 )}
-              </div>
+              </AdminRowActions>
             )}
           />
+        )}
+          </>
         )}
 
         {/* Slot Detail Drawer */}
@@ -529,7 +596,15 @@ export default function AdminSlotReview() {
             </Field>
           </form>
         </Modal>
-      </main>
+    </div>
+  );
+
+  if (embedded) return bodyContent;
+  return (
+    <AdminShell pathname={pathname} breadcrumb={tr('Yêu cầu đổi/hủy lịch')}>
+      <AdminWorkspace data-page="AdminSlotReview" viewportLocked>
+        {bodyContent}
+      </AdminWorkspace>
     </AdminShell>
   );
 }

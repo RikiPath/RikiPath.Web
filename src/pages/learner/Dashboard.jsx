@@ -3,7 +3,7 @@ import { displayName, useLearnerHome } from '@/features/dashboard/hooks/useLearn
 import HomeLearner from './HomeLearner.jsx';
 
 function skillScore(skills, pattern) {
-  const skill = skills.find((item) => pattern.test(item.skillName || ''));
+  const skill = skills.find((item) => pattern.test(item.languageSkillName || item.skillName || ''));
   const score = skill?.averageScore;
   return typeof score === 'number' && Number.isFinite(score) ? score : undefined;
 }
@@ -32,10 +32,14 @@ export default function Dashboard() {
         displayName: name && name !== 'bạn' ? name : undefined,
         targetLevel: home.profile?.targetJlptLevelName,
         completedExercises: home.completion?.completedLessons,
+        totalLessons: home.completion?.totalLessons,
         streakDays: home.streak?.currentStreakDays,
+        longestStreakDays: home.streak?.longestStreakDays,
+        lastActivityDate: home.streak?.lastActivityDate,
         activeToday: Boolean(home.streak?.isActiveToday),
         dueCards: home.srs?.totalDue ?? home.srs?.items?.length,
         srsItems: home.srs?.items ?? [],
+        rawSkills: home.skills ?? [],
         skillScores: {
           vocabulary: skillScore(home.skills, /từ|vocab/i),
           grammar: skillScore(home.skills, /ngữ pháp|grammar/i),

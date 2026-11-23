@@ -19,9 +19,8 @@
   background: var(--color-rp-surface);
   box-shadow: var(--shadow-rp-xs);
   min-width: 0;
-  overflow-x: auto;
 }
-.course-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--rp-space-grid); }
+.course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: var(--rp-space-grid); }
 
 .course-policy {
   background: var(--color-rp-brand-tint);
@@ -35,8 +34,8 @@
   color: var(--color-rp-text-2);
 }
 
-/* Buttons (exclude SakuraCalendar, Tabs, and Tailwind list-row/left-aligned buttons) */
-.course-page button:not([data-sakura-calendar] button):not([role="tab"]):not(.block):not([class*="justify-start"]),
+/* Legacy course-page buttons (never override shared UI primitives carrying .rp-focus) */
+.course-page button:not(.rp-focus):not([data-sakura-calendar] button):not([role="tab"]):not(.block):not([class*="justify-start"]),
 .course-primary {
   border: 1px solid var(--color-rp-line);
   border-radius: var(--radius-rp-input);
@@ -54,7 +53,7 @@
   text-decoration: none;
   transition: background-color var(--rp-fast) ease, border-color var(--rp-fast) ease, color var(--rp-fast) ease, box-shadow var(--rp-fast) ease;
 }
-.course-page button:not([data-sakura-calendar] button):not([role="tab"]):not(.block):not([class*="justify-start"]):hover:not(:disabled) { border-color: var(--color-rp-brand-border); color: var(--color-rp-brand-strong); background: var(--color-rp-brand-tint); }
+.course-page button:not(.rp-focus):not([data-sakura-calendar] button):not([role="tab"]):not(.block):not([class*="justify-start"]):hover:not(:disabled) { border-color: var(--color-rp-brand-border); color: var(--color-rp-brand-strong); background: var(--color-rp-brand-tint); }
 .course-page .course-primary,
 .course-primary {
   background: var(--color-rp-brand-pressed);
@@ -63,7 +62,7 @@
   box-shadow: var(--shadow-rp-brand);
 }
 .course-page .course-primary:hover:not(:disabled) { background: var(--color-rp-brand-strong); border-color: var(--color-rp-brand-strong); color: #fff; }
-.course-page button:not([data-sakura-calendar] button):not([role="tab"]):disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.course-page button:not(.rp-focus):not([data-sakura-calendar] button):not([role="tab"]):disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .course-page button:focus-visible,
 .course-page a:focus-visible,
 .course-page summary:focus-visible,
@@ -100,9 +99,9 @@
 .course-form { border-top: 1px solid var(--color-rp-line); padding-top: 16px; margin-top: 16px; }
 .course-form fieldset { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 10px; border: 0; padding: 0; }
 .course-field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 210px; font-size: 13px; font-weight: 600; color: var(--color-rp-text); }
-.course-page input:not([type='checkbox']):not([type='radio']),
-.course-page select,
-.course-page textarea {
+.course-page input:not(.rp-control):not(.rp-focus):not([type='checkbox']):not([type='radio']):not([class*='pl-']),
+.course-page select:not(.rp-control):not(.rp-focus),
+.course-page textarea:not(.rp-control):not(.rp-focus) {
   border: 1px solid var(--color-rp-line);
   background: var(--color-rp-surface);
   border-radius: var(--radius-rp-input);
@@ -113,16 +112,16 @@
   font-weight: 400;
   transition: border-color var(--rp-fast) ease, box-shadow var(--rp-fast) ease;
 }
-.course-page input:not([type='checkbox']):not([type='radio']):not([type='search']):not([class*='pl-']),
-.course-page select,
-.course-page textarea {
+.course-page input:not(.rp-control):not(.rp-focus):not([type='checkbox']):not([type='radio']):not([type='search']):not([class*='pl-']),
+.course-page select:not(.rp-control):not(.rp-focus),
+.course-page textarea:not(.rp-control):not(.rp-focus) {
   padding: 9px 12px;
 }
-.course-page input:not([type='checkbox']):not([type='radio']):focus,
-.course-page select:focus,
-.course-page textarea:focus { outline: none; border-color: var(--color-rp-brand); box-shadow: 0 0 0 3px rgba(224, 90, 122, 0.18); }
-.course-page textarea { min-height: 88px; line-height: 1.6; }
-.course-page select:not([data-sakura-calendar] select):not([multiple]) {
+.course-page input:not(.rp-control):not(.rp-focus):not([type='checkbox']):not([type='radio']):focus,
+.course-page select:not(.rp-control):not(.rp-focus):focus,
+.course-page textarea:not(.rp-control):not(.rp-focus):focus { outline: none; border-color: var(--color-rp-brand); box-shadow: 0 0 0 3px rgba(224, 90, 122, 0.18); }
+.course-page textarea:not(.rp-control) { min-height: 88px; line-height: 1.6; }
+.course-page select:not(.rp-control):not(.rp-focus):not([data-sakura-calendar] select):not([multiple]) {
   appearance: none;
   -webkit-appearance: none;
   padding: 9px 42px 9px 12px;
@@ -197,7 +196,7 @@
 
 .course-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .course-meta { font-size: 13px; color: var(--color-rp-text-muted); }
-.course-confirm { margin-top: 12px; padding: 16px; border-radius: var(--radius-rp-card); border: 1px solid var(--color-rp-brand-border); background: var(--color-rp-brand-tint); }
+.course-confirm { margin-top: 12px; padding: 16px; border-radius: var(--radius-rp-card); border: 1px solid var(--color-rp-brand-border); background: var(--color-rp-surface); }
 .course-page summary { cursor: pointer; font-weight: 700; border-radius: 6px; }
 .course-page details { margin-top: 8px; }
 .course-page table { width: 100%; border-collapse: collapse; font-size: 13.5px; }

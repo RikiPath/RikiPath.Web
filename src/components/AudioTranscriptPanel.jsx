@@ -1,12 +1,10 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../app/auth/authContext.js';
-
-// TODO: Sửa đường dẫn theo vị trí thực tế của contentImportApi.js
+import { useAuth } from '@/app/auth/authContext.js';
 import {
   getAudioTranscript,
   retryAudioTranscript,
-} from '../../src/features/content-author/api/contentImportApi.js';
+} from '@/features/content-author/api/contentImportApi.js';
 
 const labels = {
   Pending: 'Đang chờ nhận dạng tiếng Nhật…',

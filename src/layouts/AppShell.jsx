@@ -24,7 +24,7 @@ import { useLocale } from '@/locales/locale.js';
 import NotificationCenter from '@/features/notifications/components/NotificationCenter.jsx';
 import HeaderCalendarPopover from '@/features/calendar/components/HeaderCalendarPopover.jsx';
 import BackHomeLink from '@/components/brand/BackHomeLink.jsx';
-import { Avatar, Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, Tooltip, cx } from '@/components/ui';
+import { Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, Tooltip, UserAvatar, cx } from '@/components/ui';
 import { ROLE_NAV, buildBreadcrumbs, flattenNavItems, isNavItemActive } from './appNav.js';
 import { StudyUnlockProvider } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { LOCK_REASON, useStudyUnlock } from '@/features/entitlements/studyUnlock.js';
@@ -52,10 +52,10 @@ function readCollapsed() {
  * a small lock-keyhole at the end, no icon tilt, and a click opens the contextual unlock dialog instead of
  * navigating. Only rendered when the Backend has *confirmed* the learner lacks the entitlement.
  */
-function LockedNavItem({ item, active, collapsed, onLockedClick, tr }) {
+function LockedNavItem({ item, active, collapsed, onLockedClick, reasonText, tr }) {
   const Icon = item.icon;
   const label = tr(item.label);
-  const reason = tr(LOCK_REASON);
+  const reason = tr(reasonText || LOCK_REASON);
   const button = (
     <button
       type="button"
@@ -99,7 +99,7 @@ function LockedNavItem({ item, active, collapsed, onLockedClick, tr }) {
   );
 }
 
-function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', onLockedClick }) {
+function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', lockReason, onLockedClick }) {
   const Icon = item.icon;
   const label = tr(item.label);
   if (lockState === 'locked' && onLockedClick) {
@@ -108,6 +108,7 @@ function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', 
         item={item}
         active={active}
         collapsed={collapsed}
+        reasonText={lockReason}
         tr={tr}
         onLockedClick={(target) => {
           onNavigate?.(); // close the mobile drawer first so only one dialog traps focus
@@ -127,7 +128,7 @@ function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', 
         'rp-focus rp-interactive group relative flex items-center rounded-xl rp-type-nav transition-all duration-150',
         collapsed
           ? 'mx-auto h-10 w-10 justify-center p-0'
-          : 'min-h-10 w-full gap-3 px-2.5 py-1',
+          : 'min-h-10 w-full gap-2.5 px-2 py-1',
         active
           ? collapsed
             ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border shadow-rp-xs'
@@ -162,6 +163,82 @@ function NavItem({ item, active, collapsed, onNavigate, tr, lockState = 'open', 
   );
 }
 
+function RadioDot({ selected }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-[1.5px] bg-rp-surface transition-colors',
+        selected ? 'border-rp-brand' : 'border-rp-line-strong group-hover:border-rp-brand/70',
+      )}
+    >
+      {selected && <span className="h-2 w-2 rounded-full bg-rp-brand-pressed" />}
+    </span>
+  );
+}
+
+function FlyoutChildRow({ child, pathname, search, tr, onClose, onNavigate, lockStateFor, onLockedClick }) {
+  const childActive = isNavItemActive(child, pathname, search);
+  const locked = lockStateFor(child) === 'locked' && onLockedClick;
+  const ChildIcon = child.icon;
+  if (locked) {
+    return (
+      <li>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onClose();
+            onNavigate?.();
+            onLockedClick(child);
+          }}
+          className="rp-focus flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/60"
+        >
+          {ChildIcon ? <ChildIcon aria-hidden="true" className="h-4 w-4 shrink-0 stroke-[1.9]" /> : (child.kind === 'radio' && <RadioDot selected={false} />)}
+          <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
+          {ChildIcon && child.kind === 'radio' && <RadioDot selected={false} />}
+          <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        </button>
+      </li>
+    );
+  }
+  return (
+    <li>
+      <NavLink
+        to={child.to}
+        end={Boolean(child.end)}
+        role="menuitem"
+        onClick={() => {
+          onClose();
+          onNavigate?.();
+        }}
+        className={cx(
+          'rp-focus group flex min-h-9 items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-[13px] transition-colors',
+          childActive
+            ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
+            : 'font-medium text-rp-text-2 hover:bg-rp-muted/65 hover:text-rp-text',
+        )}
+      >
+        {ChildIcon ? (
+          <ChildIcon
+            aria-hidden="true"
+            className={cx('h-4 w-4 shrink-0 stroke-[1.9]', childActive ? 'text-rp-brand-strong' : 'text-rp-text-muted group-hover:text-rp-text')}
+          />
+        ) : (
+          child.kind === 'radio' && <RadioDot selected={childActive} />
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{tr(child.label)}</span>
+          {child.description && (
+            <span className="block truncate text-[11px] font-normal text-rp-text-muted">{tr(child.description)}</span>
+          )}
+        </span>
+        {ChildIcon && child.kind === 'radio' && <RadioDot selected={childActive} />}
+      </NavLink>
+    </li>
+  );
+}
+
 function CollapsedBranchFlyout({ item, anchorRect, pathname, search, tr, onNavigate, onClose, lockStateFor, onLockedClick }) {
   const menuRef = useRef(null);
   useEffect(() => {
@@ -180,7 +257,7 @@ function CollapsedBranchFlyout({ item, anchorRect, pathname, search, tr, onNavig
   }, [onClose]);
 
   if (!anchorRect || typeof document === 'undefined') return null;
-  const maxTop = typeof window !== 'undefined' ? window.innerHeight - 320 : anchorRect.top;
+  const maxTop = typeof window !== 'undefined' ? window.innerHeight - 380 : anchorRect.top;
   const top = Math.max(12, Math.min(anchorRect.top - 8, maxTop));
   const left = anchorRect.right + 10;
 
@@ -190,9 +267,9 @@ function CollapsedBranchFlyout({ item, anchorRect, pathname, search, tr, onNavig
       role="menu"
       aria-label={tr(item.label)}
       style={{ top, left }}
-      className="rp-anim-pop fixed z-[140] w-60 rounded-2xl border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
+      className="rp-anim-pop fixed z-[140] max-h-[min(78vh,480px)] w-64 overflow-y-auto rounded-2xl border border-rp-line bg-rp-surface p-2 shadow-rp-pop"
     >
-      {item.to ? (
+      {item.to && lockStateFor(item) !== 'locked' ? (
         <NavLink
           to={item.to}
           end
@@ -210,49 +287,50 @@ function CollapsedBranchFlyout({ item, anchorRect, pathname, search, tr, onNavig
       )}
       <ul className="mt-1 space-y-0.5 border-t border-rp-line/80 pt-1.5">
         {item.children.map((child) => {
-          const childActive = isNavItemActive(child, pathname, search);
-          const locked = lockStateFor(child) === 'locked' && onLockedClick;
-          const ChildIcon = child.icon;
-          if (locked) {
+          if (child.children?.length) {
+            const subActive = isNavItemActive(child, pathname, search);
+            const ChildIcon = child.icon;
             return (
-              <li key={child.to}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    onClose();
-                    onNavigate?.();
-                    onLockedClick(child);
-                  }}
-                  className="rp-focus flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/60"
+              <li key={child.id || child.to || child.label} className="space-y-0.5 pt-0.5">
+                <p
+                  className={cx(
+                    'flex items-center gap-2 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em]',
+                    subActive ? 'text-rp-brand-strong' : 'text-rp-text-muted',
+                  )}
                 >
-                  <ChildIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
-                  <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                </button>
+                  {ChildIcon && <ChildIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="truncate">{tr(child.label)}</span>
+                </p>
+                <ul className="ml-2 space-y-0.5 border-l border-rp-line pl-2">
+                  {child.children.map((subChild) => (
+                    <FlyoutChildRow
+                      key={subChild.to}
+                      child={subChild}
+                      pathname={pathname}
+                      search={search}
+                      tr={tr}
+                      onClose={onClose}
+                      onNavigate={onNavigate}
+                      lockStateFor={lockStateFor}
+                      onLockedClick={onLockedClick}
+                    />
+                  ))}
+                </ul>
               </li>
             );
           }
           return (
-            <li key={child.to}>
-              <NavLink
-                to={child.to}
-                role="menuitem"
-                onClick={() => {
-                  onClose();
-                  onNavigate?.();
-                }}
-                className={cx(
-                  'rp-focus flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-colors',
-                  childActive
-                    ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
-                    : 'font-medium text-rp-text-2 hover:bg-rp-muted/65 hover:text-rp-text',
-                )}
-              >
-                <ChildIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
-              </NavLink>
-            </li>
+            <FlyoutChildRow
+              key={child.to}
+              child={child}
+              pathname={pathname}
+              search={search}
+              tr={tr}
+              onClose={onClose}
+              onNavigate={onNavigate}
+              lockStateFor={lockStateFor}
+              onLockedClick={onLockedClick}
+            />
           );
         })}
       </ul>
@@ -261,11 +339,10 @@ function CollapsedBranchFlyout({ item, anchorRect, pathname, search, tr, onNavig
   );
 }
 
-function HierarchicalNavItem({
+function NestedSubGroup({
   item,
   pathname,
   search,
-  collapsed,
   expanded,
   onToggleExpand,
   onNavigate,
@@ -274,11 +351,155 @@ function HierarchicalNavItem({
   onLockedClick,
 }) {
   const Icon = item.icon;
+  const nestedSubId = useId();
+  const branchActive = isNavItemActive(item, pathname, search);
+  const isOpen = Boolean(expanded);
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onToggleExpand(item.id || item.label)}
+        aria-expanded={isOpen}
+        aria-controls={nestedSubId}
+        className={cx(
+          'rp-focus group flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors duration-150',
+          branchActive
+            ? 'font-semibold text-rp-brand-strong hover:bg-rp-brand-tint/60'
+            : 'font-medium text-rp-text-2 hover:bg-rp-muted/60 hover:text-rp-text',
+        )}
+      >
+        {Icon && (
+          <Icon
+            aria-hidden="true"
+            className={cx('h-4 w-4 shrink-0 stroke-[1.9]', branchActive ? 'text-rp-brand' : 'text-rp-text-muted')}
+          />
+        )}
+        <span className="min-w-0 flex-1 truncate">{tr(item.label)}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cx(
+            'h-3.5 w-3.5 shrink-0 text-rp-text-muted transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            isOpen && 'rotate-180',
+          )}
+        />
+      </button>
+
+      <div
+        id={nestedSubId}
+        inert={!isOpen || undefined}
+        className={cx(
+          'grid transition-[grid-template-rows,opacity] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={cx(
+              'pt-1 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              isOpen ? 'translate-y-0' : '-translate-y-1',
+            )}
+          >
+            <ul
+              className={cx(
+                'ml-3 space-y-1 border-l-[1.5px] py-0.5 pl-2.5',
+                branchActive ? 'border-rp-brand-border/80' : 'border-rp-line/85',
+              )}
+            >
+              {item.children.map((subChild) => {
+                const active = isNavItemActive(subChild, pathname, search);
+                const SubIcon = subChild.icon;
+                const locked = lockStateFor(subChild) === 'locked' && onLockedClick;
+                if (locked) {
+                  return (
+                    <li key={subChild.to}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigate?.();
+                          onLockedClick(subChild);
+                        }}
+                        className="rp-focus flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/65"
+                      >
+                        {SubIcon ? (
+                          <SubIcon aria-hidden="true" className="h-4 w-4 shrink-0 stroke-[1.9]" />
+                        ) : (
+                          subChild.kind === 'radio' && <RadioDot selected={false} />
+                        )}
+                        <span className="min-w-0 flex-1 truncate">{tr(subChild.label)}</span>
+                        {SubIcon && subChild.kind === 'radio' && <RadioDot selected={false} />}
+                        <LockKeyhole aria-hidden="true" className="h-3 w-3 shrink-0" />
+                      </button>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={subChild.to}>
+                    <NavLink
+                      to={subChild.to}
+                      end={Boolean(subChild.end)}
+                      onClick={onNavigate}
+                      aria-current={active ? 'page' : undefined}
+                      className={cx(
+                        'rp-focus group relative flex items-center gap-2.5 rounded-xl border px-2.5 py-1.5 text-[13px] transition-colors duration-150',
+                        subChild.description ? 'min-h-11' : 'min-h-9',
+                        active
+                          ? 'border-rp-brand-border/80 bg-rp-brand-tint font-semibold text-rp-brand-strong shadow-rp-xs'
+                          : 'border-transparent font-medium text-rp-text-2 hover:bg-rp-muted/60 hover:text-rp-text',
+                      )}
+                    >
+                      {SubIcon ? (
+                        <SubIcon
+                          aria-hidden="true"
+                          className={cx(
+                            'h-4 w-4 shrink-0 stroke-[1.9]',
+                            active ? 'text-rp-brand-strong' : 'text-rp-text-muted group-hover:text-rp-text',
+                          )}
+                        />
+                      ) : (
+                        subChild.kind === 'radio' && <RadioDot selected={active} />
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate leading-5">{tr(subChild.label)}</span>
+                        {subChild.description && (
+                          <span className="block truncate text-[11px] font-normal leading-4 text-rp-text-muted">
+                            {tr(subChild.description)}
+                          </span>
+                        )}
+                      </span>
+                      {SubIcon && subChild.kind === 'radio' && <RadioDot selected={active} />}
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function HierarchicalNavItem({
+  item,
+  pathname,
+  search,
+  collapsed,
+  expandedMap,
+  onToggleBranch,
+  onNavigate,
+  tr,
+  lockStateFor,
+  onLockedClick,
+}) {
+  const Icon = item.icon;
   const label = tr(item.label);
   const subId = useId();
+  const branchKey = item.id || item.label;
   const branchActive = isNavItemActive(item, pathname, search);
   const selfActive = item.to ? pathname.replace(/\/+$/, '') === item.to : false;
-  const isOpen = Boolean(expanded);
+  const isOpen = Boolean(expandedMap?.[branchKey] ?? item.defaultOpen !== false);
+  const onToggleExpand = () => onToggleBranch(branchKey);
 
   const [flyoutRect, setFlyoutRect] = useState(null);
   const btnRef = useRef(null);
@@ -388,8 +609,30 @@ function HierarchicalNavItem({
               isOpen ? 'translate-y-0' : '-translate-y-1.5',
             )}
           >
-            <ul className="ml-[21px] space-y-0.5 border-l-2 border-rp-line/85 py-0.5 pl-3">
+            <ul
+              className={cx(
+                'ml-[21px] space-y-1 border-l-[1.5px] py-0.5 pl-3',
+                branchActive ? 'border-rp-brand-border/80' : 'border-rp-line/85',
+              )}
+            >
               {item.children.map((child) => {
+                if (child.children?.length) {
+                  const subKey = child.id || child.label;
+                  return (
+                    <NestedSubGroup
+                      key={subKey}
+                      item={child}
+                      pathname={pathname}
+                      search={search}
+                      expanded={expandedMap?.[subKey] ?? child.defaultOpen !== false}
+                      onToggleExpand={onToggleBranch}
+                      onNavigate={onNavigate}
+                      tr={tr}
+                      lockStateFor={lockStateFor}
+                      onLockedClick={onLockedClick}
+                    />
+                  );
+                }
                 const childActive = isNavItemActive(child, pathname, search);
                 const ChildIcon = child.icon;
                 const locked = lockStateFor(child) === 'locked' && onLockedClick;
@@ -402,9 +645,9 @@ function HierarchicalNavItem({
                           onNavigate?.();
                           onLockedClick(child);
                         }}
-                        className="rp-focus flex min-h-8.5 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/65 hover:text-rp-text-2"
+                        className="rp-focus flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium text-rp-text-muted hover:bg-rp-muted/65 hover:text-rp-text-2"
                       >
-                        <ChildIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                        <ChildIcon aria-hidden="true" className="h-4 w-4 shrink-0 stroke-[1.9]" />
                         <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
                         <LockKeyhole aria-hidden="true" className="h-3 w-3 shrink-0" />
                       </button>
@@ -415,10 +658,11 @@ function HierarchicalNavItem({
                   <li key={child.to}>
                     <NavLink
                       to={child.to}
+                      end={Boolean(child.end)}
                       onClick={onNavigate}
                       aria-current={childActive ? 'page' : undefined}
                       className={cx(
-                        'rp-focus relative flex min-h-8.5 items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors duration-150',
+                        'rp-focus relative flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors duration-150',
                         childActive
                           ? 'bg-rp-brand-tint/90 font-semibold text-rp-brand-strong shadow-rp-xs'
                           : 'font-medium text-rp-text-2 hover:bg-rp-muted/60 hover:text-rp-text',
@@ -426,7 +670,7 @@ function HierarchicalNavItem({
                     >
                       <ChildIcon
                         aria-hidden="true"
-                        className={cx('h-3.5 w-3.5 shrink-0', childActive ? 'text-rp-brand-strong' : 'text-rp-text-muted')}
+                        className={cx('h-4 w-4 shrink-0 stroke-[1.9]', childActive ? 'text-rp-brand-strong' : 'text-rp-text-muted')}
                       />
                       <span className="min-w-0 flex-1 truncate">{tr(child.label)}</span>
                     </NavLink>
@@ -486,14 +730,21 @@ function useSidebarScrollMemory(ref, key, enabled) {
 
 const lastVisitedNavRoute = new Map();
 
+function collectBranches(items = [], out = []) {
+  items.forEach((item) => {
+    if (item.children?.length) {
+      out.push(item);
+      collectBranches(item.children, out);
+    }
+  });
+  return out;
+}
+
 function loadExpandedBranches(nav, storageKey, roleKey, pathname, search) {
   const map = {};
-  nav.groups.forEach((g) => {
-    g.items.forEach((item) => {
-      if (item.children?.length) {
-        map[item.id || item.label] = item.defaultOpen !== false;
-      }
-    });
+  const branches = nav.groups.flatMap((g) => collectBranches(g.items));
+  branches.forEach((item) => {
+    map[item.id || item.label] = item.defaultOpen !== false;
   });
 
   try {
@@ -503,30 +754,44 @@ function loadExpandedBranches(nav, storageKey, roleKey, pathname, search) {
     /* ignore */
   }
 
+  let updated = false;
   const prev = lastVisitedNavRoute.get(roleKey);
-  if (prev) {
-    let updated = false;
-    nav.groups.forEach((g) => {
-      g.items.forEach((item) => {
-        if (!item.children?.length) return;
-        const key = item.id || item.label;
-        const wasInBranch = isNavItemActive(item, prev.pathname, prev.search);
-        const nowInBranch = isNavItemActive(item, pathname, search);
-        if (!wasInBranch && nowInBranch && !map[key]) {
-          map[key] = true;
-          updated = true;
-        }
-      });
-    });
-    if (updated) {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(map));
-      } catch {
-        /* ignore */
-      }
+  branches.forEach((item) => {
+    const key = item.id || item.label;
+    const nowInBranch = isNavItemActive(item, pathname, search);
+    const wasInBranch = prev ? isNavItemActive(item, prev.pathname, prev.search) : false;
+    if (nowInBranch && !map[key] && (!prev || !wasInBranch)) {
+      map[key] = true;
+      updated = true;
+    }
+  });
+  if (updated) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(map));
+    } catch {
+      /* ignore */
     }
   }
 
+  return map;
+}
+
+function loadExpandedGroups(nav, groupStorageKey, pathname, search) {
+  const map = {};
+  nav.groups.forEach((g) => {
+    if (g.collapsible) map[g.label] = true;
+  });
+  try {
+    const saved = localStorage.getItem(groupStorageKey);
+    if (saved) Object.assign(map, JSON.parse(saved));
+  } catch {
+    /* ignore */
+  }
+  nav.groups.forEach((g) => {
+    if (g.collapsible && g.items.some((item) => isNavItemActive(item, pathname, search))) {
+      map[g.label] = true;
+    }
+  });
   return map;
 }
 
@@ -538,14 +803,85 @@ function SidebarNav({ roleKey, collapsed, onNavigate, rememberScroll = false }) 
   const nav = ROLE_NAV[roleKey];
   const unlock = useStudyUnlock();
   const storageKey = `rp.nav.expanded.${roleKey}`;
+  const groupStorageKey = `rp.nav.groups.expanded.${roleKey}`;
 
   const [expandedMap, setExpandedMap] = useState(() =>
     loadExpandedBranches(nav, storageKey, roleKey, pathname, search),
   );
+  const [expandedGroups, setExpandedGroups] = useState(() =>
+    loadExpandedGroups(nav, groupStorageKey, pathname, search),
+  );
+  const [manualGroupToggleRoute, setManualGroupToggleRoute] = useState({});
+  const currentRouteSig = `${pathname}${search}`;
+
+  const prevRouteRef = useRef({ pathname, search });
 
   useEffect(() => {
+    const prevRoute = prevRouteRef.current;
+    prevRouteRef.current = { pathname, search };
     lastVisitedNavRoute.set(roleKey, { pathname, search });
-  }, [roleKey, pathname, search]);
+
+    const branches = nav.groups.flatMap((g) => collectBranches(g.items));
+    const toAutoOpen = [];
+    branches.forEach((item) => {
+      const key = item.id || item.label;
+      const nowInBranch = isNavItemActive(item, pathname, search);
+      const wasInBranch = prevRoute ? isNavItemActive(item, prevRoute.pathname, prevRoute.search) : false;
+      if (nowInBranch && !wasInBranch) toAutoOpen.push(key);
+    });
+    if (toAutoOpen.length > 0) {
+      setExpandedMap((prev) => {
+        if (toAutoOpen.every((k) => prev[k])) return prev;
+        const next = { ...prev };
+        toAutoOpen.forEach((k) => {
+          next[k] = true;
+        });
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    }
+
+    try {
+      const next = { ...expandedGroups };
+      let changed = false;
+      nav.groups.forEach((g) => {
+        if (g.collapsible && !next[g.label] && g.items.some((item) => isNavItemActive(item, pathname, search))) {
+          next[g.label] = true;
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem(groupStorageKey, JSON.stringify(next));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [roleKey, pathname, search, nav, storageKey, groupStorageKey, expandedGroups]);
+
+  const isGroupOpen = (group, groupActive) => {
+    if (groupActive && manualGroupToggleRoute[group.label] !== currentRouteSig) {
+      return true;
+    }
+    return expandedGroups[group.label] ?? true;
+  };
+
+  const toggleGroup = (groupLabel, currentlyOpen) => {
+    const nextOpen = !currentlyOpen;
+    setManualGroupToggleRoute((prev) => ({ ...prev, [groupLabel]: currentRouteSig }));
+    setExpandedGroups((prev) => {
+      const next = { ...prev, [groupLabel]: nextOpen };
+      try {
+        localStorage.setItem(groupStorageKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   const toggleExpanded = (branchKey) => {
     setExpandedMap((prev) => {
@@ -561,59 +897,95 @@ function SidebarNav({ roleKey, collapsed, onNavigate, rememberScroll = false }) 
 
   // loading / error → 'unknown' → rendered as a normal item (no lock flash, no false paywall).
   const lockStateFor = (item) => (unlock ? unlock.access.lockStateFor(item.to) : 'open');
+  const lockReasonFor = (item) => (unlock?.access.lockReasonFor ? unlock.access.lockReasonFor(item.to) : LOCK_REASON);
   const onLockedClick = unlock ? (item) => unlock.requestUnlock(item.to, item.label) : undefined;
   return (
     <nav
       ref={navRef}
       aria-label={tr('Điều hướng chính')}
-      className={cx('rp-sidebar-scroll min-h-0 flex-1 py-3', collapsed ? 'px-2' : 'px-3')}
+      className={cx('rp-sidebar-scroll min-h-0 flex-1 overflow-y-auto py-3', collapsed ? 'px-2' : 'px-2.5')}
     >
       {nav.groups.map((group) => {
         const singleBranchSameLabel =
           group.items.length === 1 &&
           group.items[0].children?.length &&
           group.items[0].label === group.label;
+        const isCollapsible = Boolean(group.collapsible && !collapsed && !singleBranchSameLabel);
+        const groupActive = group.items.some((item) => isNavItemActive(item, pathname, search));
+        const groupOpen = !isCollapsible || isGroupOpen(group, groupActive);
         return (
-        <div key={group.label} className={collapsed ? 'mb-2.5' : 'mb-3.5'}>
+        <div key={group.label} className={collapsed ? 'mb-2.5' : 'mb-3'}>
           {!collapsed ? (
             !singleBranchSameLabel && (
-              <p className="mb-1.5 truncate px-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-rp-text-muted">
-                {tr(group.label)}
-              </p>
+              isCollapsible ? (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.label, groupOpen)}
+                  aria-expanded={groupOpen}
+                  className={cx(
+                    'rp-focus mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors hover:bg-rp-muted/50',
+                    groupActive ? 'text-rp-brand-strong' : 'text-rp-text-muted',
+                  )}
+                >
+                  <span className="truncate">{tr(group.label)}</span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={cx(
+                      'h-3.5 w-3.5 shrink-0 opacity-75 transition-transform duration-200 motion-reduce:transition-none',
+                      groupOpen && 'rotate-180',
+                    )}
+                  />
+                </button>
+              ) : (
+                <p className={cx('mb-1.5 truncate px-2.5 text-[11px] font-semibold uppercase tracking-[0.1em]', groupActive ? 'text-rp-brand-strong' : 'text-rp-text-muted')}>
+                  {tr(group.label)}
+                </p>
+              )
             )
           ) : (
             <span aria-hidden="true" className="mx-auto mb-2 block h-px w-6 bg-rp-line" />
           )}
-          <ul className="space-y-1">
-            {group.items.map((item) => (
-              <li key={item.to || item.id || item.label} className={collapsed ? 'flex justify-center' : undefined}>
-                {item.children?.length ? (
-                  <HierarchicalNavItem
-                    item={item}
-                    pathname={pathname}
-                    search={search}
-                    collapsed={collapsed}
-                    expanded={expandedMap[item.id || item.label] ?? item.defaultOpen !== false}
-                    onToggleExpand={() => toggleExpanded(item.id || item.label)}
-                    onNavigate={onNavigate}
-                    tr={tr}
-                    lockStateFor={lockStateFor}
-                    onLockedClick={onLockedClick}
-                  />
-                ) : (
-                  <NavItem
-                    item={item}
-                    active={isNavItemActive(item, pathname, search)}
-                    collapsed={collapsed}
-                    onNavigate={onNavigate}
-                    tr={tr}
-                    lockState={lockStateFor(item)}
-                    onLockedClick={onLockedClick}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
+          <div
+            inert={(!collapsed && !groupOpen) || undefined}
+            className={cx(
+              isCollapsible && 'grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              isCollapsible ? (groupOpen ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0') : undefined,
+            )}
+          >
+            <div className={cx(isCollapsible && 'min-h-0 overflow-hidden')}>
+              <ul className="space-y-1">
+                {group.items.map((item) => (
+                  <li key={item.to || item.id || item.label} className={collapsed ? 'flex justify-center' : undefined}>
+                    {item.children?.length ? (
+                      <HierarchicalNavItem
+                        item={item}
+                        pathname={pathname}
+                        search={search}
+                        collapsed={collapsed}
+                        expandedMap={expandedMap}
+                        onToggleBranch={toggleExpanded}
+                        onNavigate={onNavigate}
+                        tr={tr}
+                        lockStateFor={lockStateFor}
+                        onLockedClick={onLockedClick}
+                      />
+                    ) : (
+                      <NavItem
+                        item={item}
+                        active={isNavItemActive(item, pathname, search)}
+                        collapsed={collapsed}
+                        onNavigate={onNavigate}
+                        tr={tr}
+                        lockState={lockStateFor(item)}
+                        lockReason={lockReasonFor(item)}
+                        onLockedClick={onLockedClick}
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
         );
       })}
@@ -636,7 +1008,7 @@ function Brand({ to, collapsed, area }) {
       {!collapsed && (
         <span className="min-w-0 leading-tight">
           {/* Role name is not shown under the wordmark (any role); it stays in the link's accessible name. */}
-          <span className="block text-[17px] font-bold tracking-[-0.02em] text-rp-text">RikiPath</span>
+          <span className="block text-[17px] font-bold tracking-[-0.02em] text-rp-text">Riki<span className="rp-brand-path">Path</span></span>
         </span>
       )}
     </Link>
@@ -646,9 +1018,9 @@ function Brand({ to, collapsed, area }) {
 /* ------------------------------------------------------------------ Profile menu */
 
 function ProfileMenu({ roleKey }) {
-  const { user, primaryRole, logout } = useAuth();
+  const { user, userLoading, primaryRole, logout } = useAuth();
   const { tr } = useLocale();
-  const name = user?.fullName || user?.name || user?.email || tr('Tài khoản');
+  const name = user?.displayName || user?.fullName || user?.name || user?.email || tr('Tài khoản');
   const role = ROLE_LABEL[primaryRole] || primaryRole;
   const links = [
     { to: '/profile', label: 'Hồ sơ của tôi', icon: UserRound },
@@ -667,36 +1039,58 @@ function ProfileMenu({ roleKey }) {
   return (
     <Popover
       label={tr('Tài khoản')}
-      panelClassName="w-64"
+      panelClassName="w-[min(288px,calc(100vw-24px))] overflow-hidden p-0"
       trigger={({ toggle, props, open }) => (
         <button
           {...props}
           type="button"
           onClick={toggle}
           aria-label={`${tr('Tài khoản')}: ${name}`}
-          className="rp-focus flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-1 transition-colors hover:border-rp-line hover:bg-rp-surface/90 md:pr-2.5"
+          data-testid="header-profile-trigger"
+          className="rp-focus flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-1.5 transition-colors hover:border-rp-line hover:bg-rp-surface/90 md:pr-2.5"
         >
-          <Avatar src={user?.avatarUrl} name={name} size={32} className="ring-1 ring-rp-line" />
+          <UserAvatar
+            src={user?.avatarUrl}
+            name={name}
+            size={32}
+            loading={userLoading}
+            eager
+            decorative
+            className="ring-1 ring-rp-line"
+          />
           <span className="hidden max-w-[148px] text-left leading-tight md:block">
             <span className="block truncate text-[13px] font-semibold text-rp-text">{name}</span>
             <span className="block truncate text-[11px] text-rp-text-muted">{tr(role)}</span>
           </span>
-          <ChevronDown aria-hidden="true" className={cx('h-4 w-4 text-rp-text-muted transition-transform duration-150', open && 'rotate-180')} />
+          <ChevronDown aria-hidden="true" className={cx('h-4 w-4 shrink-0 text-rp-text-muted transition-transform duration-150', open && 'rotate-180')} />
         </button>
       )}
     >
       {({ close }) => (
-        <div>
-          <div className="border-b border-rp-line px-4 py-3">
-            <p className="truncate text-sm font-semibold text-rp-text">{name}</p>
-            {user?.email && <p className="truncate text-xs text-rp-text-muted">{user.email}</p>}
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-rp-brand">{tr(role)}</p>
+        <div data-testid="account-dropdown-panel">
+          <div className="flex items-center gap-3 border-b border-rp-line bg-gradient-to-br from-rp-brand-tint/35 via-rp-surface to-rp-surface px-4 py-3.5">
+            <UserAvatar
+              src={user?.avatarUrl}
+              name={name}
+              size={44}
+              loading={userLoading}
+              eager
+              className="ring-2 ring-rp-brand-border/60 shadow-rp-xs"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-rp-text">{name}</p>
+              {user?.email && <p className="truncate text-xs text-rp-text-muted">{user.email}</p>}
+              <span className="mt-1.5 inline-flex items-center rounded-full border border-rp-brand-border/70 bg-rp-brand-tint/70 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-rp-brand-strong">
+                {tr(role)}
+              </span>
+            </div>
           </div>
           <ul className="p-1.5">
             {links.map((l) => (
               <li key={l.to}>
                 <Link to={l.to} onClick={close} className="rp-focus group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-rp-text-2 hover:bg-rp-muted hover:text-rp-text">
-                  <l.icon aria-hidden="true" className="rp-icon-tilt h-4 w-4" /> {tr(l.label)}
+                  <l.icon aria-hidden="true" className="rp-icon-tilt h-4 w-4 shrink-0" />
+                  <span className="truncate">{tr(l.label)}</span>
                 </Link>
               </li>
             ))}
@@ -710,7 +1104,7 @@ function ProfileMenu({ roleKey }) {
               }}
               className="rp-focus flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold text-rp-danger hover:bg-rp-danger-bg"
             >
-              <LogOut aria-hidden="true" className="h-4 w-4" /> {tr('Đăng xuất')}
+              <LogOut aria-hidden="true" className="h-4 w-4 shrink-0" /> {tr('Đăng xuất')}
             </button>
           </div>
         </div>
@@ -843,13 +1237,20 @@ function Breadcrumbs({ trail }) {
       <ol className="flex min-w-0 items-center gap-1 overflow-hidden text-[13px]">
         {trail.map((crumb, i) => {
           const last = i === trail.length - 1;
+          const CrumbIcon = crumb.icon;
           return (
             <li key={`${crumb.label}-${i}`} className={cx('flex min-w-0 items-center gap-1', !last && 'max-w-[160px] shrink')}>
               {i > 0 && <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-text-disabled" />}
               {crumb.to && !last ? (
-                <Link to={crumb.to} className="rp-focus truncate rounded text-rp-text-muted transition-colors hover:text-rp-brand-strong">{tr(crumb.label)}</Link>
+                <Link to={crumb.to} className="rp-focus inline-flex min-w-0 items-center gap-1.5 truncate rounded text-rp-text-muted transition-colors hover:text-rp-brand-strong">
+                  {CrumbIcon && <CrumbIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 stroke-[1.9]" />}
+                  <span className="truncate">{tr(crumb.label)}</span>
+                </Link>
               ) : (
-                <span aria-current={last ? 'page' : undefined} className={cx('truncate', last ? 'font-semibold text-rp-text' : 'text-rp-text-muted')}>{tr(crumb.label)}</span>
+                <span aria-current={last ? 'page' : undefined} className={cx('inline-flex min-w-0 items-center gap-1.5 truncate', last ? 'font-semibold text-rp-text' : 'text-rp-text-muted')}>
+                  {CrumbIcon && <CrumbIcon aria-hidden="true" className={cx('h-3.5 w-3.5 shrink-0 stroke-[1.9]', last && 'text-rp-brand-strong')} />}
+                  <span className="truncate">{tr(crumb.label)}</span>
+                </span>
               )}
             </li>
           );
@@ -971,7 +1372,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
       </aside>
 
       {/* Mobile / tablet drawer */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="left" width="w-[min(300px,88vw)]" title={nav.area}>
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="left" width="w-[min(300px,88vw)]" title={nav.area} padded={false}>
         <div className="flex min-h-full flex-col">
           <SidebarNav roleKey={roleKey} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
           <div className="shrink-0 space-y-2 border-t border-rp-line p-3 sm:hidden">
@@ -1005,6 +1406,8 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         data-role={roleKey.toLowerCase()}
         data-sky={skyOn ? 'on' : 'off'}
         data-sky-tone={skyOn && atmosphere.scene.isDark ? 'dark' : 'light'}
+        data-sky-period={skyOn ? atmosphere.scene.period : undefined}
+        data-sky-condition={skyOn ? atmosphere.scene.condition : undefined}
         className="rp-header-ambient rp-sky-header sticky top-0 z-[45] flex h-[var(--spacing-rp-topbar)] items-center gap-1 border-b border-rp-line bg-rp-surface/92 px-2.5 backdrop-blur-md sm:gap-2.5 sm:px-[var(--rp-space-page-x)] lg:pl-3"
       >
         {skyOn && (

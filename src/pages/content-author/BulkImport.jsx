@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 import { uploadBulkImportFile } from '@/features/content-author/api/cmsBulkImportApi.js';
 import { ContentAuthorShell } from '@/layouts';
+import { EmptyState } from '@/components/ui';
 import { AUTHOR_LEVELS } from '@/features/content-author/constants/authorLevels.js';
 import { useLocale, translateTemplate } from '@/locales/locale.js';
 
@@ -187,7 +188,14 @@ function ItemList({ title, items, columns, onChange, onAdd }) {
         <h3 className="text-[13px] font-medium text-rp-text-2">{tr(title)}</h3>
         <button type="button" onClick={onAdd} className="text-[12px] text-rp-brand-strong">{tr('Thêm')}</button>
       </div>
-      {!items.length && <p className="text-[12px] text-rp-text-muted">{tr('Chưa có dòng trong bài này.')}</p>}
+      {!items.length && (
+        <EmptyState
+          variant="inline"
+          size="sm"
+          illustration="table"
+          title={tr('Chưa có dòng trong bài này.')}
+        />
+      )}
       <div className="space-y-2">
         {items.map((item) => (
           <div key={item.id} className="grid gap-2 rounded-lg bg-rp-bg-2 p-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
@@ -355,7 +363,15 @@ export default function BulkImport() {
         </div>
 
         <div className="mt-4 space-y-3">
-          {!reviewed.length && <p className="rounded-xl border border-rp-line bg-white px-4 py-10 text-center text-[13px] text-rp-text-muted">{tr('Chưa có bài. Thêm bài học hoặc chọn file mẫu.')}</p>}
+          {!reviewed.length && (
+            <div className="rounded-xl border border-rp-line bg-white p-4">
+              <EmptyState
+                variant="compact"
+                illustration="book"
+                title={tr('Chưa có bài. Thêm bài học hoặc chọn file mẫu.')}
+              />
+            </div>
+          )}
           {reviewed.map((lesson) => (
             <article key={lesson.id} className="rounded-xl border border-rp-line bg-white p-4">
               <button type="button" onClick={() => setEditingId(editingId === lesson.id ? null : lesson.id)} className="flex w-full items-start justify-between gap-3 text-left">

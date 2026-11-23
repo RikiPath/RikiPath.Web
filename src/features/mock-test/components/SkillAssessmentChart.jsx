@@ -3,8 +3,15 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getMockTestHistory } from '@/features/mock-test/api/mockTestApi.js';
-import { examSkills, jlptLevels, splitPlacementScores, summarizeSkills } from '@/features/mock-test/utils/examSkillScores.js';
-import { Banner, SakuraLoader } from '@/components/ui';
+import {
+  examSkills,
+  extractUnevaluatedSkillNotes,
+  jlptLevels,
+  splitPlacementScores,
+  summarizeSkills,
+  translateBackendSkillComment,
+} from '@/features/mock-test/utils/examSkillScores.js';
+import { Banner, EmptyState, SakuraLoader, Tabs } from '@/components/ui';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 import ExamSkillRadar from './ExamSkillRadar.jsx';
@@ -30,23 +37,35 @@ function PlacementGuidance({ assessments }) {
   const { tr, trf } = useLocale();
   if (!assessments?.length) return null;
   return (
-    <details className="rounded-xl border border-rp-line bg-rp-brand-tint p-3.5 text-sm">
+    <details className="rounded-rp-input border border-rp-line bg-rp-bg-2/60 p-3.5 text-sm">
       <summary className="cursor-pointer font-semibold text-rp-text">
         {tr('Gợi ý ôn tập theo kết quả đánh giá')}
       </summary>
-      <ul className="mt-3 space-y-3">
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2">
         {examSkills.map((skill) => {
           const assessment = assessments.find((item) => item.skillCode === skill.code);
           if (!assessment) return null;
           return (
-            <li key={skill.code}>
+            <li key={skill.code} className="rounded-rp-sm border border-rp-line/70 bg-rp-surface p-2.5">
               <strong className="text-rp-text">
                 {tr(skill.label)}
                 {assessment.recommendedStudyLevelCode &&
                   trf(' · Ôn từ {0}', { 0: assessment.recommendedStudyLevelCode })}
               </strong>
-              {assessment.comment && <p className="mt-0.5 text-rp-text-2">{assessment.comment}</p>}
-              {assessment.recommendation && <p className="mt-0.5 text-rp-text-muted">{assessment.recommendation}</p>}
+              {assessment.hasData === false ? (
+                <p className="mt-0.5 text-xs text-rp-text-muted">{tr('Chưa đánh giá')}</p>
+              ) : (
+                <>
+                  {assessment.comment && (
+                    <p className="mt-0.5 text-xs text-rp-text-2">
+                      {translateBackendSkillComment(assessment.comment, tr, trf)}
+                    </p>
+                  )}
+                  {assessment.recommendation && (
+                    <p className="mt-0.5 text-xs text-rp-text-muted">{tr(assessment.recommendation)}</p>
+                  )}
+                </>
+              )}
             </li>
           );
         })}
@@ -63,15 +82,21 @@ function CompareAtLevel({ attempts, placementScores, placementDate, userId, leve
   const selected = choices.find((item) => item.attemptId === selectedId) ?? choices[0];
   if (!selected) {
     return (
-      <p className="rounded-xl border border-rp-line bg-rp-brand-tint p-3.5 text-sm text-rp-text-2">
-        {placementScores
-          ? trf('Cần ít nhất một lượt thi thử {0} đã nộp.', { 0: level })
-          : trf('Cần ít nhất hai lượt thi thử {0} đã nộp.', { 0: level })}
-        {' '}
-        <Link to="/mock-tests/" className="rp-focus rp-link rounded-sm">
-          {tr('Chọn đề thi thử')}
-        </Link>
-      </p>
+      <EmptyState
+        variant="inline"
+        size="sm"
+        illustration="certificate"
+        title={
+          placementScores
+            ? trf('Cần ít nhất một lượt thi thử {0} đã nộp.', { 0: level })
+            : trf('Cần ít nhất hai lượt thi thử {0} đã nộp.', { 0: level })
+        }
+        action={
+          <Link to="/mock-tests/" className="rp-focus rp-link rounded-sm text-xs font-semibold">
+            {tr('Chọn đề thi thử')}
+          </Link>
+        }
+      />
     );
   }
 
@@ -85,13 +110,13 @@ function CompareAtLevel({ attempts, placementScores, placementDate, userId, leve
           onChange={setSelectedId}
         />
         {placementScores && placementDate && (
-          <p className="rounded-xl border border-rp-line bg-rp-brand-tint p-2.5 text-sm">
+          <p className="rounded-rp-input border border-rp-line bg-rp-bg-2 p-2.5 text-sm">
             <strong className="block text-rp-text">{trf('Bài đánh giá {0}', { 0: level })}</strong>
             <span className="text-rp-text-2">{formatDate(placementDate)}</span>
           </p>
         )}
         {!placementScores && (
-          <p className="rounded-xl border border-rp-line bg-rp-brand-tint p-2.5 text-sm">
+          <p className="rounded-rp-input border border-rp-line bg-rp-bg-2 p-2.5 text-sm">
             <strong className="block text-rp-text">{tr('Lượt thi thử mới nhất')}</strong>
             <span className="text-rp-text-2">
               {formatDate(latest.submittedAt)} · {tr(latest.title)}
@@ -131,11 +156,16 @@ function ComparisonView({ attempts, placementScores, placementDate, targetLevel,
 
   if (!level) {
     return (
-      <p className="text-sm text-rp-text-2">
-        {placementScores
-          ? tr('Bài này chưa có điểm kỹ năng theo cấp JLPT để đối chiếu.')
-          : tr('Chưa có lượt thi thử để đối chiếu.')}
-      </p>
+      <EmptyState
+        variant="inline"
+        size="sm"
+        illustration="chart"
+        title={
+          placementScores
+            ? tr('Bài này chưa có điểm kỹ năng theo cấp JLPT để đối chiếu.')
+            : tr('Chưa có lượt thi thử để đối chiếu.')
+        }
+      />
     );
   }
 
@@ -156,7 +186,7 @@ function ComparisonView({ attempts, placementScores, placementDate, targetLevel,
   );
 }
 
-export default function SkillAssessmentChart({ result, targetLevel, visibleLevels }) {
+export default function SkillAssessmentChart({ result, targetLevel, visibleLevels, animate = false }) {
   const { tr } = useLocale();
   const { user } = useAuth();
   const [view, setView] = useState('result');
@@ -168,41 +198,53 @@ export default function SkillAssessmentChart({ result, targetLevel, visibleLevel
     retry: false,
   });
   const scoresByLevel = splitPlacementScores(result);
+  const unevaluatedNotes = extractUnevaluatedSkillNotes(result?.sections, result?.skillAssessments);
   const observed = Object.keys(scoresByLevel);
   const adjacent = visibleLevels?.filter((level) => scoresByLevel[level]) ?? [];
   const levels = adjacent.length ? adjacent : observed.slice(-2);
-  const series = levels.length
+  let series = levels.length
     ? levels.map((level) => ({ label: level, scores: scoresByLevel[level] }))
-    : [{ label: tr('Bài đánh giá'), scores: summarizeSkills(result.sections) }];
+    : [{ label: tr('Bài đánh giá'), scores: summarizeSkills(result?.sections, result?.skillAssessments) }];
+
+  if (!levels.length && Object.keys(series[0].scores).length === 0 && Array.isArray(result?.skillAssessments)) {
+    const fallbackScores = {};
+    for (const item of result.skillAssessments) {
+      if (item?.hasData && Number.isFinite(Number(item?.totalCount)) && Number(item.totalCount) > 0 && item?.skillCode) {
+        fallbackScores[item.skillCode] = {
+          correct: BigInt(Math.round(Number(item.correctCount) || 0)),
+          count: BigInt(Math.round(Number(item.totalCount))),
+        };
+      }
+    }
+    series = [{ label: tr('Bài đánh giá'), scores: fallbackScores }];
+  }
 
   return (
     <section
       aria-labelledby="assessment-radar-title"
-      className="mt-4 space-y-3 rounded-rp-card border border-rp-line bg-rp-surface p-3 wrap-anywhere sm:p-4"
+      className="min-w-0 space-y-4 rounded-rp-card border border-rp-line bg-rp-surface p-4 shadow-rp-card sm:p-5"
     >
-      <h3 id="assessment-radar-title" className="font-semibold text-rp-text">
-        {tr('Kết quả theo kỹ năng')}
-      </h3>
-      <div className="flex flex-wrap gap-2" role="group" aria-label={tr('Dữ liệu trên biểu đồ radar')}>
-        {views.map(([id, label]) => (
-          <button
-            type="button"
-            key={id}
-            aria-pressed={view === id}
-            className={`rp-focus min-w-0 max-w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
-              view === id
-                ? 'border-rp-brand-strong bg-rp-brand-tint font-semibold text-rp-brand-strong'
-                : 'border-rp-line text-rp-text-2 hover:bg-rp-brand-tint/50'
-            }`}
-            onClick={() => setView(id)}
-          >
-            {tr(label)}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 id="assessment-radar-title" className="text-base font-bold text-rp-text">
+            {tr('Phân tích kỹ năng')}
+          </h3>
+          <p className="text-xs text-rp-text-muted">
+            {tr('So sánh tỷ lệ câu đúng và trạng thái từng kỹ năng theo cấp độ đã đánh giá.')}
+          </p>
+        </div>
+        <Tabs
+          variant="pill"
+          className="flex-wrap"
+          label={tr('Dữ liệu trên biểu đồ radar')}
+          value={view}
+          onChange={setView}
+          tabs={views.map(([id, label]) => ({ value: id, label: tr(label) }))}
+        />
       </div>
       {!compare && (
         <>
-          <ExamSkillRadar series={series} />
+          <ExamSkillRadar series={series} unevaluatedNotes={unevaluatedNotes} animate={animate} />
           <PlacementGuidance assessments={result.skillAssessments} />
         </>
       )}

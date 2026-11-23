@@ -180,11 +180,11 @@ export default function ChangePassword() {
   return (
     <div
       data-page="ChangePassword"
-      className="flex min-h-dvh items-center justify-center bg-[#F8F6F4] px-3 py-4 text-rp-text sm:px-6 sm:py-6"
+      className="flex min-h-dvh items-center justify-center bg-rp-bg px-3 py-4 text-rp-text sm:px-6 sm:py-6"
     >
-      <main className="grid w-full max-w-[1040px] overflow-hidden rounded-[24px] border border-[#EAE3E4] bg-white shadow-[0_24px_64px_-28px_rgba(120,40,70,0.22),0_2px_8px_rgba(45,40,42,0.04)] lg:grid-cols-[0.88fr_1.12fr]">
+      <main className="grid w-full max-w-[1040px] overflow-hidden rounded-[24px] border border-rp-line bg-white shadow-[0_24px_64px_-28px_rgba(193,65,98,0.18),0_2px_8px_rgba(45,40,42,0.04)] lg:grid-cols-[0.88fr_1.12fr]">
         {/* Left column: Branding + 3D Security Shield + Meaningful Live Checklist */}
-        <aside className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#C84666] via-[#B53D5C] to-[#982E4B] p-6 text-white lg:p-8">
+        <aside className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#D64D70] via-[#C64264] to-[#B03455] p-6 text-white lg:p-8">
           <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full border border-white/10" />
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-28 -left-24 h-72 w-72 rounded-full border border-white/10" />
 
@@ -327,25 +327,18 @@ export default function ChangePassword() {
                 />
               )}
 
-              <div className="space-y-2.5">
-                <PasswordInputField
-                  id="newPassword"
-                  name="newPassword"
-                  label="Mật khẩu mới"
-                  placeholder="Tạo mật khẩu mới"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  disabled={busy}
-                  error={newPasswordError}
-                  required
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-
-                <PasswordStrengthMeter
-                  evaluation={evaluation}
-                  hasCurrentPasswordField={hasPassword}
-                />
-              </div>
+              <PasswordInputField
+                id="newPassword"
+                name="newPassword"
+                label="Mật khẩu mới"
+                placeholder="Tạo mật khẩu mới"
+                autoComplete="new-password"
+                value={newPassword}
+                disabled={busy}
+                error={newPasswordError}
+                required
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
 
               <div>
                 <PasswordInputField
@@ -371,6 +364,11 @@ export default function ChangePassword() {
                       : ''}
                 </span>
               </div>
+
+              <PasswordStrengthMeter
+                evaluation={evaluation}
+                hasCurrentPasswordField={hasPassword}
+              />
 
               <div className="pt-1.5">
                 <Button
