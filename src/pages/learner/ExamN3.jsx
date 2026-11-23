@@ -6,6 +6,8 @@ import { LearnerShell } from '@/layouts';
 import { getSession } from '@/app/auth/session.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { Button, Modal, SakuraLoader } from '@/components/ui';
+import OrderingAnswer from '@/features/mock-test/components/OrderingAnswer.jsx';
+import SkillAssessmentChart from '@/features/mock-test/components/SkillAssessmentChart.jsx';
 import {
   getPlacementResultActions,
   loadAssessment,
