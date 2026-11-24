@@ -1,11 +1,11 @@
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Layers, RefreshCw, Repeat } from 'lucide-react';
+import { ArrowRight, RefreshCw, Repeat } from 'lucide-react';
 
 import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { Button, Card, ErrorState, SakuraLoader } from '@/components/ui';
-import { ACCESS, findFeatureForPath } from '@/features/entitlements/featureAccess.js';
+import { ACCESS, LOCK_KIND, featureLockKind, findFeatureForPath } from '@/features/entitlements/featureAccess.js';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import { StudyUnlockContent } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { plansLinkState } from '@/features/entitlements/studyUnlock.js';
@@ -103,15 +103,20 @@ export default function RequireStudyPlan({ children, feature = 'active' }) {
       <div className="rp-container-reading py-8 lg:py-12" data-gate="self-study-required">
         <Card className="relative overflow-hidden bg-white p-6 sm:p-8">
           <div className="relative">
-            <StudyUnlockContent featureLabel={featureLabel} description={description} status={status} headingAs="h1">
+            <StudyUnlockContent
+              featureLabel={featureLabel}
+              description={info.description}
+              status={status}
+              kind={featureLockKind(location.pathname, subscriptionQuery.data?.features) ?? LOCK_KIND.PLAN}
+              headingAs="h1"
+            >
               <div className="mt-5 flex flex-wrap items-center gap-2.5">
                 <Link
                   to="/plans/"
                   state={plansLinkState(path, featureLabel)}
                   className="rp-focus rp-press rp-btn-primary group inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand hover:bg-rp-brand-strong"
                 >
-                  <Layers aria-hidden="true" className="h-4 w-4" />
-                  {tr('Khám phá gói tự học')}
+                  {tr('Mua gói ngay')}
                   <ArrowRight aria-hidden="true" className="rp-btn-arrow h-4 w-4" />
                 </Link>
                 <Button variant="secondary" icon={RefreshCw} loading={subscriptionQuery.isFetching} onClick={() => subscriptionQuery.refetch()}>

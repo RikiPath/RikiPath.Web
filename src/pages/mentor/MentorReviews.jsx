@@ -13,7 +13,6 @@ import {
   ContextualErrorState,
   CustomSelect,
   Modal,
-  PageHeader,
   RefreshingIndicator,
   SakuraLoader,
   StaleDataBar,
@@ -165,17 +164,12 @@ export default function MentorReviews() {
   return (
     <MentorShell pathname={pathname} breadcrumb={tr('Đánh giá lớp nhóm')}>
       <div className="rp-container py-6 text-rp-text lg:py-8 space-y-5">
-        <PageHeader
-          title="Đánh giá từ học viên lớp nhóm"
-          description="Tổng hợp điểm trung bình và nhận xét ẩn danh từ học viên các lớp học nhóm bạn đã tham gia giảng dạy."
-          actions={(
-            <div className="flex flex-wrap items-center gap-2">
-              <Button as={Link} to="/mentor-study-courses/" variant="secondary" size="sm">
-                {tr('Về lớp phụ trách')}
-              </Button>
-            </div>
-          )}
-        />
+        <h1 className="sr-only">{tr('Đánh giá từ học viên lớp nhóm')}</h1>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button as={Link} to="/mentor-study-courses/" variant="secondary" size="sm">
+            {tr('Về lớp phụ trách')}
+          </Button>
+        </div>
 
         {summary.isFetching && !summary.isPending && (
           <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">

@@ -17,7 +17,6 @@ import {
   FileUpload,
   Input,
   PageContainer,
-  PageHeader,
   Textarea,
   useSubmitGuard,
 } from '@/components/ui';
@@ -130,16 +129,12 @@ export default function MentorGrading() {
   return (
     <MentorShell pathname={pathname} breadcrumb={tr('Đánh giá bài luyện tập')}>
       <PageContainer width="default" density="comfortable" className="space-y-5 text-rp-text">
-        <PageHeader
-          eyebrow="CÔNG CỤ ĐÁNH GIÁ ĐỘC LẬP"
-          title="Đánh giá bài luyện tập"
-          description="Thử nghiệm và nhận gợi ý chấm điểm tự động cho bài viết hoặc ghi âm luyện nói JLPT. Để chấm bài tập lớp nhóm của học viên, vui lòng mở mục Bài tập & chấm điểm."
-          actions={(
-            <Button as={Link} to="/mentor-homework/" variant="secondary" size="sm" iconRight={ArrowRight}>
-              {tr('Mở Bài tập lớp nhóm')}
-            </Button>
-          )}
-        />
+        <h1 className="sr-only">{tr('Đánh giá bài luyện tập')}</h1>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button as={Link} to="/mentor-homework/" variant="secondary" size="sm" iconRight={ArrowRight}>
+            {tr('Mở Bài tập lớp nhóm')}
+          </Button>
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
           <Card>

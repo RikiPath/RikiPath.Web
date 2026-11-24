@@ -52,7 +52,7 @@ function statusCopy(status, tr) {
     case 'Cancelled':
       return {
         title: tr('Bạn đã hủy thanh toán'),
-        banner: tr('Đơn hàng đã được hủy trên PayOS. Không có khoản nào được ghi nhận và quyền lợi chưa được cấp.'),
+        banner: tr('Đơn hàng đã được hủy. Không có khoản nào được ghi nhận và quyền lợi chưa được cấp.'),
         tone: 'neutral',
       };
     case 'Expired':
@@ -122,7 +122,7 @@ export default function StudyPaymentReceipt() {
         key: `study-receipt-${purchaseId}-paid`,
       });
     } else if (status === 'Pending') {
-      notify.info(tr('Đang xác nhận thanh toán'), tr('Hệ thống đang đối chiếu kết quả với PayOS…'), {
+      notify.info(tr('Đang xác nhận thanh toán'), tr('Hệ thống đang đối chiếu kết quả thanh toán…'), {
         key: `study-receipt-${purchaseId}-pending`,
       });
     } else {
@@ -227,7 +227,7 @@ export default function StudyPaymentReceipt() {
         {pending && (
           <Banner tone={pollExhausted ? 'warning' : 'info'} className="mt-5 text-left">
             {pollExhausted
-              ? tr('PayOS xác nhận chậm hơn bình thường. Vui lòng bấm Kiểm tra lại để cập nhật trạng thái đơn hàng.')
+              ? tr('Việc xác nhận thanh toán đang chậm hơn bình thường. Vui lòng bấm Kiểm tra lại để cập nhật trạng thái đơn hàng.')
               : tr('Trang sẽ tự kiểm tra lại trong ít giây. Bạn có thể đóng trang; quyền sử dụng sẽ được cấp khi máy chủ xác minh xong.')}
           </Banner>
         )}

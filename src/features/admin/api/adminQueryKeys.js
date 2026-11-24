@@ -1,3 +1,5 @@
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
+
 /**
  * Centralized React Query keys & cross-domain invalidation helper for Admin Control Center.
  * Keeps KPI counts, lists, schedules, qualifications, policies and cohorts synchronized across views.
@@ -58,5 +60,8 @@ export function invalidateAdminDomains(queryClient, domains = []) {
     add(ADMIN_KEYS.studyCatalog, ADMIN_KEYS.studyLevels, ADMIN_KEYS.certificateSections, ['manual-content-lookups']);
   }
 
-  return Promise.all([...keys].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+  return Promise.all([
+    ...[...keys].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    invalidateSidebarCounters(queryClient),
+  ]);
 }

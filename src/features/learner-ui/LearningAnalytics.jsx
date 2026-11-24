@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, TrendingUp } from 'lucide-react';
-import { Badge, Button, Card, ContextualErrorState, EmptyState, cx } from '@/components/ui';
-import { useLocale } from '@/locales/locale.js';
+import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, TrendingUp } from 'lucide-react';
+import { Badge, Button, Card, ContextualErrorState, EmptyState, Popover, cx } from '@/components/ui';
+import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import WebClayIcon from './WebClayIcon.jsx';
 import {
   buildMonthCalendarMatrix,
   buildVerifiedActivityDateSet,
+  shiftDateKey,
   toVnDateKey,
 } from './learnerTokens.js';
+import './dashboard.css';
 
 const SKILL_TONE_BAR = {
   vocab: { bar: 'bg-rp-brand-pressed', pill: 'text-rp-brand-strong bg-rp-brand-tint border-rp-brand-border' },
@@ -47,6 +49,15 @@ function formatMonthLabel(year, monthIndex, locale) {
   return `Tháng ${monthIndex + 1}, ${year}`;
 }
 
+/** "Thứ Ba, 24/11" style label for a VN calendar day key (yyyy-MM-dd); the key is already a Vietnam date. */
+function formatLongDate(dateKey) {
+  try {
+    return new Intl.DateTimeFormat(currentIntlTag(), { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${dateKey}T00:00:00Z`));
+  } catch {
+    return dateKey;
+  }
+}
+
 function formatShortDate(dateValue, locale) {
   if (!dateValue) return '';
   const d = new Date(dateValue);
@@ -60,6 +71,82 @@ function formatShortDate(dateValue, locale) {
   } catch {
     return toVnDateKey(d);
   }
+}
+
+/** Month/year control in the calendar header: one button that opens a compact year + month picker. */
+function MonthPicker({ cursor, locale, onPick, onToday, tr }) {
+  const [year, setYear] = useState(cursor.year);
+  const monthNames = Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat(currentIntlTag(), { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, i, 1))),
+  );
+  return (
+    <Popover
+      align="end"
+      label={tr('Chọn tháng')}
+      onOpenChange={(open) => open && setYear(cursor.year)}
+      trigger={({ toggle, props, open }) => (
+        <button
+          {...props}
+          type="button"
+          onClick={toggle}
+          className={cx(
+            'rp-focus inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[12px] font-extrabold transition-colors',
+            open ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong' : 'border-rp-line bg-white text-rp-text hover:border-rp-brand-border hover:text-rp-brand-strong',
+          )}
+        >
+          {formatMonthLabel(cursor.year, cursor.month, locale)}
+          <ChevronDown aria-hidden="true" className={cx('h-3.5 w-3.5 transition-transform duration-200', open && 'rotate-180')} />
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <div className="w-[236px] p-3">
+          <div className="flex items-center justify-between">
+            <button type="button" onClick={() => setYear((y) => y - 1)} aria-label={tr('Năm trước')} className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-2 hover:bg-rp-brand-tint hover:text-rp-brand-strong">
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            </button>
+            <span className="text-[13px] font-extrabold tabular-nums text-rp-navy">{year}</span>
+            <button type="button" onClick={() => setYear((y) => y + 1)} aria-label={tr('Năm sau')} className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-2 hover:bg-rp-brand-tint hover:text-rp-brand-strong">
+              <ChevronRight aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1" role="listbox" aria-label={tr('Chọn tháng')}>
+            {monthNames.map((name, i) => {
+              const active = year === cursor.year && i === cursor.month;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onPick(year, i);
+                    close();
+                  }}
+                  className={cx(
+                    'rp-focus h-8 rounded-lg text-[12px] font-bold transition-colors',
+                    active ? 'border border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong' : 'text-rp-text-2 hover:bg-rp-bg-2 hover:text-rp-text',
+                  )}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onToday();
+              close();
+            }}
+            className="rp-focus mt-2 w-full rounded-lg py-1.5 text-[12px] font-bold text-rp-brand-strong hover:bg-rp-brand-tint"
+          >
+            {tr('Về hôm nay')}
+          </button>
+        </div>
+      )}
+    </Popover>
+  );
 }
 
 /**
@@ -77,6 +164,7 @@ export default function LearningAnalytics({
   mockHistory = [],
   practiceHistory = [],
   homeworkList = [],
+  feedLoading = false,
   className,
 }) {
   const { tr, trf, locale } = useLocale();
@@ -84,6 +172,10 @@ export default function LearningAnalytics({
   const initialYear = Number(todayKey.slice(0, 4)) || 2026;
   const initialMonth = (Number(todayKey.slice(5, 7)) || 1) - 1;
   const [cursor, setCursor] = useState({ year: initialYear, month: initialMonth });
+  const [selectedKey, setSelectedKey] = useState(todayKey);
+  const [monthDir, setMonthDir] = useState('none');
+  const dayRefs = useRef(new Map());
+  const focusAfterMove = useRef(false);
 
   const verifiedDates = useMemo(
     () => buildVerifiedActivityDateSet({ streak, mockHistory, practiceHistory, homeworkList, todayKey }),
@@ -172,105 +264,121 @@ export default function LearningAnalytics({
       .slice(0, 5);
   }, [mockHistory, practiceHistory, homeworkList, tr]);
 
-  function stepMonth(delta) {
-    setCursor((prev) => {
-      const d = new Date(Date.UTC(prev.year, prev.month + delta, 1));
-      return { year: d.getUTCFullYear(), month: d.getUTCMonth() };
-    });
+  function selectDay(key) {
+    setSelectedKey(key);
+    const y = Number(key.slice(0, 4));
+    const mo = Number(key.slice(5, 7)) - 1;
+    if (y !== cursor.year || mo !== cursor.month) {
+      setMonthDir(y * 12 + mo > cursor.year * 12 + cursor.month ? 'next' : 'prev');
+      setCursor({ year: y, month: mo });
+    }
+  }
+
+  function goToday() {
+    selectDay(todayKey);
+  }
+
+  // Arrow keys move the selection by a day / week (crossing months), Home/End jump within the week.
+  function onGridKeyDown(e) {
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    if (step == null) return;
+    e.preventDefault();
+    const next = shiftDateKey(selectedKey, step);
+    if (!next) return;
+    focusAfterMove.current = true;
+    selectDay(next);
+  }
+
+  useEffect(() => {
+    if (!focusAfterMove.current) return;
+    focusAfterMove.current = false;
+    dayRefs.current.get(selectedKey)?.focus();
+  }, [selectedKey, cursor]);
+
+  function dayAriaLabel(d, future) {
+    const parts = [formatLongDate(d.dateKey)];
+    if (d.isToday) parts.push(tr('Hôm nay'));
+    if (d.active) parts.push(tr('Có hoạt động'));
+    else if (future) parts.push(tr('Ngày trong tương lai'));
+    else parts.push(tr('Chưa ghi nhận'));
+    return parts.join(', ');
   }
 
   return (
     <section aria-label={tr('Phân tích học tập')} className={cx('grid gap-4 lg:grid-cols-12', className)} data-section="LearningAnalytics">
-      {/* 1. Monthly Activity Calendar (IELTSWithHarry Biểu đồ chăm chỉ style) */}
-      <Card className="border-rp-line bg-white p-4 shadow-rp-sm sm:p-5 lg:col-span-4">
+      {/* 1. Interactive activity calendar — real verified dates; selecting a day shows what was recorded that day */}
+      <Card className="flex flex-col border-rp-line bg-white p-4 shadow-rp-sm sm:p-5 lg:col-span-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong">
-              <Flame aria-hidden="true" className="h-4.5 w-4.5" />
-            </span>
-            <div>
-              <h3 className="text-[15px] font-extrabold text-rp-text">{tr('Biểu đồ hoạt động')}</h3>
-              <p className="text-[11.5px] text-rp-text-muted">
-                {trf('{0} ngày ghi nhận trong tháng', { 0: monthActiveCount })}
-              </p>
+          <div className="flex min-w-0 items-center gap-3">
+            <WebClayIcon name="calendar" size="sm" hover className="-my-1 shrink-0" />
+            <div className="min-w-0">
+              <h3 className="truncate text-[15px] font-extrabold text-rp-text">{tr('Biểu đồ hoạt động')}</h3>
+              <p className="truncate text-[11.5px] text-rp-text-muted">{trf('{0} ngày ghi nhận trong tháng', { 0: monthActiveCount })}</p>
             </div>
           </div>
+          <MonthPicker
+            cursor={cursor}
+            locale={locale}
+            onPick={(year, month) => {
+              setMonthDir(year * 12 + month >= cursor.year * 12 + cursor.month ? 'next' : 'prev');
+              setCursor({ year, month });
+            }}
+            onToday={goToday}
+            tr={tr}
+          />
         </div>
 
-        {/* Month switcher */}
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-rp-brand-border/70 bg-rp-brand-tint/40 px-2.5 py-1.5">
-          <button
-            type="button"
-            onClick={() => stepMonth(-1)}
-            aria-label={tr('Tháng trước')}
-            className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text transition hover:bg-white hover:text-rp-brand-strong"
+        <div className="mt-3 overflow-hidden">
+          <div
+            key={`${cursor.year}-${cursor.month}`}
+            className="rp-cal-month space-y-1"
+            data-dir={monthDir}
+            role="grid"
+            aria-label={tr('Lịch hoạt động theo tuần')}
+            onKeyDown={onGridKeyDown}
           >
-            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-          </button>
-          <span className="text-xs font-extrabold text-rp-text">
-            {formatMonthLabel(cursor.year, cursor.month, locale)}
-          </span>
-          <button
-            type="button"
-            onClick={() => stepMonth(1)}
-            aria-label={tr('Tháng sau')}
-            className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text transition hover:bg-white hover:text-rp-brand-strong"
-          >
-            <ChevronRight aria-hidden="true" className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Week matrix */}
-        <div className="mt-3 space-y-1.5" role="grid" aria-label={tr('Lịch hoạt động theo tuần')}>
-          <div className="grid grid-cols-[36px_repeat(7,1fr)] items-center gap-1 text-center text-[10.5px] font-bold text-rp-text-muted">
-            <span>{tr('Tuần')}</span>
-            {weekHeaders.map((w) => (
-              <span key={w}>{w}</span>
-            ))}
-          </div>
-
-          {monthMatrix.map((wk) => (
-            <div key={wk.weekNumber} className="grid grid-cols-[36px_repeat(7,1fr)] items-center gap-1">
-              <span className="mx-auto inline-flex h-6 w-7 items-center justify-center rounded-lg border border-rp-line bg-rp-bg-2 text-[10.5px] font-bold text-rp-text-2">
-                {wk.weekNumber}
-              </span>
-              {wk.days.map((d) => (
-                <span
-                  key={d.dateKey}
-                  title={d.dateKey}
-                  className={cx(
-                    'mx-auto flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition',
-                    !d.inMonth && 'opacity-30',
-                    d.active
-                      ? 'bg-rp-brand-pressed text-white shadow-rp-xs'
-                      : d.isToday
-                        ? 'bg-rp-brand-tint text-rp-brand-strong'
-                        : 'bg-rp-bg-2 text-rp-text-muted',
-                    d.isToday && 'ring-2 ring-rp-brand-deep ring-offset-1',
-                  )}
-                >
-                  {d.dayNumber}
-                </span>
+            <div role="row" className="grid grid-cols-7 items-center gap-1 text-center text-[10.5px] font-bold text-rp-text-muted">
+              {weekHeaders.map((w) => (
+                <span key={w} role="columnheader">{w}</span>
               ))}
             </div>
-          ))}
+            {monthMatrix.map((wk) => (
+              <div key={wk.weekNumber} role="row" className="grid grid-cols-7 items-center gap-1">
+                {wk.days.map((d) => {
+                  const selected = d.dateKey === selectedKey;
+                  const future = d.dateKey > todayKey;
+                  return (
+                    <span key={d.dateKey} role="gridcell" aria-selected={selected} className="flex justify-center">
+                      <button
+                        ref={(el) => {
+                          if (el) dayRefs.current.set(d.dateKey, el);
+                          else dayRefs.current.delete(d.dateKey);
+                        }}
+                        type="button"
+                        tabIndex={selected ? 0 : -1}
+                        onClick={() => selectDay(d.dateKey)}
+                        aria-label={dayAriaLabel(d, future)}
+                        className="rp-focus rp-cal-day"
+                        data-active={d.active ? 'true' : 'false'}
+                        data-today={d.isToday ? 'true' : 'false'}
+                        data-selected={selected ? 'true' : 'false'}
+                        data-outside={d.inMonth ? 'false' : 'true'}
+                        data-future={future ? 'true' : 'false'}
+                      >
+                        {d.dayNumber}
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Legend + Honest Scope Note */}
-        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-rp-line/70 pt-2.5 text-[11px] text-rp-text-2">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-rp-brand-pressed" /> {tr('Có hoạt động')}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full border border-rp-line bg-rp-bg-2" /> {tr('Chưa ghi nhận')}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full border-2 border-rp-brand-deep bg-white" /> {tr('Hôm nay')}
-          </span>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-rp-text-2">
+          <span className="inline-flex items-center gap-1.5"><span className="rp-cal-legend" data-kind="active" /> {tr('Có hoạt động')}</span>
+          <span className="inline-flex items-center gap-1.5"><span className="rp-cal-legend" data-kind="selected" /> {tr('Đang chọn')}</span>
         </div>
-        <p className="mt-1.5 text-[10.5px] leading-4 text-rp-text-muted">
-          {tr('Tổng hợp từ chuỗi streak liên tiếp, đề thi thử & bài nộp đã ghi nhận.')}
-        </p>
       </Card>
 
       {/* 2. Skill Progress Chart */}
@@ -337,9 +445,9 @@ export default function LearningAnalytics({
                       <span className="font-extrabold text-rp-navy">{score}%</span>
                     </div>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-rp-brand-soft/65">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-rp-brand-soft/65" role="progressbar" aria-label={localizeSkillName(item.languageSkillName, tr)} aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
                     <div
-                      className={cx('h-full rounded-full transition-all duration-500', style.bar)}
+                      className={cx('rp-grow-x h-full origin-left rounded-full transition-[width] duration-500 ease-out', style.bar)}
                       style={{ width: `${Math.max(4, score)}%` }}
                     />
                   </div>
@@ -358,7 +466,7 @@ export default function LearningAnalytics({
       <Card className="border-rp-line bg-white p-4 shadow-rp-sm sm:p-5 lg:col-span-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
-            <WebClayIcon name="calendar" size="sm" tone="lavender" hover className="-my-1" />
+            <WebClayIcon name="history" size="sm" hover className="-my-1" />
             <div>
               <h3 className="text-[15px] font-extrabold text-rp-navy">{tr('Hoạt động gần đây')}</h3>
               <p className="text-[11.5px] text-rp-text-muted">
@@ -371,7 +479,19 @@ export default function LearningAnalytics({
           </Button>
         </div>
 
-        {recentFeed.length === 0 ? (
+        {recentFeed.length === 0 && feedLoading ? (
+          <ul className="mt-4 space-y-3" aria-busy="true" aria-label={tr('Đang tải hoạt động gần đây')}>
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="flex items-center gap-3">
+                <span className="rp-skeleton h-9 w-9 rounded-xl" />
+                <span className="flex-1 space-y-1.5">
+                  <span className="rp-skeleton block h-3 w-3/4 rounded" />
+                  <span className="rp-skeleton block h-2.5 w-1/3 rounded" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : recentFeed.length === 0 ? (
           <div className="mt-4">
             <EmptyState
               variant="compact"
@@ -386,12 +506,12 @@ export default function LearningAnalytics({
             />
           </div>
         ) : (
-          <ul className="mt-4 divide-y divide-rp-line/70">
+          <ul className="mt-4 divide-y divide-rp-line/70 rp-anim-fade">
             {recentFeed.map((ev) => (
               <li key={ev.id}>
                 <Link
                   to={ev.to}
-                  className="rp-focus group flex items-center gap-3 py-2.5 transition hover:bg-rp-bg-2/60"
+                  className="rp-focus rp-activity-row group -mx-2 flex items-center gap-3 rounded-xl px-2 py-2.5"
                 >
                   <WebClayIcon name={ev.icon} size="xs" hover />
                   <div className="min-w-0 flex-1">

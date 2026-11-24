@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { describeApiError } from '@/api/apiErrors.js';
+import { queryClient } from '@/api/queryClient.js';
 import { notify } from '@/components/ui';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 /**
  * Shared mutation runner for Admin Console V2 panels and pages.
@@ -16,6 +18,7 @@ export function useAdminAction({ toastKey = 'admin-action', defaultErrorTitle = 
     const toastId = opts.silentLoading ? null : notify.loading(opts.loading || 'Đang xử lý…', '', { key });
     try {
       const result = await fn();
+      invalidateSidebarCounters(queryClient);
       if (onAfterSuccess) await onAfterSuccess(result);
       const resolved = typeof message === 'function' ? message(result) : message;
       if (resolved) {

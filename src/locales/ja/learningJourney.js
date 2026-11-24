@@ -143,6 +143,23 @@ export const jaLearningJourney = {
   '{0} ({1})': '{0}（{1}）',
 
   // Discovery Catalog
+  'Khám phá bài học · JLPT {0}': 'レッスンを探す · JLPT {0}',
+  'Danh mục bài học': 'レッスンカテゴリー',
+  'Tiến độ bài học': 'レッスンの進捗',
+  'Tiến độ bài học {0}%': 'レッスンの進捗 {0}%',
+  'Tìm kiếm và học tiếng Nhật theo trình độ, kỹ năng và mục tiêu của bạn.': 'レベルやスキル、目標に合わせて日本語レッスンを検索して学習しましょう。',
+  'Bài học Từ vựng': '語彙レッスン',
+  'Mở rộng vốn từ tiếng Nhật theo chủ đề, cấp độ JLPT và tình huống giao tiếp.': 'テーマ、JLPTレベル、会話シーンごとに日本語の語彙を増やします。',
+  'Bài học Ngữ pháp': '文法レッスン',
+  'Nắm vững cấu trúc câu, cách sử dụng và vận dụng ngữ pháp tiếng Nhật chính xác.': '文型や使い方、正確な文法表現をしっかり身につけます。',
+  'Bài học Kanji': '漢字レッスン',
+  'Làm quen, ghi nhớ và nhận diện Kanji qua cách đọc, ý nghĩa và ví dụ thực tế.': '読み方・意味・実例を通して漢字に親しみ、覚えて識別できるようにします。',
+  'Bài học Nghe hiểu': '聴解レッスン',
+  'Rèn luyện kỹ năng nghe tiếng Nhật qua hội thoại, tình huống và bài tập theo cấp độ JLPT.': '会話やシチュエーション、JLPTレベル別の問題で日本語の聴解力を鍛えます。',
+  'Bài học Đọc hiểu': '読解レッスン',
+  'Phát triển khả năng đọc, nắm bắt thông tin và hiểu nội dung văn bản tiếng Nhật.': '日本語の文章を読み、情報を正確に捉えて内容を理解する力を伸ばします。',
+  'Đã xem nội dung · kiểm tra nhanh mở sau khi hoàn thành các bài trước': '内容は学習済み・前のレッスンを完了するとミニテストが開きます',
+  'Đã xem nội dung · cần hoàn thành bài kiểm tra nhanh': '内容は学習済み・ミニテストの完了が必要です',
   'Tìm kiếm bài học theo trình độ và chủ đề phù hợp với bạn.': 'レベルやテーマに合わせてレッスンを探せます。',
   'Các bài nghe theo cấp độ JLPT, kèm bài kiểm tra nhanh.': 'JLPTレベル別の聴解レッスン（ミニテスト付き）です。',
   'Các bài đọc theo cấp độ JLPT, kèm bài kiểm tra nhanh.': 'JLPTレベル別の読解レッスン（ミニテスト付き）です。',
@@ -159,4 +176,11 @@ export const jaLearningJourney = {
   // Pre-existing strings surfaced while moving code
   'Luyện giao tiếp và sửa bài trực tiếp cùng Giáo viên.': '教師と一緒に会話練習や添削を受けられます。',
   'Không tải được đề kiểm tra.': 'テスト問題を読み込めませんでした。',
+
+  // Dynamic Ground Banner — accessible scene descriptions
+  'Làng ven suối với cây anh đào và cầu đỏ': '桜と赤い橋のある川辺の村',
+  'Làng núi Nhật Bản với chùa tháp trên sườn đồi': '丘の上に塔が建つ日本の山村',
+  'Đền nhỏ và cổng torii bên hồ': '湖畔の小さな社と鳥居',
+  'Vườn tre với trà thất và lối đá': '茶室と石畳のある竹の庭',
+  'Phố làng gỗ với dây đèn lồng': '提灯が連なる木造の村の通り',
 };

@@ -125,11 +125,11 @@ export default function LanguageSwitch({ className, variant = 'icon' }) {
           aria-controls={open ? listId : undefined}
           onClick={toggleMenu}
           className={cx(
-            'rp-lang-globe shadow-rp-xs',
+            'rp-hc rp-lang-globe shadow-rp-xs',
             open && 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong',
           )}
           badge={(
-            <HeaderIconBadge key={current.code} className="rp-anim-fade !h-4 !min-w-4 !px-0.5 !text-[8px] !font-medium tracking-[-0.02em]">
+            <HeaderIconBadge key={current.code} className="rp-anim-fade px-[3.5px] text-[8.5px] tracking-[0.01em]">
               {current.code}
             </HeaderIconBadge>
           )}

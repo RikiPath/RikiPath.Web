@@ -47,7 +47,7 @@ export const INTENSITY = [
 export const GROUP_STEPS = [
   { title: 'Chọn Giáo viên', text: 'Xem hồ sơ, trình độ giảng dạy và đánh giá từ học viên lớp nhóm.' },
   { title: 'Chọn lớp', text: 'So sánh lịch học, cường độ, chỗ còn trống và học phí trọn khóa.' },
-  { title: 'Giữ chỗ & thanh toán', text: 'Chỗ được giữ trong thời gian thanh toán qua PayOS; ghi danh có hiệu lực khi hệ thống xác minh.' },
+  { title: 'Giữ chỗ & thanh toán', text: 'Chỗ được giữ trong thời gian thanh toán; ghi danh có hiệu lực khi hệ thống xác minh.' },
   { title: 'Vào lớp', text: 'Lịch học, phòng học trực tuyến, điểm danh, bài tập về nhà và tổng kết khóa.' },
 ];
 
@@ -63,7 +63,7 @@ export const FAQ = [
   ['Nội dung ôn luyện JLPT gồm những gì?', 'Từ vựng, Hán tự, ngữ pháp, đọc hiểu và nghe hiểu theo cấp độ N5–N2. Luyện nói và viết cùng Haru là kỹ năng bổ trợ.'],
   ['Học nhóm khác gì tự học?', 'Tự học theo lộ trình và thi thử trên nền tảng. Học nhóm là lớp nhỏ cùng Giáo viên trong 10 tuần, có lịch cố định, bài tập về nhà và nhận xét.'],
   ['Haru có thay Giáo viên không?', 'Không. Haru góp ý nhanh khi bạn luyện tập; Giáo viên dạy lớp nhóm, chấm bài và theo dõi tiến độ.'],
-  ['Thanh toán lớp nhóm thế nào?', 'Thanh toán trọn khóa qua PayOS. Trạng thái ghi danh chỉ được xác nhận sau khi máy chủ xác minh giao dịch.'],
+  ['Thanh toán lớp nhóm thế nào?', 'Thanh toán trọn khóa trực tuyến. Trạng thái ghi danh chỉ được xác nhận sau khi hệ thống xác minh giao dịch.'],
 ];
 
 export const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];

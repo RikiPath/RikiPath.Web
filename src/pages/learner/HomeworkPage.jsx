@@ -141,8 +141,8 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
   return (
     <Shell breadcrumb={tr(title)}>
       <PageContainer width="default" density="comfortable" className="relative space-y-4 text-rp-text">
-        {/* Admin console pages show no visual title block (breadcrumb + sidebar name the page). */}
-        {role === 'Admin' ? (
+        {/* Admin and Mentor workspace pages omit visual title blocks (breadcrumb + sidebar name the page). */}
+        {role === 'Admin' || role === 'Mentor' ? (
           <h1 className="sr-only">{tr(title)}</h1>
         ) : (
           <IllustratedPageHeader

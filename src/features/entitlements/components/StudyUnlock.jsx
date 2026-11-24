@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, BookOpen, CheckCircle2, Clock3, Headphones, LockKeyhole, NotebookPen, PauseCircle, Sparkles } from 'lucide-react';
-import { SpotArt } from '@/assets/illustrations/SpotArt.jsx';
+import { BookOpen, Headphones, LockKeyhole, NotebookPen, PauseCircle, Sparkles } from 'lucide-react';
 import { Button, Modal, cx } from '@/components/ui';
 import { LearningPathUnlockGuide } from '@/features/learning-path/components/LearningPathUnlockGuide.jsx';
 import { useLocale } from '@/locales/locale.js';
-import { ACCESS, LOCK_KIND, featureLockKind } from '../featureAccess.js';
+import { ACCESS, ACCESS_REASON, LOCK_KIND, accessReasonForKind, featureLockKind } from '../featureAccess.js';
 import { useStudyAccess } from '../useStudyAccess.js';
+import FeatureAccessModal, { FeatureAccessContent } from './FeatureAccessModal.jsx';
 import { LOCK_REASON, UnlockContext, plansLinkState, unlockInfoFor, useStudyUnlock } from '../studyUnlock.js';
 
 
@@ -17,52 +17,48 @@ const BENEFITS = [
   { icon: Sparkles, text: 'Lượt góp ý AI đi kèm theo từng gói' },
 ];
 
+const PLAN_DESCRIPTION = 'Bạn cần mua gói tự học để mở khóa tính năng này và bắt đầu học tập.';
+const CREDIT_DESCRIPTION = 'Bạn cần có lượt AI để sử dụng tính năng này.';
+const CREDIT_NOTE = 'Lượt AI được cộng vào tài khoản sau khi thanh toán thành công.';
+/** Purchase CTA: AI credits are sold as plans on /plans too, so both lock causes lead to the same page. */
+const BUY_LABEL = 'Mua gói ngay';
+
 // Status-specific unlock condition. Never shown for loading/error: those are not "locked".
 const CONDITION = {
-  [ACCESS.FREE]: 'Mở khóa khi tài khoản có gói tự học đang hiệu lực. Quyền được kích hoạt sau khi hệ thống xác nhận thanh toán PayOS.',
+  [ACCESS.FREE]: 'Quyền truy cập sẽ được kích hoạt sau khi thanh toán thành công.',
   [ACCESS.EXPIRED]: 'Gói tự học của bạn đã hết hạn. Gia hạn gói để tiếp tục học; tiến độ đã lưu vẫn được giữ nguyên.',
   [ACCESS.PENDING_PAYMENT]: 'Giao dịch của bạn đang chờ xác nhận. Tính năng sẽ tự mở khi hệ thống xác nhận thanh toán.',
 };
 
-/** Shared body for the dialog and the direct-URL locked state, so both say exactly the same thing. */
-export function StudyUnlockContent({ featureLabel, description, status, compact = false, headingAs: Heading = 'p', children }) {
+/** Copy for one lock cause, shared by the dialog and the direct-URL locked page. */
+function accessCopy({ reason, featureLabel, description, status, tr, trf }) {
+  if (reason === ACCESS_REASON.CREDIT) {
+    return {
+      heading: trf('Sử dụng {0}', { 0: tr(featureLabel) }),
+      description: CREDIT_DESCRIPTION,
+      note: CREDIT_NOTE,
+      noteIcon: 'check',
+    };
+  }
+  return {
+    heading: trf('Mở khóa {0}', { 0: tr(featureLabel) }),
+    description: PLAN_DESCRIPTION,
+    detail: description && description !== PLAN_DESCRIPTION ? description : undefined,
+    benefits: BENEFITS,
+    note: CONDITION[status],
+    noteIcon: status === ACCESS.PENDING_PAYMENT ? 'clock' : 'check',
+  };
+}
+
+/** Direct-URL locked page body (RequireStudyPlan): same art, badge and wording as the dialog. */
+export function StudyUnlockContent({ featureLabel, description, status, kind = LOCK_KIND.PLAN, icon, headingAs = 'p', children }) {
   const { tr, trf } = useLocale();
+  const reason = accessReasonForKind(kind);
+  const copy = accessCopy({ reason, featureLabel, description, status, tr, trf });
   return (
-    <div className={cx('relative', compact ? '' : 'sm:flex sm:items-start sm:gap-6')}>
-      <div aria-hidden="true" className={cx('relative mx-auto flex shrink-0 items-center justify-center', compact ? 'mb-3 h-[104px] w-[120px]' : 'mb-4 h-[132px] w-[150px] sm:mx-0 sm:mb-0')}>
-        <span className="rp-unlock-glow absolute inset-2 rounded-full bg-[radial-gradient(closest-side,rgba(247,182,200,0.55),transparent)]" />
-        <SpotArt name="locked" size={compact ? 116 : 146} className="relative" />
-        <svg viewBox="0 0 20 20" className="rp-unlock-petal absolute right-1 top-2 h-4 w-4">
-          <path d="M10 1.5c3.6 2.3 6 5.6 5.5 9.4-.4 3.4-3 6.1-5.5 7.6-2.5-1.5-5.1-4.2-5.5-7.6C4 7.1 6.4 3.8 10 1.5Z" fill="#F7B6C8" />
-        </svg>
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-rp-brand-tint px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-rp-brand-strong">
-          <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Cần gói tự học JLPT')}
-        </p>
-        <Heading className={cx('mt-2 font-bold text-rp-text', compact ? 'text-[17px] leading-6' : 'text-xl leading-7 sm:text-2xl')}>
-          {trf('Mở khóa {0}', { 0: tr(featureLabel) })}
-        </Heading>
-        {description && <p className="mt-1.5 text-sm leading-6 text-rp-text-2">{tr(description)}</p>}
-        <ul className="mt-3.5 grid gap-2 sm:grid-cols-2">
-          {BENEFITS.map(({ icon: Icon, text }) => (
-            <li key={text} className="flex items-start gap-2 rounded-xl border border-rp-line bg-white px-3 py-2 text-[13px] leading-5 text-rp-text-2">
-              <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-brand-strong" />
-              {tr(text)}
-            </li>
-          ))}
-        </ul>
-        {CONDITION[status] && (
-          <p className="mt-3 flex items-start gap-2 text-[12.5px] leading-5 text-rp-text-muted">
-            {status === ACCESS.PENDING_PAYMENT
-              ? <Clock3 aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              : <CheckCircle2 aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-            {tr(CONDITION[status])}
-          </p>
-        )}
-        {children}
-      </div>
-    </div>
+    <FeatureAccessContent reason={reason} icon={icon} layout="split" headingAs={headingAs} {...copy}>
+      {children}
+    </FeatureAccessContent>
   );
 }
 
@@ -74,7 +70,7 @@ export function StudyUnlockDialog({ target, status, onClose }) {
   const { tr, trf } = useLocale();
   const navigate = useNavigate();
   const open = Boolean(target);
-  const explore = () => {
+  const buy = () => {
     const info = target;
     onClose();
     navigate('/plans/', { state: plansLinkState(info.path, info.featureLabel) });
@@ -105,53 +101,18 @@ export function StudyUnlockDialog({ target, status, onClose }) {
     );
   }
 
-  if (target?.kind === LOCK_KIND.CREDIT || target?.kind === LOCK_KIND.PLAN_AND_CREDIT) {
-    const needsPlan = target.kind === LOCK_KIND.PLAN_AND_CREDIT;
-    return (
-      <Modal
-        open={open}
-        onClose={onClose}
-        title={needsPlan ? tr('Tính năng cần gói học và lượt AI') : tr('Tính năng cần lượt AI')}
-        size="sm"
-        footer={(
-          <>
-            <Button variant="secondary" onClick={onClose}>{tr('Để sau')}</Button>
-            <Button onClick={explore} iconRight={ArrowRight}>{tr('Xem các gói học')}</Button>
-          </>
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rp-brand-tint text-rp-brand-strong">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-semibold text-rp-text">{trf('Mở khóa {0}', { 0: tr(target.featureLabel) })}</p>
-            <p className="mt-1 text-sm leading-6 text-rp-text-2">
-              {needsPlan
-                ? tr('Bạn cần có gói học phù hợp và lượt AI để sử dụng tính năng này.')
-                : tr('Bạn cần thêm lượt AI để sử dụng tính năng này.')}
-            </p>
-          </div>
-        </div>
-      </Modal>
-    );
-  }
-
+  const reason = accessReasonForKind(target?.kind);
+  const copy = target ? accessCopy({ reason, featureLabel: target.featureLabel, description: target.description, status, tr, trf }) : {};
   return (
-    <Modal
+    <FeatureAccessModal
       open={open}
       onClose={onClose}
-      title={tr('Tính năng thuộc gói tự học')}
-      size="md"
-      footer={(
-        <>
-          <Button variant="secondary" onClick={onClose}>{tr('Để sau')}</Button>
-          <Button onClick={explore} iconRight={ArrowRight}>{tr('Khám phá gói tự học')}</Button>
-        </>
-      )}
-    >
-      {target && <StudyUnlockContent compact featureLabel={target.featureLabel} description={target.description} status={status} />}
-    </Modal>
+      title={reason === ACCESS_REASON.CREDIT ? 'Tính năng cần lượt AI' : 'Tính năng thuộc gói tự học'}
+      reason={reason}
+      icon={target?.icon}
+      {...copy}
+      primaryAction={{ label: BUY_LABEL, onClick: buy }}
+    />
   );
 }
 
@@ -180,15 +141,15 @@ export function LearningPathUnlockDialog({ open, roadmapAccess, onClose }) {
 
 /**
  * Hosts unlock dialogs for a whole shell (`[RequireFeature]` / self-study routes).
- * Consumers call `requestUnlock(to, label)`.
+ * Consumers call `requestUnlock(to, label, icon?)`.
  */
 export function StudyUnlockProvider({ children }) {
   const studyAccess = useStudyAccess();
   const [target, setTarget] = useState(null);
 
   const features = studyAccess.features;
-  const requestUnlock = useCallback((to, label) => {
-    setTarget({ ...unlockInfoFor(to, label), kind: featureLockKind(to, features) ?? LOCK_KIND.PLAN });
+  const requestUnlock = useCallback((to, label, icon) => {
+    setTarget({ ...unlockInfoFor(to, label), icon, kind: featureLockKind(to, features) ?? LOCK_KIND.PLAN });
   }, [features]);
 
   const access = useMemo(

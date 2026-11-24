@@ -247,7 +247,10 @@ export default function SakuraCalendar({
   showToneFilter = true,
   agendaSortSmart = false,
   agendaShowAllDates = false,
+  agendaPreserveOrder = false,
+  headerTopRight = null,
   toolbarExtra = null,
+  belowToolbar = null,
   emptyTitle = 'Chưa có lịch nào trong khoảng thời gian đang xem.',
   emptyDescription = 'Bạn có thể chuyển sang tuần/tháng khác hoặc bấm Làm mới để cập nhật.',
   className = '',
@@ -321,9 +324,10 @@ export default function SakuraCalendar({
           endKey: agendaShowAllDates ? undefined : range.endKey,
           todayKey,
           smartOrder: agendaSortSmart,
+          preserveOrder: agendaPreserveOrder,
         })
       : []),
-    [view, filteredEvents, range.startKey, range.endKey, todayKey, agendaSortSmart, agendaShowAllDates]
+    [view, filteredEvents, range.startKey, range.endKey, todayKey, agendaSortSmart, agendaShowAllDates, agendaPreserveOrder]
   );
 
   const rangeEventsCount = useMemo(
@@ -383,66 +387,79 @@ export default function SakuraCalendar({
   return (
     <div className={`min-w-0 rounded-2xl border border-rp-line bg-white shadow-xs ${className}`} data-sakura-calendar="true">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rp-line px-4 py-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAnchor(todayKey)}
-            className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
-          >
-            {tr('Hôm nay')}
-          </button>
-
-          <div className="inline-flex items-center rounded-xl border border-rp-line bg-white p-0.5">
+      <div className={headerTopRight
+        ? 'flex flex-col gap-2.5 border-b border-rp-line px-4 py-3'
+        : 'flex flex-wrap items-center justify-between gap-3 border-b border-rp-line px-4 py-3'}
+      >
+        <div className={headerTopRight
+          ? 'flex flex-wrap items-center justify-between gap-2.5'
+          : 'flex min-w-0 flex-wrap items-center gap-2'}
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <button
               type="button"
-              aria-label={tr('Khoảng thời gian trước')}
-              onClick={() => setAnchor(stepAnchorKey(anchorKey, view, -1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+              onClick={() => setAnchor(todayKey)}
+              className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
             >
-              <ChevronLeft className="h-4 w-4" />
+              {tr('Hôm nay')}
             </button>
-            <button
-              type="button"
-              aria-label={tr('Khoảng thời gian sau')}
-              onClick={() => setAnchor(stepAnchorKey(anchorKey, view, 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
 
-          <Popover
-            open={miniOpen}
-            onOpenChange={setMiniOpen}
-            align="start"
-            label={tr('Chọn ngày trên lịch')}
-            trigger={({ props, toggle }) => (
+            <div className="inline-flex items-center rounded-xl border border-rp-line bg-white p-0.5">
               <button
-                {...props}
                 type="button"
-                onClick={toggle}
-                aria-label={tr('Mở lịch chọn ngày nhanh')}
-                className="inline-flex min-h-9 flex-col items-start justify-center rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+                aria-label={tr('Khoảng thời gian trước')}
+                onClick={() => setAnchor(stepAnchorKey(anchorKey, view, -1))}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
               >
-                <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-rp-text">
-                  {L.rangeTitle(range, anchorKey, view)}
-                  <CalendarDays className="h-3.5 w-3.5 text-rp-brand-strong" />
-                </span>
-                <span className="text-[11px] font-medium text-rp-text-muted">{L.rangeSubtitle(range, view)}</span>
+                <ChevronLeft className="h-4 w-4" />
               </button>
-            )}
-          >
-            <MiniMonthPicker
-              anchorKey={anchorKey}
-              todayKey={todayKey}
-              eventsByDay={eventsByDay}
-              onPickDay={(picked) => {
-                setAnchor(picked);
-                setMiniOpen(false);
-              }}
-            />
-          </Popover>
+              <button
+                type="button"
+                aria-label={tr('Khoảng thời gian sau')}
+                onClick={() => setAnchor(stepAnchorKey(anchorKey, view, 1))}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            <Popover
+              open={miniOpen}
+              onOpenChange={setMiniOpen}
+              align="start"
+              label={tr('Chọn ngày trên lịch')}
+              trigger={({ props, toggle }) => (
+                <button
+                  {...props}
+                  type="button"
+                  onClick={toggle}
+                  aria-label={tr('Mở lịch chọn ngày nhanh')}
+                  className="inline-flex min-h-9 flex-col items-start justify-center rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+                >
+                  <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-rp-text">
+                    {L.rangeTitle(range, anchorKey, view)}
+                    <CalendarDays className="h-3.5 w-3.5 text-rp-brand-strong" />
+                  </span>
+                  <span className="text-[11px] font-medium text-rp-text-muted">{L.rangeSubtitle(range, view)}</span>
+                </button>
+              )}
+            >
+              <MiniMonthPicker
+                anchorKey={anchorKey}
+                todayKey={todayKey}
+                eventsByDay={eventsByDay}
+                onPickDay={(picked) => {
+                  setAnchor(picked);
+                  setMiniOpen(false);
+                }}
+              />
+            </Popover>
+          </div>
+          {headerTopRight && (
+            <div className="ml-auto flex items-center gap-2">
+              {headerTopRight}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -520,6 +537,8 @@ export default function SakuraCalendar({
           )}
         </div>
       </div>
+
+      {belowToolbar}
 
       {/* Compact 1-line filter hint ONLY when a tone filter is active and yields 0 matches in the viewed range */}
       {activeToneFilter !== 'ALL' && rangeEventsCount === 0 && (

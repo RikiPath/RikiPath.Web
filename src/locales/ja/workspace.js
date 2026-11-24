@@ -10,6 +10,7 @@ export const jaWorkspace = {
   'Kho từ vựng': '単語ライブラリー',
   'Ngữ pháp tiếng Nhật': '日本語文法',
   'Hán tự Kanji': '漢字',
+  'Kanji (Hán tự)': '漢字',
   'Bảng chữ Hiragana': 'ひらがな表',
   'Bảng chữ Katakana': 'カタカナ表',
   'Góc học tập của tôi': 'マイ学習スペース',

@@ -4,8 +4,9 @@ import { useLocale } from '@/locales/locale.js';
 import { computeWizardProgressPercent } from './onboardingWizardLogic.js';
 
 /**
- * Reusable accessible 5-step horizontal progress stepper.
+ * Reusable accessible horizontal progress stepper (Learner Onboarding, Smart Scheduling Wizard).
  * Mirrors Mobile `SakuraAnimatedStepProgress` smoothness while providing Desktop milestone navigation.
+ * Column count follows `steps.length`; pass `progressLabel` / `navLabel` for non-onboarding wizards.
  */
 export default function OnboardingStepper({
   steps,
@@ -14,6 +15,8 @@ export default function OnboardingStepper({
   stepValidity,
   onSelectStep,
   disabled = false,
+  progressLabel = 'Tiến trình thiết lập mục tiêu',
+  navLabel = 'Các bước thiết lập mục tiêu',
   className,
 }) {
   const { tr, trf } = useLocale();
@@ -45,7 +48,7 @@ export default function OnboardingStepper({
       {/* Smooth interpolated Sakura bar */}
       <div
         role="progressbar"
-        aria-label={tr('Tiến trình thiết lập mục tiêu')}
+        aria-label={tr(progressLabel)}
         aria-valuemin={1}
         aria-valuemax={totalSteps}
         aria-valuenow={currentStepIndex + 1}
@@ -58,8 +61,8 @@ export default function OnboardingStepper({
       </div>
 
       {/* Horizontal clickable step milestones */}
-      <nav aria-label={tr('Các bước thiết lập mục tiêu')}>
-        <ol className="grid grid-cols-5 gap-1.5 sm:gap-2">
+      <nav aria-label={tr(navLabel)}>
+        <ol className="grid gap-1.5 sm:gap-2" style={{ gridTemplateColumns: `repeat(${totalSteps}, minmax(0, 1fr))` }}>
           {steps.map((step, index) => {
             const isActive = index === currentStepIndex;
             const canReach = !disabled && index <= furthestAccessibleStep;

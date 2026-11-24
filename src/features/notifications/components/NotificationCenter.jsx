@@ -82,10 +82,10 @@ export default function NotificationCenter() {
             label={unreadCount > 0 ? `${tr('Thông báo')}: ${unreadCount} ${tr('chưa đọc')}` : tr('Thông báo')}
             onClick={toggle}
             variant="outline"
-            className="rp-bell-trigger shadow-rp-xs"
+            className="rp-hc rp-bell-trigger shadow-rp-xs"
             badge={
               unreadCount > 0 && (
-                <HeaderIconBadge pulse className={unreadCount > 99 ? undefined : '!h-4 !min-w-4 !px-0.5 !text-[8px] !font-medium tracking-[-0.02em]'}>
+                <HeaderIconBadge pulse>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </HeaderIconBadge>
               )

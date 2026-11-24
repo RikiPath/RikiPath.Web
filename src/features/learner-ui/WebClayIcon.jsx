@@ -106,6 +106,28 @@ function ExtraClaySvg({ name, px }) {
           <path d="M74 34l12-10-4 14z" fill="#E05A7A" />
         </svg>
       );
+    case 'lesson_catalog':
+      return (
+        <svg viewBox="0 0 120 120" width={s} height={s} aria-hidden="true" className="rp-clay-sticker shrink-0">
+          <ellipse cx="60" cy="108" rx="38" ry="6" fill="#C24362" opacity="0.14" />
+          {/* Back sky book */}
+          <rect x="26" y="20" width="66" height="46" rx="13" fill="#2A6FB8" transform="rotate(-7 59 43)" />
+          <rect x="26" y="15" width="66" height="46" rx="13" fill="#64A8EE" transform="rotate(-7 59 38)" />
+          <rect x="34" y="21" width="50" height="32" rx="8" fill="#FFFDF9" transform="rotate(-7 59 37)" />
+          {/* Front sakura book */}
+          <rect x="20" y="44" width="76" height="52" rx="15" fill="#C24362" />
+          <rect x="20" y="38" width="76" height="52" rx="15" fill="#F28DA8" />
+          <rect x="30" y="46" width="56" height="34" rx="10" fill="#FFFDF9" />
+          <path d="M40 57h28M40 66h22" stroke="#D78098" strokeWidth="3.5" strokeLinecap="round" />
+          {/* Warm pastel gloss & star badge */}
+          <path d="M30 43c14-2 34-2 52 0" stroke="rgba(255,255,255,0.6)" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+          <g transform="translate(88 76)">
+            <circle r="15" cy="3" fill="#B65A06" opacity="0.24" />
+            <circle r="15" fill="#F6C453" />
+            <path d="M0-7l2.2 4.5 5 .7-3.6 3.5.9 5L0 4.3-4.5 6.7l.9-5-3.6-3.5 5-.7z" fill="#FFFDF9" />
+          </g>
+        </svg>
+      );
     case 'homework':
       return (
         <svg viewBox="0 0 120 120" width={s} height={s} aria-hidden="true" className="rp-clay-sticker shrink-0">
@@ -116,6 +138,58 @@ function ExtraClaySvg({ name, px }) {
           <rect x="44" y="10" width="32" height="12" rx="6" fill="#25304D" />
           <path d="M41 44l4 4 8-8M41 60l4 4 8-8" stroke="#167C53" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           <path d="M58 45h20M58 61h16M41 75h34" stroke="#E6DCD3" strokeWidth="3.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'lesson_done':
+      // Completed lesson: closed sakura book with a mint check seal (distinct from the open reading book).
+      return (
+        <svg viewBox="0 0 120 120" width={s} height={s} aria-hidden="true" className="rp-clay-sticker shrink-0">
+          <ellipse cx="58" cy="108" rx="34" ry="6" fill="#0F6E4A" opacity="0.14" />
+          <rect x="22" y="28" width="66" height="72" rx="14" fill="#C24362" />
+          <rect x="22" y="22" width="66" height="72" rx="14" fill="#F28DA8" />
+          <rect x="30" y="22" width="8" height="72" fill="#E06F8D" />
+          <rect x="44" y="34" width="36" height="22" rx="6" fill="#FFFDF9" />
+          <path d="M50 42h24M50 49h16" stroke="#D78098" strokeWidth="3" strokeLinecap="round" />
+          <path d="M42 30c12-2 26-2 38 0" stroke="rgba(255,255,255,0.6)" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+          <g transform="translate(86 80)">
+            <circle r="18" cy="3" fill="#0F6E4A" opacity="0.25" />
+            <circle r="18" fill="#2FB27A" />
+            <circle r="13" fill="#4FCB94" />
+            <path d="M-6.5 0.5l4.5 4.5L7-4.5" stroke="#FFFDF9" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </g>
+        </svg>
+      );
+    case 'pass':
+      // Premium learning pass: lavender ticket with sakura seal and a gold star.
+      return (
+        <svg viewBox="0 0 120 120" width={s} height={s} aria-hidden="true" className="rp-clay-sticker shrink-0">
+          <ellipse cx="60" cy="106" rx="38" ry="6" fill="#5B3FA0" opacity="0.15" />
+          <g transform="rotate(-8 60 62)">
+            <path d="M18 40a8 8 0 0 1 8-8h68a8 8 0 0 1 8 8v8a10 10 0 0 0 0 20v8a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8v-8a10 10 0 0 0 0-20z" fill="#6A4BB8" transform="translate(0 6)" />
+            <path d="M18 40a8 8 0 0 1 8-8h68a8 8 0 0 1 8 8v8a10 10 0 0 0 0 20v8a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8v-8a10 10 0 0 0 0-20z" fill="#A58BEA" />
+            <path d="M78 34v50" stroke="#FFFDF9" strokeWidth="2.5" strokeDasharray="4 5" strokeLinecap="round" opacity="0.8" />
+            <rect x="28" y="44" width="38" height="7" rx="3.5" fill="#FFFDF9" />
+            <rect x="28" y="57" width="26" height="6" rx="3" fill="#E9E0FF" />
+            <circle cx="90" cy="58" r="8" fill="#F28DA8" />
+            <circle cx="90" cy="58" r="3" fill="#FFF8EC" />
+            <path d="M28 38c14-2 30-2 44 0" stroke="rgba(255,255,255,0.55)" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+          </g>
+          <path d="M94 16l3.2 6.6 7.2 1-5.2 5 1.2 7.2-6.4-3.4-6.4 3.4 1.2-7.2-5.2-5 7.2-1z" fill="#F6C453" />
+        </svg>
+      );
+    case 'history':
+      // Recent activity: clay clock with a rewind arrow (distinct from the calendar).
+      return (
+        <svg viewBox="0 0 120 120" width={s} height={s} aria-hidden="true" className="rp-clay-sticker shrink-0">
+          <ellipse cx="60" cy="108" rx="34" ry="6" fill="#1D62AB" opacity="0.14" />
+          <circle cx="60" cy="64" r="38" fill="#2A6FB8" />
+          <circle cx="60" cy="58" r="38" fill="#7DB6F0" />
+          <circle cx="60" cy="58" r="28" fill="#FFFDF9" />
+          <path d="M60 40v19l12 8" stroke="#25304D" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <circle cx="60" cy="59" r="3.5" fill="#E05A7A" />
+          <path d="M22 40a42 42 0 0 1 18-20" stroke="#F28DA8" strokeWidth="7" strokeLinecap="round" fill="none" />
+          <path d="M14 34l9 10 8-12z" fill="#F28DA8" />
+          <path d="M40 30c8-5 18-7 28-5" stroke="rgba(255,255,255,0.65)" strokeWidth="4" strokeLinecap="round" fill="none" />
         </svg>
       );
     case 'dashboard':

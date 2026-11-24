@@ -28,7 +28,6 @@ import {
   Field,
   Modal,
   PageContainer,
-  PageHeader,
   RefreshButton,
   RefreshingIndicator,
   SakuraLoader,
@@ -39,6 +38,8 @@ import {
   notify,
 } from '@/components/ui';
 import { getSession } from '@/app/auth/session.js';
+import { queryClient } from '@/api/queryClient.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import {
   courseGet,
   coursePost,
@@ -54,20 +55,25 @@ import CohortScheduleRequestPanel from '@/features/scheduling/components/CohortS
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
 import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
 import { displayCourseTitle, getSessionJoinState } from '@/features/calendar/utils/calendarEventsModel.js';
+import {
+  CLASS_LIFECYCLE_STATUSES,
+  computeClassProgress,
+  resolveClassLifecycleStatus,
+} from '@/features/scheduling/utils/teachingLifecycleModel.js';
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
 import { translateText, useLocale } from '@/locales/locale.js';
 
 const STATUS_LABELS = {
   PendingPayment: 'Chờ thanh toán',
-  Ready: 'Chờ khai giảng',
-  Active: 'Đang học',
+  Ready: 'Sắp khai giảng',
+  Active: 'Đang giảng dạy',
   Completed: 'Đã hoàn thành',
   Cancelled: 'Đã hủy',
-  Open: 'Đang mở đăng ký',
-  Published: 'Đang mở đăng ký',
+  Open: 'Đang tuyển sinh',
+  Published: 'Đang tuyển sinh',
   Draft: 'Bản nháp',
   Archived: 'Đã lưu trữ',
-  Scheduled: 'Chờ học',
+  Scheduled: 'Sắp diễn ra',
   Present: 'Có mặt',
   Absent: 'Vắng',
   ExcusedAbsent: 'Vắng có phép',
@@ -297,8 +303,20 @@ export default function MentorClassWorkspace() {
             (cp) => Number(cp.cohortId) === entry.cohortId && (cp.status === 'Open' || cp.status === 'UnderReview'),
           ).length;
 
+      const progress = computeClassProgress(sessions, entry.totalSessions);
+      const lifecycle = resolveClassLifecycleStatus({
+        cohortStatus: entry.status,
+        enrolledCount: entry.cohortObj?.enrolledCount ?? entry.enrolledCourses.length,
+        startsAt: entry.startsAt,
+        sessions,
+        enrolledCourses: entry.enrolledCourses,
+        nowMs,
+      });
+
       return {
         ...entry,
+        lifecycle,
+        progress,
         repCourse,
         sessions,
         nextSession,
@@ -387,7 +405,7 @@ export default function MentorClassWorkspace() {
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase();
     return mentorCohortEntries.filter((entry) => {
-      if (statusFilter !== 'ALL' && entry.status !== statusFilter) return false;
+      if (statusFilter !== 'ALL' && entry.lifecycle.id !== statusFilter) return false;
       if (!q) return true;
       const learnerNames = entry.enrolledCourses.map((c) => c.learnerName || '').join(' ').toLowerCase();
       return (
@@ -406,6 +424,7 @@ export default function MentorClassWorkspace() {
     try {
       const result = await fn();
       await loadAll();
+      invalidateSidebarCounters(queryClient);
       if (selectedCohort?.cohortId) setHomeworkTick((t) => t + 1);
       const resolved = typeof message === 'function' ? message(result) : message;
       if (resolved) {
@@ -632,16 +651,12 @@ export default function MentorClassWorkspace() {
           </Card>
         ) : !selectedCohort ? (
           <>
-            <PageHeader
-              eyebrow="Giảng dạy lớp nhóm"
-              title="Lớp học nhóm đang phụ trách"
-              description="Chọn một lớp học để xem danh sách học viên, điểm danh theo buổi, giao/chấm bài tập và quản lý lịch dạy."
-              actions={(
-                <Button as={Link} to="/work-schedule/" variant="secondary" size="sm" icon={CalendarDays}>
-                  {tr('Lịch làm việc')}
-                </Button>
-              )}
-            />
+            <h1 className="sr-only">{tr('Lớp học nhóm đang phụ trách')}</h1>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button as={Link} to="/work-schedule/" variant="secondary" size="sm" icon={CalendarDays}>
+                {tr('Lịch làm việc')}
+              </Button>
+            </div>
 
             {complaintsError && (
               <Banner tone="warning">
@@ -682,10 +697,7 @@ export default function MentorClassWorkspace() {
                   onChange: setStatusFilter,
                   tabs: [
                     { value: 'ALL', label: 'Tất cả' },
-                    { value: 'Active', label: 'Đang học' },
-                    { value: 'Ready', label: 'Chờ khai giảng' },
-                    { value: 'Open', label: 'Đang mở đăng ký' },
-                    { value: 'Completed', label: 'Đã hoàn thành' },
+                    ...CLASS_LIFECYCLE_STATUSES.map((st) => ({ value: st.id, label: st.label })),
                   ],
                 }}
                 search={{
@@ -744,7 +756,7 @@ export default function MentorClassWorkspace() {
                           <Badge tone="brand" icon={false} size="sm">{entry.level}</Badge>
                           {entry.intensityLabel && <Badge tone="neutral" icon={false} size="sm">{tr(entry.intensityLabel)}</Badge>}
                         </div>
-                        <Badge tone={statusBadgeTone(entry.status)} size="sm">{showStatus(entry.status)}</Badge>
+                        <Badge tone={entry.lifecycle.tone} size="sm">{tr(entry.lifecycle.label)}</Badge>
                       </div>
 
                       <div>
@@ -770,6 +782,25 @@ export default function MentorClassWorkspace() {
                           <dt className="text-rp-text-muted">{tr('Khai giảng')}</dt>
                           <dd className="mt-0.5 font-semibold text-rp-text">{fmtDate(entry.startsAt)}</dd>
                         </div>
+                        {entry.progress.totalSessions > 0 && (
+                          <div className="col-span-2 pt-1 border-t border-rp-line/60">
+                            <dt className="flex items-center justify-between text-rp-text-muted">
+                              <span>{tr('Tiến độ giảng dạy')}</span>
+                              <span className="font-semibold tabular-nums text-rp-text">
+                                {trf('{0}/{1} buổi đã hoàn thành', {
+                                  0: entry.progress.completedSessions,
+                                  1: entry.progress.totalSessions,
+                                })}
+                              </span>
+                            </dt>
+                            <dd className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
+                              <div
+                                className="h-full rounded-full bg-[#16A34A] transition-[width] duration-300"
+                                style={{ width: `${entry.progress.percent}%` }}
+                              />
+                            </dd>
+                          </div>
+                        )}
                       </dl>
 
                       {entry.nextSession && (
@@ -831,7 +862,7 @@ export default function MentorClassWorkspace() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge tone="brand" icon={false} size="sm">{selectedCohort.level}</Badge>
-                      <Badge tone={statusBadgeTone(selectedCohort.status)} size="sm">{showStatus(selectedCohort.status)}</Badge>
+                      <Badge tone={selectedCohort.lifecycle.tone} size="sm">{tr(selectedCohort.lifecycle.label)}</Badge>
                       {selectedCohort.intensityLabel && (
                         <Badge tone="neutral" icon={false} size="sm">{tr(selectedCohort.intensityLabel)}</Badge>
                       )}

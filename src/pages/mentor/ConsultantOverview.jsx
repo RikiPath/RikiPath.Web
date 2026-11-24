@@ -24,8 +24,8 @@ import {
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
 import { toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
 import { useNow } from '@/hooks/useNow.js';
-import { Badge, Banner, Button, Card, CardHeader, EmptyState, ErrorState, FeatureIcon, PageHeader, ProgressBar, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { Badge, Banner, Button, Card, CardHeader, EmptyState, ErrorState, FeatureIcon, ProgressBar, RefreshingIndicator, SakuraLoader, StaleDataBar } from '@/components/ui';
+import { useLocale } from '@/locales/locale.js';
 
 // Teaching workspace. All metrics strictly reflect live Backend API responses (zero mocked/hardcoded numbers).
 const QUICK_ACTIONS = [
@@ -183,13 +183,6 @@ export default function ConsultantOverview() {
   const todaySessions = upcoming.filter((s) => toVnDateKey(new Date(s.at)) === todayKey);
   const thisWeekCount = upcoming.filter((s) => s.at < nowMs + 7 * DAY_MS).length;
   const [next, ...later] = upcoming;
-  const todayLabel = new Date(nowMs).toLocaleDateString(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
 
   const stats = [
     { label: 'Lớp nhóm phụ trách', value: cohortSummary.length, icon: School, tone: 'bg-tone-mentor-bg text-tone-mentor' },
@@ -227,12 +220,12 @@ export default function ConsultantOverview() {
   return (
     <MentorShell breadcrumb={tr('Bảng điều khiển')}>
       <div data-page="ConsultantOverview" className="rp-container rp-cq space-y-[var(--rp-space-section)] py-[var(--rp-space-page-y)]">
-        <PageHeader
-          eyebrow={todayLabel}
-          title={tr('Không gian giảng dạy')}
-          description={tr('Lịch dạy hôm nay, lớp nhóm phụ trách, bài tập chờ chấm và chỉ số giảng dạy thực tế.')}
-          actions={<RefreshingIndicator active={query.isFetching && !query.isPending} />}
-        />
+        <h1 className="sr-only">{tr('Không gian giảng dạy')}</h1>
+        {query.isFetching && !query.isPending && (
+          <div className="flex justify-end">
+            <RefreshingIndicator active />
+          </div>
+        )}
 
         {query.isPending ? (
           <SakuraLoader variant="section" context="dashboard" label={tr('Đang tải không gian giảng dạy')} delay={160} />

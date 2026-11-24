@@ -124,17 +124,28 @@ export default function ProfileWorkspace({ defaultTab = 'profile' }) {
         className={cx('min-h-full', role === 'Admin' && 'bg-[#F8F6F4]')}
       >
         <main className="mx-auto w-full max-w-[1120px] min-w-0 space-y-5 px-[var(--rp-space-page-x)] py-5 text-rp-text lg:py-6">
-          <header className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-rp-text">
-                {tr('Hồ sơ của tôi & Cài đặt tài khoản')}
-              </h1>
-              <p className="mt-1 text-[13px] text-rp-text-muted">
-                {tr('Quản lý thông tin cá nhân, bảo mật đăng nhập, thông báo và tùy chọn sử dụng trên RikiPath.')}
-              </p>
-            </div>
-            <RefreshingIndicator active={profileQuery.isFetching && !profileQuery.isPending} />
-          </header>
+          {role === 'Mentor' ? (
+            <>
+              <h1 className="sr-only">{tr('Hồ sơ của tôi & Cài đặt tài khoản')}</h1>
+              {profileQuery.isFetching && !profileQuery.isPending && (
+                <div className="flex justify-end">
+                  <RefreshingIndicator active />
+                </div>
+              )}
+            </>
+          ) : (
+            <header className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-rp-text">
+                  {tr('Hồ sơ của tôi & Cài đặt tài khoản')}
+                </h1>
+                <p className="mt-1 text-[13px] text-rp-text-muted">
+                  {tr('Quản lý thông tin cá nhân, bảo mật đăng nhập, thông báo và tùy chọn sử dụng trên RikiPath.')}
+                </p>
+              </div>
+              <RefreshingIndicator active={profileQuery.isFetching && !profileQuery.isPending} />
+            </header>
+          )}
 
           {profileQuery.isPending && (
             <SakuraLoader variant="section" context="profile" delay={140} />

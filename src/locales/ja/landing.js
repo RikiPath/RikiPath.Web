@@ -106,7 +106,7 @@ export const jaLanding = {
   'Chọn lớp': 'クラスを選ぶ',
   'So sánh lịch học, cường độ, chỗ còn trống và học phí trọn khóa.': '授業日程、ペース、空き席、コース料金を比較できます。',
   'Giữ chỗ & thanh toán': '席の確保とお支払い',
-  'Chỗ được giữ trong thời gian thanh toán qua PayOS; ghi danh có hiệu lực khi hệ thống xác minh.': 'PayOSでのお支払い中は席を確保します。システムが支払いを確認すると申込が確定します。',
+  'Chỗ được giữ trong thời gian thanh toán; ghi danh có hiệu lực khi hệ thống xác minh.': 'お支払い中は席を確保します。システムが支払いを確認すると申込が確定します。',
   'Vào lớp': '授業に参加',
   'Lịch học, phòng học trực tuyến, điểm danh, bài tập về nhà và tổng kết khóa.': '授業スケジュール、オンライン教室、出欠確認、宿題、コースの修了まとめ。',
 
@@ -131,14 +131,14 @@ export const jaLanding = {
   'Haru có thay Mentor không?': 'Haruはメンターの代わりになりますか？',
   'Không. Haru góp ý nhanh khi bạn luyện tập; Mentor dạy lớp nhóm, chấm bài và theo dõi tiến độ.': 'いいえ。Haruは練習中にすばやくアドバイスし、メンターはグループレッスンの指導、採点、進捗の確認を担当します。',
   'Thanh toán lớp nhóm thế nào?': 'グループレッスンの支払い方法は？',
-  'Thanh toán trọn khóa qua PayOS. Trạng thái ghi danh chỉ được xác nhận sau khi máy chủ xác minh giao dịch.': 'PayOSでコース料金を一括でお支払いいただきます。申込は、サーバーが取引を確認した後に確定します。',
+  'Thanh toán trọn khóa trực tuyến. Trạng thái ghi danh chỉ được xác nhận sau khi hệ thống xác minh giao dịch.': 'コース料金をオンラインで一括でお支払いいただきます。申込は、システムが取引を確認した後に確定します。',
 
   // Public shell (header, drawer, footer)
   'Trang chủ': 'ホーム',
   'Học tiếng Nhật': '日本語を学ぶ',
   'Học cùng người thật': '講師と一緒に学ぶ',
   'Nền tảng học tiếng Nhật và luyện thi JLPT N5–N2: tự học theo lộ trình, thi thử, học nhóm cùng Mentor và góp ý từ Haru AI.': 'JLPT N5〜N2対策の日本語学習プラットフォーム。ロードマップに沿った自習、模擬試験、メンターとのグループレッスン、Haru AIのアドバイス。',
-  'Thanh toán lớp nhóm qua PayOS · Đồng bộ Web và ứng dụng RikiPath': 'グループレッスンのお支払いはPayOS・WebとRikiPathアプリで同期',
+  'Thanh toán lớp nhóm trực tuyến · Đồng bộ Web và ứng dụng RikiPath': 'グループレッスンはオンライン決済・WebとRikiPathアプリで同期',
 
   // Closing CTA
   'Bắt đầu từ mục tiêu JLPT của bạn': 'JLPTの目標から始めよう',

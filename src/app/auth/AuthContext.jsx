@@ -6,6 +6,7 @@ import { homePathForRole, getAuthMe } from '@/features/auth/api/authApi.js';
 import { queryClient } from '@/api/queryClient.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { normalizeAvatarUrl } from '@/components/ui/userAvatarLogic.js';
+import { clearSidebarCounterSnapshots } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 function buildSessionPatchFromUser(me) {
   if (!me || typeof me !== 'object') return null;
@@ -51,6 +52,7 @@ export function AuthProvider({ children }) {
         (prev.userId != null && next?.userId != null && String(next.userId) !== String(prev.userId)) ||
         (Boolean(prev.token) && Boolean(nextToken) && nextToken !== prev.token);
       if (switchedOrLoggedOut) {
+        clearSidebarCounterSnapshots();
         queryClient.clear();
         setMeSyncedToken(null);
       }
@@ -171,6 +173,8 @@ export function AuthProvider({ children }) {
 
   const login = useCallback((sessionData, remember = true) => {
     const cleanSession = sessionData ? { ...sessionData, avatarUrl: normalizeAvatarUrl(sessionData.avatarUrl) } : sessionData;
+    clearSidebarCounterSnapshots();
+    queryClient.clear();
     saveSession(cleanSession, remember);
     setMeSyncedToken(cleanSession?.accessToken || null);
     setSessionState(cleanSession);
@@ -183,6 +187,7 @@ export function AuthProvider({ children }) {
       return;
     }
     setMeSyncedToken(null);
+    clearSidebarCounterSnapshots();
     queryClient.clear();
     if (options?.email) {
       saveRememberedLogin({ email: options.email, remember: true });
@@ -211,6 +216,7 @@ export function AuthProvider({ children }) {
   const expireSession = useCallback(() => {
     clearSession();
     setMeSyncedToken(null);
+    clearSidebarCounterSnapshots();
     queryClient.clear();
     setSessionState(null);
   }, []);

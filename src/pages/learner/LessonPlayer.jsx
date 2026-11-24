@@ -21,6 +21,7 @@ import PracticeResultReview from '@/features/practice/components/PracticeResultR
 import {
   AlertDialog, Badge, Banner, Button, CelebrationScene, CompletionSummary, ContextualErrorState, EmptyState,
   ProgressBar, SakuraLoader, Tabs, cx, notify,
+  SegmentedControl,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { useJourneyRoadmap } from '@/features/learning-journey/useJourneyRoadmap.js';
@@ -33,6 +34,10 @@ import {
   skillNameLabel,
   stageKey,
 } from '@/features/learning-journey/journeyModel.js';
+import {
+  backendCatalogLockScope,
+  filterLessonsByCategory,
+} from '@/features/learning-journey/lessonCatalogModel.js';
 import {
   lessonBackTarget,
   lessonPlayerPath,
@@ -112,10 +117,15 @@ export default function LessonPlayer() {
     enabled: mode === 'catalog' && Boolean(detail?.certificateLevelId),
     retry: false,
   });
-  const catalogLessons = (catalogQuery.data?.lessons ?? [])
-    .filter((item) => !catalogSkill || item.languageSkillName === catalogSkill);
-  const catalogLesson = catalogLessons.find((item) => Number(item.lessonId) === lessonId) ?? null;
-  const catalogLocks = catalogPracticeLocks(catalogLessons);
+  const catalogRawLessons = catalogQuery.data?.lessons ?? [];
+  const catalogLessons = filterLessonsByCategory(
+    catalogSkill ? catalogRawLessons.filter((item) => item.languageSkillName === catalogSkill) : catalogRawLessons,
+    context.category,
+  );
+  const catalogLesson = catalogLessons.find((item) => Number(item.lessonId) === lessonId)
+    ?? catalogRawLessons.find((item) => Number(item.lessonId) === lessonId)
+    ?? null;
+  const catalogLocks = catalogPracticeLocks(backendCatalogLockScope(catalogRawLessons, context.category));
 
   const streakQuery = useQuery({ queryKey: ['learner', 'study-streak'], queryFn: getStudyStreak, enabled: Boolean(lessonId), retry: false });
   const statsQuery = useQuery({ queryKey: ['learner', 'completion-stats'], queryFn: getCompletionStats, enabled: Boolean(lessonId), retry: false });
@@ -346,7 +356,7 @@ export default function LessonPlayer() {
         illustration="book"
         title={tr('Cần gói tự học để mở bài này')}
         description={tr(detailQuery.error?.message || 'Bạn cần gói tự học đang hiệu lực để mở bài và làm bài luyện tập.')}
-        action={<Button as={Link} to="/plans/" variant="primary" size="sm">{tr('Xem gói tự học')}</Button>}
+        action={<Button as={Link} to="/plans/" variant="primary" size="sm">{tr('Mua gói ngay')}</Button>}
       />
     );
   } else if (detailQuery.isError || !detail) {
@@ -476,19 +486,13 @@ export default function LessonPlayer() {
                 })}
               </div>
               {page.part !== 'content' && (
-                <div className="flex rounded-xl bg-rp-brand-soft p-1">
-                  {[{ id: 'list', label: 'Danh sách' }, { id: 'cards', label: 'Thẻ ghi nhớ' }].map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={view === option.id}
-                      onClick={() => setView(option.id)}
-                      className={cx('rp-focus h-8 rounded-lg px-3 text-[12px] font-medium', view === option.id ? 'bg-white text-rp-brand-strong shadow-sm' : 'text-rp-text-muted')}
-                    >
-                      {tr(option.label)}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  size="md"
+                  label={tr('Kiểu hiển thị')}
+                  value={view}
+                  onChange={setView}
+                  options={[{ value: 'list', label: 'Danh sách' }, { value: 'cards', label: 'Thẻ ghi nhớ' }]}
+                />
               )}
             </div>
 

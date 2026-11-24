@@ -566,7 +566,7 @@ export default function KanjiDetailStudio({
         code === 'SELF_STUDY_PACKAGE_REQUIRED' || err?.status === 403
           ? {
               action: {
-                label: tr('Xem gói tự học'),
+                label: tr('Mua gói ngay'),
                 onClick: () =>
                   navigate('/plans/', {
                     state: { from: { pathname: '/kanji-writing/' }, requiredFeatureLabel: tr('Sổ tay Hán tự') },

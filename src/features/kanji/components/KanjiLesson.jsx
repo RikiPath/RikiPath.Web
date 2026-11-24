@@ -398,7 +398,7 @@ export default function KanjiLesson({ library: libraryProp }) {
 
               {/* Sticky Desktop Kanji Detail & Practice Studio */}
               {splitDesktop && activeItem && (
-                <aside className="min-w-0 lg:sticky lg:top-[calc(var(--spacing-rp-topbar)+1rem)]">
+                <aside className="min-w-0 lg:sticky lg:top-[calc(var(--rp-sticky-top-offset)+1rem)]">
                   <KanjiDetailStudio
                     key={activeItem.kanjiId}
                     item={activeItem}

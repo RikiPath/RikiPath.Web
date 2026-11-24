@@ -15,7 +15,7 @@ import {
   Sparkles,
   Trophy,
 } from 'lucide-react';
-import { Badge, Button, HaruMascot, ProgressBar, cx } from '@/components/ui';
+import { Badge, Button, Collapsible, HaruMascot, ProgressBar, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import {
   buildAiRoadmapTree,
@@ -513,6 +513,7 @@ export default function HorizontalAiRoadmapTree({
                     <button
                       type="button"
                       aria-expanded={!isCollapsed}
+                      aria-controls={branch.days.length > 0 ? `ai-branch-${branch.id}` : undefined}
                       onClick={() => toggleBranchCollapse(branch.id)}
                       className="rp-focus flex w-full items-start justify-between gap-2 px-3.5 py-3 text-left transition-colors hover:bg-rp-row-hover"
                     >
@@ -557,8 +558,8 @@ export default function HorizontalAiRoadmapTree({
                   </div>
 
                   {/* Child Day & Lesson Branches hanging cleanly under the Checkpoint Node */}
-                  {!isCollapsed && branch.days.length > 0 && (
-                    <div className="ml-[19px]">
+                  {branch.days.length > 0 && (
+                    <Collapsible open={!isCollapsed} id={`ai-branch-${branch.id}`} className="ml-[19px]">
                       <ul className={cx('space-y-2.5 border-l-2 pt-3', stemCls)}>
                         {renderedDays.map((dayItem) => (
                           <DayBranchNode
@@ -602,7 +603,7 @@ export default function HorizontalAiRoadmapTree({
                           </li>
                         )}
                       </ul>
-                    </div>
+                    </Collapsible>
                   )}
                 </div>
               </li>

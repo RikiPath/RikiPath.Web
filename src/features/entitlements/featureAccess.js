@@ -130,9 +130,32 @@ export function featureLockKind(to, features = null) {
   return LOCK_KIND.PLAN;
 }
 
-/** Server-provided lock reason for a destination when gated, falling back to `fallback`. */
-export function featureLockReason(to, features = null, fallback = '') {
-  return findFeatureForPath(to, features)?.lockReason || fallback;
+/** What a locked feature needs, as shown to the learner (badge, art, wording). */
+export const ACCESS_REASON = Object.freeze({
+  PLAN: 'plan',
+  CREDIT: 'credit',
+});
+
+/** Missing plan wins over missing credits; only a credits-only lock reads as "needs AI credits". */
+export function accessReasonForKind(kind) {
+  return kind === LOCK_KIND.CREDIT ? ACCESS_REASON.CREDIT : ACCESS_REASON.PLAN;
+}
+
+/** Tooltip / aria reasons per lock cause (VI keys; JA in locales/ja/learnerScreens.js). */
+export const LOCK_REASON_PLAN = 'Bạn cần mua gói tự học để mở khóa tính năng này.';
+export const LOCK_REASON_CREDIT = 'Bạn cần có lượt AI để sử dụng tính năng này.';
+export const LOCK_REASON_DISABLED = 'Tính năng này hiện chưa khả dụng.';
+
+/**
+ * Lock reason for a destination, decided by the lock cause rather than by free server text, so a learner
+ * who only ran out of AI credits is never told to buy a plan again. A missing plan wins over missing
+ * credits (`PLAN_AND_CREDIT` without a plan → plan reason). Only an Admin suspension keeps the server text.
+ */
+export function featureLockReason(to, features = null) {
+  const kind = featureLockKind(to, features);
+  if (kind === LOCK_KIND.CREDIT) return LOCK_REASON_CREDIT;
+  if (kind === LOCK_KIND.ADMIN_DISABLED) return findFeatureForPath(to, features)?.lockReason || LOCK_REASON_DISABLED;
+  return LOCK_REASON_PLAN;
 }
 
 /**

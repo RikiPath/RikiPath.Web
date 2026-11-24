@@ -150,14 +150,15 @@ test('buildPresetCandidateSlots splits dayparts into valid 90m slots with 15m re
 });
 
 test('classifyScheduleEvent, filterScheduleEvents and sortScheduleEvents separate EventType from Status and enforce combined AND filters + smart sort', () => {
-  // Verify canonical 4+2 semantic status colors in CALENDAR_TONES (plus Draft selection)
+  // Verify canonical semantic status colors in CALENDAR_TONES (plus Draft selection)
   assert.equal(CALENDAR_TONES.pending.hex, '#E4A020');
-  assert.equal(CALENDAR_TONES.approved.hex, '#0D9488');
+  assert.equal(CALENDAR_TONES.approved.hex, '#16A34A');
   assert.equal(CALENDAR_TONES.session.hex, '#2F9B6B');
   assert.equal(CALENDAR_TONES.present.hex, '#2F9B6B');
   assert.equal(CALENDAR_TONES.rejected.hex, '#DC3545');
   assert.equal(CALENDAR_TONES.cancelled.hex, '#8B8B97');
   assert.equal(CALENDAR_TONES.selected.hex, '#22C55E');
+  assert.match(CALENDAR_TONES.selected.card, /border-dashed/);
 
   const nowMs = new Date('2026-11-19T05:00:00Z').getTime(); // 2026-11-19 12:00 GMT+7
   const todayKey = '2026-11-19';

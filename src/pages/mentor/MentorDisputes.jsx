@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { getSession } from '@/app/auth/session.js';
+import { queryClient } from '@/api/queryClient.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { AdminShell, MentorShell } from '@/layouts';
 import { Banner, Button, PageContainer, PageHeader, notify } from '@/components/ui';
 import CohortComplaintPanel from '@/features/complaints/components/CohortComplaintPanel.jsx';
@@ -23,6 +25,7 @@ export default function MentorDisputes() {
     const toastId = notify.loading('Đang gửi phản hồi…', '', { key: 'mentor-dispute-action' });
     try {
       const result = await fn();
+      invalidateSidebarCounters(queryClient);
       const text = typeof message === 'function' ? message(result) : message;
       notify.success(text, '', { id: toastId, key: 'mentor-dispute-action', replace: true });
     } catch (e) {
@@ -61,16 +64,12 @@ export default function MentorDisputes() {
   return (
     <MentorShell pathname={pathname} breadcrumb={tr('Khiếu nại khóa học')}>
       <PageContainer width="default" density="comfortable" className="text-rp-text">
-        <PageHeader
-          eyebrow="Giải trình"
-          title="Khiếu nại khóa học của học viên"
-          description="Phản hồi các khiếu nại liên quan đến chất lượng giảng dạy, thái độ hoặc lịch học của lớp nhóm bạn phụ trách."
-          actions={(
-            <Button as={Link} to="/mentor-study-courses/" variant="secondary" size="sm">
-              {tr('Về lớp phụ trách')}
-            </Button>
-          )}
-        />
+        <h1 className="sr-only">{tr('Khiếu nại khóa học của học viên')}</h1>
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <Button as={Link} to="/mentor-study-courses/" variant="secondary" size="sm">
+            {tr('Về lớp phụ trách')}
+          </Button>
+        </div>
 
         <CohortComplaintPanel
           role="Mentor"

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownUp,
+  ArrowRight,
   Calendar as CalendarIcon,
   CalendarClock,
   CalendarDays,
@@ -15,17 +16,18 @@ import {
   GripVertical,
   List,
   Lock,
+  MoreHorizontal,
   Pencil,
   Plus,
   Send,
   ShieldAlert,
-  Sparkles,
   Trash2,
   Undo2,
   X,
 } from 'lucide-react';
 import { AlertDialog, Modal, Popover, Tabs } from '@/components/ui/overlay.jsx';
-import { DateInput, TimeInput } from '@/components/ui/core.jsx';
+import { TimeInput } from '@/components/ui/core.jsx';
+import { DatePicker, formatIsoDateDisplay } from '@/components/ui';
 import { RefreshButton } from '@/components/ui/RefreshButton.jsx';
 import { RefreshingIndicator } from '@/components/ui/SakuraLoader.jsx';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
@@ -39,6 +41,7 @@ import {
   buildWeekDays,
   formatCleanCohortTitle,
   formatFullDayVn,
+  formatFullDayWithYearVn,
   formatShortDateVn,
   getToneMeta,
   getViewDateRange,
@@ -49,13 +52,20 @@ import {
   stepAnchorKey,
   toVnDateKey,
   toVnTimeParts,
+  weekdayOfDateKey,
 } from '@/features/scheduling/utils/calendarGeometry.js';
 import {
+  REGISTRATION_EVENT_TYPE_OPTIONS,
+  REGISTRATION_STATUS_OPTIONS,
+  SCHEDULE_EVENT_TYPE_OPTIONS,
   SCHEDULE_STATUS_OPTIONS,
   buildOccupiedItems,
+  classifyRegistrationEvent,
   classifyScheduleEvent,
   clockFromMinutes,
   computeDayRestWindows,
+  computeRegistrationStatusCounts,
+  filterRegistrationEvents,
   filterScheduleEvents,
   minutesFromClock,
   slotDurationMinutes,
@@ -64,10 +74,18 @@ import {
   validateCandidateSlot,
 } from '@/features/scheduling/utils/slotPlannerModel.js';
 import {
+  REGISTRATION_TABLE_SORT_OPTIONS,
+  REGISTRATION_TABLE_STATUS_OPTIONS,
+  computeRegistrationRowCounts,
+  filterRegistrationRows,
+  sortRegistrationRows,
+} from '@/features/scheduling/utils/registrationTableModel.js';
+import {
   ActiveScheduleFilterBar,
   ScheduleMoreFiltersPopover,
   StatusDotListbox,
 } from '@/features/scheduling/components/ScheduleFilterControls.jsx';
+import ExpandableRegistrationTable from '@/features/scheduling/components/ExpandableRegistrationTable.jsx';
 
 const CALENDAR_SUBVIEWS = [
   { id: 'day', label: 'Ngày' },
@@ -77,6 +95,75 @@ const CALENDAR_SUBVIEWS = [
 
 const DAY_SHORT_VI = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const DAY_SHORT_JA = ['日', '月', '火', '水', '木', '金', '土'];
+const WEEKDAY_LABEL_VI = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+
+function ListRowActionMenu({ items = [], triggerLabel }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <Popover
+      align="end"
+      label={triggerLabel}
+      panelClassName="w-52 p-1.5"
+      trigger={({ props, toggle }) => (
+        <button
+          {...props}
+          type="button"
+          aria-label={triggerLabel}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+          className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-rp-line bg-white text-rp-text-muted transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <div role="menu" className="space-y-0.5">
+          {items.map((item) => {
+            const Icon = item.icon;
+            if (item.to) {
+              return (
+                <Link
+                  key={item.id}
+                  to={item.to}
+                  role="menuitem"
+                  onClick={() => close()}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-semibold text-rp-text transition-colors hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                >
+                  {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            }
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                disabled={item.disabled}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close();
+                  item.onClick?.();
+                }}
+                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                  item.danger
+                    ? 'text-red-700 hover:bg-red-50'
+                    : 'text-rp-text hover:bg-rp-brand-tint hover:text-rp-brand-strong'
+                }`}
+              >
+                {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Popover>
+  );
+}
 
 const HOUR_HEIGHT = 64;
 const CONFLICT_DEBOUNCE_MS = 250;
@@ -86,7 +173,7 @@ function slotStatusMeta(s, conflictIds, restConflictIds, cohortMeta = null) {
     return { kind: 'cancelled', label: 'Đã hủy', tone: 'cancelled', draggable: false, locked: true };
   }
   if (s.rejectedAt || s.status === 'Rejected') {
-    return { kind: 'rejected', label: 'Bị từ chối', tone: 'rejected', draggable: false, locked: true };
+    return { kind: 'rejected', label: 'Bị từ chối', tone: 'rejected', draggable: false, locked: false };
   }
   if (s.cancelRequestedAt && !s.cancelRejectedAt) {
     return { kind: 'pending', label: 'Chờ duyệt hủy', tone: 'pending', draggable: false, locked: true };
@@ -234,6 +321,8 @@ export default function InteractiveSlotCalendar({
   policy,
   anchorKey: controlledAnchorKey,
   onAnchorChange,
+  displayMode: controlledDisplayMode,
+  onDisplayModeChange,
   selectedSlots: controlledSelectedSlots,
   onSelectedSlotsChange,
   busy = false,
@@ -246,22 +335,40 @@ export default function InteractiveSlotCalendar({
   onRefresh,
   refreshing = false,
   renderCustomHeaderActions,
+  headerTopRight = null,
   proposalMode = false,
   proposalConfig = null,
   customValidateCandidate = null,
+  focusRequest = null,
 }) {
   const { locale, tr, trf, fmt } = useLocale();
   const dayLabels = locale === 'ja' ? DAY_SHORT_JA : DAY_SHORT_VI;
-  const [todayKey] = useState(() => toVnDateKey(new Date()));
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+  const todayKey = useMemo(() => toVnDateKey(new Date(nowMs)), [nowMs]);
+  const [invalidFlash, setInvalidFlash] = useState(null);
+  const [feedbackBanner, setFeedbackBanner] = useState(null);
+  const [feedbackBannerHovered, setFeedbackBannerHovered] = useState(false);
   const [uncontrolledAnchor, setUncontrolledAnchor] = useState(() => toVnDateKey(new Date()));
   const anchorKey = controlledAnchorKey ?? uncontrolledAnchor;
   const setAnchor = useCallback((next) => {
+    setInvalidFlash(null);
+    setFeedbackBanner(null);
+    setFeedbackBannerHovered(false);
     if (onAnchorChange) onAnchorChange(next);
     else setUncontrolledAnchor(next);
   }, [onAnchorChange]);
 
   // Primary display mode: 'calendar' vs 'list' (Lịch | Danh sách)
-  const [displayMode, setDisplayMode] = useState('calendar');
+  const [uncontrolledDisplayMode, setUncontrolledDisplayMode] = useState('calendar');
+  const displayMode = controlledDisplayMode ?? uncontrolledDisplayMode;
+  const setDisplayModeState = useCallback((nextMode) => {
+    if (onDisplayModeChange) onDisplayModeChange(nextMode);
+    else setUncontrolledDisplayMode(nextMode);
+  }, [onDisplayModeChange]);
   // Calendar sub-view defaults to 'day' on mobile viewports (<768px) per Rule 11, 'week' on tablet/desktop
   const [calendarSubView, setCalendarSubView] = useState(() => (
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
@@ -271,7 +378,9 @@ export default function InteractiveSlotCalendar({
   // Unified Advanced Filtering & Smart Sorting state (persisted across Calendar <-> List switches)
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [eventTypeFilter, setEventTypeFilter] = useState('ALL');
-  const [dateFilterMode, setDateFilterMode] = useState('view'); // 'view' | 'today' | 'week' | 'month' | 'custom'
+  const [jlptLevelFilter, setJlptLevelFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilterMode, setDateFilterMode] = useState('view'); // 'view' | 'upcoming' | 'past' | 'today' | 'week' | 'month' | 'custom'
   const [customFromDate, setCustomFromDate] = useState('');
   const [customToDate, setCustomToDate] = useState('');
   const [timeFilterCode, setTimeFilterCode] = useState('ALL'); // 'ALL' | daypart.code | 'CUSTOM'
@@ -279,11 +388,24 @@ export default function InteractiveSlotCalendar({
   const [customEndTime, setCustomEndTime] = useState('22:00');
   const [sortBy, setSortBy] = useState('smart');
   const [sortDirection, setSortDirection] = useState('asc');
+  const [regSortBy, setRegSortBy] = useState('default');
+  const [regSortDirection, setRegSortDirection] = useState('asc');
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(10);
   const [cancelingEvent, setCancelingEvent] = useState(null); // Dedicated Cancel Confirmation Modal
   const [cancelModalReason, setCancelModalReason] = useState('');
   const [cancelModalError, setCancelModalError] = useState('');
+  const [localFocusRequest, setLocalFocusRequest] = useState(null);
+
+  const handleDisplayModeChange = useCallback((nextMode) => {
+    setDisplayModeState(nextMode);
+    if (nextMode === 'calendar') {
+      if (statusFilter === 'selected') setStatusFilter('ALL');
+      if (dateFilterMode === 'upcoming' || dateFilterMode === 'past') setDateFilterMode('view');
+    } else {
+      setTablePage(1);
+    }
+  }, [dateFilterMode, setDisplayModeState, statusFilter]);
 
   // Multi-select 90-minute slots: array of { key, dayKey, startMin, endMin, startClock, endClock, startUtcIso, endUtcIso, submitError? }
   const [internalSelectedSlots, setInternalSelectedSlots] = useState([]);
@@ -301,11 +423,27 @@ export default function InteractiveSlotCalendar({
 
   const [pendingMove, setPendingMove] = useState(null);
   const [dragVisual, setDragVisual] = useState(null);
-  const [invalidFlash, setInvalidFlash] = useState(null);
-  const [feedbackBanner, setFeedbackBanner] = useState(null);
   const [touchPickerDay, setTouchPickerDay] = useState(null);
 
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const onInspectProposal = proposalConfig?.onInspectProposal;
+  const openEventDetail = useCallback((ev) => {
+    if (ev?.proposalId && onInspectProposal) {
+      onInspectProposal(ev.proposalId);
+      return;
+    }
+    setSelectedEvent(ev);
+  }, [onInspectProposal]);
+  const statusOptions = useMemo(
+    () => (proposalMode
+      ? (displayMode === 'list' ? REGISTRATION_TABLE_STATUS_OPTIONS : REGISTRATION_STATUS_OPTIONS)
+      : SCHEDULE_STATUS_OPTIONS),
+    [displayMode, proposalMode]
+  );
+  const eventTypeOptions = useMemo(
+    () => (proposalMode ? REGISTRATION_EVENT_TYPE_OPTIONS : SCHEDULE_EVENT_TYPE_OPTIONS),
+    [proposalMode]
+  );
   const [adjustingEvent, setAdjustingEvent] = useState(null); // For "Điều chỉnh giờ" modal from List/Calendar
   const [adjustDateKey, setAdjustDateKey] = useState('');
   const [adjustTimeClock, setAdjustTimeClock] = useState('08:00');
@@ -314,12 +452,6 @@ export default function InteractiveSlotCalendar({
   const [monthDayModal, setMonthDayModal] = useState(null);
   const [miniOpen, setMiniOpen] = useState(false);
   const [actionReason, setActionReason] = useState('');
-
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 30000);
-    return () => clearInterval(id);
-  }, []);
 
   const gridScrollRef = useRef(null);
   const dayColsRef = useRef({});
@@ -332,9 +464,62 @@ export default function InteractiveSlotCalendar({
 
   useEffect(() => {
     if (!invalidFlash) return undefined;
-    const t = setTimeout(() => setInvalidFlash(null), 4000);
+    const t = setTimeout(() => setInvalidFlash(null), 2800);
     return () => clearTimeout(t);
   }, [invalidFlash]);
+
+  useEffect(() => {
+    if (!feedbackBanner || feedbackBannerHovered) return undefined;
+    const t = setTimeout(() => setFeedbackBanner(null), 4500);
+    return () => clearTimeout(t);
+  }, [feedbackBanner, feedbackBannerHovered]);
+
+  const effectiveFocusRequest = useMemo(() => {
+    if (localFocusRequest?.id && (!focusRequest?.id || localFocusRequest.id >= focusRequest.id)) {
+      return localFocusRequest;
+    }
+    return focusRequest;
+  }, [focusRequest, localFocusRequest]);
+
+  const [prevFocusId, setPrevFocusId] = useState(null);
+  const [highlightedKeys, setHighlightedKeys] = useState([]);
+  if (effectiveFocusRequest?.id && effectiveFocusRequest.id !== prevFocusId) {
+    setPrevFocusId(effectiveFocusRequest.id);
+    if (!effectiveFocusRequest.preserveSubView) {
+      setDisplayModeState('calendar');
+      setCalendarSubView((cur) => (typeof window !== 'undefined' && window.innerWidth < 768 ? cur : 'week'));
+    } else if (displayMode === 'list') {
+      setDisplayModeState('calendar');
+    }
+    setHighlightedKeys(Array.isArray(effectiveFocusRequest.highlightKeys) ? effectiveFocusRequest.highlightKeys : []);
+  }
+  const highlightedKeySet = useMemo(() => new Set(highlightedKeys), [highlightedKeys]);
+
+  useEffect(() => {
+    if (highlightedKeys.length === 0) return undefined;
+    const t = setTimeout(() => setHighlightedKeys([]), 2200);
+    return () => clearTimeout(t);
+  }, [highlightedKeys]);
+
+  const rawPendingProposalEvents = proposalConfig?.pendingProposalEvents;
+  const proposalRestItems = useMemo(() => {
+    const pending = Array.isArray(rawPendingProposalEvents)
+      ? rawPendingProposalEvents
+      : [];
+    return pending
+      .filter((ev) => ev?.dayKey && Number.isFinite(Number(ev.startHour)))
+      .map((ev) => {
+        const startMin = (Number(ev.startHour) || 0) * 60 + (Number(ev.startMinute) || 0);
+        const endMin = (Number(ev.endHour) || 0) * 60 + (Number(ev.endMinute) || 0);
+        return {
+          id: ev.id,
+          dayKey: ev.dayKey,
+          startMin,
+          endMin,
+          blocksRest: true,
+        };
+      });
+  }, [rawPendingProposalEvents]);
 
   const weekDays = useMemo(
     () => (view === 'day'
@@ -387,13 +572,38 @@ export default function InteractiveSlotCalendar({
       }))
   ), [selectedSlots]);
 
-  // Re-validate each selected slot against current occupiedItems + other selectedSlots
+  // Re-validate each selected slot against current occupiedItems + other selectedSlots.
+  // In proposalMode, validation is strictly authoritative from Business State (proposalConfig),
+  // completely independent of Calendar viewport navigation.
   const validatedSelections = useMemo(() => {
     const results = [];
     const accepted = [];
     const sorted = [...selectedSlots].sort((a, b) => (
       a.dayKey === b.dayKey ? a.startMin - b.startMin : a.dayKey.localeCompare(b.dayKey)
     ));
+    if (proposalMode) {
+      const invalidWeeklyMap = proposalConfig?.invalidWeeklyMap;
+      const invalidOccurrenceMap = proposalConfig?.invalidOccurrenceMap;
+      for (const item of sorted) {
+        const occKey = `${item.dayKey}_${item.startMin}`;
+        const wkKey = item.weeklyKey || item.key;
+        const occErr = invalidOccurrenceMap instanceof Map
+          ? invalidOccurrenceMap.get(occKey)
+          : invalidOccurrenceMap?.[occKey];
+        const wkErr = invalidWeeklyMap instanceof Map
+          ? invalidWeeklyMap.get(wkKey)
+          : invalidWeeklyMap?.[wkKey];
+        const reason = item.submitError || occErr || wkErr || '';
+        results.push({
+          ...item,
+          valid: !reason,
+          reason,
+          code: reason ? 'PROPOSAL_CONFLICT' : null,
+        });
+      }
+      return results;
+    }
+
     for (const item of sorted) {
       const check = customValidateCandidate
         ? customValidateCandidate({
@@ -438,7 +648,7 @@ export default function InteractiveSlotCalendar({
       }
     }
     return results;
-  }, [selectedSlots, customValidateCandidate, policy, occupiedItems, nowMs, effectiveStep]);
+  }, [selectedSlots, proposalMode, proposalConfig?.invalidWeeklyMap, proposalConfig?.invalidOccurrenceMap, customValidateCandidate, policy, occupiedItems, nowMs, effectiveStep]);
 
   const validSelectedSlots = useMemo(
     () => validatedSelections.filter((s) => s.valid),
@@ -553,6 +763,15 @@ export default function InteractiveSlotCalendar({
     };
   }, [anchorKey, occupiedItems, slots, selectedSlots, weeklySessionCap]);
 
+  const isPastSlotOccurrence = useCallback((dayKey, startMin, refNowMs = Date.now()) => {
+    if (!dayKey) return false;
+    const currentTodayKey = toVnDateKey(new Date(refNowMs));
+    if (dayKey < currentTodayKey) return true;
+    if (dayKey > currentTodayKey) return false;
+    const startMs = new Date(`${dayKey}T${clockFromMinutes(startMin)}:00+07:00`).getTime();
+    return Number.isFinite(startMs) && startMs <= refNowMs;
+  }, []);
+
   // Toggle or add a 90-minute slot in multi-select
   const toggleOrSelectSlot = useCallback((dayKey, startMin, replaceKey = null) => {
     if (proposalReadOnly) return false;
@@ -561,17 +780,37 @@ export default function InteractiveSlotCalendar({
       (s) => s.key === rawTargetKey || (s.dayKey === dayKey && Number(s.startMin) === Number(startMin))
     );
     const matchKey = existingItem?.key || rawTargetKey;
+    const matchWeeklyKey = existingItem?.weeklyKey || null;
     if (existingItem && !replaceKey) {
-      setSelectedSlots((cur) => cur.filter((s) => s.key !== matchKey));
+      setSelectedSlots((cur) => cur.filter((s) => (
+        proposalMode && matchWeeklyKey
+          ? s.weeklyKey !== matchWeeklyKey && s.key !== matchKey
+          : s.key !== matchKey
+      )));
       setFeedbackBanner(null);
       return true;
     }
 
+    if (isPastSlotOccurrence(dayKey, startMin, Date.now())) {
+      setInvalidFlash({
+        dayKey,
+        startMin,
+        reason: tr('Đã quá thời gian này.'),
+        suggestedStartMin: null,
+      });
+      return false;
+    }
+
     if (customValidateCandidate) {
+      const replaceTargetItem = replaceKey
+        ? selectedSlots.find((s) => s.key === replaceKey || s.weeklyKey === replaceKey)
+        : null;
+      const replaceWeeklyKey = replaceTargetItem?.weeklyKey || replaceKey || null;
+
       const check = customValidateCandidate({
         dayKey,
         startMin,
-        replaceKey: replaceKey || null,
+        replaceKey: replaceWeeklyKey,
       });
       if (!check.valid) {
         setInvalidFlash({
@@ -591,8 +830,10 @@ export default function InteractiveSlotCalendar({
       }
 
       const finalKey = check.key || rawTargetKey;
+      const finalWeeklyKey = check.slot?.key || finalKey;
       const newItem = {
         key: finalKey,
+        weeklyKey: finalWeeklyKey,
         dayKey,
         startMin,
         endMin: check.endMin ?? (startMin + durationMinutes),
@@ -601,9 +842,18 @@ export default function InteractiveSlotCalendar({
         startUtcIso: check.startUtcIso,
         endUtcIso: check.endUtcIso,
         weekday: check.weekday,
+        justAdded: true,
       };
       setSelectedSlots((cur) => {
-        const filtered = cur.filter((s) => s.key !== replaceKey && s.key !== finalKey);
+        const filtered = cur.filter((s) => {
+          if (replaceKey && (s.key === replaceKey || (replaceWeeklyKey && s.weeklyKey === replaceWeeklyKey))) {
+            return false;
+          }
+          if (s.key === finalKey || (proposalMode && finalWeeklyKey && s.weeklyKey === finalWeeklyKey)) {
+            return false;
+          }
+          return true;
+        });
         return [...filtered, newItem];
       });
       setInvalidFlash(null);
@@ -625,7 +875,7 @@ export default function InteractiveSlotCalendar({
     if (maxPendingSlots > 0 && currentPendingCount + activeCountExcludingTarget + 1 > maxPendingSlots) {
       setFeedbackBanner({
         tone: 'error',
-        text: trf('Bạn đã đạt giới hạn {0} khung giờ chờ duyệt cùng lúc (hiện có {1} khung chờ duyệt). Vui lòng chờ Admin duyệt trước khi đăng ký thêm.', {
+        text: trf('Bạn đã đạt giới hạn {0} khung giờ chờ duyệt cùng lúc (hiện có {1} khung chờ duyệt). Vui lòng chờ quản trị viên duyệt trước khi đăng ký thêm.', {
           0: maxPendingSlots,
           1: currentPendingCount,
         }),
@@ -679,16 +929,24 @@ export default function InteractiveSlotCalendar({
     setInvalidFlash(null);
     setFeedbackBanner(null);
     return true;
-  }, [buildProposedFromSelection, currentPendingCount, customValidateCandidate, durationMinutes, effectiveStep, maxPendingSlots, maxSlotsPerSubmission, occupiedItems, policy, proposalReadOnly, selectedSlots, setSelectedSlots, trf]);
+  }, [buildProposedFromSelection, currentPendingCount, customValidateCandidate, durationMinutes, effectiveStep, isPastSlotOccurrence, maxPendingSlots, maxSlotsPerSubmission, occupiedItems, policy, proposalMode, proposalReadOnly, selectedSlots, setSelectedSlots, tr, trf]);
 
   const removeSelectedSlotByKey = useCallback((key) => {
-    setSelectedSlots((cur) => cur.filter((s) => s.key !== key));
-  }, [setSelectedSlots]);
+    setSelectedSlots((cur) => {
+      if (!proposalMode) return cur.filter((s) => s.key !== key);
+      const target = cur.find((s) => s.key === key || s.weeklyKey === key);
+      const targetWeeklyKey = target?.weeklyKey || key;
+      return cur.filter((s) => s.key !== key && s.weeklyKey !== targetWeeklyKey);
+    });
+    setFeedbackBanner(null);
+    setInvalidFlash(null);
+  }, [proposalMode, setSelectedSlots]);
 
   const clearAllSelectedSlots = useCallback(() => {
     setSelectedSlots([]);
     setConfirmModalOpen(false);
     setFeedbackBanner(null);
+    setInvalidFlash(null);
   }, [setSelectedSlots]);
 
   // Build normalized Calendar events
@@ -731,16 +989,24 @@ export default function InteractiveSlotCalendar({
       };
     };
 
+    const slotProposalMetaById = proposalConfig?.slotProposalMetaById || null;
+
     for (const s of slots) {
       if (!s) continue;
       if (pendingMove?.slot?.id === s.id) continue;
+      if (proposalMode && (s.isDeleted || s.status === 'Cancelled')) continue;
       const startParts = toVnTimeParts(s.startTime);
       const endParts = toVnTimeParts(s.endTime);
+      const endDate = backendUtcDate(s.endTime);
       const dk = toVnDateKey(s.startTime);
       const mins = slotDurationMinutes(s.startTime, s.endTime);
       const cohortMeta = cohortByAvailabilityId.get(s.id);
       const st = slotStatusMeta(s, overlapIds, restIds, cohortMeta);
       if (s.id) coveredAvailabilityIds.add(s.id);
+
+      const propMeta = slotProposalMetaById?.get(Number(s.id)) || null;
+      const resolvedProposalId = s.teachingProposalId ?? propMeta?.proposalId ?? null;
+      const resolvedLevelCode = propMeta?.jlptLevelCode || cohortMeta?.level || null;
 
       const isLegacyLong = mins > durationMinutes;
       const conflictNote = overlapIds.has(s.id)
@@ -750,50 +1016,83 @@ export default function InteractiveSlotCalendar({
           : '';
 
       const cohortName = cohortMeta?.cohortName || s.cohortName || null;
-      const sessionNum = cohortMeta?.sessionNumber ?? s.sessionNumber ?? null;
+      const sessionNum = cohortMeta?.sessionNumber ?? s.sessionNumber ?? propMeta?.sessionNumber ?? null;
+      const totalSess = cohortMeta?.totalSessions ?? propMeta?.totalSessions ?? null;
       const cleanCohortTitle = cohortName
         ? formatCleanCohortTitle(cohortName, sessionNum)
         : null;
       const inCohort = Boolean(s.isInCohort || cohortMeta);
+      const isOccupiedFuture = Boolean(endDate && endDate.getTime() > nowMs);
+
+      // On the Teaching Registration Calendar (proposalMode), approved slots that progressed
+      // into recruiting/upcoming/ongoing/completed classes map cleanly to official 'Đã duyệt' (green).
+      const effectiveTone = proposalMode && (st.kind === 'session' || st.kind === 'present' || st.kind === 'approved')
+        ? 'approved'
+        : st.tone;
+      const effectiveStatusLabel = proposalMode && (st.kind === 'session' || st.kind === 'present' || st.kind === 'approved')
+        ? 'Đã duyệt'
+        : st.label;
+      const effectiveLocked = st.kind === 'rejected'
+        ? false
+        : (proposalMode && st.kind === 'present' ? isOccupiedFuture : st.locked);
+
       const cohortInfo = inCohort
-        ? buildCohortRows({ meta: cohortMeta, slotObj: s, mins, statusText: st.label })
+        ? buildCohortRows({ meta: cohortMeta, slotObj: s, mins, statusText: effectiveStatusLabel })
         : null;
       const registeredAtLabel = s.createdAt
         ? fmt.dateTime(backendUtcDate(s.createdAt))
         : `${formatShortDateVn(dk)} · ${startParts.hhmm}–${endParts.hhmm}`;
 
+      const timeRange = `${startParts.hhmm}–${endParts.hhmm}`;
+      const sessionBadge = sessionNum && totalSess
+        ? trf('Buổi {0}/{1}', { 0: sessionNum, 1: totalSess })
+        : sessionNum
+          ? trf('Buổi {0}', { 0: sessionNum })
+          : null;
+
       const detailSummary = conflictNote
         ? tr(conflictNote)
-        : inCohort
-          ? [cohortInfo?.sessionLabel, cohortInfo?.headcountLabel].filter(Boolean).join(' · ') || tr(st.label)
-          : st.kind === 'approved'
-            ? tr('Chưa xếp lớp')
-            : tr(st.label);
+        : proposalMode
+          ? [sessionBadge, tr(effectiveStatusLabel)].filter(Boolean).join(' · ')
+          : inCohort
+            ? [cohortInfo?.sessionLabel, cohortInfo?.headcountLabel].filter(Boolean).join(' · ') || tr(st.label)
+            : st.kind === 'approved'
+              ? tr('Chưa xếp lớp')
+              : tr(st.label);
 
       events.push({
         id: `av-${s.id}`,
         slotId: s.id,
+        availabilityId: s.id,
+        proposalId: resolvedProposalId,
+        jlptLevelCode: resolvedLevelCode,
+        courseTitle: cohortName || propMeta?.courseTitle || null,
+        sessionNumber: sessionNum || null,
+        totalSessions: totalSess || null,
         slot: s,
         cohortId: cohortMeta?.cohortId ?? s.cohortId ?? null,
         sessionCompleted: st.kind === 'present',
         attendanceStatus: st.kind === 'present' ? 'Present' : undefined,
-        sourceKind: st.kind,
+        sourceKind: proposalMode && effectiveTone === 'approved' ? 'approved' : st.kind,
         draggable: st.draggable,
-        locked: st.locked,
+        locked: effectiveLocked,
         dayKey: dk,
         startHour: startParts.hour,
         startMinute: startParts.minute,
         endHour: endParts.hour,
         endMinute: endParts.minute,
-        timeLabel: `${startParts.hhmm}–${endParts.hhmm}`,
-        title: cleanCohortTitle
-          || (isLegacyLong ? trf('Khung gộp cũ ({0}p)', { 0: mins }) : `${startParts.hhmm}–${endParts.hhmm}`),
+        timeLabel: timeRange,
+        title: proposalMode
+          ? timeRange
+          : (cleanCohortTitle || (isLegacyLong ? trf('Khung gộp cũ ({0}p)', { 0: mins }) : timeRange)),
         fullTitle: cohortName
           ? `${cohortName}${sessionNum ? ` · Buổi ${sessionNum}` : ''}`
-          : `${startParts.hhmm}–${endParts.hhmm}`,
+          : propMeta?.courseTitle
+            ? `${propMeta.courseTitle} (${timeRange})`
+            : timeRange,
         detail: detailSummary,
-        statusLabel: st.label,
-        tone: st.tone,
+        statusLabel: effectiveStatusLabel,
+        tone: effectiveTone,
         href: inCohort && (cohortMeta?.cohortId ?? s.cohortId) ? `/mentor-study-courses/${cohortMeta?.cohortId ?? s.cohortId}/` : undefined,
         hrefLabel: inCohort ? 'Mở lớp phụ trách' : undefined,
         metaRows: inCohort
@@ -803,7 +1102,7 @@ export default function InteractiveSlotCalendar({
               conflictNote && { label: 'Lưu ý', value: tr(conflictNote) },
             ].filter(Boolean)
           : [
-              { label: 'Trạng thái', value: st.kind === 'approved' ? tr('Đã duyệt bởi Admin') : tr(st.label) },
+              { label: 'Trạng thái', value: st.kind === 'approved' ? tr('Đã duyệt bởi quản trị viên') : tr(effectiveStatusLabel) },
               st.kind === 'approved' && { label: 'Ghi chú', value: tr('Chưa xếp lớp') },
               { label: 'Thời gian đăng ký', value: registeredAtLabel },
               { label: 'Thời lượng', value: fmt.duration(mins) },
@@ -825,30 +1124,44 @@ export default function InteractiveSlotCalendar({
       const endDate = backendUtcDate(cs.endsAt || cs.endTime) || new Date(startDate.getTime() + mins * 60000);
       const startParts = toVnTimeParts(startDate);
       const endParts = toVnTimeParts(endDate);
+      const timeRange = `${startParts.hhmm}–${endParts.hhmm}`;
       const cleanTitle = formatCleanCohortTitle(cs.cohortName, cs.sessionNumber);
       const isCompleted = Boolean(cs.sessionCompleted || cs.status === 'Completed');
-      const statusText = isCompleted ? 'Đã hoàn thành' : 'Đã xếp lớp';
+      const isOccupiedFuture = endDate.getTime() > nowMs;
+      const statusText = proposalMode ? 'Đã duyệt' : (isCompleted ? 'Đã hoàn thành' : 'Đã xếp lớp');
       const cohortInfo = buildCohortRows({ meta: cs, slotObj: null, mins, statusText });
+      const sessionBadge = cs.sessionNumber && cs.totalSessions
+        ? trf('Buổi {0}/{1}', { 0: cs.sessionNumber, 1: cs.totalSessions })
+        : cs.sessionNumber
+          ? trf('Buổi {0}', { 0: cs.sessionNumber })
+          : null;
 
       events.push({
         id: `cohort-${cs.id || cs.availabilityId || startIso}`,
+        availabilityId: cs.availabilityId ?? null,
         cohortId: cs.cohortId ?? null,
+        jlptLevelCode: cs.level || null,
+        courseTitle: cs.cohortName || cleanTitle,
+        sessionNumber: cs.sessionNumber || null,
+        totalSessions: cs.totalSessions || null,
         sessionCompleted: isCompleted,
         attendanceStatus: isCompleted ? 'Present' : 'Scheduled',
-        sourceKind: isCompleted ? 'present' : 'session',
+        sourceKind: proposalMode ? 'approved' : (isCompleted ? 'present' : 'session'),
         draggable: false,
-        locked: true,
+        locked: proposalMode ? isOccupiedFuture : true,
         dayKey: toVnDateKey(startDate),
         startHour: startParts.hour,
         startMinute: startParts.minute,
         endHour: endParts.hour,
         endMinute: endParts.minute,
-        timeLabel: `${startParts.hhmm}–${endParts.hhmm}`,
-        title: cleanTitle,
+        timeLabel: timeRange,
+        title: proposalMode ? timeRange : cleanTitle,
         fullTitle: cs.cohortName ? `${cs.cohortName}${cs.sessionNumber ? ` · Buổi ${cs.sessionNumber}` : ''}` : cleanTitle,
-        detail: [cohortInfo.sessionLabel, cohortInfo.headcountLabel].filter(Boolean).join(' · ') || tr(statusText),
+        detail: proposalMode
+          ? [sessionBadge, tr('Đã duyệt')].filter(Boolean).join(' · ')
+          : [cohortInfo.sessionLabel, cohortInfo.headcountLabel].filter(Boolean).join(' · ') || tr(statusText),
         statusLabel: statusText,
-        tone: isCompleted ? 'present' : 'session',
+        tone: proposalMode ? 'approved' : (isCompleted ? 'present' : 'session'),
         href: cs.cohortId ? `/mentor-study-courses/${cs.cohortId}/` : '/mentor-study-courses/',
         hrefLabel: 'Mở lớp phụ trách',
         metaRows: cohortInfo.rows,
@@ -884,6 +1197,13 @@ export default function InteractiveSlotCalendar({
       for (const pev of proposalConfig.pendingProposalEvents) {
         if (!pev) continue;
         events.push(pev);
+      }
+    }
+
+    if (Array.isArray(proposalConfig?.rejectedProposalEvents)) {
+      for (const rev of proposalConfig.rejectedProposalEvents) {
+        if (!rev) continue;
+        events.push(rev);
       }
     }
 
@@ -937,16 +1257,33 @@ export default function InteractiveSlotCalendar({
       });
     }
 
-    // Multi-selected unsent 90-minute slots (Green cards!)
+    // Multi-selected unsent 90-minute slots (Green valid cards / Red conflict cards)
     for (const sel of validatedSelections) {
       const startH = Math.floor(sel.startMin / 60);
       const startM = sel.startMin % 60;
       const endH = Math.floor(sel.endMin / 60);
       const endM = sel.endMin % 60;
       const timeRange = `${sel.startClock}–${sel.endClock}`;
+      const finiteSessionText = sel.sessionNumber && sel.totalSessions
+        ? trf('Buổi {0}/{1}', { 0: sel.sessionNumber, 1: sel.totalSessions })
+        : null;
+      const validDetail = proposalMode
+        ? (finiteSessionText
+          ? `${finiteSessionText} · ${tr('Click để bỏ chọn')}`
+          : tr('Mẫu lịch tuần · Click để bỏ chọn'))
+        : tr('Đã chọn · Click để bỏ chọn');
+      const validStatusLabel = tr('Đã chọn');
       events.push({
         id: `selected-${sel.key}`,
         selectedKey: sel.key,
+        weeklyKey: sel.weeklyKey || sel.key,
+        weekday: sel.weekday ?? weekdayOfDateKey(sel.dayKey),
+        jlptLevelCode: proposalConfig?.jlptLevelCode || null,
+        courseTitle: proposalConfig?.courseTitle || null,
+        sessionNumber: sel.sessionNumber || null,
+        totalSessions: sel.totalSessions || null,
+        isFiniteOccurrence: Boolean(sel.isFiniteOccurrence),
+        isWeeklyPattern: !sel.isFiniteOccurrence,
         selectedItem: sel,
         sourceKind: 'selected',
         isSelectedDraft: true,
@@ -959,16 +1296,15 @@ export default function InteractiveSlotCalendar({
         endMinute: endM,
         timeLabel: timeRange,
         title: timeRange,
-        fullTitle: `${timeRange} (${durationMinutes} phút)`,
-        detail: proposalMode
-          ? (sel.valid ? tr('Hàng tuần · Click để bỏ chọn') : sel.reason)
-          : sel.valid
-            ? tr('Đã chọn · Click để bỏ chọn')
-            : sel.reason,
-        statusLabel: sel.valid ? (proposalMode ? 'Đã chọn (10 tuần)' : 'Đã chọn') : 'Cần kiểm tra',
+        fullTitle: finiteSessionText
+          ? `${finiteSessionText} · ${timeRange} (${durationMinutes} phút)`
+          : `${timeRange} (${durationMinutes} phút)`,
+        detail: sel.valid ? validDetail : sel.reason,
+        statusLabel: sel.valid ? validStatusLabel : 'Cần điều chỉnh',
         tone: sel.valid ? 'selected' : 'conflict',
         metaRows: [
-          { label: 'Trạng thái', value: sel.valid ? tr('Đã chọn (chưa gửi)') : tr('Không hợp lệ') },
+          { label: 'Trạng thái', value: sel.valid ? tr('Đã chọn (chưa gửi)') : tr('Cần điều chỉnh') },
+          finiteSessionText && { label: 'Buổi học', value: finiteSessionText },
           { label: 'Thời lượng', value: fmt.duration(durationMinutes) },
           !sel.valid && sel.reason && { label: 'Lý do', value: sel.reason },
         ].filter(Boolean),
@@ -976,19 +1312,35 @@ export default function InteractiveSlotCalendar({
     }
 
     return events;
-  }, [slots, pendingMove, overlapIds, restIds, cohortByAvailabilityId, durationMinutes, restMinutes, tr, trf, fmt, cohortSessions, externalBusyEvents, previewGeneratedSlots, validatedSelections, proposalConfig, proposalMode]);
+  }, [slots, pendingMove, overlapIds, restIds, cohortByAvailabilityId, durationMinutes, restMinutes, tr, trf, fmt, cohortSessions, externalBusyEvents, previewGeneratedSlots, validatedSelections, proposalConfig, proposalMode, nowMs]);
 
-  // Effective date range for filtering (used in Table View and when an explicit Date Filter preset/custom is active)
+  const rawRegistrationRows = proposalConfig?.registrationRows;
+  const registrationRows = useMemo(
+    () => (Array.isArray(rawRegistrationRows) ? rawRegistrationRows : []),
+    [rawRegistrationRows]
+  );
+
+  // Independent View Scope:
+  // - List View defaults to ALL TIME (`null`) so it never inherits Calendar's visible week/month!
+  // - Calendar View follows Calendar's visible date range unless an explicit date filter is active.
   const effectiveDateRange = useMemo(() => {
+    if (dateFilterMode === 'upcoming') {
+      return { startKey: todayKey, endKey: '' };
+    }
+    if (dateFilterMode === 'past') {
+      return { startKey: '', endKey: shiftDateKey(todayKey, -1) };
+    }
     if (dateFilterMode === 'today') {
       return { startKey: todayKey, endKey: todayKey };
     }
     if (dateFilterMode === 'week') {
-      const r = getViewDateRange(anchorKey, 'week');
+      const refKey = displayMode === 'list' ? todayKey : anchorKey;
+      const r = getViewDateRange(refKey, 'week');
       return { startKey: r.startKey, endKey: r.endKey };
     }
     if (dateFilterMode === 'month') {
-      const r = getViewDateRange(anchorKey, 'month');
+      const refKey = displayMode === 'list' ? todayKey : anchorKey;
+      const r = getViewDateRange(refKey, 'month');
       return { startKey: r.startKey, endKey: r.endKey };
     }
     if (dateFilterMode === 'custom') {
@@ -997,9 +1349,10 @@ export default function InteractiveSlotCalendar({
         endKey: customToDate || '',
       };
     }
-    // 'view' mode: follow the current Calendar view range (Day / Week / Month)
+    // Default 'view' mode: ALL TIME (`null`) in List View; visible calendar range in Calendar View
+    if (displayMode === 'list') return null;
     return { startKey: range.startKey, endKey: range.endKey };
-  }, [dateFilterMode, todayKey, anchorKey, customFromDate, customToDate, range.startKey, range.endKey]);
+  }, [dateFilterMode, displayMode, todayKey, anchorKey, customFromDate, customToDate, range.startKey, range.endKey]);
 
   // Effective time-of-day range in GMT+7 minutes
   const effectiveTimeRange = useMemo(() => {
@@ -1022,56 +1375,168 @@ export default function InteractiveSlotCalendar({
   }, [timeFilterCode, customStartTime, customEndTime, policy?.dayparts, tr]);
 
   const countsByStatus = useMemo(() => {
+    const scopeDateRange = dateFilterMode !== 'view' ? effectiveDateRange : null;
+    if (proposalMode) {
+      if (displayMode === 'list') {
+        return computeRegistrationRowCounts(registrationRows, {
+          jlptLevelFilter,
+          dateFilterMode,
+          customFromDate,
+          customToDate,
+          searchQuery,
+          todayKey,
+        });
+      }
+      return computeRegistrationStatusCounts(calendarEvents, {
+        eventTypeFilter,
+        jlptLevelFilter,
+        dateRange: scopeDateRange,
+        timeRange: effectiveTimeRange,
+        searchQuery,
+        nowMs,
+      });
+    }
     const counts = { ALL: 0 };
     SCHEDULE_STATUS_OPTIONS.forEach((o) => { if (o.id !== 'ALL') counts[o.id] = 0; });
     const baseFiltered = filterScheduleEvents(calendarEvents, {
       statusFilter: 'ALL',
       eventTypeFilter,
-      dateRange: displayMode === 'list' || dateFilterMode !== 'view' ? effectiveDateRange : null,
+      dateRange: scopeDateRange,
       timeRange: effectiveTimeRange,
+      searchQuery,
       nowMs,
-    });
+    }).filter((ev) => !(ev.isSelectedDraft || ev.sourceKind === 'selected'));
     counts.ALL = baseFiltered.length;
     for (const ev of baseFiltered) {
       const { statusKey } = classifyScheduleEvent(ev, nowMs);
       counts[statusKey] = (counts[statusKey] || 0) + 1;
     }
     return counts;
-  }, [calendarEvents, eventTypeFilter, displayMode, dateFilterMode, effectiveDateRange, effectiveTimeRange, nowMs]);
+  }, [proposalMode, displayMode, registrationRows, calendarEvents, eventTypeFilter, jlptLevelFilter, dateFilterMode, customFromDate, customToDate, effectiveDateRange, effectiveTimeRange, searchQuery, todayKey, nowMs]);
+
+  const filteredRegistrationRows = useMemo(() => {
+    if (!proposalMode) return [];
+    const filtered = filterRegistrationRows(registrationRows, {
+      statusFilter,
+      jlptLevelFilter,
+      dateFilterMode,
+      customFromDate,
+      customToDate,
+      searchQuery,
+      todayKey,
+    });
+    return sortRegistrationRows(filtered, {
+      sortBy: regSortBy,
+      sortDirection: regSortDirection,
+    });
+  }, [proposalMode, registrationRows, statusFilter, jlptLevelFilter, dateFilterMode, customFromDate, customToDate, searchQuery, todayKey, regSortBy, regSortDirection]);
 
   const filteredEvents = useMemo(
-    () => filterScheduleEvents(calendarEvents, {
-      statusFilter,
-      eventTypeFilter,
-      dateRange: dateFilterMode !== 'view' ? effectiveDateRange : null,
-      timeRange: effectiveTimeRange,
-      nowMs,
-    }),
-    [calendarEvents, statusFilter, eventTypeFilter, dateFilterMode, effectiveDateRange, effectiveTimeRange, nowMs]
+    () => (proposalMode
+      ? filterRegistrationEvents(calendarEvents, {
+        statusFilter: statusFilter === 'selected' ? 'ALL' : statusFilter,
+        eventTypeFilter,
+        jlptLevelFilter,
+        dateRange: dateFilterMode !== 'view' ? effectiveDateRange : null,
+        timeRange: effectiveTimeRange,
+        searchQuery,
+        nowMs,
+        keepSelectedVisible: false,
+      })
+      : filterScheduleEvents(calendarEvents, {
+        statusFilter,
+        eventTypeFilter,
+        dateRange: dateFilterMode !== 'view' ? effectiveDateRange : null,
+        timeRange: effectiveTimeRange,
+        searchQuery,
+        nowMs,
+      })),
+    [proposalMode, calendarEvents, statusFilter, eventTypeFilter, jlptLevelFilter, dateFilterMode, effectiveDateRange, effectiveTimeRange, searchQuery, nowMs]
   );
 
   const activeExtraFilterCount = useMemo(() => {
     let c = 0;
-    if (eventTypeFilter !== 'ALL') c += 1;
+    if (!proposalMode && eventTypeFilter !== 'ALL') c += 1;
+    if (proposalMode && jlptLevelFilter !== 'ALL') c += 1;
+    if (String(searchQuery || '').trim()) c += 1;
     if (dateFilterMode !== 'view') c += 1;
-    if (timeFilterCode !== 'ALL') c += 1;
+    if ((!proposalMode || displayMode === 'calendar') && timeFilterCode !== 'ALL') c += 1;
     return c;
-  }, [eventTypeFilter, dateFilterMode, timeFilterCode]);
+  }, [eventTypeFilter, proposalMode, displayMode, jlptLevelFilter, searchQuery, dateFilterMode, timeFilterCode]);
 
   const resetAllFilters = useCallback(() => {
     setStatusFilter('ALL');
     setEventTypeFilter('ALL');
+    setJlptLevelFilter('ALL');
+    setSearchQuery('');
     setDateFilterMode('view');
     setCustomFromDate('');
     setCustomToDate('');
     setTimeFilterCode('ALL');
     setSortBy('smart');
     setSortDirection('asc');
+    setRegSortBy('default');
+    setRegSortDirection('asc');
     setTablePage(1);
   }, []);
 
+  const jumpToCalendarTarget = useCallback(({
+    dayKey,
+    startMin = 8 * 60,
+    highlightKeys = [],
+    statusGroup = null,
+    jlptCode = null,
+  }) => {
+    if (!dayKey) return;
+    setDisplayModeState('calendar');
+    if (calendarSubView === 'month') {
+      setCalendarSubView(typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week');
+    }
+    if (statusFilter === 'selected') {
+      setStatusFilter('ALL');
+    } else if (statusFilter !== 'ALL' && statusGroup && statusGroup !== 'selected' && statusGroup !== statusFilter) {
+      setStatusFilter('ALL');
+    }
+    if (eventTypeFilter !== 'ALL') {
+      setEventTypeFilter('ALL');
+    }
+    if (jlptLevelFilter !== 'ALL' && jlptCode && String(jlptCode).toUpperCase() !== jlptLevelFilter) {
+      setJlptLevelFilter('ALL');
+    }
+    if (String(searchQuery || '').trim()) {
+      setSearchQuery('');
+    }
+    if (dateFilterMode !== 'view') {
+      setDateFilterMode('view');
+    }
+    if (timeFilterCode !== 'ALL') {
+      setTimeFilterCode('ALL');
+    }
+    setAnchor(dayKey);
+    setLocalFocusRequest({
+      id: Date.now(),
+      targetDayKey: dayKey,
+      targetStartMin: startMin,
+      highlightKeys: highlightKeys.filter(Boolean),
+      preserveSubView: true,
+    });
+  }, [calendarSubView, dateFilterMode, eventTypeFilter, jlptLevelFilter, searchQuery, setAnchor, setDisplayModeState, statusFilter, timeFilterCode]);
+
+  const handleViewOnCalendar = useCallback((ev) => {
+    if (!ev || !ev.dayKey) return;
+    const startMin = (ev.startHour || 0) * 60 + (ev.startMinute || 0);
+    const statusGroup = ev.isSelectedDraft ? 'selected' : classifyRegistrationEvent(ev);
+    jumpToCalendarTarget({
+      dayKey: ev.dayKey,
+      startMin,
+      highlightKeys: [ev.id, ev.selectedKey, ev.weeklyKey],
+      statusGroup,
+      jlptCode: ev.jlptLevelCode,
+    });
+  }, [jumpToCalendarTarget]);
+
   // Unsent working selections (isSelectedDraft / pendingMove / draftGhost) stay visible on the
-  // Interactive Calendar grid regardless of saved statusFilter unless EventType excludes Drafts.
+  // Interactive Calendar grid regardless of saved statusFilter unless EventType or JLPT filter excludes them.
   const calendarDisplayEvents = useMemo(() => {
     const allowDraftsOnGrid = eventTypeFilter === 'ALL' || eventTypeFilter === 'Draft';
     if (!allowDraftsOnGrid) return filteredEvents;
@@ -1080,6 +1545,10 @@ export default function InteractiveSlotCalendar({
       if (seen.has(ev.id)) return false;
       if (!(ev.isSelectedDraft || ev.sourceKind === 'pendingMove' || ev.sourceKind === 'draftGhost')) {
         return false;
+      }
+      if (proposalMode && jlptLevelFilter !== 'ALL') {
+        const code = String(ev.jlptLevelCode || '').trim().toUpperCase();
+        if (code !== String(jlptLevelFilter).trim().toUpperCase()) return false;
       }
       if (dateFilterMode !== 'view') {
         if (effectiveDateRange?.startKey && ev.dayKey < effectiveDateRange.startKey) return false;
@@ -1096,7 +1565,7 @@ export default function InteractiveSlotCalendar({
       return true;
     });
     return activeWorkItems.length > 0 ? [...filteredEvents, ...activeWorkItems] : filteredEvents;
-  }, [filteredEvents, calendarEvents, eventTypeFilter, dateFilterMode, effectiveDateRange, effectiveTimeRange]);
+  }, [filteredEvents, calendarEvents, eventTypeFilter, proposalMode, jlptLevelFilter, dateFilterMode, effectiveDateRange, effectiveTimeRange]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map();
@@ -1111,10 +1580,23 @@ export default function InteractiveSlotCalendar({
   const packedByDay = useMemo(() => {
     const out = new Map();
     for (const day of weekDays) {
-      out.set(day.key, packDayEvents(eventsByDay.get(day.key) || []));
+      const raw = eventsByDay.get(day.key) || [];
+      // If a newly selected draft card overlaps a non-blocking historical rejected card on the same time slot,
+      // prioritize the selected card so historical cards never obstruct active selection.
+      const selectedIntervals = proposalMode
+        ? raw.filter((e) => e.isSelectedDraft).map((e) => minutesOfEvent(e))
+        : [];
+      const prioritized = selectedIntervals.length > 0
+        ? raw.filter((e) => {
+          if (e.tone !== 'rejected') return true;
+          const m = minutesOfEvent(e);
+          return !selectedIntervals.some((s) => s.start < m.end && m.start < s.end);
+        })
+        : raw;
+      out.set(day.key, packDayEvents(prioritized));
     }
     return out;
-  }, [weekDays, eventsByDay]);
+  }, [weekDays, eventsByDay, proposalMode]);
 
   const visibleColKeys = useMemo(() => new Set(weekDays.map((d) => d.key)), [weekDays]);
   const { firstHour, hours, gridHeight } = useMemo(() => {
@@ -1131,6 +1613,35 @@ export default function InteractiveSlotCalendar({
     const arr = Array.from({ length: clampedLast - clampedFirst }, (_, idx) => clampedFirst + idx);
     return { firstHour: clampedFirst, hours: arr, gridHeight: arr.length * HOUR_HEIGHT };
   }, [calendarDisplayEvents, visibleColKeys, policy?.gridStartHour, policy?.gridEndHour]);
+
+  const handledFocusScrollIdRef = useRef(null);
+  useEffect(() => {
+    if (!effectiveFocusRequest?.id || handledFocusScrollIdRef.current === effectiveFocusRequest.id) return undefined;
+    handledFocusScrollIdRef.current = effectiveFocusRequest.id;
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        if (effectiveFocusRequest.targetDayKey && !onAnchorChange) {
+          setUncontrolledAnchor(effectiveFocusRequest.targetDayKey);
+        }
+        const scrollEl = gridScrollRef.current;
+        if (scrollEl && Number.isFinite(Number(effectiveFocusRequest.targetStartMin))) {
+          const targetTop = Math.max(
+            0,
+            ((Number(effectiveFocusRequest.targetStartMin) - firstHour * 60) / 60) * HOUR_HEIGHT - 56
+          );
+          const prefersReduced = typeof window !== 'undefined'
+            && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+          scrollEl.scrollTo({ top: targetTop, behavior: prefersReduced ? 'auto' : 'smooth' });
+        }
+      });
+    });
+    return () => {
+      if (raf1) window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+    };
+  }, [firstHour, effectiveFocusRequest, onAnchorChange]);
 
   // Cached column layout geometry during an active drag session (zero getBoundingClientRect thrashing per frame)
   const dragMetricsCacheRef = useRef(null);
@@ -1224,21 +1735,24 @@ export default function InteractiveSlotCalendar({
       ds.lastRenderedDayKey = targetDayKey;
       ds.lastRenderedStartMin = targetStartMin;
 
-      const check = customValidateCandidate
-        ? customValidateCandidate({
-          dayKey: targetDayKey,
-          startMin: targetStartMin,
-          replaceKey: ds.selectedKey ?? null,
-        })
-        : validateCandidateSlot({
-          dayKey: targetDayKey,
-          startMin: targetStartMin,
-          policy,
-          occupiedItems: ds.cachedOccupied || occupiedItems,
-          extraProposedItems: ds.cachedExtraProposed || [],
-          nowMs: Date.now(),
-          stepMinutes: effectiveStep,
-        });
+      const isPastDragTarget = isPastSlotOccurrence(targetDayKey, targetStartMin, Date.now());
+      const check = isPastDragTarget
+        ? { valid: false, code: 'PAST_SCHEDULE_SLOT', reason: tr('Đã quá thời gian này.') }
+        : customValidateCandidate
+          ? customValidateCandidate({
+            dayKey: targetDayKey,
+            startMin: targetStartMin,
+            replaceKey: proposalMode ? (ds.weeklyKey ?? ds.selectedKey ?? null) : (ds.selectedKey ?? null),
+          })
+          : validateCandidateSlot({
+            dayKey: targetDayKey,
+            startMin: targetStartMin,
+            policy,
+            occupiedItems: ds.cachedOccupied || occupiedItems,
+            extraProposedItems: ds.cachedExtraProposed || [],
+            nowMs: Date.now(),
+            stepMinutes: effectiveStep,
+          });
 
       setDragVisual({
         mode: ds.mode,
@@ -1326,17 +1840,19 @@ export default function InteractiveSlotCalendar({
     effectiveStep,
     customValidateCandidate,
     findHoveredDayAndStartMin,
+    isPastSlotOccurrence,
     measureColumnsSnapshot,
     occupiedItems,
     policy,
+    proposalMode,
     removeSelectedSlotByKey,
     toggleOrSelectSlot,
+    tr,
   ]);
 
   // Escape key cancels active drag / modal / pendingMove
   useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.key !== 'Escape') return;
+    const cancelActiveDrag = () => {
       if (dragSessionRef.current) {
         if (rafIdRef.current) {
           window.cancelAnimationFrame(rafIdRef.current);
@@ -1345,12 +1861,22 @@ export default function InteractiveSlotCalendar({
         dragSessionRef.current = null;
         dragMetricsCacheRef.current = null;
         setDragVisual(null);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      if (dragSessionRef.current) {
+        cancelActiveDrag();
       } else if (pendingMove) {
         setPendingMove(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('blur', cancelActiveDrag);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('blur', cancelActiveDrag);
+    };
   }, [pendingMove]);
 
   const startEmptyColumnPointerDown = (dayKey, e) => {
@@ -1369,6 +1895,11 @@ export default function InteractiveSlotCalendar({
       maxEndMinutes: (firstHour + hours.length) * 60,
       durationMinutes,
     });
+    // Chặn tuyệt đối click/drag tại ngày quá khứ hoặc khung giờ đã bắt đầu / đã trôi qua
+    if (isPastSlotOccurrence(dayKey, snappedFloor)) {
+      return;
+    }
+    setInvalidFlash(null);
     dragSessionRef.current = {
       mode: 'create',
       pointerType: e.pointerType,
@@ -1404,6 +1935,7 @@ export default function InteractiveSlotCalendar({
     dragSessionRef.current = {
       mode: 'move-selected',
       selectedKey: ev.selectedKey ?? null,
+      weeklyKey: ev.weeklyKey ?? ev.selectedKey ?? null,
       eventObj: ev,
       pointerType: e.pointerType,
       startX: e.clientX,
@@ -1617,32 +2149,51 @@ export default function InteractiveSlotCalendar({
           nowMs,
           stepMinutes: effectiveStep,
         });
-      if (check.code !== 'PAST_TIME') {
+      if (check.code !== 'PAST_TIME' && check.code !== 'PAST_SCHEDULE_SLOT' && !isPastSlotOccurrence(dk, m, nowMs)) {
         list.push({ ...check, isSelected });
       }
     }
     return list;
-  }, [touchPickerDay, durationMinutes, effectiveStep, policy, occupiedItems, buildProposedFromSelection, selectedSlots, nowMs, customValidateCandidate]);
+  }, [touchPickerDay, durationMinutes, effectiveStep, policy, occupiedItems, buildProposedFromSelection, selectedSlots, nowMs, customValidateCandidate, isPastSlotOccurrence]);
 
   const monthMatrix = useMemo(
     () => (calendarSubView === 'month' ? buildMonthMatrix(anchorKey, todayKey) : null),
     [anchorKey, todayKey, calendarSubView]
   );
 
-  // Sorted flat list of events in current date range for the Compact List (Table) view
+  // Legacy flat List View dataset (single-slot availability mode only; proposalMode uses ExpandableRegistrationTable)
   const listTableRows = useMemo(() => {
-    const inRange = filteredEvents.filter((ev) => {
-      if (effectiveDateRange?.startKey && ev.dayKey < effectiveDateRange.startKey) return false;
-      if (effectiveDateRange?.endKey && ev.dayKey > effectiveDateRange.endKey) return false;
-      return true;
+    if (proposalMode) return [];
+    const scopeDateRange = dateFilterMode !== 'view' ? effectiveDateRange : null;
+    const base = filterScheduleEvents(calendarEvents, {
+      statusFilter,
+      eventTypeFilter,
+      dateRange: scopeDateRange,
+      timeRange: effectiveTimeRange,
+      searchQuery,
+      nowMs,
     });
-    return sortScheduleEvents(inRange, {
+    return sortScheduleEvents(base, {
       sortBy,
       sortDirection,
       todayKey,
       nowMs,
     });
-  }, [filteredEvents, effectiveDateRange, sortBy, sortDirection, todayKey, nowMs]);
+  }, [proposalMode, calendarEvents, statusFilter, eventTypeFilter, dateFilterMode, effectiveDateRange, effectiveTimeRange, searchQuery, sortBy, sortDirection, todayKey, nowMs]);
+
+  const listScopeLabel = useMemo(() => {
+    if (dateFilterMode === 'upcoming') return tr('Sắp diễn ra');
+    if (dateFilterMode === 'past') return tr('Lịch sử');
+    if (dateFilterMode === 'today') return tr('Hôm nay');
+    if (dateFilterMode === 'week') return tr('Tuần này');
+    if (dateFilterMode === 'month') return tr('Tháng này');
+    if (dateFilterMode === 'custom') {
+      const fromText = customFromDate ? formatIsoDateDisplay(customFromDate) : '…';
+      const toText = customToDate ? formatIsoDateDisplay(customToDate) : '…';
+      return `${fromText} – ${toText}`;
+    }
+    return tr('Toàn bộ thời gian');
+  }, [customFromDate, customToDate, dateFilterMode, tr]);
 
   const totalTablePages = Math.max(1, Math.ceil(listTableRows.length / tablePageSize));
   const safeTablePage = Math.min(tablePage, totalTablePages);
@@ -1707,68 +2258,129 @@ export default function InteractiveSlotCalendar({
   const nowMinutes = nowParts.hour * 60 + nowParts.minute;
   const showNowLine = nowMinutes >= firstHour * 60 && nowMinutes <= (firstHour + hours.length) * 60;
 
+  const proposalMinPerWeek = Number(proposalConfig?.minPerWeek ?? 2);
+  const proposalMaxPerWeek = Number(proposalConfig?.maxPerWeek ?? 4);
+  const proposalDurationWeeks = Number(proposalConfig?.durationWeeks ?? 10);
+  const proposalWeeklyCount = proposalMode
+    ? Number(proposalConfig?.weeklyPatternCount ?? selectedSlots.length)
+    : selectedSlots.length;
+  const proposalInvalidPatternCount = proposalMode
+    ? Number(proposalConfig?.invalidPatternCount ?? 0)
+    : invalidSelectedSlots.length;
+  const proposalOverLimit = proposalWeeklyCount > proposalMaxPerWeek;
+  const proposalHasConflict = proposalMode
+    ? Boolean(proposalInvalidPatternCount > 0 || proposalConfig?.hasScheduleErrors)
+    : Boolean(invalidSelectedSlots.length > 0);
+  const proposalHasErrors = proposalOverLimit || proposalHasConflict;
+  const proposalScheduleReady = Boolean(
+    !proposalHasErrors
+    && proposalWeeklyCount >= proposalMinPerWeek
+    && proposalWeeklyCount <= proposalMaxPerWeek
+  );
+  const showSelectionActionBar = proposalMode ? proposalWeeklyCount > 0 : selectedSlots.length > 0;
+  const proposalBarContainerClass = proposalHasErrors
+    ? 'flex flex-wrap items-center justify-between gap-2.5 border-b border-red-200 bg-red-50/90 px-4 py-2.5'
+    : proposalScheduleReady
+      ? 'flex flex-wrap items-center justify-between gap-2.5 border-b border-emerald-200/90 bg-emerald-50/85 px-4 py-2.5'
+      : 'flex flex-wrap items-center justify-between gap-2.5 border-b border-amber-200/90 bg-amber-50/90 px-4 py-2.5';
+  const proposalNextDisabled = !proposalReadOnly && (!proposalScheduleReady || submittingBatch || busy);
+  const proposalNextTooltip = proposalReadOnly
+    ? tr('Xem chi tiết đề xuất')
+    : proposalOverLimit
+      ? trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })
+      : proposalHasConflict
+        ? tr('Cần điều chỉnh khung giờ không hợp lệ trước khi tiếp tục')
+        : proposalWeeklyCount < proposalMinPerWeek
+          ? trf('Cần chọn thêm {0} buổi để tiếp tục', { 0: proposalMinPerWeek - proposalWeeklyCount })
+          : tr('Bước tiếp theo: Thông tin lớp dự kiến');
+
   return (
     <div className="space-y-2.5" data-interactive-slot-calendar="true">
       {/* Main Calendar / List Container */}
       <div className="min-w-0 overflow-hidden rounded-2xl border border-rp-line bg-white shadow-2xs">
         {/* Compact Unified Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-rp-line bg-white px-4 py-2.5">
-          {/* Left: Time Navigation */}
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAnchor(todayKey)}
-              className="inline-flex h-8.5 items-center rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-            >
-              {tr('Hôm nay')}
-            </button>
-            <div className="inline-flex items-center rounded-xl border border-rp-line bg-white p-0.5">
-              <button
-                type="button"
-                aria-label={tr('Khoảng thời gian trước')}
-                onClick={() => setAnchor(stepAnchorKey(anchorKey, view, -1))}
-                className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label={tr('Khoảng thời gian sau')}
-                onClick={() => setAnchor(stepAnchorKey(anchorKey, view, 1))}
-                className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            <Popover
-              open={miniOpen}
-              onOpenChange={setMiniOpen}
-              align="start"
-              label={tr('Chọn ngày nhanh')}
-              trigger={({ props, toggle }) => (
+        <div className="flex flex-col gap-2.5 border-b border-rp-line bg-white px-4 py-2.5">
+          {/* Top Row: Calendar Time Navigation OR List View Title/Scope (left) + Save/Status Indicator (flush right) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            {displayMode === 'calendar' ? (
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <button
-                  {...props}
                   type="button"
-                  onClick={toggle}
-                  className="inline-flex min-h-8.5 items-center gap-2 rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint"
+                  onClick={() => setAnchor(todayKey)}
+                  className="inline-flex h-8.5 items-center rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
                 >
-                  <span className="text-[14.5px] font-bold tracking-tight text-rp-text">
-                    {rangeTitle}
-                  </span>
-                  <CalendarDays className="h-3.5 w-3.5 text-rp-brand-strong" />
+                  {tr('Hôm nay')}
                 </button>
-              )}
-            >
-              <MiniDateJump
-                anchorKey={anchorKey}
-                todayKey={todayKey}
-                eventsByDay={eventsByDay}
-                onPickDay={(picked) => { setAnchor(picked); setMiniOpen(false); }}
-              />
-            </Popover>
+                <div className="inline-flex items-center rounded-xl border border-rp-line bg-white p-0.5">
+                  <button
+                    type="button"
+                    aria-label={tr('Khoảng thời gian trước')}
+                    onClick={() => setAnchor(stepAnchorKey(anchorKey, view, -1))}
+                    className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={tr('Khoảng thời gian sau')}
+                    onClick={() => setAnchor(stepAnchorKey(anchorKey, view, 1))}
+                    className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                <Popover
+                  open={miniOpen}
+                  onOpenChange={setMiniOpen}
+                  align="start"
+                  label={tr('Chọn ngày nhanh')}
+                  trigger={({ props, toggle }) => (
+                    <button
+                      {...props}
+                      type="button"
+                      onClick={toggle}
+                      className="inline-flex min-h-8.5 items-center gap-2 rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint"
+                    >
+                      <span className="text-[14.5px] font-bold tracking-tight text-rp-text">
+                        {rangeTitle}
+                      </span>
+                      <CalendarDays className="h-3.5 w-3.5 text-rp-brand-strong" />
+                    </button>
+                  )}
+                >
+                  <MiniDateJump
+                    anchorKey={anchorKey}
+                    todayKey={todayKey}
+                    eventsByDay={eventsByDay}
+                    onPickDay={(picked) => { setAnchor(picked); setMiniOpen(false); }}
+                  />
+                </Popover>
+              </div>
+            ) : (
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5" data-testid="list-view-header-title">
+                <h2 className="m-0 text-[15px] font-bold tracking-tight text-rp-text">
+                  {proposalMode ? tr('Danh sách lịch đăng ký') : tr('Danh sách lịch dạy')}
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-full border border-rp-line bg-[#FAF7F9] px-2.5 py-0.5 text-[11.5px] font-semibold text-rp-text-2">
+                  <CalendarDays className="h-3 w-3 text-rp-brand-strong" aria-hidden="true" />
+                  <span>{listScopeLabel}</span>
+                </span>
+                <span className="text-[12px] font-medium tabular-nums text-rp-text-muted">
+                  {proposalMode
+                    ? trf('{0} đăng ký', { 0: filteredRegistrationRows.length })
+                    : trf('{0} dòng lịch', { 0: listTableRows.length })}
+                </span>
+              </div>
+            )}
+
+            {headerTopRight && (
+              <div className="ml-auto flex items-center gap-2">
+                {headerTopRight}
+              </div>
+            )}
           </div>
 
-          {/* Right: Mode Switcher (Lịch | Danh sách), Status Filter & Action Buttons */}
+          {/* Second Row: Mode Switcher (Lịch | Danh sách), Status Filter & Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Primary Mode Toggle: Lịch | Danh sách — shared Tabs (sliding active pill) */}
             <Tabs
@@ -1777,7 +2389,7 @@ export default function InteractiveSlotCalendar({
               size="sm"
               label={tr('Chế độ hiển thị')}
               value={displayMode}
-              onChange={setDisplayMode}
+              onChange={handleDisplayModeChange}
               tabs={[
                 { value: 'calendar', label: 'Lịch', icon: CalendarIcon, testId: 'view-mode-calendar' },
                 { value: 'list', label: 'Danh sách', icon: List, testId: 'view-mode-list' },
@@ -1786,79 +2398,112 @@ export default function InteractiveSlotCalendar({
 
             {/* Sub-view pills (Ngày | Tuần | Tháng) when in Calendar mode */}
             {displayMode === 'calendar' && (
-              <div
-                role="group"
-                aria-label={tr('Khung thời gian lịch')}
-                className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
-              >
-                {CALENDAR_SUBVIEWS.map((v) => {
-                  const active = calendarSubView === v.id;
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setCalendarSubView(v.id)}
-                      className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                        active ? 'bg-white text-rp-brand-strong shadow-2xs' : 'text-rp-text-muted hover:text-rp-text'
-                      }`}
-                    >
-                      {tr(v.label)}
-                    </button>
-                  );
-                })}
-              </div>
+              <Tabs
+                variant="pill"
+                tone="segmented"
+                size="sm"
+                label={tr('Khung thời gian lịch')}
+                value={calendarSubView}
+                onChange={setCalendarSubView}
+                tabs={CALENDAR_SUBVIEWS.map((v) => ({
+                  value: v.id,
+                  label: v.label,
+                  testId: `calendar-subview-${v.id}`,
+                }))}
+              />
             )}
 
             {/* Custom Status Filter Listbox with Semantic Color Dots */}
-            <StatusDotListbox
-              value={statusFilter}
-              onChange={(nextStatus) => {
-                setStatusFilter(nextStatus);
-                setTablePage(1);
-              }}
-              countsByStatus={countsByStatus}
-            />
+            <div
+              className="shrink-0"
+              title={proposalMode
+                ? (displayMode === 'list'
+                  ? tr('Đếm số đăng ký mở lớp trong danh sách (mỗi đăng ký hiển thị 1 dòng).')
+                  : tr('Đếm tổng số buổi thuộc các đề xuất đã gửi trong phạm vi lọc hiện tại (không bao gồm các buổi đang chọn).'))
+                : undefined}
+            >
+              <StatusDotListbox
+                value={statusFilter}
+                options={statusOptions}
+                onChange={(nextStatus) => {
+                  setStatusFilter(nextStatus);
+                  setTablePage(1);
+                }}
+                countsByStatus={countsByStatus}
+              />
+            </div>
 
-            {/* Advanced Date, Time, EventType & Sort Filters Popover */}
-            <ScheduleMoreFiltersPopover
-              policy={policy}
-              dateFilterMode={dateFilterMode}
-              customFromDate={customFromDate}
-              customToDate={customToDate}
-              onDateFilterChange={({ mode, from, to }) => {
-                setDateFilterMode(mode);
-                setCustomFromDate(from ?? '');
-                setCustomToDate(to ?? '');
-                if (mode === 'today') setAnchor(todayKey);
-                setTablePage(1);
-              }}
-              timeFilterCode={timeFilterCode}
-              customStartTime={customStartTime}
-              customEndTime={customEndTime}
-              onTimeFilterChange={({ code, start, end }) => {
-                setTimeFilterCode(code);
-                if (start) setCustomStartTime(start);
-                if (end) setCustomEndTime(end);
-                setTablePage(1);
-              }}
-              eventTypeFilter={eventTypeFilter}
-              onEventTypeChange={(nextType) => {
-                setEventTypeFilter(nextType);
-                setTablePage(1);
-              }}
-              sortBy={sortBy}
-              sortDirection={sortDirection}
-              onSortChange={({ sortBy: nextSort, sortDirection: nextDir }) => {
-                setSortBy(nextSort);
-                setSortDirection(nextDir);
-                setTablePage(1);
-              }}
-              onResetAll={resetAllFilters}
-              activeFilterCount={activeExtraFilterCount}
-            />
+            {/* Filters Popover:
+                - In proposalMode: shown ONLY in List View (registration-level filters: Status, JLPT, Date, Search, Registration Sort)
+                  so Calendar View stays clean and uncluttered.
+                - In legacy availability mode (!proposalMode): shown in both views with legacy options. */}
+            {(!proposalMode || displayMode === 'list') && (
+              <ScheduleMoreFiltersPopover
+                policy={policy}
+                proposalMode={proposalMode}
+                displayMode={displayMode}
+                statusFilter={statusFilter}
+                statusOptions={statusOptions}
+                countsByStatus={countsByStatus}
+                onStatusChange={proposalMode ? (nextStatus) => {
+                  setStatusFilter(nextStatus);
+                  setTablePage(1);
+                } : undefined}
+                jlptLevelFilter={jlptLevelFilter}
+                onJlptLevelChange={proposalMode ? (nextLevel) => {
+                  setJlptLevelFilter(nextLevel);
+                  setTablePage(1);
+                } : undefined}
+                searchQuery={searchQuery}
+                onSearchChange={proposalMode ? (q) => {
+                  setSearchQuery(q);
+                  setTablePage(1);
+                } : undefined}
+                eventTypeOptions={eventTypeOptions}
+                dateFilterMode={dateFilterMode}
+                customFromDate={customFromDate}
+                customToDate={customToDate}
+                onDateFilterChange={({ mode, from, to }) => {
+                  setDateFilterMode(mode);
+                  setCustomFromDate(from ?? '');
+                  setCustomToDate(to ?? '');
+                  if (mode === 'today' && displayMode === 'calendar') setAnchor(todayKey);
+                  setTablePage(1);
+                }}
+                showTimeFilter={!proposalMode}
+                timeFilterCode={timeFilterCode}
+                customStartTime={customStartTime}
+                customEndTime={customEndTime}
+                onTimeFilterChange={({ code, start, end }) => {
+                  setTimeFilterCode(code);
+                  if (start) setCustomStartTime(start);
+                  if (end) setCustomEndTime(end);
+                  setTablePage(1);
+                }}
+                eventTypeFilter={eventTypeFilter}
+                onEventTypeChange={(nextType) => {
+                  setEventTypeFilter(nextType);
+                  setTablePage(1);
+                }}
+                sortBy={proposalMode ? regSortBy : sortBy}
+                sortDirection={proposalMode ? regSortDirection : sortDirection}
+                sortOptions={proposalMode ? REGISTRATION_TABLE_SORT_OPTIONS : undefined}
+                onSortChange={({ sortBy: nextSort, sortDirection: nextDir }) => {
+                  if (proposalMode) {
+                    setRegSortBy(nextSort);
+                    setRegSortDirection(nextDir);
+                  } else {
+                    setSortBy(nextSort);
+                    setSortDirection(nextDir);
+                  }
+                  setTablePage(1);
+                }}
+                onResetAll={resetAllFilters}
+                activeFilterCount={activeExtraFilterCount}
+              />
+            )}
 
-            {/* Custom Toolbar Actions (e.g., "Điền nhanh" modal trigger) */}
+            {/* Custom Toolbar Actions (e.g., "Đăng ký nhanh") */}
             {renderCustomHeaderActions}
 
             {onRefresh && (
@@ -1871,18 +2516,6 @@ export default function InteractiveSlotCalendar({
                 aria-label={tr('Làm mới dữ liệu lịch')}
                 className="!h-8.5 !w-8.5 rounded-xl"
               />
-            )}
-
-            {/* Quick Slot Picker button (hidden when readOnly) */}
-            {!proposalReadOnly && (
-              <button
-                type="button"
-                onClick={() => setTouchPickerDay({ dayKey: anchorKey >= todayKey ? anchorKey : todayKey, rawStartMin: 8 * 60 })}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3 text-[12px] font-semibold text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-              >
-                <Plus className="h-3.5 w-3.5 text-rp-brand-strong" />
-                <span>{tr('Đăng ký giờ')}</span>
-              </button>
             )}
           </div>
         </div>
@@ -1897,96 +2530,112 @@ export default function InteractiveSlotCalendar({
           </div>
         )}
 
-        {/* Compact Top Selection Action Bar — always visible cleanly in proposalMode or when slots are selected */}
-        {(proposalMode || selectedSlots.length > 0) && (
+        {/* Compact Top Selection Action Bar — hidden when 0 slots selected; semantic yellow (<2) / green (2–4) / red (>4 or conflict) */}
+        {showSelectionActionBar && (
           <div
             data-testid="multi-select-action-bar"
             className={
               proposalMode
-                ? 'flex flex-wrap items-center justify-between gap-2.5 border-b border-rp-brand-border bg-rp-brand-tint/85 px-4 py-2'
+                ? proposalBarContainerClass
                 : 'flex flex-wrap items-center justify-between gap-2.5 border-b border-emerald-200/90 bg-[#F2FBF6] px-4 py-2'
             }
           >
             {proposalMode ? (
               <>
-                <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-rp-text">
-                  <span className={`inline-flex h-5.5 min-w-5.5 items-center justify-center rounded-full px-2 text-[11.5px] font-bold text-white shadow-2xs ${
-                    selectedSlots.length >= (proposalConfig?.minPerWeek ?? 2) && selectedSlots.length <= (proposalConfig?.maxPerWeek ?? 4)
-                      ? 'bg-rp-brand-pressed'
-                      : 'bg-amber-600'
-                  }`}>
-                    {selectedSlots.length}/{proposalConfig?.maxPerWeek ?? 4}
-                  </span>
-                  <span className="text-rp-brand-deep">
-                    {trf('{0}/{1} buổi/tuần', {
-                      0: selectedSlots.length,
-                      1: proposalConfig?.maxPerWeek ?? 4,
+                <button
+                  type="button"
+                  onClick={() => proposalConfig?.onJumpToSelected?.()}
+                  title={tr('Nhấn để đi tới lịch đang chọn')}
+                  className="group flex flex-wrap items-center gap-2 rounded-lg py-0.5 text-left text-[12.5px] font-semibold text-rp-text transition-opacity hover:opacity-85 cursor-pointer"
+                >
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-bold text-white shadow-2xs ${
+                      proposalHasErrors
+                        ? 'bg-red-700'
+                        : proposalScheduleReady
+                          ? 'bg-emerald-700'
+                          : 'bg-amber-700'
+                    }`}
+                  >
+                    {trf('{0}/{1} buổi mỗi tuần', {
+                      0: proposalWeeklyCount,
+                      1: proposalMaxPerWeek,
                     })}
                   </span>
-                  <span className="text-rp-brand-border" aria-hidden="true">·</span>
-                  {selectedSlots.length < (proposalConfig?.minPerWeek ?? 2) ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-                      {trf('Tối thiểu {0} buổi/tuần', { 0: proposalConfig?.minPerWeek ?? 2 })}
+
+                  {proposalOverLimit ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
+                      {trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })}
+                    </span>
+                  ) : proposalHasConflict ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
+                      {trf('{0} khung cần điều chỉnh', { 0: Math.max(1, proposalInvalidPatternCount) })}
+                    </span>
+                  ) : proposalWeeklyCount < proposalMinPerWeek ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-600" aria-hidden="true" />
+                      {trf('Cần chọn thêm {0} buổi', { 0: proposalMinPerWeek - proposalWeeklyCount })}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-rp-brand-border bg-white/95 px-2 py-0.5 text-[11px] font-medium text-rp-brand-strong">
-                      <span className="h-1.5 w-1.5 rounded-full bg-rp-brand" aria-hidden="true" />
-                      {trf('Tổng khóa: {0} buổi ({1} tuần)', {
-                        0: selectedSlots.length * (proposalConfig?.durationWeeks ?? 10),
-                        1: proposalConfig?.durationWeeks ?? 10,
-                      })}
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
+                      {proposalConfig?.hasCourseInfoReady
+                        ? trf('Đủ điều kiện mở lớp · {0} buổi ({1} tuần)', {
+                          0: proposalWeeklyCount * proposalDurationWeeks,
+                          1: proposalDurationWeeks,
+                        })
+                        : proposalConfig?.courseStartDate
+                          ? trf('Lịch tuần hợp lệ · {0} buổi ({1} tuần)', {
+                            0: proposalWeeklyCount * proposalDurationWeeks,
+                            1: proposalDurationWeeks,
+                          })
+                          : trf('Lịch tuần hợp lệ · {0} buổi dự kiến', {
+                            0: proposalWeeklyCount * proposalDurationWeeks,
+                          })}
                     </span>
                   )}
+
                   {proposalConfig?.courseSummaryText && (
-                    <span className="hidden text-[11.5px] font-normal text-rp-text-2 sm:inline">
+                    <span className="hidden text-[11.5px] font-normal text-rp-text-2 transition-colors group-hover:text-rp-text sm:inline">
                       · {proposalConfig.courseSummaryText}
                     </span>
                   )}
-                  {invalidSelectedSlots.length > 0 && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">
-                      {trf('{0} khung cần kiểm tra', { 0: invalidSelectedSlots.length })}
-                    </span>
-                  )}
-                </div>
+                </button>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {proposalConfig?.onOpenCourseInfo && (
-                    <button
-                      type="button"
-                      data-testid="open-course-info-drawer-btn"
-                      onClick={proposalConfig.onOpenCourseInfo}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-rp-brand-border bg-white px-3 text-[12px] font-semibold text-rp-text transition-colors hover:border-rp-brand hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-full ${proposalConfig.hasCourseInfoReady ? 'bg-rp-brand' : 'bg-amber-400'}`}
-                        aria-hidden="true"
-                      />
-                      <span>{tr('Thông tin lớp dự kiến')}</span>
-                    </button>
-                  )}
-                  {selectedSlots.length > 0 && !proposalReadOnly && (
+                  {proposalWeeklyCount > 0 && !proposalReadOnly && (
                     <button
                       type="button"
                       data-testid="clear-all-selected-btn"
                       disabled={submittingBatch || busy}
-                      onClick={clearAllSelectedSlots}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-rp-brand-border bg-white px-3 text-[12px] font-semibold text-rp-brand-strong transition-colors hover:bg-rp-brand-soft disabled:opacity-50"
+                      onClick={() => (proposalConfig?.onClearAll ? proposalConfig.onClearAll() : clearAllSelectedSlots())}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3.5 text-[12px] font-semibold text-rp-text-2 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" />
                       <span>{tr('Bỏ chọn tất cả')}</span>
                     </button>
                   )}
-                  {proposalConfig?.onOpenReview && (
+                  {(proposalConfig?.onNextStep || proposalConfig?.onOpenReview) && (
                     <button
                       type="button"
                       data-testid="open-confirm-modal-btn"
-                      disabled={submittingBatch || busy}
-                      onClick={proposalConfig.onOpenReview}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-rp-brand-pressed px-3.5 text-[12px] font-semibold text-white shadow-2xs transition-colors hover:bg-rp-brand-strong disabled:opacity-50"
+                      disabled={proposalNextDisabled}
+                      title={proposalNextTooltip}
+                      onClick={
+                        proposalReadOnly
+                          ? (proposalConfig?.onOpenReview || proposalConfig?.onNextStep)
+                          : (proposalConfig?.onNextStep || proposalConfig?.onOpenReview)
+                      }
+                      className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-4 text-[12.5px] font-bold shadow-sm transition-all ${
+                        proposalNextDisabled
+                          ? 'border-slate-300 bg-white/95 text-slate-500 cursor-not-allowed'
+                          : 'border-transparent bg-rp-brand-pressed text-white hover:bg-rp-brand-strong hover:shadow-md'
+                      }`}
                     >
-                      <Send className="h-3.5 w-3.5" />
-                      <span>{tr('Xem lại đề xuất')}</span>
+                      <span>{proposalReadOnly ? tr('Xem đề xuất') : tr('Bước tiếp theo')}</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -2055,24 +2704,34 @@ export default function InteractiveSlotCalendar({
         {/* Active Filter Chips Bar (only shown when filters are active) */}
         <ActiveScheduleFilterBar
           statusFilter={statusFilter}
+          statusOptions={statusOptions}
           onClearStatus={() => { setStatusFilter('ALL'); setTablePage(1); }}
-          eventTypeFilter={eventTypeFilter}
+          eventTypeFilter={proposalMode ? 'ALL' : eventTypeFilter}
+          eventTypeOptions={eventTypeOptions}
           onClearEventType={() => { setEventTypeFilter('ALL'); setTablePage(1); }}
+          jlptLevelFilter={proposalMode ? jlptLevelFilter : 'ALL'}
+          onClearJlptLevel={() => { setJlptLevelFilter('ALL'); setTablePage(1); }}
+          searchQuery={searchQuery}
+          onClearSearch={() => { setSearchQuery(''); setTablePage(1); }}
           dateFilterMode={dateFilterMode}
           customFromDate={customFromDate}
           customToDate={customToDate}
           onClearDate={() => { setDateFilterMode('view'); setCustomFromDate(''); setCustomToDate(''); setTablePage(1); }}
-          timeFilterCode={timeFilterCode}
+          timeFilterCode={proposalMode && displayMode === 'list' ? 'ALL' : timeFilterCode}
           timeFilterLabel={effectiveTimeRange?.label || ''}
           onClearTime={() => { setTimeFilterCode('ALL'); setTablePage(1); }}
           onResetAll={resetAllFilters}
-          totalFilteredCount={displayMode === 'list' ? listTableRows.length : filteredEvents.length}
+          totalFilteredCount={displayMode === 'list'
+            ? (proposalMode ? filteredRegistrationRows.length : listTableRows.length)
+            : filteredEvents.length}
         />
 
-        {/* Inline Feedback / Validation Notice (only shown on error/action feedback) */}
+        {/* Inline Feedback / Validation Notice (auto-dismisses after 4.5s of inactivity, pauses on hover) */}
         {feedbackBanner && (
           <div
             role={feedbackBanner.tone === 'error' ? 'alert' : 'status'}
+            onMouseEnter={() => setFeedbackBannerHovered(true)}
+            onMouseLeave={() => setFeedbackBannerHovered(false)}
             className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-[12.5px] font-medium ${
               feedbackBanner.tone === 'error'
                 ? 'border-red-200 bg-red-50 text-red-800'
@@ -2082,7 +2741,7 @@ export default function InteractiveSlotCalendar({
             }`}
           >
             <div className="flex min-w-0 items-center gap-2">
-              {feedbackBanner.tone === 'error' ? <AlertTriangle className="h-4 w-4 shrink-0" /> : <Sparkles className="h-4 w-4 shrink-0" />}
+              {feedbackBanner.tone === 'error' ? <AlertTriangle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
               <span>{feedbackBanner.text}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -2098,7 +2757,10 @@ export default function InteractiveSlotCalendar({
               <button
                 type="button"
                 aria-label={tr('Đóng thông báo')}
-                onClick={() => setFeedbackBanner(null)}
+                onClick={() => {
+                  setFeedbackBanner(null);
+                  setFeedbackBannerHovered(false);
+                }}
                 className="rounded p-0.5 opacity-70 hover:opacity-100"
               >
                 <X className="h-3.5 w-3.5" />
@@ -2167,7 +2829,7 @@ export default function InteractiveSlotCalendar({
                     const isSelectedDay = day.key === anchorKey;
                     const selectedOnDay = selectedSlots.filter((s) => s.dayKey === day.key).length;
                     const dayEventCount = (eventsByDay.get(day.key) || []).length;
-                    const maxPerDay = policy?.maxSlotsPerDay || 4;
+                    const maxPerDay = policy?.dailySessionCap || policy?.maxSlotsPerDay || 4;
                     return (
                       <button
                         key={day.key}
@@ -2232,7 +2894,7 @@ export default function InteractiveSlotCalendar({
                   ref={gridScrollRef}
                   data-testid="calendar-body-grid"
                   className={`rp-cal-scroll grid bg-white select-none overflow-y-scroll ${
-                    selectedSlots.length > 0
+                    showSelectionActionBar
                       ? 'max-h-[calc(100dvh-286px)] min-h-[466px]'
                       : 'max-h-[calc(100dvh-242px)] min-h-[510px]'
                   }`}
@@ -2256,13 +2918,18 @@ export default function InteractiveSlotCalendar({
 
                   {/* Clean Uniform White Day Columns (Mon–Sun share identical white surface) */}
                   {weekDays.map((day, colIndex) => {
+                    const isSingleDayView = weekDays.length === 1;
+                    const overlayInsetClass = isSingleDayView ? 'inset-x-3' : 'inset-x-1.5';
+                    const colInsetPx = isSingleDayView ? 12 : 3;
                     const dayEvents = packedByDay.get(day.key) || [];
                     const allowDraftRestBands = eventTypeFilter === 'ALL' || eventTypeFilter === 'Draft';
                     const restBands = computeDayRestWindows({
                       dayKey: day.key,
-                      occupiedItems: allowDraftRestBands
-                        ? [...occupiedItems, ...buildProposedFromSelection(null)]
-                        : occupiedItems,
+                      occupiedItems: [
+                        ...occupiedItems,
+                        ...proposalRestItems,
+                        ...(allowDraftRestBands ? buildProposedFromSelection(null) : []),
+                      ],
                       policy,
                     });
                     const isDragTargetCol = dragVisual?.dayKey === day.key;
@@ -2276,9 +2943,25 @@ export default function InteractiveSlotCalendar({
                         }}
                         data-day-col={day.key}
                         onPointerDown={(e) => startEmptyColumnPointerDown(day.key, e)}
-                        className="relative border-l border-rp-line bg-white cursor-cell"
+                        className={`relative border-l border-rp-line bg-white ${day.key < todayKey ? 'cursor-not-allowed' : 'cursor-cell'}`}
                         style={{ height: gridHeight }}
                       >
+                        {/* Disabled Past-Time Overlay: full column for past days, top-to-now for today (below historical events z-10) */}
+                        {(day.key < todayKey || (day.isToday && nowMinutes > firstHour * 60)) && (
+                          <div
+                            data-past-time-overlay="true"
+                            title={tr('Đã quá thời gian này.')}
+                            aria-label={tr('Đã quá thời gian này.')}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute inset-x-0 top-0 z-[5] cursor-not-allowed bg-gray-100/80"
+                            style={{
+                              height: day.key < todayKey
+                                ? gridHeight
+                                : Math.min(gridHeight, Math.max(0, ((nowMinutes - firstHour * 60) / 60) * HOUR_HEIGHT)),
+                            }}
+                          />
+                        )}
                         {/* Subtle neutral daypart text label in first column only (NO colored background bands!) */}
                         {colIndex === 0 && (policy?.dayparts || []).map((dp) => {
                           const top = ((dp.startMin - firstHour * 60) / 60) * HOUR_HEIGHT;
@@ -2305,11 +2988,11 @@ export default function InteractiveSlotCalendar({
                               key={`rest-${idx}`}
                               aria-hidden="true"
                               title={trf('Khoảng nghỉ {0} phút giữa hai buổi dạy', { 0: restMinutes })}
-                              className="pointer-events-none absolute inset-x-1.5 z-[3] flex items-center justify-end rounded border border-dashed border-rp-line/80 bg-rp-bg-2/25 px-1.5"
+                              className={`pointer-events-none absolute ${overlayInsetClass} z-[3] flex items-center justify-end rounded border border-dashed border-rp-line/80 bg-rp-bg-2/25 px-1.5`}
                               style={{ top, height: h }}
                             >
-                              {h >= 12 && (
-                                <span className="text-[8.5px] font-medium text-rp-text-muted/75">
+                              {h >= 15 && (
+                                <span className="text-[8.5px] leading-none font-medium text-rp-text-muted/75">
                                   {trf('Nghỉ {0} phút', { 0: restMinutes })}
                                 </span>
                               )}
@@ -2346,7 +3029,7 @@ export default function InteractiveSlotCalendar({
                         {invalidFlash && invalidFlash.dayKey === day.key && (
                           <div
                             aria-hidden="true"
-                            className="pointer-events-none absolute inset-x-1.5 z-40 flex flex-col justify-between rounded-xl border border-red-400 bg-red-50/95 p-2 text-red-900 shadow-sm"
+                            className={`pointer-events-none absolute ${overlayInsetClass} z-40 flex flex-col justify-between rounded-xl border border-red-400 bg-red-50/95 p-2 text-red-900 shadow-sm`}
                             style={{
                               top: ((invalidFlash.startMin - firstHour * 60) / 60) * HOUR_HEIGHT + 1,
                               height: Math.max((durationMinutes / 60) * HOUR_HEIGHT - 3, 30),
@@ -2363,7 +3046,7 @@ export default function InteractiveSlotCalendar({
                         {dragVisual && dragVisual.originDayKey === day.key && dragVisual.mode !== 'create' && (
                           <div
                             aria-hidden="true"
-                            className="pointer-events-none absolute inset-x-1.5 z-[6] rounded-xl border border-dashed border-gray-300 bg-gray-50/70 p-2 text-[10px] text-rp-text-muted"
+                            className={`pointer-events-none absolute ${overlayInsetClass} z-[6] rounded-xl border border-dashed border-gray-300 bg-gray-50/70 p-2 text-[10px] text-rp-text-muted`}
                             style={{
                               top: ((dragVisual.originStartMin - firstHour * 60) / 60) * HOUR_HEIGHT + 1,
                               height: Math.max((durationMinutes / 60) * HOUR_HEIGHT - 3, 28),
@@ -2377,13 +3060,13 @@ export default function InteractiveSlotCalendar({
                         {isDragTargetCol && (
                           <div
                             data-testid="calendar-drag-ghost"
-                            className={`pointer-events-none absolute inset-x-1.5 top-0 z-40 flex flex-col justify-between rounded-xl border-2 px-2.5 py-1.5 shadow-lg will-change-transform ${
+                            className={`pointer-events-none absolute ${overlayInsetClass} top-0 z-40 flex flex-col justify-between rounded-xl border-2 px-2.5 py-1.5 shadow-lg will-change-transform ${
                               dragVisual.valid
                                 ? 'border-emerald-500 bg-[#F0FDF4]/95 text-emerald-950'
                                 : 'border-red-400 bg-red-50/95 text-red-900'
                             }`}
                             style={{
-                              transform: `translate3d(0, ${((dragVisual.startMin - firstHour * 60) / 60) * HOUR_HEIGHT + 1}px, 0) scale(1.01)`,
+                              transform: `translate3d(0, ${((dragVisual.startMin - firstHour * 60) / 60) * HOUR_HEIGHT + 1}px, 0)`,
                               height: Math.max((durationMinutes / 60) * HOUR_HEIGHT - 3, 30),
                             }}
                           >
@@ -2415,8 +3098,8 @@ export default function InteractiveSlotCalendar({
                           const height = Math.max(((end - start) / 60) * HOUR_HEIGHT - 3, 30);
                           const cols = ev.totalCols || 1;
                           const col = ev.col || 0;
-                          const width = `calc(${100 / cols}% - 6px)`;
-                          const left = `calc(${(col / cols) * 100}% + 3px)`;
+                          const width = `calc((100% - ${colInsetPx * 2}px) / ${cols}${cols > 1 ? ' - 4px' : ''})`;
+                          const left = `calc(${colInsetPx}px + (${col} / ${cols}) * (100% - ${colInsetPx * 2}px)${cols > 1 ? ' + 2px' : ''})`;
                           const z = ev.isSelectedDraft ? 35 : (ev.z || 1) + 10 + col;
 
                           return (
@@ -2438,7 +3121,7 @@ export default function InteractiveSlotCalendar({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (!ev.isSelectedDraft && !ev.draggable && ev.sourceKind !== 'draftGhost') {
-                                  setSelectedEvent(ev);
+                                  openEventDetail(ev);
                                 }
                               }}
                               onKeyDown={(e) => {
@@ -2447,7 +3130,7 @@ export default function InteractiveSlotCalendar({
                                   if (ev.isSelectedDraft && ev.selectedKey) {
                                     removeSelectedSlotByKey(ev.selectedKey);
                                   } else if (ev.sourceKind !== 'draftGhost') {
-                                    setSelectedEvent(ev);
+                                    openEventDetail(ev);
                                   }
                                 } else if ((e.key === 'Delete' || e.key === 'Backspace') && ev.isSelectedDraft && ev.selectedKey) {
                                   e.preventDefault();
@@ -2460,13 +3143,22 @@ export default function InteractiveSlotCalendar({
                                 ev.draggable
                                   ? `cursor-pointer active:cursor-grabbing hover:shadow-md ${meta.card}`
                                   : `cursor-pointer hover:shadow-md ${meta.card}`
+                              } ${
+                                highlightedKeySet.has(ev.id)
+                                || (ev.isSelectedDraft && (highlightedKeySet.has(ev.selectedKey) || (ev.weeklyKey && highlightedKeySet.has(ev.weeklyKey))))
+                                  ? 'ring-2 ring-rp-brand ring-offset-1 shadow-md'
+                                  : ''
                               }`}
                             >
                               <div className="flex items-start justify-between gap-1">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-1">
                                     {ev.isSelectedDraft ? (
-                                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden="true" />
+                                      ev.tone === 'conflict' ? (
+                                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-700" aria-hidden="true" />
+                                      ) : (
+                                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden="true" />
+                                      )
                                     ) : ev.draggable ? (
                                       <GripVertical className="h-3.5 w-3.5 shrink-0 opacity-60 group-hover:opacity-100" aria-hidden="true" />
                                     ) : ev.locked ? (
@@ -2485,19 +3177,40 @@ export default function InteractiveSlotCalendar({
                                   )}
                                 </div>
                                 {ev.isSelectedDraft ? (
-                                  <span className="shrink-0 rounded-md bg-emerald-100/90 px-1.5 py-0.5 text-[9.5px] font-bold text-emerald-800">
-                                    {tr('Đã chọn')}
+                                  ev.tone === 'conflict' ? (
+                                    <span className="shrink-0 rounded-md bg-red-100/90 px-1.5 py-0.5 text-[9.5px] font-bold text-red-800">
+                                      {tr('Cần điều chỉnh')}
+                                    </span>
+                                  ) : (
+                                    <span className="shrink-0 rounded-md bg-emerald-100/90 px-1.5 py-0.5 text-[9.5px] font-bold text-emerald-800">
+                                      {tr('Đã chọn')}
+                                    </span>
+                                  )
+                                ) : ev.jlptLevelCode ? (
+                                  <span className="shrink-0 rounded-md bg-white/90 px-1.5 py-0.5 text-[9.5px] font-bold tracking-tight">
+                                    {ev.jlptLevelCode}
                                   </span>
-                                ) : (
-                                  <span className="shrink-0 rounded bg-white/75 px-1.5 py-0.5 text-[9.5px] font-semibold opacity-85">
-                                    {trf('{0} phút', { 0: durationMinutes })}
-                                  </span>
-                                )}
+                                ) : null}
                               </div>
-                              {height >= 44 && ev.detail && (
-                                <span className="line-clamp-1 text-[10px] font-medium opacity-85">
-                                  {ev.detail}
-                                </span>
+                              {height >= 42 && (ev.detail || ev.statusLabel) && (
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="min-w-0 truncate text-[10px] font-medium opacity-85">
+                                    {ev.detail || tr(ev.statusLabel)}
+                                  </span>
+                                  {proposalMode && ev.tone === 'rejected' && !proposalConfig?.readOnly && ev.dayKey >= todayKey && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const startM = (ev.startHour || 0) * 60 + (ev.startMinute || 0);
+                                        toggleOrSelectSlot(ev.dayKey, startM);
+                                      }}
+                                      className="shrink-0 rounded bg-white/95 px-1.5 py-0.5 text-[9.5px] font-bold text-[#B42318] shadow-2xs ring-1 ring-[#F5C2C7] transition-colors hover:bg-[#FFF5F7] hover:text-[#CE476D]"
+                                    >
+                                      {tr('Chọn lại')}
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
@@ -2519,24 +3232,29 @@ export default function InteractiveSlotCalendar({
                 ))}
                 {monthMatrix.cells.map((cell) => {
                   const isSelectedCell = cell.key === anchorKey;
+                  const isPastDay = cell.key < todayKey;
+                  const canPickDay = !isPastDay && !proposalReadOnly;
                   const items = (eventsByDay.get(cell.key) || []).slice().sort((a, b) => minutesOfEvent(a).start - minutesOfEvent(b).start);
                   const visible = items.slice(0, 3);
                   const overflow = items.length - visible.length;
                   return (
                     <div
                       key={cell.key}
-                      className={`flex min-h-[92px] flex-col p-1.5 ${
+                      title={isPastDay ? tr('Đã quá thời gian này.') : undefined}
+                      onClick={canPickDay ? () => setTouchPickerDay({ dayKey: cell.key, rawStartMin: 8 * 60 }) : undefined}
+                      className={`flex min-h-[92px] flex-col p-1.5 transition-colors ${
                         isSelectedCell
                           ? 'bg-rp-brand-tint/30 ring-1 ring-inset ring-rp-brand-border'
-                          : cell.inCurrentMonth
-                            ? 'bg-white'
-                            : 'bg-rp-bg-2/70 text-rp-text-muted/60'
-                      }`}
+                          : isPastDay
+                            ? 'bg-gray-100/75 text-rp-text-muted/70'
+                            : 'bg-white'
+                      } ${canPickDay ? 'cursor-pointer hover:bg-[#FFF9FA]' : ''}`}
                     >
                       <div className="flex items-center justify-between gap-1">
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             if (cell.key === anchorKey) {
                               setCalendarSubView('day');
                             } else {
@@ -2550,16 +3268,21 @@ export default function InteractiveSlotCalendar({
                                 ? 'bg-rp-brand-pressed text-white'
                                 : isSelectedCell
                                   ? 'border border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
-                                  : 'text-rp-text hover:bg-rp-brand-tint'
+                                  : cell.inCurrentMonth
+                                    ? 'text-rp-text hover:bg-rp-brand-tint'
+                                    : 'text-rp-text-muted hover:bg-rp-brand-tint'
                           }`}
                         >
                           {cell.dateNum}
                         </button>
-                        {cell.key >= todayKey && (
+                        {canPickDay && (
                           <button
                             type="button"
                             aria-label={trf('Đăng ký giờ ngày {0}', { 0: formatShortDateVn(cell.key) })}
-                            onClick={() => setTouchPickerDay({ dayKey: cell.key, rawStartMin: 8 * 60 })}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTouchPickerDay({ dayKey: cell.key, rawStartMin: 8 * 60 });
+                            }}
                             className="rounded p-0.5 text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
                           >
                             <Plus className="h-3.5 w-3.5" />
@@ -2573,7 +3296,11 @@ export default function InteractiveSlotCalendar({
                             <button
                               key={ev.id}
                               type="button"
-                              onClick={() => (ev.isSelectedDraft ? removeSelectedSlotByKey(ev.selectedKey) : setSelectedEvent(ev))}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (ev.isSelectedDraft) removeSelectedSlotByKey(ev.selectedKey);
+                                else openEventDetail(ev);
+                              }}
                               className={`flex w-full items-center gap-1 rounded px-1.5 py-0.5 text-left text-[10.5px] font-semibold ${meta.pill}`}
                             >
                               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} />
@@ -2584,7 +3311,10 @@ export default function InteractiveSlotCalendar({
                         {overflow > 0 && (
                           <button
                             type="button"
-                            onClick={() => setMonthDayModal({ dayKey: cell.key, items })}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMonthDayModal({ dayKey: cell.key, items });
+                            }}
                             className="block w-full px-1.5 text-left text-[10.5px] font-semibold text-rp-brand-strong"
                           >
                             {trf('+{0} lịch khác', { 0: overflow })}
@@ -2598,283 +3328,425 @@ export default function InteractiveSlotCalendar({
             </div>
           )}
 
-          {/* LIST VIEW (Danh sách — Smart Compact 5-Column Table with Direct Action Buttons & Pagination) */}
+          {/* LIST VIEW (Danh sách — Unified Registration Table with Status-Based Actions & Pagination) */}
           {displayMode === 'list' && (
             <div data-testid="schedule-list-table-view" className="bg-white">
-              {listTableRows.length === 0 ? (
+              {/* Focused Invalid Start-Date Warning Banner (when current selection has expired start date) */}
+              {proposalMode && proposalConfig?.invalidStartDateWarning && (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center justify-between gap-2.5 border-b border-amber-200 bg-amber-50/90 px-4 py-2.5 text-[12.5px] text-amber-950"
+                >
+                  <div className="flex min-w-0 items-center gap-2 font-medium">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                    <span>{tr(proposalConfig.invalidStartDateWarning.message)}</span>
+                  </div>
+                  {proposalConfig?.onOpenCourseInfo && (
+                    <button
+                      type="button"
+                      onClick={() => proposalConfig.onOpenCourseInfo()}
+                      className="inline-flex h-8 items-center rounded-lg border border-amber-300 bg-white px-3 text-[12px] font-semibold text-amber-900 hover:bg-amber-100/70"
+                    >
+                      {tr('Chọn ngày khai giảng mới')}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {proposalMode ? (
+                <ExpandableRegistrationTable
+                  rows={filteredRegistrationRows}
+                  totalUnfilteredCount={registrationRows.length}
+                  sortBy={regSortBy}
+                  onToggleSort={(nextSortKey) => {
+                    if (regSortBy === nextSortKey) {
+                      setRegSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+                    } else {
+                      setRegSortBy(nextSortKey);
+                      setRegSortDirection('asc');
+                    }
+                    setTablePage(1);
+                  }}
+                  page={tablePage}
+                  pageSize={tablePageSize}
+                  onPageChange={setTablePage}
+                  onPageSizeChange={(nextSize) => {
+                    setTablePageSize(nextSize);
+                    setTablePage(1);
+                  }}
+                  busy={busy}
+                  onContinueSelection={() => proposalConfig?.onNextStep?.()}
+                  onEditSelectionSchedule={(row) => {
+                    const firstOcc = row?.occurrences?.[0];
+                    const firstPat = row?.weeklyPatterns?.[0];
+                    const targetDay = firstOcc?.dayKey || firstPat?.dayKeyHint || row?.expectedStartDate || todayKey;
+                    const targetStart = firstOcc?.startMinute ?? firstPat?.startMinute ?? 8 * 60;
+                    jumpToCalendarTarget({
+                      dayKey: targetDay,
+                      startMin: targetStart,
+                      highlightKeys: (row?.weeklyPatterns || []).map((p) => p.key),
+                      statusGroup: 'selected',
+                      jlptCode: row?.jlptLevelCode,
+                    });
+                  }}
+                  onOpenCourseInfo={() => proposalConfig?.onOpenCourseInfo?.()}
+                  onClearSelection={() => (proposalConfig?.onClearAll ? proposalConfig.onClearAll() : clearAllSelectedSlots())}
+                  onInspectProposal={(proposalId) => proposalConfig?.onInspectProposal?.(proposalId)}
+                  onWithdrawProposal={(proposalId) => proposalConfig?.onWithdrawProposal?.(proposalId)}
+                  onReregisterProposal={(proposalId) => proposalConfig?.onReregisterProposal?.(proposalId)}
+                  onRequestApprovedSlotAction={(slotObj) => {
+                    if (!slotObj) return;
+                    const ev = calendarEvents.find((e) => Number(e.slotId) === Number(slotObj.id));
+                    if (ev) setSelectedEvent(ev);
+                  }}
+                  onEditWeeklyPattern={(row, pat) => {
+                    if (!pat) return;
+                    openAdjustTimeModal({
+                      isSelectedDraft: true,
+                      selectedKey: pat.selectedKey || pat.key,
+                      weeklyKey: pat.key,
+                      dayKey: pat.dayKeyHint || todayKey,
+                      startHour: Math.floor(pat.startMinute / 60),
+                      startMinute: pat.startMinute % 60,
+                    });
+                  }}
+                  onDeselectWeeklyPattern={(row, pat) => {
+                    if (!pat) return;
+                    const keyToRemove = pat.selectedKey || pat.key;
+                    if (row?.hasValidStartDate && pat.affectedOccurrenceCount > 1) {
+                      openCancelConfirmModal({
+                        isSelectedDraft: true,
+                        isFiniteOccurrence: true,
+                        selectedKey: keyToRemove,
+                        weeklyKey: pat.key,
+                        weekday: pat.weekday,
+                        dayKey: pat.dayKeyHint || todayKey,
+                        startHour: Math.floor(pat.startMinute / 60),
+                        startMinute: pat.startMinute % 60,
+                        endHour: Math.floor(pat.endMinute / 60),
+                        endMinute: pat.endMinute % 60,
+                      });
+                    } else {
+                      removeSelectedSlotByKey(keyToRemove);
+                    }
+                  }}
+                  onJumpToRegistrationOnCalendar={(row) => {
+                    if (!row) return;
+                    const firstOcc = row.occurrences?.[0];
+                    const firstPat = row.weeklyPatterns?.[0];
+                    const matchedEv = firstOcc
+                      ? calendarEvents.find(
+                        (e) => e.dayKey === firstOcc.dayKey
+                          && (e.startHour * 60 + (e.startMinute || 0)) === firstOcc.startMinute
+                          && (row.isSelectedDraft ? e.isSelectedDraft : Number(e.proposalId) === Number(row.proposalId))
+                      )
+                      : null;
+                    jumpToCalendarTarget({
+                      dayKey: firstOcc?.dayKey || firstPat?.dayKeyHint || row.expectedStartDate || todayKey,
+                      startMin: firstOcc?.startMinute ?? firstPat?.startMinute ?? 8 * 60,
+                      highlightKeys: row.isSelectedDraft
+                        ? (row.weeklyPatterns || []).map((p) => p.key)
+                        : [matchedEv?.id].filter(Boolean),
+                      statusGroup: row.statusGroup,
+                      jlptCode: row.jlptLevelCode,
+                    });
+                  }}
+                  onJumpToPatternOnCalendar={(row, pat) => {
+                    if (!pat) return;
+                    const matchingOcc = (row?.occurrences || []).find((o) => o.weeklyKey === pat.key);
+                    const matchedEv = matchingOcc
+                      ? calendarEvents.find(
+                        (e) => e.dayKey === matchingOcc.dayKey
+                          && (e.startHour * 60 + (e.startMinute || 0)) === matchingOcc.startMinute
+                          && (row.isSelectedDraft ? e.isSelectedDraft : Number(e.proposalId) === Number(row.proposalId))
+                      )
+                      : null;
+                    jumpToCalendarTarget({
+                      dayKey: matchingOcc?.dayKey || pat.dayKeyHint || row?.expectedStartDate || todayKey,
+                      startMin: pat.startMinute,
+                      highlightKeys: [matchedEv?.id, pat.key, pat.selectedKey].filter(Boolean),
+                      statusGroup: row?.statusGroup,
+                      jlptCode: row?.jlptLevelCode,
+                    });
+                  }}
+                  onJumpToOccurrenceOnCalendar={(row, occ) => {
+                    if (!occ) return;
+                    const matchedEv = calendarEvents.find(
+                      (e) => e.dayKey === occ.dayKey
+                        && (e.startHour * 60 + (e.startMinute || 0)) === occ.startMinute
+                        && (row?.isSelectedDraft ? e.isSelectedDraft : Number(e.proposalId) === Number(row?.proposalId))
+                    );
+                    jumpToCalendarTarget({
+                      dayKey: occ.dayKey,
+                      startMin: occ.startMinute,
+                      highlightKeys: [matchedEv?.id, occ.selectedKey, occ.weeklyKey].filter(Boolean),
+                      statusGroup: row?.statusGroup,
+                      jlptCode: row?.jlptLevelCode,
+                    });
+                  }}
+                />
+              ) : listTableRows.length === 0 ? (
                 <div className="p-8">
                   <ContextualEmptyState
                     variant="compact"
                     context="calendar"
                     illustration="calendar"
-                    title={tr('Chưa có khung giờ nào khớp điều kiện đang xem')}
+                    title={tr('Chưa có lịch đăng ký nào khớp điều kiện đang xem')}
                     description={tr('Nhấn "Đăng ký giờ", "Điền nhanh", điều chỉnh bộ lọc hoặc chuyển sang chế độ Lịch để chọn trực tiếp các khung giờ 90 phút.')}
                   />
                 </div>
-              ) : (
-                <>
-                  {/* Mobile Compact Card List (Zero Horizontal Overflow <768px) */}
-                  <div className="divide-y divide-rp-line md:hidden">
-                    {pagedTableRows.map((ev) => {
-                      const meta = getToneMeta(ev.tone);
-                      const { eventTypeLabel, statusKey } = classifyScheduleEvent(ev, nowMs);
-                      const { start, end } = minutesOfEvent(ev);
-                      const mins = Math.max(end - start, durationMinutes);
-                      const s = ev.slot;
-                      const isFuture = s ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs : true;
-                      const canEditDirect = Boolean(ev.isSelectedDraft);
-                      const canRequestChange = Boolean(
-                        !canEditDirect && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
-                      );
-                      const canCancelDirectOrRequest = Boolean(
-                        (ev.isSelectedDraft && ev.selectedKey) ||
-                        (s && !s.isApproved && !s.rejectedAt && !s.isDeleted && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot) ||
-                        (s && s.isApproved && !s.isDeleted && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot)
-                      );
-                      return (
-                        <div key={`m-${ev.id}`} className="space-y-2 p-3.5 text-[13px]">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs font-semibold text-rp-text-muted">{formatFullDayVn(ev.dayKey, todayKey)}</span>
-                            <span data-status-key={statusKey} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
-                              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-                              {tr(ev.statusLabel || meta.label)}
-                            </span>
-                          </div>
-                          <p className="font-bold tabular-nums text-rp-text">
-                            {clockFromMinutes(start)} – {clockFromMinutes(end)}{' '}
-                            <span className="text-xs font-normal text-rp-text-muted">({trf('{0} phút', { 0: mins })})</span>
-                          </p>
-                          <p className="text-xs text-rp-text-2">{tr(eventTypeLabel)}{ev.fullTitle && ev.fullTitle !== ev.timeLabel && !ev.isSelectedDraft ? ` · ${ev.fullTitle}` : ''}</p>
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedEvent(ev)}
-                              className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              <span>{tr('Xem')}</span>
-                            </button>
-                            {canEditDirect && (
-                              <button
-                                type="button"
-                                onClick={() => openAdjustTimeModal(ev)}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                                <span>{tr('Sửa giờ')}</span>
-                              </button>
-                            )}
-                            {canRequestChange && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedEvent(ev)}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2"
-                              >
-                                <Clock className="h-3.5 w-3.5" />
-                                <span>{tr('Yêu cầu đổi giờ')}</span>
-                              </button>
-                            )}
-                            {canCancelDirectOrRequest && (
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => openCancelConfirmModal(ev)}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 disabled:opacity-50"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                <span>{tr('Hủy')}</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              ) : (() => {
+                const buildLegacyListRowModel = (ev) => {
+                  const meta = getToneMeta(ev.tone);
+                  const { eventType, eventTypeLabel, statusKey } = classifyScheduleEvent(ev, nowMs);
+                  const { start, end } = minutesOfEvent(ev);
+                  const mins = Math.max(end - start, durationMinutes);
+                  const s = ev.slot;
+                  const isFuture = s ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs : true;
 
-                  {/* Desktop 5-Column Compact Table */}
-                  <div className="hidden max-h-[calc(100dvh-236px)] min-h-[440px] overflow-auto md:block">
-                    <table className="w-full min-w-[680px] border-collapse text-left text-[13px]">
-                      <thead className="sticky top-0 z-10 border-b border-rp-line bg-[#FAF7F9] text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
-                        <tr>
-                          <th className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => toggleTableSort('nearest')}
-                              className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
-                            >
-                              <span>{tr('Ngày')}</span>
-                              <ArrowDownUp className="h-3 w-3 opacity-70" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => toggleTableSort('startTime')}
-                              className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
-                            >
-                              <span>{tr('Giờ dạy')}</span>
-                              <ArrowDownUp className="h-3 w-3 opacity-70" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-2.5">{tr('Loại lịch')}</th>
-                          <th className="px-4 py-2.5">
-                            <button
-                              type="button"
-                              onClick={() => toggleTableSort('status')}
-                              className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
-                            >
-                              <span>{tr('Trạng thái')}</span>
-                              <ArrowDownUp className="h-3 w-3 opacity-70" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-2.5 text-right">{tr('Thao tác')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-rp-line/70">
-                        {pagedTableRows.map((ev) => {
-                          const meta = getToneMeta(ev.tone);
-                          const { eventType, eventTypeLabel, statusKey } = classifyScheduleEvent(ev, nowMs);
-                          const { start, end } = minutesOfEvent(ev);
-                          const mins = Math.max(end - start, durationMinutes);
-                          const s = ev.slot;
-                          const isFuture = s
-                            ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs
-                            : true;
+                  const canEditDirect = Boolean(ev.isSelectedDraft);
+                  const canRequestChange = Boolean(
+                    !ev.isSelectedDraft && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
+                  );
+                  const canRequestApprovedCancel = Boolean(
+                    !ev.isSelectedDraft && s && s.isApproved && !s.isDeleted && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot
+                  );
+                  const canLegacyDeletePending = Boolean(
+                    s && !s.isApproved && !s.rejectedAt && !s.isDeleted && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot
+                  );
 
-                          // Direct time editing ONLY for unsent local Drafts; saved records follow Backend workflows
-                          const canEditDirect = Boolean(ev.isSelectedDraft);
-                          const canRequestChange = Boolean(
-                            !canEditDirect && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
-                          );
-                          const canCancelDirectOrRequest = Boolean(
-                            (ev.isSelectedDraft && ev.selectedKey) ||
-                            (s && !s.isApproved && !s.rejectedAt && !s.isDeleted && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot) ||
-                            (s && s.isApproved && !s.isDeleted && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot)
-                          );
+                  const dayPrimaryText = formatFullDayWithYearVn(ev.dayKey, todayKey);
+                  const statusDisplayLabel = tr(ev.statusLabel || meta.label);
 
-                          const typeBadgeClass =
-                            eventType === 'CohortSession'
-                              ? 'border-[#F2CCD7] bg-[#FFF5F7] text-[#9E3350]'
-                              : eventType === 'Draft'
-                                ? 'border-[#86EFAC] bg-[#F3FEF6] text-[#15803D]'
-                                : 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]';
-                          const typeDotClass =
-                            eventType === 'CohortSession'
-                              ? 'bg-[#CE476D]'
-                              : eventType === 'Draft'
-                                ? 'bg-[#22C55E]'
-                                : 'bg-[#0D9488]';
+                  const primaryAction = {
+                    id: 'view',
+                    testId: `row-action-view-${ev.id}`,
+                    label: tr('Xem'),
+                    icon: Eye,
+                    onClick: () => openEventDetail(ev),
+                  };
+                  const menuItems = [
+                    {
+                      id: 'view-on-calendar',
+                      label: tr('Xem trên lịch'),
+                      icon: CalendarDays,
+                      onClick: () => handleViewOnCalendar(ev),
+                    },
+                  ];
+                  if (canEditDirect) {
+                    menuItems.push({
+                      id: 'edit-time',
+                      label: tr('Sửa giờ'),
+                      icon: Pencil,
+                      onClick: () => openAdjustTimeModal(ev),
+                    });
+                  }
+                  if (canRequestChange) {
+                    menuItems.push({
+                      id: 'request-change',
+                      label: tr('Yêu cầu đổi giờ'),
+                      icon: Clock,
+                      onClick: () => setSelectedEvent(ev),
+                    });
+                  }
+                  if (ev.isSelectedDraft || canLegacyDeletePending || canRequestApprovedCancel) {
+                    menuItems.push({
+                      id: 'cancel',
+                      label: ev.isSelectedDraft ? tr('Bỏ chọn') : tr('Hủy'),
+                      icon: Trash2,
+                      danger: true,
+                      onClick: () => openCancelConfirmModal(ev),
+                    });
+                  }
 
-                          return (
-                            <tr key={ev.id} data-testid={`schedule-table-row-${ev.id}`} className="transition-colors hover:bg-rp-bg-2/40">
-                              <td className="px-4 py-2.5 font-medium text-rp-text whitespace-nowrap">
-                                {formatFullDayVn(ev.dayKey, todayKey)}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <div className="font-bold tabular-nums text-rp-text">
-                                  {clockFromMinutes(start)} – {clockFromMinutes(end)}
-                                  <span className="ml-1.5 text-[11.5px] font-normal text-rp-text-muted">({trf('{0} phút', { 0: mins })})</span>
-                                </div>
-                                {ev.fullTitle && ev.fullTitle !== ev.timeLabel && !ev.isSelectedDraft && (
-                                  <div className="mt-0.5 text-[11.5px] font-medium text-rp-text-2">{ev.fullTitle}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${typeBadgeClass}`}>
-                                  <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${typeDotClass}`} />
-                                  {tr(eventTypeLabel)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 whitespace-nowrap">
-                                <span
-                                  data-status-key={statusKey}
-                                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${meta.pill}`}
+                  return {
+                    meta,
+                    eventType,
+                    eventTypeLabel,
+                    statusKey,
+                    start,
+                    end,
+                    mins,
+                    dayPrimaryText,
+                    statusDisplayLabel,
+                    statusPillClass: meta.pill,
+                    statusDotClass: meta.dot,
+                    primaryAction,
+                    menuItems,
+                  };
+                };
+
+                return (
+                  <>
+                    {/* Mobile Compact Card List */}
+                    <div className="divide-y divide-rp-line md:hidden">
+                      {pagedTableRows.map((ev) => {
+                        const row = buildLegacyListRowModel(ev);
+                        const PrimaryIcon = row.primaryAction?.icon;
+                        return (
+                          <div key={`m-${ev.id}`} className="space-y-2 p-3.5 text-[13px]">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-rp-text">{row.dayPrimaryText}</span>
+                              <span data-status-key={row.statusKey} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${row.statusPillClass}`}>
+                                <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${row.statusDotClass}`} />
+                                {row.statusDisplayLabel}
+                              </span>
+                            </div>
+                            <p className="m-0 font-bold tabular-nums text-rp-text">
+                              {clockFromMinutes(row.start)}–{clockFromMinutes(row.end)}{' '}
+                              <span className="text-xs font-normal text-rp-text-muted">({trf('{0} phút', { 0: row.mins })})</span>
+                            </p>
+                            <div className="flex items-center justify-end gap-1.5 pt-1">
+                              {row.primaryAction && (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={row.primaryAction.onClick}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-xs font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
                                 >
-                                  <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-                                  {tr(ev.statusLabel || meta.label)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                                <div className="inline-flex items-center justify-end gap-1.5">
-                                  {/* 1. Xem (Always available) */}
-                                  <button
-                                    type="button"
-                                    data-testid={`row-action-view-${ev.id}`}
-                                    title={tr('Xem chi tiết')}
-                                    onClick={() => setSelectedEvent(ev)}
-                                    className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                                  {PrimaryIcon && <PrimaryIcon className="h-3.5 w-3.5" />}
+                                  <span>{row.primaryAction.label}</span>
+                                </button>
+                              )}
+                              <ListRowActionMenu
+                                items={row.menuItems}
+                                triggerLabel={tr('Thao tác khác')}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Desktop 5-Column Compact Table (Legacy Single-Slot Mode) */}
+                    <div className="hidden max-h-[calc(100dvh-250px)] overflow-auto md:block">
+                      <table className="w-full min-w-[680px] border-collapse text-left text-[13px]">
+                        <thead className="sticky top-0 z-10 border-b border-rp-line bg-[#FAF7F9] text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
+                          <tr>
+                            <th className="px-4 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => toggleTableSort('nearest')}
+                                className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
+                              >
+                                <span>{tr('Ngày')}</span>
+                                <ArrowDownUp className="h-3 w-3 opacity-70" />
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => toggleTableSort('startTime')}
+                                className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
+                              >
+                                <span>{tr('Giờ dạy')}</span>
+                                <ArrowDownUp className="h-3 w-3 opacity-70" />
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5">{tr('Loại lịch')}</th>
+                            <th className="px-4 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => toggleTableSort('status')}
+                                className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
+                              >
+                                <span>{tr('Trạng thái')}</span>
+                                <ArrowDownUp className="h-3 w-3 opacity-70" />
+                              </button>
+                            </th>
+                            <th className="px-4 py-2.5 text-right">{tr('Thao tác')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-rp-line/70">
+                          {pagedTableRows.map((ev) => {
+                            const row = buildLegacyListRowModel(ev);
+                            const PrimaryIcon = row.primaryAction?.icon;
+                            const typeBadgeClass =
+                              row.eventType === 'CohortSession'
+                                ? 'border-[#F2CCD7] bg-[#FFF5F7] text-[#9E3350]'
+                                : row.eventType === 'Draft'
+                                  ? 'border-[#86EFAC] bg-[#F3FEF6] text-[#15803D]'
+                                  : 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]';
+                            const typeDotClass =
+                              row.eventType === 'CohortSession'
+                                ? 'bg-[#CE476D]'
+                                : row.eventType === 'Draft'
+                                  ? 'bg-[#22C55E]'
+                                  : 'bg-[#0D9488]';
+
+                            return (
+                              <tr key={ev.id} data-testid={`schedule-table-row-${ev.id}`} className="transition-colors hover:bg-rp-bg-2/40">
+                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                  <div className="font-medium text-rp-text">{row.dayPrimaryText}</div>
+                                </td>
+                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                  <span className="font-bold tabular-nums text-rp-text">
+                                    {clockFromMinutes(row.start)}–{clockFromMinutes(row.end)}
+                                  </span>
+                                  <span className="ml-1.5 text-[11.5px] font-normal text-rp-text-muted">
+                                    ({trf('{0} phút', { 0: row.mins })})
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${typeBadgeClass}`}>
+                                    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${typeDotClass}`} />
+                                    {tr(row.eventTypeLabel)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                  <span
+                                    data-status-key={row.statusKey}
+                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${row.statusPillClass}`}
                                   >
-                                    <Eye className="h-3.5 w-3.5" />
-                                    <span>{tr('Xem')}</span>
-                                  </button>
-
-                                  {/* 2. Sửa giờ (Direct for Draft / Pending, or Request Change for Approved) */}
-                                  {canEditDirect && (
-                                    <button
-                                      type="button"
-                                      data-testid={`row-action-edit-${ev.id}`}
-                                      title={ev.isSelectedDraft ? tr('Đổi giờ khung đang chọn') : tr('Đổi giờ khung chờ duyệt')}
-                                      onClick={() => openAdjustTimeModal(ev)}
-                                      className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                      <span>{tr('Sửa giờ')}</span>
-                                    </button>
-                                  )}
-
-                                  {canRequestChange && (
-                                    <button
-                                      type="button"
-                                      data-testid={`row-action-request-change-${ev.id}`}
-                                      title={tr('Gửi yêu cầu điều chỉnh giờ lên Quản trị viên')}
-                                      onClick={() => setSelectedEvent(ev)}
-                                      className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-                                    >
-                                      <Clock className="h-3.5 w-3.5" />
-                                      <span>{tr('Yêu cầu đổi giờ')}</span>
-                                    </button>
-                                  )}
-
-                                  {/* 3. Hủy (Opens Cancel Confirmation Modal explaining consequences) */}
-                                  {canCancelDirectOrRequest && (
-                                    <button
-                                      type="button"
-                                      data-testid={`row-action-cancel-${ev.id}`}
-                                      title={ev.isSelectedDraft ? tr('Bỏ chọn khung này') : tr('Hủy khung giờ')}
-                                      disabled={busy}
-                                      onClick={() => openCancelConfirmModal(ev)}
-                                      className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 text-[11.5px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                      <span>{tr('Hủy')}</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  {listTableRows.length > tablePageSize && (
-                    <Pagination
-                      variant="sakura"
-                      currentPage={safeTablePage}
-                      totalPages={totalTablePages}
-                      totalItems={listTableRows.length}
-                      pageSize={tablePageSize}
-                      pageSizeOptions={[10, 20, 50]}
-                      onPageChange={setTablePage}
-                      onPageSizeChange={(nextSize) => {
-                        setTablePageSize(nextSize);
-                        setTablePage(1);
-                      }}
-                      itemLabel={tr('khung giờ')}
-                    />
-                  )}
-                </>
-              )}
+                                    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${row.statusDotClass}`} />
+                                    {row.statusDisplayLabel}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                    {row.primaryAction && (
+                                      <button
+                                        type="button"
+                                        data-testid={`row-action-view-${ev.id}`}
+                                        disabled={busy}
+                                        onClick={row.primaryAction.onClick}
+                                        className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
+                                      >
+                                        {PrimaryIcon && <PrimaryIcon className="h-3.5 w-3.5" />}
+                                        <span>{row.primaryAction.label}</span>
+                                      </button>
+                                    )}
+                                    <ListRowActionMenu
+                                      items={row.menuItems}
+                                      triggerLabel={tr('Thao tác khác')}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {listTableRows.length > tablePageSize && (
+                      <Pagination
+                        variant="sakura"
+                        currentPage={safeTablePage}
+                        totalPages={totalTablePages}
+                        totalItems={listTableRows.length}
+                        pageSize={tablePageSize}
+                        pageSizeOptions={[10, 20, 50]}
+                        onPageChange={setTablePage}
+                        onPageSizeChange={(nextSize) => {
+                          setTablePageSize(nextSize);
+                          setTablePage(1);
+                        }}
+                        itemLabel={tr('dòng lịch')}
+                      />
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -3032,11 +3904,14 @@ export default function InteractiveSlotCalendar({
                 <label className="block text-[12.5px] font-semibold text-rp-text-2">
                   {tr('Ngày dạy')}
                 </label>
-                <DateInput
+                <DatePicker
+                  size="sm"
+                  fullWidth
+                  clearable={false}
                   min={todayKey}
                   value={adjustDateKey}
-                  onChange={(e) => { setAdjustDateKey(e.target.value); setAdjustError(''); }}
-                  required
+                  onChange={(iso) => { if (iso) { setAdjustDateKey(iso); setAdjustError(''); } }}
+                  triggerClassName="bg-white"
                 />
               </div>
               <div className="space-y-1">
@@ -3085,6 +3960,18 @@ export default function InteractiveSlotCalendar({
         const cancelDaysLeadOk = s
           ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= leadHours * 3600_000
           : true;
+        const wkKey = cancelingEvent.weeklyKey || cancelingEvent.selectedKey;
+        const affectedRecurringCount = cancelingEvent.isSelectedDraft && proposalMode
+          ? Math.max(
+            1,
+            selectedSlots.filter((x) => (x.weeklyKey || x.key) === wkKey).length,
+            cancelingEvent.isFiniteOccurrence ? proposalDurationWeeks : 1,
+          )
+          : 1;
+        const isRecurringDeselect = Boolean(cancelingEvent.isSelectedDraft && proposalMode && affectedRecurringCount > 1);
+        const weekdayIdx = Number.isFinite(Number(cancelingEvent.weekday))
+          ? Number(cancelingEvent.weekday)
+          : weekdayOfDateKey(cancelingEvent.dayKey);
 
         return (
           <AlertDialog
@@ -3098,35 +3985,43 @@ export default function InteractiveSlotCalendar({
             }}
             cancelLabel="Giữ lại"
             confirmLabel={
-              cancelingEvent.isSelectedDraft
-                ? 'Bỏ chọn'
-                : isApprovedSlot
-                  ? 'Gửi yêu cầu hủy'
-                  : 'Xác nhận hủy'
+              isRecurringDeselect
+                ? trf('Bỏ chọn ({0} buổi)', { 0: affectedRecurringCount })
+                : cancelingEvent.isSelectedDraft
+                  ? 'Bỏ chọn'
+                  : isApprovedSlot
+                    ? 'Gửi yêu cầu hủy'
+                    : 'Xác nhận hủy'
             }
             title={
-              cancelingEvent.isSelectedDraft
-                ? 'Bỏ chọn khung giờ?'
-                : isApprovedSlot
-                  ? 'Gửi yêu cầu hủy khung giờ đã duyệt'
-                  : 'Hủy khung giờ đang chờ duyệt?'
+              isRecurringDeselect
+                ? 'Bỏ chọn khung giờ lặp hàng tuần?'
+                : cancelingEvent.isSelectedDraft
+                  ? 'Bỏ chọn khung giờ?'
+                  : isApprovedSlot
+                    ? 'Gửi yêu cầu hủy khung giờ đã duyệt'
+                    : 'Hủy khung giờ đang chờ duyệt?'
             }
             description={
-              cancelingEvent.isSelectedDraft
-                ? 'Khung giờ này mới đang được chọn tạm trên lịch và chưa gửi lên hệ thống. Sau khi bỏ chọn, bạn có thể chọn lại bất cứ lúc nào.'
-                : isApprovedSlot
-                  ? trf('Khung giờ này đã được Quản trị viên phê duyệt. Yêu cầu hủy sẽ được gửi để xem xét (cần gửi trước giờ bắt đầu ít nhất {0} ngày).', { 0: leadDays })
-                  : 'Khung giờ đang chờ duyệt sẽ bị thu hồi khỏi danh sách gửi duyệt và khoảng thời gian này sẽ trống trở lại.'
+              isRecurringDeselect
+                ? trf('Khung giờ này thuộc lịch lặp hàng tuần. Bỏ chọn sẽ xóa toàn bộ {0} buổi dự kiến tương ứng trong khóa học để giữ lịch 10 tuần nhất quán.', { 0: affectedRecurringCount })
+                : cancelingEvent.isSelectedDraft
+                  ? 'Khung giờ này mới đang được chọn tạm trên lịch và chưa gửi lên hệ thống. Sau khi bỏ chọn, bạn có thể chọn lại bất cứ lúc nào.'
+                  : isApprovedSlot
+                    ? trf('Khung giờ này đã được quản trị viên phê duyệt. Yêu cầu hủy sẽ được gửi để xem xét (cần gửi trước giờ bắt đầu ít nhất {0} ngày).', { 0: leadDays })
+                    : 'Khung giờ đang chờ duyệt sẽ bị thu hồi khỏi danh sách gửi duyệt và khoảng thời gian này sẽ trống trở lại.'
             }
           >
             <div className="space-y-3 text-[13px]">
               <p className="rounded-xl border border-rp-line bg-rp-bg-2/70 px-3 py-2 font-bold text-rp-text">
-                {formatFullDayVn(cancelingEvent.dayKey, todayKey)} · {ClockRangeText(cancelingEvent)}
+                {isRecurringDeselect
+                  ? `${WEEKDAY_LABEL_VI[weekdayIdx] || formatFullDayWithYearVn(cancelingEvent.dayKey, todayKey)} · ${ClockRangeText(cancelingEvent)} (${trf('{0} buổi dự kiến', { 0: affectedRecurringCount })})`
+                  : `${formatFullDayWithYearVn(cancelingEvent.dayKey, todayKey)} · ${ClockRangeText(cancelingEvent)}`}
               </p>
 
               {isApprovedSlot && (
                 <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                  {tr('Lý do xin hủy (gửi Quản trị viên)')}
+                  {tr('Lý do xin hủy (gửi quản trị viên)')}
                   <input
                     value={cancelModalReason}
                     onChange={(e) => setCancelModalReason(e.target.value)}
@@ -3159,17 +4054,62 @@ export default function InteractiveSlotCalendar({
           open={Boolean(touchPickerDay)}
           onClose={() => setTouchPickerDay(null)}
           title={trf('Chọn khung {0} phút · {1}', { 0: durationMinutes, 1: formatFullDayVn(touchPickerDay.dayKey, todayKey) })}
+          description={trf('Mỗi buổi {0} phút · Nghỉ tối thiểu {1} phút giữa hai buổi', { 0: durationMinutes, 1: restMinutes })}
           size="md"
         >
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-rp-text-muted">
-              <span>{trf('Mỗi buổi {0} phút · Nghỉ tối thiểu {1} phút giữa hai buổi', { 0: durationMinutes, 1: restMinutes })}</span>
-              <DateInput
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <DatePicker
+                size="sm"
+                compact
+                clearable={false}
                 min={todayKey}
                 value={touchPickerDay.dayKey}
-                onChange={(e) => setTouchPickerDay((cur) => ({ ...cur, dayKey: e.target.value }))}
-                className="!h-8 w-auto rounded-lg px-2 text-[12px]"
+                placeholder={tr('dd/MM/yyyy')}
+                triggerClassName="bg-white border-rp-line shadow-2xs hover:border-[#E5B8C5]"
+                onChange={(iso) => {
+                  if (iso) setTouchPickerDay((cur) => ({ ...cur, dayKey: iso }));
+                }}
               />
+              {proposalMode && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-bold text-white shadow-2xs ${
+                      proposalHasErrors
+                        ? 'bg-red-700'
+                        : proposalScheduleReady
+                          ? 'bg-emerald-700'
+                          : 'bg-amber-700'
+                    }`}
+                  >
+                    {trf('{0}/{1} buổi mỗi tuần', {
+                      0: proposalWeeklyCount,
+                      1: proposalMaxPerWeek,
+                    })}
+                  </span>
+                  {proposalOverLimit ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
+                      {trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })}
+                    </span>
+                  ) : proposalHasConflict ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
+                      {trf('{0} khung cần điều chỉnh', { 0: Math.max(1, proposalInvalidPatternCount) })}
+                    </span>
+                  ) : proposalWeeklyCount < proposalMinPerWeek ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-600" aria-hidden="true" />
+                      {trf('Cần chọn thêm {0} buổi', { 0: proposalMinPerWeek - proposalWeeklyCount })}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
+                      {tr('Đủ điều kiện mở lớp')}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="grid max-h-[340px] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
               {touchCandidates.length === 0 ? (

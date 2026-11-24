@@ -23,6 +23,7 @@ import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLooku
 import { useAuth } from '@/app/auth/authContext.js';
 import { ContentAuthorShell } from '@/layouts';
 import { describeApiError } from '@/api/apiErrors.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import {
   AlertDialog,
   Badge,
@@ -1159,6 +1160,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
       queryClient.invalidateQueries({ queryKey: listPrefix }),
       queryClient.invalidateQueries({ queryKey: ['my-content-approvals'] }),
       queryClient.invalidateQueries({ queryKey: ['author-import-batches'] }),
+      invalidateSidebarCounters(queryClient),
     ]);
   };
 

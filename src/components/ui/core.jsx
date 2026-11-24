@@ -41,6 +41,10 @@ const BUTTON_SIZES = {
 };
 
 /**
+ * Sizes (height is fixed per size, width follows label + icon + padding):
+ * xs 28px · sm 32px (filters, row actions) · md 40px (default, dialog footers) · lg 48px (primary CTA).
+ * Buttons in one row must share one size so they share one height.
+ *
  * `loading` disables the button and keeps its width (no layout jump), which is
  * the first line of defence against double submit. Async handlers should still
  * use `useSubmitGuard` so programmatic re-entry is blocked too.
@@ -65,6 +69,10 @@ export const Button = forwardRef(function Button(
 ) {
   const isDisabled = disabled || loading;
   const isNativeButton = Tag === 'button';
+  const compactIcon = size === 'sm' || size === 'xs';
+  const spinnerTone = variant === 'primary' || variant === 'danger' ? 'light' : 'brand';
+  // Without a leading icon the spinner sits over the (transparent, still announced) label, so the width never changes.
+  const overlaySpinner = loading && !Icon && children != null;
   return (
     <Tag
       ref={ref}
@@ -74,7 +82,7 @@ export const Button = forwardRef(function Button(
       aria-busy={loading || undefined}
       onClick={!isNativeButton && isDisabled ? (e) => e.preventDefault() : onClick}
       className={cx(
-        'rp-focus rp-press group inline-flex cursor-pointer select-none items-center justify-center font-semibold transform-gpu backface-hidden disabled:cursor-not-allowed motion-reduce:transform-none',
+        'rp-focus rp-press group relative inline-flex cursor-pointer select-none items-center justify-center font-semibold transform-gpu backface-hidden disabled:cursor-not-allowed motion-reduce:transform-none',
         wrap ? 'whitespace-normal text-left' : 'whitespace-nowrap',
         !isNativeButton && isDisabled && 'pointer-events-none opacity-60',
         BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary,
@@ -83,13 +91,24 @@ export const Button = forwardRef(function Button(
       )}
       {...rest}
     >
-      {loading ? (
-        <SakuraSpinner size={size === 'sm' ? 14 : 18} tone={variant === 'primary' || variant === 'danger' ? 'light' : 'brand'} />
+      {loading && Icon ? (
+        <SakuraSpinner size={compactIcon ? 14 : 16} tone={spinnerTone} />
       ) : (
-        Icon && (isValidElement(Icon) ? Icon : <Icon aria-hidden="true" className={size === 'sm' ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />)
+        Icon && (isValidElement(Icon) ? Icon : <Icon aria-hidden="true" className={compactIcon ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'} />)
       )}
-      {children != null && <span className={cx('inline-flex items-center gap-1.5', wrap ? 'leading-snug' : 'truncate')}>{children}</span>}
-      {IconRight && !loading && (isValidElement(IconRight) ? IconRight : <IconRight aria-hidden="true" className="rp-btn-arrow h-4 w-4 shrink-0" />)}
+      {children != null && (
+        <span className={cx('inline-flex items-center gap-1.5', wrap ? 'leading-snug' : 'truncate', overlaySpinner && 'opacity-0')}>{children}</span>
+      )}
+      {IconRight && (
+        <span aria-hidden="true" className={cx('inline-flex shrink-0', loading && 'opacity-0')}>
+          {isValidElement(IconRight) ? IconRight : <IconRight aria-hidden="true" className="rp-btn-arrow h-4 w-4 shrink-0" />}
+        </span>
+      )}
+      {overlaySpinner && (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <SakuraSpinner size={compactIcon ? 14 : 16} tone={spinnerTone} />
+        </span>
+      )}
     </Tag>
   );
 });
@@ -124,14 +143,15 @@ export const IconButton = forwardRef(function IconButton(
   );
 });
 
-/** Shared red corner tag badge for top-bar circular icon controls (Language Globe, Smart Calendar, Notifications). */
+/** Shared coral-rose corner badge for top-bar circular icon controls (Language Globe, Smart Calendar, Notifications). */
 export function HeaderIconBadge({ children, pulse = false, className }) {
   if (children == null || children === false) return null;
   return (
     <span
       aria-hidden="true"
       className={cx(
-        'pointer-events-none absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#E5383B] px-1 text-[10px] font-bold leading-none text-white shadow-[0_2px_6px_-1px_rgba(229,56,59,0.55)]',
+        // Seamless token-backed coral-rose badge (#D6404E / #FFFFFF = 4.52:1 AA), no white border, subtle shadow.
+        'rp-header-badge pointer-events-none absolute -right-0.5 -top-0.5 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full px-[4px] text-[9.5px] font-semibold leading-none tracking-[-0.01em]',
         pulse && 'rp-bell-badge-ping',
         className,
       )}

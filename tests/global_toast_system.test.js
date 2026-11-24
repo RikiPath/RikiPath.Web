@@ -304,7 +304,7 @@ describe('Global toast architecture & domain safety contracts', () => {
   it('never claims Paid on PayOS redirect or Pending polling in the checkout modal, Receipt, or StudyCoursesPage', () => {
     // Checkout confirmation moved from the /study-payment page into the /plans modal; the legacy page only redirects.
     const checkout = readSrc('src/features/checkout/components/StudyCheckoutModal.jsx');
-    assert.match(checkout, /notify\.info\(\s*tr\('Đang chuyển sang PayOS'\)/);
+    assert.match(checkout, /notify\.info\(\s*tr\('Đang chuyển đến trang thanh toán'\)/);
     assert.doesNotMatch(checkout, /notify\.success\(/);
     const legacy = readSrc('src/pages/learner/StudyPayment.jsx');
     assert.match(legacy, /<Navigate to=\{to\} replace \/>/);

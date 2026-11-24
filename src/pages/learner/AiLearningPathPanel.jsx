@@ -28,6 +28,7 @@ import {
   notify,
   resolveLessonCelebrationTier,
   shouldPlayCelebration,
+  Collapsible,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 
@@ -222,7 +223,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
             <div className="flex flex-wrap gap-2">
               {quotaIssue && (
                 <Button as={Link} to="/plans/" variant="primary" size="sm">
-                  {tr('Xem gói & lượt AI')}
+                  {tr('Mua gói ngay')}
                 </Button>
               )}
               {placementIssue && (
@@ -373,17 +374,18 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
             <button
               type="button"
               aria-expanded={insightsOpen}
+              aria-controls="ai-path-insights"
               onClick={() => setInsightsOpen((v) => !v)}
               className="rp-focus rp-press inline-flex h-8 items-center gap-1.5 rounded-[10px] border border-rp-line bg-white px-3 text-xs font-semibold text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
             >
               {insightsOpen ? tr('Ẩn phân tích AI') : tr('Xem phân tích AI')}
-              <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform duration-200 ${insightsOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown aria-hidden="true" className="rp-disclosure-chevron h-3.5 w-3.5" />
             </button>
           </div>
         </div>
 
-        {insightsOpen && (
-          <div className="rp-onboarding-reveal mt-4 space-y-3 border-t border-rp-line pt-4">
+        <Collapsible open={insightsOpen} id="ai-path-insights">
+          <div className="mt-4 space-y-3 border-t border-rp-line pt-4">
             <CompletionSummary
               completedCount={completedDays}
               totalCount={totalDays}
@@ -414,7 +416,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
               </div>
             )}
           </div>
-        )}
+        </Collapsible>
       </Card>
 
       {/* CENTRAL HORIZONTAL BRANCHING ROADMAP TREE */}

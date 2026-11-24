@@ -906,7 +906,7 @@ export default function HeaderCalendarPopover({ roleKey }) {
   const triggerAriaLabel = badgeCount > 0 ? `${baseTitle} (${badgeCount})` : baseTitle;
 
   const triggerBadge = badgeCount > 0 ? (
-    <HeaderIconBadge pulse={hasLive} className={badgeCount > 99 ? undefined : '!h-4 !min-w-4 !px-0.5 !text-[8px] !font-medium tracking-[-0.02em]'}>
+    <HeaderIconBadge pulse={hasLive}>
       {badgeCount > 99 ? '99+' : badgeCount}
     </HeaderIconBadge>
   ) : null;
@@ -919,7 +919,7 @@ export default function HeaderCalendarPopover({ roleKey }) {
           label={triggerAriaLabel}
           onClick={() => setDrawerOpen(true)}
           variant="outline"
-          className="shadow-rp-xs"
+          className="rp-hc shadow-rp-xs"
           badge={triggerBadge}
         />
         <Drawer
@@ -952,7 +952,7 @@ export default function HeaderCalendarPopover({ roleKey }) {
           label={triggerAriaLabel}
           onClick={toggle}
           variant="outline"
-          className="shadow-rp-xs"
+          className="rp-hc shadow-rp-xs"
           badge={triggerBadge}
         />
       )}

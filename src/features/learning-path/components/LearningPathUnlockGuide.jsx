@@ -130,7 +130,7 @@ export function LearningPathUnlockGuide({
               <div className="flex flex-wrap gap-2">
                 {quotaIssue && (
                   <Button as={Link} to="/plans/" onClick={onNavigate} variant="primary" size="sm">
-                    {tr('Xem gói & lượt AI')}
+                    {tr('Mua gói ngay')}
                   </Button>
                 )}
                 {placementIssue && (

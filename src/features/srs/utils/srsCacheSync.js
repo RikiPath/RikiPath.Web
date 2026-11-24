@@ -5,6 +5,8 @@
  * Full Learning Calendar (/calendar/), Learner Home (/app), and Notification badges.
  */
 
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
+
 export async function invalidateSrsAndCalendarCaches(queryClient) {
   if (!queryClient) return;
   await Promise.all([
@@ -22,6 +24,7 @@ export async function invalidateSrsAndCalendarCaches(queryClient) {
     queryClient.invalidateQueries({ queryKey: ['learner', 'study-streak'] }),
     queryClient.invalidateQueries({ queryKey: ['learner', 'streak-celebration'] }),
     queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    invalidateSidebarCounters(queryClient),
   ]);
 }
 
@@ -34,5 +37,6 @@ export async function invalidateScheduleAndHomeworkCaches(queryClient) {
     queryClient.invalidateQueries({ queryKey: ['homework-hub'] }),
     queryClient.invalidateQueries({ queryKey: ['learner', 'analytics-feed', 'homework'] }),
     queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    invalidateSidebarCounters(queryClient),
   ]);
 }

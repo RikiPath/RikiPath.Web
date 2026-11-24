@@ -841,7 +841,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                           <strong className="text-rp-warning">{paymentStateMessage('AwaitingPayment')}</strong>
                           <HoldCountdown expiresAt={current.paymentExpiresAt} className="mt-2 flex" />
                           <p className="course-meta">
-                           {trf('Chỗ được giữ đến: {0}. Ghi danh chỉ có hiệu lực sau khi máy chủ xác minh thanh toán với PayOS — trang không tự xác nhận từ đường dẫn trả về.', { 0: date(current.paymentExpiresAt) })}
+                           {trf('Chỗ được giữ đến: {0}. Ghi danh chỉ có hiệu lực sau khi hệ thống xác minh thanh toán thành công.', { 0: date(current.paymentExpiresAt) })}
                           </p>
                           <div className="course-buttons">
                             {typeof current.checkoutUrl === 'string' && current.checkoutUrl.startsWith('https://') && (
@@ -855,7 +855,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                                   () => reconcileCoursePayment(current.id),
                                   (res) => (res?.paymentState === 'Confirmed' || res?.paymentStatus === 'Paid'
                                     ? 'Thanh toán đã được xác nhận. Bạn đã ghi danh thành công!'
-                                    : paymentStateMessage(res?.paymentState) || 'Đã kiểm tra trạng thái thanh toán: đang chờ PayOS xác nhận.'),
+                                    : paymentStateMessage(res?.paymentState) || 'Đã kiểm tra trạng thái thanh toán: đang chờ xác nhận.'),
                                   {
                                     loading: 'Đang đối chiếu thanh toán với máy chủ…',
                                     tone: (res) => (res?.paymentState === 'Confirmed' || res?.paymentStatus === 'Paid' ? 'success' : res?.paymentState === 'Expired' || res?.paymentState === 'Failed' ? 'warning' : 'info'),

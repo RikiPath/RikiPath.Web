@@ -25,6 +25,9 @@
   --rp-dur-fast: 140ms;        /* hover colour, press feedback */
   --rp-dur-standard: 200ms;    /* control state changes (check, focus, underline) */
   --rp-dur-overlay: 260ms;     /* popovers, dialogs, drawers, toasts */
+  --rp-dur-expand: 240ms;      /* disclosure open: accordion, conditional form section */
+  --rp-dur-collapse: 200ms;    /* disclosure close (slightly quicker than open) */
+  --rp-dur-overlay-out: 160ms; /* dialog / sheet exit */
   --rp-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --rp-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --rp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -57,6 +60,9 @@
     --rp-dur-fast: 0ms;
     --rp-dur-standard: 0ms;
     --rp-dur-overlay: 0ms;
+    --rp-dur-expand: 0ms;
+    --rp-dur-collapse: 0ms;
+    --rp-dur-overlay-out: 0ms;
     --rp-hover-lift: none;
     --rp-press-scale: none;
   }
@@ -221,6 +227,48 @@
   cursor: not-allowed;
 }
 
+/* ------------------------------------------------------------------ Disclosure (Collapsible)
+ * Height animates through grid-template-rows 0fr <-> 1fr (no measuring, no fixed max-height); the inner panel
+ * fades and drops 8px. The inner panel clips only while moving, so focus rings of fields inside are never cut
+ * once it is open. Collapsed content stays mounted (form values survive) but is `inert`. */
+.rp-collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--rp-dur-collapse) var(--rp-ease-standard),
+    opacity var(--rp-dur-collapse) var(--rp-ease-standard);
+}
+.rp-collapsible[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--rp-dur-expand) var(--rp-ease-out),
+    opacity var(--rp-dur-expand) var(--rp-ease-out);
+}
+.rp-collapsible > .rp-collapsible-inner {
+  min-height: 0;
+  overflow: hidden;
+  transform: translateY(-8px);
+  transition: transform var(--rp-dur-collapse) var(--rp-ease-standard);
+}
+.rp-collapsible[data-open='true'] > .rp-collapsible-inner {
+  transform: none;
+  transition: transform var(--rp-dur-expand) var(--rp-ease-out);
+}
+.rp-collapsible[data-open='true'][data-settled='true'] > .rp-collapsible-inner { overflow: visible; }
+.rp-collapsible[data-open='false'] { pointer-events: none; }
+
+/* Dialog exit: mirror of rp-sheet-in / rp-fade-in, shorter. */
+@keyframes rp-sheet-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(0.985); } }
+@keyframes rp-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.rp-anim-modal-out { animation: rp-sheet-out var(--rp-dur-overlay-out) var(--rp-ease-standard) both; pointer-events: none; }
+.rp-anim-fade-out { animation: rp-fade-out var(--rp-dur-overlay-out) var(--rp-ease-standard) both; pointer-events: none; }
+
+/* Chevron of a disclosure trigger: rotates with the same timing as the panel. */
+.rp-disclosure-chevron { transition: transform var(--rp-dur-expand) var(--rp-ease-out); }
+[aria-expanded='true'] > .rp-disclosure-chevron, .rp-disclosure-chevron[data-open='true'] { transform: rotate(180deg); }
+
 /* ------------------------------------------------------------------ Buttons */
 /* Press feedback shared by every solid action button (ui Button + raw page buttons): gentle lift on
    hover, slight press on click. Never rotates. */
@@ -280,3 +328,4 @@
 .rp-nav-link:hover::after,
 .rp-nav-link:focus-visible::after,
 .rp-nav-link.is-active::after { transform: scaleX(1); }
+

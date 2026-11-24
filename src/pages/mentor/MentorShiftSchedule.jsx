@@ -3,42 +3,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
-  BookOpen,
-  CalendarClock,
+  CalendarPlus,
   CheckCircle2,
   CloudOff,
-  Copy,
-  History,
-  ListChecks,
-  Plus,
   RefreshCw,
   RotateCcw,
   Save,
-  Sparkles,
   Trash2,
-  Undo2,
 } from 'lucide-react';
 import { MentorShell } from '@/layouts';
 import {
   AlertDialog,
-  Badge,
   Banner,
   Button,
-  Card,
   ContextualErrorState,
-  Drawer,
-  FeatureIcon,
   Field,
   Modal,
   PageContainer,
-  PageHeader,
   SakuraLoader,
   Textarea,
+  formatIsoDateDisplay,
   notify,
 } from '@/components/ui';
 import { useMentorScheduleWorkspace } from '@/features/scheduling/hooks/useMentorScheduleWorkspace.js';
 import {
-  cloneTeachingProposalDraft,
   deleteTeachingProposalDraft,
   getMyTeachingProposal,
   getTeachingProposalContext,
@@ -48,20 +36,24 @@ import {
 } from '@/features/scheduling/api/teachingProposalApi.js';
 import {
   buildProposalCommitments,
-  buildProposalQuickFillPreview,
+  buildProposalPreviewCalendarSlots,
   calendarSlotToWeeklySlot,
   dayKeyToWeekday,
   DEFAULT_PROPOSAL_POLICY,
+  expandProposalOccurrences,
+  findEarliestValidStartDate,
   normalizeProposalPolicy,
-  PROPOSAL_STATUS_META,
-  QUICK_FILL_PRESETS,
+  resolveJlptLevelAvailability,
+  resolveStableReferenceWeek,
   sortWeeklySessions,
+  validateCourseStartDate,
   validateProposalState,
   validateWeeklySlotAddition,
   weekdayLabelVn,
-  weeklySessionsToCalendarSlots,
   weeklySlotKey,
 } from '@/features/scheduling/utils/proposalValidation.js';
+import { buildRegistrationRows } from '@/features/scheduling/utils/registrationTableModel.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import {
   buildSubmitIdempotencyKey,
   clearLocalDraft,
@@ -77,21 +69,24 @@ import {
 } from '@/features/scheduling/utils/slotPlannerModel.js';
 import { mondayOfDateKey, toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
 import InteractiveSlotCalendar from '@/features/scheduling/components/InteractiveSlotCalendar.jsx';
+import SmartQuickRegistrationModal from '@/features/scheduling/components/SmartQuickRegistrationModal.jsx';
 import TeachingProposalCourseInfoDrawer from '@/features/scheduling/components/TeachingProposalCourseInfoDrawer.jsx';
 import TeachingProposalReviewModal from '@/features/scheduling/components/TeachingProposalReviewModal.jsx';
 import { describeApiError } from '@/api/apiErrors.js';
-import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
-const PROPOSAL_STATUS_FILTERS = [
-  { value: 'ALL', label: 'Tất cả' },
-  { value: 'Draft', label: 'Bản nháp' },
-  { value: 'PendingReview', label: 'Chờ duyệt' },
-  { value: 'ChangesRequested', label: 'Cần bổ sung' },
-  { value: 'Approved', label: 'Đã duyệt' },
-  { value: 'Rejected', label: 'Bị từ chối' },
-  { value: 'Withdrawn', label: 'Đã rút' },
-];
+function hasEnteredClassMetadata(d) {
+  return Boolean(
+    d
+    && (
+      d.certificateLevelId
+      || String(d.courseTitle || '').trim()
+      || String(d.courseObjective || '').trim()
+      || String(d.optionalNotes || '').trim()
+      || (Array.isArray(d.optionalAttachments) && d.optionalAttachments.length > 0)
+    )
+  );
+}
 
 const QUICK_FILL_WEEKDAYS = [
   { weekday: 1, short: 'T2', full: 'Thứ 2' },
@@ -101,12 +96,6 @@ const QUICK_FILL_WEEKDAYS = [
   { weekday: 5, short: 'T6', full: 'Thứ 6' },
   { weekday: 6, short: 'T7', full: 'Thứ 7' },
   { weekday: 0, short: 'CN', full: 'Chủ nhật' },
-];
-
-const PROPOSAL_QUICK_DAYPARTS = [
-  { id: 'Morning', label: 'Sáng (07:00–11:00)' },
-  { id: 'Afternoon', label: 'Chiều (13:30–17:30)' },
-  { id: 'Evening', label: 'Tối (18:00–22:00)' },
 ];
 
 function createEmptyDraft(policy) {
@@ -131,10 +120,49 @@ function createEmptyDraft(policy) {
   };
 }
 
+function isBlankProposalDraft(p) {
+  return Boolean(
+    p
+    && p.status === 'Draft'
+    && (!p.weeklySessions || p.weeklySessions.length === 0)
+  );
+}
+
+function reconcileEditableDraft(targetDraft, policy) {
+  if (!targetDraft || (targetDraft.status !== 'Draft' && targetDraft.status !== 'ChangesRequested')) {
+    return targetDraft;
+  }
+  const sessions = targetDraft.weeklySessions || [];
+  if (sessions.length === 0) {
+    return targetDraft.expectedStartDate
+      ? { ...targetDraft, expectedStartDate: '' }
+      : targetDraft;
+  }
+  if (targetDraft.expectedStartDate) {
+    const check = validateCourseStartDate({
+      dayKey: targetDraft.expectedStartDate,
+      weeklySessions: sessions,
+      policy,
+    });
+    if (!check.valid) {
+      const todayKey = toVnDateKey(new Date());
+      const aligned = findEarliestValidStartDate({
+        minDateKey: targetDraft.expectedStartDate >= todayKey ? targetDraft.expectedStartDate : null,
+        weeklySessions: sessions,
+        policy,
+      });
+      return { ...targetDraft, expectedStartDate: aligned || '' };
+    }
+  }
+  return targetDraft;
+}
+
 function normalizeServerProposalToDraft(p, policy) {
   if (!p) return createEmptyDraft(policy);
   return {
     ...p,
+    programType: 'StandardJlpt',
+    coursePlanId: null,
     courseTitle: p.courseTitle || '',
     courseObjective: p.courseObjective || '',
     expectedStartDate: p.expectedStartDate || '',
@@ -158,6 +186,7 @@ export default function MentorShiftSchedule() {
   const {
     uid,
     slots,
+    cohorts,
     cohortSessions,
     externalBusyEvents,
     policy: availabilityPolicy,
@@ -190,39 +219,49 @@ export default function MentorShiftSchedule() {
     [ctx]
   );
   const qualifiedLevels = useMemo(() => ctx?.qualifiedLevels || [], [ctx?.qualifiedLevels]);
-  const coursePlans = useMemo(() => ctx?.coursePlans || [], [ctx?.coursePlans]);
-  const proposals = useMemo(() => ctx?.proposals || [], [ctx?.proposals]);
+  const rawProposals = ctx?.proposals;
+  const proposals = useMemo(
+    () => (Array.isArray(rawProposals) ? rawProposals.filter((p) => p && p.status !== 'Withdrawn') : []),
+    [rawProposals]
+  );
   const mentorVerified = ctx?.mentorVerified !== false;
+  const mentorVerifiedJlptLevel = ctx?.mentorVerifiedJlptLevel || null;
   const mentorDeclaredJlptLevel = ctx?.mentorDeclaredJlptLevel || null;
 
-  // Registration mode: 'proposal' (Mở lớp 10 tuần, mặc định) | 'availability' (Giờ rảnh đơn lẻ)
+  // Calendar View State (strictly isolated from Business Selection State)
   const [registrationMode, setRegistrationMode] = useState('proposal');
+  const [calendarDisplayMode, setCalendarDisplayMode] = useState('calendar');
   const [calendarAnchorKey, setCalendarAnchorKey] = useState(() => toVnDateKey(new Date()));
+  const [calendarFocusRequest, setCalendarFocusRequest] = useState(null);
   const [availSelectedSlots, setAvailSelectedSlots] = useState([]);
+
+  // Stable business reference week when `expectedStartDate` is not yet chosen (never mutated by Calendar navigation)
+  const [referenceWeekKey, setReferenceWeekKey] = useState(null);
+  const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setLiveNowMs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const [draft, setDraft] = useState(() => createEmptyDraft(DEFAULT_PROPOSAL_POLICY));
   const [initialized, setInitialized] = useState(false);
 
-  // Focus Drawers & Modals (calendar remains the primary workspace at all times)
+  // Step 2 & Step 3 Overlays + Read-Only Detail Modal (List View replaces the duplicate Registration History drawer)
   const [courseDrawerOpen, setCourseDrawerOpen] = useState(false);
   const [showCourseErrors, setShowCourseErrors] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [listDrawerOpen, setListDrawerOpen] = useState(false);
-  const [listFilter, setListFilter] = useState('ALL');
-  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
-  const [detailHistory, setDetailHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [inspectedProposal, setInspectedProposal] = useState(null);
 
   const [quickFillOpen, setQuickFillOpen] = useState(false);
-  const [quickFillTab, setQuickFillTab] = useState('presets'); // 'presets' | 'custom'
-  const [selectedPresetId, setSelectedPresetId] = useState(QUICK_FILL_PRESETS[0].id);
-  const [customDayparts, setCustomDayparts] = useState(() => new Set(['1-Evening', '3-Evening', '5-Evening']));
-  const [quickFillMode, setQuickFillMode] = useState('append'); // 'append' | 'replace'
   const [availQuickRules, setAvailQuickRules] = useState(() => new Set(['1-Evening', '3-Evening', '5-Evening']));
 
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [withdrawTarget, setWithdrawTarget] = useState(null);
   const [withdrawReason, setWithdrawReason] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [clearSelectionConfirmOpen, setClearSelectionConfirmOpen] = useState(false);
+  const [clearingSelection, setClearingSelection] = useState(false);
+  const [reregisterConfirmTarget, setReregisterConfirmTarget] = useState(null);
+  const [lastSubmittedBanner, setLastSubmittedBanner] = useState(null);
 
   const submitKeyRef = useRef(null);
   const isEditable = draft.status === 'Draft' || draft.status === 'ChangesRequested';
@@ -252,12 +291,20 @@ export default function MentorShiftSchedule() {
     onRestoreDraft: (restored, meta) => {
       setDraft(normalizeServerProposalToDraft(restored, proposalPolicy));
       if (meta?.restoredFromLocal) {
-        notify.info(tr('Đã khôi phục thay đổi bản nháp chưa đồng bộ trên thiết bị này.'));
+        notify.info(tr('Đã khôi phục lịch dạy đang chọn trên thiết bị này.'));
       }
+    },
+    onReconnectRevalidate: () => {
+      contextQuery.refetch();
+      invalidateScheduling();
     },
   });
 
-  // Initial load hydration (URL ?proposalId=X -> latest editable draft -> blank draft)
+  // Initial load hydration:
+  // - Calendar always stays on the Mentor's single active working draft (or ChangesRequested if targeted by URL)
+  //   so closing/reopening restores their saved draft without duplicate draft conflicts.
+  // - If URL ?proposalId=X points to a submitted/reviewed proposal (PendingReview/Approved/Rejected),
+  //   keep the Calendar on the active working draft and open the read-only Detail Modal directly.
   useEffect(() => {
     if (!ctx || initialized) return undefined;
     let alive = true;
@@ -266,13 +313,22 @@ export default function MentorShiftSchedule() {
       setInitialized(true);
       const paramId = Number(searchParams.get('proposalId') || 0);
       const fromUrl = paramId ? proposals.find((p) => Number(p.id) === paramId) : null;
-      const latestEditable = proposals.find((p) => p.status === 'ChangesRequested' || p.status === 'Draft') || null;
-      const initial = fromUrl || latestEditable;
+      const fromUrlEditable = fromUrl && (fromUrl.status === 'Draft' || fromUrl.status === 'ChangesRequested')
+        && !isBlankProposalDraft(fromUrl)
+        ? fromUrl
+        : null;
+      const singleDraft = proposals.find((p) => p.status === 'Draft' && !isBlankProposalDraft(p))
+        || proposals.find((p) => p.status === 'ChangesRequested')
+        || null;
+      const workingSession = fromUrlEditable || singleDraft;
 
-      if (initial) {
-        const normalized = normalizeServerProposalToDraft(initial, proposalPolicy);
+      if (workingSession) {
+        const normalized = normalizeServerProposalToDraft(workingSession, proposalPolicy);
         const hydrated = persistence.hydrateFromServer(normalized);
-        const targetDraft = normalizeServerProposalToDraft(hydrated || normalized, proposalPolicy);
+        const targetDraft = reconcileEditableDraft(
+          normalizeServerProposalToDraft(hydrated || normalized, proposalPolicy),
+          proposalPolicy
+        );
         setDraft(targetDraft);
         if (targetDraft.expectedStartDate && targetDraft.expectedStartDate >= toVnDateKey(new Date())) {
           setCalendarAnchorKey(targetDraft.expectedStartDate);
@@ -280,11 +336,21 @@ export default function MentorShiftSchedule() {
       } else {
         const blank = createEmptyDraft(proposalPolicy);
         const hydrated = persistence.hydrateFromServer(blank);
-        const targetDraft = normalizeServerProposalToDraft(hydrated || blank, proposalPolicy);
+        const targetDraft = reconcileEditableDraft(
+          normalizeServerProposalToDraft(hydrated || blank, proposalPolicy),
+          proposalPolicy
+        );
         setDraft(targetDraft);
         if (targetDraft.expectedStartDate && targetDraft.expectedStartDate >= toVnDateKey(new Date())) {
           setCalendarAnchorKey(targetDraft.expectedStartDate);
         }
+      }
+
+      if (fromUrl && !fromUrlEditable) {
+        if (fromUrl.expectedStartDate) {
+          setCalendarAnchorKey(fromUrl.expectedStartDate);
+        }
+        setInspectedProposal(normalizeServerProposalToDraft(fromUrl, proposalPolicy));
       }
     });
     return () => {
@@ -292,7 +358,7 @@ export default function MentorShiftSchedule() {
     };
   }, [ctx, initialized, persistence, proposalPolicy, proposals, searchParams]);
 
-  // Normalized commitments across existing cohorts, availabilities, and other PendingReview proposals
+  // Normalized commitments across existing cohorts, availabilities, PendingReview and ChangesRequested proposals
   const occupiedItems = useMemo(
     () => buildOccupiedItems({ slots, cohortSessions, externalBusyEvents }),
     [slots, cohortSessions, externalBusyEvents]
@@ -308,19 +374,105 @@ export default function MentorShiftSchedule() {
     [occupiedItems, proposals, draft.id, proposalPolicy]
   );
 
+  // Authoritative Business Validation — strictly independent of Calendar View State (`calendarAnchorKey`)
   const clientValidation = useMemo(
     () => validateProposalState({
       proposal: draft,
       availableLevels,
       qualifiedLevels,
-      coursePlans,
+      mentorVerified,
+      mentorVerifiedJlptLevel,
+      proposals,
+      cohorts,
       commitments,
+      viewAnchorKey: null,
       policy: proposalPolicy,
+      nowMs: liveNowMs,
     }),
-    [draft, availableLevels, qualifiedLevels, coursePlans, commitments, proposalPolicy]
+    [draft, availableLevels, qualifiedLevels, mentorVerified, mentorVerifiedJlptLevel, proposals, cohorts, commitments, proposalPolicy, liveNowMs]
+  );
+
+  // Finite 10-week actual occurrences (when start date is valid) OR 1 stable future reference week (when start date unset).
+  // Strictly isolated from `calendarAnchorKey` navigation!
+  const proposalPreview = useMemo(
+    () => buildProposalPreviewCalendarSlots({
+      weeklySessions: draft.weeklySessions || [],
+      expectedStartDate: draft.expectedStartDate || null,
+      referenceWeekKey,
+      policy: proposalPolicy,
+      nowMs: liveNowMs,
+    }),
+    [draft.weeklySessions, draft.expectedStartDate, referenceWeekKey, proposalPolicy, liveNowMs]
+  );
+
+  // Only render green editable selection cards when the proposal is editable (`Draft` / `ChangesRequested`).
+  // Submitted/locked proposals (`PendingReview`, `Approved`, etc.) render with their real status tone (e.g. amber `Chờ duyệt`).
+  const calendarSelectedSlots = useMemo(
+    () => (isEditable ? proposalPreview.slots : []),
+    [isEditable, proposalPreview.slots]
+  );
+
+  const { invalidWeeklyMap, invalidOccurrenceMap, invalidPatternCount } = useMemo(() => {
+    const wkMap = new Map();
+    const occMap = new Map();
+    const invalidKeys = new Set();
+    const step1Blocking = (clientValidation.errors || []).filter(
+      (e) => e.step === 1 && e.code !== 'PROPOSAL_MIN_SESSIONS_NOT_MET'
+    );
+    for (const err of step1Blocking) {
+      if (err.slotKey) {
+        invalidKeys.add(err.slotKey);
+        if (err.conflictDate) {
+          const parts = String(err.slotKey).split('_');
+          const startMin = Number(parts[1]);
+          if (Number.isFinite(startMin)) {
+            occMap.set(`${err.conflictDate}_${startMin}`, err.message);
+          } else if (!wkMap.has(err.slotKey)) {
+            wkMap.set(err.slotKey, err.message);
+          }
+        } else if (!wkMap.has(err.slotKey)) {
+          wkMap.set(err.slotKey, err.message);
+        }
+      }
+    }
+    return {
+      invalidWeeklyMap: wkMap,
+      invalidOccurrenceMap: occMap,
+      invalidPatternCount: invalidKeys.size > 0 ? invalidKeys.size : step1Blocking.length,
+    };
+  }, [clientValidation.errors]);
+
+  // Unified Registration Table rows for Expandable List View (replaces both flat occurrence list & duplicate History drawer)
+  const registrationRows = useMemo(
+    () => buildRegistrationRows({
+      draft,
+      proposals,
+      proposalPreview,
+      invalidWeeklyMap,
+      slots,
+      cohorts,
+      availableLevels,
+      policy: proposalPolicy,
+      nowMs: liveNowMs,
+      canProceedSelection: isEditable && clientValidation.step1Valid,
+    }),
+    [
+      availableLevels,
+      clientValidation.step1Valid,
+      cohorts,
+      draft,
+      invalidWeeklyMap,
+      isEditable,
+      liveNowMs,
+      proposalPolicy,
+      proposalPreview,
+      proposals,
+      slots,
+    ]
   );
 
   // Live debounced backend validation whenever draft has start date + weekly sessions
+  const [validateNonce, setValidateNonce] = useState(0);
   const [serverValidationState, setServerValidationState] = useState(null);
   const serverValidatePayload = useMemo(() => {
     if (!isEditable || registrationMode !== 'proposal') return null;
@@ -328,8 +480,8 @@ export default function MentorShiftSchedule() {
     return {
       proposalId: draft.id || null,
       certificateLevelId: draft.certificateLevelId ? Number(draft.certificateLevelId) : null,
-      programType: draft.programType || 'StandardJlpt',
-      coursePlanId: draft.coursePlanId ? Number(draft.coursePlanId) : null,
+      programType: 'StandardJlpt',
+      coursePlanId: null,
       courseObjective: draft.courseObjective || null,
       expectedStartDate: draft.expectedStartDate,
       courseDurationWeeks: proposalPolicy.courseDurationWeeks,
@@ -348,93 +500,397 @@ export default function MentorShiftSchedule() {
     registrationMode,
   ]);
 
-  const serverValidateKey = serverValidatePayload ? JSON.stringify(serverValidatePayload) : '';
+  const serverValidateKey = serverValidatePayload ? `${validateNonce}|${JSON.stringify(serverValidatePayload)}` : '';
   useEffect(() => {
-    if (!serverValidateKey) return undefined;
+    if (!serverValidatePayload || !serverValidateKey) return undefined;
     let alive = true;
     const timer = setTimeout(() => {
-      validateTeachingProposal(JSON.parse(serverValidateKey))
-        .then((res) => alive && setServerValidationState({ key: serverValidateKey, data: res }))
-        .catch(() => alive && setServerValidationState({ key: serverValidateKey, data: null }));
+      validateTeachingProposal(serverValidatePayload)
+        .then((res) => alive && setServerValidationState({ key: serverValidateKey, data: res, error: null }))
+        .catch((err) => {
+          if (!alive) return;
+          setServerValidationState({
+            key: serverValidateKey,
+            data: null,
+            error: describeApiError(err).message || tr('Không thể kết nối máy chủ để xác minh lịch.'),
+          });
+        });
     }, VALIDATE_DEBOUNCE_MS);
     return () => {
       alive = false;
       clearTimeout(timer);
     };
-  }, [serverValidateKey]);
+  }, [serverValidateKey, serverValidatePayload, tr]);
 
   const activeServerValidation = serverValidateKey && serverValidationState?.key === serverValidateKey
     ? serverValidationState.data
     : null;
-  const serverValidating = Boolean(serverValidateKey) && !activeServerValidation;
+  const serverValidationError = serverValidateKey && serverValidationState?.key === serverValidateKey
+    ? serverValidationState.error
+    : null;
+  const serverValidating = Boolean(serverValidateKey) && !activeServerValidation && !serverValidationError;
 
   const patchDraft = useCallback((patch) => {
     submitKeyRef.current = null;
+    if (
+      patch.expectedStartDate
+      && patch.expectedStartDate !== draft.expectedStartDate
+      && validateCourseStartDate({
+        dayKey: patch.expectedStartDate,
+        weeklySessions: patch.weeklySessions || draft.weeklySessions || [],
+        policy: proposalPolicy,
+      }).valid
+    ) {
+      setCalendarAnchorKey(patch.expectedStartDate);
+    }
     setDraft((cur) => ({ ...cur, ...patch }));
-  }, []);
+  }, [draft.expectedStartDate, draft.weeklySessions, proposalPolicy]);
+
+  const triggerFocusToSessions = useCallback((sessions, startDateHint = null) => {
+    if (!Array.isArray(sessions) || sessions.length === 0) return;
+    const nowMs = Date.now();
+    const startValid = startDateHint
+      && validateCourseStartDate({ dayKey: startDateHint, weeklySessions: sessions, policy: proposalPolicy, nowMs }).valid;
+
+    let targetAnchor = startValid ? startDateHint : null;
+    if (!targetAnchor) {
+      const stableMon = resolveStableReferenceWeek({
+        weeklySessions: sessions,
+        preferredReferenceWeekKey: referenceWeekKey,
+        policy: proposalPolicy,
+        nowMs,
+      });
+      setReferenceWeekKey(stableMon);
+      targetAnchor = stableMon;
+    }
+
+    setCalendarAnchorKey(targetAnchor);
+    const highlightKeys = sessions.map((s) => s.key || weeklySlotKey(s.weekday, s.startMinute));
+    const earliestStartMin = Math.min(...sessions.map((s) => Number(s.startMinute)));
+    setCalendarFocusRequest({
+      id: Date.now(),
+      targetDayKey: targetAnchor,
+      targetStartMin: earliestStartMin,
+      highlightKeys,
+    });
+  }, [proposalPolicy, referenceWeekKey]);
+
+  const handleJumpToSelectedSchedule = useCallback(() => {
+    const sessions = draft.weeklySessions || [];
+    if (sessions.length === 0) return;
+    const targetDayKey = (proposalPreview.mode === 'finite_10_weeks' && proposalPreview.courseStartDate)
+      || proposalPreview.slots[0]?.dayKey
+      || resolveStableReferenceWeek({
+        weeklySessions: sessions,
+        preferredReferenceWeekKey: referenceWeekKey,
+        policy: proposalPolicy,
+      });
+    if (!targetDayKey) return;
+    const earliestStartMin = Math.min(...sessions.map((s) => Number(s.startMinute)));
+    const highlightKeys = sessions.map((s) => s.key || weeklySlotKey(s.weekday, s.startMinute));
+    setCalendarDisplayMode('calendar');
+    setCalendarAnchorKey(targetDayKey);
+    setCalendarFocusRequest({
+      id: Date.now(),
+      targetDayKey,
+      targetStartMin: earliestStartMin,
+      highlightKeys,
+      preserveSubView: true,
+    });
+  }, [draft.weeklySessions, proposalPolicy, proposalPreview.courseStartDate, proposalPreview.mode, proposalPreview.slots, referenceWeekKey]);
 
   const openProposal = useCallback((proposal) => {
+    if (!proposal) return;
+    const isProposalEditable = proposal.status === 'Draft' || proposal.status === 'ChangesRequested';
+    if (!isProposalEditable) {
+      // Submitted/reviewed proposals (PendingReview, Approved, Rejected) open the read-only Detail Modal directly
+      // without disturbing the Mentor's single active working draft on the Calendar.
+      setCourseDrawerOpen(false);
+      setReviewModalOpen(false);
+      if (proposal.expectedStartDate) {
+        setCalendarAnchorKey(proposal.expectedStartDate);
+      }
+      setInspectedProposal(normalizeServerProposalToDraft(proposal, proposalPolicy));
+      return;
+    }
+
     submitKeyRef.current = null;
     setRegistrationMode('proposal');
+    setCalendarDisplayMode('calendar');
     setShowCourseErrors(false);
+    setLastSubmittedBanner(null);
+    setInspectedProposal(null);
     const normalized = normalizeServerProposalToDraft(proposal, proposalPolicy);
-    const hydrated = proposal.status === 'Draft' || proposal.status === 'ChangesRequested'
-      ? persistence.hydrateFromServer(normalized)
-      : normalized;
-    const resolved = normalizeServerProposalToDraft(hydrated || normalized, proposalPolicy);
+    const hydrated = persistence.hydrateFromServer(normalized);
+    const resolved = reconcileEditableDraft(
+      normalizeServerProposalToDraft(hydrated || normalized, proposalPolicy),
+      proposalPolicy
+    );
     setDraft(resolved);
+    setCourseDrawerOpen(false);
+    setReviewModalOpen(false);
     if (resolved.expectedStartDate && resolved.expectedStartDate >= toVnDateKey(new Date())) {
       setCalendarAnchorKey(resolved.expectedStartDate);
     }
-    setListDrawerOpen(false);
+    if ((resolved.weeklySessions || []).length > 0) {
+      triggerFocusToSessions(resolved.weeklySessions, resolved.expectedStartDate);
+    }
     if (proposal.id) {
       setSearchParams({ proposalId: String(proposal.id) }, { replace: true });
     }
-  }, [persistence, proposalPolicy, setSearchParams]);
+  }, [persistence, proposalPolicy, setSearchParams, triggerFocusToSessions]);
 
-  const startNewProposal = useCallback(() => {
+  const handleInspectProposalById = useCallback((proposalId) => {
+    const target = proposals.find((p) => Number(p.id) === Number(proposalId));
+    if (target) openProposal(target);
+  }, [openProposal, proposals]);
+
+  const handleWithdrawProposalById = useCallback((proposalId) => {
+    const target = proposals.find((p) => Number(p.id) === Number(proposalId));
+    if (!target) return;
+    if (target.status !== 'PendingReview' && target.status !== 'ChangesRequested') return;
+    setWithdrawTarget(target);
+    setWithdrawModalOpen(true);
+  }, [proposals]);
+
+  const applyReregisterProposal = useCallback((sourceProposal) => {
+    if (!sourceProposal) return;
+    const rawSessions = Array.isArray(sourceProposal.weeklySessions) ? sourceProposal.weeklySessions : [];
+    const normalizedSessions = sortWeeklySessions(
+      rawSessions.map((s) => {
+        const wd = Number(s.weekday);
+        const startMin = Number(s.startMinute ?? s.startMin ?? 0);
+        const endMin = Number(s.endMinute ?? s.endMin ?? (startMin + proposalPolicy.sessionDurationMinutes));
+        return {
+          key: s.key || weeklySlotKey(wd, startMin),
+          weekday: wd,
+          startMinute: startMin,
+          endMinute: endMin,
+          startClock: s.startClock || clockFromMinutes(startMin),
+          endClock: s.endClock || clockFromMinutes(endMin),
+        };
+      })
+    );
+
+    // Revalidate each session against live commitments, rest gaps, daily/weekly caps, and max sessions per proposal
+    const acceptedSessions = [];
+    for (const candidate of normalizedSessions) {
+      const check = validateWeeklySlotAddition({
+        weekday: candidate.weekday,
+        startMinute: candidate.startMinute,
+        currentSessions: acceptedSessions,
+        expectedStartDate: null,
+        viewAnchorKey: null,
+        commitments,
+        policy: proposalPolicy,
+      });
+      if (check.valid && check.slot) {
+        acceptedSessions.push(check.slot);
+      }
+    }
+
+    if (acceptedSessions.length === 0) {
+      notify.error(tr('Các khung giờ của đề xuất trước hiện đã bị trùng lịch hoặc không còn khả dụng. Vui lòng chọn lịch mới trên lịch.'));
+      return;
+    }
+
+    const validStartDate = findEarliestValidStartDate({
+      weeklySessions: acceptedSessions,
+      policy: proposalPolicy,
+    }) || '';
+
+    const levelEntry = availableLevels.find(
+      (l) => String(l.code || '').toUpperCase() === String(sourceProposal.jlptLevelCode || '').toUpperCase()
+        || Number(l.certificateLevelId ?? l.id) === Number(sourceProposal.certificateLevelId)
+    );
+
     submitKeyRef.current = null;
+    setReregisterConfirmTarget(null);
+    setInspectedProposal(null);
+    setCourseDrawerOpen(false);
+    setReviewModalOpen(false);
     setRegistrationMode('proposal');
     setShowCourseErrors(false);
-    clearLocalDraft(uid, 'new');
+
+    // Always reuse the single active Draft slot (never create a parallel second draft, never auto-submit)
+    setDraft((cur) => ({
+      ...createEmptyDraft(proposalPolicy),
+      id: cur.status === 'Draft' ? cur.id : null,
+      revision: cur.status === 'Draft' ? cur.revision : 0,
+      status: 'Draft',
+      certificateLevelId: levelEntry ? Number(levelEntry.certificateLevelId ?? levelEntry.id) : (sourceProposal.certificateLevelId || null),
+      jlptLevelCode: levelEntry?.code || sourceProposal.jlptLevelCode || null,
+      courseTitle: sourceProposal.courseTitle || '',
+      courseObjective: sourceProposal.courseObjective || '',
+      expectedStartDate: validStartDate,
+      courseDurationWeeks: proposalPolicy.courseDurationWeeks,
+      sessionDurationMinutes: proposalPolicy.sessionDurationMinutes,
+      weeklySessions: acceptedSessions,
+      optionalNotes: sourceProposal.optionalNotes || '',
+      optionalAttachments: Array.isArray(sourceProposal.optionalAttachments) ? sourceProposal.optionalAttachments : [],
+    }));
+
+    if (acceptedSessions.length < normalizedSessions.length) {
+      notify.info(
+        trf('Đã khôi phục {0}/{1} khung giờ còn khả dụng. Vui lòng kiểm tra và hoàn thiện trước khi gửi duyệt.', {
+          0: acceptedSessions.length,
+          1: normalizedSessions.length,
+        })
+      );
+    } else {
+      notify.success(tr('Đã tạo bản đăng ký lại từ đề xuất trước. Vui lòng kiểm tra lại thông tin và lịch trước khi gửi duyệt.'));
+    }
+  }, [availableLevels, commitments, proposalPolicy, tr, trf]);
+
+  const handleReregisterProposalById = useCallback((proposalId) => {
+    const target = proposals.find((p) => Number(p.id) === Number(proposalId));
+    if (!target || target.status !== 'Rejected') return;
+
+    if (!mentorVerified) {
+      notify.error(tr('Bạn cần hoàn tất xác minh hồ sơ chuyên môn trước khi đăng ký mở lớp.'));
+      return;
+    }
+
+    const levelMatrix = resolveJlptLevelAvailability({
+      availableLevels,
+      qualifiedLevels,
+      mentorVerifiedJlptLevel,
+      proposals,
+      cohorts,
+      currentProposalId: draft.status === 'Draft' ? draft.id : null,
+    });
+    if (target.jlptLevelCode) {
+      const levelInfo = levelMatrix.find(
+        (item) => String(item.code || '').toUpperCase() === String(target.jlptLevelCode).toUpperCase()
+      );
+      if (levelInfo && !levelInfo.qualified) {
+        notify.error(tr('Không đủ trình độ chuyên môn cho cấp độ JLPT này.'));
+        return;
+      }
+      if (levelInfo && levelInfo.disabled) {
+        notify.error(levelInfo.disabledReason || tr('Cấp độ JLPT này hiện đã có đề xuất hoặc lớp đang hoạt động.'));
+        return;
+      }
+    }
+
+    const hasExistingSelection = (draft.weeklySessions || []).length > 0 || hasEnteredClassMetadata(draft);
+    if (hasExistingSelection) {
+      setReregisterConfirmTarget(target);
+      return;
+    }
+    applyReregisterProposal(target);
+  }, [
+    applyReregisterProposal,
+    availableLevels,
+    cohorts,
+    draft,
+    mentorVerified,
+    mentorVerifiedJlptLevel,
+    proposals,
+    qualifiedLevels,
+    tr,
+  ]);
+
+  const resetToFreshSelection = useCallback(() => {
+    submitKeyRef.current = null;
+    persistence.cancelPendingAndClear();
+    setRegistrationMode('proposal');
+    setShowCourseErrors(false);
+    setLastSubmittedBanner(null);
+    setInspectedProposal(null);
+    setCalendarFocusRequest(null);
+    setReferenceWeekKey(null);
     setDraft(createEmptyDraft(proposalPolicy));
-    setListDrawerOpen(false);
+    setCourseDrawerOpen(false);
     setReviewModalOpen(false);
     setSearchParams({}, { replace: true });
-    notify.info(tr('Đã tạo biểu mẫu đề xuất mở lớp mới. Các đề xuất đang chờ duyệt khác vẫn được giữ nguyên.'));
-  }, [proposalPolicy, setSearchParams, tr, uid]);
+  }, [persistence, proposalPolicy, setSearchParams]);
 
-  // Project draft's weekly pattern onto the currently visible week in InteractiveSlotCalendar
-  const calendarSelectedSlots = useMemo(
-    () => weeklySessionsToCalendarSlots({
-      weeklySessions: draft.weeklySessions || [],
-      anchorKey: calendarAnchorKey,
-      policy: proposalPolicy,
-    }),
-    [draft.weeklySessions, calendarAnchorKey, proposalPolicy]
-  );
+  const executeClearSelection = useCallback(async () => {
+    const serverDraftId = draft.status === 'Draft' && draft.id ? Number(draft.id) : null;
+    setClearSelectionConfirmOpen(false);
+    setClearingSelection(true);
+    try {
+      submitKeyRef.current = null;
+      persistence.cancelPendingAndClear();
+      setShowCourseErrors(false);
+      setCalendarFocusRequest(null);
+      setReferenceWeekKey(null);
+      setCourseDrawerOpen(false);
+      setReviewModalOpen(false);
+      setDraft(createEmptyDraft(proposalPolicy));
+      setSearchParams({}, { replace: true });
 
-  // Project other PendingReview proposals onto the calendar so Mentors visually see reserved windows
+      // Optimistically clear any Draft row from Registration History cache immediately
+      queryClient.setQueryData(contextKey, (old) => {
+        if (!old || !Array.isArray(old.proposals)) return old;
+        return {
+          ...old,
+          proposals: old.proposals.filter((p) => p.status !== 'Draft'),
+        };
+      });
+
+      if (serverDraftId) {
+        await deleteTeachingProposalDraft(serverDraftId).catch(() => null);
+        await invalidateProposals();
+      }
+    } finally {
+      setClearingSelection(false);
+    }
+  }, [contextKey, draft.id, draft.status, invalidateProposals, persistence, proposalPolicy, queryClient, setSearchParams]);
+
+  const requestClearSelection = useCallback(() => {
+    if (draft.status === 'ChangesRequested') {
+      setWithdrawTarget(draft);
+      setWithdrawModalOpen(true);
+      return;
+    }
+    if (hasEnteredClassMetadata(draft)) {
+      setClearSelectionConfirmOpen(true);
+      return;
+    }
+    void executeClearSelection();
+  }, [draft, executeClearSelection]);
+
+  // Project PendingReview & ChangesRequested proposals onto calendar cards (including the currently viewed PendingReview proposal)
   const pendingProposalEvents = useMemo(() => {
     const items = [];
-    for (const c of commitments) {
-      if (c.kind !== 'pendingProposal') continue;
-      const startMin = Number.isFinite(Number(c.startMin))
-        ? Number(c.startMin)
-        : (c.startMs ? (((Math.floor((c.startMs + 7 * 3600_000) / 60_000)) % 1440) + 1440) % 1440 : NaN);
-      const endMin = Number.isFinite(Number(c.endMin))
-        ? Number(c.endMin)
-        : (c.endMs ? (((Math.floor((c.endMs + 7 * 3600_000) / 60_000)) % 1440) + 1440) % 1440 : NaN);
-      if (!Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) continue;
+    const seenIds = new Set();
+
+    const pushPendingCard = ({
+      id,
+      proposalId,
+      jlptLevelCode,
+      dayKey,
+      startMin,
+      endMin,
+      weekday,
+      status,
+      label,
+      sessionNumber = null,
+      totalSessions = null,
+    }) => {
+      if (!dayKey || !Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) return;
+      if (seenIds.has(id)) return;
+      seenIds.add(id);
       const startClock = clockFromMinutes(startMin);
       const endClock = clockFromMinutes(endMin);
       const timeRange = `${startClock}–${endClock}`;
+      const friendlyStatus = status === 'ChangesRequested' ? 'Cần bổ sung' : 'Chờ duyệt';
+      const sessionBadge = sessionNumber && totalSessions ? trf('Buổi {0}/{1}', { 0: sessionNumber, 1: totalSessions }) : null;
+      const detailParts = [sessionBadge, tr(friendlyStatus)].filter(Boolean);
       items.push({
-        id: c.id,
+        id,
+        proposalId: proposalId || null,
+        proposalStatus: status || 'PendingReview',
+        jlptLevelCode: jlptLevelCode || null,
+        courseTitle: label || null,
+        sessionNumber: sessionNumber || null,
+        totalSessions: totalSessions || null,
         sourceKind: 'pendingProposal',
         draggable: false,
         locked: true,
-        dayKey: c.dayKey,
+        dayKey,
         startMin,
         endMin,
         startHour: Math.floor(startMin / 60),
@@ -445,14 +901,151 @@ export default function MentorShiftSchedule() {
         endClock,
         timeLabel: timeRange,
         title: timeRange,
-        fullTitle: `${c.label || 'Đề xuất đang chờ duyệt'} (${timeRange})`,
-        statusLabel: 'Đề xuất chờ duyệt',
+        fullTitle: `${label || tr('Đề xuất mở lớp')} (${timeRange})`,
+        statusLabel: friendlyStatus,
         tone: 'pending',
-        detail: c.label ? `${c.label} · ${weekdayLabelVn(c.weekday)}` : `${weekdayLabelVn(c.weekday)} · ${timeRange}`,
+        detail: detailParts.join(' · ') || `${weekdayLabelVn(weekday)} · ${timeRange}`,
+      });
+    };
+
+    for (const c of commitments) {
+      if (c.kind !== 'pendingProposal') continue;
+      const startMin = Number.isFinite(Number(c.startMin))
+        ? Number(c.startMin)
+        : (c.startMs ? (((Math.floor((c.startMs + 7 * 3600_000) / 60_000)) % 1440) + 1440) % 1440 : NaN);
+      const endMin = Number.isFinite(Number(c.endMin))
+        ? Number(c.endMin)
+        : (c.endMs ? (((Math.floor((c.endMs + 7 * 3600_000) / 60_000)) % 1440) + 1440) % 1440 : NaN);
+      pushPendingCard({
+        id: c.id,
+        proposalId: c.proposalId,
+        jlptLevelCode: c.jlptLevelCode,
+        dayKey: c.dayKey,
+        startMin,
+        endMin,
+        weekday: c.weekday,
+        status: c.status,
+        label: c.label,
+        sessionNumber: c.sessionNumber || null,
+        totalSessions: c.totalSessions || null,
       });
     }
+
+    // If the currently viewed proposal is PendingReview, render its finite occurrences directly as amber "Chờ duyệt" cards
+    if (draft.status === 'PendingReview') {
+      const sourceOccs = Array.isArray(draft.occurrencesPreview) && draft.occurrencesPreview.length > 0
+        ? draft.occurrencesPreview
+        : (proposalPreview.occurrences || []);
+      const totalCount = sourceOccs.length;
+      const resolvedLabel = draft.courseTitle?.trim()
+        || (draft.jlptLevelCode ? trf('Đề xuất mở lớp {0}', { 0: draft.jlptLevelCode }) : tr('Đề xuất mở lớp'));
+      for (const occ of sourceOccs) {
+        const startMin = Number(occ.startMinute);
+        const endMin = Number(occ.endMinute || (startMin + proposalPolicy.sessionDurationMinutes));
+        const occStartMs = occ.startMs || (occ.startUtc || occ.startUtcIso ? new Date(occ.startUtc || occ.startUtcIso).getTime() : 0);
+        pushPendingCard({
+          id: `prop-${draft.id || 'cur'}-${occStartMs || `${occ.localDate}_${startMin}`}`,
+          proposalId: draft.id || null,
+          jlptLevelCode: draft.jlptLevelCode || null,
+          dayKey: occ.localDate,
+          startMin,
+          endMin,
+          weekday: occ.weekday,
+          status: 'PendingReview',
+          label: resolvedLabel,
+          sessionNumber: occ.sessionNumber || null,
+          totalSessions: totalCount || null,
+        });
+      }
+    }
+
     return items;
-  }, [commitments]);
+  }, [commitments, draft.courseTitle, draft.id, draft.jlptLevelCode, draft.occurrencesPreview, draft.status, proposalPolicy.sessionDurationMinutes, proposalPreview.occurrences, tr, trf]);
+
+  // Project Rejected proposals as non-blocking red history cards (locked: false, clickable to inspect rejection reason or re-select)
+  const rejectedProposalEvents = useMemo(() => {
+    const items = [];
+    const seenIds = new Set();
+    for (const prop of proposals) {
+      if (!prop || prop.status !== 'Rejected') continue;
+      if (!prop.expectedStartDate || !Array.isArray(prop.weeklySessions) || prop.weeklySessions.length === 0) continue;
+      const occs = Array.isArray(prop.occurrencesPreview) && prop.occurrencesPreview.length > 0
+        ? prop.occurrencesPreview
+        : expandProposalOccurrences({
+          expectedStartDate: prop.expectedStartDate,
+          weeklySessions: prop.weeklySessions,
+          courseDurationWeeks: prop.courseDurationWeeks || proposalPolicy.courseDurationWeeks,
+          sessionDurationMinutes: prop.sessionDurationMinutes || proposalPolicy.sessionDurationMinutes,
+        });
+      const totalCount = occs.length;
+      const resolvedLabel = prop.courseTitle?.trim()
+        || (prop.jlptLevelCode ? trf('Đề xuất mở lớp {0}', { 0: prop.jlptLevelCode }) : tr('Đề xuất mở lớp'));
+      for (let idx = 0; idx < occs.length; idx += 1) {
+        const occ = occs[idx];
+        const startMin = Number(occ.startMinute);
+        const endMin = Number(occ.endMinute || (startMin + (prop.sessionDurationMinutes || proposalPolicy.sessionDurationMinutes)));
+        if (!occ.localDate || !Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) continue;
+        const id = `rej-prop-${prop.id}-${occ.localDate}_${startMin}`;
+        if (seenIds.has(id)) continue;
+        seenIds.add(id);
+        const startClock = clockFromMinutes(startMin);
+        const endClock = clockFromMinutes(endMin);
+        const timeRange = `${startClock}–${endClock}`;
+        const sessNum = occ.sessionNumber || idx + 1;
+        const sessionBadge = totalCount ? trf('Buổi {0}/{1}', { 0: sessNum, 1: totalCount }) : null;
+        items.push({
+          id,
+          proposalId: prop.id,
+          proposalStatus: 'Rejected',
+          jlptLevelCode: prop.jlptLevelCode || null,
+          courseTitle: prop.courseTitle?.trim() || null,
+          sessionNumber: sessNum,
+          totalSessions: totalCount || null,
+          rejectionReason: prop.reviewReason || null,
+          sourceKind: 'rejectedProposal',
+          draggable: false,
+          locked: false,
+          dayKey: occ.localDate,
+          startMin,
+          endMin,
+          startHour: Math.floor(startMin / 60),
+          startMinute: startMin % 60,
+          endHour: Math.floor(endMin / 60),
+          endMinute: endMin % 60,
+          startClock,
+          endClock,
+          timeLabel: timeRange,
+          title: timeRange,
+          fullTitle: `${resolvedLabel} (${timeRange})`,
+          statusLabel: 'Bị từ chối',
+          tone: 'rejected',
+          detail: [sessionBadge, tr('Bị từ chối')].filter(Boolean).join(' · '),
+        });
+      }
+    }
+    return items;
+  }, [proposals, proposalPolicy.courseDurationWeeks, proposalPolicy.sessionDurationMinutes, tr, trf]);
+
+  // Map approved proposal generatedAvailabilityIds -> JLPT level & session metadata for clean green "Đã duyệt" cards
+  const slotProposalMetaById = useMemo(() => {
+    const map = new Map();
+    for (const prop of proposals) {
+      if (!prop || prop.status !== 'Approved') continue;
+      const ids = Array.isArray(prop.generatedAvailabilityIds) ? prop.generatedAvailabilityIds : [];
+      const total = ids.length || null;
+      ids.forEach((avId, idx) => {
+        if (!avId) return;
+        map.set(Number(avId), {
+          proposalId: prop.id,
+          jlptLevelCode: prop.jlptLevelCode || null,
+          courseTitle: prop.courseTitle?.trim() || null,
+          sessionNumber: idx + 1,
+          totalSessions: total,
+        });
+      });
+    }
+    return map;
+  }, [proposals]);
 
   const normalizeSessionList = useCallback((items = []) => (
     items
@@ -473,6 +1066,16 @@ export default function MentorShiftSchedule() {
   ), [proposalPolicy.sessionDurationMinutes]);
 
   const handleValidateProposalCandidate = useCallback(({ dayKey, startMin, replaceKey = null, currentOverride = null }) => {
+    const startClock = clockFromMinutes(startMin);
+    const candidateStartMs = Date.parse(vnLocalToUtcIso(dayKey, startClock));
+    if (Number.isFinite(candidateStartMs) && candidateStartMs <= Date.now()) {
+      return {
+        valid: false,
+        code: 'PAST_SCHEDULE_SLOT',
+        reason: tr('Đã quá thời gian này.'),
+      };
+    }
+
     const weekday = dayKeyToWeekday(dayKey);
     const sessionsPool = Array.isArray(currentOverride)
       ? normalizeSessionList(currentOverride)
@@ -487,32 +1090,37 @@ export default function MentorShiftSchedule() {
       currentSessions: sessionsPool,
       replaceKey: normalizedReplaceKey,
       expectedStartDate: draft.expectedStartDate || null,
+      viewAnchorKey: null,
       commitments,
       policy: proposalPolicy,
     });
 
     if (!check.valid) return check;
 
-    const startClock = clockFromMinutes(startMin);
     const endMin = startMin + proposalPolicy.sessionDurationMinutes;
+    const endClock = clockFromMinutes(endMin);
     return {
       valid: true,
       key: check.slot.key,
       weekday,
       endMin,
       startClock,
-      endClock: clockFromMinutes(endMin),
-      startUtcIso: vnLocalToUtcIso(dayKey, startMin),
-      endUtcIso: vnLocalToUtcIso(dayKey, endMin),
+      endClock,
+      startUtcIso: vnLocalToUtcIso(dayKey, startClock),
+      endUtcIso: vnLocalToUtcIso(dayKey, endClock),
       slot: check.slot,
     };
-  }, [commitments, draft.expectedStartDate, draft.weeklySessions, normalizeSessionList, proposalPolicy]);
+  }, [commitments, draft.expectedStartDate, draft.weeklySessions, normalizeSessionList, proposalPolicy, tr]);
 
   const handleProposalCalendarSelectionChange = useCallback((nextOrUpdater) => {
     if (!isEditable) return;
     const resolved = typeof nextOrUpdater === 'function' ? nextOrUpdater(calendarSelectedSlots) : nextOrUpdater;
     const dedup = new Map();
+    let addedDayKey = null;
     for (const item of resolved || []) {
+      if (item.justAdded && item.dayKey) {
+        addedDayKey = item.dayKey;
+      }
       const ws = calendarSlotToWeeklySlot({
         dayKey: item.dayKey,
         startMin: Number(item.startMin ?? item.startMinute),
@@ -520,43 +1128,49 @@ export default function MentorShiftSchedule() {
       });
       dedup.set(ws.key, ws);
     }
-    patchDraft({ weeklySessions: sortWeeklySessions([...dedup.values()]) });
-  }, [calendarSelectedSlots, isEditable, patchDraft, proposalPolicy]);
-
-  // Quick Fill preview (Proposal Mode)
-  const proposalQuickFillPreview = useMemo(() => {
-    if (!quickFillOpen || registrationMode !== 'proposal') return null;
-    if (quickFillTab === 'presets') {
-      const preset = QUICK_FILL_PRESETS.find((p) => p.id === selectedPresetId) || QUICK_FILL_PRESETS[0];
-      return buildProposalQuickFillPreview({
-        candidateInputs: preset.slots,
-        currentSessions: draft.weeklySessions || [],
-        expectedStartDate: draft.expectedStartDate || null,
-        commitments,
-        policy: proposalPolicy,
-        mode: quickFillMode,
-      });
+    const nextSessions = sortWeeklySessions([...dedup.values()]);
+    if (nextSessions.length === 0) {
+      if (draft.status === 'Draft') {
+        requestClearSelection();
+        return;
+      }
+      setReferenceWeekKey(null);
+      patchDraft({ weeklySessions: [], expectedStartDate: '' });
+      return;
     }
-    return buildProposalQuickFillPreview({
-      selectedDaypartRules: customDayparts,
-      currentSessions: draft.weeklySessions || [],
-      expectedStartDate: draft.expectedStartDate || null,
-      commitments,
-      policy: proposalPolicy,
-      mode: quickFillMode,
-    });
-  }, [
-    commitments,
-    customDayparts,
-    draft.expectedStartDate,
-    draft.weeklySessions,
-    proposalPolicy,
-    quickFillMode,
-    quickFillOpen,
-    quickFillTab,
-    registrationMode,
-    selectedPresetId,
-  ]);
+
+    let nextStartDate = draft.expectedStartDate || '';
+    if (nextStartDate) {
+      const check = validateCourseStartDate({
+        dayKey: nextStartDate,
+        weeklySessions: nextSessions,
+        policy: proposalPolicy,
+      });
+      if (!check.valid) {
+        if (
+          addedDayKey
+          && validateCourseStartDate({ dayKey: addedDayKey, weeklySessions: nextSessions, policy: proposalPolicy }).valid
+        ) {
+          nextStartDate = addedDayKey;
+        } else {
+          const todayKey = toVnDateKey(new Date());
+          nextStartDate = findEarliestValidStartDate({
+            minDateKey: nextStartDate >= todayKey ? nextStartDate : null,
+            weeklySessions: nextSessions,
+            policy: proposalPolicy,
+          }) || '';
+        }
+      }
+    } else if (addedDayKey) {
+      setReferenceWeekKey(mondayOfDateKey(addedDayKey));
+    }
+
+    patchDraft(
+      nextStartDate !== (draft.expectedStartDate || '')
+        ? { weeklySessions: nextSessions, expectedStartDate: nextStartDate }
+        : { weeklySessions: nextSessions }
+    );
+  }, [calendarSelectedSlots, draft.expectedStartDate, draft.status, isEditable, patchDraft, proposalPolicy, requestClearSelection]);
 
   // Quick Fill preview (Single Availability Mode)
   const availQuickFillPreview = useMemo(() => {
@@ -570,16 +1184,6 @@ export default function MentorShiftSchedule() {
     });
   }, [availQuickRules, availSelectedSlots, availabilityPolicy, calendarAnchorKey, occupiedItems, quickFillOpen, registrationMode]);
 
-  const toggleProposalDaypart = (weekday, daypartId) => {
-    const k = `${weekday}-${daypartId}`;
-    setCustomDayparts((cur) => {
-      const next = new Set(cur);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
-  };
-
   const toggleAvailRule = (weekday, daypartCode) => {
     const k = `${weekday}-${daypartCode}`;
     setAvailQuickRules((cur) => {
@@ -590,17 +1194,53 @@ export default function MentorShiftSchedule() {
     });
   };
 
-  const applyQuickFill = () => {
-    if (registrationMode === 'proposal') {
-      if (!proposalQuickFillPreview || proposalQuickFillPreview.validCandidates.length === 0) return;
-      patchDraft({ weeklySessions: proposalQuickFillPreview.resultingSessions });
-      setQuickFillOpen(false);
-      notify.success(trf('Đã áp dụng {0} khung giờ vào lịch đề xuất hàng tuần.', {
-        0: proposalQuickFillPreview.validCandidates.length,
-      }));
-      return;
-    }
+  // Re-fetch proposals/commitments and availability right before applying; throws so the wizard never reports success.
+  const revalidateQuickRegistration = useCallback(async () => {
+    const [ctxResult] = await Promise.all([
+      contextQuery.refetch({ cancelRefetch: true }),
+      invalidateScheduling(),
+    ]);
+    if (ctxResult?.isError) throw ctxResult.error || new Error('refresh failed');
+  }, [contextQuery, invalidateScheduling]);
 
+  const handleApplySmartQuickRegistration = useCallback((preview) => {
+    if (!preview?.canApply || preview.validCandidates.length === 0) return;
+    const prevSessions = [...(draft.weeklySessions || [])];
+    const prevStartDate = draft.expectedStartDate || '';
+    let nextStartDate = prevStartDate;
+    if (
+      nextStartDate
+      && !validateCourseStartDate({ dayKey: nextStartDate, weeklySessions: preview.resultingSessions, policy: proposalPolicy }).valid
+    ) {
+      const todayKey = toVnDateKey(new Date());
+      nextStartDate = findEarliestValidStartDate({
+        minDateKey: nextStartDate >= todayKey ? nextStartDate : null,
+        weeklySessions: preview.resultingSessions,
+        policy: proposalPolicy,
+      }) || '';
+    }
+    patchDraft(
+      nextStartDate !== prevStartDate
+        ? { weeklySessions: preview.resultingSessions, expectedStartDate: nextStartDate }
+        : { weeklySessions: preview.resultingSessions }
+    );
+    setQuickFillOpen(false);
+    triggerFocusToSessions(preview.validCandidates, nextStartDate || null);
+
+    notify.success({
+      title: trf('Đã áp dụng {0} buổi dạy vào lịch đang chọn.', { 0: preview.validCandidates.length }),
+      key: 'smart-quick-reg-applied',
+      duration: 7000,
+      action: {
+        label: 'Hoàn tác',
+        onClick: () => {
+          patchDraft({ weeklySessions: prevSessions, expectedStartDate: prevStartDate });
+        },
+      },
+    });
+  }, [draft.expectedStartDate, draft.weeklySessions, patchDraft, proposalPolicy, trf, triggerFocusToSessions]);
+
+  const applyAvailQuickFill = () => {
     if (!availQuickFillPreview || availQuickFillPreview.validSlots.length === 0) return;
     setAvailSelectedSlots((cur) => {
       const existingKeys = new Set(cur.map((s) => s.key));
@@ -613,15 +1253,15 @@ export default function MentorShiftSchedule() {
     }));
   };
 
-  // Submit mutation (syncs server draft first, then submits idempotently)
+  // Submit mutation (syncs server selection cleanly first, then submits idempotently)
   const submitMutation = useMutation({
     mutationFn: async () => {
-      let target = draft;
+      let target = { ...draft, programType: 'StandardJlpt', coursePlanId: null };
       const synced = await persistence.syncNow();
       if (synced?.id) {
         target = synced;
       } else if (!target.id) {
-        throw new Error(tr('Vui lòng đợi bản nháp được lưu lên máy chủ trước khi gửi duyệt.'));
+        throw new Error(tr('Vui lòng đợi lịch đang chọn được đồng bộ lên máy chủ trước khi gửi duyệt.'));
       }
 
       if (!submitKeyRef.current) {
@@ -636,69 +1276,99 @@ export default function MentorShiftSchedule() {
     onSuccess: async (submitted) => {
       submitKeyRef.current = null;
       persistence.markCleanAfterSubmit(submitted);
-      setDraft(normalizeServerProposalToDraft(submitted, proposalPolicy));
+      clearLocalDraft(uid, 'new');
+      if (submitted?.id) clearLocalDraft(uid, submitted.id);
       setReviewModalOpen(false);
-      if (submitted?.id) setSearchParams({ proposalId: String(submitted.id) }, { replace: true });
-      await invalidateProposals();
-      notify.success(tr('Đã gửi đề xuất mở lớp lên Admin chờ phê duyệt! Bạn có thể tạo thêm đề xuất mở lớp khác nếu muốn.'));
+      setCourseDrawerOpen(false);
+      setShowCourseErrors(false);
+      setCalendarFocusRequest(null);
+      setReferenceWeekKey(null);
+
+      // Optimistically update the proposal list so the submitted proposal immediately renders
+      // as amber "Chờ duyệt" cards on the Calendar while the working draft resets cleanly.
+      if (submitted?.id) {
+        queryClient.setQueryData(contextKey, (old) => {
+          if (!old || !Array.isArray(old.proposals)) return old;
+          const exists = old.proposals.some((p) => Number(p.id) === Number(submitted.id));
+          const nextProposals = exists
+            ? old.proposals.map((p) => (Number(p.id) === Number(submitted.id) ? submitted : p))
+            : [submitted, ...old.proposals];
+          return { ...old, proposals: nextProposals };
+        });
+      }
+
+      setDraft(createEmptyDraft(proposalPolicy));
+      setSearchParams({}, { replace: true });
+      if (submitted?.expectedStartDate) {
+        setCalendarAnchorKey(submitted.expectedStartDate);
+      }
+
+      const submittedSummary = {
+        id: submitted?.id,
+        proposal: normalizeServerProposalToDraft(submitted, proposalPolicy),
+        jlptLevelCode: submitted?.jlptLevelCode || draft.jlptLevelCode || null,
+        title: submitted?.courseTitle?.trim()
+          || (submitted?.jlptLevelCode
+            ? trf('Đề xuất mở lớp {0}', { 0: submitted.jlptLevelCode })
+            : tr('Đề xuất mở lớp')),
+      };
+      setLastSubmittedBanner(submittedSummary);
+      await Promise.all([
+        invalidateProposals(),
+        invalidateSidebarCounters(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      ]);
+      notify.success(
+        tr('Gửi đề xuất mở lớp thành công'),
+        tr('Đề xuất của bạn đang chờ quản trị viên phê duyệt.')
+      );
     },
     onError: (err) => {
-      notify.error(describeApiError(err).message || tr('Chưa thể gửi duyệt đề xuất. Vui lòng kiểm tra lại lịch dạy.'));
+      notify.error(describeApiError(err).message || tr('Chưa thể gửi duyệt đề xuất. Vui lòng kiểm tra lại thông tin và lịch dạy.'));
     },
   });
 
   const withdrawMutation = useMutation({
-    mutationFn: async () => withdrawTeachingProposal(draft.id, {
-      reason: withdrawReason.trim() || null,
-      expectedRevision: draft.revision,
-    }),
-    onSuccess: async (updated) => {
+    mutationFn: async () => {
+      const target = withdrawTarget || draft;
+      if (!target?.id) throw new Error(tr('Không tìm thấy đề xuất cần hủy.'));
+      return {
+        targetId: target.id,
+        res: await withdrawTeachingProposal(target.id, {
+          reason: withdrawReason.trim() || null,
+          expectedRevision: target.revision,
+        }),
+      };
+    },
+    onSuccess: async ({ targetId }) => {
       setWithdrawModalOpen(false);
       setWithdrawReason('');
-      setDraft(normalizeServerProposalToDraft(updated, proposalPolicy));
-      await invalidateProposals();
-      notify.success(tr('Đã rút đề xuất mở lớp. Các khung giờ tạm giữ đã được giải phóng.'));
-    },
-    onError: (err) => notify.error(describeApiError(err).message),
-  });
+      setWithdrawTarget(null);
+      setInspectedProposal((cur) => (cur && Number(cur.id) === Number(targetId) ? null : cur));
+      setLastSubmittedBanner((cur) => (cur && Number(cur.id) === Number(targetId) ? null : cur));
+      clearLocalDraft(uid, targetId);
 
-  const cloneMutation = useMutation({
-    mutationFn: (id) => cloneTeachingProposalDraft(id),
-    onSuccess: async (cloned) => {
-      await invalidateProposals();
-      openProposal(cloned);
-      notify.success(tr('Đã tạo bản nháp mới từ đề xuất trước đó.'));
-    },
-    onError: (err) => notify.error(describeApiError(err).message),
-  });
+      // Remove cancelled proposal immediately from cache
+      queryClient.setQueryData(contextKey, (old) => {
+        if (!old || !Array.isArray(old.proposals)) return old;
+        return {
+          ...old,
+          proposals: old.proposals.filter((p) => Number(p.id) !== Number(targetId)),
+        };
+      });
 
-  const deleteDraftMutation = useMutation({
-    mutationFn: (id) => deleteTeachingProposalDraft(id),
-    onSuccess: async (_, deletedId) => {
-      clearLocalDraft(uid, deletedId);
-      setDeleteTarget(null);
-      await invalidateProposals();
-      if (Number(draft.id) === Number(deletedId)) {
-        startNewProposal();
+      if (Number(draft.id) === Number(targetId)) {
+        resetToFreshSelection();
       }
-      notify.success(tr('Đã xóa bản nháp đề xuất.'));
+      await Promise.all([
+        invalidateProposals(),
+        invalidateSidebarCounters(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      ]);
+      notify.success(tr('Đã hủy đề xuất mở lớp. Các khung giờ tạm giữ đã được giải phóng.'));
     },
     onError: (err) => notify.error(describeApiError(err).message),
   });
-
-  const openHistoryDrawer = async () => {
-    if (!draft.id) return;
-    setHistoryDrawerOpen(true);
-    setHistoryLoading(true);
-    try {
-      const full = await getMyTeachingProposal(draft.id);
-      setDetailHistory(full?.history || []);
-    } catch {
-      setDetailHistory([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
 
   const handleReloadServerForConflict = async () => {
     if (!draft.id) return;
@@ -706,7 +1376,7 @@ export default function MentorShiftSchedule() {
       const latest = await getMyTeachingProposal(draft.id);
       persistence.resolveKeepServer(latest);
       await invalidateProposals();
-      notify.info(tr('Đã đồng bộ theo bản mới nhất từ máy chủ.'));
+      notify.info(tr('Đã đồng bộ theo dữ liệu mới nhất từ máy chủ.'));
     } catch (err) {
       notify.error(describeApiError(err).message);
     }
@@ -723,47 +1393,52 @@ export default function MentorShiftSchedule() {
     }
   };
 
-  const statusMeta = PROPOSAL_STATUS_META[draft.status] || PROPOSAL_STATUS_META.Draft;
-
-  const filteredProposalList = useMemo(() => {
-    if (listFilter === 'ALL') return proposals;
-    return proposals.filter((p) => p.status === listFilter);
-  }, [listFilter, proposals]);
-
   const selectedLevelObj = useMemo(
     () => availableLevels.find((l) => Number(l.certificateLevelId ?? l.id) === Number(draft.certificateLevelId)) || null,
     [availableLevels, draft.certificateLevelId]
   );
 
   const courseSummaryText = useMemo(() => {
+    if ((draft.weeklySessions || []).length === 0) return '';
     const parts = [];
     if (selectedLevelObj?.code || draft.jlptLevelCode) parts.push(selectedLevelObj?.code || draft.jlptLevelCode);
-    if (draft.expectedStartDate) parts.push(`${tr('Khai giảng')} ${draft.expectedStartDate}`);
-    return parts.join(' · ') || tr('Chưa điền thông tin lớp');
-  }, [draft.expectedStartDate, draft.jlptLevelCode, selectedLevelObj?.code, tr]);
+    if (draft.expectedStartDate) parts.push(`${tr('Khai giảng')} ${formatIsoDateDisplay(draft.expectedStartDate)}`);
+    return parts.join(' · ');
+  }, [draft.expectedStartDate, draft.jlptLevelCode, draft.weeklySessions, selectedLevelObj?.code, tr]);
 
   const renderSaveIndicator = () => {
     if (!isEditable || registrationMode !== 'proposal') return null;
     switch (persistence.saveStatus) {
       case DRAFT_SAVE_STATUS.SAVING:
         return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-            <RefreshCw className="h-3.5 w-3.5 animate-spin text-rp-brand" />
-            {tr('Đang lưu...')}
+          <span className="inline-flex items-center gap-2 rounded-xl border border-rp-line bg-rp-bg-2/70 px-3 py-1.5 text-sm font-semibold text-rp-text-muted">
+            <RefreshCw className="h-4.5 w-4.5 shrink-0 animate-spin text-rp-brand" />
+            {tr('Đang lưu…')}
           </span>
         );
       case DRAFT_SAVE_STATUS.SAVED:
         return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+          <span className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-sm font-semibold text-emerald-700">
+            <CheckCircle2 className="h-4.5 w-4.5 shrink-0" />
             {tr('Đã lưu')}
           </span>
         );
+      case DRAFT_SAVE_STATUS.UNSYNCED:
+        return (
+          <button
+            type="button"
+            onClick={() => persistence.syncNow()}
+            className="rp-link inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-sm font-semibold text-amber-800"
+          >
+            <Save className="h-4.5 w-4.5 shrink-0" />
+            {tr('Chưa đồng bộ')}
+          </button>
+        );
       case DRAFT_SAVE_STATUS.OFFLINE_PENDING:
         return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
-            <CloudOff className="h-3.5 w-3.5" />
-            {tr('Ngoại tuyến — chờ đồng bộ')}
+          <span className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-sm font-semibold text-amber-800">
+            <CloudOff className="h-4.5 w-4.5 shrink-0" />
+            {tr('Mất kết nối — dữ liệu được giữ trên thiết bị')}
           </span>
         );
       case DRAFT_SAVE_STATUS.SYNC_FAILED:
@@ -771,17 +1446,17 @@ export default function MentorShiftSchedule() {
           <button
             type="button"
             onClick={() => persistence.syncNow()}
-            className="rp-link inline-flex items-center gap-1.5 text-xs font-semibold text-red-700"
+            className="rp-link inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50/80 px-3 py-1.5 text-sm font-semibold text-red-700"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            {tr('Lưu thất bại — thử lại')}
+            <RotateCcw className="h-4.5 w-4.5 shrink-0" />
+            {tr('Không thể lưu — thử lại')}
           </button>
         );
       case DRAFT_SAVE_STATUS.CONFLICT:
         return (
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {tr('Phát hiện xung đột')}
+          <span className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50/80 px-3 py-1.5 text-sm font-semibold text-red-700">
+            <AlertTriangle className="h-4.5 w-4.5 shrink-0" />
+            {tr('Phát hiện thay đổi từ thiết bị khác')}
           </span>
         );
       default:
@@ -832,160 +1507,36 @@ export default function MentorShiftSchedule() {
   return (
     <MentorShell pathname={pathname} breadcrumb={tr('Đăng ký lịch dạy')}>
       <PageContainer as="div" data-page="MentorShiftSchedule" width="default" className="space-y-3.5 text-rp-text">
-        <PageHeader
-          eyebrow={tr('Giảng dạy & Lịch nhóm JLPT')}
-          title={
-            <span className="inline-flex items-center gap-2.5">
-              <FeatureIcon feature="calendar" icon={CalendarClock} size="lg" />
-              <span>{tr('Đăng ký lịch dạy')}</span>
-            </span>
-          }
-          description={
-            registrationMode === 'proposal'
-              ? tr('Chọn 2–4 buổi/tuần (90 phút/buổi) trực tiếp trên lịch để đề xuất mở lớp 10 tuần gửi Admin phê duyệt.')
-              : tr('Đăng ký khung giờ rảnh đơn lẻ trên lịch. Khung giờ cần nghỉ ít nhất 15 phút giữa các ca.')
-          }
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              {renderSaveIndicator()}
+        <h1 className="sr-only">{tr('Đăng ký lịch dạy')}</h1>
 
-              <div className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2/70 p-0.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setRegistrationMode('proposal')}
-                  className={`rounded-lg px-2.5 py-1.5 font-semibold transition-colors ${
-                    registrationMode === 'proposal'
-                      ? 'bg-white text-rp-brand shadow-2xs'
-                      : 'text-rp-text-2 hover:text-rp-text'
-                  }`}
-                >
-                  {tr('Đề xuất mở lớp')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRegistrationMode('availability')}
-                  className={`rounded-lg px-2.5 py-1.5 font-semibold transition-colors ${
-                    registrationMode === 'availability'
-                      ? 'bg-white text-rp-brand shadow-2xs'
-                      : 'text-rp-text-2 hover:text-rp-text'
-                  }`}
-                >
-                  {tr('Giờ rảnh đơn lẻ')}
-                </button>
-              </div>
-
-              {registrationMode === 'proposal' && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    icon={ListChecks}
-                    onClick={() => setListDrawerOpen(true)}
-                  >
-                    {trf('Đề xuất của tôi ({0})', { 0: proposals.length })}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    icon={Plus}
-                    onClick={startNewProposal}
-                  >
-                    {tr('Tạo mới')}
-                  </Button>
-                </>
-              )}
-            </div>
-          }
-        />
-
-        {/* Slim Contextual Proposal Strip (keeps InteractiveSlotCalendar immediately above the fold) */}
-        {registrationMode === 'proposal' && (
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-rp-line bg-white px-3.5 py-2.5 shadow-2xs">
-            <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <Badge tone={statusMeta.tone} size="sm" icon={false}>
-                <span
-                  className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: statusMeta.dot }}
-                />
-                {tr(statusMeta.label)}
-              </Badge>
-              <button
-                type="button"
-                onClick={() => setCourseDrawerOpen(true)}
-                className="rp-link truncate text-sm font-bold text-rp-text hover:text-rp-brand"
-                title={tr('Mở Thông tin lớp dự kiến')}
-              >
-                {draft.courseTitle?.trim()
-                  || (draft.id ? trf('Đề xuất mở lớp #{0}', { 0: draft.id }) : tr('Đề xuất mở lớp mới'))}
-              </button>
-              <span className="hidden text-xs text-rp-text-muted md:inline">
-                · {courseSummaryText}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {isEditable && (
+        {/* Post-Submit Confirmation Banner */}
+        {registrationMode === 'proposal' && lastSubmittedBanner && (
+          <Banner
+            tone="success"
+            title={tr('Gửi đề xuất mở lớp thành công')}
+            onDismiss={() => setLastSubmittedBanner(null)}
+            actions={
+              lastSubmittedBanner.id ? (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  icon={Sparkles}
-                  onClick={() => setQuickFillOpen(true)}
+                  onClick={() => {
+                    const submittedObj = proposals.find((p) => Number(p.id) === Number(lastSubmittedBanner.id))
+                      || lastSubmittedBanner.proposal;
+                    if (submittedObj) openProposal(submittedObj);
+                    else setCalendarDisplayMode('list');
+                  }}
                 >
-                  {tr('Điền nhanh')}
+                  {tr('Xem chi tiết')}
                 </Button>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                icon={BookOpen}
-                onClick={() => setCourseDrawerOpen(true)}
-              >
-                {tr('Thông tin lớp')}
-              </Button>
-              {isEditable && draft.id && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  icon={Save}
-                  disabled={persistence.saveStatus === DRAFT_SAVE_STATUS.SAVING}
-                  onClick={() => persistence.syncNow()}
-                >
-                  {tr('Lưu nháp')}
-                </Button>
-              )}
-              {draft.id && (
-                <Button type="button" size="sm" variant="ghost" icon={History} onClick={openHistoryDrawer}>
-                  {tr('Lịch sử')}
-                </Button>
-              )}
-              {(draft.status === 'PendingReview' || draft.status === 'ChangesRequested') && draft.id && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  icon={Undo2}
-                  onClick={() => setWithdrawModalOpen(true)}
-                >
-                  {tr('Rút đề xuất')}
-                </Button>
-              )}
-              {(draft.status === 'Rejected' || draft.status === 'Withdrawn') && draft.id && (
-                <Button
-                  type="button"
-                  size="sm"
-                  icon={Copy}
-                  loading={cloneMutation.isPending}
-                  onClick={() => cloneMutation.mutate(draft.id)}
-                >
-                  {tr('Nhân bản bản nháp')}
-                </Button>
-              )}
-            </div>
-          </div>
+              ) : null
+            }
+          >
+            {trf('Đề xuất "{0}" đang chờ quản trị viên phê duyệt. Các khung giờ vừa gửi đã được hiển thị trên lịch để bạn tiếp tục đăng ký cấp độ khác nếu muốn.', {
+              0: lastSubmittedBanner.title,
+            })}
+          </Banner>
         )}
 
         {/* Conditional Alerts (Conflict / Admin Feedback / Read-Only State) */}
@@ -993,64 +1544,58 @@ export default function MentorShiftSchedule() {
           <Banner
             tone="danger"
             icon={AlertTriangle}
-            title={tr('Phát hiện xung đột bản nháp giữa nhiều phiên làm việc')}
-            action={
+            title={tr('Phát hiện xung đột thay đổi từ thiết bị khác')}
+            actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" size="sm" variant="outline" onClick={handleReloadServerForConflict}>
-                  {tr('Giữ bản máy chủ')}
+                  {tr('Giữ dữ liệu máy chủ')}
                 </Button>
                 <Button type="button" size="sm" onClick={handleOverwriteConflictWithLocal}>
-                  {tr('Ghi đè bản trên máy này')}
+                  {tr('Ghi đè dữ liệu trên máy này')}
                 </Button>
               </div>
             }
           >
-            {tr('Bản nháp này đã được cập nhật từ tab hoặc thiết bị khác. Hãy chọn bản muốn giữ lại.')}
+            {tr('Lịch đang chọn này đã được cập nhật từ tab hoặc thiết bị khác. Hãy chọn dữ liệu muốn giữ lại.')}
           </Banner>
         )}
 
-        {registrationMode === 'proposal' && draft.reviewReason && (draft.status === 'ChangesRequested' || draft.status === 'Rejected' || draft.status === 'Approved') && (
+        {registrationMode === 'proposal' && draft.reviewReason && draft.status === 'ChangesRequested' && (
           <Banner
-            tone={draft.status === 'Approved' ? 'success' : draft.status === 'Rejected' ? 'danger' : 'warning'}
-            title={
-              draft.status === 'Approved'
-                ? tr('Ghi chú phê duyệt từ Admin')
-                : draft.status === 'Rejected'
-                  ? tr('Lý do Admin từ chối đề xuất')
-                  : tr('Admin yêu cầu chỉnh sửa bổ sung')
+            tone="warning"
+            title={tr('Quản trị viên yêu cầu chỉnh sửa bổ sung')}
+            actions={
+              draft.id ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  icon={Trash2}
+                  onClick={() => {
+                    setWithdrawTarget(draft);
+                    setWithdrawModalOpen(true);
+                  }}
+                >
+                  {tr('Hủy đề xuất')}
+                </Button>
+              ) : null
             }
           >
             {draft.reviewReason}
           </Banner>
         )}
 
-        {registrationMode === 'proposal' && !isEditable && (
-          <Banner
-            tone="info"
-            action={
-              <Button type="button" size="sm" variant="outline" icon={Plus} onClick={startNewProposal}>
-                {tr('Tạo thêm đề xuất mới')}
-              </Button>
-            }
-          >
-            {draft.status === 'PendingReview'
-              ? tr('Đề xuất đang chờ Admin phê duyệt nên tạm khóa chỉnh sửa trên lịch. Bạn có thể rút đề xuất hoặc tạo đề xuất khác song song.')
-              : draft.status === 'Approved'
-                ? trf('Đề xuất đã được phê duyệt ({0} buổi đã ghi nhận sẵn sàng mở lớp).', {
-                  0: draft.generatedAvailabilityIds?.length || draft.totalSessions || 0,
-                })
-                : tr('Đề xuất này đã đóng. Bạn có thể nhân bản thành bản nháp mới nếu muốn gửi lại.')}
-          </Banner>
-        )}
-
-        {/* PRIMARY INTERACTIVE CALENDAR WORKSPACE — RESTORED ORIGINAL UX */}
+        {/* PRIMARY INTERACTIVE CALENDAR WORKSPACE */}
         <InteractiveSlotCalendar
           slots={slots}
           cohortSessions={cohortSessions}
           externalBusyEvents={externalBusyEvents}
           policy={calendarPolicy}
+          displayMode={calendarDisplayMode}
+          onDisplayModeChange={setCalendarDisplayMode}
           anchorKey={calendarAnchorKey}
           onAnchorChange={setCalendarAnchorKey}
+          focusRequest={calendarFocusRequest}
           selectedSlots={registrationMode === 'proposal' ? calendarSelectedSlots : availSelectedSlots}
           onSelectedSlotsChange={registrationMode === 'proposal' ? handleProposalCalendarSelectionChange : setAvailSelectedSlots}
           busy={submitMutation.isPending}
@@ -1065,36 +1610,99 @@ export default function MentorShiftSchedule() {
             invalidateScheduling(),
           ])}
           refreshing={pageRefreshing}
-          renderCustomHeaderActions={registrationMode === 'availability' ? () => (
+          headerTopRight={registrationMode === 'proposal' ? renderSaveIndicator() : null}
+          renderCustomHeaderActions={isEditable ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
-              icon={Sparkles}
+              icon={CalendarPlus}
               onClick={() => setQuickFillOpen(true)}
+              className="!h-8.5 rounded-xl"
             >
-              {tr('Điền nhanh')}
+              {tr('Đăng ký nhanh')}
             </Button>
-          ) : undefined}
+          ) : null}
           proposalMode={registrationMode === 'proposal'}
           customValidateCandidate={registrationMode === 'proposal' ? handleValidateProposalCandidate : null}
           proposalConfig={registrationMode === 'proposal' ? {
             minPerWeek: proposalPolicy.minSessionsPerWeek,
             maxPerWeek: proposalPolicy.maxSessionsPerWeek,
             durationWeeks: proposalPolicy.courseDurationWeeks,
+            jlptLevelCode: draft.jlptLevelCode || null,
+            courseTitle: draft.courseTitle?.trim() || null,
+            weeklyPatternCount: isEditable ? (draft.weeklySessions || []).length : 0,
+            invalidPatternCount,
+            invalidWeeklyMap,
+            invalidOccurrenceMap,
+            invalidStartDateWarning: proposalPreview.startDateWarning || null,
+            fallbackWeeklyPatterns: proposalPreview.mode === 'invalid_start_date' ? (draft.weeklySessions || []) : [],
+            courseStartDate: proposalPreview.courseStartDate,
+            courseEndDate: proposalPreview.courseEndDate,
             readOnly: !isEditable,
-            hasCourseInfoReady: clientValidation.step1Valid,
+            hasScheduleErrors: (clientValidation.errors || []).some(
+              (e) => e.step === 1 && e.code !== 'PROPOSAL_MIN_SESSIONS_NOT_MET'
+            ),
+            hasCourseInfoReady: clientValidation.step1Valid && clientValidation.step2Valid,
             courseSummaryText,
             pendingProposalEvents,
-            onOpenCourseInfo: () => setCourseDrawerOpen(true),
+            rejectedProposalEvents,
+            slotProposalMetaById,
+            registrationRows,
+            onWithdrawProposal: handleWithdrawProposalById,
+            onReregisterProposal: handleReregisterProposalById,
+            onNextStep: () => {
+              const hasInvalidRestoredDate = Boolean(
+                draft.expectedStartDate
+                && !validateCourseStartDate({
+                  dayKey: draft.expectedStartDate,
+                  weeklySessions: draft.weeklySessions || [],
+                  policy: proposalPolicy,
+                }).valid
+              );
+              if (!draft.expectedStartDate && (draft.weeklySessions || []).length > 0 && isEditable) {
+                const suggestedDate = findEarliestValidStartDate({
+                  weeklySessions: draft.weeklySessions,
+                  policy: proposalPolicy,
+                });
+                if (suggestedDate) {
+                  patchDraft({ expectedStartDate: suggestedDate });
+                }
+              }
+              setShowCourseErrors(hasInvalidRestoredDate);
+              setCourseDrawerOpen(true);
+            },
+            onOpenCourseInfo: () => {
+              const hasInvalidRestoredDate = Boolean(
+                draft.expectedStartDate
+                && !validateCourseStartDate({
+                  dayKey: draft.expectedStartDate,
+                  weeklySessions: draft.weeklySessions || [],
+                  policy: proposalPolicy,
+                }).valid
+              );
+              if (!draft.expectedStartDate && (draft.weeklySessions || []).length > 0 && isEditable) {
+                const suggestedDate = findEarliestValidStartDate({
+                  weeklySessions: draft.weeklySessions,
+                  policy: proposalPolicy,
+                });
+                if (suggestedDate) {
+                  patchDraft({ expectedStartDate: suggestedDate });
+                }
+              }
+              if (hasInvalidRestoredDate) setShowCourseErrors(true);
+              setCourseDrawerOpen(true);
+            },
+            onJumpToSelected: handleJumpToSelectedSchedule,
+            onClearAll: requestClearSelection,
+            onInspectProposal: handleInspectProposalById,
             onOpenReview: () => {
-              setShowCourseErrors(true);
               setReviewModalOpen(true);
             },
           } : null}
         />
 
-        {/* Course Info Drawer */}
+        {/* Step 2: Course Info Drawer */}
         <TeachingProposalCourseInfoDrawer
           open={courseDrawerOpen}
           onClose={() => setCourseDrawerOpen(false)}
@@ -1102,34 +1710,52 @@ export default function MentorShiftSchedule() {
           onChange={patchDraft}
           availableLevels={availableLevels}
           qualifiedLevels={qualifiedLevels}
-          coursePlans={coursePlans}
           policy={proposalPolicy}
           validation={clientValidation}
           readOnly={!isEditable}
           mentorVerified={mentorVerified}
+          mentorVerifiedJlptLevel={mentorVerifiedJlptLevel}
           mentorDeclaredJlptLevel={mentorDeclaredJlptLevel}
           showAllErrors={showCourseErrors}
+          serverValidating={serverValidating}
+          onViewBlockingProposal={(proposalId) => {
+            const target = proposals.find((p) => Number(p.id) === Number(proposalId));
+            if (target) openProposal(target);
+            else {
+              setCourseDrawerOpen(false);
+              setCalendarDisplayMode('list');
+            }
+          }}
+          onOpenProposalList={() => {
+            setCourseDrawerOpen(false);
+            setCalendarDisplayMode('list');
+          }}
           onProceedToReview={() => {
             setShowCourseErrors(true);
+            if (!clientValidation.step1Valid || !clientValidation.step2Valid) return;
             setCourseDrawerOpen(false);
+            setValidateNonce((n) => n + 1);
             setReviewModalOpen(true);
           }}
         />
 
-        {/* Review & Idempotent Submit Modal */}
+        {/* Step 3: Confirmation Modal / Read-Only Proposal Detail Modal */}
         <TeachingProposalReviewModal
-          open={reviewModalOpen}
-          onClose={() => setReviewModalOpen(false)}
-          draft={draft}
+          open={reviewModalOpen || Boolean(inspectedProposal)}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setInspectedProposal(null);
+          }}
+          draft={inspectedProposal || draft}
           availableLevels={availableLevels}
           qualifiedLevels={qualifiedLevels}
-          coursePlans={coursePlans}
           policy={proposalPolicy}
           validation={clientValidation}
           serverValidation={activeServerValidation}
           serverValidating={serverValidating}
-          workload={ctx?.workload}
-          readOnly={!isEditable}
+          serverValidationError={serverValidationError}
+          onRetryValidation={() => setValidateNonce((n) => n + 1)}
+          readOnly={Boolean(inspectedProposal) || !isEditable}
           mentorVerified={mentorVerified}
           submitting={submitMutation.isPending}
           onEditCourseInfo={() => {
@@ -1139,218 +1765,64 @@ export default function MentorShiftSchedule() {
           }}
           onBackToCalendar={() => setReviewModalOpen(false)}
           onSubmit={() => submitMutation.mutate()}
+          onWithdraw={
+            inspectedProposal?.status === 'PendingReview'
+              ? () => {
+                setWithdrawTarget(inspectedProposal);
+                setWithdrawModalOpen(true);
+              }
+              : null
+          }
         />
 
-        {/* Quick Fill Modal (Supports both 2-4 weekly proposal patterns & single-slot availability quick fill) */}
-        <Modal
-          open={quickFillOpen}
-          onClose={() => setQuickFillOpen(false)}
-          size="lg"
-          title={registrationMode === 'proposal' ? tr('Điền nhanh lịch dạy hàng tuần') : tr('Điền nhanh khung giờ rảnh trong tuần')}
-          description={
-            registrationMode === 'proposal'
-              ? trf('Hệ thống tự đối chiếu giới hạn {0}–{1} buổi/tuần, khoảng nghỉ {2} phút và lịch bận 10 tuần trước khi xác nhận.', {
-                0: proposalPolicy.minSessionsPerWeek,
-                1: proposalPolicy.maxSessionsPerWeek,
-                2: proposalPolicy.restMinutes,
-              })
-              : tr('Chọn thứ và buổi trong tuần hiện tại, xem trước khung hợp lệ trước khi thêm vào danh sách chọn.')
-          }
-          footer={
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-rp-text-muted">
-                {registrationMode === 'proposal'
-                  ? trf('Còn có thể thêm: {0}/{1} buổi/tuần', {
-                    0: Math.max(0, proposalPolicy.maxSessionsPerWeek - (draft.weeklySessions || []).length),
-                    1: proposalPolicy.maxSessionsPerWeek,
-                  })
-                  : trf('Sẽ thêm {0} khung giờ hợp lệ', { 0: availQuickFillPreview?.validSlots.length ?? 0 })}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="ghost" onClick={() => setQuickFillOpen(false)}>
-                  {tr('Hủy')}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={
-                    registrationMode === 'proposal'
-                      ? !proposalQuickFillPreview || proposalQuickFillPreview.validCandidates.length === 0
-                      : !availQuickFillPreview || availQuickFillPreview.validSlots.length === 0
-                  }
-                  onClick={applyQuickFill}
-                >
-                  {trf('Xác nhận áp dụng ({0} buổi)', {
-                    0: registrationMode === 'proposal'
-                      ? (proposalQuickFillPreview?.validCandidates.length ?? 0)
-                      : (availQuickFillPreview?.validSlots.length ?? 0),
-                  })}
-                </Button>
-              </div>
-            </div>
-          }
-        >
-          {registrationMode === 'proposal' ? (
-            <div className="space-y-4">
+        {/* Smart Quick Registration Modal (Proposal Mode) */}
+        {registrationMode === 'proposal' && (
+          <SmartQuickRegistrationModal
+            open={quickFillOpen}
+            onClose={() => setQuickFillOpen(false)}
+            currentSessions={draft.weeklySessions || []}
+            expectedStartDate={draft.expectedStartDate || null}
+            commitments={commitments}
+            policy={proposalPolicy}
+            availabilityReady={!effectiveBusy && !contextQuery.isLoading}
+            availabilityError={Boolean(contextQuery.isError && !ctx)}
+            onRetryAvailability={() => contextQuery.refetch()}
+            onRevalidate={revalidateQuickRegistration}
+            onApply={handleApplySmartQuickRegistration}
+            nowMs={liveNowMs}
+            userId={uid}
+            proposalId={draft.id || null}
+          />
+        )}
+
+        {/* Legacy Single-Slot Quick Registration Modal (Single Availability Mode) */}
+        {registrationMode === 'availability' && (
+          <Modal
+            open={quickFillOpen}
+            onClose={() => setQuickFillOpen(false)}
+            size="lg"
+            title={tr('Đăng ký nhanh khung giờ rảnh trong tuần')}
+            description={tr('Chọn thứ và buổi trong tuần hiện tại, xem trước khung hợp lệ trước khi thêm vào danh sách chọn.')}
+            footer={
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2/50 p-1 text-xs">
-                  <button
+                <span className="text-xs text-rp-text-muted">
+                  {trf('Sẽ thêm {0} khung giờ hợp lệ', { 0: availQuickFillPreview?.validSlots.length ?? 0 })}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setQuickFillOpen(false)}>
+                    {tr('Hủy')}
+                  </Button>
+                  <Button
                     type="button"
-                    onClick={() => setQuickFillTab('presets')}
-                    className={`rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-                      quickFillTab === 'presets' ? 'bg-white text-rp-brand shadow-2xs' : 'text-rp-text-2 hover:text-rp-text'
-                    }`}
+                    disabled={!availQuickFillPreview || availQuickFillPreview.validSlots.length === 0}
+                    onClick={applyAvailQuickFill}
                   >
-                    {tr('Mẫu phổ biến (2–4 buổi)')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuickFillTab('custom')}
-                    className={`rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-                      quickFillTab === 'custom' ? 'bg-white text-rp-brand shadow-2xs' : 'text-rp-text-2 hover:text-rp-text'
-                    }`}
-                  >
-                    {tr('Chọn Thứ × Khung giờ')}
-                  </button>
-                </div>
-
-                <div className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2/50 p-1 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setQuickFillMode('append')}
-                    className={`rounded-lg px-2.5 py-1 font-medium ${
-                      quickFillMode === 'append' ? 'bg-white text-rp-text shadow-2xs' : 'text-rp-text-muted'
-                    }`}
-                  >
-                    {tr('Thêm vào lịch hiện tại')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuickFillMode('replace')}
-                    className={`rounded-lg px-2.5 py-1 font-medium ${
-                      quickFillMode === 'replace' ? 'bg-white text-rp-text shadow-2xs' : 'text-rp-text-muted'
-                    }`}
-                  >
-                    {tr('Thay thế lịch đã chọn')}
-                  </button>
+                    {trf('Áp dụng lịch dạy ({0} buổi)', { 0: availQuickFillPreview?.validSlots.length ?? 0 })}
+                  </Button>
                 </div>
               </div>
-
-              {quickFillTab === 'presets' ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {QUICK_FILL_PRESETS.map((preset) => {
-                    const active = selectedPresetId === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => setSelectedPresetId(preset.id)}
-                        className={`rounded-xl border p-3 text-left transition-colors ${
-                          active
-                            ? 'border-[#E05A7A] bg-[#FFF5F7]'
-                            : 'border-rp-line bg-white hover:border-[#F2CCD7]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-rp-text">{tr(preset.label)}</span>
-                          <Badge tone={active ? 'brand' : 'neutral'} size="sm" icon={false}>
-                            {trf('{0} buổi/tuần', { 0: preset.sessionsPerWeek })}
-                          </Badge>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-rp-line">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-rp-bg-2/50 text-rp-text-muted">
-                        <th className="border-b border-rp-line px-2.5 py-2 text-left font-semibold">{tr('Buổi')}</th>
-                        {QUICK_FILL_WEEKDAYS.map((d) => (
-                          <th key={d.weekday} className="border-b border-rp-line px-2 py-2 text-center font-semibold">
-                            {d.short}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {PROPOSAL_QUICK_DAYPARTS.map((dp) => (
-                        <tr key={dp.id} className="border-b border-rp-line last:border-b-0">
-                          <td className="px-2.5 py-2 font-medium text-rp-text">{tr(dp.label)}</td>
-                          {QUICK_FILL_WEEKDAYS.map((d) => {
-                            const k = `${d.weekday}-${dp.id}`;
-                            const checked = customDayparts.has(k);
-                            return (
-                              <td key={k} className="px-1 py-1.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleProposalDaypart(d.weekday, dp.id)}
-                                  className={`h-7 w-9 rounded-lg border text-[11px] font-semibold transition-colors ${
-                                    checked
-                                      ? 'border-[#E05A7A] bg-[#E05A7A] text-white'
-                                      : 'border-rp-line bg-white text-rp-text-muted hover:border-[#F2CCD7]'
-                                  }`}
-                                >
-                                  {checked ? '✓' : '—'}
-                                </button>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {proposalQuickFillPreview && (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
-                    <p className="m-0 text-xs font-bold text-emerald-800">
-                      {trf('Khung giờ hợp lệ sẽ được thêm ({0})', { 0: proposalQuickFillPreview.validCandidates.length })}
-                    </p>
-                    {proposalQuickFillPreview.validCandidates.length === 0 ? (
-                      <p className="m-0 text-xs text-emerald-700/80">
-                        {tr('Không có khung giờ mới nào thỏa mãn quy định để thêm.')}
-                      </p>
-                    ) : (
-                      <ul className="m-0 list-none space-y-1 p-0 text-xs text-emerald-900">
-                        {proposalQuickFillPreview.validCandidates.map((c) => (
-                          <li key={c.key} className="flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                            <span className="font-semibold">{weekdayLabelVn(c.weekday)}</span>
-                            <span className="tabular-nums">{c.startClock}–{c.endClock}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                    <p className="m-0 text-xs font-bold text-amber-900">
-                      {trf('Khung giờ bị bỏ qua / từ chối ({0})', { 0: proposalQuickFillPreview.rejectedCandidates.length })}
-                    </p>
-                    {proposalQuickFillPreview.rejectedCandidates.length === 0 ? (
-                      <p className="m-0 text-xs text-amber-800/80">
-                        {tr('Tất cả ứng viên đều hợp lệ.')}
-                      </p>
-                    ) : (
-                      <ul className="m-0 max-h-40 list-none space-y-1.5 overflow-y-auto p-0 pr-1 text-xs text-amber-950">
-                        {proposalQuickFillPreview.rejectedCandidates.slice(0, 10).map((r, idx) => (
-                          <li key={`${r.key}-${idx}`} className="rounded-lg bg-white/80 px-2 py-1">
-                            <div className="font-semibold">
-                              {weekdayLabelVn(r.weekday)} · {r.startClock}–{r.endClock}
-                            </div>
-                            <div className="text-[11px] text-amber-800">{r.reason}</div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
+            }
+          >
             <div className="space-y-4">
               <div className="overflow-x-auto rounded-xl border border-rp-line">
                 <table className="w-full border-collapse text-xs">
@@ -1400,7 +1872,7 @@ export default function MentorShiftSchedule() {
                       {trf('Khung giờ hợp lệ ({0})', { 0: availQuickFillPreview.validSlots.length })}
                     </p>
                     <p className="m-0 text-emerald-800/80">
-                      {availQuickFillPreview.validSlots.slice(0, 6).map((s) => `${s.dayKey} ${s.startClock}`).join(', ') || tr('Không có khung phù hợp.')}
+                      {availQuickFillPreview.validSlots.slice(0, 6).map((s) => `${formatIsoDateDisplay(s.dayKey)} ${s.startClock}`).join(', ') || tr('Không có khung phù hợp.')}
                       {availQuickFillPreview.validSlots.length > 6 ? ` (+${availQuickFillPreview.validSlots.length - 6})` : ''}
                     </p>
                   </div>
@@ -1417,173 +1889,31 @@ export default function MentorShiftSchedule() {
                 </div>
               )}
             </div>
-          )}
-        </Modal>
+          </Modal>
+        )}
 
-        {/* Proposal Switcher & Status Filter Drawer */}
-        <Drawer
-          open={listDrawerOpen}
-          onClose={() => setListDrawerOpen(false)}
-          title={tr('Danh sách đề xuất mở lớp của bạn')}
-          description={tr('Theo dõi trạng thái, tiếp tục bản nháp hoặc tạo thêm đề xuất song song.')}
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1.5">
-                {PROPOSAL_STATUS_FILTERS.map((f) => {
-                  const active = listFilter === f.value;
-                  const count = f.value === 'ALL'
-                    ? proposals.length
-                    : proposals.filter((p) => p.status === f.value).length;
-                  return (
-                    <button
-                      key={f.value}
-                      type="button"
-                      onClick={() => setListFilter(f.value)}
-                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        active
-                          ? 'border-[#E05A7A] bg-[#FFF5F7] text-[#B53D5C]'
-                          : 'border-rp-line bg-white text-rp-text-2 hover:border-[#F2CCD7]'
-                      }`}
-                    >
-                      {tr(f.label)} ({count})
-                    </button>
-                  );
-                })}
-              </div>
-              <Button type="button" size="sm" icon={Plus} onClick={startNewProposal}>
-                {tr('Tạo mới')}
-              </Button>
-            </div>
-
-            {filteredProposalList.length === 0 ? (
-              <Card className="p-6 text-center text-sm text-rp-text-muted">
-                {tr('Chưa có đề xuất nào thuộc bộ lọc này.')}
-              </Card>
-            ) : (
-              <div className="space-y-2.5">
-                {filteredProposalList.map((item) => {
-                  const meta = PROPOSAL_STATUS_META[item.status] || PROPOSAL_STATUS_META.Draft;
-                  const isCurrent = Number(item.id) === Number(draft.id);
-                  return (
-                    <Card
-                      key={item.id}
-                      className={`p-3.5 transition-colors ${
-                        isCurrent ? 'border-[#E05A7A] bg-[#FFF5F7]/40' : 'hover:border-[#F2CCD7]'
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge tone={meta.tone} size="sm" icon={false}>
-                              <span
-                                className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
-                                style={{ backgroundColor: meta.dot }}
-                              />
-                              {tr(meta.label)}
-                            </Badge>
-                            {item.jlptLevelCode && (
-                              <Badge tone="neutral" size="sm" icon={false}>{item.jlptLevelCode}</Badge>
-                            )}
-                            <span className="truncate text-sm font-bold text-rp-text">
-                              {item.courseTitle?.trim() || trf('Đề xuất #{0}', { 0: item.id })}
-                            </span>
-                          </div>
-                          <div className="text-xs text-rp-text-2">
-                            {trf('{0} buổi/tuần · {1} tuần', {
-                              0: item.weeklySessionCount,
-                              1: item.courseDurationWeeks,
-                            })}
-                            {item.expectedStartDate ? ` · ${tr('Khai giảng')}: ${item.expectedStartDate}` : ''}
-                          </div>
-                          {item.weeklySessions?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 pt-0.5">
-                              {sortWeeklySessions(item.weeklySessions).map((s) => (
-                                <span
-                                  key={s.key}
-                                  className="rounded border border-rp-line bg-white px-1.5 py-0.5 text-[11px] text-rp-text-2"
-                                >
-                                  {weekdayLabelVn(s.weekday)} {s.startClock}–{s.endClock}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {item.reviewReason && (
-                            <p className="m-0 text-xs text-rp-brand-strong">
-                              {tr('Phản hồi Admin')}: {item.reviewReason}
-                            </p>
-                          )}
-                          {item.linkedCohortName && (
-                            <p className="m-0 text-xs font-medium text-emerald-700">
-                              {tr('Đã gắn lớp nhóm')}: {item.linkedCohortName}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <Button type="button" size="sm" variant={isCurrent ? 'outline' : 'primary'} onClick={() => openProposal(item)}>
-                            {item.status === 'Draft' || item.status === 'ChangesRequested' ? tr('Tiếp tục') : tr('Xem')}
-                          </Button>
-                          {item.status === 'Draft' && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              icon={Trash2}
-                              aria-label={tr('Xóa bản nháp')}
-                              onClick={() => setDeleteTarget(item)}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </Drawer>
-
-        {/* Proposal History Drawer */}
-        <Drawer
-          open={historyDrawerOpen}
-          onClose={() => setHistoryDrawerOpen(false)}
-          title={trf('Lịch sử xử lý đề xuất #{0}', { 0: draft.id || '' })}
-          size="md"
-        >
-          {historyLoading ? (
-            <SakuraLoader variant="section" delay={100} />
-          ) : detailHistory.length === 0 ? (
-            <p className="text-sm text-rp-text-muted">{tr('Chưa có lịch sử cập nhật trạng thái.')}</p>
-          ) : (
-            <ol className="m-0 list-none space-y-2.5 p-0">
-              {detailHistory.map((ev) => (
-                <li key={ev.id} className="rounded-xl border border-rp-line bg-white p-3 text-xs space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold text-rp-text">{ev.action}</span>
-                    <span className="text-rp-text-muted">{formatVnDateTime(ev.createdAtUtc, '—')}</span>
-                  </div>
-                  <div className="text-rp-text-2">
-                    {ev.fromStatus ? `${ev.fromStatus} → ${ev.toStatus}` : ev.toStatus}
-                  </div>
-                  {ev.reason && <p className="m-0 text-rp-text-muted">{ev.reason}</p>}
-                </li>
-              ))}
-            </ol>
-          )}
-        </Drawer>
-
-        {/* Withdraw Confirmation Modal */}
+        {/* Cancel Proposal Confirmation Modal */}
         <Modal
           open={withdrawModalOpen}
-          onClose={() => !withdrawMutation.isPending && setWithdrawModalOpen(false)}
-          title={tr('Rút đề xuất mở lớp')}
+          onClose={() => {
+            if (withdrawMutation.isPending) return;
+            setWithdrawModalOpen(false);
+            setWithdrawTarget(null);
+          }}
+          title={tr('Hủy đề xuất mở lớp')}
           size="md"
           footer={
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" disabled={withdrawMutation.isPending} onClick={() => setWithdrawModalOpen(false)}>
-                {tr('Hủy')}
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={withdrawMutation.isPending}
+                onClick={() => {
+                  setWithdrawModalOpen(false);
+                  setWithdrawTarget(null);
+                }}
+              >
+                {tr('Quay lại')}
               </Button>
               <Button
                 type="button"
@@ -1591,16 +1921,16 @@ export default function MentorShiftSchedule() {
                 loading={withdrawMutation.isPending}
                 onClick={() => withdrawMutation.mutate()}
               >
-                {tr('Xác nhận rút đề xuất')}
+                {tr('Xác nhận hủy đề xuất')}
               </Button>
             </div>
           }
         >
           <div className="space-y-3 text-sm">
             <p className="m-0 text-rp-text-2">
-              {tr('Sau khi rút, đề xuất sẽ không còn nằm trong hàng đợi duyệt của Admin và các khung giờ tạm giữ sẽ được giải phóng ngay lập tức.')}
+              {tr('Sau khi hủy, đề xuất này sẽ bị xóa khỏi danh sách và các khung giờ tạm giữ sẽ được giải phóng ngay lập tức.')}
             </p>
-            <Field label={tr('Lý do rút đề xuất (không bắt buộc)')}>
+            <Field label={tr('Lý do hủy đề xuất (không bắt buộc)')}>
               <Textarea
                 rows={3}
                 maxLength={1000}
@@ -1612,17 +1942,35 @@ export default function MentorShiftSchedule() {
           </div>
         </Modal>
 
-        {/* Delete Draft Confirmation */}
+        {/* Confirm Clear Active Selection When Class Metadata Exists */}
         <AlertDialog
-          open={Boolean(deleteTarget)}
-          onClose={() => !deleteDraftMutation.isPending && setDeleteTarget(null)}
-          title={tr('Xóa bản nháp đề xuất?')}
-          description={tr('Bản nháp này chưa từng gửi duyệt và sẽ bị xóa vĩnh viễn.')}
-          confirmLabel={tr('Xóa bản nháp')}
-          cancelLabel={tr('Hủy')}
+          open={clearSelectionConfirmOpen}
+          onClose={() => !clearingSelection && setClearSelectionConfirmOpen(false)}
+          title={tr('Xóa toàn bộ lịch và thông tin lớp đang chọn?')}
+          description={tr('Lịch dạy, cấp độ JLPT, ngày khai giảng, thông tin lớp và tài liệu đính kèm đang soạn sẽ bị xóa. Các đề xuất đã gửi trước đó sẽ không bị ảnh hưởng.')}
+          confirmLabel={tr('Xóa lịch đang chọn')}
+          cancelLabel={tr('Giữ lại')}
           tone="danger"
-          loading={deleteDraftMutation.isPending}
-          onConfirm={() => deleteTarget && deleteDraftMutation.mutate(deleteTarget.id)}
+          loading={clearingSelection}
+          onConfirm={() => {
+            void executeClearSelection();
+          }}
+        />
+
+        {/* Confirm Replacing Active Selection When Re-registering a Rejected Proposal */}
+        <AlertDialog
+          open={Boolean(reregisterConfirmTarget)}
+          onClose={() => setReregisterConfirmTarget(null)}
+          title={tr('Thay thế lịch đang chọn hiện tại?')}
+          description={tr('Bạn đang có một lịch dạy đang chọn chưa gửi. Đăng ký lại từ đề xuất bị từ chối sẽ thay thế toàn bộ lịch và thông tin lớp đang chọn hiện tại (không tự động gửi duyệt).')}
+          confirmLabel={tr('Thay thế & tạo bản chỉnh sửa')}
+          cancelLabel={tr('Giữ lịch hiện tại')}
+          tone="warning"
+          onConfirm={() => {
+            const target = reregisterConfirmTarget;
+            setReregisterConfirmTarget(null);
+            if (target) applyReregisterProposal(target);
+          }}
         />
       </PageContainer>
     </MentorShell>

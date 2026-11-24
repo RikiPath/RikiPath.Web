@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
 import { getMySubscription } from '@/features/checkout/api/subscriptionApi.js';
-import { LOCK_REASON } from './studyUnlock.js';
 import { ACCESS, featureLockReason, featureLockState, studyAccessStatus } from './featureAccess.js';
 
 /** Shared React Query key — every consumer (sidebar, search, dashboard, route gate, plans page) reads one cache entry. */
@@ -58,7 +57,7 @@ export function useStudyAccess({ freshness = 'nav' } = {}) {
   );
 
   const lockReasonFor = useCallback(
-    (to) => featureLockReason(to, features, LOCK_REASON),
+    (to) => featureLockReason(to, features),
     [features],
   );
 

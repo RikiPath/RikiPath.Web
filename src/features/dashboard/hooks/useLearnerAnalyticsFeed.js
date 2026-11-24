@@ -58,5 +58,7 @@ export function useLearnerAnalyticsFeed(enabled = false) {
     practiceHistory: Array.isArray(practiceHistoryQuery.data) ? practiceHistoryQuery.data : [],
     skillMonthly: skillMonthlyQuery.data || null,
     homeworkList: Array.isArray(homeworkQuery.data) ? homeworkQuery.data : [],
+    // First load of the activity sources (recent-activity skeleton); background refetches keep showing data.
+    isLoading: Boolean(active && (mockHistoryQuery.isLoading || practiceHistoryQuery.isLoading || homeworkQuery.isLoading)),
   };
 }

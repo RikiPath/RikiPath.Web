@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Eye, Loader2, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import {
   getSrsCardById,
 } from '@/features/srs/api/reviewApi.js';
 import { invalidateSrsAndCalendarCaches } from '@/features/srs/utils/srsCacheSync.js';
-import { Button, Checkbox, CustomSelect, Input, Modal, notify } from '@/components/ui';
+import { Button, Checkbox, Collapsible, CustomSelect, Input, Modal, notify } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 
 export default function SelectionSrsModal({ request, onClose }) {
@@ -30,6 +30,7 @@ export default function SelectionSrsModal({ request, onClose }) {
   const [overrideCard, setOverrideCard] = useState(null);
   const [draft, setDraft] = useState(null);
   const [showExamples, setShowExamples] = useState(false);
+  const examplesId = useId();
 
   const existingCard =
     overrideCard?.key === reqKey ? overrideCard.card : (lookupQuery.data || null);
@@ -200,30 +201,30 @@ export default function SelectionSrsModal({ request, onClose }) {
             <Input value={activeDraft.meaning} onChange={(e) => setField('meaning', e.target.value)} maxLength={500} required placeholder={tr('Nhập nghĩa tiếng Việt…')} />
           </div>
           <div>
-            <Checkbox label={tr('Thêm câu ví dụ')} checked={showExamples} onChange={(e) => setShowExamples(e.target.checked)} />
+            <Checkbox label={tr('Thêm câu ví dụ')} checked={showExamples} onChange={(e) => setShowExamples(e.target.checked)} aria-controls={examplesId} />
+            <Collapsible open={showExamples} id={examplesId} innerClassName="pt-3.5">
+              <div className="space-y-3.5">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Câu ví dụ')}</label>
+                  <Input
+                    value={activeDraft.exampleSentence}
+                    onChange={(e) => setField('exampleSentence', e.target.value)}
+                    maxLength={1000}
+                    placeholder="毎日日本語を勉強しています。"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Dịch câu ví dụ')}</label>
+                  <Input
+                    value={activeDraft.exampleMeaning}
+                    onChange={(e) => setField('exampleMeaning', e.target.value)}
+                    maxLength={1000}
+                    placeholder={tr('Mỗi ngày tôi đều học tiếng Nhật.')}
+                  />
+                </div>
+              </div>
+            </Collapsible>
           </div>
-          {showExamples && (
-            <div className="space-y-3.5">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Câu ví dụ')}</label>
-                <Input
-                  value={activeDraft.exampleSentence}
-                  onChange={(e) => setField('exampleSentence', e.target.value)}
-                  maxLength={1000}
-                  placeholder="毎日日本語を勉強しています。"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Dịch câu ví dụ')}</label>
-                <Input
-                  value={activeDraft.exampleMeaning}
-                  onChange={(e) => setField('exampleMeaning', e.target.value)}
-                  maxLength={1000}
-                  placeholder={tr('Mỗi ngày tôi đều học tiếng Nhật.')}
-                />
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" size="sm" onClick={onClose}>

@@ -85,9 +85,9 @@ export const jaErrors = {
   'Gói học đang được cập nhật giá. Vui lòng thử lại sau.': 'プランの価格を更新中です。しばらくしてからもう一度お試しください。',
   'Đơn hàng đang được tạo. Vui lòng đợi trong giây lát rồi thử lại.': '注文を作成中です。少し待ってからもう一度お試しください。',
   'Cổng thanh toán tạm thời chưa sẵn sàng. Vui lòng thử lại sau.': '決済サービスは一時的に利用できません。しばらくしてからもう一度お試しください。',
-  'PayOS đang nhận quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.': 'PayOSへのリクエストが集中しています。数分後にもう一度お試しください。',
-  'PayOS đang phản hồi chậm. Vui lòng thử lại.': 'PayOSの応答が遅れています。もう一度お試しください。',
-  'PayOS chưa tạo được liên kết thanh toán. Vui lòng thử lại.': 'PayOSで支払いリンクを作成できませんでした。もう一度お試しください。',
+  'Cổng thanh toán đang nhận quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.': '決済ゲートウェイへのリクエストが集中しています。数分後にもう一度お試しください。',
+  'Cổng thanh toán đang phản hồi chậm. Vui lòng thử lại.': '決済ゲートウェイの応答が遅れています。もう一度お試しください。',
+  'Chưa tạo được liên kết thanh toán. Vui lòng thử lại.': '支払いリンクを作成できませんでした。もう一度お試しください。',
   // Shared states (SmartDataBoundary presets & offline)
   'Bạn đang ngoại tuyến. Một số dữ liệu có thể chưa được cập nhật.': 'オフラインです。一部のデータが最新でない可能性があります。',
 };

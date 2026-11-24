@@ -45,6 +45,7 @@ import {
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { definitions } from '@/features/content-author/utils/contentDefinitions.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const STATUS_TABS = [
   { id: 'all', label: 'Tất cả' },
@@ -118,6 +119,7 @@ export default function AuthorDashboard() {
     queryClient.invalidateQueries({ queryKey: ['manual-content'] });
     queryClient.invalidateQueries({ queryKey: ['manual-content-lookups'] });
     queryClient.invalidateQueries({ queryKey: ['author-import-batches'] });
+    invalidateSidebarCounters(queryClient);
   };
 
   const saveEdit = useMutation({

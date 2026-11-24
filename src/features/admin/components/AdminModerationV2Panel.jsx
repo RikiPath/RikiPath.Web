@@ -34,6 +34,7 @@ import {
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const APPROVAL_BADGES = {
   Draft: { label: 'Bản nháp', tone: 'neutral' },
@@ -263,6 +264,7 @@ export default function AdminModerationV2Panel() {
     if (selectedRequestId) {
       void qc.invalidateQueries({ queryKey: ['admin-mod-v2-detail', selectedRequestId] });
     }
+    void invalidateSidebarCounters(qc);
   };
 
   const moderateMutation = useMutation({

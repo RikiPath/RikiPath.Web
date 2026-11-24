@@ -287,7 +287,7 @@ export const jaWorkspaceV7 = {
   'Nội dung nhận dạng có thể khác nhẹ lời nói thực tế; AI đánh giá dựa trên bản ghi và câu mẫu.': '認識結果は実際の発話と多少異なる場合があります。AIは録音と例文を基に評価します。',
 
   // Group Learning Discovery / Progress / Workspace / My Courses
-  'So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán PayOS.': '開講予定・JLPTレベル・担当教師を比較し、受講権またはPayOS決済で直接お申し込みいただけます。',
+  'So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán trực tuyến.': '開講予定・JLPTレベル・担当教師を比較し、受講権またはオンライン決済で直接お申し込みいただけます。',
   'Chưa tải được quyền ghi danh hiện tại của tài khoản. Nếu bạn có quyền miễn phí hoặc ôn lại, hãy thử tải lại.': '現在の登録権情報を読み込めませんでした。特別登録権や再受講権をお持ちの場合は再試行してください。',
   'Bài tập gần đây': '最近の宿題',
   'Mở mục Bài tập': '宿題タブを開く',
@@ -380,7 +380,7 @@ export const jaWorkspaceV7 = {
   'Chọn gói khác': '別のプランを選ぶ',
   '{0} lượt dùng': '{0}回分',
   'Bạn sẽ được chuyển tới cổng thanh toán PayOS an toàn.': '安全なPayOS決済ページへ移動します。',
-  'PayOS xác nhận chậm hơn bình thường. Vui lòng bấm Kiểm tra lại để cập nhật trạng thái đơn hàng.': 'PayOSの確認に通常より時間がかかっています。「再確認」を押して最新の状態を取得してください。',
+  'Việc xác nhận thanh toán đang chậm hơn bình thường. Vui lòng bấm Kiểm tra lại để cập nhật trạng thái đơn hàng.': 'お支払いの確認に通常より時間がかかっています。「再確認」を押して最新の状態を取得してください。',
   'Chọn gói tự học theo ngày, luyện kỹ năng JLPT và lượt chấm Haru AI. Lớp học nhóm cùng Giáo viên được đăng ký riêng theo khóa 10 tuần tại mục Tìm Giáo viên.': '日数ベースの自習プランやHaru AI採点回数券を選べます。教師との10週間グループレッスンは「教師を探す」から別途お申し込みいただけます。',
   'Còn {0} ngày tự học · Hết hạn lúc {1} (giờ Việt Nam)': '自習残り{0}日 · 有効期限：{1}（ベトナム時間）',
   'Tất cả gói': 'すべてのプラン',

@@ -22,26 +22,35 @@ export async function fetchCurrentWeather({ latitude, longitude }, signal) {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    current: 'temperature_2m,weather_code,cloud_cover,is_day,precipitation,rain,snowfall',
+    current: 'temperature_2m,relative_humidity_2m,weather_code,cloud_cover,is_day,precipitation,rain,showers,snowfall,wind_speed_10m,wind_direction_10m',
+    wind_speed_unit: 'kmh',
     timezone: 'auto',
   });
   return parseCurrentWeather(await getJson(`${FORECAST_URL}?${params}`, signal));
 }
 
+const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/** Keeps only the fields the provider actually returned (missing → null; nothing is filled in). */
 export function parseCurrentWeather(json) {
   const c = json?.current;
-  const temperature = Number(c?.temperature_2m);
-  const weatherCode = Number(c?.weather_code);
-  if (!c || !Number.isFinite(temperature) || !Number.isFinite(weatherCode)) throw new Error('Unexpected weather payload');
+  const temperature = num(c?.temperature_2m);
+  const weatherCode = num(c?.weather_code);
+  if (!c || temperature === null || weatherCode === null) throw new Error('Unexpected weather payload');
   return {
     temperature,
     weatherCode,
-    cloudCover: Number.isFinite(Number(c.cloud_cover)) ? Number(c.cloud_cover) : null,
+    cloudCover: num(c.cloud_cover),
+    humidity: num(c.relative_humidity_2m),
     isDay: c.is_day === 1 || c.is_day === true ? true : c.is_day === 0 || c.is_day === false ? false : undefined,
-    precipitation: Number(c.precipitation) || 0,
-    rain: Number(c.rain) || 0,
-    snowfall: Number(c.snowfall) || 0,
+    precipitation: num(c.precipitation),
+    rain: num(c.rain),
+    showers: num(c.showers),
+    snowfall: num(c.snowfall),
+    windSpeed: num(c.wind_speed_10m),
+    windDirection: num(c.wind_direction_10m),
     timezone: typeof json.timezone === 'string' ? json.timezone : '',
+    // Provider time is local wall-clock time of the place (timezone=auto), e.g. "2026-11-24T15:30".
     observedAt: typeof c.time === 'string' ? c.time : '',
   };
 }

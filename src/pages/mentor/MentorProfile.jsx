@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ExternalLink, FileText, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { AdminShell, MentorShell } from '@/layouts';
 import {
   Avatar,
@@ -210,6 +211,7 @@ export default function MentorProfile() {
     onSuccess: (nextProfile) => {
       client.setQueryData(profileKey, nextProfile);
       setSyncedProfile(nextProfile);
+      invalidateSidebarCounters(client);
       const desc = nextProfile.verificationStatusDescription || 'Đã gửi hồ sơ xét duyệt.';
       notify.success('Đã gửi hồ sơ xét duyệt lên Quản trị viên.', tr(desc), { key: 'mentor-verify-submit' });
     },
@@ -286,25 +288,19 @@ export default function MentorProfile() {
   return (
     <MentorShell pathname={pathname} breadcrumb={tr('Hồ sơ chuyên môn')}>
       <PageContainer width="default" density="comfortable" className="text-rp-text">
-        <PageHeader
-          eyebrow="Chuyên môn & xác minh"
-          title="Hồ sơ chuyên môn"
-          description="Cập nhật giới thiệu, trình độ JLPT và chứng chỉ giảng dạy để đủ điều kiện đứng lớp và nhận lịch."
-          actions={(
-            <div className="flex flex-wrap items-center gap-2">
-              <RefreshingIndicator active={query.isFetching && !query.isPending} />
-              <Button
-                type="submit"
-                form="mentor-profile-form"
-                variant="primary"
-                loading={save.isPending}
-                disabled={query.isPending || loadBlocked || isPendingReview || !isDirty || Boolean(videoUrlError)}
-              >
-                {tr('Lưu hồ sơ')}
-              </Button>
-            </div>
-          )}
-        />
+        <h1 className="sr-only">{tr('Hồ sơ chuyên môn')}</h1>
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <RefreshingIndicator active={query.isFetching && !query.isPending} />
+          <Button
+            type="submit"
+            form="mentor-profile-form"
+            variant="primary"
+            loading={save.isPending}
+            disabled={query.isPending || loadBlocked || isPendingReview || !isDirty || Boolean(videoUrlError)}
+          >
+            {tr('Lưu hồ sơ')}
+          </Button>
+        </div>
 
         {query.isPending && <SakuraLoader variant="section" context="profile" delay={160} className="mb-4" />}
 

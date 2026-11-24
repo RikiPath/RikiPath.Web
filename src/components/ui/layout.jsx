@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { cx } from './cx.js';
 import { getContainerClass, getFluidGridStyle, normalizeDensity } from './layoutLogic.js';
 import { useLocale } from '@/locales/locale.js';
@@ -153,7 +154,7 @@ export function DashboardGrid({
         <aside
           className={cx(
             'min-w-0 space-y-[var(--rp-space-grid)]',
-            stickyAside && 'lg:sticky lg:top-[calc(var(--spacing-rp-topbar)+1rem)]',
+            stickyAside && 'lg:sticky lg:top-[calc(var(--rp-sticky-top-offset)+1rem)]',
             asideClassName,
           )}
         >
@@ -253,23 +254,40 @@ export function DataPanel({
 }
 
 /**
- * Shared height-animated disclosure region (tree branches, nav groups, optional form sections).
- * Animates `grid-template-rows` 0fr ↔ 1fr so content of any height opens without measuring,
- * keeps collapsed content `inert` (no focus/AT exposure) and honours `prefers-reduced-motion`.
+ * Shared height-animated disclosure region (accordions, tree branches, nav groups, conditional form sections).
+ * Animates `grid-template-rows` 0fr ↔ 1fr so content of any height opens without measuring (CSS in
+ * design-system.css: `.rp-collapsible`), fades + drops the panel 8px, keeps collapsed content mounted but
+ * `inert` (no focus / AT exposure, typed values survive) and honours `prefers-reduced-motion`.
+ * Put spacing that should appear with the panel in `innerClassName` (e.g. `pt-3`), never on the parent gap,
+ * so nothing is left behind when it is closed.
  */
-export function Collapsible({ open, children, className, innerClassName, as: Tag = 'div', id }) {
+export function Collapsible({ open, children, className, innerClassName, as: Tag = 'div', id, ...rest }) {
+  const [settled, setSettled] = useState(Boolean(open));
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    setSettled(false);
+  }
+  useEffect(() => {
+    if (!open) return undefined;
+    // transitionend can be skipped (hidden tab, zero duration): never leave an open panel clipping its content.
+    const timer = setTimeout(() => setSettled(true), 320);
+    return () => clearTimeout(timer);
+  }, [open]);
   return (
     <Tag
       id={id}
       inert={!open || undefined}
       aria-hidden={!open || undefined}
-      className={cx(
-        'grid transition-[grid-template-rows,opacity] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-        open ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0',
-        className,
-      )}
+      data-open={open ? 'true' : 'false'}
+      data-settled={settled ? 'true' : undefined}
+      onTransitionEnd={(event) => {
+        if (open && event.target === event.currentTarget && event.propertyName === 'grid-template-rows') setSettled(true);
+      }}
+      className={cx('rp-collapsible', className)}
+      {...rest}
     >
-      <div className={cx('min-h-0 overflow-hidden', innerClassName)}>{children}</div>
+      <div className={cx('rp-collapsible-inner', innerClassName)}>{children}</div>
     </Tag>
   );
 }

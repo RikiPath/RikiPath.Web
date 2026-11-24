@@ -1,30 +1,29 @@
 import { useMemo, useState } from 'react';
 import { Flame, Trophy } from 'lucide-react';
 import { cx } from '@/components/ui';
+import './dashboard.css';
 import { useLocale } from '@/locales/locale.js';
 import { useStreakCelebration } from './useStreakCelebration.js';
 import StreakDialog from './StreakDialog.jsx';
 import {
-  STREAK_MILESTONES,
   buildCurrentWeekStrip,
   buildVerifiedActivityDateSet,
   computeStreakProgress,
   toVnDateKey,
 } from './learnerTokens.js';
 
-function MiniFlameSvg({ active, isToday }) {
+function MiniFlameSvg({ active }) {
   return (
     <svg
       viewBox="0 0 24 24"
       className={cx(
-        'h-5 w-5 drop-shadow-[0_1px_2px_rgba(224,83,36,0.25)]',
-        isToday && active && 'rp-streak-flame-pulse',
+        'rp-mini-flame h-[72%] w-[72%] drop-shadow-[0_1px_2px_rgba(224,83,36,0.25)]',
       )}
       aria-hidden="true"
     >
       <path
         d="M12.5 2.2c.8 3.6 5.2 5.6 5.2 10.6a5.8 5.8 0 0 1-11.6 0c0-3 1.5-5.3 3.1-7 .3 1.7 1.2 2.4 2.2 2.6-.6-2.3 0-4.3 1.1-6.2z"
-        fill={active ? '#FF6B2B' : '#C9BFC2'}
+        fill={active ? '#F2643A' : '#C9BFC2'}
       />
       {active && (
         <path
@@ -110,19 +109,18 @@ export default function WeeklyStreakBar({
         aria-label={tr('Chuỗi ngày học trong tuần')}
         data-section="WeeklyStreakBar"
         className={cx(
-          'relative flex flex-col justify-between overflow-hidden rounded-2xl border border-rp-brand-border/80 bg-rp-brand-tint/60 px-4 py-3 shadow-rp-xs sm:px-5',
+          'rp-streak-card relative flex flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-rp-peach-line/80 bg-white p-4 shadow-rp-xs',
           className,
         )}
       >
-        <div aria-hidden="true" className="rp-dot-paper-bg pointer-events-none absolute inset-0 opacity-50" />
-
-        {/* Row 1: T2–CN Day Circles + Prominent Consecutive Days Flame Pill */}
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-1.5 sm:gap-2" role="list" aria-label={tr('Các ngày học trong tuần')}>
+        <div>
+          <p className="text-[12.5px] font-bold uppercase tracking-[0.08em] text-rp-text-muted">{tr('Chuỗi ngày học')}</p>
+          {/* T2–CN: studied days carry a small flame on a soft sakura-peach disc; today is ringed; others stay neutral */}
+          <div className="mt-2 flex items-center gap-[clamp(6px,1.1vw,14px)]" role="list" aria-label={tr('Các ngày học trong tuần')}>
             {weekDays.map((day) => {
               const isDone = day.active;
               return (
-                <div key={day.key} role="listitem" className="flex flex-col items-center gap-1">
+                <div key={day.key} role="listitem" className="flex flex-col items-center gap-1.5">
                   <span
                     title={
                       isDone
@@ -131,29 +129,13 @@ export default function WeeklyStreakBar({
                           ? `${day.label} (${day.dateKey}): ${tr('Hôm nay')}`
                           : `${day.label} (${day.dateKey})`
                     }
-                    className={cx(
-                      'flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold transition-all',
-                      isDone && day.isToday
-                        ? 'border-2 border-rp-streak bg-white text-rp-streak shadow-[0_0_0_3px_rgba(224,83,36,0.18)]'
-                        : isDone
-                          ? 'border-2 border-rp-brand bg-rp-brand-tint text-rp-brand-strong shadow-rp-xs'
-                          : day.isToday
-                            ? 'border-2 border-dashed border-rp-brand bg-white text-rp-brand-strong'
-                            : 'border border-dashed border-rp-line-strong/80 bg-white/80 text-rp-text-muted',
-                    )}
+                    className="rp-streak-day"
+                    data-done={isDone ? 'true' : 'false'}
+                    data-today={day.isToday ? 'true' : 'false'}
                   >
-                    {isDone ? (
-                      <MiniFlameSvg active isToday={day.isToday} />
-                    ) : (
-                      <span className="h-1.5 w-1.5 rounded-full bg-rp-line-strong/80" />
-                    )}
+                    {isDone ? <MiniFlameSvg active isToday={day.isToday} /> : <span className="h-2 w-2 rounded-full bg-rp-line-strong/80" />}
                   </span>
-                  <span
-                    className={cx(
-                      'text-[11px] leading-none',
-                      day.isToday ? 'font-extrabold text-rp-navy' : 'font-semibold text-rp-text-2',
-                    )}
-                  >
+                  <span className={cx('text-[12.5px] leading-none', day.isToday ? 'font-extrabold text-rp-brand-strong' : 'font-semibold text-rp-text-2')}>
                     {day.label}
                   </span>
                 </div>
@@ -161,93 +143,51 @@ export default function WeeklyStreakBar({
             })}
           </div>
 
+          {/* Compact text badge under the week */}
           <button
             type="button"
             onClick={() => !loading && setModalOpen(true)}
             disabled={loading}
-            className="rp-focus rp-press inline-flex min-h-[36px] items-center gap-2 rounded-full border border-rp-peach-line bg-rp-peach-bg px-3.5 py-1 text-[13px] font-extrabold text-rp-peach shadow-rp-xs transition hover:brightness-95 disabled:opacity-75"
+            className="rp-focus rp-press mt-3 inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-rp-peach-line bg-rp-peach-bg px-3 py-1 text-[14px] font-extrabold text-rp-peach transition-colors hover:brightness-95 disabled:opacity-75"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-rp-xs">
-              <Flame
-                aria-hidden="true"
-                className={cx(
-                  'h-5 w-5 text-rp-streak drop-shadow-[0_1px_2px_rgba(224,83,36,0.3)]',
-                  info.isActiveToday && 'rp-streak-flame-pulse',
-                )}
-              />
-            </span>
-            <span>
-              {loading
-                ? tr('Đang đồng bộ chuỗi…')
-                : info.days > 0
-                  ? (locale === 'ja' ? `${info.days} 日連続` : trf('{0} ngày liên tiếp', { 0: info.days }))
-                  : tr('Bắt đầu chuỗi 1 ngày')}
-            </span>
+            <Flame aria-hidden="true" className={cx('h-4 w-4 text-rp-streak', !loading && info.days > 0 && 'rp-badge-flame')} />
+            {loading
+              ? tr('Đang đồng bộ chuỗi…')
+              : info.days > 0
+                ? (locale === 'ja' ? `${info.days} 日連続` : trf('{0} ngày liên tiếp', { 0: info.days }))
+                : tr('Bắt đầu chuỗi 1 ngày')}
           </button>
         </div>
 
-        {/* Row 2: Next Milestone + Remaining Days + Compact Progress Bar + Milestones (3·7·14·30) + Record */}
-        <div className="relative z-10 mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-rp-brand-border/50 pt-2.5">
-          <div className="flex min-w-[240px] flex-1 flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
-              <span className="font-semibold text-rp-text-2">
-                {info.nextMilestone != null ? (
-                  <>
-                    {tr('Mốc tiếp theo:')}{' '}
-                    <strong className="font-extrabold text-rp-navy">
-                      {trf('{0} ngày', { 0: info.nextMilestone })}
-                    </strong>
-                  </>
-                ) : (
-                  <strong className="font-extrabold text-rp-navy">{tr('Đã đạt mốc cao nhất')}</strong>
-                )}
-              </span>
-              {info.nextMilestone != null && (
-                <>
-                  <span aria-hidden="true" className="text-rp-line-strong">·</span>
-                  <span className="rounded-full bg-white/85 px-2 py-0.5 text-[11px] font-bold text-rp-brand-strong">
-                    {trf('Còn {0} ngày', { 0: remainingForNext })}
-                  </span>
-                </>
-              )}
-            </div>
-
-            <div className="h-1.5 min-w-[44px] max-w-[96px] flex-1 overflow-hidden rounded-full bg-rp-muted-strong">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-rp-streak to-rp-brand transition-all duration-500"
-                style={{ width: `${Math.max(info.days > 0 ? 14 : 6, info.progressPercent)}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            <div className="flex items-center gap-1" aria-label={tr('Các mốc streak')}>
-              {STREAK_MILESTONES.map((ms) => {
-                const hit = info.days >= ms;
-                return (
-                  <button
-                    key={ms}
-                    type="button"
-                    onClick={() => setModalOpen(true)}
-                    title={trf('Mốc {0} ngày học liên tiếp', { 0: ms })}
-                    className={cx(
-                      'inline-flex h-6 min-w-[24px] items-center justify-center rounded-full border px-1.5 text-[11px] font-bold transition',
-                      hit
-                        ? 'border-rp-brand-border bg-rp-brand-soft text-rp-brand-strong'
-                        : 'border-rp-line bg-white/90 text-rp-text-muted hover:border-rp-brand-border/60',
-                    )}
-                  >
-                    {ms}
-                  </button>
-                );
-              })}
-            </div>
-
-            <span className="inline-flex items-center gap-1 rounded-full border border-rp-line bg-white/95 px-2 py-0.5 text-[11px] font-bold text-rp-navy">
-              <Trophy aria-hidden="true" className="h-3.5 w-3.5 text-rp-warning" />
-              {trf('Kỷ lục {0}d', { 0: longestDays })}
-            </span>
-          </div>
+        {/* Next milestone · remaining days · progress · record — all from the real streak */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-rp-line/70 pt-3 text-[13px]">
+          <span className="font-semibold text-rp-text-2">
+            {info.nextMilestone != null ? (
+              <>
+                {tr('Mốc tiếp theo:')} <strong className="font-extrabold text-rp-navy">{trf('{0} ngày', { 0: info.nextMilestone })}</strong>
+                <span className="text-rp-text-muted"> · {trf('Còn {0} ngày', { 0: remainingForNext })}</span>
+              </>
+            ) : (
+              <strong className="font-extrabold text-rp-navy">{tr('Đã đạt mốc cao nhất')}</strong>
+            )}
+          </span>
+          <span
+            className="h-2 min-w-[56px] flex-1 overflow-hidden rounded-full bg-rp-muted-strong"
+            role="progressbar"
+            aria-label={tr('Tiến độ tới mốc tiếp theo')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={info.progressPercent}
+          >
+            <span
+              className="block h-full origin-left rounded-full bg-gradient-to-r from-rp-streak to-rp-brand transition-transform duration-500"
+              style={{ transform: `scaleX(${Math.max(info.days > 0 ? 0.08 : 0.04, info.progressPercent / 100)})` }}
+            />
+          </span>
+          <span className="inline-flex items-center gap-1 font-bold text-rp-navy" title={tr('Các mốc streak')}>
+            <Trophy aria-hidden="true" className="h-4 w-4 text-rp-warning" />
+            {trf('Kỷ lục {0}d', { 0: longestDays })}
+          </span>
         </div>
       </section>
 

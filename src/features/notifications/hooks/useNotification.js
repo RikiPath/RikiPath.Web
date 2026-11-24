@@ -11,6 +11,7 @@ import {
 } from '@/features/notifications/api/notificationApi.js';
 import { queryClient } from '@/api/queryClient.js';
 import { createNotificationDeduper, normalizeRealtimeNotification } from '@/features/notifications/utils/notificationDedupe.js';
+import { scheduleDebouncedSidebarCounterRefresh } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 export const notificationKeys = {
     all: ['notifications'],
@@ -85,6 +86,7 @@ function refreshLists() {
 
 function surface(raw) {
     refreshLists();
+    scheduleDebouncedSidebarCounterRefresh(queryClient);
     const item = normalizeRealtimeNotification(raw);
     if (!item || !shouldSurface(item)) return;
     window.dispatchEvent(new CustomEvent(NOTIFICATION_EVENT, { detail: item }));
@@ -119,9 +121,12 @@ function acquireConnection() {
     // Read/unread changes only refresh the lists; they never toast.
     connection.on('NotificationRead', refreshLists);
     connection.on('UnreadCountChanged', refreshLists);
+    // Authoritative sidebar counter invalidation signal from backend workflows.
+    connection.on('SidebarCountersChanged', () => scheduleDebouncedSidebarCounterRefresh(queryClient));
     // Reconnect: resync counts silently (no replayed toasts).
     connection.onreconnected(() => {
         refreshLists();
+        scheduleDebouncedSidebarCounterRefresh(queryClient);
         connection.invoke('RequestSync').catch(() => {});
     });
 

@@ -117,7 +117,7 @@ export default function DailySRS({ section = 'today' }) {
   return (
     <LearnerShell pathname={pathname} breadcrumb={breadcrumb}>
       <PageContainer data-page="DailySRS" width="default" density="comfortable" className="space-y-5 pb-24 text-rp-text sm:pb-20">
-        {section === 'today' && <OverviewView preferredMode={preferredMode} onOpenPrefs={() => setPrefsOpen(true)} />}
+        {section === 'today' && <OverviewView onOpenPrefs={() => setPrefsOpen(true)} />}
         {section === 'due' && <DueReviewView prefQuery={prefQuery} preferredMode={preferredMode} onOpenPrefs={() => setPrefsOpen(true)} />}
         {section === 'practice' && (
           <FreePracticeView key={normalizeMode(routeMode)} mode={normalizeMode(routeMode)} prefQuery={prefQuery} />
@@ -230,7 +230,7 @@ async function confirmAbandon(session, tr, trf) {
 
 /* ------------------------------------------------------------------ Tổng quan */
 
-function OverviewView({ preferredMode, onOpenPrefs }) {
+function OverviewView({ onOpenPrefs }) {
   const { tr, trf } = useLocale();
   const navigate = useNavigate();
   const { hash } = useLocation();
@@ -307,24 +307,6 @@ function OverviewView({ preferredMode, onOpenPrefs }) {
             hint={trf('Kỷ lục: {0} ngày', { 0: summary.longestStreakDays })}
           />
         </div>
-      )}
-
-      {summary && (
-        <Card padding="lg" className="flex flex-wrap items-center justify-between gap-4 border-[#EAE3E4] bg-white">
-          <div className="min-w-0">
-            <h3 className="text-[16px] font-extrabold text-rp-navy">{tr('Ôn tự do')}</h3>
-            <p className="mt-0.5 text-xs text-rp-text-muted">
-              {trf('Luyện {0} thẻ của bạn bất cứ lúc nào — không thay đổi lịch ôn.', { 0: summary.activeCards ?? 0 })}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(MODE_META).map(([id, meta]) => (
-              <Button key={id} as={Link} to={`/daily-srs/practice/${id}/`} variant={id === preferredMode ? 'primary' : 'secondary'} size="md" icon={meta.icon}>
-                {tr(meta.label)}
-              </Button>
-            ))}
-          </div>
-        </Card>
       )}
 
       <div id="srs-progress" ref={progressRef} className="scroll-mt-6">

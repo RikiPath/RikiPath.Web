@@ -35,7 +35,9 @@ describe('RikiPath V5 Sakura Journey — Mobile Asset Removal & Vector Consisten
     assert.match(webClay, /achievement/);
     assert.match(home, /WeeklyStreakBar/);
     assert.match(home, /LearningJourneyMap/);
-    assert.match(home, /TodayLearningPanel/);
+    // Dashboard V3: "Hôm nay học gì?" was removed (its actions live in roadmap / SRS / discovery); package summary added.
+    assert.doesNotMatch(home, /TodayLearningPanel/);
+    assert.match(home, /PackageSummaryCard/);
     assert.match(home, /SkillExplorer/);
     assert.match(home, /LearningAnalytics/);
     assert.match(kana, /IllustratedPageHeader/);
@@ -65,7 +67,7 @@ describe('RikiPath V5 Sakura Journey — Mobile Asset Removal & Vector Consisten
     assert.match(header, /data-learner-banner="warm-ivory"/);
     assert.match(header, /rp-learner-banner/);
     assert.doesNotMatch(tokens, /bg-gradient-to-br/);
-    assert.match(home, /JapanScene/);
+    assert.match(home, /DynamicGroundBanner/); // vector ground scene synced with the Dynamic Sky (replaced JapanScene)
 
     const cssTokens = readSrc('src/styles/tokens.css');
     assert.match(cssTokens, /--rp-learner-banner-bg:\s*#FFFCF8/i);

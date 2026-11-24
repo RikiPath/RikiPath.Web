@@ -122,7 +122,6 @@ export const jaPlanManagement = {
   'Đã hiểu': 'わかりました',
   'Tính năng cần lượt AI': 'AI回数が必要な機能です',
   'Tính năng cần gói học và lượt AI': '学習プランとAI回数が必要な機能です',
-  'Bạn cần thêm lượt AI để sử dụng tính năng này.': 'この機能を使うにはAI回数を追加してください。',
+  'Bạn cần có lượt AI để sử dụng tính năng này.': 'この機能を利用するには、AI回数が必要です。',
   'Bạn cần có gói học phù hợp và lượt AI để sử dụng tính năng này.': 'この機能を使うには対応する学習プランとAI回数が必要です。',
-  'Xem các gói học': '学習プランを見る',
 };

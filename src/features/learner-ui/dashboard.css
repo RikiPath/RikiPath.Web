@@ -1,0 +1,331 @@
+/* RikiPath Learner Dashboard V3 — layout + motion. Rules: transform/opacity only for motion, no layout animation,
+ * ambient loops are few and slow, everything stops under prefers-reduced-motion (content stays complete). */
+
+/* ------------------------------------------------ Overview row: Streak · Progress & SRS · Package */
+.rp-cq-kpis.rp-overview-row > * { min-width: 0; }
+@container rp-panel (min-width: 600px) {
+  .rp-cq-kpis.rp-overview-row:has(> :nth-child(3)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp-cq-kpis.rp-overview-row:has(> :nth-child(3)) > :first-child { grid-column: 1 / -1; }
+}
+@container rp-panel (min-width: 1080px) {
+  .rp-cq-kpis.rp-overview-row:has(> :nth-child(3)) { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .rp-cq-kpis.rp-overview-row:has(> :nth-child(3)) > :first-child { grid-column: auto; }
+}
+
+/* ------------------------------------------------ Streak days (small flame inside studied days only) */
+.rp-streak-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(36px, 3.1vw, 44px);
+  height: clamp(36px, 3.1vw, 44px);
+  border-radius: 999px;
+  border: 1px dashed rgba(196, 184, 188, 0.75);
+  background: var(--color-rp-bg-2);
+  transition: transform 180ms var(--rp-ease), box-shadow 180ms var(--rp-ease), background-color 180ms var(--rp-ease);
+}
+.rp-streak-day[data-done='true'] {
+  border: 1px solid #f6bfca;
+  background: linear-gradient(160deg, #fff4ee 0%, #ffe9ef 100%);
+  box-shadow: 0 1px 2px rgba(224, 90, 122, 0.12);
+}
+.rp-streak-day[data-today='true'] { border: 2px dashed var(--color-rp-brand); background: #fff; }
+.rp-streak-day[data-done='true'][data-today='true'] {
+  position: relative;
+  border: 2px solid #ef7f9c;
+  background: radial-gradient(circle at 50% 60%, #fff6ee 0%, #ffe2ea 100%);
+  box-shadow: 0 0 0 3px rgba(239, 127, 156, 0.16), 0 4px 12px -4px rgba(224, 90, 122, 0.45);
+}
+/* Today (studied): two soft sakura ripples radiate outward and the flame flickers — slow, transform/opacity only. */
+.rp-streak-day[data-done='true'][data-today='true']::before,
+.rp-streak-day[data-done='true'][data-today='true']::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid rgba(239, 127, 156, 0.6);
+  pointer-events: none;
+  animation: rp-streak-ripple 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.rp-streak-day[data-done='true'][data-today='true']::after { animation-delay: -1.3s; }
+.rp-streak-day[data-done='true'][data-today='true'] .rp-mini-flame {
+  transform-origin: 50% 90%;
+  animation: rp-mini-flicker 1.5s ease-in-out infinite alternate;
+}
+.rp-streak-day[data-done='true']:hover { transform: translateY(-1px); }
+/* The streak badge flame burns in sync with today's flame (only when a real streak exists). */
+.rp-badge-flame {
+  transform-origin: 50% 90%;
+  animation: rp-mini-flicker 1.5s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 3px rgba(242, 100, 58, 0.45));
+}
+@keyframes rp-streak-ripple {
+  0% { transform: scale(1); opacity: 0.75; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+@keyframes rp-mini-flicker {
+  0% { transform: scale(1, 1) rotate(0deg); }
+  40% { transform: scale(0.96, 1.07) rotate(-2deg); }
+  100% { transform: scale(1.04, 0.97) rotate(2deg); }
+}
+
+/* ------------------------------------------------ Progress & package cards */
+.rp-metric-link { display: inline-block; transition: color 160ms var(--rp-ease); }
+.rp-metric-link:hover p { color: var(--color-rp-brand-strong); }
+.rp-grow-x { animation: rp-grow-x 620ms var(--rp-ease) both; }
+@keyframes rp-grow-x { from { transform: scaleX(0); } }
+
+/* ------------------------------------------------ Discovery (≈60%) + Group learning (≈40%) */
+.rp-cq-two-col.rp-discovery-row { align-items: stretch; }
+.rp-cq-two-col.rp-discovery-row > aside > * { height: 100%; }
+.rp-cq-practice.rp-discovery-grid { grid-template-columns: minmax(0, 1fr); gap: 8px 10px; grid-auto-rows: 1fr; align-content: stretch; }
+@container rp-panel (min-width: 440px) {
+  .rp-cq-practice.rp-discovery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container rp-panel (min-width: 1040px) {
+  .rp-cq-practice.rp-discovery-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.rp-skill-tile { transition: transform 180ms var(--rp-ease), box-shadow 180ms var(--rp-ease), background-color 180ms var(--rp-ease); }
+.rp-skill-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px -8px rgba(37, 48, 77, 0.22); }
+.rp-skill-tile:active { transform: translateY(0) scale(0.99); }
+
+.rp-empty-halo {
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  border-radius: 999px;
+  background: radial-gradient(circle, #fff0f4 0, #fff7f9 58%, transparent 72%);
+  box-shadow: inset 0 0 0 1px rgba(242, 188, 203, 0.35);
+}
+
+/* ------------------------------------------------ Interactive learning journey */
+.rp-journey-viewport { touch-action: pan-y; cursor: default; }
+.rp-journey-viewport:focus-visible { outline: 2px solid var(--color-rp-brand); outline-offset: 2px; }
+.rp-journey-track {
+  --rp-drag: 0px;
+  display: flex;
+  height: 100%;
+  transform: translate3d(calc(var(--rp-scene, 0) * -100% + var(--rp-drag)), 0, 0);
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.rp-journey-track[data-dragging='true'] { transition: none; cursor: grabbing; }
+.rp-journey-scene { flex: 0 0 100%; min-width: 0; height: 100%; }
+.rp-journey-node[data-status='locked'] { cursor: help; }
+.rp-journey-nav {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--color-rp-line);
+  background: var(--color-rp-surface);
+  color: var(--color-rp-text-2);
+  transition: border-color 160ms var(--rp-ease), color 160ms var(--rp-ease), background-color 160ms var(--rp-ease);
+}
+.rp-journey-nav:hover:not(:disabled) { border-color: var(--color-rp-brand-border); color: var(--color-rp-brand-strong); background: var(--color-rp-brand-tint); }
+.rp-journey-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Edge navigation: centred on the map's left/right edges, above the scenery. */
+.rp-journey-nav-edge {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 8px -2px rgba(37, 48, 77, 0.22);
+}
+.rp-journey-nav-edge[data-side='left'] { left: 8px; }
+.rp-journey-nav-edge[data-side='right'] { right: 8px; }
+.rp-journey-nav-edge:disabled { opacity: 0; pointer-events: none; }
+.rp-journey-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-rp-line-strong, #d6cfd2);
+  transition: transform 200ms var(--rp-ease), background-color 200ms var(--rp-ease);
+}
+.rp-journey-dot[data-active='true'] { background: var(--color-rp-brand); transform: scale(1.35); }
+.rp-journey-node { cursor: pointer; outline: none; }
+.rp-journey-node > * { transition: opacity 180ms var(--rp-ease); }
+.rp-journey-node:hover > ellipse:nth-of-type(1) { opacity: 0.9; }
+.rp-journey-node:focus-visible > g:last-child rect:last-of-type,
+.rp-journey-node:focus-visible .rp-node-top { stroke: #e05a7a; stroke-width: 2.4px; }
+.rp-journey-pulse {
+  fill: rgba(224, 90, 122, 0.22);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rp-journey-pulse 2.4s ease-in-out infinite;
+}
+.rp-journey-here { animation: rp-journey-bob 2.8s ease-in-out infinite alternate; }
+@keyframes rp-journey-pulse { 0%, 100% { transform: scale(0.9); opacity: 0.9; } 50% { transform: scale(1.12); opacity: 0.35; } }
+@keyframes rp-journey-bob { from { transform: translate(0, var(--rp-here-y, -52px)); } to { transform: translate(0, calc(var(--rp-here-y, -52px) - 3px)); } }
+.rp-journey-cloud { animation: rp-journey-cloud 26s ease-in-out infinite alternate; }
+.rp-journey-cloud[data-slow='true'] { animation-duration: 34s; animation-direction: alternate-reverse; }
+@keyframes rp-journey-cloud { from { transform: translateX(-18px); } to { transform: translateX(22px); } }
+.rp-journey-petals > path { animation: rp-journey-petal 9s linear infinite; transform-box: fill-box; }
+.rp-journey-petals > path:nth-child(2) { animation-delay: -3s; animation-duration: 11s; }
+.rp-journey-petals > path:nth-child(3) { animation-delay: -6s; animation-duration: 10s; }
+@keyframes rp-journey-petal {
+  0% { opacity: 0; translate: 0 0; rotate: 0deg; }
+  12% { opacity: 0.85; }
+  85% { opacity: 0.85; }
+  100% { opacity: 0; translate: 40px 150px; rotate: 220deg; }
+}
+/* Active-path dashes move forward (direction of travel), slow and seamless: offset −28 = two 7+7 periods. */
+.rp-journey-dash { stroke-dashoffset: 0; animation: rp-journey-dash 4.2s linear infinite; }
+/* Checkpoint state changes (locked → current → done) ease the platform colours instead of snapping. */
+.rp-node-base, .rp-node-top { transition: fill 280ms var(--rp-ease), stroke 280ms var(--rp-ease); }
+@keyframes rp-journey-dash { to { stroke-dashoffset: -28; } }
+/* Roadmap World painted art: covers the scene, light parallax against the sliding track, fades in. */
+.rp-world-art { position: absolute; inset: 0; overflow: hidden; z-index: 0; }
+.rp-world-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: translate3d(calc((var(--rp-scene, 0) - var(--rp-i, 0)) * 7%), 0, 0) scale(1.08);
+  transition: opacity 420ms var(--rp-ease), transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+  user-select: none;
+}
+.rp-world-art img[data-loaded='true'] { opacity: 1; }
+.rp-journey-scene > svg { position: relative; z-index: 2; }
+/* Sakura atmospheric overlay: a thin cream/pink gradient between the painting and the road — calms busy art
+   without washing it out (no blur). Busier paintings get slightly more. */
+.rp-world-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  --rp-ov: 1;
+  background: linear-gradient(180deg,
+    rgba(255, 250, 252, calc(0.10 * var(--rp-ov))) 0%,
+    rgba(255, 246, 249, calc(0.15 * var(--rp-ov))) 45%,
+    rgba(255, 252, 248, calc(0.11 * var(--rp-ov))) 100%);
+}
+.rp-world-overlay:is([data-landscape='village'], [data-landscape='festival'], [data-landscape='momiji']) { --rp-ov: 1.35; }
+.rp-world-overlay[data-landscape='snowy'] { --rp-ov: 0.8; }
+.rp-world-fallback { transition: opacity 420ms var(--rp-ease); }
+.rp-world-fallback[data-hidden='true'] { opacity: 0; }
+.rp-world-fallback[data-hidden='true'] * { animation-play-state: paused !important; }
+
+/* Roadmap World ambient: one gentle effect per landscape (falling petals/leaves/snow, water shimmer, lantern glow
+   or bamboo sway) plus slow clouds — transform/opacity only. */
+.rp-world-fall > g { animation: rp-world-fall 11s linear infinite; }
+.rp-world-fall > g:nth-child(2) { animation-delay: -3s; animation-duration: 13s; }
+.rp-world-fall > g:nth-child(3) { animation-delay: -6.5s; animation-duration: 12s; }
+.rp-world-fall > g:nth-child(4) { animation-delay: -9s; animation-duration: 14s; }
+.rp-world-snow > g { animation-duration: 16s; }
+@keyframes rp-world-fall {
+  0% { opacity: 0; translate: 0 -10px; rotate: 0deg; }
+  10% { opacity: 0.95; }
+  85% { opacity: 0.9; }
+  100% { opacity: 0; translate: 46px 190px; rotate: 260deg; }
+}
+.rp-world-shimmer { animation: rp-world-shimmer 3.6s ease-in-out infinite alternate; }
+@keyframes rp-world-shimmer { from { opacity: 0.35; } to { opacity: 0.95; } }
+.rp-world-lantern { animation: rp-world-lantern 3.2s ease-in-out infinite alternate; }
+.rp-world-lantern:nth-of-type(even) { animation-delay: -1.6s; }
+@keyframes rp-world-lantern { from { opacity: 0.82; } to { opacity: 1; } }
+.rp-world-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: rp-world-sway 7s ease-in-out infinite alternate; }
+@keyframes rp-world-sway { from { rotate: -1.2deg; } to { rotate: 1.2deg; } }
+/* Only the visible scene animates. */
+.rp-journey-scene svg[data-active='false'] * { animation-play-state: paused !important; }
+.rp-journey-detail { animation: rp-detail-in 260ms var(--rp-ease) both; }
+@keyframes rp-detail-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------ Interactive activity calendar */
+.rp-cal-day {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-rp-text-2);
+  background: var(--color-rp-bg-2);
+  transition: transform 160ms var(--rp-ease), background-color 160ms var(--rp-ease), border-color 160ms var(--rp-ease), box-shadow 160ms var(--rp-ease), color 160ms var(--rp-ease);
+}
+.rp-cal-day:hover { background: #fff4f7; color: var(--color-rp-brand-strong); }
+/* Studied day: soft sakura (same family as the primary CTA, lighter) + a small dot — not colour alone. */
+.rp-cal-day[data-active='true'] {
+  /* One flat sakura colour; the border takes the same colour so no seam shows at the edge. */
+  border-color: #e0577c;
+  background: #e0577c;
+  color: #fff;
+  box-shadow: 0 2px 6px -2px rgba(224, 90, 122, 0.45);
+}
+.rp-cal-day[data-active='true']::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+}
+/* Today: bolder number with a faint sakura inner ring (no legend entry needed). */
+.rp-cal-day[data-today='true'] { font-weight: 800; box-shadow: inset 0 0 0 1.5px rgba(224, 90, 122, 0.45); }
+.rp-cal-day[data-today='true'][data-active='true'] { box-shadow: 0 2px 6px -2px rgba(224, 90, 122, 0.45); }
+.rp-cal-day[data-future='true'] { color: var(--color-rp-text-disabled); background: transparent; }
+.rp-cal-day[data-outside='true'] { opacity: 0.35; }
+/* Selected: sakura border + pale pink fill (studied days keep their fill and get a soft sakura halo). */
+.rp-cal-day[data-selected='true'] {
+  border-color: #e05a7a;
+  background: #ffe3eb;
+  color: var(--color-rp-brand-strong);
+  transform: scale(1.06);
+  z-index: 1;
+}
+.rp-cal-day[data-selected='true'][data-active='true'] {
+  border-color: #e0577c;
+  background: #e0577c;
+  color: #fff;
+  box-shadow: 0 0 0 2px #f08aa5, 0 3px 8px -2px rgba(224, 90, 122, 0.45);
+}
+.rp-cal-month[data-dir='next'] { animation: rp-cal-next 280ms var(--rp-ease) both; }
+.rp-cal-month[data-dir='prev'] { animation: rp-cal-prev 280ms var(--rp-ease) both; }
+@keyframes rp-cal-next { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes rp-cal-prev { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+.rp-cal-detail { animation: rp-detail-in 220ms var(--rp-ease) both; }
+.rp-cal-legend { display: inline-block; width: 12px; height: 12px; border-radius: 999px; }
+.rp-cal-legend[data-kind='active'] { background: #e0577c; }
+.rp-cal-legend[data-kind='selected'] { background: #ffe3eb; border: 2px solid #e05a7a; }
+
+/* ------------------------------------------------ Recent activity */
+.rp-activity-row { transition: background-color 160ms var(--rp-ease); }
+.rp-activity-row:hover { background: var(--color-rp-bg-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-streak-day,
+  .rp-streak-day::before,
+  .rp-streak-day::after,
+  .rp-mini-flame,
+  .rp-badge-flame,
+  .rp-grow-x,
+  .rp-journey-track,
+  .rp-journey-pulse,
+  .rp-journey-here,
+  .rp-journey-cloud,
+  .rp-journey-petals > path,
+  .rp-journey-dash,
+  .rp-world-fall > g,
+  .rp-world-art img,
+  .rp-world-shimmer,
+  .rp-world-lantern,
+  .rp-world-sway,
+  .rp-journey-detail,
+  .rp-cal-month,
+  .rp-cal-detail { animation: none !important; transition: none !important; }
+  .rp-journey-petals,
+  .rp-world-fall { display: none; }
+  .rp-skill-tile:hover { transform: none; }
+}

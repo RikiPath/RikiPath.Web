@@ -348,7 +348,7 @@ export default function AIScoringResult() {
                             state={{ from: { pathname }, requiredFeatureLabel: tr('Chấm bài AI') }}
                             className="rp-link text-xs font-semibold"
                           >
-                            {tr('Xem gói & lượt AI')}
+                            {tr('Mua gói ngay')}
                           </Link>
                         ) : null
                       }

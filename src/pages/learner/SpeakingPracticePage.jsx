@@ -10,6 +10,7 @@ import {
   CustomSelect,
   PageContainer,
   Popover,
+  Collapsible,
 } from '@/components/ui';
 import { ControlGroup, CounterPill, IllustratedPageHeader } from '@/features/learner-ui';
 import Icon from '@/components/ui/Icon.jsx';
@@ -183,7 +184,7 @@ export default function SpeakingPracticePage() {
                 state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện nói AI') }}
                 className="rp-link text-xs font-semibold"
               >
-                {tr('Xem gói & lượt AI')}
+                {tr('Mua gói ngay')}
               </Link>
             }
           >
@@ -221,16 +222,16 @@ export default function SpeakingPracticePage() {
                 className="rp-focus mt-3 inline-flex items-center gap-1 rounded text-xs font-medium text-rp-brand-strong hover:text-rp-brand-deep"
               >
                 {showReading ? tr('Ẩn cách đọc') : tr('Hiện cách đọc')}
-                <Icon name={showReading ? 'expand_less' : 'expand_more'} className="text-[17px]" />
+                <Icon name="expand_more" className="rp-disclosure-chevron text-[17px]" />
               </button>
 
-              {showReading && (
-                <div id="sentence-reading" className="mt-3 rounded-xl border border-rp-line bg-white px-4 py-3">
+              <Collapsible open={showReading} id="sentence-reading" innerClassName="pt-3">
+                <div className="rounded-xl border border-rp-line bg-white px-4 py-3">
                   <p lang="ja" className="font-['Noto_Sans_JP',sans-serif] text-sm leading-7 text-rp-brand-strong">
                     {lesson.reading}
                   </p>
                 </div>
-              )}
+              </Collapsible>
             </div>
 
             <div className="border-y border-rp-line bg-white px-5 py-4 sm:px-6">
@@ -333,7 +334,7 @@ export default function SpeakingPracticePage() {
                         state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện nói AI') }}
                         className="rp-link text-xs font-semibold"
                       >
-                        {tr('Xem gói & lượt AI')}
+                        {tr('Mua gói ngay')}
                       </Link>
                     ) : null
                   }

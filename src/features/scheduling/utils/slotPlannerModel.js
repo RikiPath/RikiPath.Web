@@ -658,11 +658,38 @@ export function buildPresetCandidateSlots({
 export const SCHEDULE_STATUS_OPTIONS = Object.freeze([
   { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
-  { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#0D9488]' },
+  { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
   { id: 'session', label: 'Đã xếp lớp', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'present', label: 'Đã hoàn thành', tone: 'present', dotClass: 'bg-[#16A34A]' },
   { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
   { id: 'cancelled', label: 'Đã hủy', tone: 'cancelled', dotClass: 'bg-[#8B8B97]' },
+]);
+
+/**
+ * Simplified 3-status filter strictly for the Teaching Registration Calendar (`/mentor-shift-schedule/`).
+ * Separates Proposal Review statuses (Chờ duyệt / Đã duyệt / Bị từ chối) from:
+ * - Selection State (Đang chọn / Đã chọn — unsent draft preview, never counted here)
+ * - Class Lifecycle (managed in Lớp đang phụ trách)
+ * - Teaching Session Lifecycle (managed in Lịch làm việc)
+ */
+export const REGISTRATION_STATUS_OPTIONS = Object.freeze([
+  { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
+  { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
+  { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
+  { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
+]);
+
+/**
+ * List View status filter for the Teaching Registration workspace (`/mentor-shift-schedule/`).
+ * Includes Selection State (`Đã chọn`) alongside the 3 official review statuses so List View
+ * exposes the complete registration dataset without mixing class/session lifecycle statuses.
+ */
+export const LIST_REGISTRATION_STATUS_OPTIONS = Object.freeze([
+  { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
+  { id: 'selected', label: 'Đã chọn', tone: 'selected', dotClass: 'bg-[#22C55E]' },
+  { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
+  { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
+  { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
 ]);
 
 export const SCHEDULE_EVENT_TYPE_OPTIONS = Object.freeze([
@@ -672,11 +699,30 @@ export const SCHEDULE_EVENT_TYPE_OPTIONS = Object.freeze([
   { id: 'Draft', label: 'Khung đang chọn (chưa gửi)', dotClass: 'bg-[#22C55E]' },
 ]);
 
+/**
+ * Current registration-calendar type filter options for `/mentor-shift-schedule/` (`proposalMode`).
+ * Matches the active status-based registration model without legacy single-slot/cohort leakage.
+ */
+export const REGISTRATION_EVENT_TYPE_OPTIONS = Object.freeze([
+  { id: 'ALL', label: 'Tất cả' },
+  { id: 'Draft', label: 'Đang chọn', dotClass: 'bg-[#22C55E]' },
+  { id: 'Proposal', label: 'Đề xuất mở lớp', dotClass: 'bg-[#CE476D]' },
+]);
+
+export const REGISTRATION_JLPT_FILTER_OPTIONS = Object.freeze([
+  { id: 'ALL', label: 'Tất cả' },
+  { id: 'N5', label: 'N5' },
+  { id: 'N4', label: 'N4' },
+  { id: 'N3', label: 'N3' },
+  { id: 'N2', label: 'N2' },
+]);
+
 export const SCHEDULE_SORT_OPTIONS = Object.freeze([
-  { id: 'smart', label: 'Ưu tiên cần xử lý & sắp tới' },
+  { id: 'smart', label: 'Ưu tiên đang chọn & sắp tới' },
   { id: 'nearest', label: 'Ngày gần nhất trước' },
-  { id: 'status', label: 'Theo trạng thái' },
   { id: 'startTime', label: 'Theo giờ bắt đầu trong ngày' },
+  { id: 'jlpt', label: 'Theo cấp độ JLPT' },
+  { id: 'status', label: 'Theo trạng thái' },
   { id: 'newest', label: 'Mới nhất trước' },
   { id: 'oldest', label: 'Cũ nhất trước' },
 ]);
@@ -732,6 +778,252 @@ export function classifyScheduleEvent(ev) {
 }
 
 /**
+ * Maps an event on the Teaching Registration Calendar to one of the 3 official review statuses:
+ * `'pending' | 'approved' | 'rejected'`, or `null` for non-official / excluded items
+ * (Selection State drafts, ghost previews, pending moves, cancelled/withdrawn items, external busy).
+ *
+ * Approved proposals that later became recruiting/upcoming/ongoing/completed classes remain `'approved'`
+ * on the registration calendar without leaking class/session lifecycle statuses into this page.
+ */
+export function classifyRegistrationEvent(ev) {
+  if (!ev || !ev.dayKey) return null;
+  if (
+    ev.isSelectedDraft
+    || ev.sourceKind === 'selected'
+    || ev.sourceKind === 'draftGhost'
+    || ev.sourceKind === 'pendingMove'
+    || ev.sourceKind === 'externalBusy'
+    || ev.sourceKind === 'withdrawn'
+  ) {
+    return null;
+  }
+  const s = ev.slot || ev.rawSlot;
+  if (
+    ev.proposalStatus === 'Withdrawn'
+    || s?.isDeleted
+    || s?.status === 'Cancelled'
+    || ev.sourceKind === 'cancelled'
+    || (ev.tone === 'cancelled' && !s?.rejectedAt && ev.sourceKind !== 'rejected' && ev.sourceKind !== 'rejectedProposal')
+  ) {
+    return null;
+  }
+  if (
+    ev.sourceKind === 'rejected'
+    || ev.sourceKind === 'rejectedProposal'
+    || ev.tone === 'rejected'
+    || s?.rejectedAt
+    || s?.status === 'Rejected'
+  ) {
+    return 'rejected';
+  }
+  const pendingCancel = Boolean(s?.cancelRequestedAt && !s?.cancelRejectedAt);
+  const pendingChange = Boolean(s?.changeRequestedAt && !s?.changeResolution);
+  if (
+    ev.sourceKind === 'pendingProposal'
+    || ev.tone === 'pending'
+    || s?.status === 'Pending'
+    || (s && (!s.isApproved || pendingCancel || pendingChange))
+  ) {
+    return 'pending';
+  }
+  return 'approved';
+}
+
+function matchesNonStatusCriteria(ev, {
+  eventTypeFilter = 'ALL',
+  jlptLevelFilter = 'ALL',
+  dateRange = null,
+  timeRange = null,
+  searchQuery = '',
+  nowMs = Date.now(),
+}) {
+  const { eventType, eventTypeLabel } = classifyScheduleEvent(ev, nowMs);
+  if (eventTypeFilter && eventTypeFilter !== 'ALL') {
+    if (eventTypeFilter === 'Proposal') {
+      if (!classifyRegistrationEvent(ev)) return false;
+    } else if (eventTypeFilter === 'Draft') {
+      if (!(ev.isSelectedDraft || ev.sourceKind === 'selected')) return false;
+    } else if (eventType !== eventTypeFilter) {
+      return false;
+    }
+  }
+  if (jlptLevelFilter && jlptLevelFilter !== 'ALL') {
+    const code = String(ev.jlptLevelCode || '').trim().toUpperCase();
+    if (code !== String(jlptLevelFilter).trim().toUpperCase()) {
+      return false;
+    }
+  }
+  if (dateRange?.startKey && ev.dayKey < dateRange.startKey) {
+    return false;
+  }
+  if (dateRange?.endKey && ev.dayKey > dateRange.endKey) {
+    return false;
+  }
+  if (timeRange && (timeRange.startMin != null || timeRange.endMin != null)) {
+    const fStart = timeRange.startMin ?? 0;
+    const fEnd = timeRange.endMin ?? 24 * 60;
+    const evStart = (ev.startHour || 0) * 60 + (ev.startMinute || 0);
+    let evEnd = (ev.endHour || 0) * 60 + (ev.endMinute || 0);
+    if (evEnd <= evStart) evEnd = Math.min(24 * 60, evStart + 90);
+    if (!(evStart < fEnd && evEnd > fStart)) {
+      return false;
+    }
+  }
+  const q = String(searchQuery || '').trim().toLowerCase();
+  if (q) {
+    const hay = `${ev.title || ''} ${ev.fullTitle || ''} ${ev.courseTitle || ''} ${ev.jlptLevelCode || ''} ${ev.detail || ''} ${ev.statusLabel || ''} ${eventTypeLabel} ${ev.dayKey}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+/**
+ * Computes consistent, deduplicated official occurrence counts for the Teaching Registration Calendar.
+ * Strictly excludes unsent draft selections (`selected`), cancelled/withdrawn events, and guarantees:
+ * `counts.ALL === counts.pending + counts.approved + counts.rejected`.
+ */
+export function computeRegistrationStatusCounts(events, {
+  eventTypeFilter = 'ALL',
+  jlptLevelFilter = 'ALL',
+  dateRange = null,
+  timeRange = null,
+  searchQuery = '',
+  nowMs = Date.now(),
+} = {}) {
+  const counts = { ALL: 0, pending: 0, approved: 0, rejected: 0 };
+  const seenKeys = new Set();
+
+  for (const ev of events || []) {
+    const regStatus = classifyRegistrationEvent(ev);
+    if (!regStatus) continue;
+    if (!matchesNonStatusCriteria(ev, { eventTypeFilter, jlptLevelFilter, dateRange, timeRange, searchQuery, nowMs })) continue;
+
+    const dedupeKey = ev.slotId
+      ? `slot:${ev.slotId}`
+      : ev.availabilityId
+        ? `slot:${ev.availabilityId}`
+        : ev.id;
+    if (dedupeKey && seenKeys.has(dedupeKey)) continue;
+    if (dedupeKey) seenKeys.add(dedupeKey);
+
+    counts[regStatus] += 1;
+  }
+
+  counts.ALL = counts.pending + counts.approved + counts.rejected;
+  return counts;
+}
+
+/**
+ * Computes complete row counts for List View on the Teaching Registration workspace,
+ * including `selected` (weekly patterns or finite preview occurrences) alongside
+ * official `pending`, `approved`, and `rejected` occurrences.
+ * Guarantees: `counts.ALL === counts.selected + counts.pending + counts.approved + counts.rejected`.
+ */
+export function computeListRegistrationStatusCounts(events, {
+  eventTypeFilter = 'ALL',
+  jlptLevelFilter = 'ALL',
+  dateRange = null,
+  timeRange = null,
+  searchQuery = '',
+  nowMs = Date.now(),
+} = {}) {
+  const counts = { ALL: 0, selected: 0, pending: 0, approved: 0, rejected: 0 };
+  const seenKeys = new Set();
+
+  for (const ev of events || []) {
+    if (!ev || !ev.dayKey) continue;
+    if (ev.isSelectedDraft || ev.sourceKind === 'selected') {
+      if (!matchesNonStatusCriteria(ev, { eventTypeFilter, jlptLevelFilter, dateRange, timeRange, searchQuery, nowMs })) continue;
+      const dedupeKey = `sel:${ev.id}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
+      counts.selected += 1;
+      continue;
+    }
+
+    const regStatus = classifyRegistrationEvent(ev);
+    if (!regStatus) continue;
+    if (!matchesNonStatusCriteria(ev, { eventTypeFilter, jlptLevelFilter, dateRange, timeRange, searchQuery, nowMs })) continue;
+
+    const dedupeKey = ev.slotId
+      ? `slot:${ev.slotId}`
+      : ev.availabilityId
+        ? `slot:${ev.availabilityId}`
+        : ev.id;
+    if (dedupeKey && seenKeys.has(dedupeKey)) continue;
+    if (dedupeKey) seenKeys.add(dedupeKey);
+
+    counts[regStatus] += 1;
+  }
+
+  counts.ALL = counts.selected + counts.pending + counts.approved + counts.rejected;
+  return counts;
+}
+
+/**
+ * Filters Teaching Registration Calendar & List View events consistently.
+ * - Cancelled/withdrawn events are never displayed on the registration workspace.
+ * - `statusFilter === 'selected'` returns ONLY matching active selection rows (`isSelectedDraft`).
+ * - When `statusFilter === 'ALL'`, unsent selection rows are included when `keepSelectedVisible` is true
+ *   or `eventTypeFilter === 'Draft'`.
+ * - Deduplicates by `slotId`/`availabilityId` for official rows so List View never renders duplicates.
+ */
+export function filterRegistrationEvents(events, {
+  statusFilter = 'ALL',
+  eventTypeFilter = 'ALL',
+  jlptLevelFilter = 'ALL',
+  dateRange = null,
+  timeRange = null,
+  searchQuery = '',
+  nowMs = Date.now(),
+  keepSelectedVisible = true,
+} = {}) {
+  const seenKeys = new Set();
+  return (events || []).filter((ev) => {
+    if (!ev || !ev.dayKey) return false;
+    if (ev.isSelectedDraft || ev.sourceKind === 'selected') {
+      if (statusFilter && statusFilter !== 'ALL' && statusFilter !== 'selected') {
+        if (!keepSelectedVisible) return false;
+      }
+      if (statusFilter === 'selected' || eventTypeFilter === 'Draft') {
+        if (!matchesNonStatusCriteria(ev, { eventTypeFilter, jlptLevelFilter, dateRange, timeRange, searchQuery, nowMs })) {
+          return false;
+        }
+        const dk = `sel:${ev.id}`;
+        if (seenKeys.has(dk)) return false;
+        seenKeys.add(dk);
+        return true;
+      }
+      if (!keepSelectedVisible) return false;
+      if (eventTypeFilter && eventTypeFilter !== 'ALL') return false;
+      if (!matchesNonStatusCriteria(ev, { eventTypeFilter: 'ALL', jlptLevelFilter, dateRange, timeRange, searchQuery, nowMs })) {
+        return false;
+      }
+      const dk = `sel:${ev.id}`;
+      if (seenKeys.has(dk)) return false;
+      seenKeys.add(dk);
+      return true;
+    }
+
+    if (statusFilter === 'selected') return false;
+    const regStatus = classifyRegistrationEvent(ev);
+    if (!regStatus) return false;
+    if (statusFilter && statusFilter !== 'ALL' && regStatus !== statusFilter) return false;
+    if (!matchesNonStatusCriteria(ev, { eventTypeFilter, jlptLevelFilter, dateRange, timeRange, searchQuery, nowMs })) {
+      return false;
+    }
+    const dedupeKey = ev.slotId
+      ? `slot:${ev.slotId}`
+      : ev.availabilityId
+        ? `slot:${ev.availabilityId}`
+        : ev.id;
+    if (dedupeKey && seenKeys.has(dedupeKey)) return false;
+    if (dedupeKey) seenKeys.add(dedupeKey);
+    return true;
+  });
+}
+
+/**
  * Filters a list of normalized schedule events using combined AND criteria:
  * - statusFilter ('ALL' or statusKey)
  * - eventTypeFilter ('ALL' | 'CohortSession' | 'Availability' | 'Draft')
@@ -783,6 +1075,17 @@ export function filterScheduleEvents(events, {
   });
 }
 
+function jlptSortRank(code) {
+  switch (String(code || '').trim().toUpperCase()) {
+    case 'N5': return 1;
+    case 'N4': return 2;
+    case 'N3': return 3;
+    case 'N2': return 4;
+    case 'N1': return 5;
+    default: return 99;
+  }
+}
+
 function statusSortRank(statusKey) {
   switch (statusKey) {
     case 'selected': return 0;
@@ -827,6 +1130,13 @@ export function sortScheduleEvents(events, {
     const tb = timestampOf(b);
     const ma = (a.startHour || 0) * 60 + (a.startMinute || 0);
     const mb = (b.startHour || 0) * 60 + (b.startMinute || 0);
+
+    if (sortBy === 'jlpt') {
+      const jDiff = (jlptSortRank(a.jlptLevelCode) - jlptSortRank(b.jlptLevelCode)) * dir;
+      if (jDiff !== 0) return jDiff;
+      if (ta !== tb) return ta - tb;
+      return String(a.id).localeCompare(String(b.id));
+    }
 
     if (sortBy === 'status') {
       const rDiff = (statusSortRank(ca.statusKey) - statusSortRank(cb.statusKey)) * dir;

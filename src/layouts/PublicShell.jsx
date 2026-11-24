@@ -201,7 +201,7 @@ export default function PublicShell({ children }) {
           <Link to="/" onClick={handleLogoClick} className="rp-focus group flex shrink-0 items-center gap-1.5 rounded-lg sm:gap-2.5" aria-label={`RikiPath — ${tr('Trang chủ')}`}>
             <BrandMark className="h-8 w-9 shrink-0 transition-transform duration-300 group-hover:-rotate-3 sm:h-10 sm:w-14" />
             <span className="leading-tight">
-              <span className="block whitespace-nowrap text-[14.5px] font-extrabold tracking-[-0.02em] sm:text-[16px]">Riki<span className="text-rp-brand">Path</span></span>
+              <span className="block whitespace-nowrap text-[14.5px] font-extrabold tracking-[-0.02em] sm:text-[16px]">Riki<span className="rp-brand-path">Path</span></span>
               <span className="hidden truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-rp-text-muted sm:block">JLPT Academy</span>
             </span>
           </Link>
@@ -278,7 +278,7 @@ export default function PublicShell({ children }) {
           <div>
             <Link to="/" className="rp-focus inline-flex items-center gap-2.5 rounded-lg" aria-label={`RikiPath — ${tr('Trang chủ')}`}>
               <BrandMark className="h-10 w-12" />
-              <span className="text-lg font-extrabold">Riki<span className="text-rp-brand">Path</span></span>
+              <span className="text-lg font-extrabold">Riki<span className="rp-brand-path">Path</span></span>
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-6 text-rp-text-2">{tr('Nền tảng học tiếng Nhật và luyện thi JLPT N5–N2: tự học theo lộ trình, thi thử, học nhóm cùng Giáo viên và góp ý từ Haru AI.')}</p>
             <p lang="ja" className="rp-kanji mt-4 text-[13px] tracking-[0.2em] text-rp-brand-pressed/80">一歩ずつ、確かに。</p>
@@ -297,7 +297,7 @@ export default function PublicShell({ children }) {
         <div className="relative border-t border-rp-line">
           <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-[var(--rp-space-page-x)] py-5 text-xs text-rp-text-muted sm:flex-row sm:items-center sm:justify-between">
             <p>© 2026 RikiPath Learning</p>
-            <p>{tr('Thanh toán lớp nhóm qua PayOS · Đồng bộ Web và ứng dụng RikiPath')}</p>
+            <p>{tr('Thanh toán lớp nhóm trực tuyến · Đồng bộ Web và ứng dụng RikiPath')}</p>
           </div>
         </div>
       </footer>

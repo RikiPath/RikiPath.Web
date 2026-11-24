@@ -173,7 +173,7 @@ describe('active state and breadcrumbs', () => {
     assert.ok(practiceGroup, 'Learner sidebar must include Luyện tập & Thi thử group');
     assert.deepEqual(
       practiceGroup.items.map((i) => i.label),
-      ['Nghe hiểu', 'Đọc hiểu', 'Luyện viết', 'Luyện nói', 'Luyện đề & Thi thử'],
+      ['Luyện viết', 'Luyện nói', 'Luyện đề & Thi thử'],
     );
 
     const branch = practiceGroup.items.find((i) => i.id === 'practice-exam');
@@ -242,5 +242,86 @@ describe('active state and breadcrumbs', () => {
     assert.ok(appShellSrc.includes('aria-controls={subId}'));
     assert.ok(appShellSrc.includes('motion-reduce:transition-none'));
     assert.ok(appShellSrc.includes("item.to && lockStateFor(item) !== 'locked'"));
+    assert.ok(appShellSrc.includes('function isBranchFullyLocked('));
+    assert.match(appShellSrc, /if\s*\(branchLocked && onLockedClick\)\s*\{\s*return\s*\(\s*<LockedNavItem/);
+  });
+
+  it('restructures Khám phá bài học into 6 submenus, removes duplicate listening/reading items, and preserves Kanji naming', () => {
+    const roadmapGroup = ROLE_NAV.Learner.groups.find((g) => g.label === 'Lộ trình học JLPT');
+    assert.ok(roadmapGroup, 'Learner sidebar must include Lộ trình học JLPT group');
+    assert.deepEqual(roadmapGroup.items.map((i) => i.label), ['Lộ trình của tôi', 'Khám phá bài học']);
+
+    const branch = roadmapGroup.items.find((i) => i.id === 'lesson-discovery');
+    assert.ok(branch, 'lesson-discovery expandable branch must exist');
+    assert.equal(branch.defaultOpen, false);
+    assert.deepEqual(
+      branch.children.map((c) => ({ label: c.label, to: c.to })),
+      [
+        { label: 'Tất cả bài học', to: '/lessons' },
+        { label: 'Từ vựng', to: '/lessons?category=vocabulary' },
+        { label: 'Ngữ pháp', to: '/lessons?category=grammar' },
+        { label: 'Kanji', to: '/lessons?category=kanji' },
+        { label: 'Nghe hiểu', to: '/lessons?category=listening' },
+        { label: 'Đọc hiểu', to: '/lessons?category=reading' },
+      ],
+    );
+
+    const [allChild, vocabChild, grammarChild, kanjiChild, listeningChild, readingChild] = branch.children;
+    const assertSingleActive = (pathname, search, expectedChild) => {
+      assert.equal(isNavItemActive(branch, pathname, search), true, `${pathname}${search} must activate lesson-discovery parent`);
+      const activeChildren = branch.children.filter((c) => isNavItemActive(c, pathname, search));
+      assert.equal(activeChildren.length, 1, `${pathname}${search} must highlight exactly one submenu child`);
+      assert.equal(activeChildren[0], expectedChild, `${pathname}${search} must activate ${expectedChild.label}`);
+    };
+
+    assertSingleActive('/lessons', '', allChild);
+    assertSingleActive('/lessons/', '', allChild);
+    assertSingleActive('/lessons', '?level=N4', allChild);
+    assertSingleActive('/lessons', '?category=all&level=N3', allChild);
+    assertSingleActive('/lessons', '?category=vocabulary&level=N5', vocabChild);
+    assertSingleActive('/lessons', '?skill=Vocabulary', vocabChild);
+    assertSingleActive('/lessons', '?category=grammar', grammarChild);
+    assertSingleActive('/lessons', '?skill=Grammar', grammarChild);
+    assertSingleActive('/lessons', '?category=kanji', kanjiChild);
+    assertSingleActive('/lessons', '?skill=Kanji', kanjiChild);
+    assertSingleActive('/lessons', '?category=listening', listeningChild);
+    assertSingleActive('/riki/listening', '', listeningChild);
+    assertSingleActive('/riki/listening/', '?level=N4', listeningChild);
+    assertSingleActive('/lessons', '?category=reading', readingChild);
+    assertSingleActive('/riki/reading', '', readingChild);
+    assertSingleActive('/riki/reading/', '?level=N3', readingChild);
+
+    for (const [otherPath, otherSearch] of [['/roadmap', ''], ['/app', ''], ['/grammar', '']]) {
+      assert.equal(isNavItemActive(branch, otherPath, otherSearch), false);
+      for (const child of branch.children) {
+        assert.equal(isNavItemActive(child, otherPath, otherSearch), false);
+      }
+    }
+
+    assert.deepEqual(
+      buildBreadcrumbs('Learner', '/lessons/', '', 'Tất cả bài học').map((c) => c.label),
+      ['Học viên', 'Khám phá bài học', 'Tất cả bài học'],
+    );
+    assert.deepEqual(
+      buildBreadcrumbs('Learner', '/lessons/', '?category=vocabulary&level=N5', 'Từ vựng').map((c) => c.label),
+      ['Học viên', 'Khám phá bài học', 'Từ vựng'],
+    );
+    assert.deepEqual(
+      buildBreadcrumbs('Learner', '/riki/listening/', '', 'Nghe hiểu').map((c) => c.label),
+      ['Học viên', 'Khám phá bài học', 'Nghe hiểu'],
+    );
+
+    const libraryGroup = ROLE_NAV.Learner.groups.find((g) => g.label === 'Thư viện tiếng Nhật');
+    assert.ok(libraryGroup, 'Learner sidebar must preserve Thư viện tiếng Nhật group');
+    assert.deepEqual(
+      libraryGroup.items.map((i) => i.label),
+      ['Ngữ pháp tiếng Nhật', 'Kanji (Hán tự)', 'Bảng chữ Hiragana', 'Bảng chữ Katakana'],
+    );
+
+    for (const target of ['/lessons', '/riki/listening', '/riki/reading']) {
+      const route = matchRoute(target);
+      assert.ok(route, `Route ${target} must stay registered`);
+      assert.equal(Boolean(route.study), true, `Route ${target} must preserve study=true entitlement lock`);
+    }
   });
 });

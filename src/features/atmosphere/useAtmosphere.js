@@ -1,14 +1,16 @@
 // Shared atmosphere state: one preference store (localStorage, validated), one cached weather query,
-// one minute-resolution clock that stops while the tab is hidden. No per-frame React state.
+// and one minute-resolution clock that stops while the tab is hidden. Simulated scenes exist only in tests.
+// No per-frame React state; every role uses the same engine (no role-based effect policy).
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   DEFAULT_PREFS,
+  WEATHER_MAX_AGE_MS,
   WEATHER_REFRESH_MS,
   WEATHER_STALE_MS,
-  deriveScene,
-  roleDecoration,
+  resolveScene,
   sanitizePrefs,
+  weatherFreshness,
 } from './atmosphereLogic.js';
 import { fetchCurrentWeather } from './weatherService.js';
 
@@ -110,7 +112,8 @@ function weatherCacheKey(loc) {
 function readWeatherCache(key) {
   try {
     const entry = JSON.parse(storage('sessionStorage')?.getItem(WEATHER_CACHE_KEY) || 'null');
-    if (entry?.key === key && Date.now() - entry.at < WEATHER_STALE_MS) return entry;
+    // Restored only while still within the max age, so an old cache is never shown as current weather.
+    if (entry?.key === key && Date.now() - entry.at < Math.min(WEATHER_MAX_AGE_MS, WEATHER_STALE_MS * 3)) return entry;
   } catch {
     // ignore
   }
@@ -129,8 +132,8 @@ export function useLiveWeather(prefs) {
   const loc = prefs.location;
   const key = weatherCacheKey(loc);
   const enabled = prefs.mode === 'weather' && Boolean(loc);
-  const seed = enabled ? readWeatherCache(key) : null;
-  return useQuery({
+  const seed = useMemo(() => (enabled ? readWeatherCache(key) : null), [enabled, key]);
+  const query = useQuery({
     queryKey: ['atmosphere-weather', key],
     enabled,
     queryFn: async ({ signal }) => {
@@ -138,8 +141,8 @@ export function useLiveWeather(prefs) {
       writeWeatherCache(key, data);
       return data;
     },
-    initialData: seed?.data,
-    initialDataUpdatedAt: seed?.at,
+    initialData: seed?.key === key ? seed.data : undefined,
+    initialDataUpdatedAt: seed?.key === key ? seed.at : undefined,
     staleTime: WEATHER_STALE_MS,
     gcTime: 2 * WEATHER_REFRESH_MS,
     refetchInterval: enabled ? WEATHER_REFRESH_MS : false,
@@ -148,6 +151,7 @@ export function useLiveWeather(prefs) {
     retry: 1,
     meta: { silent: true },
   });
+  return { query, fromCache: Boolean(seed && seed.key === key && query.dataUpdatedAt === seed.at) };
 }
 
 /* ------------------------------------------------------------ public hook */
@@ -173,22 +177,50 @@ export function isLowPowerDevice(nav = typeof navigator !== 'undefined' ? naviga
   );
 }
 
-export function useAtmosphere(roleKey = 'Learner') {
+export function useAtmosphere() {
   const [prefs, setPrefs] = useWeatherPreferences();
-  const now = useMinuteClock();
-  const weatherQuery = useLiveWeather(prefs);
+  const clock = useMinuteClock();
+  const { query: weatherQuery, fromCache } = useLiveWeather(prefs);
   const reducedMotion = usePrefersReducedMotion();
-  const weather = prefs.mode === 'weather' && weatherQuery.isSuccess ? weatherQuery.data : null;
-  const scene = useMemo(() => deriveScene({ mode: prefs.mode, weather, now }), [prefs.mode, weather, now]);
+
+  const updatedAt = weatherQuery.data ? weatherQuery.dataUpdatedAt : 0;
+  const freshness = prefs.mode === 'weather' && weatherQuery.data ? weatherFreshness(updatedAt, fromCache, clock.getTime()) : 'unavailable';
+  const realWeather = prefs.mode === 'weather' && weatherQuery.data && freshness !== 'expired' ? weatherQuery.data : null;
+
+  // Device-located places have no zone until the provider reports one; remember it (zone name only).
+  const loc = prefs.location;
+  const reportedZone = weatherQuery.data?.timezone;
+  useEffect(() => {
+    if (loc && !loc.timezone && reportedZone) setPrefs({ location: { ...loc, timezone: reportedZone } });
+  }, [loc, reportedZone, setPrefs]);
+
+  const scene = useMemo(
+    () => resolveScene({ mode: prefs.mode, location: prefs.location, weather: realWeather, seasonal: prefs.seasonal, now: clock }),
+    [prefs.mode, prefs.location, prefs.seasonal, realWeather, clock],
+  );
+
+  let weatherStatus;
+  if (prefs.mode !== 'weather') weatherStatus = 'disabled';
+  else if (!prefs.location) weatherStatus = 'no-location';
+  else if (weatherQuery.data && freshness === 'expired') weatherStatus = 'expired';
+  else if (realWeather && scene.live) weatherStatus = 'ready';
+  else if (weatherQuery.data && !scene.live) weatherStatus = 'unsupported';
+  else if (weatherQuery.isError) weatherStatus = 'error';
+  else weatherStatus = 'loading';
+
+  const lowPower = isLowPowerDevice();
   return {
     prefs,
     setPrefs,
     scene,
-    weather,
-    weatherStatus: prefs.mode !== 'weather' ? 'disabled' : !prefs.location ? 'no-location' : weatherQuery.isError && !weather ? 'error' : weather ? 'ready' : 'loading',
+    weather: realWeather,
+    weatherStatus,
+    freshness,
+    updatedAt,
+    refreshing: weatherQuery.isFetching,
     refetchWeather: weatherQuery.refetch,
-    decoration: roleDecoration(roleKey),
-    effectiveIntensity: isLowPowerDevice() ? 'low' : prefs.intensity,
+    effectiveIntensity: lowPower ? 'low' : prefs.intensity,
+    lowPower,
     reducedMotion,
   };
 }

@@ -34,6 +34,7 @@ import {
   confirmAction,
   cx,
   notify,
+  Collapsible,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 
@@ -564,35 +565,38 @@ function CreateSrsCardModal({ card, onClose, onSaved }) {
             />
           )}
         </Field>
-        <Checkbox
-          checked={showExamples}
-          onChange={(e) => setShowExamples(e.target.checked)}
-          label={tr('Thêm câu ví dụ')}
-        />
-        {showExamples && (
-          <div className="space-y-3 rounded-xl border border-[#EAE3E4] bg-[#FFFCF8] p-3">
-            <Field label={tr('Câu ví dụ')}>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={exampleSentence}
-                  onChange={(e) => setExampleSentence(e.target.value)}
-                  placeholder="図書館で本を読みます。"
-                />
-              )}
-            </Field>
-            <Field label={tr('Dịch câu ví dụ')}>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={exampleMeaning}
-                  onChange={(e) => setExampleMeaning(e.target.value)}
-                  placeholder={tr('Tôi đọc sách ở thư viện.')}
-                />
-              )}
-            </Field>
-          </div>
-        )}
+        <div>
+          <Checkbox
+            checked={showExamples}
+            onChange={(e) => setShowExamples(e.target.checked)}
+            label={tr('Thêm câu ví dụ')}
+            aria-controls={`${formId}-examples`}
+          />
+          <Collapsible open={showExamples} id={`${formId}-examples`} innerClassName="pt-3">
+            <div className="space-y-3 rounded-xl border border-rp-line bg-[#FFFCF8] p-3">
+              <Field label={tr('Câu ví dụ')}>
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={exampleSentence}
+                    onChange={(e) => setExampleSentence(e.target.value)}
+                    placeholder="図書館で本を読みます。"
+                  />
+                )}
+              </Field>
+              <Field label={tr('Dịch câu ví dụ')}>
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={exampleMeaning}
+                    onChange={(e) => setExampleMeaning(e.target.value)}
+                    placeholder={tr('Tôi đọc sách ở thư viện.')}
+                  />
+                )}
+              </Field>
+            </div>
+          </Collapsible>
+        </div>
       </form>
     </Modal>
   );

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { getSession } from '@/app/auth/session.js';
@@ -21,7 +21,7 @@ import {
   variantDurationLabel,
 } from '../planGroups.js';
 
-// Read by the PayOS receipt page as a fallback when the return URL carries no purchase id.
+// Read by the payment receipt page as a fallback when the return URL carries no purchase id.
 const PENDING_PURCHASE_STORAGE_KEY = 'rikipath.pendingStudyPurchaseId';
 
 function featureLabel(feature) {
@@ -49,8 +49,8 @@ export default function StudyCheckoutModal({ plan, onClose }) {
   const usageBased = isUsageBased(plan);
   const features = (Array.isArray(plan.features) ? plan.features : []).filter((f) => featureLabel(f));
   const activation = usageBased
-    ? tr('Lượt AI được cộng vào tài khoản ngay khi PayOS xác nhận thanh toán thành công.')
-    : tr('Gói được kích hoạt ngay khi PayOS xác nhận thanh toán thành công. Nếu bạn đang có gói cùng loại còn hạn, thời hạn mới được cộng nối tiếp.');
+    ? tr('Lượt AI được cộng vào tài khoản sau khi thanh toán thành công.')
+    : tr('Gói học sẽ được kích hoạt sau khi thanh toán thành công. Nếu bạn đang có gói cùng loại còn hạn, thời hạn mới được cộng nối tiếp.');
 
   async function handlePay() {
     if (busy) return;
@@ -106,7 +106,7 @@ export default function StudyCheckoutModal({ plan, onClose }) {
       // Stay busy while the browser leaves for PayOS, so the button cannot be pressed twice.
       setPhase('redirecting');
       notify.info(
-        tr('Đang chuyển sang PayOS'),
+        tr('Đang chuyển đến trang thanh toán'),
         result.resumed
           ? tr('Bạn đang tiếp tục đơn hàng chưa thanh toán của gói này.')
           : tr('Quyền sử dụng gói chỉ được kích hoạt sau khi máy chủ xác nhận thanh toán.'),
@@ -124,8 +124,8 @@ export default function StudyCheckoutModal({ plan, onClose }) {
     : phase === 'creating'
       ? tr('Đang tạo liên kết thanh toán…')
       : phase === 'redirecting'
-        ? tr('Đang chuyển sang PayOS…')
-        : tr('Thanh toán qua PayOS');
+        ? tr('Đang chuyển đến trang thanh toán…')
+        : tr('Thanh toán ngay');
 
   return (
     <Modal
@@ -134,14 +134,14 @@ export default function StudyCheckoutModal({ plan, onClose }) {
       dismissible={!busy}
       size="lg"
       title={tr('Xác nhận gói học')}
-      description={tr('Kiểm tra thông tin gói trước khi tiếp tục thanh toán.')}
+      description={tr('Kiểm tra thông tin gói trước khi thanh toán.')}
       className="sm:max-w-[600px] [&>div:last-child]:pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             {tr('Quay lại')}
           </Button>
-          <Button variant="primary" onClick={handlePay} loading={busy} disabled={busy} data-testid="checkout-pay-btn">
+          <Button variant="primary" onClick={handlePay} loading={busy} disabled={busy} iconRight={busy ? undefined : ArrowRight} data-testid="checkout-pay-btn">
             {payLabel}
           </Button>
         </>
@@ -153,14 +153,14 @@ export default function StudyCheckoutModal({ plan, onClose }) {
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-rp-text-muted">
               {meta ? tr(meta.title) : tr('Gói học')}
             </p>
-            <p className="mt-0.5 text-[17px] font-bold leading-6 text-rp-navy">{plan.name}</p>
+            <p className="mt-0.5 break-words text-lg font-bold leading-6 text-rp-navy">{plan.name}</p>
           </div>
-          <p className="text-[28px] font-extrabold leading-8 tabular-nums text-rp-brand-strong">
+          <p className="shrink-0 text-[28px] font-extrabold leading-8 tabular-nums text-rp-brand-strong">
             {formatVnd(plan.price)}
           </p>
         </div>
 
-        <dl className="grid grid-cols-1 gap-2 text-sm min-[420px]:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-2 text-sm min-[420px]:grid-cols-3" aria-label={tr('Thông số gói')}>
           <div className="rounded-xl border border-rp-line bg-rp-bg-2/70 px-3 py-2.5">
             <dt className="text-xs text-rp-text-muted">{tr('Thời hạn')}</dt>
             <dd className="mt-0.5 font-bold text-rp-text">{variantDurationLabel(plan, { tr, trf })}</dd>
@@ -196,8 +196,8 @@ export default function StudyCheckoutModal({ plan, onClose }) {
           </div>
         )}
 
-        <p className="flex items-start gap-2 rounded-xl bg-rp-sky-bg/50 px-3 py-2.5 text-xs leading-5 text-rp-text-2">
-          <ShieldCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-navy" />
+        <p className="flex items-start gap-2 rounded-xl bg-rp-bg-2 px-3 py-2.5 text-xs leading-5 text-rp-text-2 ring-1 ring-inset ring-rp-line/70">
+          <ShieldCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-text-muted" />
           <span>{activation}</span>
         </p>
 

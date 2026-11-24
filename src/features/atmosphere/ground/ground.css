@@ -1,0 +1,84 @@
+/* Dynamic Ground Banner — vector Japanese ground scene under the Dynamic Sky header.
+   Motion uses transform/opacity only, pauses off-screen, and stops entirely under reduced motion. */
+
+.rp-ground-svg { display: block; width: 100%; height: 100%; }
+/* Colour changes (dawn → day → dusk → night, weather) ease instead of snapping. */
+.rp-ground-svg :is(path, rect, ellipse, circle, stop) { transition: fill 1.2s ease, stroke 1.2s ease, opacity 1.2s ease, stop-color 1.2s ease; }
+
+/* The scene is fixed: no pointer parallax — the banner never shifts under the cursor. */
+
+/* Object motion: slow, contextual, few elements. */
+.rp-g-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: rp-g-sway 7s ease-in-out infinite; }
+.rp-g-sway-slow { transform-box: fill-box; transform-origin: 50% 100%; animation: rp-g-sway 9s ease-in-out infinite; }
+@keyframes rp-g-sway { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.7deg); } }
+.rp-g-shimmer { animation: rp-g-shimmer 6s ease-in-out infinite; }
+@keyframes rp-g-shimmer { 0%, 100% { opacity: 0.45; transform: translate3d(0, 0, 0); } 50% { opacity: 0.9; transform: translate3d(6px, 0, 0); } }
+.rp-g-ripple { animation: rp-g-ripple 2.4s ease-in-out infinite; }
+@keyframes rp-g-ripple { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.6; } }
+.rp-g-lantern { animation: rp-g-lantern 4.5s ease-in-out infinite; }
+@keyframes rp-g-lantern { 0%, 100% { opacity: 1; } 50% { opacity: 0.82; } }
+
+/* Readability: a contrast zone behind the text on the left, never a full-width fog. */
+.rp-ground-scrim[data-tone='light'] {
+  background:
+    radial-gradient(120% 140% at 0% 50%, rgba(255, 252, 248, 0.86) 0%, rgba(255, 252, 248, 0.62) 34%, rgba(255, 252, 248, 0) 62%);
+}
+.rp-ground-scrim[data-tone='dark'] {
+  background:
+    radial-gradient(120% 140% at 0% 50%, rgba(16, 18, 40, 0.74) 0%, rgba(18, 20, 44, 0.5) 36%, rgba(18, 20, 44, 0) 64%);
+}
+@media (max-width: 767px) {
+  /* Text spans the whole card on phones: a calmer, wider scrim. */
+  .rp-ground-scrim[data-tone='light'] { background: linear-gradient(90deg, rgba(255, 252, 248, 0.9) 0%, rgba(255, 252, 248, 0.74) 70%, rgba(255, 252, 248, 0.5) 100%); }
+  .rp-ground-scrim[data-tone='dark'] { background: linear-gradient(90deg, rgba(16, 18, 40, 0.78) 0%, rgba(16, 18, 40, 0.6) 70%, rgba(16, 18, 40, 0.42) 100%); }
+  .rp-ground-particles span:nth-child(2n) { display: none; }
+}
+
+/* Particles (HTML spans over the scene). */
+.rp-ground-particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.rp-ground-particles span { position: absolute; top: -12%; display: block; will-change: transform; }
+.rp-ground-particles[data-kind='petals'] span {
+  width: 8px; height: 5px; border-radius: 80% 0 80% 0; background: #f7b6c8; opacity: 0;
+  animation: rp-g-fall-drift 11s linear infinite;
+}
+.rp-ground-particles[data-kind='leaves'] span {
+  width: 8px; height: 6px; border-radius: 70% 0 70% 0; background: #e2663a; opacity: 0;
+  animation: rp-g-fall-drift 13s linear infinite;
+}
+.rp-ground-particles[data-kind='leaves'] span:nth-child(3n) { background: #f1a43a; }
+.rp-ground-particles[data-kind='snow'] span {
+  width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: 0;
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.8);
+  animation: rp-g-snow 10s linear infinite;
+}
+.rp-ground-particles[data-kind='rain'] span {
+  width: 1.4px; height: 16px; border-radius: 1px; opacity: 0;
+  background: linear-gradient(180deg, rgba(220, 232, 248, 0), rgba(220, 232, 248, 0.75));
+  animation: rp-g-rain 0.95s linear infinite;
+}
+@keyframes rp-g-fall-drift {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.9; }
+  85% { opacity: 0.85; }
+  100% { transform: translate3d(-70px, 360px, 0) rotate(260deg); opacity: 0; }
+}
+@keyframes rp-g-snow {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  10% { opacity: 0.95; }
+  50% { transform: translate3d(14px, 170px, 0); }
+  100% { transform: translate3d(-8px, 360px, 0); opacity: 0.2; }
+}
+@keyframes rp-g-rain {
+  0% { transform: translate3d(0, 0, 0) rotate(12deg); opacity: 0; }
+  12% { opacity: 0.85; }
+  100% { transform: translate3d(-60px, 380px, 0) rotate(12deg); opacity: 0.2; }
+}
+
+/* Off-screen: freeze every loop (scene and particles stay as drawn). */
+.rp-ground[data-visible='false'] *,
+.rp-ground[data-ground-motion='off'] * { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-ground *, .rp-ground *::before, .rp-ground *::after { animation: none !important; }
+  .rp-ground-particles { display: none; }
+}

@@ -1,9 +1,12 @@
 // RikiPath shared UI kit. Import everything from 'src/ui' — do not hand-roll
 // buttons, dialogs, toasts or loaders in pages.
 export * from './core.jsx';
+export { default as SidebarBadge } from './SidebarBadge.jsx';
+export * from './sidebarBadgeLogic.js';
 export { default as UserAvatar } from './UserAvatar.jsx';
 export * from './userAvatarLogic.js';
 export * from './CalendarDateRangePicker.jsx';
+export * from './dateFormat.js';
 export * from './layout.jsx';
 export * from './layoutLogic.js';
 export * from './SakuraLoader.jsx';

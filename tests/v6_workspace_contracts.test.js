@@ -131,7 +131,14 @@ describe('V6 Multi-Role Workspace contracts', () => {
     assert.match(shell, /<LanguageSwitch variant="icon" \/>\s*<HeaderCalendarPopover roleKey=\{roleKey\} \/>\s*<NotificationCenter \/>/);
 
     const uiCore = fs.readFileSync(path.join(ROOT, 'src/components/ui/core.jsx'), 'utf8');
-    assert.match(uiCore, /export function HeaderIconBadge[\s\S]*bg-\[#E5383B\]/);
+    // Shared seamless coral-rose badge (token-backed, AA contrast with white digits, zero white border/ring).
+    assert.match(uiCore, /export function HeaderIconBadge[\s\S]*rp-header-badge/);
+    assert.doesNotMatch(uiCore, /export function HeaderIconBadge[\s\S]*0_0_0_[^,\]]*#fff/i);
+
+    const tokensCss = fs.readFileSync(path.join(ROOT, 'src/styles/tokens.css'), 'utf8');
+    assert.match(tokensCss, /--rp-header-badge-bg:\s*#D6404E/);
+    assert.match(tokensCss, /--rp-header-globe-color:\s*#5798D1/);
+    assert.match(tokensCss, /--rp-brand-path-accent:/);
 
     for (const rel of [
       'src/components/brand/LanguageSwitch.jsx',
@@ -146,8 +153,8 @@ describe('V6 Multi-Role Workspace contracts', () => {
     const atmosphereCss = fs.readFileSync(path.join(ROOT, 'src/features/atmosphere/atmosphere.css'), 'utf8');
     assert.match(
       atmosphereCss,
-      /\.rp-sky-header\[data-sky='on'\]\[data-sky-tone='dark'\] \.rp-lang-globe\s*\{\s*color:\s*var\(--color-rp-text-2\);/,
-      'Globe icon must match adjacent header icons in dark/night sky mode',
+      /\.rp-sky-header\[data-sky='on'\]\[data-glass-variant\] \.rp-lang-globe\s*\{\s*color:\s*var\(--header-glass-globe\);/,
+      'Globe icon keeps a soft sky blue tuned to the header glass (Adaptive Atmospheric Glass V3)',
     );
   });
 

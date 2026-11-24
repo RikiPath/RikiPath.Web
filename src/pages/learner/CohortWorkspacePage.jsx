@@ -52,7 +52,7 @@ import {
   Tabs,
   Textarea,
   confirmAction,
-  cx,
+  Collapsible,
 } from '@/components/ui';
 import { IllustratedPageHeader } from '@/features/learner-ui';
 import '@/pages/shared/studyCourses.css';
@@ -368,7 +368,7 @@ export default function CohortWorkspacePage() {
                       {current.paymentExpiresAt && <HoldCountdown expiresAt={current.paymentExpiresAt} className="flex" />}
                       <p className="text-xs text-rp-text-2">
                         {trf(
-                          'Chỗ được giữ đến: {0}. Hệ thống chỉ xác nhận ghi danh sau khi máy chủ đối chiếu giao dịch với PayOS.',
+                          'Chỗ được giữ đến: {0}. Hệ thống chỉ xác nhận ghi danh sau khi thanh toán thành công.',
                           { 0: current.paymentExpiresAt ? formatVnDateTime(current.paymentExpiresAt) : '—' },
                         )}
                       </p>
@@ -392,7 +392,7 @@ export default function CohortWorkspacePage() {
                               (res) =>
                                 res?.paymentState === 'Confirmed' || res?.paymentStatus === 'Paid'
                                   ? 'Thanh toán đã được xác nhận. Bạn đã ghi danh thành công!'
-                                  : paymentStateMessage(res?.paymentState) || 'Đang chờ PayOS xác nhận.',
+                                  : paymentStateMessage(res?.paymentState) || 'Đang chờ xác nhận thanh toán.',
                             )
                           }
                         >
@@ -714,6 +714,7 @@ export default function CohortWorkspacePage() {
                     type="button"
                     onClick={() => setShowComplaintBox((v) => !v)}
                     aria-expanded={showComplaintBox}
+                    aria-controls="cohort-complaint-panel"
                     className="rp-focus flex w-full items-center justify-between gap-3 text-left"
                   >
                     <div>
@@ -722,9 +723,9 @@ export default function CohortWorkspacePage() {
                         {tr('Mở mục này khi bạn cần báo cáo chất lượng buổi học, lịch dạy hoặc cần Admin hỗ trợ.')}
                       </p>
                     </div>
-                    <ChevronDown className={cx('h-4 w-4 text-rp-text-muted transition-transform', showComplaintBox && 'rotate-180')} />
+                    <ChevronDown aria-hidden="true" className="rp-disclosure-chevron h-4 w-4 shrink-0 text-rp-text-muted" />
                   </button>
-                  {showComplaintBox && (
+                  <Collapsible open={showComplaintBox} id="cohort-complaint-panel">
                     <div className="course-page mt-4 border-t border-rp-line pt-4" style={{ padding: '16px 0 0' }}>
                       <CohortComplaintPanel
                         role="Learner"
@@ -734,7 +735,7 @@ export default function CohortWorkspacePage() {
                         onRun={wrappedAction}
                       />
                     </div>
-                  )}
+                  </Collapsible>
                 </Card>
 
                 <div className="flex items-center gap-2 rounded-xl border border-rp-line bg-rp-bg-2/50 px-4 py-3 text-xs text-rp-text-muted">

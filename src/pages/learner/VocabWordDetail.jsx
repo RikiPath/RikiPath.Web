@@ -80,7 +80,7 @@ export default function VocabWordDetail() {
       notify.apiError(err, tr('Chưa lưu được từ'), code === 'SELF_STUDY_PACKAGE_REQUIRED' || err?.status === 403
         ? {
             action: {
-              label: tr('Xem gói tự học'),
+              label: tr('Mua gói ngay'),
               onClick: () => navigate('/plans/', { state: { from: { pathname: '/vocabulary-detail/' }, requiredFeatureLabel: tr('Sổ tay cá nhân') } }),
             },
           }

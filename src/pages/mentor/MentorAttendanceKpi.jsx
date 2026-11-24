@@ -239,34 +239,28 @@ export default function MentorAttendanceKpi() {
   return (
     <MentorShell pathname={pathname} breadcrumb={tr('Chấm công & KPI giảng dạy')}>
       <PageContainer width="default" density="comfortable" className="space-y-[var(--rp-space-section)] text-rp-text">
-        <PageHeader
-          eyebrow="Hiệu suất giảng dạy"
-          title="Chấm công & KPI giảng dạy"
-          description="Tổng hợp lịch giảng dạy được phân công, thời lượng điểm danh thực tế, tình trạng bài tập và đánh giá từ học viên theo kỳ."
-          actions={(
-            <div className="flex flex-wrap items-center gap-2">
-              <Popover
-                align="end"
-                label={tr('Cách tính chỉ số')}
-                panelClassName="w-[min(360px,calc(100vw-32px))] p-4 text-xs text-rp-text-2"
-                trigger={({ toggle, props }) => (
-                  <Button variant="secondary" size="sm" icon={Info} onClick={toggle} {...props}>
-                    {tr('Cách tính chỉ số')}
-                  </Button>
-                )}
-              >
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-rp-text">{tr('Cách tính chỉ số')}</p>
-                  <ul className="list-disc space-y-1.5 pl-4 leading-relaxed">
-                    {KPI_RULES.map((text) => (
-                      <li key={text}>{tr(text)}</li>
-                    ))}
-                  </ul>
-                </div>
-              </Popover>
+        <h1 className="sr-only">{tr('Chấm công & KPI giảng dạy')}</h1>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Popover
+            align="end"
+            label={tr('Cách tính chỉ số')}
+            panelClassName="w-[min(360px,calc(100vw-32px))] p-4 text-xs text-rp-text-2"
+            trigger={({ toggle, props }) => (
+              <Button variant="secondary" size="sm" icon={Info} onClick={toggle} {...props}>
+                {tr('Cách tính chỉ số')}
+              </Button>
+            )}
+          >
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-rp-text">{tr('Cách tính chỉ số')}</p>
+              <ul className="list-disc space-y-1.5 pl-4 leading-relaxed">
+                {KPI_RULES.map((text) => (
+                  <li key={text}>{tr(text)}</li>
+                ))}
+              </ul>
             </div>
-          )}
-        />
+          </Popover>
+        </div>
 
         {/* Bộ lọc khoảng thời gian + phân quyền JLPT */}
         <Card density="compact" className="space-y-4">

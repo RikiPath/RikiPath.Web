@@ -36,6 +36,7 @@ import {
   normalizeSrsCardType,
 } from '@/features/srs/utils/srsLabels.js';
 import { useLocale } from '@/locales/locale.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const EMPTY_FORM = {
   cardType: 'Vocabulary',
@@ -90,7 +91,10 @@ export default function SrsTemplatesPage() {
   });
 
   const refreshAll = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['author-srs-templates'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['author-srs-templates'] }),
+      invalidateSidebarCounters(queryClient),
+    ]);
   };
 
   const saveMut = useMutation({

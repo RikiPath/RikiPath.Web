@@ -5,8 +5,10 @@ import {
 } from '@/features/scheduling/api/teachingProposalApi.js';
 import {
   clearAllLocalDraftsForOtherUsers,
+  clearAllLocalDraftsForUser,
   clearLocalDraft,
   DRAFT_SAVE_STATUS,
+  hasActiveWeeklySelection,
   readLocalDraft,
   reconcileDraftWithServer,
   serializeDraftForCompare,
@@ -53,24 +55,29 @@ export function useProposalDraftPersistence({
   isEditable,
   onServerSynced,
   onRestoreDraft,
+  onReconnectRevalidate,
 }) {
   const [saveStatus, setSaveStatus] = useState(DRAFT_SAVE_STATUS.IDLE);
   const [saveError, setSaveError] = useState('');
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [conflictState, setConflictState] = useState(null);
+  const [syncedFingerprint, setSyncedFingerprint] = useState('');
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine !== false : true));
 
   const lastSyncedHashRef = useRef('');
   const savingInFlightRef = useRef(false);
+  const mutationGenRef = useRef(0);
   const timerRef = useRef(null);
   const draftRef = useRef(draft);
   const onServerSyncedRef = useRef(onServerSynced);
   const onRestoreDraftRef = useRef(onRestoreDraft);
+  const onReconnectRevalidateRef = useRef(onReconnectRevalidate);
 
   useEffect(() => {
     draftRef.current = draft;
     onServerSyncedRef.current = onServerSynced;
     onRestoreDraftRef.current = onRestoreDraft;
+    onReconnectRevalidateRef.current = onReconnectRevalidate;
   });
 
   // Purge stale drafts belonging to other accounts on mount/account switch
@@ -81,6 +88,8 @@ export function useProposalDraftPersistence({
   const syncNow = useCallback(async ({ forceRevision = null } = {}) => {
     const current = draftRef.current;
     if (!current || !isEditable || !userId) return null;
+    // Zero Selection Invariant: never create or persist a 0-session Draft to Backend
+    if (!hasActiveWeeklySelection(current)) return null;
     if (savingInFlightRef.current) return null;
 
     const currentHash = serializeDraftForCompare(current);
@@ -99,6 +108,7 @@ export function useProposalDraftPersistence({
       return null;
     }
 
+    const gen = mutationGenRef.current;
     savingInFlightRef.current = true;
     setSaveStatus(DRAFT_SAVE_STATUS.SAVING);
     setSaveError('');
@@ -109,9 +119,16 @@ export function useProposalDraftPersistence({
         ? await updateTeachingProposalDraft(current.id, payload)
         : await createTeachingProposalDraft(payload);
 
-      if (saved) {
+      // Discard late autosave response if selection was cleared or submitted while request was in flight
+      if (mutationGenRef.current !== gen) {
+        return null;
+      }
+
+      if (saved && saved.id && hasActiveWeeklySelection(saved)) {
         if (!current.id) clearLocalDraft(userId, 'new');
-        lastSyncedHashRef.current = serializeDraftForCompare(saved);
+        const savedHash = serializeDraftForCompare(saved);
+        lastSyncedHashRef.current = savedHash;
+        setSyncedFingerprint(savedHash);
         writeLocalDraft(userId, saved.id, {
           draft: saved,
           dirty: false,
@@ -125,6 +142,9 @@ export function useProposalDraftPersistence({
       }
       return null;
     } catch (err) {
+      if (mutationGenRef.current !== gen) {
+        return null;
+      }
       const info = describeApiError(err);
       const isConflict = err?.status === 409 || info.code === 'PROPOSAL_REVISION_CONFLICT';
       if (isConflict) {
@@ -148,7 +168,7 @@ export function useProposalDraftPersistence({
           baseServerRevision: current.revision || 0,
         });
         setSaveStatus(DRAFT_SAVE_STATUS.SYNC_FAILED);
-        setSaveError(info.message || 'Không thể đồng bộ bản nháp lên máy chủ.');
+        setSaveError(info.message || 'Không thể lưu lịch đang chọn lên máy chủ.');
       }
       return null;
     } finally {
@@ -156,18 +176,19 @@ export function useProposalDraftPersistence({
     }
   }, [isEditable, userId]);
 
-  // Online / offline listeners -> auto-retry pending sync upon reconnect
+  // Online / offline listeners -> auto-retry pending sync upon reconnect + revalidate availability
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
       if (isEditable) {
         void syncNow();
+        onReconnectRevalidateRef.current?.();
       }
     };
     const handleOffline = () => {
       setIsOnline(false);
       const current = draftRef.current;
-      if (current && isEditable && userId) {
+      if (current && isEditable && userId && hasActiveWeeklySelection(current)) {
         writeLocalDraft(userId, current.id || 'new', {
           draft: current,
           dirty: true,
@@ -176,32 +197,50 @@ export function useProposalDraftPersistence({
         setSaveStatus(DRAFT_SAVE_STATUS.OFFLINE_PENDING);
       }
     };
+    const handleStorage = (event) => {
+      const current = draftRef.current;
+      if (!current || !isEditable || !userId || !event?.key || !event?.newValue) return;
+      const prefix = `rikipath:v4:proposal-draft:${String(userId)}:`;
+      if (!event.key.startsWith(prefix)) return;
+      const watchedKey = `${prefix}${current.id || 'new'}`;
+      if (event.key !== watchedKey) return;
+      try {
+        const incoming = JSON.parse(event.newValue);
+        if (!incoming?.draft || incoming.dirty) return;
+        const incomingRev = Number(incoming.baseServerRevision || incoming.draft.revision || 0);
+        const currentRev = Number(current.revision || 0);
+        const incomingHash = serializeDraftForCompare(incoming.draft);
+        const currentHash = serializeDraftForCompare(current);
+        if (incomingRev > currentRev && incomingHash !== currentHash) {
+          setSaveStatus(DRAFT_SAVE_STATUS.CONFLICT);
+          setConflictState({
+            localDraft: current,
+            serverDraft: incoming.draft,
+            meta: { serverRevision: incomingRev, localBaseRevision: currentRev },
+            message: 'Lịch đang chọn vừa được cập nhật từ tab khác.',
+          });
+        }
+      } catch {
+        // ignore parse errors
+      }
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('storage', handleStorage);
     };
   }, [isEditable, syncNow, userId]);
 
-  // Debounced autosave whenever draft content changes
+  // Debounced autosave whenever active selection (>= 1 weekly session) changes
   const draftFingerprint = serializeDraftForCompare(draft);
+  const hasMeaningfulContent = hasActiveWeeklySelection(draft);
+
   useEffect(() => {
     if (!draft || !isEditable || !userId || conflictState) return undefined;
     if (draftFingerprint === lastSyncedHashRef.current && draft.id) return undefined;
-
-    // Avoid creating empty untitled draft on server before the user has typed or picked anything
-    const hasMeaningfulContent = Boolean(
-      draft.id
-      || draft.certificateLevelId
-      || draft.coursePlanId
-      || (draft.courseTitle || '').trim()
-      || (draft.courseObjective || '').trim()
-      || draft.expectedStartDate
-      || (draft.weeklySessions || []).length > 0
-      || (draft.optionalNotes || '').trim()
-      || (draft.optionalAttachments || []).length > 0
-    );
     if (!hasMeaningfulContent) return undefined;
 
     writeLocalDraft(userId, draft.id || 'new', {
@@ -220,7 +259,7 @@ export function useProposalDraftPersistence({
     }, AUTOSAVE_DEBOUNCE_MS);
 
     return () => clearTimeout(timerRef.current);
-  }, [conflictState, draft, draftFingerprint, isEditable, isOnline, syncNow, userId]);
+  }, [conflictState, draft, draftFingerprint, hasMeaningfulContent, isEditable, isOnline, syncNow, userId]);
 
   /**
    * Called when loading a server proposal into the editor.
@@ -232,26 +271,32 @@ export function useProposalDraftPersistence({
     const reconciled = reconcileDraftWithServer({ serverDraft, localRecord });
 
     if (reconciled.action === 'conflict') {
-      lastSyncedHashRef.current = serializeDraftForCompare(serverDraft);
+      const sHash = serializeDraftForCompare(serverDraft);
+      lastSyncedHashRef.current = sHash;
+      setSyncedFingerprint(sHash);
       setConflictState({
         localDraft: reconciled.localDraft,
         serverDraft: reconciled.serverDraft,
         meta: reconciled.conflict,
-        message: 'Bản nháp trên máy chủ đã được cập nhật từ thiết bị hoặc tab khác.',
+        message: 'Lịch đang chọn trên máy chủ đã được cập nhật từ thiết bị hoặc tab khác.',
       });
       setSaveStatus(DRAFT_SAVE_STATUS.CONFLICT);
       return serverDraft;
     }
 
     if (reconciled.action === 'restore_local' && reconciled.needsSync) {
-      lastSyncedHashRef.current = serverDraft ? serializeDraftForCompare(serverDraft) : '';
+      const sHash = serverDraft ? serializeDraftForCompare(serverDraft) : '';
+      lastSyncedHashRef.current = sHash;
+      setSyncedFingerprint(sHash);
       setConflictState(null);
-      setSaveStatus(isOnline ? DRAFT_SAVE_STATUS.SAVING : DRAFT_SAVE_STATUS.OFFLINE_PENDING);
+      setSaveStatus(isOnline ? DRAFT_SAVE_STATUS.UNSYNCED : DRAFT_SAVE_STATUS.OFFLINE_PENDING);
       onRestoreDraftRef.current?.(reconciled.draft, { restoredFromLocal: true });
       return reconciled.draft;
     }
 
-    lastSyncedHashRef.current = serverDraft ? serializeDraftForCompare(serverDraft) : '';
+    const sHash = serverDraft ? serializeDraftForCompare(serverDraft) : '';
+    lastSyncedHashRef.current = sHash;
+    setSyncedFingerprint(sHash);
     setConflictState(null);
     setLastSavedAt(serverDraft?.lastSavedAtUtc || serverDraft?.updatedAtUtc || null);
     setSaveStatus(serverDraft?.id ? DRAFT_SAVE_STATUS.SAVED : DRAFT_SAVE_STATUS.IDLE);
@@ -262,7 +307,9 @@ export function useProposalDraftPersistence({
     if (!userId) return;
     const target = latestServerDraft || conflictState?.serverDraft;
     if (target?.id) clearLocalDraft(userId, target.id);
-    lastSyncedHashRef.current = target ? serializeDraftForCompare(target) : '';
+    const tHash = target ? serializeDraftForCompare(target) : '';
+    lastSyncedHashRef.current = tHash;
+    setSyncedFingerprint(tHash);
     setConflictState(null);
     setSaveError('');
     setSaveStatus(DRAFT_SAVE_STATUS.SAVED);
@@ -277,20 +324,43 @@ export function useProposalDraftPersistence({
     return syncNow({ forceRevision: latestServerRevision });
   }, [conflictState, syncNow]);
 
-  const markCleanAfterSubmit = useCallback((submittedProposal) => {
-    if (userId && submittedProposal?.id) {
-      clearLocalDraft(userId, submittedProposal.id);
-      clearLocalDraft(userId, 'new');
-    }
-    lastSyncedHashRef.current = submittedProposal ? serializeDraftForCompare(submittedProposal) : '';
+  const cancelPendingAndClear = useCallback(() => {
+    mutationGenRef.current += 1;
+    clearTimeout(timerRef.current);
+    if (userId) clearAllLocalDraftsForUser(userId);
+    lastSyncedHashRef.current = '';
+    setSyncedFingerprint('');
     setConflictState(null);
     setSaveError('');
-    setSaveStatus(DRAFT_SAVE_STATUS.SAVED);
+    setSaveStatus(DRAFT_SAVE_STATUS.IDLE);
   }, [userId]);
 
-  const effectiveSaveStatus = !isOnline && isEditable && saveStatus !== DRAFT_SAVE_STATUS.CONFLICT
-    ? DRAFT_SAVE_STATUS.OFFLINE_PENDING
-    : saveStatus;
+  const markCleanAfterSubmit = useCallback(() => {
+    mutationGenRef.current += 1;
+    clearTimeout(timerRef.current);
+    if (userId) clearAllLocalDraftsForUser(userId);
+    lastSyncedHashRef.current = '';
+    setSyncedFingerprint('');
+    setConflictState(null);
+    setSaveError('');
+    setSaveStatus(DRAFT_SAVE_STATUS.IDLE);
+  }, [userId]);
+
+  const effectiveSaveStatus = (() => {
+    if (!hasMeaningfulContent) {
+      return DRAFT_SAVE_STATUS.IDLE;
+    }
+    if (!isOnline && isEditable && saveStatus !== DRAFT_SAVE_STATUS.CONFLICT) {
+      return DRAFT_SAVE_STATUS.OFFLINE_PENDING;
+    }
+    if (saveStatus === DRAFT_SAVE_STATUS.CONFLICT || saveStatus === DRAFT_SAVE_STATUS.SYNC_FAILED || saveStatus === DRAFT_SAVE_STATUS.SAVING) {
+      return saveStatus;
+    }
+    if (isEditable && (!draft?.id || draftFingerprint !== syncedFingerprint)) {
+      return DRAFT_SAVE_STATUS.UNSYNCED;
+    }
+    return DRAFT_SAVE_STATUS.SAVED;
+  })();
 
   return {
     saveStatus: effectiveSaveStatus,
@@ -302,6 +372,7 @@ export function useProposalDraftPersistence({
     hydrateFromServer,
     resolveKeepServer,
     resolveOverwriteWithLocal,
+    cancelPendingAndClear,
     markCleanAfterSubmit,
   };
 }

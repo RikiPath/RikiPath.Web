@@ -87,7 +87,7 @@ export default function NextLearningCard({
       <div className="mt-4">
         {requiresPlan ? (
           <Button as={Link} to="/plans/" variant="primary" size="md" className="w-full">
-            {tr('Xem gói tự học')}
+            {tr('Mua gói ngay')}
           </Button>
         ) : nextStep?.to ? (
           <Button as={Link} to={nextStep.to} variant="primary" size="md" className="w-full" iconRight={ArrowRight}>

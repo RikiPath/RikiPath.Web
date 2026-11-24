@@ -281,7 +281,7 @@ export default function LearnerEssayPage() {
         ...(needsUpgrade
           ? {
               action: {
-                label: tr('Xem gói & lượt AI'),
+                label: tr('Mua gói ngay'),
                 onClick: () => navigate('/plans/', { state: { from: { pathname }, requiredFeatureLabel: tr('Nhận dạng chữ viết tay') } }),
               },
             }
@@ -329,7 +329,7 @@ export default function LearnerEssayPage() {
         ...(needsUpgrade
           ? {
               action: {
-                label: tr('Xem gói & lượt AI'),
+                label: tr('Mua gói ngay'),
                 onClick: () => navigate('/plans/', { state: { from: { pathname }, requiredFeatureLabel: tr('Luyện viết AI') } }),
               },
             }
@@ -473,7 +473,7 @@ export default function LearnerEssayPage() {
                 state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện viết AI') }}
                 className="rp-link text-xs font-semibold"
               >
-                {tr('Xem gói & lượt AI')}
+                {tr('Mua gói ngay')}
               </Link>
             }
           >
@@ -522,7 +522,7 @@ export default function LearnerEssayPage() {
                   state={{ from: { pathname }, requiredFeatureLabel: tr('Luyện viết AI') }}
                   className="rp-link text-xs font-semibold"
                 >
-                  {tr('Xem gói & lượt AI')}
+                  {tr('Mua gói ngay')}
                 </Link>
               ) : null
             }
@@ -555,7 +555,7 @@ export default function LearnerEssayPage() {
           }`}
         >
           {!focusMode && (
-            <Card padded={false} className="overflow-hidden lg:sticky lg:top-[calc(var(--spacing-rp-topbar)+16px)]">
+            <Card padded={false} className="overflow-hidden lg:sticky lg:top-[calc(var(--rp-sticky-top-offset)+16px)]">
               <div className="flex items-center justify-between border-b border-rp-line px-4 py-3">
                 <h2 className="text-xs font-semibold text-rp-text">
                   {tr('Bài viết của tôi')}

@@ -81,18 +81,18 @@ export const CALENDAR_TONES = Object.freeze({
   },
   approved: {
     label: 'Đã duyệt',
-    hex: '#0D9488',
-    card: 'border-l-[3.5px] border-l-[#0D9488] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
-    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
-    dot: 'bg-[#0D9488]',
+    hex: '#16A34A',
+    card: 'border-l-[3.5px] border-l-[#16A34A] border border-[#86EFAC] bg-[#F0FDF4] text-[#14532D]',
+    pill: 'bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]',
+    dot: 'bg-[#16A34A]',
   },
-  // Legacy alias mapped uniformly to Teal 'Đã duyệt' (no separate 'Đã công bố' status)
+  // Legacy alias mapped uniformly to Green 'Đã duyệt'
   open: {
     label: 'Đã duyệt',
-    hex: '#0D9488',
-    card: 'border-l-[3.5px] border-l-[#0D9488] border border-[#99F6E4] bg-[#F0FDFA] text-[#115E59]',
-    pill: 'bg-[#CCFBF1] text-[#0F766E] border border-[#99F6E4]',
-    dot: 'bg-[#0D9488]',
+    hex: '#16A34A',
+    card: 'border-l-[3.5px] border-l-[#16A34A] border border-[#86EFAC] bg-[#F0FDF4] text-[#14532D]',
+    pill: 'bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]',
+    dot: 'bg-[#16A34A]',
   },
   booked: {
     ...CALENDAR_CATEGORIES.class,
@@ -132,8 +132,8 @@ export const CALENDAR_TONES = Object.freeze({
   selected: {
     label: 'Đã chọn (chưa gửi)',
     hex: '#22C55E',
-    card: 'border-l-[3.5px] border-l-[#22C55E] border border-[#86EFAC] bg-[#F3FEF6] text-[#14532D] shadow-xs ring-1 ring-inset ring-[#86EFAC]/50',
-    pill: 'bg-[#E3FCE9] text-[#15803D] border border-[#86EFAC]',
+    card: 'border-[1.5px] border-dashed border-[#4ADE80] bg-[#F3FEF6] text-[#14532D] shadow-xs',
+    pill: 'bg-[#E3FCE9] text-[#15803D] border border-dashed border-[#4ADE80]',
     dot: 'bg-[#22C55E]',
   },
   live: {
@@ -260,6 +260,19 @@ export function formatFullDayVn(dateKey, todayKey) {
   return label;
 }
 
+const COMPACT_DAYS_VN = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+
+/** Formats a YYYY-MM-DD key consistently with 4-digit year for multi-year List View rows (e.g. "Thứ 4, 02/12/2026"). */
+export function formatFullDayWithYearVn(dateKey, todayKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ''))) return String(dateKey || '');
+  const wd = weekdayOfDateKey(dateKey);
+  const [year, month, day] = String(dateKey).split('-');
+  const label = `${COMPACT_DAYS_VN[wd]}, ${day}/${month}/${year}`;
+  if (todayKey && dateKey === todayKey) return `Hôm nay · ${label}`;
+  if (todayKey && dateKey === shiftDateKey(todayKey, 1)) return `Ngày mai · ${label}`;
+  return label;
+}
+
 export function buildWeekDays(anchorKey, todayKey = toVnDateKey(new Date())) {
   const mon = mondayOfDateKey(anchorKey);
   return Array.from({ length: 7 }, (_, idx) => {
@@ -358,9 +371,11 @@ export function getViewDateRange(anchorKey, view, audience = 'mentor') {
   const days = buildWeekDays(anchorKey);
   const first = days[0];
   const last = days[6];
-  const title = first.month === last.month
-    ? `Tháng ${first.month}, ${first.year}`
-    : `Tháng ${first.month} – ${last.month}, ${last.year}`;
+  const title = first.year !== last.year
+    ? `Tháng ${String(first.month).padStart(2, '0')}/${first.year} – Tháng ${String(last.month).padStart(2, '0')}/${last.year}`
+    : first.month === last.month
+      ? `Tháng ${first.month}, ${first.year}`
+      : `Tháng ${first.month} – ${last.month}, ${last.year}`;
   return {
     startKey: first.key,
     endKey: last.key,
@@ -430,23 +445,25 @@ export function packDayEvents(events = []) {
   return output;
 }
 
-export function groupAgendaEvents(events = [], { startKey, endKey, todayKey, smartOrder = false } = {}) {
+export function groupAgendaEvents(events = [], { startKey, endKey, todayKey, smartOrder = false, preserveOrder = false } = {}) {
   const byDay = new Map();
   const inRange = [...events].filter((ev) => (!startKey || ev.dayKey >= startKey) && (!endKey || ev.dayKey <= endKey));
-  if (smartOrder) {
-    const isCompleted = (ev) => ev?.tone === 'present' || ev?.sessionCompleted === true;
-    inRange.sort((a, b) => {
-      const ca = isCompleted(a);
-      const cb = isCompleted(b);
-      if (ca !== cb) return ca ? 1 : -1;
-      const dayCmp = a.dayKey.localeCompare(b.dayKey);
-      if (!ca) {
-        return dayCmp !== 0 ? dayCmp : minutesOfEvent(a).start - minutesOfEvent(b).start;
-      }
-      return dayCmp !== 0 ? -dayCmp : minutesOfEvent(b).start - minutesOfEvent(a).start;
-    });
-  } else {
-    inRange.sort((a, b) => a.dayKey.localeCompare(b.dayKey) || minutesOfEvent(a).start - minutesOfEvent(b).start);
+  if (!preserveOrder) {
+    if (smartOrder) {
+      const isCompleted = (ev) => ev?.tone === 'present' || ev?.sessionCompleted === true;
+      inRange.sort((a, b) => {
+        const ca = isCompleted(a);
+        const cb = isCompleted(b);
+        if (ca !== cb) return ca ? 1 : -1;
+        const dayCmp = a.dayKey.localeCompare(b.dayKey);
+        if (!ca) {
+          return dayCmp !== 0 ? dayCmp : minutesOfEvent(a).start - minutesOfEvent(b).start;
+        }
+        return dayCmp !== 0 ? -dayCmp : minutesOfEvent(b).start - minutesOfEvent(a).start;
+      });
+    } else {
+      inRange.sort((a, b) => a.dayKey.localeCompare(b.dayKey) || minutesOfEvent(a).start - minutesOfEvent(b).start);
+    }
   }
 
   for (const ev of inRange) {

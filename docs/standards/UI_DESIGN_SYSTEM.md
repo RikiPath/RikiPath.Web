@@ -50,8 +50,10 @@ The Login screen is the **canonical color & surface reference** for all RikiPath
 
 - App shell: Japanese paper background (`.rp-paper-bg`, dotted, fixed layer) — full for Learner, subtle grain for
   Mentor / Content Author (`data-paper="quiet"`), and clean distraction-free warm creamy ivory (`#F8F6F4`, no background dots) for Admin (`data-shell="admin"`).
-- Header: dynamic sky (`src/features/atmosphere`), full for Learner, subtle for Mentor, minimal for
-  Admin / Content Author, user-switchable (sky + weather / sky only / off).
+- Header: Dynamic Sky 2.0 (`src/features/atmosphere`, engine in `engine/`) — one shared engine for every role
+  (no role-based effect policy); the user chooses display mode (sky + weather / sky only / off), effect intensity
+  (Nhẹ default / Vừa / Mạnh) and seasonal decoration (auto / on / off). Weak devices, data-saver and reduced motion
+  lower the effects automatically. Weather visuals come only from provider data; seasonal decoration is an estimate.
 - Landing: one hero container + section bands (white → ivory → mint → peach → cinematic CTA).
 
 ## Illustrations & icons

@@ -131,16 +131,28 @@ test('9.1 Overlap and rest boundary: 14-minute gap rejected, 15-minute gap accep
 
 // ───────────────────────── 9.2 Quick Fill Tests ─────────────────────────
 
-test('9.2 Quick Fill enforces 4-session per-proposal cap, rejects conflicts, and never mutates input array', () => {
+test('9.2 Quick Fill generates 1 slot per daypart rule preserving Friday, enforces 4-session cap, rejects conflicts, and never mutates input array', () => {
+  // 1) Mon/Wed/Fri Evening must produce 3 valid sessions INCLUDING Friday (no 6->4 truncation)
+  const mwfEveningPreview = buildProposalQuickFillPreview({
+    selectedDaypartRules: new Set(['1-Evening', '3-Evening', '5-Evening']),
+    currentSessions: [],
+    expectedStartDate: START_MON,
+    nowMs: NOW_MS,
+  });
+  assert.equal(mwfEveningPreview.validCandidates.length, 3);
+  assert.equal(mwfEveningPreview.rejectedCandidates.length, 0);
+  assert.equal(mwfEveningPreview.canApply, true);
+  assert.ok(mwfEveningPreview.resultingSessions.some((s) => s.weekday === 5), 'Friday must be preserved');
+
+  // 2) Overflow beyond 4 sessions/week refuses silent truncation & blocks apply until Mentor adjusts
   const original = [
-    { weekday: 1, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
-    { weekday: 3, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
+    { weekday: 1, startMinute: 18 * 60, endMinute: 19 * 60 + 30 },
+    { weekday: 3, startMinute: 18 * 60, endMinute: 19 * 60 + 30 },
   ];
   const snapshotBefore = JSON.stringify(original);
 
-  // Selected 7 weekday evening dayparts (14+ raw candidates) -> Quick Fill MUST stop at 4 total (2 added, rest rejected!)
   const massiveRules = new Set([
-    '1-Evening', '2-Evening', '3-Evening', '4-Evening', '5-Evening', '6-Evening', '0-Evening',
+    '2-Evening', '4-Evening', '5-Evening', '6-Evening', '0-Evening',
   ]);
   const preview = buildProposalQuickFillPreview({
     selectedDaypartRules: massiveRules,
@@ -151,13 +163,14 @@ test('9.2 Quick Fill enforces 4-session per-proposal cap, rejects conflicts, and
 
   // Input array untouched (Cancel leaves state untouched)
   assert.equal(JSON.stringify(original), snapshotBefore);
-  // Total resulting sessions NEVER exceeds 4!
   assert.equal(preview.resultingSessions.length, 4);
   assert.equal(preview.validCandidates.length, 2);
-  assert.ok(preview.exceededCapCount > 0);
+  assert.equal(preview.exceededCapCount, 3);
+  assert.equal(preview.hasBlockingIssues, true);
+  assert.equal(preview.canApply, false);
   assert.ok(preview.rejectedCandidates.every((r) => Boolean(r.reason)));
 
-  // Quick Fill with existing pending proposal conflict on Wednesday 19:00 rejects Wed cleanly
+  // Quick Fill with existing pending proposal conflict on Wednesday 19:00 rejects Wed & exposes alternatives
   const commitments = buildProposalCommitments({
     otherProposals: [
       {
@@ -183,6 +196,7 @@ test('9.2 Quick Fill enforces 4-session per-proposal cap, rejects conflicts, and
   assert.equal(conflictPreview.validCandidates.length, 2); // Mon & Fri valid
   assert.equal(conflictPreview.rejectedCandidates.length, 1); // Wed rejected
   assert.equal(conflictPreview.rejectedCandidates[0].code, 'PROPOSAL_CONFLICT_PENDING_PROPOSAL');
+  assert.ok(Array.isArray(conflictPreview.rejectedCandidates[0].alternatives));
 });
 
 // ───────────────── 9.3 Concurrent Proposals & Policy Caps ─────────────────
@@ -214,7 +228,7 @@ test('9.3 Multiple concurrent PendingReview proposals allowed when disjoint, blo
     certificateLevelId: 3,
     programType: 'StandardJlpt',
     courseObjective: 'Lớp N3 tối thứ 3-5',
-    expectedStartDate: START_MON,
+    expectedStartDate: '2027-02-02', // Tuesday — matches Tue/Thu weekly pattern
     weeklySessions: [
       { weekday: 2, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
       { weekday: 4, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
@@ -232,6 +246,7 @@ test('9.3 Multiple concurrent PendingReview proposals allowed when disjoint, blo
   const proposalC = {
     ...proposalB,
     id: 103,
+    expectedStartDate: START_MON, // Monday — matches Mon/Thu weekly pattern
     weeklySessions: [
       { weekday: 1, startMinute: 19 * 60 + 30, endMinute: 21 * 60 }, // overlaps 19:00-20:30
       { weekday: 4, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
@@ -332,10 +347,10 @@ test('9.5 Optional file upload: submission is completely valid with zero attachm
 
 // ─────────── 9.6 10-Week Expansion & Cohort Schedule Parity Tests ───────────
 
-test('9.6 10-week expansion aligns cleanly to complete ISO weeks >= ExpectedStartDate (matching StudyCohortService)', () => {
+test('9.6 10-week expansion anchors strictly to ExpectedStartDate across 10 seven-day cycles (matching Backend)', () => {
   // Expected start = Wednesday 2027-02-03, sessions = Mon & Wed
-  // Week 1 Monday (2027-02-01) < 2027-02-03, so expansion starts cleanly on next Monday 2027-02-08
-  // producing 10 complete ISO weeks × 2 sessions = 20 sessions, all >= 2027-02-03.
+  // Session 1 MUST land directly on ExpectedStartDate (2027-02-03), followed by Mon 2027-02-08,
+  // producing 10 complete 7-day cycles × 2 sessions = 20 sessions, all >= 2027-02-03.
   const occs = expandProposalOccurrences({
     expectedStartDate: '2027-02-03',
     weeklySessions: [
@@ -348,15 +363,16 @@ test('9.6 10-week expansion aligns cleanly to complete ISO weeks >= ExpectedStar
   });
 
   assert.equal(occs.length, 20);
-  assert.equal(occs[0].localDate, '2027-02-08');
+  assert.equal(occs[0].localDate, '2027-02-03');
+  assert.equal(occs[1].localDate, '2027-02-08');
   assert.equal(occs[0].weekNumber, 1);
   assert.equal(occs[19].weekNumber, 10);
   assert.ok(occs.every((o) => o.localDate >= '2027-02-03'));
 });
 
-// ─────────── 9.7 HOTFIX: JLPT Self-Selection & Calendar Projection ───────────
+// ─────────── 9.7 JLPT N5-N2 Scope, Step Mapping & Calendar Projection ───────────
 
-test('9.7 HOTFIX: Mentor self-selects N5-N1 freely without pre-granted JLPT qualifications; calendar projection round-trips cleanly', () => {
+test('9.7 JLPT N5-N2 class-opening scope (N1 profile allowed, N1 class opening blocked) & calendar round-trip', () => {
   const allLevels = [
     { certificateLevelId: 1, code: 'N5', name: 'JLPT N5' },
     { certificateLevelId: 2, code: 'N4', name: 'JLPT N4' },
@@ -365,41 +381,57 @@ test('9.7 HOTFIX: Mentor self-selects N5-N1 freely without pre-granted JLPT qual
     { certificateLevelId: 5, code: 'N1', name: 'JLPT N1' },
   ];
 
-  // Even when qualifiedLevels is completely empty, N1 & N5 proposals validate without MENTOR_NOT_QUALIFIED_FOR_LEVEL
-  const proposalN1 = {
-    certificateLevelId: 5,
+  // N2 class proposal succeeds for qualified N1/N2 mentor when start date matches selected weekday
+  const proposalN2 = {
+    certificateLevelId: 4,
     programType: 'StandardJlpt',
-    courseObjective: 'Lớp luyện đề JLPT N1 (tự chọn không cần phân quyền trước)',
-    expectedStartDate: START_MON,
+    courseObjective: 'Lớp luyện đề JLPT N2 mục tiêu đạt chuẩn đầu ra',
+    expectedStartDate: '2027-02-02', // Tuesday — matches Tue/Fri weekly pattern
     weeklySessions: [
       { weekday: 2, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
       { weekday: 5, startMinute: 19 * 60, endMinute: 20 * 60 + 30 },
     ],
   };
 
-  const res = validateProposalState({
-    proposal: proposalN1,
+  const resN2 = validateProposalState({
+    proposal: proposalN2,
     availableLevels: allLevels,
     qualifiedLevels: [],
     nowMs: NOW_MS,
   });
-  assert.equal(res.canSubmit, true);
-  assert.ok(!res.errors.some((e) => e.code === 'MENTOR_NOT_QUALIFIED_FOR_LEVEL'));
+  assert.equal(resN2.canSubmit, true);
+  assert.equal(resN2.step1Valid, true);
+  assert.equal(resN2.step2Valid, true);
+  assert.ok(!resN2.errors.some((e) => e.code === 'MENTOR_NOT_QUALIFIED_FOR_LEVEL'));
 
-  // Missing fields carry `field` metadata for Drawer UX touched-validation
+  // Class-opening scope is strictly N5-N2: proposing an N1 class returns PROPOSAL_LEVEL_NOT_SUPPORTED
+  const resN1 = validateProposalState({
+    proposal: { ...proposalN2, certificateLevelId: 5 },
+    availableLevels: allLevels,
+    qualifiedLevels: [{ certificateLevelId: 5, code: 'N1', name: 'JLPT N1' }],
+    nowMs: NOW_MS,
+  });
+  assert.equal(resN1.canSubmit, false);
+  assert.equal(resN1.step2Valid, false);
+  assert.ok(resN1.errors.some((e) => e.code === 'PROPOSAL_LEVEL_NOT_SUPPORTED'));
+
+  // Step 2 course fields carry step=2 & field metadata; schedule errors carry step=1
   const missingMeta = validateProposalState({
     proposal: { programType: 'StandardJlpt', weeklySessions: [] },
     availableLevels: allLevels,
     qualifiedLevels: [],
     nowMs: NOW_MS,
   });
-  assert.ok(missingMeta.errors.some((e) => e.field === 'certificateLevelId'));
-  assert.ok(missingMeta.errors.some((e) => e.field === 'expectedStartDate'));
-  assert.ok(missingMeta.errors.some((e) => e.field === 'courseObjective'));
+  assert.equal(missingMeta.step1Valid, false);
+  assert.equal(missingMeta.step2Valid, false);
+  assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'certificateLevelId'));
+  assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'expectedStartDate'));
+  assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'courseObjective'));
+  assert.ok(missingMeta.errors.some((e) => e.step === 1 && e.field === 'weeklySessions'));
 
   // Weekly <-> Calendar projection round-trip on an arbitrary week
   const projected = weeklySessionsToCalendarSlots({
-    weeklySessions: proposalN1.weeklySessions,
+    weeklySessions: proposalN2.weeklySessions,
     anchorKey: '2027-02-10', // Wednesday of target week (Mon 2027-02-08)
     policy: DEFAULT_PROPOSAL_POLICY,
   });
@@ -414,6 +446,6 @@ test('9.7 HOTFIX: Mentor self-selects N5-N1 freely without pre-granted JLPT qual
   }));
   assert.deepEqual(
     roundTrip.map((s) => ({ weekday: s.weekday, startMinute: s.startMinute, endMinute: s.endMinute })),
-    proposalN1.weeklySessions
+    proposalN2.weeklySessions
   );
 });

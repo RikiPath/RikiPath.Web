@@ -36,7 +36,7 @@ export default function CohortDiscoveryPage() {
           tone="sky"
           eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
           title={tr('Khám phá lớp học nhóm JLPT')}
-          description={tr('So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán PayOS.')}
+          description={tr('So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán trực tuyến.')}
           actions={
             !cohortsQuery.isPending && !cohortsQuery.isError && cohorts.length > 0 ? (
               <RefreshButton

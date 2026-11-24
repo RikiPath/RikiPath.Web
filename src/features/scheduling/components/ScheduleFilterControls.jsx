@@ -3,13 +3,19 @@ import {
   ArrowDownUp,
   Calendar as CalendarIcon,
   Clock,
+  GraduationCap,
+  Search,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { Popover } from '@/components/ui/overlay.jsx';
-import { CustomSelect, DateInput, TimeInput } from '@/components/ui/core.jsx';
+import { CustomSelect, TimeInput } from '@/components/ui/core.jsx';
+import { DatePicker } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import {
+  LIST_REGISTRATION_STATUS_OPTIONS,
+  REGISTRATION_EVENT_TYPE_OPTIONS,
+  REGISTRATION_JLPT_FILTER_OPTIONS,
   SCHEDULE_EVENT_TYPE_OPTIONS,
   SCHEDULE_SORT_OPTIONS,
   SCHEDULE_STATUS_OPTIONS,
@@ -67,24 +73,48 @@ export function StatusDotListbox({
  */
 export function ScheduleMoreFiltersPopover({
   policy,
-  dateFilterMode = 'view', // 'view' | 'today' | 'week' | 'month' | 'custom'
+  proposalMode = false,
+  displayMode = 'calendar',
+  statusFilter = 'ALL',
+  statusOptions = null,
+  countsByStatus = null,
+  onStatusChange = null,
+  eventTypeOptions = null,
+  jlptLevelFilter = 'ALL',
+  onJlptLevelChange = null,
+  searchQuery = '',
+  onSearchChange = null,
+  dateFilterMode = 'view', // 'view' | 'upcoming' | 'past' | 'today' | 'week' | 'month' | 'custom'
   customFromDate = '',
   customToDate = '',
   onDateFilterChange,
   timeFilterCode = 'ALL', // 'ALL' | daypart.code | 'CUSTOM'
   customStartTime = '07:00',
   customEndTime = '22:00',
+  showTimeFilter = true,
   onTimeFilterChange,
   eventTypeFilter = 'ALL',
   onEventTypeChange,
   sortBy = 'smart',
   sortDirection = 'asc',
+  sortOptions = SCHEDULE_SORT_OPTIONS,
   onSortChange,
   onResetAll,
   activeFilterCount = 0,
 }) {
   const { tr } = useLocale();
   const [open, setOpen] = useState(false);
+
+  const resolvedTypeOptions = useMemo(
+    () => eventTypeOptions || SCHEDULE_EVENT_TYPE_OPTIONS,
+    [eventTypeOptions],
+  );
+  const resolvedStatusOptions = useMemo(
+    () => statusOptions || (displayMode === 'list' ? LIST_REGISTRATION_STATUS_OPTIONS : SCHEDULE_STATUS_OPTIONS),
+    [displayMode, statusOptions],
+  );
+  const useSyncedStatusSection = Boolean(onStatusChange && (proposalMode || statusOptions));
+  const hasAnyResettable = activeFilterCount > 0 || (useSyncedStatusSection && statusFilter !== 'ALL');
 
   const dayparts = useMemo(() => {
     const raw = policy?.dayparts || [
@@ -127,7 +157,7 @@ export function ScheduleMoreFiltersPopover({
       <div className="w-[330px] max-w-[92vw] space-y-3.5 p-3.5 text-[12.5px]">
         <div className="flex items-center justify-between border-b border-rp-line pb-2">
           <span className="font-bold text-rp-text">{tr('Bộ lọc & sắp xếp')}</span>
-          {activeFilterCount > 0 && (
+          {hasAnyResettable && (
             <button
               type="button"
               data-testid="reset-all-filters-btn"
@@ -142,34 +172,136 @@ export function ScheduleMoreFiltersPopover({
           )}
         </div>
 
-        {/* 1. Loại lịch (EventType — separated from Status!) */}
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
-            {tr('Loại lịch')}
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {SCHEDULE_EVENT_TYPE_OPTIONS.map((opt) => {
-              const active = eventTypeFilter === opt.id;
-              return (
+        {/* 0. Tìm kiếm tên lớp (List / Proposal mode) */}
+        {onSearchChange && (
+          <div>
+            <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
+              <Search className="h-3 w-3" />
+              <span>{tr('Tìm kiếm lớp học')}</span>
+            </label>
+            <div className="relative">
+              <input
+                type="search"
+                data-testid="schedule-search-input"
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={tr('Nhập tên lớp, cấp độ JLPT (VD: N4)…')}
+                className="rp-focus h-8.5 w-full rounded-xl border border-rp-line bg-white pr-7 pl-3 text-[12px] text-rp-text placeholder:text-rp-text-muted"
+              />
+              {searchQuery && (
                 <button
-                  key={opt.id}
                   type="button"
-                  data-testid={`event-type-filter-${opt.id}`}
-                  aria-pressed={active}
-                  onClick={() => onEventTypeChange?.(opt.id)}
-                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11.5px] font-semibold transition-colors ${
-                    active
-                      ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
-                      : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
-                  }`}
+                  aria-label={tr('Xóa từ khóa tìm kiếm')}
+                  onClick={() => onSearchChange('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-rp-text-muted hover:text-rp-brand-strong"
                 >
-                  {opt.dotClass && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${opt.dotClass}`} />}
-                  <span className="truncate">{tr(opt.label)}</span>
+                  <X className="h-3.5 w-3.5" />
                 </button>
-              );
-            })}
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 1. Trạng thái (synced 1-to-1 with toolbar StatusDotListbox) OR Loại lịch (legacy mode) */}
+        {useSyncedStatusSection ? (
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
+              {tr('Trạng thái')}
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {resolvedStatusOptions.map((opt) => {
+                const active = statusFilter === opt.id;
+                const labelText = opt.id === 'ALL' ? tr('Tất cả') : tr(opt.label);
+                const countVal = countsByStatus && countsByStatus[opt.id] != null ? countsByStatus[opt.id] : null;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    data-testid={`popover-status-filter-${opt.id}`}
+                    aria-pressed={active}
+                    onClick={() => onStatusChange(opt.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-[11.5px] font-semibold transition-colors ${
+                      active
+                        ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                        : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
+                    }`}
+                  >
+                    {opt.dotClass && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${opt.dotClass}`} />}
+                    <span>{labelText}</span>
+                    {countVal != null && (
+                      <span
+                        className={`rounded-full px-1.5 py-px text-[10.5px] font-semibold tabular-nums ${
+                          active ? 'bg-white/80 text-rp-brand-strong' : 'bg-rp-bg-2 text-rp-text-muted'
+                        }`}
+                      >
+                        {countVal}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
+              {tr('Loại lịch')}
+            </label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {resolvedTypeOptions.map((opt) => {
+                const active = eventTypeFilter === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    data-testid={`event-type-filter-${opt.id}`}
+                    aria-pressed={active}
+                    onClick={() => onEventTypeChange?.(opt.id)}
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11.5px] font-semibold transition-colors ${
+                      active
+                        ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                        : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
+                    }`}
+                  >
+                    {opt.dotClass && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${opt.dotClass}`} />}
+                    <span className="truncate">{tr(opt.label)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 1b. Cấp độ JLPT */}
+        {onJlptLevelChange && (
+          <div>
+            <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
+              <GraduationCap className="h-3.5 w-3.5" />
+              <span>{tr('Cấp độ JLPT')}</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {REGISTRATION_JLPT_FILTER_OPTIONS.map((opt) => {
+                const active = jlptLevelFilter === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    data-testid={`jlpt-level-filter-${opt.id}`}
+                    aria-pressed={active}
+                    onClick={() => onJlptLevelChange(opt.id)}
+                    className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                      active
+                        ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                        : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
+                    }`}
+                  >
+                    {tr(opt.label)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 2. Khoảng ngày (Date Range Filter) */}
         <div>
@@ -178,13 +310,23 @@ export function ScheduleMoreFiltersPopover({
             <span>{tr('Khoảng ngày')}</span>
           </label>
           <div className="flex flex-wrap gap-1.5">
-            {[
-              { id: 'view', label: 'Theo khung lịch' },
-              { id: 'today', label: 'Hôm nay' },
-              { id: 'week', label: 'Tuần này' },
-              { id: 'month', label: 'Tháng này' },
-              { id: 'custom', label: 'Tùy chọn' },
-            ].map((preset) => {
+            {(displayMode === 'list'
+              ? [
+                { id: 'view', label: 'Toàn bộ thời gian' },
+                { id: 'upcoming', label: 'Sắp diễn ra' },
+                { id: 'past', label: 'Lịch sử' },
+                { id: 'today', label: 'Hôm nay' },
+                { id: 'week', label: 'Tuần này' },
+                { id: 'month', label: 'Tháng này' },
+                { id: 'custom', label: 'Tùy chọn' },
+              ]
+              : [
+                { id: 'view', label: 'Theo khung lịch' },
+                { id: 'today', label: 'Hôm nay' },
+                { id: 'week', label: 'Tuần này' },
+                { id: 'month', label: 'Tháng này' },
+                { id: 'custom', label: 'Tùy chọn' },
+              ]).map((preset) => {
               const active = dateFilterMode === preset.id;
               return (
                 <button
@@ -206,110 +348,116 @@ export function ScheduleMoreFiltersPopover({
           </div>
           {dateFilterMode === 'custom' && (
             <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2">
-              <label className="block text-[11px] font-medium text-rp-text-2">
-                {tr('Từ ngày')}
-                <DateInput
-                  data-testid="custom-date-from"
+              <div className="space-y-1 text-[11px] font-medium text-rp-text-2">
+                <span className="block">{tr('Từ ngày')}</span>
+                <DatePicker
+                  size="sm"
+                  fullWidth
+                  label={tr('Từ ngày')}
                   value={customFromDate}
                   max={customToDate || undefined}
-                  onChange={(e) => onDateFilterChange?.({ mode: 'custom', from: e.target.value, to: customToDate })}
-                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px]"
+                  onChange={(iso) => onDateFilterChange?.({ mode: 'custom', from: iso || '', to: customToDate })}
+                  triggerClassName="bg-white"
                 />
-              </label>
-              <label className="block text-[11px] font-medium text-rp-text-2">
-                {tr('Đến ngày')}
-                <DateInput
-                  data-testid="custom-date-to"
+              </div>
+              <div className="space-y-1 text-[11px] font-medium text-rp-text-2">
+                <span className="block">{tr('Đến ngày')}</span>
+                <DatePicker
+                  size="sm"
+                  fullWidth
+                  label={tr('Đến ngày')}
                   min={customFromDate || undefined}
                   value={customToDate}
-                  onChange={(e) => onDateFilterChange?.({ mode: 'custom', from: customFromDate, to: e.target.value })}
-                  className="mt-0.5 !h-8 rounded-lg px-2 text-[11.5px]"
+                  onChange={(iso) => onDateFilterChange?.({ mode: 'custom', from: customFromDate, to: iso || '' })}
+                  triggerClassName="bg-white"
                 />
-              </label>
+              </div>
             </div>
           )}
         </div>
 
         {/* 3. Khoảng giờ trong ngày (Time Filter) */}
-        <div>
-          <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
-            <Clock className="h-3 w-3" />
-            <span>{tr('Khung giờ trong ngày (GMT+7)')}</span>
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              data-testid="time-filter-ALL"
-              aria-pressed={timeFilterCode === 'ALL'}
-              onClick={() => onTimeFilterChange?.({ code: 'ALL', start: customStartTime, end: customEndTime })}
-              className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
-                timeFilterCode === 'ALL'
-                  ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
-                  : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
-              }`}
-            >
-              {tr('Tất cả giờ')}
-            </button>
-            {dayparts.map((dp) => {
-              const active = timeFilterCode === dp.code;
-              const startClock = dp.localStart || clockFromMinutes(dp.startMin);
-              const endClock = dp.localEnd || clockFromMinutes(dp.endMin);
-              return (
-                <button
-                  key={dp.code}
-                  type="button"
-                  data-testid={`time-filter-${dp.code}`}
-                  aria-pressed={active}
-                  onClick={() => onTimeFilterChange?.({ code: dp.code, start: startClock, end: endClock })}
-                  className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
-                    active
-                      ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
-                      : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
-                  }`}
-                >
-                  {tr(dp.label)} ({startClock}–{endClock})
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              data-testid="time-filter-CUSTOM"
-              aria-pressed={timeFilterCode === 'CUSTOM'}
-              onClick={() => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: customEndTime })}
-              className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
-                timeFilterCode === 'CUSTOM'
-                  ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
-                  : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
-              }`}
-            >
-              {tr('Giờ tùy chọn')}
-            </button>
-          </div>
-          {timeFilterCode === 'CUSTOM' && (
-            <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2">
-              <label className="block text-[11px] font-medium text-rp-text-2">
-                {tr('Từ giờ')}
-                <TimeInput
-                  data-testid="custom-time-start"
-                  size="sm"
-                  value={customStartTime}
-                  onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: e.target.value, end: customEndTime })}
-                  className="mt-0.5"
-                />
-              </label>
-              <label className="block text-[11px] font-medium text-rp-text-2">
-                {tr('Đến giờ')}
-                <TimeInput
-                  data-testid="custom-time-end"
-                  size="sm"
-                  value={customEndTime}
-                  onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: e.target.value })}
-                  className="mt-0.5"
-                />
-              </label>
+        {showTimeFilter && (
+          <div>
+            <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
+              <Clock className="h-3 w-3" />
+              <span>{tr('Khung giờ trong ngày (GMT+7)')}</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                data-testid="time-filter-ALL"
+                aria-pressed={timeFilterCode === 'ALL'}
+                onClick={() => onTimeFilterChange?.({ code: 'ALL', start: customStartTime, end: customEndTime })}
+                className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                  timeFilterCode === 'ALL'
+                    ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                    : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
+                }`}
+              >
+                {tr('Tất cả giờ')}
+              </button>
+              {dayparts.map((dp) => {
+                const active = timeFilterCode === dp.code;
+                const startClock = dp.localStart || clockFromMinutes(dp.startMin);
+                const endClock = dp.localEnd || clockFromMinutes(dp.endMin);
+                return (
+                  <button
+                    key={dp.code}
+                    type="button"
+                    data-testid={`time-filter-${dp.code}`}
+                    aria-pressed={active}
+                    onClick={() => onTimeFilterChange?.({ code: dp.code, start: startClock, end: endClock })}
+                    className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                      active
+                        ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                        : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
+                    }`}
+                  >
+                    {tr(dp.label)} ({startClock}–{endClock})
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                data-testid="time-filter-CUSTOM"
+                aria-pressed={timeFilterCode === 'CUSTOM'}
+                onClick={() => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: customEndTime })}
+                className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                  timeFilterCode === 'CUSTOM'
+                    ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
+                    : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
+                }`}
+              >
+                {tr('Giờ tùy chọn')}
+              </button>
             </div>
-          )}
-        </div>
+            {timeFilterCode === 'CUSTOM' && (
+              <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2">
+                <label className="block text-[11px] font-medium text-rp-text-2">
+                  {tr('Từ giờ')}
+                  <TimeInput
+                    data-testid="custom-time-start"
+                    size="sm"
+                    value={customStartTime}
+                    onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: e.target.value, end: customEndTime })}
+                    className="mt-0.5"
+                  />
+                </label>
+                <label className="block text-[11px] font-medium text-rp-text-2">
+                  {tr('Đến giờ')}
+                  <TimeInput
+                    data-testid="custom-time-end"
+                    size="sm"
+                    value={customEndTime}
+                    onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: e.target.value })}
+                    className="mt-0.5"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 4. Sắp xếp thông minh (Smart Sorting) */}
         {onSortChange && (
@@ -325,10 +473,10 @@ export function ScheduleMoreFiltersPopover({
                 dataTestId="schedule-sort-by-select"
                 value={sortBy}
                 onChange={(val) => onSortChange({ sortBy: val, sortDirection })}
-                options={SCHEDULE_SORT_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
+                options={sortOptions.map((opt) => ({ value: opt.id, label: opt.label }))}
                 className="flex-1"
               />
-              {sortBy !== 'smart' && sortBy !== 'newest' && sortBy !== 'oldest' && (
+              {sortBy !== 'smart' && sortBy !== 'default' && sortBy !== 'newest' && sortBy !== 'oldest' && (
                 <button
                   type="button"
                   data-testid="schedule-sort-dir-btn"
@@ -351,9 +499,15 @@ export function ScheduleMoreFiltersPopover({
  */
 export function ActiveScheduleFilterBar({
   statusFilter = 'ALL',
+  statusOptions = SCHEDULE_STATUS_OPTIONS,
   onClearStatus,
   eventTypeFilter = 'ALL',
+  eventTypeOptions = SCHEDULE_EVENT_TYPE_OPTIONS,
   onClearEventType,
+  jlptLevelFilter = 'ALL',
+  onClearJlptLevel,
+  searchQuery = '',
+  onClearSearch,
   dateFilterMode = 'view',
   customFromDate = '',
   customToDate = '',
@@ -365,27 +519,38 @@ export function ActiveScheduleFilterBar({
   totalFilteredCount = 0,
 }) {
   const { tr, trf } = useLocale();
+  const trimmedSearch = String(searchQuery || '').trim();
   const hasAny =
     statusFilter !== 'ALL' ||
     eventTypeFilter !== 'ALL' ||
+    jlptLevelFilter !== 'ALL' ||
+    Boolean(trimmedSearch) ||
     dateFilterMode !== 'view' ||
     timeFilterCode !== 'ALL';
 
   if (!hasAny) return null;
 
-  const statusOpt = SCHEDULE_STATUS_OPTIONS.find((o) => o.id === statusFilter);
-  const typeOpt = SCHEDULE_EVENT_TYPE_OPTIONS.find((o) => o.id === eventTypeFilter);
+  const statusOpt = statusOptions.find((o) => o.id === statusFilter)
+    || LIST_REGISTRATION_STATUS_OPTIONS.find((o) => o.id === statusFilter)
+    || SCHEDULE_STATUS_OPTIONS.find((o) => o.id === statusFilter);
+  const typeOpt = eventTypeOptions.find((o) => o.id === eventTypeFilter)
+    || REGISTRATION_EVENT_TYPE_OPTIONS.find((o) => o.id === eventTypeFilter)
+    || SCHEDULE_EVENT_TYPE_OPTIONS.find((o) => o.id === eventTypeFilter);
 
   const dateChipText =
-    dateFilterMode === 'today'
-      ? tr('Hôm nay')
-      : dateFilterMode === 'week'
-        ? tr('Tuần này')
-        : dateFilterMode === 'month'
-          ? tr('Tháng này')
-          : dateFilterMode === 'custom'
-            ? `${customFromDate ? formatShortDateVn(customFromDate) : '…'} – ${customToDate ? formatShortDateVn(customToDate) : '…'}`
-            : '';
+    dateFilterMode === 'upcoming'
+      ? tr('Sắp diễn ra')
+      : dateFilterMode === 'past'
+        ? tr('Lịch sử')
+        : dateFilterMode === 'today'
+          ? tr('Hôm nay')
+          : dateFilterMode === 'week'
+            ? tr('Tuần này')
+            : dateFilterMode === 'month'
+              ? tr('Tháng này')
+              : dateFilterMode === 'custom'
+                ? `${customFromDate ? formatShortDateVn(customFromDate) : '…'} – ${customToDate ? formatShortDateVn(customToDate) : '…'}`
+                : '';
 
   return (
     <div
@@ -396,6 +561,15 @@ export function ActiveScheduleFilterBar({
         <span className="font-semibold text-rp-text-muted">
           {trf('Đang lọc ({0} kết quả):', { 0: totalFilteredCount })}
         </span>
+        {trimmedSearch && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-brand-border bg-white px-2.5 py-0.5 font-semibold text-rp-text">
+            <Search className="h-3 w-3 text-rp-brand-strong" />
+            <span className="max-w-[160px] truncate">{trimmedSearch}</span>
+            <button type="button" onClick={onClearSearch} aria-label={tr('Xóa từ khóa tìm kiếm')} className="text-rp-text-muted hover:text-rp-brand-strong">
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        )}
         {statusFilter !== 'ALL' && statusOpt && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-brand-border bg-white px-2.5 py-0.5 font-semibold text-rp-text">
             <span className={`h-2 w-2 rounded-full ${statusOpt.dotClass}`} />
@@ -410,6 +584,14 @@ export function ActiveScheduleFilterBar({
             {typeOpt.dotClass && <span className={`h-2 w-2 rounded-full ${typeOpt.dotClass}`} />}
             <span>{tr(typeOpt.label)}</span>
             <button type="button" onClick={onClearEventType} aria-label={tr('Bỏ lọc loại lịch')} className="text-rp-text-muted hover:text-rp-brand-strong">
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        )}
+        {jlptLevelFilter !== 'ALL' && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-brand-border bg-white px-2.5 py-0.5 font-semibold text-rp-text">
+            <span>JLPT {jlptLevelFilter}</span>
+            <button type="button" onClick={onClearJlptLevel} aria-label={tr('Bỏ lọc cấp độ JLPT')} className="text-rp-text-muted hover:text-rp-brand-strong">
               <X className="h-3 w-3" />
             </button>
           </span>

@@ -258,7 +258,7 @@ export default function LearnerCohortDiscoveryPanel({
         (res) =>
           res?.paymentState === 'Confirmed' || res?.paymentStatus === 'Paid'
             ? 'Ghi danh lớp học nhóm thành công!'
-            : 'Đã giữ chỗ và chuyển tới PayOS. Ghi danh chỉ hoàn tất khi máy chủ xác nhận thanh toán.',
+            : 'Đã giữ chỗ và chuyển đến trang thanh toán. Ghi danh chỉ hoàn tất khi hệ thống xác nhận thanh toán.',
       ),
     ).finally(() => {
       inFlight.current = false;
@@ -524,7 +524,7 @@ export default function LearnerCohortDiscoveryPanel({
               {tr('Hủy bỏ')}
             </Button>
             <Button type="button" variant="primary" size="sm" disabled={busy} loading={busy} onClick={handleConfirmEnroll}>
-              {confirmCohort.hasApprovedEntitlement ? tr('Xác nhận ghi danh') : tr('Xác nhận & chuyển tới PayOS')}
+              {confirmCohort.hasApprovedEntitlement ? tr('Xác nhận ghi danh') : tr('Thanh toán ngay')}
             </Button>
           </div>
         ) : undefined}
@@ -558,7 +558,7 @@ export default function LearnerCohortDiscoveryPanel({
                   <strong className="text-rp-brand-strong">{money(confirmCohort.price)}</strong>
                 </p>
                 <p className="text-xs leading-relaxed text-rp-text-muted">
-                  {tr('Thanh toán qua PayOS. Chỗ được giữ trong thời gian chờ thanh toán (mặc định 10 phút). Ghi danh chỉ được xác nhận sau khi máy chủ xác minh thanh toán với PayOS.')}
+                  {tr('Chỗ được giữ trong thời gian chờ thanh toán (mặc định 10 phút). Ghi danh chỉ được xác nhận sau khi thanh toán thành công.')}
                 </p>
               </div>
             )}

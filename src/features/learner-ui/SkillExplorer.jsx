@@ -94,18 +94,18 @@ const SKILL_ITEMS = [
 ];
 
 /**
- * Single unified 4×2 Skill Explorer container ("Khám phá & luyện tập").
- * Preserves `.rp-cq-practice` class on the grid list and respects FeatureLink entitlements.
+ * Skill Explorer ("Khám phá & luyện tập"): 8 skills, each with its own clay icon, entitlement-aware links.
+ * `compact` is the dashboard variant that shares a row with Group Learning (2 columns, smaller icons, tighter tiles).
  */
-export default function SkillExplorer({ className, listClassName = 'rp-cq-practice' }) {
+export default function SkillExplorer({ className, listClassName = 'rp-cq-practice', compact = false }) {
   const { tr } = useLocale();
   const unlock = useStudyUnlock();
 
   return (
-    <Card className={cx('w-full border-rp-line bg-white p-4 shadow-rp-sm sm:p-5', className)} data-section="SkillExplorer">
+    <Card className={cx('w-full border-rp-line bg-white p-4 shadow-rp-sm sm:p-5', compact && 'rp-cq flex flex-col', className)} data-section="SkillExplorer">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <WebClayIcon name="vocabulary" size="sm" tone="mint" hover className="-my-1" />
+          <WebClayIcon name="lesson_catalog" size="sm" hover className="-my-1" />
           <div>
             <h2 className="text-[17px] font-extrabold tracking-tight text-rp-navy">
               {tr('Khám phá & luyện tập')}
@@ -121,24 +121,37 @@ export default function SkillExplorer({ className, listClassName = 'rp-cq-practi
         </Button>
       </div>
 
-      <ul className={cx('mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4', listClassName)}>
+      <ul className={cx('grid grid-cols-1', compact ? 'rp-discovery-grid mt-3 flex-1' : 'mt-4 gap-3 sm:grid-cols-2 lg:grid-cols-4', listClassName)}>
         {SKILL_ITEMS.map((item) => {
           const isLocked = Boolean(item.gated && unlock?.access?.lockStateFor?.(item.to) === 'locked');
           const tileContent = (
-            <div className="flex items-center gap-3.5">
-              <WebClayIcon name={item.icon} size="md" tone={item.tone} hover />
+            <div className={cx('flex w-full items-center', compact ? 'gap-3' : 'gap-3.5')}>
+              <span className={cx('shrink-0 transition-opacity', isLocked && 'opacity-55 grayscale-[60%]')}>
+                <WebClayIcon name={item.icon} size={compact ? 'xs' : 'md'} tone={item.tone} hover={!isLocked} />
+              </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-1.5">
-                  <span className={cx('truncate text-[14px] font-extrabold', item.titleColor)}>
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={cx(
+                      'truncate font-extrabold',
+                      compact ? 'text-[13.5px]' : 'text-[14px]',
+                      isLocked ? 'text-rp-text-muted' : item.titleColor,
+                    )}
+                  >
                     {tr(item.title)}
                   </span>
                   {isLocked && (
-                    <Badge tone="warning" size="sm" icon={LockKeyhole}>
+                    <Badge
+                      tone="neutral"
+                      size="sm"
+                      icon={LockKeyhole}
+                      className="shrink-0 whitespace-nowrap !border-rp-line !bg-rp-muted-strong/90 !text-rp-text-2"
+                    >
                       {tr('Mở khóa')}
                     </Badge>
                   )}
                 </div>
-                <p className="mt-0.5 truncate text-[12px] text-rp-text-2">
+                <p className={cx('mt-0.5 truncate text-[12px]', isLocked ? 'text-rp-text-disabled' : 'text-rp-text-2')}>
                   {tr(item.sub)}
                 </p>
               </div>
@@ -146,14 +159,17 @@ export default function SkillExplorer({ className, listClassName = 'rp-cq-practi
           );
 
           const tileClass = cx(
-            'rp-focus rp-interactive group block w-full rounded-2xl border p-3.5 text-left transition',
-            item.cardBg,
+            'rp-focus rp-skill-tile group flex h-full w-full items-center rounded-2xl border text-left transition-colors',
+            compact ? 'px-3 py-1.5' : 'p-3.5',
+            isLocked
+              ? 'border-rp-line/85 bg-rp-muted/55 hover:border-rp-line-strong hover:bg-rp-muted/80'
+              : cx('rp-interactive', item.cardBg),
           );
 
           return (
             <li key={item.key}>
               {item.gated ? (
-                <FeatureLink to={item.to} className={tileClass} label={tr(item.title)}>
+                <FeatureLink to={item.to} showLock={false} className={tileClass} label={tr(item.title)}>
                   {tileContent}
                 </FeatureLink>
               ) : (

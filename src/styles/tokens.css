@@ -1596,3 +1596,193 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   12% { opacity: 1; }
   100% { opacity: 0; transform: translate3d(0, 230px, 0) rotate(320deg); }
 }
+
+/* ------------------------------------------------------------------ Header Visual Tokens (Badges, Globe, Brand Path) */
+:root {
+  /* Modern coral-rose header badge: #D6404E / #FFFFFF = 4.52:1 (WCAG AA), seamless without white border */
+  --rp-header-badge-bg: #D6404E;
+  --rp-header-badge-fg: #FFFFFF;
+  --rp-header-badge-shadow: 0 1px 3px rgba(182, 52, 70, 0.22);
+
+  /* Soft pastel sky-blue language globe: #5798D1 on #FFFFFF = 3.08:1 (WCAG UI AA), gentle with Sakura palette */
+  --rp-header-globe-color: #5798D1;
+
+  /* Soft Sakura rose accent for the "Path" logo wordmark */
+  --rp-brand-path-accent: var(--color-rp-brand);
+
+  /* Sticky offset for content panels: equals topbar when window scrolls, 0px inside AppShell's body scroll container */
+  --rp-sticky-top-offset: var(--spacing-rp-topbar);
+}
+
+.rp-app-shell-viewport {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.rp-main-scroll {
+  --rp-sticky-top-offset: 0px;
+  overscroll-behavior-y: contain;
+}
+
+[data-theme='dark'] {
+  --rp-header-badge-bg: #D6404E;
+  --rp-header-badge-fg: #FFFFFF;
+  --rp-header-badge-shadow: 0 1px 3px rgba(0, 0, 0, 0.32);
+  --rp-header-globe-color: #8BC0EC;
+  --rp-brand-path-accent: #F07B98;
+}
+
+.rp-header-badge {
+  background-color: var(--rp-header-badge-bg);
+  color: var(--rp-header-badge-fg);
+  box-shadow: var(--rp-header-badge-shadow);
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-brand-path {
+  color: var(--rp-brand-path-accent);
+}
+
+/* ------------------------------------------------------------------ Global Smart Sidebar Badges */
+:root {
+  /* WCAG AA verified: #D63F30 / #FFFFFF = 4.55:1, #EADCE2 / #91405B = 5.13:1 */
+  --rp-sidebar-badge-bg: #D63F30;
+  --rp-sidebar-badge-fg: #FFFFFF;
+  --rp-sidebar-badge-active-bg: #EADCE2;
+  --rp-sidebar-badge-active-fg: #91405B;
+  --rp-sidebar-badge-glow: rgba(214, 63, 48, 0.34);
+  --rp-sidebar-badge-shadow: 0 1px 2px rgba(182, 52, 70, 0.2);
+}
+
+[data-theme='dark'] {
+  /* Dark theme AA/AAA: #D63F30 / #FFFFFF = 4.55:1, #3D2530 / #F7B7CB = 8.36:1 */
+  --rp-sidebar-badge-bg: #D63F30;
+  --rp-sidebar-badge-fg: #FFFFFF;
+  --rp-sidebar-badge-active-bg: #3D2530;
+  --rp-sidebar-badge-active-fg: #F7B7CB;
+  --rp-sidebar-badge-glow: rgba(224, 90, 122, 0.38);
+  --rp-sidebar-badge-shadow: 0 1px 3px rgba(0, 0, 0, 0.32);
+}
+
+.rp-sidebar-badge {
+  position: relative;
+  background-color: var(--rp-sidebar-badge-bg);
+  color: var(--rp-sidebar-badge-fg);
+  box-shadow: var(--rp-sidebar-badge-shadow);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 180ms var(--rp-ease, ease),
+    color 180ms var(--rp-ease, ease),
+    opacity 180ms var(--rp-ease, ease),
+    transform 180ms var(--rp-ease, ease);
+}
+.rp-sidebar-badge[data-collapsed="true"] {
+  position: absolute;
+}
+.rp-sidebar-badge[data-active="true"] {
+  background-color: var(--rp-sidebar-badge-active-bg);
+  color: var(--rp-sidebar-badge-active-fg);
+  box-shadow: none;
+}
+.rp-sidebar-badge[data-stale="true"] {
+  opacity: 0.82;
+}
+.rp-sidebar-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rp-sidebar-badge-enter {
+    animation: rp-sidebar-badge-in 180ms var(--rp-ease, ease) both;
+  }
+  .rp-sidebar-badge-num-bump {
+    display: inline-block;
+    animation: rp-sidebar-badge-bump 200ms var(--rp-ease, ease) both;
+  }
+
+  /* Scoped Soft Notification Pulse: ONLY for learner.srs_due when due > 0, menu inactive, and tab visible */
+  .rp-sidebar-badge[data-attention="soft-pulse"] {
+    animation: rp-sidebar-badge-soft-pulse 3s ease-in-out infinite;
+  }
+  .rp-sidebar-badge[data-attention="soft-pulse"]::after {
+    background-color: var(--rp-sidebar-badge-glow);
+    animation: rp-sidebar-badge-glow-ring 3s ease-in-out infinite;
+  }
+  .rp-sidebar-badge[data-attention="soft-pulse"][data-collapsed="true"]::after {
+    animation-name: rp-sidebar-badge-glow-ring-compact;
+  }
+
+  /* Attention Pop (2 iterations then stops): ONLY for genuine realtime increases on ActionRequired counters */
+  .rp-sidebar-badge[data-attention="pop"][data-pop-phase="odd"] {
+    animation: rp-sidebar-badge-pop-odd 900ms var(--rp-ease, ease-out) 2 both;
+  }
+  .rp-sidebar-badge[data-attention="pop"][data-pop-phase="even"] {
+    animation: rp-sidebar-badge-pop-even 900ms var(--rp-ease, ease-out) 2 both;
+  }
+  .rp-sidebar-badge[data-attention="pop"][data-pop-phase="odd"]::after {
+    background-color: var(--rp-sidebar-badge-glow);
+    animation: rp-sidebar-badge-pop-ring-odd 900ms var(--rp-ease, ease-out) 2 both;
+  }
+  .rp-sidebar-badge[data-attention="pop"][data-pop-phase="even"]::after {
+    background-color: var(--rp-sidebar-badge-glow);
+    animation: rp-sidebar-badge-pop-ring-even 900ms var(--rp-ease, ease-out) 2 both;
+  }
+  .rp-sidebar-badge[data-tab-hidden="true"],
+  .rp-sidebar-badge[data-tab-hidden="true"]::after {
+    animation-play-state: paused !important;
+  }
+}
+
+@keyframes rp-sidebar-badge-in {
+  0% { opacity: 0; transform: scale(0.84); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes rp-sidebar-badge-bump {
+  0% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+@keyframes rp-sidebar-badge-soft-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+@keyframes rp-sidebar-badge-glow-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  65% { transform: scale(1.38); opacity: 0; }
+  100% { transform: scale(1.38); opacity: 0; }
+}
+@keyframes rp-sidebar-badge-glow-ring-compact {
+  0% { transform: scale(1); opacity: 0.36; }
+  65% { transform: scale(1.28); opacity: 0; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+@keyframes rp-sidebar-badge-pop-odd {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.05); }
+}
+@keyframes rp-sidebar-badge-pop-even {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.05); }
+}
+@keyframes rp-sidebar-badge-pop-ring-odd {
+  0% { transform: scale(1); opacity: 0.44; }
+  100% { transform: scale(1.34); opacity: 0; }
+}
+@keyframes rp-sidebar-badge-pop-ring-even {
+  0% { transform: scale(1); opacity: 0.44; }
+  100% { transform: scale(1.34); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-sidebar-badge,
+  .rp-sidebar-badge::after,
+  .rp-sidebar-badge-enter,
+  .rp-sidebar-badge-num-bump {
+    animation: none !important;
+    transition: background-color 0ms, color 0ms, opacity 0ms !important;
+    transform: none !important;
+  }
+}

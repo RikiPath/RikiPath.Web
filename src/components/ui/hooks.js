@@ -34,11 +34,17 @@ export function useFocusTrap(ref, { open, onEscape, initialFocusRef } = {}) {
     function onKeyDown(event) {
       if (!node || activeTrapStack[activeTrapStack.length - 1] !== layerId) return;
       if (event.key === 'Escape') {
+        if (document.querySelector('[data-rp-floating-portal="true"]')) {
+          return;
+        }
         event.stopPropagation();
         escapeRef.current?.();
         return;
       }
       if (event.key !== 'Tab') return;
+      if (document.activeElement?.closest?.('[data-rp-floating-portal="true"]')) {
+        return;
+      }
       const items = [...node.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
       if (items.length === 0) {
         event.preventDefault();

@@ -17,7 +17,7 @@ export default function BackHomeLink({ variant = 'pill', className }) {
         aria-label={tr('Về trang chủ RikiPath')}
         title={tr('Về trang chủ RikiPath')}
         className={cx(
-          'rp-focus rp-interactive group hidden h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-rp-line bg-rp-surface/85 text-[13px] font-semibold text-rp-text-2 shadow-rp-xs transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint/50 hover:text-rp-brand-strong sm:inline-flex xl:w-auto xl:px-2.5',
+          'rp-focus rp-interactive rp-hc group hidden h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-rp-line bg-rp-surface/85 text-[13px] font-semibold text-rp-text-2 shadow-rp-xs transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint/50 hover:text-rp-brand-strong sm:inline-flex xl:w-auto xl:px-2.5',
           className,
         )}
       >

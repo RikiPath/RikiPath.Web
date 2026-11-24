@@ -13,6 +13,7 @@ import WebClayIcon from './WebClayIcon.jsx';
  */
 export function LearnerPageBanner({
   icon = 'roadmap',
+  iconSize = 'lg',
   tone = 'sakura',
   eyebrow,
   title,
@@ -40,7 +41,7 @@ export function LearnerPageBanner({
         <div className="flex min-w-[min(100%,260px)] flex-1 items-center gap-4 sm:gap-5">
           <WebClayIcon
             name={icon}
-            size="lg"
+            size={iconSize}
             tone={tone}
             hover
             className="-my-1 shrink-0"

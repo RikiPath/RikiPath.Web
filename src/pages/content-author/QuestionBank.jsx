@@ -60,6 +60,7 @@ import { useAuthorLookups } from '@/features/content-author/hooks/useAuthorLooku
 import { statuses } from '@/features/content-author/utils/contentModel.js';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const QUESTION_TYPE_LABELS = {
   SingleChoice: 'Trắc nghiệm 1 đáp án',
@@ -229,6 +230,7 @@ export default function QuestionBank() {
     void queryClient.invalidateQueries({ queryKey: ['passages-v2'] });
     void queryClient.invalidateQueries({ queryKey: ['question-bank-approved'] });
     void queryClient.invalidateQueries({ queryKey: ['my-content-approvals'] });
+    void invalidateSidebarCounters(queryClient);
   };
 
   const submitMutation = useMutation({

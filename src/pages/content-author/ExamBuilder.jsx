@@ -63,6 +63,7 @@ import {
   createBlankCanonicalQuestion,
 } from '@/features/content-author/utils/canonicalQuestionTemplates.js';
 import { useLocale } from '@/locales/locale.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const EXAM_KIND_LABELS = {
   FullMockTest: 'Đề thi thử JLPT Blueprint',
@@ -154,7 +155,10 @@ export default function ExamBuilder() {
     enabled: bankPickerTarget !== null && Boolean(editingExam),
   });
 
-  const refreshExams = () => void queryClient.invalidateQueries({ queryKey: ['author-exams-v2'] });
+  const refreshExams = () => {
+    void queryClient.invalidateQueries({ queryKey: ['author-exams-v2'] });
+    void invalidateSidebarCounters(queryClient);
+  };
 
   const saveExamMutation = useMutation({
     mutationFn: (payload) => saveExamDraftV2(payload),

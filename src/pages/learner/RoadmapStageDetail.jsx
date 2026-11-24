@@ -141,7 +141,7 @@ export default function RoadmapStageDetail() {
               tone="warning"
               actions={(
                 <>
-                  <Button as={Link} to="/plans/" variant="primary" size="sm">{tr('Xem gói tự học')}</Button>
+                  <Button as={Link} to="/plans/" variant="primary" size="sm">{tr('Mua gói ngay')}</Button>
                   <Button variant="secondary" size="sm" loading={subscriptionQuery.isFetching} onClick={() => subscriptionQuery.refetch()}>
                     {tr('Kiểm tra lại quyền')}
                   </Button>

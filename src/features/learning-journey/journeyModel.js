@@ -24,7 +24,7 @@ export const STAGE_STATE_META = Object.freeze({
 
 export const SKILL_NAME_LABELS = Object.freeze({
   Vocabulary: 'Từ vựng',
-  Kanji: 'Hán tự',
+  Kanji: 'Kanji',
   Grammar: 'Ngữ pháp',
   Reading: 'Đọc hiểu',
   Listening: 'Nghe hiểu',

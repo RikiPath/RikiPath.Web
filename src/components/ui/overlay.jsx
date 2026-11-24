@@ -22,32 +22,62 @@ function Portal({ children }) {
 
 /* ------------------------------------------------------------------ Modal */
 
-const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', '2xl': 'max-w-[1080px]' };
+/** Exit window (ms) for dialogs closed through `open={false}`; matches --rp-dur-overlay-out + one frame. */
+const DIALOG_EXIT_MS = 180;
 
-export function Modal({ open, onClose, title, description, children, footer, size = 'md', dismissible = true, initialFocusRef, className }) {
+/**
+ * True for a short moment after `open` turns false, so a dialog can play its exit animation before it unmounts.
+ * Dialogs removed from the tree by their parent (`{x && <Modal open />}`) simply unmount as before.
+ */
+function useExitPresence(open, ms = DIALOG_EXIT_MS) {
+  const [closing, setClosing] = useState(false);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    setClosing(!open);
+  }
+  useEffect(() => {
+    if (!closing) return undefined;
+    const timer = setTimeout(() => setClosing(false), ms);
+    return () => clearTimeout(timer);
+  }, [closing, ms]);
+  return closing;
+}
+
+const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', wizard: 'max-w-[840px]', xl: 'max-w-4xl', '2xl': 'max-w-[1080px]' };
+
+export function Modal(props) {
+  const { open, onClose, size = 'md', dismissible = true, initialFocusRef, className, describedBy } = props;
   const { tr } = useLocale();
+  // While the exit animation plays, keep showing what was on screen: parents often clear the data that fed
+  // the dialog (selected item, unlock target) in the same tick they close it.
+  const [shown, setShown] = useState(props);
+  if (open && shown !== props) setShown(props);
+  const { title, titleBadge, description, subheader, children, footer } = open ? props : shown;
   const ref = useRef(null);
   const titleId = useId();
   const descId = useId();
   useFocusTrap(ref, { open, onEscape: dismissible ? onClose : undefined, initialFocusRef });
-  if (!open) return null;
+  const closing = useExitPresence(open);
+  if (!open && !closing) return null;
   return (
     <Portal>
-      <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div inert={closing || undefined} className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
         <div
           aria-hidden="true"
-          className="rp-anim-fade rp-backdrop absolute inset-0"
-          onClick={dismissible ? onClose : undefined}
+          className={cx('rp-backdrop absolute inset-0', closing ? 'rp-anim-fade-out' : 'rp-anim-fade')}
+          onClick={dismissible && !closing ? onClose : undefined}
         />
         <div
           ref={ref}
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? titleId : undefined}
-          aria-describedby={description ? descId : undefined}
+          aria-describedby={description ? descId : describedBy}
           tabIndex={-1}
           className={cx(
-            'rp-anim-modal relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-rp-card-lg bg-rp-surface shadow-[0_30px_70px_-28px_rgba(20,24,35,0.45),0_2px_8px_rgba(20,24,35,0.06)] ring-1 ring-black/[0.06] outline-none sm:rounded-rp-card-lg',
+            closing ? 'rp-anim-modal-out' : 'rp-anim-modal',
+            'relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-rp-card-lg bg-rp-surface shadow-[0_30px_70px_-28px_rgba(20,24,35,0.45),0_2px_8px_rgba(20,24,35,0.06)] ring-1 ring-black/[0.06] outline-none sm:rounded-rp-card-lg',
             MODAL_SIZES[size] || MODAL_SIZES.md,
             className,
           )}
@@ -55,7 +85,14 @@ export function Modal({ open, onClose, title, description, children, footer, siz
           {(title || dismissible) && (
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-rp-line px-5 py-3.5">
               <div className="min-w-0">
-                {title && <h2 id={titleId} className="text-base font-bold leading-6 text-rp-text">{tr(title)}</h2>}
+                {title && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 id={titleId} className="text-base font-bold leading-6 text-rp-text">
+                      {typeof title === 'string' ? tr(title) : title}
+                    </h2>
+                    {titleBadge}
+                  </div>
+                )}
                 {description && <p id={descId} className="mt-0.5 text-[13px] leading-5 text-rp-text-muted">{tr(description)}</p>}
               </div>
               {dismissible && (
@@ -65,6 +102,8 @@ export function Modal({ open, onClose, title, description, children, footer, siz
               )}
             </div>
           )}
+          {/* Non-scrolling band under the header (wizard steppers, filters): the body scrolls below it, never under it. */}
+          {subheader && <div className="shrink-0 border-b border-rp-line bg-rp-surface px-5 py-3">{subheader}</div>}
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
           {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-rp-line bg-rp-bg-2 px-5 py-3">{footer}</div>}
         </div>
@@ -398,10 +437,11 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
     if (!rootRef.current || typeof window === 'undefined') return;
     const rect = rootRef.current.getBoundingClientRect();
     const measuredW = panelRef.current?.offsetWidth || 300;
+    const measuredH = panelRef.current?.offsetHeight || 336;
     const width = Math.min(measuredW, window.innerWidth - 24);
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
-    const flip = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const flip = spaceBelow < measuredH + 16 && spaceAbove > spaceBelow;
     const left = align === 'end'
       ? Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))
       : Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
@@ -434,6 +474,8 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
     };
     const onKey = (event) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
         setOpen(false);
         rootRef.current?.querySelector('[data-popover-trigger]')?.focus();
       }
@@ -558,10 +600,15 @@ export function SegmentedControl({ options = [], value, onChange, label, size = 
 }
 
 /** Floating tooltip rendered via Portal so scroll containers (sidebar) never overflow horizontally. */
+const NO_FIT = Object.freeze({ dx: 0, dy: 0, flipped: false });
+
 export function Tooltip({ content, children, side = 'top', fullWidth = false }) {
   const id = useId();
   const triggerRef = useRef(null);
+  const tipRef = useRef(null);
   const [coords, setCoords] = useState(null);
+  // Viewport correction measured after the bubble renders: shift (px) and whether the side was flipped.
+  const [fit, setFit] = useState(NO_FIT);
 
   const show = useCallback(() => {
     const el = triggerRef.current;
@@ -581,7 +628,43 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
     }
   }, [side]);
 
-  const hide = useCallback(() => setCoords(null), []);
+  const hide = useCallback(() => {
+    setCoords(null);
+    setFit(NO_FIT);
+  }, []);
+
+  // Keep the bubble inside the viewport: flip left/right when it would overflow horizontally, otherwise
+  // nudge it along the cross axis (the arrow is moved back so it still points at the trigger).
+  useLayoutEffect(() => {
+    if (!coords) return;
+    const tip = tipRef.current;
+    const trigger = triggerRef.current;
+    if (!tip || typeof tip.getBoundingClientRect !== 'function' || typeof window === 'undefined') return;
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Position from the anchor + measured size (not the rendered rect), so a previous correction never compounds.
+    const { width: w, height: h } = tip.getBoundingClientRect();
+    const baseLeft = side === 'right' ? coords.left : side === 'left' ? coords.left - w : coords.left - w / 2;
+    const baseTop = side === 'right' || side === 'left' ? coords.top - h / 2 : side === 'bottom' ? coords.top : coords.top - h;
+    let dx = 0;
+    let dy = 0;
+    let flipped = false;
+    if (side === 'right' || side === 'left') {
+      const overflow = side === 'right' ? baseLeft + w > vw - margin : baseLeft < margin;
+      if (overflow && trigger?.getBoundingClientRect) {
+        const r = trigger.getBoundingClientRect();
+        flipped = true;
+        dx = side === 'right' ? r.left - 10 - w - baseLeft : r.right + 10 - baseLeft;
+      }
+      if (baseTop < margin) dy = margin - baseTop;
+      else if (baseTop + h > vh - margin) dy = vh - margin - (baseTop + h);
+    } else {
+      if (baseLeft < margin) dx = margin - baseLeft;
+      else if (baseLeft + w > vw - margin) dx = vw - margin - (baseLeft + w);
+    }
+    setFit((prev) => (prev.dx === dx && prev.dy === dy && prev.flipped === flipped ? prev : { dx, dy, flipped }));
+  }, [coords, side, content]);
 
   // Focus only opens the tooltip for keyboard focus. Mouse/touch focus and focus *restored* by a closing dialog
   // (focus trap returning to its trigger) are not :focus-visible, so the tooltip no longer pops up on its own
@@ -619,12 +702,13 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
           ? '-translate-x-1/2'
           : '-translate-x-1/2 -translate-y-full';
   // Small pointer on the edge facing the trigger (rotated square, same fill as the bubble).
+  const arrowSide = fit.flipped ? (side === 'right' ? 'left' : 'right') : side;
   const arrowClass =
-    side === 'right'
+    arrowSide === 'right'
       ? 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2'
-      : side === 'left'
+      : arrowSide === 'left'
         ? 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2'
-        : side === 'bottom'
+        : arrowSide === 'bottom'
           ? 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2'
           : 'left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2';
 
@@ -643,15 +727,22 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
       {coords && (
         <Portal>
           <span
+            ref={tipRef}
             id={id}
             role="tooltip"
-            style={{ left: `${coords.left}px`, top: `${coords.top}px` }}
+            style={{ left: `${coords.left + fit.dx}px`, top: `${coords.top + fit.dy}px` }}
             className={cx(
               'rp-anim-fade pointer-events-none fixed z-[140] w-max max-w-[240px] rounded-lg bg-rp-text px-2.5 py-1.5 text-xs font-medium leading-4 text-white shadow-rp-pop',
               posClass,
             )}
           >
-            <span aria-hidden="true" className={cx('absolute h-2 w-2 rotate-45 rounded-[1px] bg-rp-text', arrowClass)} />
+            <span
+              aria-hidden="true"
+              style={fit.dy || (fit.dx && (side === 'top' || side === 'bottom'))
+                ? { marginTop: side === 'left' || side === 'right' ? `${-fit.dy}px` : undefined, marginLeft: side === 'top' || side === 'bottom' ? `${-fit.dx}px` : undefined }
+                : undefined}
+              className={cx('absolute h-2 w-2 rotate-45 rounded-[1px] bg-rp-text', arrowClass)}
+            />
             <span className="relative block">{content}</span>
           </span>
         </Portal>
@@ -862,14 +953,14 @@ export function Tabs({
             role="tab"
             id={`tab-${tabValue}`}
             data-testid={tab.testId}
-            data-testid={tab.testId}
             disabled={Boolean(tab.disabled)}
+            title={tab.title ? tr(tab.title) : undefined}
             aria-selected={active}
             aria-controls={tab.panelId}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(tabValue)}
             className={cx(
-              'rp-focus relative z-10 inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap font-semibold transition-colors duration-150 disabled:pointer-events-none disabled:opacity-45',
+              'rp-focus relative z-10 inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap font-semibold transition-colors duration-200 disabled:pointer-events-none disabled:opacity-45',
               fullWidth && variant !== 'line' ? 'min-w-0 flex-1' : 'shrink-0',
               isSmall ? 'text-xs' : isLarge ? 'text-[15px]' : 'text-sm',
               variant === 'line'

@@ -2,6 +2,7 @@ const STORAGE_PREFIX = 'rikipath:v4:proposal-draft';
 
 export const DRAFT_SAVE_STATUS = Object.freeze({
   IDLE: 'idle',
+  UNSYNCED: 'unsynced',
   SAVING: 'saving',
   SAVED: 'saved',
   OFFLINE_PENDING: 'offline_pending',
@@ -78,6 +79,10 @@ export function writeLocalDraft(userId, proposalId, payload, storage = globalThi
   }
 }
 
+export function hasActiveWeeklySelection(draft) {
+  return Boolean(draft && Array.isArray(draft.weeklySessions) && draft.weeklySessions.length > 0);
+}
+
 export function clearLocalDraft(userId, proposalId, storage = globalThis.localStorage) {
   if (!storage) return;
   try {
@@ -85,6 +90,25 @@ export function clearLocalDraft(userId, proposalId, storage = globalThis.localSt
   } catch {
     // ignore storage errors
   }
+}
+
+export function clearAllLocalDraftsForUser(currentUserId, storage = globalThis.localStorage) {
+  if (!storage || typeof storage.length !== 'number') return;
+  const targetPrefix = `${STORAGE_PREFIX}:${String(currentUserId || 'anon')}:`;
+  const toDelete = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key && key.startsWith(targetPrefix)) {
+      toDelete.push(key);
+    }
+  }
+  toDelete.forEach((k) => {
+    try {
+      storage.removeItem(k);
+    } catch {
+      // ignore storage errors
+    }
+  });
 }
 
 export function clearAllLocalDraftsForOtherUsers(currentUserId, storage = globalThis.localStorage) {
@@ -114,11 +138,17 @@ export function reconcileDraftWithServer({ serverDraft, localRecord }) {
     return { action: 'use_server', draft: serverDraft, needsSync: false, conflict: null };
   }
 
-  if (!serverDraft) {
+  if (!serverDraft || !serverDraft.id) {
+    // Zero Selection Invariant & cross-tab deletion safety:
+    // - Never restore an empty 0-session cache.
+    // - Never resurrect a record that previously had a server id (deleted or submitted in another tab).
+    if (!hasActiveWeeklySelection(localRecord.draft) || localRecord.draft.id || !localRecord.dirty) {
+      return { action: 'use_server', draft: serverDraft, needsSync: false, conflict: null };
+    }
     return {
       action: 'restore_local',
       draft: localRecord.draft,
-      needsSync: Boolean(localRecord.dirty),
+      needsSync: true,
       conflict: null,
     };
   }
@@ -163,4 +193,58 @@ export function reconcileDraftWithServer({ serverDraft, localRecord }) {
     needsSync: true,
     conflict: null,
   };
+}
+
+/* Smart Scheduling Wizard answers (session-scoped, per teacher + proposal). Never holds the selection itself. */
+const QUICK_PREFS_PREFIX = 'rikipath:v1:quick-schedule-prefs';
+
+function sessionStore() {
+  try {
+    return globalThis.sessionStorage || null;
+  } catch {
+    return null;
+  }
+}
+
+export function buildQuickSchedulePrefsKey(userId, proposalId) {
+  return `${QUICK_PREFS_PREFIX}:${String(userId || 'anon')}:${proposalId ? String(proposalId) : 'new'}`;
+}
+
+export function readQuickSchedulePreferences(userId, proposalId, storage = sessionStore()) {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(buildQuickSchedulePrefsKey(userId, proposalId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || String(parsed.userId) !== String(userId || 'anon')) return null;
+    return {
+      targetSessionsPerWeek: Number.isFinite(Number(parsed.targetSessionsPerWeek)) ? Number(parsed.targetSessionsPerWeek) : null,
+      preferredWeekdays: Array.isArray(parsed.preferredWeekdays)
+        ? [...new Set(parsed.preferredWeekdays.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))]
+        : [],
+      flexibleDays: parsed.flexibleDays === true,
+      allowMultiplePerDay: parsed.allowMultiplePerDay === true,
+      timeWindows: Array.isArray(parsed.timeWindows) ? parsed.timeWindows.filter((w) => typeof w === 'string') : [],
+      applyMode: parsed.applyMode === 'replace' ? 'replace' : 'append',
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeQuickSchedulePreferences(userId, proposalId, prefs, storage = sessionStore()) {
+  if (!storage || !prefs) return;
+  try {
+    storage.setItem(buildQuickSchedulePrefsKey(userId, proposalId), JSON.stringify({
+      userId: String(userId || 'anon'),
+      targetSessionsPerWeek: prefs.targetSessionsPerWeek ?? null,
+      preferredWeekdays: prefs.preferredWeekdays || [],
+      flexibleDays: Boolean(prefs.flexibleDays),
+      allowMultiplePerDay: Boolean(prefs.allowMultiplePerDay),
+      timeWindows: prefs.timeWindows || [],
+      applyMode: prefs.applyMode === 'replace' ? 'replace' : 'append',
+    }));
+  } catch {
+    /* storage full or blocked: answers simply are not remembered */
+  }
 }

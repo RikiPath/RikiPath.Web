@@ -394,7 +394,7 @@ export default function ExamWorkspace({
       </Card>
 
       {/* Mobile Compact Sticky Bar (< lg) */}
-      <div className="sticky top-[calc(var(--spacing-rp-topbar)+6px)] z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-surface/95 px-3 py-2 shadow-rp-card backdrop-blur lg:hidden">
+      <div className="sticky top-[calc(var(--rp-sticky-top-offset)+6px)] z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-surface/95 px-3 py-2 shadow-rp-card backdrop-blur lg:hidden">
         <div className="flex items-center gap-2.5 text-xs font-semibold tabular-nums">
           {clockLabel != null && (
             <Badge tone={isUrgent ? 'danger' : 'brand'} icon={Clock} size="sm" className="tabular-nums">
@@ -506,7 +506,7 @@ export default function ExamWorkspace({
         <Card
           as="aside"
           aria-label={tr('Thông tin lượt làm bài')}
-          className="hidden space-y-4 lg:sticky lg:top-[calc(var(--spacing-rp-topbar)+1rem)] lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto"
+          className="hidden space-y-4 lg:sticky lg:top-[calc(var(--rp-sticky-top-offset)+1rem)] lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto"
         >
           {clockLabel != null && (
             <div className="flex items-center justify-between gap-2 border-b border-rp-line pb-3">

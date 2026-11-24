@@ -135,7 +135,7 @@ export default function SentenceStudio() {
                 state={{ from: { pathname }, requiredFeatureLabel: tr('Chấm bài viết AI') }}
                 className="rp-link text-xs font-semibold"
               >
-                {tr('Xem gói & lượt AI')}
+                {tr('Mua gói ngay')}
               </Link>
             }
           >
@@ -183,7 +183,7 @@ export default function SentenceStudio() {
                       state={{ from: { pathname }, requiredFeatureLabel: tr('Chấm bài viết AI') }}
                       className="rp-link text-xs font-semibold"
                     >
-                      {tr('Xem gói & lượt AI')}
+                      {tr('Mua gói ngay')}
                     </Link>
                   ) : null
                 }

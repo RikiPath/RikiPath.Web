@@ -43,6 +43,7 @@ import {
   sortWeeklySessions,
   weekdayLabelVn,
 } from '@/features/scheduling/utils/proposalValidation.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
@@ -169,6 +170,7 @@ export default function AdminTeachingProposalReviewPanel({
       setReasonError('');
       await Promise.all([
         invalidateAdminDomains(queryClient, ['schedules', 'cohorts']),
+        invalidateSidebarCounters(queryClient),
         queryClient.invalidateQueries({ queryKey: ['admin-teaching-proposal-detail', vars.id] }),
       ]);
       const msg = vars.decision === 'Approve'
@@ -744,7 +746,7 @@ export default function AdminTeachingProposalReviewPanel({
         <form onSubmit={submitDecision} className="space-y-3">
           {decisionModal?.decision === 'Approve' && (
             <Banner tone="info">
-              {tr('Phê duyệt sẽ tự động ghi nhận toàn bộ buổi dạy 10 tuần vào danh sách lịch sẵn sàng mở lớp. Lớp học nhóm sẽ không tự động công bố cho tới khi Admin cấu hình và mở lớp tại Quản lý lớp nhóm.')}
+              {tr('Phê duyệt sẽ tự động ghi nhận toàn bộ buổi dạy 10 tuần vào danh sách lịch sẵn sàng mở lớp. Lớp học nhóm sẽ không tự động công bố cho tới khi quản trị viên cấu hình và mở lớp tại Quản lý lớp nhóm.')}
             </Banner>
           )}
           <Field

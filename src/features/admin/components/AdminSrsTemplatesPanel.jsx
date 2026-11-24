@@ -26,6 +26,7 @@ import {
   getSrsTemplateStatusMeta,
 } from '@/features/srs/utils/srsLabels.js';
 import { useLocale } from '@/locales/locale.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 export default function AdminSrsTemplatesPanel() {
   const { tr } = useLocale();
@@ -51,7 +52,10 @@ export default function AdminSrsTemplatesPanel() {
     placeholderData: (prev) => prev,
   });
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-srs-templates'] });
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['admin-srs-templates'] }),
+    invalidateSidebarCounters(queryClient),
+  ]);
 
   const reviewMut = useMutation({
     mutationFn: ({ id, approve, reviewNote }) => reviewSrsTemplate(id, { approve, reviewNote }),

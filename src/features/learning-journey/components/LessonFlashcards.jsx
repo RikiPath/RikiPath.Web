@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, cx } from '@/components/ui';
+import { Button, SegmentedControl, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { itemKey } from '../lessonContentModel.js';
 
@@ -103,21 +103,16 @@ export default function LessonFlashcards({ part, items, onInteract }) {
         <p className="text-[13px] text-rp-text-muted">
           {done ? trf('Đã nhớ {0}/{1}', { 0: knownCount, 1: items.length }) : `${Math.min(cursor + 1, deck.length)}/${deck.length}`}
         </p>
-        <div className="flex rounded-xl bg-rp-brand-soft p-1">
-          {[{ id: 'learn', label: 'Lật thẻ' }, { id: 'quiz', label: 'Trắc nghiệm', disabled: items.length < 2 }].map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              disabled={option.disabled}
-              title={option.disabled ? tr('Cần tối thiểu 2 mục để tạo trắc nghiệm') : undefined}
-              aria-pressed={mode === option.id}
-              onClick={() => { setMode(option.id); reset(); }}
-              className={cx('h-8 rounded-lg px-3 text-[12px] font-medium disabled:cursor-not-allowed disabled:opacity-45', mode === option.id ? 'bg-white text-rp-brand-strong shadow-sm' : 'text-rp-text-muted', focus)}
-            >
-              {tr(option.label)}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          size="md"
+          label={tr('Chế độ luyện tập')}
+          value={mode}
+          onChange={(next) => { setMode(next); reset(); }}
+          options={[
+            { value: 'learn', label: 'Lật thẻ' },
+            { value: 'quiz', label: 'Trắc nghiệm', disabled: items.length < 2, title: items.length < 2 ? 'Cần tối thiểu 2 mục để tạo trắc nghiệm' : undefined },
+          ]}
+        />
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-rp-brand-soft">
         <div className="h-full origin-left rounded-full bg-rp-brand-strong transition-transform duration-300" style={{ transform: `scaleX(${items.length ? knownCount / items.length : 0})` }} />

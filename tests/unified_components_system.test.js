@@ -211,7 +211,7 @@ describe('Unified UI Component System — Core Primitives & Contracts', () => {
     const selModalSrc = fs.readFileSync(path.join(ROOT, 'src/features/notebook/components/SelectionSrsModal.jsx'), 'utf8');
 
     assert.ok(
-      coreSrc.includes("cx('inline-flex items-center gap-1.5', wrap ? 'leading-snug' : 'truncate')"),
+      coreSrc.includes("cx('inline-flex items-center gap-1.5', wrap ? 'leading-snug' : 'truncate'"),
       'Button children wrapper must use inline-flex items-center so inline icons never wrap onto a second line',
     );
     assert.ok(!prefsSrc.includes('SMTP'), 'SrsPreferencesModal must not expose technical SMTP jargon to learners');
@@ -376,7 +376,7 @@ describe('Unified UI Component System — Core Primitives & Contracts', () => {
     assert.ok(authorPageSrc.includes('SrsCardPreviewModal'), 'Author page must use shared SrsCardPreviewModal');
     assert.ok(adminPanelSrc.includes('SrsCardPreviewModal'), 'Admin panel must use shared SrsCardPreviewModal');
     assert.ok(libraryTabSrc.includes('SrsCardPreviewModal'), 'Learner Library must use shared SrsCardPreviewModal');
-    assert.ok(previewModalSrc.includes('ChevronDown') && previewModalSrc.includes('ChevronUp'), 'Shared preview modal must toggle optional examples with arrow chevron only');
+    assert.ok(previewModalSrc.includes('ChevronDown') && (previewModalSrc.includes('ChevronUp') || previewModalSrc.includes('rp-disclosure-chevron')), 'Shared preview modal must toggle optional examples with arrow chevron only');
     assert.ok(!previewModalSrc.includes('useState(true)') || previewModalSrc.includes('const [exampleOpen, setExampleOpen] = useState(false)'), 'Shared preview modal must default examples to collapsed');
   });
 });

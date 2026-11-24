@@ -57,6 +57,7 @@ import {
   KanjiBrushIcon,
   SrsLoopIcon,
 } from '@/components/ui/SakuraIcons.js';
+import { SIDEBAR_COUNTER_KEYS } from '@/features/sidebar-counters/sidebarCounterModel.js';
 
 export const ROLE_NAV = {
   Learner: {
@@ -77,7 +78,7 @@ export const ROLE_NAV = {
             defaultOpen: true,
             children: [
               { to: '/my-courses', label: 'Lớp của tôi', icon: GroupClassIcon, tone: 'group', prefix: true },
-              { to: '/homework', label: 'Bài tập về nhà', icon: ClipboardList, tone: 'writing' },
+              { to: '/homework', label: 'Bài tập về nhà', icon: ClipboardList, tone: 'writing', counterKey: SIDEBAR_COUNTER_KEYS.LEARNER_HOMEWORK_PENDING },
               { to: '/calendar', label: 'Lịch học', icon: CalendarDays, tone: 'calendar' },
               { to: '/group-learning/progress', label: 'Tiến độ học nhóm', icon: ChartNoAxesCombined, tone: 'present' },
               { to: '/cohorts', label: 'Khám phá lớp học', icon: Compass, tone: 'group' },
@@ -90,14 +91,78 @@ export const ROLE_NAV = {
         label: 'Lộ trình học JLPT',
         items: [
           { to: '/roadmap', label: 'Lộ trình của tôi', icon: JlptRoadmapIcon, tone: 'roadmap', alsoActive: ['/roadmap/stages'] },
-          { to: '/lessons', label: 'Khám phá bài học', icon: BookOpen, tone: 'lesson', alsoActive: ['/lesson-player', '/lesson-practice'] },
+          {
+            id: 'lesson-discovery',
+            to: '/lessons',
+            label: 'Khám phá bài học',
+            icon: BookOpen,
+            tone: 'lesson',
+            defaultOpen: false,
+            alsoActive: ['/lesson-player', '/lesson-practice', '/riki/listening', '/riki/reading'],
+            children: [
+              {
+                to: '/lessons',
+                label: 'Tất cả bài học',
+                icon: LayoutGrid,
+                tone: 'lesson',
+                alsoMatch: ['/lessons?category=all'],
+                excludeQuery: {
+                  category: ['vocabulary', 'grammar', 'kanji', 'listening', 'reading'],
+                  skill: ['Vocabulary', 'Grammar', 'Kanji', 'Listening', 'Reading', 'vocabulary', 'grammar', 'kanji', 'listening', 'reading'],
+                },
+                keywords: ['tất cả bài học', 'khám phá bài học', 'all lessons'],
+              },
+              {
+                to: '/lessons?category=vocabulary',
+                label: 'Từ vựng',
+                icon: Languages,
+                tone: 'vocab',
+                alsoMatch: ['/lessons?skill=Vocabulary', '/lessons?skill=vocabulary'],
+                keywords: ['từ vựng', 'vocabulary', 'bài học từ vựng'],
+              },
+              {
+                to: '/lessons?category=grammar',
+                label: 'Ngữ pháp',
+                icon: SpellCheck,
+                tone: 'grammar',
+                alsoMatch: ['/lessons?skill=Grammar', '/lessons?skill=grammar'],
+                keywords: ['ngữ pháp', 'grammar', 'bài học ngữ pháp'],
+              },
+              {
+                to: '/lessons?category=kanji',
+                label: 'Kanji',
+                icon: KanjiBrushIcon,
+                tone: 'kanji',
+                alsoMatch: ['/lessons?skill=Kanji', '/lessons?skill=kanji'],
+                keywords: ['kanji', 'hán tự', 'bài học kanji'],
+              },
+              {
+                to: '/lessons?category=listening',
+                label: 'Nghe hiểu',
+                icon: Headphones,
+                tone: 'listening',
+                alsoMatch: ['/lessons?skill=Listening', '/lessons?skill=listening'],
+                alsoActive: ['/riki/listening'],
+                keywords: ['nghe hiểu', 'listening', 'bài học nghe hiểu'],
+              },
+              {
+                to: '/lessons?category=reading',
+                label: 'Đọc hiểu',
+                icon: BookOpenText,
+                tone: 'reading',
+                alsoMatch: ['/lessons?skill=Reading', '/lessons?skill=reading'],
+                alsoActive: ['/riki/reading'],
+                keywords: ['đọc hiểu', 'reading', 'bài học đọc hiểu'],
+              },
+            ],
+          },
         ],
       },
       {
         label: 'Thư viện tiếng Nhật',
         items: [
           { to: '/grammar', label: 'Ngữ pháp tiếng Nhật', icon: SpellCheck, tone: 'grammar' },
-          { to: '/kanji-writing?type=kanji', label: 'Hán tự Kanji', icon: KanjiBrushIcon, tone: 'kanji' },
+          { to: '/kanji-writing?type=kanji', label: 'Kanji (Hán tự)', icon: KanjiBrushIcon, tone: 'kanji' },
           { to: '/kanji-writing?type=hiragana', label: 'Bảng chữ Hiragana', icon: KanaHiraganaIcon, tone: 'kana' },
           { to: '/kanji-writing?type=katakana', label: 'Bảng chữ Katakana', icon: KanaHiraganaIcon, tone: 'kana' },
         ],
@@ -125,6 +190,7 @@ export const ROLE_NAV = {
                 to: '/daily-srs/due',
                 label: 'Ôn thẻ đến hạn',
                 icon: CalendarCheck2,
+                counterKey: SIDEBAR_COUNTER_KEYS.LEARNER_SRS_DUE,
                 keywords: ['ôn thẻ đến hạn', 'đến hạn', 'due', 'scheduled review', 'lịch ôn'],
               },
               {
@@ -178,8 +244,6 @@ export const ROLE_NAV = {
       {
         label: 'Luyện tập & Thi thử',
         items: [
-          { to: '/riki/listening', label: 'Nghe hiểu', icon: Headphones, tone: 'listening' },
-          { to: '/riki/reading', label: 'Đọc hiểu', icon: BookOpenText, tone: 'reading' },
           { to: '/riki/essay', label: 'Luyện viết', icon: PenLine, tone: 'writing', alsoActive: ['/sentence-studio', '/ai-scoring'] },
           { to: '/speech', label: 'Luyện nói', icon: Mic, tone: 'speaking', alsoActive: ['/riki/speaking'] },
           {
@@ -254,9 +318,10 @@ export const ROLE_NAV = {
                 tone: 'group',
                 prefix: true,
                 alsoActive: ['/mentor/cohorts'],
+                counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COHORT_ATTENDANCE_PENDING,
                 keywords: ['cohort', 'học viên', 'điểm danh'],
               },
-              { to: '/mentor-homework', label: 'Bài tập & chấm điểm', icon: ClipboardList, tone: 'writing' },
+              { to: '/mentor-homework', label: 'Bài tập & chấm điểm', icon: ClipboardList, tone: 'writing', counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_HOMEWORK_TO_GRADE },
               { to: '/mentor-grading', label: 'Chấm bài luyện tập', icon: ListChecks, tone: 'mock' },
             ],
           },
@@ -274,6 +339,7 @@ export const ROLE_NAV = {
             icon: CalendarDays,
             tone: 'calendar',
             alsoActive: ['/mentor-availability', '/mentor/availability'],
+            counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_PROPOSALS_ACTION_REQUIRED,
             keywords: ['khung giờ rảnh', 'lịch rảnh', 'yêu cầu', '90 phút'],
           },
         ],
@@ -291,10 +357,10 @@ export const ROLE_NAV = {
             children: [
               { to: '/mentor-attendance-kpi', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'reading' },
               { to: '/mentor-reviews', label: 'Đánh giá học viên', icon: Star, tone: 'grammar', alsoActive: ['/mentor/reviews'] },
-              { to: '/mentor-disputes', label: 'Khiếu nại & hỗ trợ', icon: Gavel, tone: 'neutral', alsoActive: ['/mentor/complaints', '/mentor/disputes'] },
+              { to: '/mentor-disputes', label: 'Khiếu nại & hỗ trợ', icon: Gavel, tone: 'neutral', alsoActive: ['/mentor/complaints', '/mentor/disputes'], counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COMPLAINTS_AWAITING_RESPONSE },
             ],
           },
-          { to: '/mentor-profile', label: 'Hồ sơ chuyên môn', icon: UserRound, tone: 'neutral', alsoActive: ['/mentor/profile'] },
+          { to: '/mentor-profile', label: 'Hồ sơ chuyên môn', icon: UserRound, tone: 'neutral', alsoActive: ['/mentor/profile'], counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_PROFILE_ACTION_REQUIRED },
           { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings'] },
         ],
       },
@@ -322,10 +388,10 @@ export const ROLE_NAV = {
             tone: 'writing',
             defaultOpen: true,
             children: [
-              { to: '/content-manual', label: 'Biên soạn nội dung', icon: PenLine, tone: 'writing' },
-              { to: '/srs-templates', label: 'Thẻ mẫu SRS', icon: Repeat, tone: 'vocabulary' },
-              { to: '/lesson-cms', label: 'Bài học', icon: BookOpen, tone: 'lesson', alsoActive: ['/lesson-cms-detail'] },
-              { to: '/exam-builder', label: 'Đề thi thử', icon: FileCheck2, tone: 'mock' },
+              { to: '/content-manual', label: 'Biên soạn nội dung', icon: PenLine, tone: 'writing', counterKey: SIDEBAR_COUNTER_KEYS.AUTHOR_MANUAL_CHANGES_REQUIRED },
+              { to: '/srs-templates', label: 'Thẻ mẫu SRS', icon: Repeat, tone: 'vocabulary', counterKey: SIDEBAR_COUNTER_KEYS.AUTHOR_SRS_TEMPLATES_CHANGES_REQUIRED },
+              { to: '/lesson-cms', label: 'Bài học', icon: BookOpen, tone: 'lesson', alsoActive: ['/lesson-cms-detail'], counterKey: SIDEBAR_COUNTER_KEYS.AUTHOR_LESSONS_CHANGES_REQUIRED },
+              { to: '/exam-builder', label: 'Đề thi thử', icon: FileCheck2, tone: 'mock', counterKey: SIDEBAR_COUNTER_KEYS.AUTHOR_EXAMS_CHANGES_REQUIRED },
               { to: '/content-plan', label: 'Trợ lý biên soạn', icon: Wand2, tone: 'haru' },
             ],
           },
@@ -339,7 +405,7 @@ export const ROLE_NAV = {
               { to: '/vocabulary-editor', label: 'Từ vựng', icon: Languages, tone: 'vocabulary' },
               { to: '/kanji-editor', label: 'Hán tự', icon: KanjiBrushIcon, tone: 'kanji' },
               { to: '/content-library', label: 'Ngữ pháp', icon: SpellCheck, tone: 'grammar' },
-              { to: '/question-bank', label: 'Ngân hàng câu hỏi', icon: FileQuestion, tone: 'mock' },
+              { to: '/question-bank', label: 'Ngân hàng câu hỏi', icon: FileQuestion, tone: 'mock', counterKey: SIDEBAR_COUNTER_KEYS.AUTHOR_QUESTION_BANK_CHANGES_REQUIRED },
             ],
           },
         ],
@@ -368,37 +434,37 @@ export const ROLE_NAV = {
         items: [
           { to: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard, tone: 'sakura' },
           { to: '/admin/users', label: 'Người dùng & vai trò', icon: Users, tone: 'sakura', alsoActive: ['/admin/users/detail'] },
-          { to: '/admin/payments', label: 'Thanh toán & giao dịch', icon: CreditCard, tone: 'sakura' },
+          { to: '/admin/payments', label: 'Thanh toán & giao dịch', icon: CreditCard, tone: 'sakura', counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_PAYMENTS_REVIEW },
         ],
       },
       {
         label: 'Lớp học & ghi danh',
         items: [
           { to: '/admin/study-courses', label: 'Lớp học & ghi danh', icon: GroupClassIcon, tone: 'sakura', excludeQuery: { section: 'enrollments' } },
-          { to: '/admin/retake-support', label: 'Ghi danh & ôn lại JLPT', icon: RefreshCw, tone: 'sakura', alsoMatch: ['/admin/study-courses?section=enrollments'] },
+          { to: '/admin/retake-support', label: 'Ghi danh & ôn lại JLPT', icon: RefreshCw, tone: 'sakura', alsoMatch: ['/admin/study-courses?section=enrollments'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_RETAKE_REQUESTS },
           { to: '/admin/mentor-template', label: 'Lịch cố định tuần', icon: Repeat, tone: 'sakura' },
         ],
       },
       {
         label: 'Lịch dạy & điều phối',
         items: [
-          { to: '/admin/mentor-schedules', label: 'Duyệt lịch dạy', icon: CalendarCheck, tone: 'sakura', alsoMatch: ['/admin/slot-review?tab=proposals', '/admin/slot-review?tab=review'] },
-          { to: '/admin/schedule-requests', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarClock, tone: 'sakura', alsoMatch: ['/admin/slot-review?tab=cancel', '/admin/slot-review?tab=change'] },
+          { to: '/admin/mentor-schedules', label: 'Duyệt lịch dạy', icon: CalendarCheck, tone: 'sakura', alsoMatch: ['/admin/slot-review?tab=proposals', '/admin/slot-review?tab=review'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_MENTOR_SCHEDULES },
+          { to: '/admin/schedule-requests', label: 'Yêu cầu đổi/hủy lịch', icon: CalendarClock, tone: 'sakura', alsoMatch: ['/admin/slot-review?tab=cancel', '/admin/slot-review?tab=change'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_SCHEDULE_REQUESTS },
           { to: '/admin/mentor-replacements', label: 'Đổi Giáo viên', icon: UserCheck, tone: 'sakura' },
-          { to: '/admin/transfers', label: 'Chuyển lớp', icon: ArrowLeftRight, tone: 'sakura' },
+          { to: '/admin/transfers', label: 'Chuyển lớp', icon: ArrowLeftRight, tone: 'sakura', counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_COHORT_TRANSFERS },
         ],
       },
       {
         label: 'Giám sát & hỗ trợ',
         items: [
-          { to: '/admin/complaints', label: 'Khiếu nại khóa học', icon: MessageSquareWarning, tone: 'sakura', alsoMatch: ['/admin/mentor-cases?tab=complaints'] },
+          { to: '/admin/complaints', label: 'Khiếu nại khóa học', icon: MessageSquareWarning, tone: 'sakura', alsoMatch: ['/admin/mentor-cases?tab=complaints'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_COMPLAINTS },
           { to: '/admin/mentor-quality', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'sakura' },
         ],
       },
       {
         label: 'Giáo viên',
         items: [
-          { to: '/admin/mentor-verifications', label: 'Xét duyệt hồ sơ', icon: BadgeCheck, tone: 'sakura', alsoActive: ['/admin/mentors', '/admin/consultants', '/admin/mentor-qualifications'] },
+          { to: '/admin/mentor-verifications', label: 'Xét duyệt hồ sơ', icon: BadgeCheck, tone: 'sakura', alsoActive: ['/admin/mentors', '/admin/consultants', '/admin/mentor-qualifications'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_MENTOR_VERIFICATIONS },
         ],
       },
       {
@@ -414,7 +480,7 @@ export const ROLE_NAV = {
             tone: 'neutral',
             alsoActive: ['/admin/mentor-group-policy'],
           },
-          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'neutral', alsoActive: ['/admin/approval-content'] },
+          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'neutral', alsoActive: ['/admin/approval-content'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_CONTENT_REVIEW },
           { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings', '/update-email', '/change-password'] },
         ],
       },
@@ -443,7 +509,10 @@ function queryMatches(itemTo, search) {
 function excludeMatches(item, search) {
   if (!item.excludeQuery) return false;
   const current = new URLSearchParams(search || '');
-  return Object.entries(item.excludeQuery).some(([k, v]) => current.get(k) === v);
+  return Object.entries(item.excludeQuery).some(([k, v]) => {
+    const actual = current.get(k);
+    return Array.isArray(v) ? v.includes(actual) : actual === v;
+  });
 }
 
 /** Active-state matching shared by the sidebar and breadcrumbs. */

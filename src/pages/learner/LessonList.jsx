@@ -1,36 +1,44 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Check, Headphones, Lock } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Check, Info, Lock } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import {
-  Badge, Button, Card, CustomSelect, EmptyState, ErrorState, PageContainer, ProgressBar, RefreshingIndicator, SakuraLoader,
-  SearchInput, cx,
+  Badge,
+  Button,
+  Card,
+  CustomSelect,
+  EmptyState,
+  ErrorState,
+  PageContainer,
+  ProgressBar,
+  RefreshingIndicator,
+  SakuraLoader,
+  SearchInput,
+  cx,
 } from '@/components/ui';
 import { IllustratedPageHeader, LevelTabs, SUPPORTED_JLPT_LEVELS } from '@/features/learner-ui';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getCertificateTypes, getLevelsByCertificate } from '@/features/learning-path/api/certificateApi.js';
 import { getLessonCatalog } from '@/features/learning-path/api/learningPathApi.js';
 import {
-  catalogLessonState,
   catalogPracticeLocks,
   isCatalogLessonCleared,
-  skillNameLabel,
 } from '@/features/learning-journey/journeyModel.js';
-import { lessonPlayerPath } from '@/features/learning-journey/lessonNavigation.js';
+import {
+  LESSON_CATEGORIES,
+  backendCatalogLockScope,
+  catalogBackendSectionForCategory,
+  filterLessonsByCategory,
+  getLessonCategoryMeta,
+  resolveCatalogCardView,
+  resolveLessonCategory,
+} from '@/features/learning-journey/lessonCatalogModel.js';
+import { catalogPath, lessonPlayerPath } from '@/features/learning-journey/lessonNavigation.js';
 import { useLocale } from '@/locales/locale.js';
 
 const DEFAULT_LEVELS = SUPPORTED_JLPT_LEVELS;
 const PAGE_SIZE = 12;
-const SKILL_ORDER = ['Vocabulary', 'Kanji', 'Grammar', 'Reading', 'Listening'];
-const sections = {
-  lessons: {
-    title: 'Khám phá bài học',
-    description: 'Tìm kiếm bài học theo trình độ và chủ đề phù hợp với bạn.',
-  },
-  listening: { title: 'Nghe hiểu', skill: 'Listening', description: 'Các bài nghe theo cấp độ JLPT, kèm bài kiểm tra nhanh.' },
-  reading: { title: 'Đọc hiểu', skill: 'Reading', description: 'Các bài đọc theo cấp độ JLPT, kèm bài kiểm tra nhanh.' },
-};
 
 async function loadJlptLevels() {
   const types = await getCertificateTypes();
@@ -43,40 +51,66 @@ function normalize(text) {
 }
 
 function LessonCard({ lesson, practiceLocked, href }) {
-  const { tr } = useLocale();
-  const state = catalogLessonState(lesson, practiceLocked);
-  const cleared = isCatalogLessonCleared(lesson);
-  const started = Number(lesson.progressPercent) > 0 || lesson.isCompleted;
+  const { tr, trf } = useLocale();
+  const view = resolveCatalogCardView(lesson, practiceLocked);
+
   return (
     <li>
       <Link
         to={href}
         className={cx(
-          'group rp-focus flex h-full flex-col rounded-rp-card border bg-white p-4 shadow-rp-xs',
-          'transition-[transform,box-shadow,border-color] duration-[var(--rp-dur-standard)] hover:-translate-y-0.5 hover:border-rp-brand-border hover:shadow-rp-card motion-reduce:hover:translate-y-0',
-          cleared ? 'border-rp-success-line/80' : 'border-rp-line',
+          'group rp-focus flex h-full flex-col rounded-rp-card border border-rp-line bg-white p-4 shadow-rp-xs',
+          'transition-[transform,box-shadow,border-color,background-color] duration-[var(--rp-dur-standard)] hover:-translate-y-0.5 hover:border-rp-brand-border hover:bg-rp-brand-tint/20 hover:shadow-rp-card motion-reduce:hover:translate-y-0',
         )}
       >
-        <div className="flex flex-wrap items-center gap-1.5">
-          {lesson.languageSkillName && (
-            <Badge tone="brand" size="sm" icon={false}>{tr(skillNameLabel(lesson.languageSkillName))}</Badge>
-          )}
-          {lesson.hasAudio && <Badge size="sm" tone="info" icon={Headphones}>{tr('Có audio')}</Badge>}
-          <Badge tone={state.tone} size="sm" icon={cleared ? Check : false}>{tr(state.label)}</Badge>
+        <div className="flex items-center">
+          <Badge tone={view.tone} size="sm" icon={view.showCheckIcon ? Check : false}>
+            {tr(view.label)}
+          </Badge>
         </div>
-        <h3 className="rp-jp mt-2 text-[15px] font-bold leading-snug text-rp-text">{tr(lesson.title)}</h3>
+
+        <h3 className="rp-jp mt-2.5 text-[15px] font-bold leading-snug text-rp-text transition-colors group-hover:text-rp-brand-strong">
+          {tr(lesson.title)}
+        </h3>
+
         {lesson.description && (
-          <p className="mt-1 line-clamp-2 text-[12.5px] leading-5 text-rp-text-2" title={lesson.description}>{tr(lesson.description)}</p>
-        )}
-        {practiceLocked && !cleared && lesson.hasPracticeExercise && (
-          <p className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] text-rp-text-muted">
-            <Lock className="h-3 w-3" aria-hidden="true" />
-            {tr('Kiểm tra nhanh mở sau khi hoàn thành các bài trước')}
+          <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-5 text-rp-text-2" title={lesson.description}>
+            {tr(lesson.description)}
           </p>
         )}
-        <span className="mt-auto inline-flex items-center gap-1 pt-3 text-[13px] font-semibold text-rp-brand-strong">
-          {cleared ? tr('Xem lại') : started ? tr('Tiếp tục học') : tr('Bắt đầu học')}
-          <ArrowRight className="h-3.5 w-3.5 transition-transform duration-[var(--rp-dur-standard)] group-hover:translate-x-0.5" aria-hidden="true" />
+
+        {view.progressPercent != null && (
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center justify-between text-[11.5px] font-semibold text-rp-text-muted">
+              <span>{tr('Tiến độ bài học')}</span>
+              <span className="tabular-nums text-rp-text-2">{view.progressPercent}%</span>
+            </div>
+            <ProgressBar
+              value={view.progressPercent}
+              max={100}
+              size="sm"
+              label={trf('Tiến độ bài học {0}%', { 0: view.progressPercent })}
+            />
+          </div>
+        )}
+
+        {view.note && (
+          <p className="mt-2.5 inline-flex items-start gap-1.5 text-[12px] leading-4 text-rp-text-muted">
+            {view.noteLocked ? (
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            ) : (
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rp-warning" aria-hidden="true" />
+            )}
+            <span>{tr(view.note)}</span>
+          </p>
+        )}
+
+        <span className="mt-auto inline-flex items-center gap-1 pt-3.5 text-[13px] font-semibold text-rp-brand-strong">
+          {tr(view.ctaLabel)}
+          <ArrowRight
+            className="h-3.5 w-3.5 transition-transform duration-[var(--rp-dur-standard)] group-hover:translate-x-0.5 motion-reduce:transform-none"
+            aria-hidden="true"
+          />
         </span>
       </Link>
     </li>
@@ -85,9 +119,16 @@ function LessonCard({ lesson, practiceLocked, href }) {
 
 function Catalog({ section, userId }) {
   const { tr, trf } = useLocale();
-  const { title, skill: sectionSkill, description } = sections[section];
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const preferenceKey = ['rikipath', 'study-level', userId ?? 'guest', section].join(':');
+  const activeCategory = resolveLessonCategory({
+    categoryParam: searchParams.get('category'),
+    skillParam: searchParams.get('skill'),
+    section,
+  });
+  const categoryMeta = getLessonCategoryMeta(activeCategory);
+  const preferenceKey = ['rikipath', 'study-level', userId ?? 'guest', 'catalog'].join(':');
+
   const levelQuery = useQuery({
     queryKey: ['self-study-jlpt-levels'],
     queryFn: loadJlptLevels,
@@ -101,7 +142,7 @@ function Catalog({ section, userId }) {
   })();
 
   const requestedLevel = searchParams.get('level');
-  const [storedLevel] = useState(() => {
+  const [storedLevel, setStoredLevel] = useState(() => {
     try {
       const saved = localStorage.getItem(preferenceKey);
       return DEFAULT_LEVELS.includes(saved) ? saved : 'N5';
@@ -111,25 +152,37 @@ function Catalog({ section, userId }) {
   });
   const level = DEFAULT_LEVELS.includes(requestedLevel) ? requestedLevel : storedLevel;
   const query = searchParams.get('q') ?? '';
-  const skillFilter = sectionSkill ? null : (searchParams.get('skill') || null);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const filterSignature = `${activeCategory}|${level}|${query}`;
+  const [paginationState, setPaginationState] = useState({ sig: filterSignature, count: PAGE_SIZE });
+  const visibleCount = paginationState.sig === filterSignature ? paginationState.count : PAGE_SIZE;
 
   function updateParams(patch) {
     const next = new URLSearchParams(searchParams);
     Object.entries(patch).forEach(([key, value]) => {
-      if (value) next.set(key, value); else next.delete(key);
+      if (value) next.set(key, value);
+      else next.delete(key);
     });
     setSearchParams(next, { replace: true });
-    setVisibleCount(PAGE_SIZE);
+    setPaginationState({ sig: filterSignature, count: PAGE_SIZE });
   }
 
   function chooseLevel(nextLevel) {
-    updateParams({ level: nextLevel, skill: null });
+    setStoredLevel(nextLevel);
+    updateParams({ level: nextLevel });
     try {
       localStorage.setItem(preferenceKey, nextLevel);
     } catch {
       // Selection still works when browser storage is unavailable.
     }
+  }
+
+  function chooseCategory(nextCategory) {
+    const target = catalogPath({
+      category: nextCategory,
+      level,
+      q: query,
+    });
+    navigate(target);
   }
 
   const levelId = levelQuery.data?.find((item) => item.code?.trim().toUpperCase() === level)?.id;
@@ -140,35 +193,38 @@ function Catalog({ section, userId }) {
     retry: false,
   });
 
-  // Section scope first (matches the Backend's catalog unlock scope), then the learner's own filters.
-  const scoped = (catalog.data?.lessons ?? []).filter((lesson) => !sectionSkill || lesson.languageSkillName === sectionSkill);
-  const practiceLocks = catalogPracticeLocks(scoped);
-  const skillsPresent = SKILL_ORDER.filter((name) => scoped.some((lesson) => lesson.languageSkillName === name));
+  const allLevelLessons = catalog.data?.lessons ?? [];
+  const categoryLessons = filterLessonsByCategory(allLevelLessons, activeCategory);
+  const practiceLocks = catalogPracticeLocks(backendCatalogLockScope(allLevelLessons, activeCategory));
   const needle = normalize(query.trim());
-  const filtered = scoped.filter((lesson) => (!skillFilter || lesson.languageSkillName === skillFilter)
-    && (!needle || normalize(lesson.title).includes(needle) || normalize(lesson.description).includes(needle)));
+  const filtered = categoryLessons.filter(
+    (lesson) => !needle || normalize(lesson.title).includes(needle) || normalize(lesson.description).includes(needle),
+  );
   const visible = filtered.slice(0, visibleCount);
-  const doneCount = scoped.filter(isCatalogLessonCleared).length;
-  const headerIcon = section === 'listening' ? 'listening' : section === 'reading' ? 'reading' : 'vocabulary';
-  const headerTone = section === 'listening' ? 'sky' : section === 'reading' ? 'navy' : 'mint';
+  const doneCount = categoryLessons.filter(isCatalogLessonCleared).length;
+  const backendSection = catalogBackendSectionForCategory(activeCategory);
 
   return (
     <PageContainer width="default" density="comfortable" className="space-y-4">
       <IllustratedPageHeader
-        icon={headerIcon}
-        tone={headerTone}
+        icon={categoryMeta.icon}
+        iconSize="md"
+        tone={categoryMeta.tone}
         compact
-        eyebrow={trf('Thư viện bài học · JLPT {0}', { 0: level })}
-        title={tr(title)}
-        description={tr(description)}
+        className="min-h-[104px]"
+        eyebrow={trf('Khám phá bài học · JLPT {0}', { 0: level })}
+        title={tr(categoryMeta.title)}
+        description={tr(categoryMeta.description)}
         actions={
-          catalog.isSuccess && scoped.length > 0 ? (
-            <div className="flex h-11 min-w-[148px] flex-col justify-center rounded-xl border border-rp-line bg-white px-3 shadow-rp-xs">
+          catalog.isSuccess && categoryLessons.length > 0 ? (
+            <div className="flex h-11 min-w-[152px] flex-col justify-center rounded-xl border border-rp-line bg-white px-3 shadow-rp-xs">
               <div className="flex items-center justify-between gap-2 text-[11.5px]">
                 <span className="font-semibold text-rp-text-muted">{trf('Tiến độ {0}', { 0: level })}</span>
-                <span className="font-extrabold tabular-nums text-rp-navy">{trf('{0}/{1} bài', { 0: doneCount, 1: scoped.length })}</span>
+                <span className="font-extrabold tabular-nums text-rp-navy">
+                  {trf('{0}/{1} bài', { 0: doneCount, 1: categoryLessons.length })}
+                </span>
               </div>
-              <ProgressBar value={doneCount} max={scoped.length} label={trf('Tiến độ {0}', { 0: level })} className="mt-1" />
+              <ProgressBar value={doneCount} max={categoryLessons.length} label={trf('Tiến độ {0}', { 0: level })} className="mt-1" />
             </div>
           ) : null
         }
@@ -179,42 +235,78 @@ function Catalog({ section, userId }) {
           value={query}
           onChange={(event) => updateParams({ q: event.target.value })}
           placeholder="Tìm bài học…"
-          className="w-full sm:w-64"
+          className="w-full sm:w-64 lg:w-72"
           aria-label={tr('Tìm bài học')}
         />
-        {skillsPresent.length > 1 && (
+        <div className="w-full sm:w-44 lg:hidden">
           <CustomSelect
-            fitContent
             size="md"
-            value={skillFilter ?? 'all'}
-            onChange={(nextSkill) => updateParams({ skill: nextSkill === 'all' ? null : nextSkill })}
-            aria-label={tr('Loại kiến thức')}
-            options={[
-              { value: 'all', label: tr('Tất cả') },
-              ...skillsPresent.map((name) => ({ value: name, label: tr(skillNameLabel(name)) })),
-            ]}
+            value={activeCategory}
+            onChange={chooseCategory}
+            aria-label={tr('Danh mục bài học')}
+            options={LESSON_CATEGORIES.map((category) => ({
+              value: category.id,
+              label: tr(category.navLabel),
+            }))}
           />
-        )}
-        <LevelTabs className="ml-auto" label={tr('Cấp độ JLPT')} value={level} onChange={chooseLevel} levels={availableLevels} />
+        </div>
+        <LevelTabs
+          className="w-full overflow-x-auto sm:ml-auto sm:w-auto"
+          label={tr('Cấp độ JLPT')}
+          value={level}
+          onChange={chooseLevel}
+          levels={availableLevels}
+        />
       </div>
 
       {(levelQuery.isPending || (levelId && catalog.isPending)) && (
         <SakuraLoader variant="section" context="lesson" label={trf('Đang tải bài học {0}', { 0: level })} delay={160} />
       )}
       <RefreshingIndicator active={!catalog.isPending && catalog.isFetching} />
-      {levelQuery.isError && <Card><ErrorState error={levelQuery.error} title={tr('Chưa tải được cấp độ JLPT')} onRetry={() => levelQuery.refetch()} retrying={levelQuery.isFetching} compact /></Card>}
-      {catalog.isError && <Card><ErrorState error={catalog.error} title={tr('Chưa tải được danh sách bài học')} onRetry={() => catalog.refetch()} retrying={catalog.isFetching} compact /></Card>}
-      {((levelQuery.isSuccess && !levelId) || (catalog.isSuccess && scoped.length === 0)) && (
-        <Card><EmptyState variant="compact" illustration="book" title={trf('Chưa có bài học {0} trong mục này', { 0: level })} description={tr('Nội dung sẽ xuất hiện khi bài học được duyệt và công bố. Bạn có thể chọn cấp độ khác.')} /></Card>
+      {levelQuery.isError && (
+        <Card>
+          <ErrorState
+            error={levelQuery.error}
+            title={tr('Chưa tải được cấp độ JLPT')}
+            onRetry={() => levelQuery.refetch()}
+            retrying={levelQuery.isFetching}
+            compact
+          />
+        </Card>
       )}
-      {catalog.isSuccess && scoped.length > 0 && filtered.length === 0 && (
+      {catalog.isError && (
+        <Card>
+          <ErrorState
+            error={catalog.error}
+            title={tr('Chưa tải được danh sách bài học')}
+            onRetry={() => catalog.refetch()}
+            retrying={catalog.isFetching}
+            compact
+          />
+        </Card>
+      )}
+      {((levelQuery.isSuccess && !levelId) || (catalog.isSuccess && categoryLessons.length === 0)) && (
+        <Card>
+          <EmptyState
+            variant="compact"
+            illustration="book"
+            title={trf('Chưa có bài học {0} trong mục này', { 0: level })}
+            description={tr('Nội dung sẽ xuất hiện khi bài học được duyệt và công bố. Bạn có thể chọn cấp độ khác.')}
+          />
+        </Card>
+      )}
+      {catalog.isSuccess && categoryLessons.length > 0 && filtered.length === 0 && (
         <Card>
           <EmptyState
             variant="compact"
             illustration="book"
             title={tr('Không tìm thấy bài học phù hợp')}
             description={tr('Thử từ khóa khác hoặc bỏ bớt bộ lọc.')}
-            action={<Button variant="secondary" size="sm" onClick={() => updateParams({ q: null, skill: null })}>{tr('Xóa bộ lọc')}</Button>}
+            action={(
+              <Button variant="secondary" size="sm" onClick={() => updateParams({ q: null })}>
+                {tr('Xóa tìm kiếm')}
+              </Button>
+            )}
           />
         </Card>
       )}
@@ -224,19 +316,29 @@ function Catalog({ section, userId }) {
           <p className="text-[12.5px] text-rp-text-muted" role="status">
             {trf('Hiển thị {0}/{1} bài học', { 0: visible.length, 1: filtered.length })}
           </p>
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((lesson) => (
               <LessonCard
                 key={lesson.lessonId}
                 lesson={lesson}
                 practiceLocked={Boolean(practiceLocks.get(Number(lesson.lessonId)))}
-                href={lessonPlayerPath(lesson.lessonId, { from: 'catalog', level, section, q: query, skill: skillFilter })}
+                href={lessonPlayerPath(lesson.lessonId, {
+                  from: 'catalog',
+                  level,
+                  category: activeCategory,
+                  section: backendSection,
+                  q: query,
+                })}
               />
             ))}
           </ul>
           {filtered.length > visible.length && (
             <div className="flex justify-center">
-              <Button variant="secondary" size="md" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setPaginationState({ sig: filterSignature, count: visibleCount + PAGE_SIZE })}
+              >
                 {trf('Xem thêm {0} bài', { 0: Math.min(PAGE_SIZE, filtered.length - visible.length) })}
               </Button>
             </div>
@@ -250,10 +352,18 @@ function Catalog({ section, userId }) {
 export default function LessonList({ section = 'lessons' }) {
   const { tr } = useLocale();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const activeCategory = resolveLessonCategory({
+    categoryParam: searchParams.get('category'),
+    skillParam: searchParams.get('skill'),
+    section,
+  });
+  const categoryMeta = getLessonCategoryMeta(activeCategory);
   const userId = user?.userId;
+
   return (
-    <LearnerShell breadcrumb={tr(sections[section].title)}>
-      <Catalog key={JSON.stringify([section, userId])} section={section} userId={userId} />
+    <LearnerShell breadcrumb={tr(categoryMeta.navLabel)}>
+      <Catalog key={userId ?? 'guest'} section={section} userId={userId} />
     </LearnerShell>
   );
 }
