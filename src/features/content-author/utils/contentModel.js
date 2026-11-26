@@ -5,7 +5,7 @@ export const ORDERING_TYPE = 'Ordering';
 
 export const statuses = {
   Draft: { label: 'Bản nháp', style: 'bg-stone-100 text-stone-700' },
-  PendingReview: { label: 'Chờ Admin duyệt', style: 'bg-amber-100 text-amber-900' },
+  PendingReview: { label: 'Chờ duyệt', style: 'bg-amber-100 text-amber-900' },
   Approved: { label: 'Đã duyệt', style: 'bg-emerald-100 text-emerald-800' },
   Rejected: { label: 'Bị từ chối', style: 'bg-rose-100 text-rose-800' },
 };

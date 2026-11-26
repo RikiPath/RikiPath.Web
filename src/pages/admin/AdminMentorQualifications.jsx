@@ -59,12 +59,12 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
         reason: reason || null,
       }),
     onSuccess: async () => {
-      await invalidateAdminDomains(queryClient, ['mentors']);
       setGrantTarget(null);
       setGrantLevelId('');
       setGrantReason('');
       setGrantError('');
       notify.success(tr('Đã cấp quyền giảng dạy JLPT cho Giáo viên.'), '', { key: 'admin-qual-grant', replace: true });
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['mentors'])]);
     },
     onError: (err) => {
       const msg = describeApiError(err)?.message || tr('Chưa thể cấp quyền giảng dạy.');
@@ -77,7 +77,6 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
     mutationFn: ({ mentorId, certificateLevelId, reason }) =>
       revokeAdminMentorQualification(mentorId, certificateLevelId, { reason }),
     onSuccess: async () => {
-      await invalidateAdminDomains(queryClient, ['mentors']);
       setRevokeTarget(null);
       setRevokeReason('');
       setRevokeError('');
@@ -85,6 +84,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
         key: 'admin-qual-revoke',
         replace: true,
       });
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['mentors'])]);
     },
     onError: (err) => {
       const msg = describeApiError(err)?.message || tr('Không thu hồi được quyền giảng dạy.');

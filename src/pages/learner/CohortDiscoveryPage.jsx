@@ -3,12 +3,76 @@ import { LearnerShell } from '@/layouts';
 import LearnerCohortDiscoveryPanel from '@/features/cohorts/components/LearnerCohortDiscoveryPanel';
 import { useLearnerCohortWorkspace } from '@/features/cohorts/hooks/useLearnerCohortWorkspace.js';
 import { useLocale } from '@/locales/locale.js';
-import { Banner, Button, Card, ContextualErrorState, PageContainer, RefreshButton, RefreshingIndicator, SakuraLoader } from '@/components/ui';
+import {
+  Badge,
+  Banner,
+  Button,
+  Card,
+  ContextualErrorState,
+  PageContainer,
+  RefreshingIndicator,
+  Skeleton,
+} from '@/components/ui';
 import { IllustratedPageHeader } from '@/features/learner-ui';
-import '@/pages/shared/studyCourses.css';
+
+function HorizontalCohortSkeletonList() {
+  return (
+    <div className="space-y-4" aria-hidden="true">
+      <div className="rounded-rp-card border border-rp-line bg-rp-surface p-3.5">
+        <div className="flex flex-wrap gap-2.5">
+          <Skeleton className="h-10 w-52" rounded="rounded-xl" />
+          <Skeleton className="h-10 w-36" rounded="rounded-xl" />
+          <Skeleton className="h-10 w-32" rounded="rounded-xl" />
+          <Skeleton className="h-10 w-36" rounded="rounded-xl" />
+          <Skeleton className="h-10 w-36" rounded="rounded-xl" />
+          <Skeleton className="h-10 w-24" rounded="rounded-xl" />
+        </div>
+      </div>
+      <div className="@container">
+        <div className="grid grid-cols-1 gap-4 @[940px]:grid-cols-2">
+          {[1, 2, 3, 4].map((card) => (
+            <div key={card} className="rounded-rp-card border border-rp-line bg-rp-surface p-5 space-y-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-11" rounded="rounded-xl" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-5 w-44" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                </div>
+                <Skeleton className="h-6 w-28" rounded="rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-60" />
+              <div className="grid grid-cols-1 gap-4 border-y border-rp-line/60 py-3.5 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Skeleton className="h-7 w-full" rounded="rounded-lg" />
+                  <Skeleton className="h-7 w-full" rounded="rounded-lg" />
+                  <Skeleton className="h-7 w-full" rounded="rounded-lg" />
+                </div>
+                <div className="space-y-2 sm:border-l sm:border-rp-line/60 sm:pl-4">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-48" />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Skeleton className="h-7 w-28" />
+                <Skeleton className="h-4 w-36" rounded="rounded-full" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 w-24" rounded="rounded-[10px]" />
+                  <Skeleton className="h-8 w-28" rounded="rounded-[10px]" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CohortDiscoveryPage() {
-  const { tr } = useLocale();
+  const { tr, trf } = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const workspace = useLearnerCohortWorkspace({ includeCohorts: true, includeEntitlements: true });
@@ -26,32 +90,38 @@ export default function CohortDiscoveryPage() {
     setActionNotice,
     runAction,
   } = workspace;
+
   const initialMentorId = searchParams.get('mentorId') || '';
+  const initialCohortId = searchParams.get('cohortId') || '';
+
+  const handleRefreshWorkspace = () => Promise.all([
+    cohortsQuery.refetch({ cancelRefetch: true }),
+    entitlementsQuery.refetch({ cancelRefetch: true }),
+  ]);
+
+  const isRefreshing = (cohortsQuery.isFetching || entitlementsQuery.isFetching) && !cohortsQuery.isPending;
+  const usableEntitlementsCount = (Array.isArray(entitlements) ? entitlements.filter((e) => e.isUsable).length : 0);
 
   return (
     <LearnerShell breadcrumb={tr('Khám phá lớp học')}>
-      <PageContainer width="default" className="space-y-5">
+      <PageContainer width="wide" className="space-y-4">
         <IllustratedPageHeader
           icon="group"
           tone="sky"
-          eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
-          title={tr('Khám phá lớp học nhóm JLPT')}
-          description={tr('So sánh lịch khai giảng, cấp độ JLPT, Giáo viên phụ trách và đăng ký tham gia trực tiếp bằng quyền học hoặc thanh toán trực tuyến.')}
+          title={tr('Khám phá lớp học')}
+          description={tr('So sánh lịch học, Giáo viên phụ trách, sĩ số và học phí để chọn lớp JLPT phù hợp.')}
           actions={
-            !cohortsQuery.isPending && !cohortsQuery.isError && cohorts.length > 0 ? (
-              <RefreshButton
-                onRefresh={() => Promise.all([
-                  cohortsQuery.refetch({ cancelRefetch: true }),
-                  entitlementsQuery.refetch({ cancelRefetch: true }),
-                ])}
-                refreshing={(cohortsQuery.isFetching || entitlementsQuery.isFetching) && !cohortsQuery.isPending}
-                disabled={cohortsQuery.isPending}
-              />
+            !cohortsQuery.isPending && !cohortsQuery.isError && usableEntitlementsCount > 0 ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Badge tone="success" size="md">
+                  {trf('Bạn có {0} quyền ghi danh khả dụng', { 0: usableEntitlementsCount })}
+                </Badge>
+              </div>
             ) : null
           }
         />
 
-        {(cohortsQuery.isFetching || entitlementsQuery.isFetching) && !cohortsQuery.isPending && (
+        {isRefreshing && (
           <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
             <div className="flex justify-end">
               <div className="pointer-events-auto">
@@ -87,9 +157,7 @@ export default function CohortDiscoveryPage() {
         )}
 
         {cohortsQuery.isPending ? (
-          <Card className="py-6">
-            <SakuraLoader context="cohort" label={tr('Đang tải danh sách lớp nhóm...')} />
-          </Card>
+          <HorizontalCohortSkeletonList />
         ) : cohortsQuery.isError ? (
           <Card>
             <ContextualErrorState
@@ -100,20 +168,21 @@ export default function CohortDiscoveryPage() {
             />
           </Card>
         ) : (
-          <div className="course-page" style={{ padding: 0 }}>
-            <LearnerCohortDiscoveryPanel
-              cohorts={cohorts}
-              enrolledCourses={courses}
-              myEntitlements={entitlements}
-              busy={busy}
-              onRun={runAction}
-              initialMentorId={initialMentorId}
-              onEnrolled={(courseId) => {
-                if (courseId) navigate(`/my-courses/${courseId}`);
-                else navigate('/my-courses');
-              }}
-            />
-          </div>
+          <LearnerCohortDiscoveryPanel
+            cohorts={cohorts}
+            enrolledCourses={courses}
+            myEntitlements={entitlements}
+            busy={busy}
+            refreshing={isRefreshing}
+            onRefresh={handleRefreshWorkspace}
+            onRun={runAction}
+            initialMentorId={initialMentorId}
+            initialCohortId={initialCohortId}
+            onEnrolled={(courseId, actionKind) => {
+              if (courseId && actionKind !== 'resume_payment') navigate(`/my-courses/${courseId}`);
+              else navigate('/my-courses');
+            }}
+          />
         )}
       </PageContainer>
     </LearnerShell>

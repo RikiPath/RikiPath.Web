@@ -64,7 +64,7 @@ export const CALENDAR_CATEGORIES = Object.freeze({
   },
 });
 
-export const CALENDAR_CATEGORY_ORDER = Object.freeze(['session', 'homework', 'srs', 'reminder']);
+export const CALENDAR_CATEGORY_ORDER = Object.freeze(['session', 'workLive', 'workUpcoming', 'workCompleted', 'homework', 'srs', 'reminder']);
 
 export const CALENDAR_TONES = Object.freeze({
   session: {
@@ -78,6 +78,48 @@ export const CALENDAR_TONES = Object.freeze({
   present: {
     ...CALENDAR_CATEGORIES.class,
     label: 'Đã hoàn thành',
+  },
+  workUpcoming: {
+    id: 'workUpcoming',
+    category: 'workUpcoming',
+    label: 'Sắp diễn ra',
+    shortLabel: 'Sắp diễn ra',
+    hex: '#6B7280',
+    bgHex: '#F3F4F6',
+    card: 'border-l-[3.5px] border-l-[#6B7280] border border-[#D1D5DB] bg-[#F3F4F6] text-[#374151] shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#4B5563] hover:bg-[#E5E7EB] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#6B7280]/15 text-[#374151] transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-[#4B5563] group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-[#D1D5DB] bg-[#F3F4F6] text-[#374151]',
+    dot: 'bg-[#6B7280]',
+    iconText: 'text-[#4B5563]',
+  },
+  workLive: {
+    id: 'workLive',
+    category: 'workLive',
+    label: 'Đang diễn ra',
+    shortLabel: 'Đang diễn ra',
+    hex: '#D97706',
+    bgHex: '#FFFBEB',
+    card: 'border-l-[3.5px] border-l-[#D97706] border border-[#FCD34D] bg-[#FFFBEB] text-[#92400E] shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#B45309] hover:bg-[#FEF3C7] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#D97706]/15 text-[#92400E] transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-[#D97706] group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-[#FCD34D] bg-[#FEF3C7] text-[#92400E]',
+    dot: 'bg-[#D97706]',
+    iconText: 'text-[#B45309]',
+  },
+  workCompleted: {
+    id: 'workCompleted',
+    category: 'workCompleted',
+    label: 'Đã hoàn thành',
+    shortLabel: 'Đã hoàn thành',
+    hex: '#16A34A',
+    bgHex: '#F0FDF4',
+    card: 'border-l-[3.5px] border-l-[#16A34A] border border-[#86EFAC] bg-[#F0FDF4] text-[#14532D] shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#15803D] hover:bg-[#DCFCE7] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#16A34A]/15 text-[#14532D] transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-[#16A34A] group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-[#86EFAC] bg-[#DCFCE7] text-[#15803D]',
+    dot: 'bg-[#16A34A]',
+    iconText: 'text-[#15803D]',
   },
   approved: {
     label: 'Đã duyệt',
@@ -104,6 +146,13 @@ export const CALENDAR_TONES = Object.freeze({
     card: 'border-l-[3.5px] border-l-[#E4A020] border border-[#F3D7A4] bg-[#FFFBF2] text-[#784506]',
     pill: 'bg-[#FFF5E2] text-[#8E5306] border border-[#F3D7A4]',
     dot: 'bg-[#E4A020]',
+  },
+  needsRevision: {
+    label: 'Cần bổ sung',
+    hex: '#EA580C',
+    card: 'border-l-[3.5px] border-l-[#EA580C] border border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412]',
+    pill: 'bg-[#FFEDD5] text-[#C2410C] border border-[#FDBA74]',
+    dot: 'bg-[#EA580C]',
   },
   rejected: {
     label: 'Bị từ chối',
@@ -191,9 +240,18 @@ export function getToneMeta(tone) {
  * from an event object or category/eventType string.
  */
 export function getCalendarCategoryMeta(eventOrType) {
+  if (eventOrType && typeof eventOrType === 'object') {
+    const toneKey = eventOrType.tone;
+    if (toneKey === 'workUpcoming' || toneKey === 'workLive' || toneKey === 'workCompleted') {
+      return CALENDAR_TONES[toneKey];
+    }
+  }
   const key = typeof eventOrType === 'string'
     ? eventOrType
     : (eventOrType?.category || eventOrType?.eventType || eventOrType?.tone || 'session');
+  if (key === 'workUpcoming' || key === 'workLive' || key === 'workCompleted') {
+    return CALENDAR_TONES[key];
+  }
   if (key === 'srs') return CALENDAR_CATEGORIES.srs;
   if (key === 'homework') return CALENDAR_CATEGORIES.homework;
   if (key === 'reminder' || key === 'notification') return CALENDAR_CATEGORIES.reminder;
@@ -345,8 +403,8 @@ export function getViewDateRange(anchorKey, view, audience = 'mentor') {
     return {
       startKey: anchorKey,
       endKey: anchorKey,
-      title: formatFullDayVn(anchorKey),
-      subtitle: 'Hiển thị theo ngày · GMT+7',
+      title: formatFullDayWithYearVn(anchorKey),
+      subtitle: 'Hiển thị theo ngày',
     };
   }
   if (view === 'month') {
@@ -361,10 +419,13 @@ export function getViewDateRange(anchorKey, view, audience = 'mentor') {
   if (view === 'agenda') {
     const startKey = anchorKey;
     const endKey = shiftDateKey(anchorKey, 29);
+    const crossYear = startKey.slice(0, 4) !== endKey.slice(0, 4);
     return {
       startKey,
       endKey,
-      title: `${formatShortDateVn(startKey)} – ${formatShortDateVn(endKey)}`,
+      title: crossYear
+        ? `${formatShortDateVn(startKey)}/${startKey.slice(0, 4)} – ${formatShortDateVn(endKey)}/${endKey.slice(0, 4)}`
+        : `${formatShortDateVn(startKey)} – ${formatShortDateVn(endKey)}`,
       subtitle: 'Lịch trình 30 ngày tới',
     };
   }
@@ -376,11 +437,14 @@ export function getViewDateRange(anchorKey, view, audience = 'mentor') {
     : first.month === last.month
       ? `Tháng ${first.month}, ${first.year}`
       : `Tháng ${first.month} – ${last.month}, ${last.year}`;
+  const subtitle = first.year !== last.year
+    ? `${formatShortDateVn(first.key)}/${first.year} – ${formatShortDateVn(last.key)}/${last.year}`
+    : `${formatShortDateVn(first.key)} – ${formatShortDateVn(last.key)}`;
   return {
     startKey: first.key,
     endKey: last.key,
     title,
-    subtitle: `${formatShortDateVn(first.key)} – ${formatShortDateVn(last.key)}`,
+    subtitle,
   };
 }
 

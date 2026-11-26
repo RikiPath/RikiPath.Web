@@ -261,21 +261,21 @@ test('Section 6, 7 & 8: Hidden Pending/Approved reservations still block conflic
   assert.equal(byCode.N2.isQualified, false);
 });
 
-test('Section 9: Class Lifecycle distinguishes Recruiting, Upcoming (Sắp khai giảng), Teaching (Đang giảng dạy), Completed, Cancelled and computes real progress', () => {
+test('Section 9: Class Lifecycle distinguishes Recruiting, Upcoming (Sắp bắt đầu), Teaching (Đang giảng dạy), Completed, Cancelled and computes real progress', () => {
   assert.deepEqual(
     CLASS_LIFECYCLE_STATUSES.map((s) => s.label),
-    ['Đang tuyển sinh', 'Sắp khai giảng', 'Đang giảng dạy', 'Đã hoàn thành', 'Đã hủy']
+    ['Đang tuyển sinh', 'Sắp bắt đầu', 'Đang giảng dạy', 'Đã hoàn thành', 'Đã hủy']
   );
 
   const nowMs = new Date('2026-12-01T10:00:00+07:00').getTime();
 
-  // Published cohort with 0 learners -> Đang tuyển sinh (never falsely Sắp khai giảng)
+  // Published cohort with 0 learners -> Đang tuyển sinh (never falsely Sắp bắt đầu)
   assert.equal(
     resolveClassLifecycleStatus({ cohortStatus: 'Published', enrolledCount: 0, startsAt: '2026-12-10T01:30:00Z', nowMs }).id,
     'Recruiting'
   );
 
-  // Published cohort with 1 paid learner (1-4 policy) and future start -> Sắp khai giảng
+  // Published cohort with 1 paid learner (1-4 policy) and future start -> Sắp bắt đầu
   assert.equal(
     resolveClassLifecycleStatus({
       cohortStatus: 'Published',

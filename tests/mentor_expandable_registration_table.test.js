@@ -117,7 +117,7 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
       nowMs: NOW_MS,
     });
     const countsZero = computeRegistrationRowCounts(rowsZeroDraft, { todayKey: TODAY_KEY });
-    assert.deepEqual(countsZero, { ALL: 1, selected: 0, pending: 1, approved: 0, rejected: 0 });
+    assert.deepEqual(countsZero, { ALL: 1, selected: 0, pending: 1, needsRevision: 0, approved: 0, rejected: 0 });
     assert.equal(rowsZeroDraft.some((r) => r.isSelectedDraft), false);
 
     // 4 selected patterns (without start date) + 40 pending occurrences = 2 registrations
@@ -142,8 +142,8 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
     });
 
     const counts = computeRegistrationRowCounts(rowsWithDraft, { todayKey: TODAY_KEY });
-    assert.deepEqual(counts, { ALL: 2, selected: 1, pending: 1, approved: 0, rejected: 0 });
-    assert.equal(counts.ALL, counts.selected + counts.pending + counts.approved + counts.rejected);
+    assert.deepEqual(counts, { ALL: 2, selected: 1, pending: 1, needsRevision: 0, approved: 0, rejected: 0 });
+    assert.equal(counts.ALL, counts.selected + counts.pending + counts.needsRevision + counts.approved + counts.rejected);
     assert.ok(counts.selected <= 1);
   });
 
@@ -155,7 +155,7 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
       policy: DEFAULT_PROPOSAL_POLICY,
       nowMs: NOW_MS,
     });
-    assert.equal(previewNoStart.mode, 'reference_week');
+    assert.equal(previewNoStart.mode, 'visible_representative');
 
     const [noStartRow] = buildRegistrationRows({
       draft: { id: null, status: 'Draft', weeklySessions: THREE_WEEKLY_N3, expectedStartDate: '' },
@@ -175,7 +175,7 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
     // 2. With valid start date crossing 2026 -> 2027: Level 3 has exact 30 finite occurrences, no Week 11, no past dates
     const previewFinite = buildProposalPreviewCalendarSlots({
       weeklySessions: THREE_WEEKLY_N3,
-      expectedStartDate: '2026-12-07', // Monday
+      expectedStartDate: '2026-12-14', // Monday (>= 14-day proposal lead time from 2026-11-24)
       policy: DEFAULT_PROPOSAL_POLICY,
       nowMs: NOW_MS,
     });
@@ -187,7 +187,7 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
         status: 'Draft',
         jlptLevelCode: 'N3',
         weeklySessions: THREE_WEEKLY_N3,
-        expectedStartDate: '2026-12-07',
+        expectedStartDate: '2026-12-14',
       },
       proposals: [],
       proposalPreview: previewFinite,
@@ -198,14 +198,14 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
     assert.equal(finiteRow.hasValidStartDate, true);
     assert.equal(finiteRow.isEstimatedTotal, false);
     assert.equal(finiteRow.occurrences.length, 30);
-    assert.equal(finiteRow.occurrences[0].dayKey, '2026-12-07');
+    assert.equal(finiteRow.occurrences[0].dayKey, '2026-12-14');
     assert.equal(finiteRow.occurrences[0].sessionNumber, 1);
     assert.equal(finiteRow.occurrences[29].sessionNumber, 30);
-    assert.ok(finiteRow.occurrences.every((o) => o.dayKey >= '2026-12-07'));
+    assert.ok(finiteRow.occurrences.every((o) => o.dayKey >= '2026-12-14'));
     assert.ok(finiteRow.occurrences.some((o) => o.year === '2026'));
     assert.ok(finiteRow.occurrences.some((o) => o.year === '2027'));
     // Verify 10-week finite window (no Week 11 beyond 69 days from start)
-    assert.ok(finiteRow.occurrences[29].dayKey <= '2027-02-14');
+    assert.ok(finiteRow.occurrences[29].dayKey <= '2027-02-21');
   });
 
   it('G. filters and sorts accurately at the registration level without losing active selection when status is ALL', () => {
@@ -223,7 +223,7 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
         makeProposal({ id: 302, status: 'PendingReview', jlptLevelCode: 'N4', courseTitle: 'Lớp N4 Chiều', expectedStartDate: '2026-12-02', weeklySessions: FOUR_WEEKLY_N4, submittedAtUtc: '2026-11-23T08:00:00Z' }),
         makeProposal({ id: 303, status: 'Rejected', jlptLevelCode: 'N2', courseTitle: 'Lớp N2 Luyện đề', expectedStartDate: '2026-12-14', weeklySessions: TWO_WEEKLY_N5, submittedAtUtc: '2026-11-22T08:00:00Z' }),
       ],
-      proposalPreview: { mode: 'reference_week', slots: [] },
+      proposalPreview: { mode: 'visible_representative', slots: [] },
       policy: DEFAULT_PROPOSAL_POLICY,
       nowMs: NOW_MS,
     });
@@ -269,7 +269,7 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
   it('E, H & I. enforces architectural consolidation, terminology, and clean toolbar contracts', () => {
     assert.deepEqual(
       REGISTRATION_TABLE_STATUS_OPTIONS.map((o) => o.id),
-      ['ALL', 'selected', 'pending', 'approved', 'rejected']
+      ['ALL', 'selected', 'pending', 'needsRevision', 'approved', 'rejected']
     );
     assert.deepEqual(
       REGISTRATION_TABLE_SORT_OPTIONS.map((o) => o.id),
@@ -299,11 +299,41 @@ describe('Mentor Expandable Registration Table & Unified History', () => {
     assert.ok(!tableSrc.includes('accent-'), 'Must never use accent-* Tailwind classes');
     assert.ok(!tableSrc.includes('Admin'), 'Vietnamese UI must use quản trị viên instead of Admin');
 
-    // Consolidation: no Nhóm theo đăng ký button & no duplicate Lịch sử đăng ký drawer
+    // Consolidation: no Nhóm theo đăng ký toggle; Registration History toolbar button & drawer restored
     assert.ok(!calSrc.includes('list-group-toggle'));
     assert.ok(!calSrc.includes('Nhóm theo đăng ký'));
-    assert.ok(!pageSrc.includes('Lịch sử đăng ký'));
-    assert.ok(!pageSrc.includes('PROPOSAL_STATUS_FILTERS'));
+    assert.ok(pageSrc.includes('Lịch sử đăng ký'), 'Toolbar button and drawer for Registration History must be available');
+    assert.ok(pageSrc.includes('PROPOSAL_STATUS_FILTERS'), 'Registration History drawer must provide status filters');
+    assert.ok(!pageSrc.includes('lastSubmittedBanner'), 'Post-submit green banner above calendar must be removed');
+    assert.ok(pageSrc.includes('Đăng ký mở lớp thành công'), 'Post-submit toast notification must inform mentor of registration');
+
+    // Review Modal & Admin Drawer UI polish: weekly metric label and non-interactive attachments
+    const reviewModalSrc = fs.readFileSync(
+      path.resolve('src/features/scheduling/components/TeachingProposalReviewModal.jsx'),
+      'utf8'
+    );
+    const adminPanelSrc = fs.readFileSync(
+      path.resolve('src/features/scheduling/components/AdminTeachingProposalReviewPanel.jsx'),
+      'utf8'
+    );
+    const courseDrawerSrc = fs.readFileSync(
+      path.resolve('src/features/scheduling/components/TeachingProposalCourseInfoDrawer.jsx'),
+      'utf8'
+    );
+    assert.ok(reviewModalSrc.includes("tr('Buổi mỗi tuần')"), 'Weekly summary metric must display "Buổi mỗi tuần" without "/4" denominator');
+    assert.ok(!reviewModalSrc.includes("tr('Buổi / tuần')"), 'Legacy "Buổi / tuần" label must be replaced');
+    assert.ok(
+      reviewModalSrc.includes('fetchMentorProposalAttachmentBlob') && reviewModalSrc.includes('openOrDownloadBlob') && !reviewModalSrc.includes('href={a.url}'),
+      'Mentor review attachments must open/download safely through authorized API without exposing raw storage URLs'
+    );
+    assert.ok(
+      adminPanelSrc.includes('fetchAdminProposalAttachmentBlob') && adminPanelSrc.includes('openOrDownloadBlob') && !adminPanelSrc.includes('href={a.url}'),
+      'Admin drawer attachments must open/download safely through authorized API without exposing raw storage URLs'
+    );
+    assert.ok(
+      courseDrawerSrc.includes('uploadOptionalProposalAttachment') && !courseDrawerSrc.includes('href={att.url}'),
+      'Course info drawer attachments must never render raw storage anchor links'
+    );
 
     // Proposal Detail Modal & deep links preserved
     assert.ok(pageSrc.includes('<TeachingProposalReviewModal'));

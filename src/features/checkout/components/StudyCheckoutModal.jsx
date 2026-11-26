@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ShieldCheck, TicketCheck } from 'lucide-react';
 
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { getSession } from '@/app/auth/session.js';
@@ -34,15 +34,17 @@ function featureLabel(feature) {
  * existing purchase API with the plan id only — the Backend prices the order and creates the PayOS link.
  * Rendered only while open (the parent mounts it per checkout), so state starts fresh each time.
  */
-export default function StudyCheckoutModal({ plan, onClose }) {
+export default function StudyCheckoutModal({ open = true, plan, onClose }) {
   const { tr, trf } = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState('idle'); // idle | verifying | creating | redirecting
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [confirmed, setConfirmed] = useState(() => planCommercialSnapshot(plan));
+  const [confirmed, setConfirmed] = useState(() => (plan ? planCommercialSnapshot(plan) : null));
   const busy = phase !== 'idle';
+
+  if (!open || !plan) return null;
 
   const kind = planKind(plan);
   const meta = PLAN_GROUP_META[kind];
@@ -173,8 +175,9 @@ export default function StudyCheckoutModal({ plan, onClose }) {
           </div>
           <div className="rounded-xl border border-rp-line bg-rp-bg-2/70 px-3 py-2.5">
             <dt className="text-xs text-rp-text-muted">{tr('Lượt AI được cấp')}</dt>
-            <dd className="mt-0.5 font-bold text-rp-text">
-              {plan.aiUses > 0 ? trf('{0} lượt', { 0: plan.aiUses }) : tr('Không kèm lượt AI')}
+            <dd className="mt-0.5 inline-flex items-center gap-1.5 font-bold text-rp-text">
+              {plan.aiUses > 0 && <TicketCheck aria-hidden="true" className="h-4 w-4 text-rp-brand-strong" />}
+              <span>{plan.aiUses > 0 ? trf('{0} lượt', { 0: plan.aiUses }) : tr('Không kèm lượt AI')}</span>
             </dd>
           </div>
         </dl>

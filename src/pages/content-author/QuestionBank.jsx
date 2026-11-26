@@ -28,6 +28,7 @@ import {
   ContextualErrorState,
   CustomSelect,
   DataRefreshBoundary,
+  RichQuestionText,
   DataTable,
   FeatureIcon,
   IconButton,
@@ -76,10 +77,10 @@ const QUESTION_TYPE_LABELS = {
 const PUBLISH_STATUS_BADGES = {
   Draft: { label: 'Bản nháp', tone: 'neutral' },
   PendingReview: { label: 'Chờ duyệt', tone: 'warning' },
-  ChangesRequested: { label: 'Cần sửa', tone: 'warning' },
+  ChangesRequested: { label: 'Cần bổ sung', tone: 'warning' },
   Approved: { label: 'Đã duyệt', tone: 'info' },
   Published: { label: 'Đã xuất bản', tone: 'success' },
-  Rejected: { label: 'Từ chối', tone: 'danger' },
+  Rejected: { label: 'Bị từ chối', tone: 'danger' },
 };
 
 const STATUS_BADGE_TONES = {
@@ -236,7 +237,7 @@ export default function QuestionBank() {
   const submitMutation = useMutation({
     mutationFn: (id) => submitQuestionV2(id),
     onSuccess: () => {
-      notify.success(tr('Đã gửi câu hỏi cho Admin xét duyệt.'), '', { key: 'qb-v2-submit' });
+      notify.success(tr('Đã gửi câu hỏi cho Quản trị viên xét duyệt.'), '', { key: 'qb-v2-submit' });
       invalidateBank();
     },
     onError: (err) => notify.apiError(err, tr('Chưa thể gửi duyệt câu hỏi'), { key: 'qb-v2-submit-err' }),
@@ -346,7 +347,7 @@ export default function QuestionBank() {
             {row.questionText}
           </p>
           {row.reviewNote && (
-            <p className="text-xs font-medium text-amber-800">{tr('Phản hồi Admin')}: {row.reviewNote}</p>
+            <p className="text-xs font-medium text-amber-800">{tr('Phản hồi Quản trị viên')}: {row.reviewNote}</p>
           )}
         </div>
       ),
@@ -622,7 +623,7 @@ export default function QuestionBank() {
                     setPage(1);
                   }}
                   options={[
-                    { value: 'ALL', label: tr('Mọi kỹ năng') },
+                    { value: 'ALL', label: tr('Tất cả kỹ năng') },
                     ...skills.map((s) => ({ value: String(s.id), label: s.name })),
                   ]}
                 />
@@ -1025,11 +1026,11 @@ export default function QuestionBank() {
               {selectedV2Question.passage?.passageText && (
                 <Card className="bg-slate-50/70 p-3 text-sm">
                   <p className="text-xs font-semibold uppercase text-rp-text-muted">{selectedV2Question.passage.title}</p>
-                  <p className="rp-jp mt-1 whitespace-pre-wrap">{selectedV2Question.passage.passageText}</p>
+                  <RichQuestionText as="p" text={selectedV2Question.passage.passageText} className="rp-jp mt-1 whitespace-pre-wrap" />
                 </Card>
               )}
 
-              <p className="rp-jp whitespace-pre-wrap text-base font-medium text-rp-text">{selectedV2Question.questionText}</p>
+              <RichQuestionText as="p" text={selectedV2Question.questionText} className="rp-jp whitespace-pre-wrap text-base font-medium text-rp-text" />
 
               {selectedV2Question.audioUrl && (
                 <div className="space-y-1 rounded-xl border border-rp-line bg-slate-50 p-3">
@@ -1057,7 +1058,7 @@ export default function QuestionBank() {
                       }`}
                     >
                       {opt.isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
-                      <span className="rp-jp">{opt.optionText}</span>
+                      <RichQuestionText as="span" text={opt.optionText} className="rp-jp" />
                     </div>
                   ))}
                 </div>
@@ -1078,7 +1079,7 @@ export default function QuestionBank() {
               {selectedV2Question.explanation && (
                 <div className="rounded-xl border border-rp-line bg-rp-brand-tint/30 p-3 text-sm">
                   <p className="text-xs font-semibold text-rp-brand-strong">{tr('Giải thích')}</p>
-                  <p className="mt-1 whitespace-pre-wrap">{selectedV2Question.explanation}</p>
+                  <RichQuestionText as="p" text={selectedV2Question.explanation} className="mt-1 whitespace-pre-wrap" />
                 </div>
               )}
             </div>

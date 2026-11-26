@@ -2,6 +2,7 @@ import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { api } from '@/api/client.js';
+import * as cohortApiModule from '@/features/cohorts/api/cohortApi.js';
 import {
   approveCohortScheduleRequest,
   cohortQueryParams,
@@ -16,7 +17,6 @@ import {
   getCohortShiftPreview,
   getCourseCompletionSummary,
   getMentorCohortReviewSummary,
-  previewCohortSchedule,
   rejectCohortScheduleRequest,
   respondCohortComplaint,
   submitCohortComplaint,
@@ -52,13 +52,9 @@ describe('Task 05 API contracts', () => {
     assert.equal(last().body.excludeCohortId, 42);
   });
 
-  it('previewCohortSchedule posts mentorId + numeric availabilityIds (+ cohortId when editing)', async () => {
-    await previewCohortSchedule({ mentorId: '7', availabilityIds: ['3', 5] });
-    assert.equal(last().url, '/study-courses/cohorts/schedule-preview');
-    assert.deepEqual(last().body, { mentorId: 7, availabilityIds: [3, 5] });
-
-    await previewCohortSchedule({ mentorId: 7, availabilityIds: [3], cohortId: 9 });
-    assert.deepEqual(last().body, { mentorId: 7, availabilityIds: [3], cohortId: 9 });
+  it('removes legacy manual previewCohortSchedule export in favor of automatic proposal validation', () => {
+    assert.equal('previewCohortSchedule' in cohortApiModule, false);
+    assert.equal('saveCohort' in cohortApiModule, false);
   });
 
   it('getCohorts keeps the legacy no-arg call and sends only non-empty filters', async () => {

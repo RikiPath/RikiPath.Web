@@ -43,7 +43,7 @@ import { useLocale } from '@/locales/locale.js';
 
 const STATUS_META = {
   Pending: { label: 'Chờ xét duyệt', tone: 'warning', dotClass: 'bg-rp-warning' },
-  ChangesRequested: { label: 'Cần bổ sung thông tin', tone: 'info', dotClass: 'bg-rp-info' },
+  ChangesRequested: { label: 'Cần bổ sung hồ sơ', tone: 'warning', dotClass: 'bg-rp-warning' },
   Rejected: { label: 'Không được phê duyệt', tone: 'danger', dotClass: 'bg-rp-danger' },
   Approved: { label: 'Đã phê duyệt', tone: 'success', dotClass: 'bg-rp-success' },
   Unverified: { label: 'Chưa gửi hồ sơ', tone: 'neutral', dotClass: 'bg-rp-text-disabled' },
@@ -118,24 +118,35 @@ export default function AdminMentorVerifications() {
         rejectionReason: decision === 'Reject' ? note : null,
         reviewNotes: decision === 'RequestChanges' || decision === 'Approve' ? note || null : null,
       }),
-    onSuccess: async () => {
+    onSuccess: async (_res, vars) => {
       setActionModal(null);
       setReason('');
       setReasonError('');
-      await invalidateAdminDomains(queryClient, ['mentors']);
-      if (selectedId) await queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] });
-      notify.success(tr('Đã lưu quyết định xét duyệt hồ sơ Giáo viên.'), '', {
-        key: `admin-mentor-verify-${selectedId}`,
+      const msg = vars?.decision === 'Approve'
+        ? tr('Đã phê duyệt hồ sơ giáo viên.')
+        : vars?.decision === 'RequestChanges'
+          ? tr('Đã gửi yêu cầu bổ sung hồ sơ tới giáo viên.')
+          : vars?.decision === 'Reject'
+            ? tr('Đã từ chối hồ sơ giáo viên.')
+            : tr('Đã lưu quyết định xét duyệt hồ sơ Giáo viên.');
+      notify.success(msg, '', {
+        key: `admin-mentor-verify-${selectedId}-${vars?.decision || 'ok'}`,
         replace: true,
       });
+      await Promise.allSettled([
+        invalidateAdminDomains(queryClient, ['mentors']),
+        selectedId ? queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] }) : Promise.resolve(),
+      ]);
     },
     onError: async (err) => {
-      await invalidateAdminDomains(queryClient, ['mentors']);
-      if (selectedId) await queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] });
       notify.apiError(err, tr('Không thể xét duyệt hồ sơ'), {
         key: `admin-mentor-verify-err-${selectedId}`,
         replace: true,
       });
+      await Promise.allSettled([
+        invalidateAdminDomains(queryClient, ['mentors']),
+        selectedId ? queryClient.invalidateQueries({ queryKey: ['admin-mentor-verification', selectedId] }) : Promise.resolve(),
+      ]);
     },
   });
 

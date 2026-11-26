@@ -17,7 +17,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Popover } from '@/components/ui/overlay.jsx';
-import { formatIsoDateDisplay } from '@/components/ui';
+import { formatIsoDateDisplay, formatTimeRange } from '@/components/ui';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
 import Pagination from '@/components/ui/Pagination.jsx';
 import { useLocale } from '@/locales/locale.js';
@@ -31,10 +31,10 @@ function statusBadgeStyle(row) {
       dot: 'bg-[#22C55E]',
     };
   }
-  if (row.isChangesRequested) {
+  if (row.isChangesRequested || row.statusGroup === 'needsRevision') {
     return {
-      pill: 'border border-[#F2CCD7] bg-[#FFF5F7] text-[#B53D5C]',
-      dot: 'bg-[#CE476D]',
+      pill: 'border border-orange-200 bg-orange-50 text-orange-800',
+      dot: 'bg-[#EA580C]',
     };
   }
   if (row.statusGroup === 'pending') {
@@ -104,6 +104,7 @@ function RegistrationActionMenu({ items = [], triggerLabel }) {
                 type="button"
                 role="menuitem"
                 disabled={item.disabled}
+                title={item.title}
                 onClick={(e) => {
                   e.stopPropagation();
                   close();
@@ -135,6 +136,9 @@ function ExpandedRegistrationDetail({
   onJumpToPatternOnCalendar,
   onJumpToOccurrenceOnCalendar,
   onOpenCourseInfo,
+  onClearSelection,
+  capacityLocked = false,
+  capacityLockedMessage = '',
   busy = false,
 }) {
   const { tr, trf } = useLocale();
@@ -155,7 +159,31 @@ function ExpandedRegistrationDetail({
       data-testid={`reg-expanded-${row.rowKey}`}
       className="space-y-3 bg-[#FAF9FB] px-5 py-3.5 text-[12.5px]"
     >
-      {/* Contextual status notices (review feedback / linked class / expired start date) */}
+      {/* Contextual status notices (capacity lock / review feedback / linked class / expired start date) */}
+      {row.isSelectedDraft && capacityLocked && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-rp-text-2"
+        >
+          <span className="inline-flex items-center gap-1.5 font-medium">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-slate-600" aria-hidden="true" />
+            <span>{tr(capacityLockedMessage || 'Bạn đã đăng ký đủ các cấp độ giảng dạy.')}</span>
+          </span>
+          {onClearSelection && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClearSelection();
+              }}
+              className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              {tr('Bỏ chọn tất cả')}
+            </button>
+          )}
+        </div>
+      )}
       {row.hasInvalidStartDate && row.startDateWarningMessage && (
         <div
           role="alert"
@@ -165,7 +193,7 @@ function ExpandedRegistrationDetail({
             <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden="true" />
             <span>{tr(row.startDateWarningMessage)}</span>
           </span>
-          {onOpenCourseInfo && (
+          {!capacityLocked && onOpenCourseInfo && (
             <button
               type="button"
               onClick={(e) => {
@@ -174,17 +202,35 @@ function ExpandedRegistrationDetail({
               }}
               className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-amber-900 hover:bg-amber-100/70"
             >
-              {tr('Chọn ngày khai giảng mới')}
+              {tr('Chọn ngày bắt đầu mới')}
             </button>
           )}
         </div>
       )}
 
       {row.reviewReason && (
-        <div className="flex items-start gap-2 rounded-xl border border-[#F2CCD7] bg-[#FFF5F7] px-3 py-2 text-xs text-[#9F2E4D]">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <div
+          className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-xs ${
+            row.isChangesRequested || row.statusGroup === 'needsRevision'
+              ? 'border-orange-200 bg-orange-50/90 text-orange-950'
+              : 'border-red-200 bg-red-50/90 text-red-900'
+          }`}
+        >
+          <AlertTriangle
+            className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
+              row.isChangesRequested || row.statusGroup === 'needsRevision'
+                ? 'text-[#EA580C]'
+                : 'text-red-600'
+            }`}
+            aria-hidden="true"
+          />
           <span>
-            <span className="font-semibold">{tr('Phản hồi quản trị viên')}:</span> {row.reviewReason}
+            <span className="font-semibold">
+              {row.isChangesRequested || row.statusGroup === 'needsRevision'
+                ? tr('Yêu cầu từ quản trị viên')
+                : tr('Phản hồi quản trị viên')}:
+            </span>{' '}
+            {row.reviewReason}
           </span>
         </div>
       )}
@@ -218,7 +264,7 @@ function ExpandedRegistrationDetail({
           </span>
           {row.isSelectedDraft && !row.hasValidStartDate && (
             <span className="text-[11.5px] text-rp-text-muted">
-              {tr('Mẫu lịch lặp hằng tuần · chưa chọn ngày khai giảng')}
+              {tr('Mẫu lịch lặp hằng tuần · chưa chọn ngày bắt đầu')}
             </span>
           )}
         </div>
@@ -232,11 +278,11 @@ function ExpandedRegistrationDetail({
             >
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="min-w-[68px] font-bold text-rp-text">
-                  {formatWeekdayVn(pat.weekday)}
+                  {tr(formatWeekdayVn(pat.weekday))}
                 </span>
                 <span className="text-rp-text-muted" aria-hidden="true">·</span>
                 <span className="font-semibold tabular-nums text-rp-text">
-                  {pat.startClock}–{pat.endClock}
+                  {formatTimeRange(pat.startClock, pat.endClock)}
                 </span>
                 {pat.invalidReason && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
@@ -261,7 +307,7 @@ function ExpandedRegistrationDetail({
                     <span className="hidden sm:inline">{tr('Xem trên lịch')}</span>
                   </button>
                 )}
-                {row.isSelectedDraft && !row.hasInvalidStartDate && (
+                {row.isSelectedDraft && !row.hasInvalidStartDate && !capacityLocked && (
                   <button
                     type="button"
                     data-testid={`pattern-edit-${pat.key}`}
@@ -276,7 +322,7 @@ function ExpandedRegistrationDetail({
                     <span className="hidden sm:inline">{tr('Đổi giờ')}</span>
                   </button>
                 )}
-                {row.isSelectedDraft && (
+                {row.isSelectedDraft && !capacityLocked && (
                   <button
                     type="button"
                     data-testid={`pattern-deselect-${pat.key}`}
@@ -337,7 +383,10 @@ function ExpandedRegistrationDetail({
                   {trf('Lịch chi tiết {0} buổi · Năm {1}', { 0: row.occurrences.length, 1: singleYearHeader })}
                 </div>
               )}
-              <div className="max-h-[256px] divide-y divide-rp-line/50 overflow-y-auto">
+              <div
+                className="grid max-h-[256px] min-w-0 gap-2 overflow-y-auto p-2.5"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))' }}
+              >
                 {row.occurrences.map((occ, idx) => {
                   const prevYear = idx > 0 ? row.occurrences[idx - 1].year : null;
                   const showYearSeparator = spansMultipleYears && occ.year !== prevYear;
@@ -345,25 +394,26 @@ function ExpandedRegistrationDetail({
                     showYearSeparator && (
                       <div
                         key={`yr-${row.rowKey}-${occ.year}-${idx}`}
-                        className="sticky top-0 z-[1] bg-[#FAF7F9] px-3.5 py-1 text-[11px] font-bold uppercase tracking-wide text-rp-text-muted"
+                        className="col-span-full flex items-center gap-2 pt-1 first:pt-0 text-[11px] font-bold uppercase tracking-wide text-rp-text-muted"
                       >
-                        {trf('Năm {0}', { 0: occ.year })}
+                        <span>{trf('Năm {0}', { 0: occ.year })}</span>
+                        <span className="h-px flex-1 bg-rp-line/70" />
                       </div>
                     ),
                     <div
                       key={occ.id}
-                      className="group flex items-center justify-between gap-2 px-3.5 py-1.5 text-[12px] transition-colors hover:bg-[#FFFBFD]"
+                      className="group box-border flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-rp-line/80 bg-rp-bg-2/25 px-2.5 py-1.5 text-[12px] transition-colors hover:border-rp-brand-border/60 hover:bg-[#FFFBFD]"
                     >
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5 tabular-nums">
-                        <span className="min-w-[56px] font-semibold text-rp-text-muted">
+                        <span className="font-semibold text-rp-text-muted">
                           {trf('Buổi {0}', { 0: occ.sessionNumber })}
                         </span>
                         <span className="text-rp-text-muted" aria-hidden="true">·</span>
                         <span className="font-semibold text-rp-text">
-                          {formatWeekdayVn(occ.weekday)} - {formatShortDateVn(occ.dayKey)}
+                          {tr(formatWeekdayVn(occ.weekday))} - {formatShortDateVn(occ.dayKey)}
                         </span>
                         <span className="text-rp-text-2">
-                          ({occ.startClock}–{occ.endClock})
+                          ({formatTimeRange(occ.startClock, occ.endClock)})
                         </span>
                       </div>
                       <button
@@ -404,12 +454,17 @@ export default function ExpandableRegistrationTable({
   pageSize = 10,
   onPageChange,
   onPageSizeChange,
+  minSessionsPerWeek = 2,
+  maxSessionsPerWeek = 4,
   busy = false,
+  capacityLocked = false,
+  capacityLockedMessage = '',
   onContinueSelection,
   onEditSelectionSchedule,
   onOpenCourseInfo,
   onClearSelection,
   onInspectProposal,
+  onEditRevisionProposal,
   onWithdrawProposal,
   onReregisterProposal,
   onRequestApprovedSlotAction,
@@ -424,6 +479,10 @@ export default function ExpandableRegistrationTable({
   const [expandedOverrides, setExpandedOverrides] = useState({});
   // Set of rowKeys whose Level 3 detailed 10-week schedule is expanded (always collapsed by default)
   const [detailExpandedMap, setDetailExpandedMap] = useState({});
+
+  const sessionRangeLabel = minSessionsPerWeek === maxSessionsPerWeek
+    ? String(minSessionsPerWeek)
+    : `${minSessionsPerWeek}–${maxSessionsPerWeek}`;
 
   const visibleRowKeySet = useMemo(() => new Set(rows.map((r) => r.rowKey)), [rows]);
 
@@ -486,18 +545,24 @@ export default function ExpandableRegistrationTable({
         label: tr('Tiếp tục'),
         iconRight: ArrowRight,
         variant: 'primary',
-        disabled: busy || !row.canProceed,
-        title: row.canProceed
-          ? tr('Bước tiếp theo: Thông tin lớp dự kiến')
-          : tr('Cần chọn đủ 2–4 buổi hợp lệ để tiếp tục'),
-        onClick: () => onContinueSelection?.(),
+        disabled: busy || capacityLocked || !row.canProceed,
+        title: capacityLocked
+          ? tr(capacityLockedMessage || 'Bạn đã đăng ký đủ các cấp độ giảng dạy.')
+          : row.canProceed
+            ? tr('Bước tiếp theo: Thông tin lớp dự kiến')
+            : trf('Cần chọn đủ {0} buổi hợp lệ để tiếp tục', { 0: sessionRangeLabel }),
+        onClick: () => {
+          if (!capacityLocked) onContinueSelection?.();
+        },
       };
-      menuItems.push({
-        id: 'edit-schedule',
-        label: tr('Chỉnh sửa lịch'),
-        icon: Pencil,
-        onClick: () => onEditSelectionSchedule?.(row),
-      });
+      if (!capacityLocked) {
+        menuItems.push({
+          id: 'edit-schedule',
+          label: tr('Chỉnh sửa lịch'),
+          icon: Pencil,
+          onClick: () => onEditSelectionSchedule?.(row),
+        });
+      }
       if (!row.hasInvalidStartDate) {
         menuItems.push({
           id: 'view-on-calendar',
@@ -506,12 +571,14 @@ export default function ExpandableRegistrationTable({
           onClick: () => onJumpToRegistrationOnCalendar?.(row),
         });
       }
-      menuItems.push({
-        id: 'edit-course-info',
-        label: tr('Chỉnh sửa thông tin lớp'),
-        icon: Eye,
-        onClick: () => onOpenCourseInfo?.(),
-      });
+      if (!capacityLocked) {
+        menuItems.push({
+          id: 'edit-course-info',
+          label: tr('Chỉnh sửa thông tin lớp'),
+          icon: Eye,
+          onClick: () => onOpenCourseInfo?.(),
+        });
+      }
       menuItems.push({
         id: 'clear-all',
         label: tr('Bỏ chọn tất cả'),
@@ -520,15 +587,22 @@ export default function ExpandableRegistrationTable({
         disabled: busy,
         onClick: () => onClearSelection?.(),
       });
-    } else if (row.isChangesRequested) {
+    } else if (row.isChangesRequested || row.statusGroup === 'needsRevision') {
+      const handleEdit = () => (onEditRevisionProposal ? onEditRevisionProposal(row.proposalId) : onInspectProposal?.(row.proposalId));
       primaryAction = {
         id: 'edit-proposal',
         testId: `reg-action-primary-${row.rowKey}`,
-        label: tr('Chỉnh sửa'),
+        label: tr('Chỉnh sửa đề xuất'),
         icon: Pencil,
         variant: 'primary',
-        onClick: () => onInspectProposal?.(row.proposalId),
+        onClick: handleEdit,
       };
+      menuItems.push({
+        id: 'edit-revision',
+        label: tr('Chỉnh sửa đề xuất'),
+        icon: Pencil,
+        onClick: handleEdit,
+      });
       menuItems.push({
         id: 'view-detail',
         label: tr('Xem chi tiết'),
@@ -641,7 +715,13 @@ export default function ExpandableRegistrationTable({
           id: 'reregister',
           label: tr('Đăng ký lại'),
           icon: RotateCcw,
-          onClick: () => onReregisterProposal(row.proposalId),
+          disabled: busy || capacityLocked,
+          title: capacityLocked
+            ? tr(capacityLockedMessage || 'Bạn đã đăng ký đủ các cấp độ giảng dạy.')
+            : undefined,
+          onClick: () => {
+            if (!capacityLocked) onReregisterProposal(row.proposalId);
+          },
         });
       }
     }
@@ -661,7 +741,7 @@ export default function ExpandableRegistrationTable({
             : tr('Chưa có đăng ký mở lớp nào')}
           description={totalUnfilteredCount > 0
             ? tr('Hãy điều chỉnh hoặc xóa bộ lọc để xem toàn bộ danh sách đăng ký của bạn.')
-            : tr('Chọn trực tiếp 2–4 buổi/tuần trên chế độ Lịch hoặc nhấn "Đăng ký nhanh" để bắt đầu tạo đề xuất mở lớp.')}
+            : trf('Chọn trực tiếp {0} buổi/tuần trên chế độ Lịch hoặc nhấn "Đăng ký nhanh" để bắt đầu tạo đề xuất mở lớp.', { 0: sessionRangeLabel })}
         />
       </div>
     );
@@ -720,7 +800,7 @@ export default function ExpandableRegistrationTable({
                       : trf('{0} buổi', { 0: row.expectedTotalSessions })}
                   </span>
                   <span>
-                    {tr('Khai giảng')}:{' '}
+                    {tr('Ngày bắt đầu')}:{' '}
                     <span className={row.expectedStartDate ? 'font-semibold text-rp-text' : 'text-rp-text-muted'}>
                       {row.expectedStartDate ? formatIsoDateDisplay(row.expectedStartDate) : tr('Chưa chọn')}
                     </span>
@@ -789,11 +869,11 @@ export default function ExpandableRegistrationTable({
                   <ArrowDownUp className="h-3 w-3 opacity-70" />
                 </button>
               </th>
-              <th className="px-4 py-2.5 whitespace-nowrap">
+              <th className="px-4 py-2.5 text-center whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => onToggleSort?.('frequency')}
-                  className={`inline-flex items-center gap-1 font-semibold uppercase transition-colors hover:text-rp-brand-strong ${
+                  className={`inline-flex items-center justify-center gap-1 font-semibold uppercase transition-colors hover:text-rp-brand-strong ${
                     sortBy === 'frequency' ? 'text-rp-brand-strong' : 'text-rp-text-muted'
                   }`}
                 >
@@ -801,26 +881,26 @@ export default function ExpandableRegistrationTable({
                   <ArrowDownUp className="h-3 w-3 opacity-70" />
                 </button>
               </th>
-              <th className="px-4 py-2.5 text-right whitespace-nowrap">
+              <th className="px-4 py-2.5 text-center whitespace-nowrap">
                 {tr('Tổng số buổi')}
               </th>
-              <th className="px-4 py-2.5 whitespace-nowrap">
+              <th className="px-4 py-2.5 text-center whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => onToggleSort?.('startDate')}
-                  className={`inline-flex items-center gap-1 font-semibold uppercase transition-colors hover:text-rp-brand-strong ${
+                  className={`inline-flex items-center justify-center gap-1 font-semibold uppercase transition-colors hover:text-rp-brand-strong ${
                     sortBy === 'startDate' ? 'text-rp-brand-strong' : 'text-rp-text-muted'
                   }`}
                 >
-                  <span>{tr('Khai giảng')}</span>
+                  <span>{tr('Ngày bắt đầu')}</span>
                   <ArrowDownUp className="h-3 w-3 opacity-70" />
                 </button>
               </th>
-              <th className="px-4 py-2.5 whitespace-nowrap">
+              <th className="px-4 py-2.5 text-center whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => onToggleSort?.('status')}
-                  className={`inline-flex items-center gap-1 font-semibold uppercase transition-colors hover:text-rp-brand-strong ${
+                  className={`inline-flex items-center justify-center gap-1 font-semibold uppercase transition-colors hover:text-rp-brand-strong ${
                     sortBy === 'status' ? 'text-rp-brand-strong' : 'text-rp-text-muted'
                   }`}
                 >
@@ -828,7 +908,7 @@ export default function ExpandableRegistrationTable({
                   <ArrowDownUp className="h-3 w-3 opacity-70" />
                 </button>
               </th>
-              <th className="px-4 py-2.5 text-right whitespace-nowrap">{tr('Thao tác')}</th>
+              <th className="px-4 py-2.5 text-center whitespace-nowrap">{tr('Thao tác')}</th>
             </tr>
           </thead>
 
@@ -880,7 +960,7 @@ export default function ExpandableRegistrationTable({
                         </span>
                         {row.hasInvalidStartDate && (
                           <span
-                            title={tr(row.startDateWarningMessage || 'Ngày khai giảng không còn phù hợp.')}
+                            title={tr(row.startDateWarningMessage || 'Ngày bắt đầu không còn phù hợp.')}
                             className="inline-flex items-center text-amber-600"
                           >
                             <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
@@ -890,18 +970,18 @@ export default function ExpandableRegistrationTable({
                     </div>
                   </td>
 
-                  <td className="px-4 py-3 align-middle whitespace-nowrap font-semibold tabular-nums text-rp-text">
+                  <td className="px-4 py-3 text-center align-middle whitespace-nowrap font-semibold tabular-nums text-rp-text">
                     {trf('{0} buổi/tuần', { 0: row.weeklyCount })}
                   </td>
 
-                  <td className="px-4 py-3 text-right align-middle whitespace-nowrap tabular-nums">
+                  <td className="px-4 py-3 text-center align-middle whitespace-nowrap tabular-nums">
                     <span className="font-semibold text-rp-text">{row.expectedTotalSessions}</span>
                     <span className="ml-1 text-[11.5px] text-rp-text-muted">
                       {row.isEstimatedTotal ? tr('buổi dự kiến') : tr('buổi')}
                     </span>
                   </td>
 
-                  <td className="px-4 py-3 align-middle whitespace-nowrap tabular-nums">
+                  <td className="px-4 py-3 text-center align-middle whitespace-nowrap tabular-nums">
                     {row.expectedStartDate ? (
                       <span className="font-semibold text-rp-text">
                         {formatIsoDateDisplay(row.expectedStartDate)}
@@ -911,7 +991,7 @@ export default function ExpandableRegistrationTable({
                     )}
                   </td>
 
-                  <td className="px-4 py-3 align-middle whitespace-nowrap">
+                  <td className="px-4 py-3 text-center align-middle whitespace-nowrap">
                     <span
                       data-status-key={row.statusGroup}
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${badge.pill}`}
@@ -922,10 +1002,10 @@ export default function ExpandableRegistrationTable({
                   </td>
 
                   <td
-                    className="px-4 py-3 text-right align-middle whitespace-nowrap"
+                    className="px-4 py-3 text-center align-middle whitespace-nowrap"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="inline-flex items-center justify-end gap-1.5">
+                    <div className="inline-flex items-center justify-center gap-1.5">
                       {primaryAction && (
                         <button
                           type="button"
@@ -963,6 +1043,9 @@ export default function ExpandableRegistrationTable({
                         onJumpToPatternOnCalendar={onJumpToPatternOnCalendar}
                         onJumpToOccurrenceOnCalendar={onJumpToOccurrenceOnCalendar}
                         onOpenCourseInfo={onOpenCourseInfo}
+                        onClearSelection={onClearSelection}
+                        capacityLocked={capacityLocked}
+                        capacityLockedMessage={capacityLockedMessage}
                         busy={busy}
                       />
                     </td>

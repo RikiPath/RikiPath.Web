@@ -676,7 +676,7 @@ export function ContentForm({
   function validateComplexSections() {
     if (type === 'MockTest') {
       if (levelSections.length === 0) {
-        return tr('Cấp độ này chưa có Phần thi nào được Admin cấu hình. Hãy liên hệ Admin cấu hình Phần thi trước khi tạo đề.');
+        return tr('Cấp độ này chưa có Phần thi nào được Quản trị viên cấu hình. Hãy liên hệ Quản trị viên cấu hình Phần thi trước khi tạo đề.');
       }
       if (!data.sections?.length) {
         return tr('Đề thi thử cần ít nhất 1 phần thi.');
@@ -779,14 +779,14 @@ export function ContentForm({
       </div>
 
       {record?.status === 'Rejected' && record?.reviewNote && (
-        <Banner tone="danger" title={tr('Lý do Admin từ chối')}>
+        <Banner tone="danger" title={tr('Lý do Quản trị viên từ chối')}>
           {record.reviewNote}
         </Banner>
       )}
 
       {published && !staleStatusConflict && (
         <Banner tone="info" title={tr('Tạo bản chỉnh sửa mới')}>
-          {tr('Nội dung này đã xuất bản. Khi lưu, hệ thống tạo một bản nháp chỉnh sửa mới để Admin phê duyệt mà không làm gián đoạn dữ liệu học viên đang học.')}
+          {tr('Nội dung này đã xuất bản. Khi lưu, hệ thống tạo một bản nháp chỉnh sửa mới để Quản trị viên phê duyệt mà không làm gián đoạn dữ liệu học viên đang học.')}
         </Banner>
       )}
 
@@ -947,14 +947,14 @@ export function ContentForm({
                 </h3>
                 {levelSections.length > 0 && (
                   <span className="text-xs text-rp-text-muted">
-                    {tr('Cấu hình Admin')}: {levelSections.map((s) => `${s.name}${s.durationMinutes ? ` (${s.durationMinutes}p)` : ''}`).join(' · ')}
+                    {tr('Cấu hình Quản trị viên')}: {levelSections.map((s) => `${s.name}${s.durationMinutes ? ` (${s.durationMinutes}p)` : ''}`).join(' · ')}
                   </span>
                 )}
               </div>
 
               {data.certificateLevelId && levelSections.length === 0 && (
                 <Banner tone="warning" title={tr('Chưa có phần thi cho cấp độ này')}>
-                  {tr('Admin chưa cấu hình Phần thi cho cấp độ đã chọn. Vui lòng chọn cấp độ khác hoặc nhờ Admin bổ sung Phần thi.')}
+                  {tr('Quản trị viên chưa cấu hình Phần thi cho cấp độ đã chọn. Vui lòng chọn cấp độ khác hoặc nhờ Quản trị viên bổ sung Phần thi.')}
                 </Banner>
               )}
 
@@ -1195,7 +1195,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
     },
     onSuccess: async (saved) => {
       setEditor(null);
-      notify.success('Đã lưu và gửi Admin xét duyệt.', '', { key: 'manual-content-save', replace: true });
+      notify.success('Đã lưu và gửi Quản trị viên xét duyệt.', '', { key: 'manual-content-save', replace: true });
       await invalidateAll(saved.id);
     },
     onError: (err) => notify.apiError(err, 'Chưa gửi được nội dung để duyệt', { key: 'manual-content-save', replace: true }),
@@ -1207,7 +1207,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
       return id;
     },
     onSuccess: async (id) => {
-      notify.success('Đã gửi nội dung để Admin xét duyệt.', '', { key: `manual-content-submit-${id}` });
+      notify.success('Đã gửi nội dung để Quản trị viên xét duyệt.', '', { key: `manual-content-submit-${id}` });
       await invalidateAll(id);
     },
     onError: (err) => notify.apiError(err, 'Không gửi được nội dung để duyệt', { key: 'manual-content-submit-err' }),
@@ -1282,7 +1282,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
               {row.sourceFileName && <span>· {row.sourceFileName}</span>}
             </div>
             {row.reviewNote && (
-              <p className="mt-1 text-xs font-medium text-rp-danger">{trf('Phản hồi Admin: {0}', { 0: row.reviewNote })}</p>
+              <p className="mt-1 text-xs font-medium text-rp-danger">{trf('Phản hồi Quản trị viên: {0}', { 0: row.reviewNote })}</p>
             )}
           </div>
         );
@@ -1341,7 +1341,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
         }
         description={
           examOnly
-            ? tr('Soạn đề thi thử theo từng phần thi Admin đã cấu hình, xem trước và gửi duyệt.')
+            ? tr('Soạn đề thi thử theo từng phần thi Quản trị viên đã cấu hình, xem trước và gửi duyệt.')
             : fixedType === 'Lesson'
               ? tr('Tạo, chỉnh sửa bài học theo từng chứng chỉ và cấp độ (N5–N1), gắn chủ đề và tệp âm thanh.')
               : tr('Soạn thảo bài học, từ vựng, Hán tự, ngữ pháp, bài tập và đề thi; lưu bản nháp hoặc gửi duyệt.')

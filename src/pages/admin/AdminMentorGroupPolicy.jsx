@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft,
-  ArrowRight,
   CheckCircle2,
-  GitCompare,
   Plus,
+  RotateCcw,
 } from 'lucide-react';
 import {
+  activateMentorGroupPolicyVersion,
   createMentorGroupPolicyVersion,
+  deleteMentorGroupPolicyVersion,
   getCurrentMentorGroupPolicy,
   getMentorGroupPolicyHistory,
+  getMentorGroupPolicyLevels,
+  updateMentorGroupPolicySection,
+  updateMentorGroupPolicyVersion,
 } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -20,10 +23,8 @@ import {
   Banner,
   Button,
   Card,
-  Checkbox,
   ContextualErrorState,
   CustomSelect,
-  DateInput,
   DrawerBody,
   DrawerFooter,
   DrawerHeader,
@@ -31,60 +32,56 @@ import {
   Field,
   Input,
   Modal,
+  NumberInput,
   RefreshButton,
   SakuraLoader,
   SideDrawer,
-  Tabs,
+  Switch,
 } from '@/components/ui';
 import {
   AdminDataTable,
   AdminIconAction,
   AdminRowActions,
+  AdminToolbar,
 } from '@/features/admin/components/AdminPrimitives.jsx';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useLocale } from '@/locales/locale.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
 
-function nextVnMidnightIso(daysAhead = 1) {
-  const vnToday = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-  const [y, m, d] = vnToday.split('-').map(Number);
-  const utc = new Date(Date.UTC(y, m - 1, d + daysAhead, -7, 0, 0));
-  return utc.toISOString();
-}
+const OPERATING_MINUTES_PER_DAY = 15 * 60;
 
-function nextVnDateString() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(Date.now() + 86400_000));
-}
-
-function formatVnDate(iso) {
-  if (!iso) return '—';
-  try {
-    return new Intl.DateTimeFormat('vi-VN', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(new Date(iso));
-  } catch {
-    return String(iso).slice(0, 10);
-  }
-}
-
-/** "2,3,4" → [2,3,4] (bỏ giá trị trùng / ngoài 1..7); rỗng nếu không hợp lệ. */
 function parseSessionsCsv(csv) {
-  const parts = String(csv || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const parts = String(csv || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
   const values = parts.map(Number);
-  if (!values.length || values.some((n) => !Number.isInteger(n) || n < 1 || n > 7)) return [];
+  if (!values.length || values.some((n) => !Number.isInteger(n) || n < 1)) return [];
   return [...new Set(values)].sort((a, b) => a - b);
+}
+
+function isContiguousRange(list) {
+  if (!Array.isArray(list) || list.length === 0) return false;
+  for (let i = 1; i < list.length; i += 1) {
+    if (list[i] !== list[i - 1] + 1) return false;
+  }
+  return true;
+}
+
+function buildRangeList(min, max) {
+  if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || min > max || max - min > 100) return [];
+  const out = [];
+  for (let i = min; i <= max; i += 1) out.push(i);
+  return out;
+}
+
+function formatAllowedSessionsDisplay(allowedList, trf) {
+  if (!Array.isArray(allowedList) || allowedList.length === 0) return '—';
+  if (allowedList.length === 1) return trf('{0} buổi', { 0: allowedList[0] });
+  if (isContiguousRange(allowedList)) {
+    return trf('{0}–{1} buổi', { 0: allowedList[0], 1: allowedList[allowedList.length - 1] });
+  }
+  return trf('{0} buổi', { 0: allowedList.join(', ') });
 }
 
 function parsePatterns(jsonText) {
@@ -96,795 +93,2014 @@ function parsePatterns(jsonText) {
   }
 }
 
-const WIZARD_STEPS = [
-  { value: 'class', label: '1. Lớp & sĩ số' },
-  { value: 'schedule', label: '2. Lịch dạy' },
-  { value: 'changes', label: '3. Hủy & đổi lớp' },
-  { value: 'homework', label: '4. Bài tập & đánh giá' },
-  { value: 'kpi', label: '5. KPI' },
-  { value: 'review', label: '6. Xem lại & ban hành' },
-];
+const TUITION_FIELD_BY_CODE = {
+  N5: 'tuitionPerSessionN5',
+  N4: 'tuitionPerSessionN4',
+  N3: 'tuitionPerSessionN3',
+  N2: 'tuitionPerSessionN2',
+};
 
-const POLICY_COMPARE_FIELDS = [
-  { key: 'maxLearners', label: 'Sĩ số tối đa' },
-  { key: 'minLearnersToStart', label: 'Số học viên tối thiểu để khai giảng' },
-  { key: 'courseDurationWeeks', label: 'Thời lượng khóa (tuần)' },
-  { key: 'allowedSessionsPerWeekCsv', label: 'Cường độ buổi/tuần được phép' },
-  { key: 'defaultSessionsPerWeek', label: 'Cường độ mặc định' },
-  { key: 'checkoutHoldMinutes', label: 'Giữ chỗ thanh toán (phút)' },
-  { key: 'sessionMinutes', label: 'Thời lượng buổi (phút)' },
-  { key: 'restMinutes', label: 'Nghỉ giữa buổi (phút)' },
-  { key: 'dailySessionCap', label: 'Giới hạn ca Giáo viên / ngày' },
-  { key: 'weeklySessionCap', label: 'Giới hạn ca Giáo viên / tuần (0 = không giới hạn)' },
-  { key: 'publicationHorizonDays', label: 'Hạn công bố lịch (ngày)' },
-  { key: 'enrollmentCutoffMinutesBeforeFirstSession', label: 'Khóa ghi danh trước khai giảng (phút)' },
-  { key: 'cancellationLeadHours', label: 'Báo trước hủy lịch (giờ)' },
-  { key: 'reschedulingLeadHours', label: 'Báo trước dời lịch (giờ)' },
-  { key: 'learnerTransferEnabled', label: 'Cho phép yêu cầu chuyển lớp', bool: true },
-  { key: 'mentorReplacementEnabled', label: 'Cho phép thay giáo viên chính', bool: true },
-  { key: 'mentorReplacementLeadHours', label: 'Báo trước thay giáo viên (giờ)' },
-  { key: 'homeworkDeadlineDays', label: 'Hạn nộp bài tập mặc định (ngày)' },
-  { key: 'placementAttemptLimit', label: 'Giới hạn lượt đánh giá năng lực' },
-  { key: 'remediationCompletionThresholdPercent', label: 'Ngưỡng bài tập xét học lại (%)' },
-  { key: 'remediationThresholdComparison', label: 'Điều kiện so sánh tỷ lệ bài tập' },
-  { key: 'kpiReportingPeriodDays', label: 'Chu kỳ báo cáo KPI (ngày)' },
-];
+const POLICY_SECTION_META = {
+  limits: { code: 'A', title: 'Giới hạn lớp của giáo viên' },
+  structure: { code: 'B', title: 'Cấu trúc lớp học' },
+  schedule: { code: 'C', title: 'Lịch và tải giảng dạy' },
+  admission: { code: 'D', title: 'Tuyển sinh & ghi danh' },
+  coordination: { code: 'E', title: 'Điều phối lớp học' },
+  training: { code: 'F', title: 'Đào tạo & đánh giá' },
+};
 
-export default function AdminMentorGroupPolicy({ renderToolbar } = {}) {
-  const { tr, trf } = useLocale();
+const POLICY_SECTION_ORDER = ['limits', 'structure', 'schedule', 'admission', 'coordination', 'training'];
+
+function formatVnd(amount, intlTag = 'vi-VN') {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n < 0) return '—';
+  return `${Math.trunc(n).toLocaleString(intlTag)} đ`;
+}
+
+function extractLevelLimits(policy, supportedCodes = []) {
+  const raw = policy?.maxActiveClassesByLevel && typeof policy.maxActiveClassesByLevel === 'object'
+    ? policy.maxActiveClassesByLevel
+    : {};
+  const result = {};
+  const keys = supportedCodes.length > 0 ? supportedCodes : Object.keys(raw);
+  for (const rawCode of keys) {
+    const code = String(rawCode || '').trim().toUpperCase();
+    if (!code) continue;
+    const val = raw[code] ?? raw[code.toLowerCase()];
+    result[code] = Number.isFinite(Number(val)) ? Number(val) : 0;
+  }
+  return result;
+}
+
+function isStrictIntInRange(raw, min, max) {
+  if (raw === '' || raw === null || raw === undefined) return false;
+  const num = Number(raw);
+  return Number.isInteger(num) && num >= min && num <= max;
+}
+
+function computeSchedulableWeeklyLimit(draft) {
+  const sessionMin = Number(draft?.sessionMinutes);
+  const restMin = Number(draft?.restMinutes);
+  const dailyCap = Number(draft?.dailySessionCap);
+  const weeklyCap = Number(draft?.weeklySessionCap);
+  const validSession = Number.isInteger(sessionMin) && sessionMin > 0;
+  const validRest = Number.isInteger(restMin) && restMin >= 0;
+  const maxPhysicalSlotsPerDay = validSession && validRest
+    ? Math.max(1, Math.floor((OPERATING_MINUTES_PER_DAY + restMin) / (sessionMin + restMin)))
+    : 12;
+  const effectiveMaxPerDay = Number.isInteger(dailyCap) && dailyCap >= 1
+    ? Math.min(dailyCap, maxPhysicalSlotsPerDay)
+    : maxPhysicalSlotsPerDay;
+  const maxFromDaily = effectiveMaxPerDay * 7;
+  const hasWeeklyCap = Number.isInteger(weeklyCap) && weeklyCap > 0;
+  const maxAchievable = hasWeeklyCap ? Math.min(maxFromDaily, weeklyCap) : maxFromDaily;
+  return {
+    maxPhysicalSlotsPerDay,
+    effectiveMaxPerDay,
+    maxFromDaily,
+    hasWeeklyCap,
+    weeklyCap: hasWeeklyCap ? weeklyCap : 0,
+    maxAchievable,
+  };
+}
+
+function resolveDraftAllowedSessions(draft) {
+  if (!draft) return [];
+  if (!draft.sessionsRangeTouched && Array.isArray(draft.legacyNonContiguousSessions)) {
+    return draft.legacyNonContiguousSessions;
+  }
+  const min = Number(draft.minSessionsPerWeek);
+  const max = Number(draft.maxSessionsPerWeek);
+  if (!isStrictIntInRange(draft.minSessionsPerWeek, 1, 84) || !isStrictIntInRange(draft.maxSessionsPerWeek, 1, 84) || min > max) {
+    return [];
+  }
+  return buildRangeList(min, max);
+}
+
+function buildDraftFromPolicy(policy, supportedCodes = []) {
+  if (!policy) return null;
+  const allowed = parseSessionsCsv(policy.allowedSessionsPerWeekCsv);
+  const fallbackAllowed = allowed.length > 0 ? allowed : [2, 3, 4];
+  const legacyNonContiguous = !isContiguousRange(fallbackAllowed) ? fallbackAllowed : null;
+  const defaultNum = Number(policy.defaultSessionsPerWeek);
+  const defaultSpw = fallbackAllowed.includes(defaultNum) ? defaultNum : '';
+
+  return {
+    maxLearners: policy.maxLearners,
+    minLearnersToStart: policy.minLearnersToStart,
+    maxTotalActiveClassesPerMentor: policy.maxTotalActiveClassesPerMentor,
+    maxActiveClassesByLevel: extractLevelLimits(policy, supportedCodes),
+    courseDurationWeeks: policy.courseDurationWeeks,
+    minSessionsPerWeek: fallbackAllowed[0],
+    maxSessionsPerWeek: fallbackAllowed[fallbackAllowed.length - 1],
+    legacyNonContiguousSessions: legacyNonContiguous,
+    sessionsRangeTouched: false,
+    defaultSessionsPerWeek: defaultSpw,
+    sessionMinutes: policy.sessionMinutes,
+    restMinutes: policy.restMinutes,
+    dailySessionCap: policy.dailySessionCap,
+    weeklySessionCap: policy.weeklySessionCap,
+    publicationHorizonDays: policy.publicationHorizonDays,
+    minimumProposalLeadDays: policy.minimumProposalLeadDays,
+    minimumPublishedEnrollmentDays: policy.minimumPublishedEnrollmentDays,
+    enrollmentCutoffMinutesBeforeFirstSession: policy.enrollmentCutoffMinutesBeforeFirstSession,
+    checkoutHoldMinutes: policy.checkoutHoldMinutes,
+    cancellationLeadHours: policy.cancellationLeadHours,
+    reschedulingLeadHours: policy.reschedulingLeadHours,
+    learnerTransferEnabled: Boolean(policy.learnerTransferEnabled),
+    mentorReplacementEnabled: Boolean(policy.mentorReplacementEnabled),
+    mentorReplacementLeadHours: policy.mentorReplacementLeadHours,
+    homeworkDeadlineDays: policy.homeworkDeadlineDays,
+    placementAttemptLimit: policy.placementAttemptLimit,
+    remediationCompletionThresholdPercent: policy.remediationCompletionThresholdPercent,
+    remediationThresholdComparison: policy.remediationThresholdComparison || '>',
+    kpiReportingPeriodDays: policy.kpiReportingPeriodDays,
+    tuitionPerSessionN5: policy.tuitionPerSessionN5,
+    tuitionPerSessionN4: policy.tuitionPerSessionN4,
+    tuitionPerSessionN3: policy.tuitionPerSessionN3,
+    tuitionPerSessionN2: policy.tuitionPerSessionN2,
+  };
+}
+
+function validatePolicyDraft(draft, supportedCodes, supportedLevels, tr, trf) {
+  if (!draft) return { hasErrors: true, bySection: {}, levelErrors: {}, tuitionErrors: {}, allowedSessions: [] };
+
+  const maxLearnersValid = isStrictIntInRange(draft.maxLearners, 1, 50);
+  const maxLearnersNum = maxLearnersValid ? Number(draft.maxLearners) : 50;
+  const minLearnersInvalid = !isStrictIntInRange(draft.minLearnersToStart, 1, maxLearnersNum);
+  const maxLearnersInvalid = !maxLearnersValid
+    || (isStrictIntInRange(draft.minLearnersToStart, 1, 50) && Number(draft.maxLearners) < Number(draft.minLearnersToStart));
+
+  const schedLimit = computeSchedulableWeeklyLimit(draft);
+  const allowedList = resolveDraftAllowedSessions(draft);
+  const minSpwRawValid = isStrictIntInRange(draft.minSessionsPerWeek, 1, 84);
+  const maxSpwRawValid = isStrictIntInRange(draft.maxSessionsPerWeek, 1, 84);
+  const minSpwNum = Number(draft.minSessionsPerWeek);
+  const maxSpwNum = Number(draft.maxSessionsPerWeek);
+
+  let minSpwError = '';
+  if (!minSpwRawValid) {
+    minSpwError = tr('Nhập số nguyên dương (>= 1).');
+  } else if (maxSpwRawValid && minSpwNum > maxSpwNum) {
+    minSpwError = tr('Không được lớn hơn số buổi tối đa.');
+  } else if (minSpwNum > schedLimit.maxAchievable) {
+    minSpwError = trf('Vượt khả năng tổ chức tối đa ({0} buổi mỗi tuần).', { 0: schedLimit.maxAchievable });
+  }
+
+  let maxSpwError = '';
+  if (!maxSpwRawValid) {
+    maxSpwError = tr('Nhập số nguyên dương (>= 1).');
+  } else if (minSpwRawValid && maxSpwNum < minSpwNum) {
+    maxSpwError = tr('Không được nhỏ hơn số buổi tối thiểu.');
+  } else if (schedLimit.hasWeeklyCap && maxSpwNum > schedLimit.weeklyCap) {
+    maxSpwError = trf('Không vượt quá tải dạy tối đa ({0} buổi mỗi tuần).', { 0: schedLimit.weeklyCap });
+  } else if (maxSpwNum > schedLimit.maxFromDaily) {
+    maxSpwError = trf('Vượt khả năng xếp lịch ({0} buổi mỗi ngày × 7 = {1} buổi).', {
+      0: schedLimit.effectiveMaxPerDay,
+      1: schedLimit.maxFromDaily,
+    });
+  }
+
+  const allowedSessionsInvalid = allowedList.length === 0;
+  let defaultSpwError = '';
+  if (allowedSessionsInvalid) {
+    defaultSpwError = tr('Cần nhập khoảng số buổi hợp lệ.');
+  } else if (
+    draft.defaultSessionsPerWeek === ''
+    || draft.defaultSessionsPerWeek === null
+    || draft.defaultSessionsPerWeek === undefined
+    || !allowedList.includes(Number(draft.defaultSessionsPerWeek))
+  ) {
+    defaultSpwError = tr('Giá trị mặc định không còn hợp lệ. Vui lòng chọn lại.');
+  }
+
+  const configuredMaxSpw = allowedList.length > 0
+    ? allowedList[allowedList.length - 1]
+    : (maxSpwRawValid ? maxSpwNum : 0);
+  let scheduleSessionConflictMessage = '';
+  if (configuredMaxSpw > 0 && configuredMaxSpw > schedLimit.maxAchievable) {
+    scheduleSessionConflictMessage = schedLimit.hasWeeklyCap && configuredMaxSpw > schedLimit.weeklyCap
+      ? trf('Số buổi dạy tối đa mỗi tuần ({0}) đang thấp hơn số buổi học tối đa mỗi tuần ({1} buổi).', {
+        0: schedLimit.weeklyCap,
+        1: configuredMaxSpw,
+      })
+      : trf('Khả năng xếp lịch ({0} buổi mỗi ngày × 7 = {1} buổi) không đủ cho cấu hình {2} buổi mỗi tuần.', {
+        0: schedLimit.effectiveMaxPerDay,
+        1: schedLimit.maxFromDaily,
+        2: configuredMaxSpw,
+      });
+  }
+
+  const durationWeeksInvalid = !isStrictIntInRange(draft.courseDurationWeeks, 1, 52);
+  const sessionMinutesInvalid = !isStrictIntInRange(draft.sessionMinutes, 30, 240);
+  const restMinutesInvalid = !isStrictIntInRange(draft.restMinutes, 0, 120);
+  const dailyCapInvalid = !isStrictIntInRange(draft.dailySessionCap, 1, 12);
+  const weeklyCapInvalid = !isStrictIntInRange(draft.weeklySessionCap, 0, 84);
+  const horizonInvalid = !isStrictIntInRange(draft.publicationHorizonDays, 1, 365);
+
+  const proposalLeadValid = isStrictIntInRange(draft.minimumProposalLeadDays, 1, 180);
+  const publishEnrollValid = isStrictIntInRange(draft.minimumPublishedEnrollmentDays, 1, 180);
+  const proposalLeadInvalid = !proposalLeadValid;
+  const publishEnrollInvalid = !publishEnrollValid
+    || (proposalLeadValid && Number(draft.minimumPublishedEnrollmentDays) > Number(draft.minimumProposalLeadDays));
+
+  const cutoffInvalid = !isStrictIntInRange(draft.enrollmentCutoffMinutesBeforeFirstSession, 0, 10080);
+  const holdMinutesInvalid = !isStrictIntInRange(draft.checkoutHoldMinutes, 1, 60);
+
+  const cancelLeadInvalid = !isStrictIntInRange(draft.cancellationLeadHours, 0, 720);
+  const rescheduleLeadInvalid = !isStrictIntInRange(draft.reschedulingLeadHours, 0, 720);
+  const replacementLeadInvalid = !isStrictIntInRange(draft.mentorReplacementLeadHours, 0, 720);
+
+  const homeworkDaysInvalid = !isStrictIntInRange(draft.homeworkDeadlineDays, 1, 365);
+  const placementLimitInvalid = !isStrictIntInRange(draft.placementAttemptLimit, 1, 20);
+  const remPct = Number(draft.remediationCompletionThresholdPercent);
+  const remediationPctInvalid = draft.remediationCompletionThresholdPercent === ''
+    || !Number.isFinite(remPct)
+    || remPct <= 0
+    || remPct > 100;
+  const kpiDaysInvalid = !isStrictIntInRange(draft.kpiReportingPeriodDays, 1, 366);
+
+  const maxTotalClassesInvalid = !isStrictIntInRange(draft.maxTotalActiveClassesPerMentor, 1, 50);
+
+  const levelErrors = {};
+  for (const code of supportedCodes) {
+    const raw = draft.maxActiveClassesByLevel?.[code];
+    if (!isStrictIntInRange(raw, 0, 50)) {
+      levelErrors[code] = tr('Nhập số nguyên 0–50.');
+    }
+  }
+  const allPerLevelZero = supportedCodes.length > 0
+    && Object.keys(levelErrors).length === 0
+    && supportedCodes.every((code) => Number(draft.maxActiveClassesByLevel?.[code] || 0) <= 0);
+  const levelLimitsInvalid = Object.keys(levelErrors).length > 0 || allPerLevelZero;
+
+  const tuitionErrors = {};
+  for (const lvl of supportedLevels) {
+    const fieldKey = TUITION_FIELD_BY_CODE[lvl.code];
+    if (!fieldKey) continue;
+    const raw = draft[fieldKey];
+    if (!isStrictIntInRange(raw, 1, 50_000_000)) {
+      tuitionErrors[fieldKey] = tr('Nhập số nguyên dương (VND).');
+    }
+  }
+
+  const bySection = {
+    limits: maxTotalClassesInvalid || levelLimitsInvalid,
+    structure: minLearnersInvalid
+      || maxLearnersInvalid
+      || Boolean(minSpwError)
+      || Boolean(maxSpwError)
+      || allowedSessionsInvalid
+      || Boolean(defaultSpwError)
+      || durationWeeksInvalid
+      || sessionMinutesInvalid,
+    schedule: restMinutesInvalid
+      || dailyCapInvalid
+      || weeklyCapInvalid
+      || horizonInvalid
+      || Boolean(scheduleSessionConflictMessage),
+    admission: proposalLeadInvalid || publishEnrollInvalid || cutoffInvalid || holdMinutesInvalid,
+    coordination: cancelLeadInvalid || rescheduleLeadInvalid || replacementLeadInvalid,
+    training: homeworkDaysInvalid || placementLimitInvalid || remediationPctInvalid || kpiDaysInvalid,
+  };
+
+  return {
+    minLearnersInvalid,
+    maxLearnersInvalid,
+    minSpwError,
+    maxSpwError,
+    allowedSessionsInvalid,
+    defaultSpwError,
+    allowedSessions: allowedList,
+    schedLimit,
+    scheduleSessionConflictMessage,
+    durationWeeksInvalid,
+    sessionMinutesInvalid,
+    restMinutesInvalid,
+    dailyCapInvalid,
+    weeklyCapInvalid,
+    horizonInvalid,
+    proposalLeadInvalid,
+    publishEnrollInvalid,
+    cutoffInvalid,
+    holdMinutesInvalid,
+    cancelLeadInvalid,
+    rescheduleLeadInvalid,
+    replacementLeadInvalid,
+    homeworkDaysInvalid,
+    placementLimitInvalid,
+    remediationPctInvalid,
+    kpiDaysInvalid,
+    maxTotalClassesInvalid,
+    levelErrors,
+    allPerLevelZero,
+    levelLimitsInvalid,
+    tuitionErrors,
+    bySection,
+    hasErrors: Object.values(bySection).some(Boolean) || Object.keys(tuitionErrors).length > 0,
+  };
+}
+
+function SectionHeading({ code, title }) {
+  return (
+    <div className="flex items-center gap-2">
+      {code && (
+        <span className="inline-flex h-5.5 min-w-[22px] items-center justify-center rounded-md border border-rp-brand-border/80 bg-white px-1.5 text-[11px] font-bold text-rp-brand-strong shadow-2xs">
+          {code}
+        </span>
+      )}
+      <h3 className="m-0 text-[14px] font-bold text-rp-brand-strong">{title}</h3>
+    </div>
+  );
+}
+
+function CardRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <dt className="text-[12.5px] leading-5 text-rp-text-2">{label}</dt>
+      <dd className="m-0 text-right text-[12.5px] font-semibold leading-5 tabular-nums text-rp-text">{value}</dd>
+    </div>
+  );
+}
+
+function SectionFields({
+  sectionKey,
+  draft,
+  validation,
+  supportedLevels,
+  onFieldChange,
+  onLevelLimitChange,
+  onSessionRangeChange,
+  compactCols = false,
+  tr,
+  trf,
+}) {
+  if (!draft) return null;
+  const gridCls = compactCols
+    ? 'grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2'
+    : 'grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3';
+  const allowedList = validation.allowedSessions || [];
+  const defaultValueStr = allowedList.includes(Number(draft.defaultSessionsPerWeek))
+    ? String(draft.defaultSessionsPerWeek)
+    : '';
+
+  if (sectionKey === 'limits') {
+    return (
+      <div className="space-y-4">
+        <div className={gridCls}>
+          {supportedLevels.map((lvl) => (
+            <Field
+              key={lvl.code}
+              label={trf('Số lớp {0} được đăng ký', { 0: lvl.code })}
+              error={validation.levelErrors[lvl.code]}
+            >
+              <NumberInput
+                min={0}
+                max={50}
+                unit="lớp"
+                className="w-[132px]"
+                invalid={Boolean(validation.levelErrors[lvl.code]) || validation.allPerLevelZero}
+                value={draft.maxActiveClassesByLevel?.[lvl.code] ?? ''}
+                onChange={(val) => onLevelLimitChange(lvl.code, val)}
+              />
+            </Field>
+          ))}
+          <Field
+            label={tr('Tổng số lớp mỗi giáo viên')}
+            error={validation.maxTotalClassesInvalid ? tr('Nhập số nguyên 1–50.') : undefined}
+          >
+            <NumberInput
+              min={1}
+              max={50}
+              unit="lớp"
+              className="w-[132px]"
+              invalid={validation.maxTotalClassesInvalid}
+              value={draft.maxTotalActiveClassesPerMentor}
+              onChange={(val) => onFieldChange('maxTotalActiveClassesPerMentor', val)}
+            />
+          </Field>
+        </div>
+        {validation.allPerLevelZero && (
+          <Banner tone="warning" title={tr('Cần cho phép ít nhất 1 cấp độ')}>
+            {tr('Ít nhất một cấp độ JLPT phải có số lớp được đăng ký lớn hơn hoặc bằng 1.')}
+          </Banner>
+        )}
+      </div>
+    );
+  }
+
+  if (sectionKey === 'structure') {
+    return (
+      <div className="space-y-4">
+        <div className={gridCls}>
+          <Field
+            label={tr('Sĩ số tối thiểu')}
+            error={validation.minLearnersInvalid ? tr('Từ 1 đến sĩ số tối đa.') : undefined}
+          >
+            <NumberInput
+              min={1}
+              max={Number(draft.maxLearners) >= 1 ? Number(draft.maxLearners) : 50}
+              unit="học viên"
+              className="w-[144px]"
+              invalid={validation.minLearnersInvalid}
+              value={draft.minLearnersToStart}
+              onChange={(val) => onFieldChange('minLearnersToStart', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Sĩ số tối đa')}
+            error={validation.maxLearnersInvalid ? tr('Số nguyên từ 1 đến 50.') : undefined}
+          >
+            <NumberInput
+              min={1}
+              max={50}
+              unit="học viên"
+              className="w-[144px]"
+              invalid={validation.maxLearnersInvalid}
+              value={draft.maxLearners}
+              onChange={(val) => onFieldChange('maxLearners', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Thời lượng khóa học')}
+            error={validation.durationWeeksInvalid ? tr('Từ 1 đến 52 tuần.') : undefined}
+          >
+            <NumberInput
+              min={1}
+              max={52}
+              unit="tuần"
+              className="w-[132px]"
+              invalid={validation.durationWeeksInvalid}
+              value={draft.courseDurationWeeks}
+              onChange={(val) => onFieldChange('courseDurationWeeks', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Thời lượng mỗi buổi')}
+            error={validation.sessionMinutesInvalid ? tr('Từ 30 đến 240 phút.') : undefined}
+          >
+            <NumberInput
+              min={30}
+              max={240}
+              step={5}
+              unit="phút"
+              className="w-[132px]"
+              invalid={validation.sessionMinutesInvalid}
+              value={draft.sessionMinutes}
+              onChange={(val) => onFieldChange('sessionMinutes', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Số buổi tối thiểu mỗi tuần')}
+            error={validation.minSpwError || undefined}
+          >
+            <NumberInput
+              min={1}
+              max={84}
+              unit="buổi"
+              className="w-[132px]"
+              invalid={Boolean(validation.minSpwError)}
+              value={draft.minSessionsPerWeek}
+              onChange={(val) => onSessionRangeChange('minSessionsPerWeek', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Số buổi tối đa mỗi tuần')}
+            error={validation.maxSpwError || undefined}
+          >
+            <NumberInput
+              min={1}
+              max={84}
+              unit="buổi"
+              className="w-[132px]"
+              invalid={Boolean(validation.maxSpwError)}
+              value={draft.maxSessionsPerWeek}
+              onChange={(val) => onSessionRangeChange('maxSessionsPerWeek', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Số buổi mặc định mỗi tuần')}
+            error={validation.defaultSpwError || undefined}
+          >
+            <CustomSelect
+              fitContent
+              className="min-w-[180px]"
+              invalid={Boolean(validation.defaultSpwError)}
+              disabled={allowedList.length === 0}
+              value={defaultValueStr}
+              onChange={(val) => onFieldChange('defaultSessionsPerWeek', val === '' ? '' : Number(val))}
+              placeholder={tr('Chọn số buổi mặc định')}
+              options={allowedList.map((w) => ({
+                value: String(w),
+                label: trf('{0} buổi', { 0: w }),
+              }))}
+            />
+          </Field>
+        </div>
+
+        {!draft.sessionsRangeTouched && Array.isArray(draft.legacyNonContiguousSessions) && (
+          <Banner tone="info">
+            {trf('Phiên bản này đang giữ danh sách lịch sử không liên tục ({0} buổi mỗi tuần). Chỉnh sửa tối thiểu hoặc tối đa sẽ chuyển sang dải liên tục.', {
+              0: draft.legacyNonContiguousSessions.join(', '),
+            })}
+          </Banner>
+        )}
+      </div>
+    );
+  }
+
+  if (sectionKey === 'schedule') {
+    return (
+      <div className="space-y-4">
+        <div className={gridCls}>
+          <Field
+            label={tr('Khoảng nghỉ giữa hai buổi')}
+            error={validation.restMinutesInvalid ? tr('Từ 0 đến 120 phút.') : undefined}
+          >
+            <NumberInput
+              min={0}
+              max={120}
+              step={5}
+              unit="phút"
+              className="w-[132px]"
+              invalid={validation.restMinutesInvalid}
+              value={draft.restMinutes}
+              onChange={(val) => onFieldChange('restMinutes', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Số buổi dạy tối đa mỗi ngày')}
+            error={validation.dailyCapInvalid ? tr('Từ 1 đến 12 buổi.') : undefined}
+          >
+            <NumberInput
+              min={1}
+              max={12}
+              unit="buổi"
+              className="w-[132px]"
+              invalid={validation.dailyCapInvalid}
+              value={draft.dailySessionCap}
+              onChange={(val) => onFieldChange('dailySessionCap', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Số buổi dạy tối đa mỗi tuần')}
+            hint={tr('0 = không giới hạn tuần')}
+            error={validation.weeklyCapInvalid ? tr('Từ 0 đến 84 buổi.') : undefined}
+          >
+            <NumberInput
+              min={0}
+              max={84}
+              unit="buổi"
+              className="w-[132px]"
+              invalid={validation.weeklyCapInvalid}
+              value={draft.weeklySessionCap}
+              onChange={(val) => onFieldChange('weeklySessionCap', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Phạm vi công bố lịch')}
+            error={validation.horizonInvalid ? tr('Từ 1 đến 365 ngày.') : undefined}
+          >
+            <NumberInput
+              min={1}
+              max={365}
+              unit="ngày"
+              className="w-[132px]"
+              invalid={validation.horizonInvalid}
+              value={draft.publicationHorizonDays}
+              onChange={(val) => onFieldChange('publicationHorizonDays', val)}
+            />
+          </Field>
+        </div>
+        {validation.scheduleSessionConflictMessage && (
+          <Banner tone="warning" title={tr('Mâu thuẫn với cấu trúc lớp học')}>
+            {validation.scheduleSessionConflictMessage}
+          </Banner>
+        )}
+      </div>
+    );
+  }
+
+  if (sectionKey === 'admission') {
+    return (
+      <div className={gridCls}>
+        <Field
+          label={tr('Thời hạn gửi đề xuất trước ngày bắt đầu')}
+          error={validation.proposalLeadInvalid ? tr('Từ 1 đến 180 ngày.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={180}
+            unit="ngày"
+            className="w-[132px]"
+            invalid={validation.proposalLeadInvalid}
+            value={draft.minimumProposalLeadDays}
+            onChange={(val) => onFieldChange('minimumProposalLeadDays', val)}
+          />
+        </Field>
+        <Field
+          label={tr('Thời gian tuyển sinh tối thiểu')}
+          error={validation.publishEnrollInvalid ? tr('Không vượt quá thời hạn gửi đề xuất.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={Number(draft.minimumProposalLeadDays) >= 1 ? Number(draft.minimumProposalLeadDays) : 180}
+            unit="ngày"
+            className="w-[132px]"
+            invalid={validation.publishEnrollInvalid}
+            value={draft.minimumPublishedEnrollmentDays}
+            onChange={(val) => onFieldChange('minimumPublishedEnrollmentDays', val)}
+          />
+        </Field>
+        <Field
+          label={tr('Đóng tuyển sinh trước buổi đầu')}
+          error={validation.cutoffInvalid ? tr('Từ 0 đến 10.080 phút.') : undefined}
+        >
+          <NumberInput
+            min={0}
+            max={10080}
+            step={5}
+            unit="phút"
+            className="w-[140px]"
+            invalid={validation.cutoffInvalid}
+            value={draft.enrollmentCutoffMinutesBeforeFirstSession}
+            onChange={(val) => onFieldChange('enrollmentCutoffMinutesBeforeFirstSession', val)}
+          />
+        </Field>
+        <Field
+          label={tr('Thời gian giữ chỗ thanh toán')}
+          error={validation.holdMinutesInvalid ? tr('Từ 1 đến 60 phút.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={60}
+            unit="phút"
+            className="w-[132px]"
+            invalid={validation.holdMinutesInvalid}
+            value={draft.checkoutHoldMinutes}
+            onChange={(val) => onFieldChange('checkoutHoldMinutes', val)}
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  if (sectionKey === 'coordination') {
+    return (
+      <div className="space-y-4">
+        <div className={gridCls}>
+          <Field
+            label={tr('Báo trước khi hủy lịch')}
+            error={validation.cancelLeadInvalid ? tr('Từ 0 đến 720 giờ.') : undefined}
+          >
+            <NumberInput
+              min={0}
+              max={720}
+              unit="giờ"
+              className="w-[132px]"
+              invalid={validation.cancelLeadInvalid}
+              value={draft.cancellationLeadHours}
+              onChange={(val) => onFieldChange('cancellationLeadHours', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Báo trước khi đổi lịch')}
+            error={validation.rescheduleLeadInvalid ? tr('Từ 0 đến 720 giờ.') : undefined}
+          >
+            <NumberInput
+              min={0}
+              max={720}
+              unit="giờ"
+              className="w-[132px]"
+              invalid={validation.rescheduleLeadInvalid}
+              value={draft.reschedulingLeadHours}
+              onChange={(val) => onFieldChange('reschedulingLeadHours', val)}
+            />
+          </Field>
+          <Field
+            label={tr('Báo trước khi thay giáo viên')}
+            error={validation.replacementLeadInvalid ? tr('Từ 0 đến 720 giờ.') : undefined}
+          >
+            <NumberInput
+              min={0}
+              max={720}
+              unit="giờ"
+              className="w-[132px]"
+              invalid={validation.replacementLeadInvalid}
+              value={draft.mentorReplacementLeadHours}
+              onChange={(val) => onFieldChange('mentorReplacementLeadHours', val)}
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-2">
+          <Switch
+            fullWidth
+            label="Cho phép học viên yêu cầu chuyển lớp"
+            checked={draft.learnerTransferEnabled}
+            onCheckedChange={(checked) => onFieldChange('learnerTransferEnabled', checked)}
+          />
+          <Switch
+            fullWidth
+            label="Cho phép thay giáo viên chính"
+            checked={draft.mentorReplacementEnabled}
+            onCheckedChange={(checked) => onFieldChange('mentorReplacementEnabled', checked)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (sectionKey === 'training') {
+    return (
+      <div className={gridCls}>
+        <Field
+          label={tr('Hạn nộp bài tập mặc định')}
+          error={validation.homeworkDaysInvalid ? tr('Từ 1 đến 365 ngày.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={365}
+            unit="ngày"
+            className="w-[132px]"
+            invalid={validation.homeworkDaysInvalid}
+            value={draft.homeworkDeadlineDays}
+            onChange={(val) => onFieldChange('homeworkDeadlineDays', val)}
+          />
+        </Field>
+        <Field
+          label={tr('Giới hạn lượt đánh giá năng lực')}
+          error={validation.placementLimitInvalid ? tr('Từ 1 đến 20 lượt.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={20}
+            unit="lượt"
+            className="w-[132px]"
+            invalid={validation.placementLimitInvalid}
+            value={draft.placementAttemptLimit}
+            onChange={(val) => onFieldChange('placementAttemptLimit', val)}
+          />
+        </Field>
+        <Field
+          label={tr('Ngưỡng bài tập xét học lại')}
+          error={validation.remediationPctInvalid ? tr('Lớn hơn 0% và không quá 100%.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={100}
+            step={1}
+            integerOnly={false}
+            unit="%"
+            className="w-[132px]"
+            invalid={validation.remediationPctInvalid}
+            value={draft.remediationCompletionThresholdPercent}
+            onChange={(val) => onFieldChange('remediationCompletionThresholdPercent', val)}
+          />
+        </Field>
+        <Field label={tr('Điều kiện so sánh ngưỡng')}>
+          <CustomSelect
+            fitContent
+            className="min-w-[204px]"
+            value={draft.remediationThresholdComparison}
+            onChange={(val) => onFieldChange('remediationThresholdComparison', val)}
+            options={[
+              { value: '>', label: tr('> (lớn hơn hẳn)') },
+              { value: '>=', label: tr('>= (từ ngưỡng trở lên)') },
+            ]}
+          />
+        </Field>
+        <Field
+          label={tr('Chu kỳ báo cáo KPI')}
+          error={validation.kpiDaysInvalid ? tr('Từ 1 đến 366 ngày.') : undefined}
+        >
+          <NumberInput
+            min={1}
+            max={366}
+            unit="ngày"
+            className="w-[132px]"
+            invalid={validation.kpiDaysInvalid}
+            value={draft.kpiReportingPeriodDays}
+            onChange={(val) => onFieldChange('kpiReportingPeriodDays', val)}
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) {
+  const isTuitionMode = section === 'tuition';
+  const { tr, trf, fmt } = useLocale();
   const client = useQueryClient();
+
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState('class');
-  const [compareTarget, setCompareTarget] = useState(null);
+
+  // Which version is currently viewed in the 6 direct cards (null -> active policy)
+  const [viewedVersion, setViewedVersion] = useState(null);
+
+  // Single-card section modal editor
+  const [sectionEditor, setSectionEditor] = useState(null); // { sectionKey, basePolicy }
+  const [sectionForm, setSectionForm] = useState(null);
+
+  // Full-version Drawer editor (publish new version or edit selected version in place)
+  const [drawerState, setDrawerState] = useState(null); // { mode: 'publish' | 'edit', basePolicy }
+  const [drawerForm, setDrawerForm] = useState(null);
+  const [applyImmediately, setApplyImmediately] = useState(true);
+  const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+
+  // Tuition-tab local draft
+  const [tuitionForm, setTuitionForm] = useState(null);
+  const [confirmTuitionOpen, setConfirmTuitionOpen] = useState(false);
+
+  // Activate / Delete confirmations
+  const [activateTarget, setActivateTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const currentQuery = useQuery({
     queryKey: ADMIN_KEYS.policyCurrent,
     queryFn: getCurrentMentorGroupPolicy,
   });
+
   const historyQuery = useQuery({
     queryKey: ADMIN_KEYS.policyHistory,
     queryFn: getMentorGroupPolicyHistory,
   });
 
+  const levelsQuery = useQuery({
+    queryKey: ADMIN_KEYS.policyLevels,
+    queryFn: getMentorGroupPolicyLevels,
+  });
+
   const current = currentQuery.data;
-  const [form, setForm] = useState(null);
-  const [defaultEffectiveDate] = useState(() => nextVnDateString());
+  const history = useMemo(
+    () => (Array.isArray(historyQuery.data) ? historyQuery.data : []),
+    [historyQuery.data],
+  );
 
-  const draft = useMemo(() => (form || {
-    effectiveDate: defaultEffectiveDate,
-    maxLearners: current?.maxLearners ?? 4,
-    enrollmentCutoffMinutesBeforeFirstSession: current?.enrollmentCutoffMinutesBeforeFirstSession ?? 60,
-    sessionMinutes: current?.sessionMinutes ?? 90,
-    restMinutes: current?.restMinutes ?? 15,
-    dailySessionCap: current?.dailySessionCap ?? 4,
-    publicationHorizonDays: current?.publicationHorizonDays ?? 30,
-    cancellationLeadHours: current?.cancellationLeadHours ?? 24,
-    reschedulingLeadHours: current?.reschedulingLeadHours ?? 24,
-    homeworkDeadlineDays: current?.homeworkDeadlineDays ?? 7,
-    placementAttemptLimit: current?.placementAttemptLimit ?? 2,
-    remediationCompletionThresholdPercent: current?.remediationCompletionThresholdPercent ?? 90,
-    remediationThresholdComparison: current?.remediationThresholdComparison ?? '>',
-    requireOfficialExamEvidence: current?.requireOfficialExamEvidence ?? true,
-    requireAdminRemediationReview: current?.requireAdminRemediationReview ?? true,
-    kpiReportingPeriodDays: current?.kpiReportingPeriodDays ?? 30,
-    learnerTransferEnabled: current?.learnerTransferEnabled ?? true,
-    transferAllowedAfterSourceStart: false,
-    mentorReplacementEnabled: current?.mentorReplacementEnabled ?? true,
-    mentorReplacementLeadHours: current?.mentorReplacementLeadHours ?? 24,
-    weeklySessionCap: current?.weeklySessionCap ?? 0,
-    courseDurationWeeks: current?.courseDurationWeeks ?? 10,
-    allowedSessionsPerWeekCsv: current?.allowedSessionsPerWeekCsv ?? '2,3,4',
-    defaultSessionsPerWeek: current?.defaultSessionsPerWeek ?? 3,
-    checkoutHoldMinutes: current?.checkoutHoldMinutes ?? 10,
-    minLearnersToStart: current?.minLearnersToStart ?? 1,
-  }), [form, defaultEffectiveDate, current]);
+  const viewedPolicy = useMemo(() => {
+    if (viewedVersion != null) {
+      const matched = history.find((h) => Number(h.version) === Number(viewedVersion));
+      if (matched) return matched;
+    }
+    return current || history.find((h) => h.isActive) || history[0] || null;
+  }, [viewedVersion, history, current]);
 
-  const allowedSessionsPerWeek = parseSessionsCsv(draft.allowedSessionsPerWeekCsv);
-  const sessionsCsvInvalid = allowedSessionsPerWeek.length === 0;
-  const defaultSpwInvalid = !sessionsCsvInvalid && !allowedSessionsPerWeek.includes(Number(draft.defaultSessionsPerWeek));
-  const minLearnersInvalid = Number(draft.minLearnersToStart) < 1 || Number(draft.minLearnersToStart) > Number(draft.maxLearners);
-  const maxLearnersInvalid = Number(draft.maxLearners) < 1 || Number(draft.maxLearners) > 20;
-  const formInvalid = sessionsCsvInvalid || defaultSpwInvalid || minLearnersInvalid || maxLearnersInvalid;
+  const supportedLevels = useMemo(() => {
+    const apiLevels = Array.isArray(levelsQuery.data) ? levelsQuery.data : [];
+    if (apiLevels.length > 0) {
+      return apiLevels.map((lvl) => ({
+        id: lvl.id,
+        code: String(lvl.code || '').trim().toUpperCase(),
+        name: lvl.name || lvl.code,
+      }));
+    }
+    const keys = Object.keys((viewedPolicy || current)?.maxActiveClassesByLevel || {});
+    return keys.map((code, idx) => ({
+      id: idx + 1,
+      code: code.toUpperCase(),
+      name: `JLPT ${code.toUpperCase()}`,
+    }));
+  }, [levelsQuery.data, viewedPolicy, current]);
 
-  const setField = (key, value) => setForm({ ...draft, [key]: value });
-  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const supportedLevelCodes = useMemo(
+    () => supportedLevels.map((l) => l.code),
+    [supportedLevels],
+  );
 
-  const openWizard = () => {
-    setForm(null);
-    setWizardStep('class');
-    setError('');
-    setConfirmDiscardOpen(false);
-    setWizardOpen(true);
+  const latestLiveVersion = useMemo(() => {
+    if (history.length > 0) {
+      return Math.max(...history.map((h) => Number(h.version) || 0));
+    }
+    return Number(current?.version || 0);
+  }, [history, current?.version]);
+
+  const activeDraft = useMemo(
+    () => drawerForm || buildDraftFromPolicy(drawerState?.basePolicy || viewedPolicy || current, supportedLevelCodes),
+    [drawerForm, drawerState?.basePolicy, viewedPolicy, current, supportedLevelCodes],
+  );
+
+  const activeSectionDraft = useMemo(
+    () => sectionForm || buildDraftFromPolicy(sectionEditor?.basePolicy || viewedPolicy, supportedLevelCodes),
+    [sectionForm, sectionEditor?.basePolicy, viewedPolicy, supportedLevelCodes],
+  );
+
+  const tuitionDraft = useMemo(
+    () => tuitionForm || buildDraftFromPolicy(current, supportedLevelCodes),
+    [tuitionForm, current, supportedLevelCodes],
+  );
+
+  const drawerValidation = useMemo(
+    () => validatePolicyDraft(activeDraft, supportedLevelCodes, supportedLevels, tr, trf),
+    [activeDraft, supportedLevelCodes, supportedLevels, tr, trf],
+  );
+
+  const sectionValidation = useMemo(
+    () => validatePolicyDraft(activeSectionDraft, supportedLevelCodes, supportedLevels, tr, trf),
+    [activeSectionDraft, supportedLevelCodes, supportedLevels, tr, trf],
+  );
+
+  const tuitionValidation = useMemo(
+    () => validatePolicyDraft(tuitionDraft, supportedLevelCodes, supportedLevels, tr, trf),
+    [tuitionDraft, supportedLevelCodes, supportedLevels, tr, trf],
+  );
+
+  const buildPayloadFromDraft = (sourceDraft, basePolicy) => {
+    const limitsPayload = {};
+    for (const code of supportedLevelCodes) {
+      limitsPayload[code] = Number(sourceDraft.maxActiveClassesByLevel?.[code] ?? 0);
+    }
+    const patterns = parsePatterns((basePolicy || current)?.recurringWeekdayPatternsJson);
+    const allowedPayload = resolveDraftAllowedSessions(sourceDraft);
+    return {
+      maxLearners: Number(sourceDraft.maxLearners),
+      minLearnersToStart: Number(sourceDraft.minLearnersToStart),
+      maxTotalActiveClassesPerMentor: Number(sourceDraft.maxTotalActiveClassesPerMentor),
+      maxActiveClassesByLevel: limitsPayload,
+      courseDurationWeeks: Number(sourceDraft.courseDurationWeeks),
+      allowedSessionsPerWeekCsv: allowedPayload.join(','),
+      defaultSessionsPerWeek: Number(sourceDraft.defaultSessionsPerWeek),
+      sessionMinutes: Number(sourceDraft.sessionMinutes),
+      restMinutes: Number(sourceDraft.restMinutes),
+      dailySessionCap: Number(sourceDraft.dailySessionCap),
+      weeklySessionCap: Number(sourceDraft.weeklySessionCap || 0),
+      publicationHorizonDays: Number(sourceDraft.publicationHorizonDays),
+      minimumProposalLeadDays: Number(sourceDraft.minimumProposalLeadDays),
+      minimumPublishedEnrollmentDays: Number(sourceDraft.minimumPublishedEnrollmentDays),
+      enrollmentCutoffMinutesBeforeFirstSession: Number(sourceDraft.enrollmentCutoffMinutesBeforeFirstSession),
+      checkoutHoldMinutes: Number(sourceDraft.checkoutHoldMinutes),
+      cancellationLeadHours: Number(sourceDraft.cancellationLeadHours),
+      reschedulingLeadHours: Number(sourceDraft.reschedulingLeadHours),
+      learnerTransferEnabled: Boolean(sourceDraft.learnerTransferEnabled),
+      transferAllowedAfterSourceStart: false,
+      mentorReplacementEnabled: Boolean(sourceDraft.mentorReplacementEnabled),
+      mentorReplacementLeadHours: Number(sourceDraft.mentorReplacementLeadHours),
+      homeworkDeadlineDays: Number(sourceDraft.homeworkDeadlineDays),
+      placementAttemptLimit: Number(sourceDraft.placementAttemptLimit),
+      remediationCompletionThresholdPercent: Number(sourceDraft.remediationCompletionThresholdPercent),
+      remediationThresholdComparison: sourceDraft.remediationThresholdComparison,
+      requireOfficialExamEvidence: true,
+      requireAdminRemediationReview: true,
+      kpiReportingPeriodDays: Number(sourceDraft.kpiReportingPeriodDays),
+      tuitionPerSessionN5: Number(sourceDraft.tuitionPerSessionN5),
+      tuitionPerSessionN4: Number(sourceDraft.tuitionPerSessionN4),
+      tuitionPerSessionN3: Number(sourceDraft.tuitionPerSessionN3),
+      tuitionPerSessionN2: Number(sourceDraft.tuitionPerSessionN2),
+      recurringWeekdayPatterns: patterns.length > 0 ? patterns : [[1, 3, 5], [2, 4, 6]],
+    };
   };
 
-  const closeWizardImmediate = () => {
-    setWizardOpen(false);
-    setConfirmDiscardOpen(false);
-    setForm(null);
-    setError('');
-  };
-
-  const createVersion = useMutation({
-    mutationFn: () => {
-      const effectiveUtc = new Date(`${draft.effectiveDate}T00:00:00+07:00`);
-      const payload = {
-        expectedCurrentVersion: current?.version ?? 0,
-        effectiveFromUtc: Number.isNaN(effectiveUtc.getTime()) ? nextVnMidnightIso(1) : effectiveUtc.toISOString(),
-        maxLearners: Number(draft.maxLearners),
-        enrollmentCutoffMinutesBeforeFirstSession: Number(draft.enrollmentCutoffMinutesBeforeFirstSession),
-        sessionMinutes: Number(draft.sessionMinutes),
-        restMinutes: Number(draft.restMinutes),
-        dailySessionCap: Number(draft.dailySessionCap),
-        publicationHorizonDays: Number(draft.publicationHorizonDays),
-        cancellationLeadHours: Number(draft.cancellationLeadHours),
-        reschedulingLeadHours: Number(draft.reschedulingLeadHours),
-        homeworkDeadlineDays: Number(draft.homeworkDeadlineDays),
-        placementAttemptLimit: Number(draft.placementAttemptLimit),
-        remediationCompletionThresholdPercent: Number(draft.remediationCompletionThresholdPercent),
-        remediationThresholdComparison: draft.remediationThresholdComparison,
-        requireOfficialExamEvidence: Boolean(draft.requireOfficialExamEvidence),
-        requireAdminRemediationReview: Boolean(draft.requireAdminRemediationReview),
-        kpiReportingPeriodDays: Number(draft.kpiReportingPeriodDays),
-        learnerTransferEnabled: Boolean(draft.learnerTransferEnabled),
-        transferAllowedAfterSourceStart: false,
-        mentorReplacementEnabled: Boolean(draft.mentorReplacementEnabled),
-        mentorReplacementLeadHours: Number(draft.mentorReplacementLeadHours),
-        weeklySessionCap: Number(draft.weeklySessionCap || 0),
-        courseDurationWeeks: Number(draft.courseDurationWeeks),
-        allowedSessionsPerWeekCsv: parseSessionsCsv(draft.allowedSessionsPerWeekCsv).join(','),
-        defaultSessionsPerWeek: Number(draft.defaultSessionsPerWeek),
-        checkoutHoldMinutes: Number(draft.checkoutHoldMinutes),
-        minLearnersToStart: Number(draft.minLearnersToStart),
-        recurringWeekdayPatterns: parsePatterns(current?.recurringWeekdayPatternsJson).length
-          ? parsePatterns(current?.recurringWeekdayPatternsJson)
-          : [[1, 3, 5], [2, 4, 6]],
+  const buildSectionPayload = (sectionKey, sourceDraft) => {
+    const base = { expectedRevision: Number(sectionEditor?.basePolicy?.revision ?? 1) };
+    if (sectionKey === 'limits') {
+      const limitsPayload = {};
+      for (const code of supportedLevelCodes) {
+        limitsPayload[code] = Number(sourceDraft.maxActiveClassesByLevel?.[code] ?? 0);
+      }
+      return {
+        ...base,
+        maxTotalActiveClassesPerMentor: Number(sourceDraft.maxTotalActiveClassesPerMentor),
+        maxActiveClassesByLevel: limitsPayload,
       };
-      notify.loading(tr('Đang ban hành chính sách lớp nhóm mới…'), '', { key: 'admin-group-policy-save', maxWaitMs: 30000 });
+    }
+    if (sectionKey === 'structure') {
+      const allowedPayload = resolveDraftAllowedSessions(sourceDraft);
+      return {
+        ...base,
+        minLearnersToStart: Number(sourceDraft.minLearnersToStart),
+        maxLearners: Number(sourceDraft.maxLearners),
+        courseDurationWeeks: Number(sourceDraft.courseDurationWeeks),
+        allowedSessionsPerWeekCsv: allowedPayload.join(','),
+        defaultSessionsPerWeek: Number(sourceDraft.defaultSessionsPerWeek),
+        sessionMinutes: Number(sourceDraft.sessionMinutes),
+      };
+    }
+    if (sectionKey === 'schedule') {
+      return {
+        ...base,
+        restMinutes: Number(sourceDraft.restMinutes),
+        dailySessionCap: Number(sourceDraft.dailySessionCap),
+        weeklySessionCap: Number(sourceDraft.weeklySessionCap || 0),
+        publicationHorizonDays: Number(sourceDraft.publicationHorizonDays),
+      };
+    }
+    if (sectionKey === 'admission') {
+      return {
+        ...base,
+        minimumProposalLeadDays: Number(sourceDraft.minimumProposalLeadDays),
+        minimumPublishedEnrollmentDays: Number(sourceDraft.minimumPublishedEnrollmentDays),
+        enrollmentCutoffMinutesBeforeFirstSession: Number(sourceDraft.enrollmentCutoffMinutesBeforeFirstSession),
+        checkoutHoldMinutes: Number(sourceDraft.checkoutHoldMinutes),
+      };
+    }
+    if (sectionKey === 'coordination') {
+      return {
+        ...base,
+        cancellationLeadHours: Number(sourceDraft.cancellationLeadHours),
+        reschedulingLeadHours: Number(sourceDraft.reschedulingLeadHours),
+        mentorReplacementLeadHours: Number(sourceDraft.mentorReplacementLeadHours),
+        learnerTransferEnabled: Boolean(sourceDraft.learnerTransferEnabled),
+        mentorReplacementEnabled: Boolean(sourceDraft.mentorReplacementEnabled),
+      };
+    }
+    if (sectionKey === 'training') {
+      return {
+        ...base,
+        homeworkDeadlineDays: Number(sourceDraft.homeworkDeadlineDays),
+        placementAttemptLimit: Number(sourceDraft.placementAttemptLimit),
+        remediationCompletionThresholdPercent: Number(sourceDraft.remediationCompletionThresholdPercent),
+        remediationThresholdComparison: sourceDraft.remediationThresholdComparison,
+        kpiReportingPeriodDays: Number(sourceDraft.kpiReportingPeriodDays),
+      };
+    }
+    return base;
+  };
+
+  // Create new policy version (publish mode or tuition mode)
+  const createVersion = useMutation({
+    mutationFn: ({ sourceDraft, applyNow, sourceVersion }) => {
+      const payload = {
+        ...buildPayloadFromDraft(sourceDraft, current),
+        expectedCurrentVersion: latestLiveVersion,
+        sourceVersion: sourceVersion ?? current?.version ?? latestLiveVersion,
+        applyImmediately: Boolean(applyNow),
+      };
+      notify.loading(tr('Đang ban hành phiên bản mới…'), '', { key: 'admin-group-policy-save', maxWaitMs: 30000 });
       return createMentorGroupPolicyVersion(payload);
     },
-    onSuccess: async (saved) => {
+    onSuccess: async (saved, vars) => {
       setError('');
-      setForm(null);
-      setWizardOpen(false);
-      const msg = trf('Đã ban hành chính sách phiên bản v{0}. Lớp và buổi đã công bố vẫn giữ cấu hình cũ.', { 0: saved?.version ?? '' });
-      setNotice(msg);
-      notify.success(tr('Đã ban hành chính sách lớp nhóm mới.'), msg, {
-        key: 'admin-group-policy-save',
-        replace: true,
-      });
+      setConfirmPublishOpen(false);
+      setConfirmTuitionOpen(false);
+      setDrawerState(null);
+      setDrawerForm(null);
+      setTuitionForm(null);
+      if (saved?.version != null) {
+        setViewedVersion(saved.version);
+      }
+      const msg = vars.applyNow
+        ? trf('Đã ban hành và áp dụng ngay phiên bản v{0}.', { 0: saved?.version ?? latestLiveVersion + 1 })
+        : trf('Đã ban hành phiên bản v{0}.', { 0: saved?.version ?? latestLiveVersion + 1 });
+      if (isTuitionMode) setNotice(msg);
+      notify.success(
+        vars.applyNow ? tr('Đã ban hành và áp dụng chính sách mới') : tr('Đã ban hành phiên bản mới'),
+        msg,
+        { key: 'admin-group-policy-save', replace: true },
+      );
       await invalidateAdminDomains(client, ['policy']);
     },
     onError: (err) => {
-      setNotice('');
-      const msg = err?.status === 409
-        ? tr('Phiên bản hiện hành vừa có thay đổi từ quản trị viên khác. Vui lòng tải lại dữ liệu trước khi ban hành.')
-        : (describeApiError(err).message || tr('Không tạo được phiên bản chính sách mới.'));
-      setError(msg);
-      notify.apiError(err, tr('Không ban hành được chính sách'), {
+      setConfirmPublishOpen(false);
+      setConfirmTuitionOpen(false);
+      const msg = describeApiError(err).message || tr('Không ban hành được phiên bản chính sách mới.');
+      if (isTuitionMode) setError(msg);
+      notify.apiError(err, tr('Ban hành phiên bản thất bại'), {
         key: 'admin-group-policy-save',
         replace: true,
       });
     },
   });
 
-  const history = useMemo(
-    () => (Array.isArray(historyQuery.data) ? historyQuery.data : []),
-    [historyQuery.data],
-  );
-  const currentMissing = currentQuery.error?.status === 404;
-  const currentBlocked = Boolean(currentQuery.isError && !currentMissing);
+  // Update existing policy version in place (full drawer mode)
+  const updateVersion = useMutation({
+    mutationFn: ({ policy, sourceDraft }) => {
+      const payload = {
+        ...buildPayloadFromDraft(sourceDraft, policy),
+        expectedRevision: Number(policy.revision ?? 1),
+      };
+      notify.loading(trf('Đang cập nhật phiên bản v{0}…', { 0: policy.version }), '', { key: 'admin-group-policy-update', maxWaitMs: 30000 });
+      return updateMentorGroupPolicyVersion(policy.id, payload);
+    },
+    onSuccess: async (updated) => {
+      setError('');
+      setDrawerState(null);
+      setDrawerForm(null);
+      notify.success(
+        tr('Đã lưu cập nhật'),
+        trf('Đã cập nhật cấu hình phiên bản v{0}.', { 0: updated?.version ?? '' }),
+        { key: 'admin-group-policy-update', replace: true },
+      );
+      await invalidateAdminDomains(client, ['policy']);
+    },
+    onError: (err) => {
+      notify.apiError(err, tr('Cập nhật phiên bản thất bại'), {
+        key: 'admin-group-policy-update',
+        replace: true,
+      });
+    },
+  });
 
-  const stepIndex = WIZARD_STEPS.findIndex((s) => s.value === wizardStep);
+  // Update single card section in place
+  const updateSection = useMutation({
+    mutationFn: ({ policy, sectionKey, sourceDraft }) => {
+      const payload = buildSectionPayload(sectionKey, sourceDraft);
+      notify.loading(tr('Đang lưu thay đổi nhóm cấu hình…'), '', { key: 'admin-group-policy-section', maxWaitMs: 30000 });
+      return updateMentorGroupPolicySection(policy.id, sectionKey, payload);
+    },
+    onSuccess: async (updated) => {
+      setSectionEditor(null);
+      setSectionForm(null);
+      notify.success(
+        tr('Đã lưu thay đổi'),
+        trf('Nhóm cấu hình của phiên bản v{0} đã được cập nhật.', { 0: updated?.version ?? '' }),
+        { key: 'admin-group-policy-section', replace: true },
+      );
+      await invalidateAdminDomains(client, ['policy']);
+    },
+    onError: (err) => {
+      notify.apiError(err, tr('Lưu thay đổi thất bại'), {
+        key: 'admin-group-policy-section',
+        replace: true,
+      });
+    },
+  });
 
-  const formatCompareValue = (obj, meta) => {
-    if (!obj) return '—';
-    const raw = obj[meta.key];
-    if (meta.bool) return raw ? tr('Bật') : tr('Tắt');
-    return String(raw ?? '—');
+  // Activate policy version
+  const activateVersion = useMutation({
+    mutationFn: (policy) => {
+      notify.loading(tr('Đang kích hoạt phiên bản chính sách…'), '', { key: 'admin-group-policy-activate', maxWaitMs: 30000 });
+      return activateMentorGroupPolicyVersion(policy.id);
+    },
+    onSuccess: async (activated) => {
+      setActivateTarget(null);
+      if (activated?.version != null) {
+        setViewedVersion(activated.version);
+      }
+      notify.success(
+        tr('Đã áp dụng phiên bản chính sách'),
+        trf('Phiên bản v{0} đã được áp dụng cho toàn hệ thống.', { 0: activated?.version ?? '' }),
+        { key: 'admin-group-policy-activate', replace: true },
+      );
+      await invalidateAdminDomains(client, ['policy']);
+    },
+    onError: (err) => {
+      setActivateTarget(null);
+      notify.apiError(err, tr('Áp dụng phiên bản thất bại'), {
+        key: 'admin-group-policy-activate',
+        replace: true,
+      });
+    },
+  });
+
+  // Soft delete policy version
+  const deleteVersion = useMutation({
+    mutationFn: (policy) => {
+      notify.loading(tr('Đang xóa phiên bản…'), '', { key: 'admin-group-policy-delete', maxWaitMs: 30000 });
+      return deleteMentorGroupPolicyVersion(policy.id);
+    },
+    onSuccess: async (_res, deletedPolicy) => {
+      setDeleteTarget(null);
+      if (Number(viewedVersion) === Number(deletedPolicy.version)) {
+        setViewedVersion(null);
+      }
+      notify.success(
+        tr('Đã xóa phiên bản'),
+        trf('Phiên bản v{0} đã được xóa khỏi danh sách quản lý.', { 0: deletedPolicy.version }),
+        { key: 'admin-group-policy-delete', replace: true },
+      );
+      await invalidateAdminDomains(client, ['policy']);
+    },
+    onError: (err) => {
+      setDeleteTarget(null);
+      notify.apiError(err, tr('Không xóa được phiên bản'), {
+        key: 'admin-group-policy-delete',
+        replace: true,
+      });
+    },
+  });
+
+  const handleRefresh = () => Promise.all([
+    currentQuery.refetch({ cancelRefetch: true }),
+    historyQuery.refetch({ cancelRefetch: true }),
+    levelsQuery.refetch({ cancelRefetch: true }),
+  ]);
+
+  const isRefreshing = (currentQuery.isFetching && !currentQuery.isPending)
+    || (historyQuery.isFetching && !historyQuery.isPending)
+    || (levelsQuery.isFetching && !levelsQuery.isPending);
+
+  const openPublishDrawer = () => {
+    const base = viewedPolicy || current || history[0];
+    if (!base) return;
+    setDrawerForm(buildDraftFromPolicy(base, supportedLevelCodes));
+    setApplyImmediately(true);
+    setDrawerState({ mode: 'publish', basePolicy: base });
   };
 
-  const draftDiffs = useMemo(() => {
-    if (!current) return [];
-    return POLICY_COMPARE_FIELDS.filter((meta) => {
-      const a = meta.bool ? Boolean(current[meta.key]) : String(current[meta.key] ?? '');
-      const b = meta.bool ? Boolean(draft[meta.key]) : String(draft[meta.key] ?? '');
-      return a !== b;
-    });
-  }, [current, draft]);
+  const openEditDrawer = (policy) => {
+    setDrawerForm(buildDraftFromPolicy(policy, supportedLevelCodes));
+    setDrawerState({ mode: 'edit', basePolicy: policy });
+  };
 
-  const compareBaseline = useMemo(() => {
-    if (!compareTarget) return null;
-    const idx = history.findIndex((h) => (h.id ?? h.version) === (compareTarget.id ?? compareTarget.version));
-    return idx >= 0 && idx + 1 < history.length ? history[idx + 1] : current;
-  }, [compareTarget, history, current]);
+  const closeDrawer = () => {
+    if (createVersion.isPending || updateVersion.isPending) return;
+    setDrawerState(null);
+    setDrawerForm(null);
+  };
+
+  const openSectionModal = (sectionKey, policy) => {
+    setSectionForm(buildDraftFromPolicy(policy, supportedLevelCodes));
+    setSectionEditor({ sectionKey, basePolicy: policy });
+  };
+
+  const closeSectionModal = () => {
+    if (updateSection.isPending) return;
+    setSectionEditor(null);
+    setSectionForm(null);
+  };
+
+  const updateFormState = (setter, currentDraft) => ({
+    onFieldChange: (key, value) => currentDraft && setter({ ...currentDraft, [key]: value }),
+    onLevelLimitChange: (code, value) => currentDraft && setter({
+      ...currentDraft,
+      maxActiveClassesByLevel: {
+        ...(currentDraft.maxActiveClassesByLevel || {}),
+        [code]: value,
+      },
+    }),
+    onSessionRangeChange: (fieldKey, value) => {
+      if (!currentDraft) return;
+      const nextDraft = {
+        ...currentDraft,
+        [fieldKey]: value,
+        sessionsRangeTouched: true,
+        legacyNonContiguousSessions: null,
+      };
+      const nextAllowed = resolveDraftAllowedSessions(nextDraft);
+      const currentDefault = Number(currentDraft.defaultSessionsPerWeek);
+      const keepDefault = nextAllowed.length > 0 && nextAllowed.includes(currentDefault);
+      setter({
+        ...nextDraft,
+        defaultSessionsPerWeek: keepDefault ? currentDefault : '',
+      });
+    },
+  });
+
+  const drawerHandlers = updateFormState(setDrawerForm, activeDraft);
+  const sectionHandlers = updateFormState(setSectionForm, activeSectionDraft);
 
   const historyColumns = useMemo(() => [
     {
       key: 'version',
       header: tr('Phiên bản'),
+      sortValue: (row) => Number(row.version) || 0,
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <Badge tone={current?.version === row.version ? 'brand' : 'neutral'} size="sm" icon={false}>
-            v{row.version}
-          </Badge>
-          {current?.version === row.version && (
-            <span className="text-[11px] font-semibold text-rp-brand-strong">{tr('Đang áp dụng')}</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'effectiveFromUtc',
-      header: tr('Ngày hiệu lực'),
-      render: (row) => <span className="font-medium text-rp-text">{formatVnDate(row.effectiveFromUtc)}</span>,
-    },
-    {
-      key: 'maxLearners',
-      header: tr('Sĩ số / Buổi'),
-      render: (row) => (
-        <span className="text-[13px] text-rp-text-2">
-          {trf('{0}–{1} HV · {2}p (nghỉ {3}p)', {
-            0: row.minLearnersToStart ?? 1,
-            1: row.maxLearners,
-            2: row.sessionMinutes,
-            3: row.restMinutes,
-          })}
+        <span className="font-bold tabular-nums text-rp-text">
+          v{row.version}
         </span>
       ),
     },
     {
-      key: 'dailySessionCap',
-      header: tr('Hạn mức Giáo viên'),
+      key: 'createdAtUtc',
+      header: tr('Ngày ban hành'),
+      sortValue: (row) => row.createdAtUtc || '',
       render: (row) => (
-        <span className="text-[13px] text-rp-text-2">
-          {trf('{0} ca/ngày · {1} ca/tuần', {
-            0: row.dailySessionCap,
-            1: row.weeklySessionCap || '∞',
-          })}
+        <span className="whitespace-nowrap text-[13px] font-medium text-rp-text-2">
+          {formatVnDateTime(row.createdAtUtc, '—')}
         </span>
       ),
     },
     {
-      key: 'cancellationLeadHours',
-      header: tr('Hủy / Dời'),
+      key: 'createdByAdminName',
+      header: tr('Người ban hành'),
       render: (row) => (
-        <span className="text-[13px] text-rp-text-2">
-          {trf('Hủy ≥ {0}h · Dời ≥ {1}h', {
-            0: row.cancellationLeadHours,
-            1: row.reschedulingLeadHours,
-          })}
+        <span className="text-[13px] font-medium text-rp-text">
+          {row.createdByAdminName || tr('Hệ thống')}
         </span>
       ),
     },
-  ], [tr, trf, current?.version]);
+    {
+      key: 'lastAppliedAtUtc',
+      header: tr('Ngày áp dụng gần nhất'),
+      sortValue: (row) => row.lastAppliedAtUtc || '',
+      render: (row) => (
+        <span className="whitespace-nowrap text-[13px] text-rp-text-2">
+          {row.lastAppliedAtUtc ? formatVnDateTime(row.lastAppliedAtUtc, '—') : tr('Chưa áp dụng')}
+        </span>
+      ),
+    },
+    {
+      key: 'isActive',
+      header: tr('Trạng thái'),
+      sortValue: (row) => (row.isActive ? 1 : 0),
+      render: (row) => (
+        row.isActive ? (
+          <Badge tone="success" size="sm">{tr('Đang áp dụng')}</Badge>
+        ) : (
+          <Badge tone="neutral" size="sm" icon={false}>{tr('Đã ban hành')}</Badge>
+        )
+      ),
+    },
+  ], [tr]);
 
-  const policyActions = (
-    <div className="flex flex-wrap items-center gap-2">
-      {!currentQuery.isPending && !currentBlocked && (Boolean(current) || history.length > 0) && (
-        <RefreshButton
-          onRefresh={() => Promise.all([currentQuery.refetch({ cancelRefetch: true }), historyQuery.refetch({ cancelRefetch: true })])}
-          refreshing={(currentQuery.isFetching && !currentQuery.isPending) || (historyQuery.isFetching && !historyQuery.isPending)}
-          disabled={currentQuery.isPending}
+  const currentMissing = currentQuery.error?.status === 404;
+  const currentBlocked = Boolean(currentQuery.isError && !currentMissing);
+
+  // ── TUITION TAB MODE (inside Gói học & học phí) ───────────────────────────
+  if (isTuitionMode) {
+    const tuitionDirty = Boolean(tuitionForm) && supportedLevels.some((lvl) => {
+      const k = TUITION_FIELD_BY_CODE[lvl.code];
+      return k && Number(tuitionDraft?.[k]) !== Number(current?.[k]);
+    });
+    const previewWeeks = Math.max(1, Number(current?.courseDurationWeeks) || 10);
+    const previewSessionsList = parseSessionsCsv(current?.allowedSessionsPerWeekCsv);
+    const tuitionHasErrors = Object.keys(tuitionValidation.tuitionErrors).length > 0;
+
+    return (
+      <div className="min-w-0 space-y-4">
+        <AdminToolbar
+          left={
+            current ? (
+              <Badge tone="success" size="sm">
+                {trf('Phiên bản v{0} · Đang áp dụng', { 0: current.version })}
+              </Badge>
+            ) : null
+          }
+          refresh={{ onRefresh: handleRefresh, refreshing: isRefreshing, disabled: currentQuery.isPending }}
+          actions={
+            <>
+              {tuitionForm && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  icon={RotateCcw}
+                  disabled={createVersion.isPending}
+                  onClick={() => {
+                    setTuitionForm(null);
+                    setError('');
+                  }}
+                >
+                  {tr('Hoàn tác')}
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="success"
+                icon={CheckCircle2}
+                disabled={!current || !tuitionDirty || tuitionHasErrors || createVersion.isPending}
+                loading={createVersion.isPending}
+                onClick={() => setConfirmTuitionOpen(true)}
+              >
+                {tr('Lưu & áp dụng ngay')}
+              </Button>
+            </>
+          }
         />
-      )}
-      <Button
-        variant="primary"
-        size="sm"
-        icon={Plus}
-        disabled={currentQuery.isPending || currentBlocked}
-        onClick={openWizard}
-        data-testid="open-policy-wizard-btn"
-      >
-        {tr('Ban hành phiên bản mới')}
-      </Button>
-    </div>
-  );
 
-  return (
-    <div className="min-w-0 space-y-5">
-      {/* No visual section title (breadcrumb + page tabs name it). Actions join the host page's toolbar row when one is
-          provided (Chính sách học tập), otherwise they sit in one right-aligned row. */}
-      <h2 className="sr-only">{tr('Chính sách lớp nhóm & lịch dạy')}</h2>
-      {renderToolbar ? renderToolbar(policyActions) : (
-        <div className="flex flex-wrap items-center justify-end gap-3">{policyActions}</div>
-      )}
+        {currentQuery.isPending && (
+          <SakuraLoader variant="section" context="data" label={tr('Đang tải đơn giá học phí…')} delay={160} />
+        )}
 
-      {currentQuery.isPending && (
-        <SakuraLoader variant="section" context="data" label={tr('Đang tải chính sách lớp nhóm…')} delay={160} />
-      )}
-      {currentBlocked && (
-        <div className="rounded-2xl border border-rp-line bg-white px-5">
+        {currentBlocked && (
           <ContextualErrorState
             compact
             error={currentQuery.error}
-            title={tr('Chưa tải được chính sách lớp nhóm hiện hành')}
+            title={tr('Chưa tải được đơn giá học phí')}
             onRetry={() => currentQuery.refetch()}
             retrying={currentQuery.isFetching}
           />
+        )}
+
+        {error && (
+          <Banner tone="danger" title={tr('Không lưu được cấu hình')} onDismiss={() => setError('')}>
+            <span>{error}</span>
+          </Banner>
+        )}
+
+        {notice && (
+          <Banner tone="success" title={tr('Cập nhật thành công')} onDismiss={() => setNotice('')}>
+            {notice}
+          </Banner>
+        )}
+
+        {current && tuitionDraft && (
+          <Card className="p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="m-0 text-[15px] font-bold text-rp-text">
+                {tr('Đơn giá học phí lớp học nhóm theo cấp độ JLPT')}
+              </h3>
+              <span className="text-xs text-rp-text-muted">
+                {trf('Tính theo buổi {0} phút · khóa {1} tuần', {
+                  0: current.sessionMinutes,
+                  1: previewWeeks,
+                })}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-rp-line">
+              <table className="w-full border-collapse text-left text-[13px]">
+                <thead className="bg-rp-table-head text-xs uppercase text-rp-text-muted">
+                  <tr>
+                    <th className="border-b border-rp-line px-4 py-2.5 font-semibold">{tr('Cấp độ')}</th>
+                    <th className="border-b border-rp-line px-4 py-2.5 font-semibold">
+                      {trf('Đơn giá mỗi buổi ({0} phút)', { 0: current.sessionMinutes })}
+                    </th>
+                    {previewSessionsList.map((w) => (
+                      <th key={w} className="border-b border-rp-line px-4 py-2.5 text-right font-semibold">
+                        {trf('Khóa {0} buổi ({1} buổi mỗi tuần)', { 0: w * previewWeeks, 1: w })}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rp-line bg-white">
+                  {supportedLevels.map((lvl) => {
+                    const key = TUITION_FIELD_BY_CODE[lvl.code];
+                    if (!key) return null;
+                    const rawVal = tuitionDraft[key];
+                    const num = Number(rawVal);
+                    const valid = Number.isFinite(num) && Number.isInteger(num) && num > 0;
+                    const errText = tuitionValidation.tuitionErrors[key];
+                    return (
+                      <tr key={lvl.code} className="transition-colors hover:bg-rp-row-hover">
+                        <td className="px-4 py-2.5 font-bold text-rp-text">
+                          <span className="inline-flex h-6 items-center rounded-lg border border-[#F2CCD7] bg-[#FFF5F7] px-2 text-xs font-extrabold text-[#B53D5C]">
+                            {lvl.code}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex max-w-[200px] items-center gap-2">
+                            <Input
+                              type="number"
+                              min={1000}
+                              step={1000}
+                              max={50000000}
+                              value={rawVal}
+                              invalid={Boolean(errText)}
+                              aria-label={trf('Đơn giá mỗi buổi {0}', { 0: lvl.code })}
+                              onChange={(e) => setTuitionForm({
+                                ...tuitionDraft,
+                                [key]: e.target.value === '' ? '' : Number(e.target.value),
+                              })}
+                              className="h-9 w-[150px] tabular-nums"
+                            />
+                            <span className="shrink-0 text-xs font-semibold text-rp-text-muted">đ</span>
+                          </div>
+                          {errText && <p className="m-0 mt-1 text-[11px] font-medium text-red-600">{errText}</p>}
+                        </td>
+                        {previewSessionsList.map((w) => (
+                          <td key={w} className="px-4 py-2.5 text-right font-semibold tabular-nums text-rp-text">
+                            {valid ? formatVnd(num * w * previewWeeks, fmt.tag) : '—'}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="m-0 text-xs text-rp-text-muted">
+              {tr('Học phí trọn khóa được tính cố định từ đơn giá cấp độ và tổng số buổi khi lớp được phê duyệt; không ảnh hưởng các lớp đã tuyển sinh hoặc giao dịch đã tạo.')}
+            </p>
+          </Card>
+        )}
+
+        <AlertDialog
+          open={confirmTuitionOpen}
+          onClose={() => !createVersion.isPending && setConfirmTuitionOpen(false)}
+          onConfirm={() => createVersion.mutate({
+            sourceDraft: tuitionDraft,
+            applyNow: true,
+            sourceVersion: current?.version,
+          })}
+          loading={createVersion.isPending}
+          tone="success"
+          cancelVariant="danger"
+          title={tr('Xác nhận cập nhật học phí lớp học nhóm?')}
+          description={trf('Sẽ ban hành phiên bản mới v{0} với đơn giá học phí vừa chỉnh sửa và áp dụng ngay cho các lớp phê duyệt từ thời điểm lưu.', { 0: latestLiveVersion + 1 })}
+          confirmLabel={tr('Lưu & áp dụng ngay')}
+          cancelLabel={tr('Hủy')}
+        />
+      </div>
+    );
+  }
+
+  // ── MAIN CLASS POLICY PAGE (/admin/policies/) ─────────────────────────────
+  const limitsMap = viewedPolicy ? extractLevelLimits(viewedPolicy, supportedLevelCodes) : {};
+  const allowedList = viewedPolicy ? parseSessionsCsv(viewedPolicy.allowedSessionsPerWeekCsv) : [];
+
+  const cards = viewedPolicy ? [
+    {
+      sectionKey: 'limits',
+      code: 'A',
+      title: tr('Giới hạn lớp của giáo viên'),
+      rows: [
+        ...supportedLevelCodes.map((code) => ({
+          label: trf('Số lớp {0} được đăng ký', { 0: code }),
+          value: trf('{0} lớp', { 0: limitsMap[code] ?? 0 }),
+        })),
+        {
+          label: tr('Tổng số lớp mỗi giáo viên'),
+          value: trf('{0} lớp', { 0: viewedPolicy.maxTotalActiveClassesPerMentor }),
+        },
+      ],
+    },
+    {
+      sectionKey: 'structure',
+      code: 'B',
+      title: tr('Cấu trúc lớp học'),
+      rows: [
+        {
+          label: tr('Sĩ số lớp'),
+          value: viewedPolicy.minLearnersToStart === viewedPolicy.maxLearners
+            ? trf('{0} học viên', { 0: viewedPolicy.maxLearners })
+            : trf('{0}–{1} học viên', { 0: viewedPolicy.minLearnersToStart, 1: viewedPolicy.maxLearners }),
+        },
+        {
+          label: tr('Thời lượng khóa học'),
+          value: trf('{0} tuần', { 0: viewedPolicy.courseDurationWeeks }),
+        },
+        {
+          label: tr('Thời lượng mỗi buổi'),
+          value: trf('{0} phút', { 0: viewedPolicy.sessionMinutes }),
+        },
+        {
+          label: tr('Số buổi học mỗi tuần'),
+          value: formatAllowedSessionsDisplay(allowedList, trf),
+        },
+        {
+          label: tr('Số buổi mặc định'),
+          value: trf('{0} buổi', { 0: viewedPolicy.defaultSessionsPerWeek }),
+        },
+      ],
+    },
+    {
+      sectionKey: 'schedule',
+      code: 'C',
+      title: tr('Lịch và tải giảng dạy'),
+      rows: [
+        {
+          label: tr('Khoảng nghỉ giữa hai buổi'),
+          value: trf('{0} phút', { 0: viewedPolicy.restMinutes }),
+        },
+        {
+          label: tr('Số buổi dạy tối đa mỗi ngày'),
+          value: trf('{0} buổi', { 0: viewedPolicy.dailySessionCap }),
+        },
+        {
+          label: tr('Số buổi dạy tối đa mỗi tuần'),
+          value: viewedPolicy.weeklySessionCap > 0 ? trf('{0} buổi', { 0: viewedPolicy.weeklySessionCap }) : tr('Không giới hạn'),
+        },
+        {
+          label: tr('Phạm vi công bố lịch'),
+          value: trf('{0} ngày', { 0: viewedPolicy.publicationHorizonDays }),
+        },
+      ],
+    },
+    {
+      sectionKey: 'admission',
+      code: 'D',
+      title: tr('Tuyển sinh & ghi danh'),
+      rows: [
+        {
+          label: tr('Thời hạn gửi đề xuất trước ngày bắt đầu'),
+          value: trf('{0} ngày', { 0: viewedPolicy.minimumProposalLeadDays }),
+        },
+        {
+          label: tr('Thời gian tuyển sinh tối thiểu'),
+          value: trf('{0} ngày', { 0: viewedPolicy.minimumPublishedEnrollmentDays }),
+        },
+        {
+          label: tr('Đóng tuyển sinh trước buổi đầu'),
+          value: trf('{0} phút', { 0: viewedPolicy.enrollmentCutoffMinutesBeforeFirstSession }),
+        },
+        {
+          label: tr('Thời gian giữ chỗ thanh toán'),
+          value: trf('{0} phút', { 0: viewedPolicy.checkoutHoldMinutes }),
+        },
+      ],
+    },
+    {
+      sectionKey: 'coordination',
+      code: 'E',
+      title: tr('Điều phối lớp học'),
+      rows: [
+        {
+          label: tr('Báo trước khi hủy lịch'),
+          value: trf('{0} giờ', { 0: viewedPolicy.cancellationLeadHours }),
+        },
+        {
+          label: tr('Báo trước khi đổi lịch'),
+          value: trf('{0} giờ', { 0: viewedPolicy.reschedulingLeadHours }),
+        },
+        {
+          label: tr('Báo trước khi thay giáo viên'),
+          value: trf('{0} giờ', { 0: viewedPolicy.mentorReplacementLeadHours }),
+        },
+        {
+          label: tr('Cho phép chuyển lớp'),
+          value: viewedPolicy.learnerTransferEnabled ? tr('Bật') : tr('Tắt'),
+        },
+        {
+          label: tr('Cho phép thay giáo viên chính'),
+          value: viewedPolicy.mentorReplacementEnabled ? tr('Bật') : tr('Tắt'),
+        },
+      ],
+    },
+    {
+      sectionKey: 'training',
+      code: 'F',
+      title: tr('Đào tạo & đánh giá'),
+      rows: [
+        {
+          label: tr('Hạn nộp bài tập mặc định'),
+          value: trf('{0} ngày', { 0: viewedPolicy.homeworkDeadlineDays }),
+        },
+        {
+          label: tr('Giới hạn lượt đánh giá năng lực'),
+          value: trf('{0} lượt', { 0: viewedPolicy.placementAttemptLimit }),
+        },
+        {
+          label: tr('Ngưỡng bài tập xét học lại'),
+          value: `${viewedPolicy.remediationThresholdComparison} ${viewedPolicy.remediationCompletionThresholdPercent}%`,
+        },
+        {
+          label: tr('Chu kỳ báo cáo KPI'),
+          value: trf('{0} ngày', { 0: viewedPolicy.kpiReportingPeriodDays }),
+        },
+      ],
+    },
+  ] : [];
+
+  const sectionEditorMeta = sectionEditor ? POLICY_SECTION_META[sectionEditor.sectionKey] : null;
+  const sectionEditorInvalid = sectionEditor
+    ? Boolean(sectionValidation.bySection[sectionEditor.sectionKey])
+    : true;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      {/* Minimal Toolbar */}
+      <AdminToolbar
+        left={
+          viewedPolicy ? (
+            viewedPolicy.isActive ? (
+              <Badge tone="success" size="sm">
+                {trf('Phiên bản v{0} · Đang áp dụng', { 0: viewedPolicy.version })}
+              </Badge>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="neutral" size="sm" icon={false}>
+                  {trf('Phiên bản v{0} · Đã ban hành', { 0: viewedPolicy.version })}
+                </Badge>
+                <span className="text-xs font-medium text-rp-text-muted">
+                  {tr('Đang xem cấu hình')}
+                </span>
+              </div>
+            )
+          ) : (
+            <span className="text-sm font-medium text-rp-text-muted">
+              {tr('Chưa có phiên bản chính sách')}
+            </span>
+          )
+        }
+        refresh={{
+          onRefresh: handleRefresh,
+          refreshing: isRefreshing,
+          disabled: currentQuery.isPending && historyQuery.isPending,
+        }}
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            icon={Plus}
+            disabled={(!current && history.length === 0) || currentQuery.isPending}
+            onClick={openPublishDrawer}
+            data-testid="publish-policy-btn"
+          >
+            {tr('Ban hành chính sách')}
+          </Button>
+        }
+      />
+
+      {currentQuery.isPending && !viewedPolicy && (
+        <SakuraLoader variant="section" context="data" label={tr('Đang tải chính sách lớp học…')} delay={160} />
+      )}
+
+      {(currentBlocked || historyQuery.isError) && (
+        <div className="rounded-2xl border border-rp-line bg-white px-5">
+          <ContextualErrorState
+            compact
+            error={historyQuery.error || currentQuery.error}
+            title={tr('Chưa tải được chính sách lớp học')}
+            onRetry={handleRefresh}
+            retrying={isRefreshing}
+          />
         </div>
       )}
-      {historyQuery.isError && (
-        <ContextualErrorState
-          variant="inline"
-          compact
-          error={historyQuery.error}
-          title={tr('Chưa tải được lịch sử phiên bản')}
-          onRetry={() => historyQuery.refetch()}
-          retrying={historyQuery.isFetching}
-        />
-      )}
-      {error && (
-        <Banner tone="danger" title={tr('Không ban hành được chính sách')}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>{error}</span>
-            <RefreshButton
-              size="xs"
-              label="Tải lại phiên bản mới nhất"
-              onRefresh={() => Promise.all([currentQuery.refetch({ cancelRefetch: true }), historyQuery.refetch({ cancelRefetch: true })])}
-              refreshing={(currentQuery.isFetching && !currentQuery.isPending) || (historyQuery.isFetching && !historyQuery.isPending)}
-            />
-          </div>
-        </Banner>
-      )}
-      {notice && (
-        <Banner tone="success" title={tr('Ban hành thành công')}>
-          {notice}
-        </Banner>
+
+      {/* 6 Direct Configuration Cards (3x2 on desktop) */}
+      {viewedPolicy && (
+        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {cards.map((card) => (
+            <Card key={card.sectionKey} padded={false} className="flex h-full flex-col overflow-hidden">
+              <div className="flex items-center justify-between gap-2 border-b border-rp-brand-border/80 bg-rp-table-head px-3.5 py-2">
+                <SectionHeading code={card.code} title={card.title} />
+                <AdminIconAction
+                  kind="edit"
+                  tone="brand"
+                  tooltip={trf('Chỉnh sửa {0}', { 0: card.title })}
+                  onClick={() => openSectionModal(card.sectionKey, viewedPolicy)}
+                />
+              </div>
+              <dl className="m-0 flex-1 divide-y divide-rp-line/50 px-3.5 py-1.5">
+                {card.rows.map((r) => (
+                  <CardRow key={r.label} label={r.label} value={r.value} />
+                ))}
+              </dl>
+            </Card>
+          ))}
+        </div>
       )}
 
-      {current && (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-rp-text-muted">{tr('Phiên bản hiệu lực')}</p>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-[20px] font-bold text-rp-brand-strong">v{current.version}</span>
-              <Badge tone="success" size="sm">{formatVnDate(current.effectiveFromUtc)}</Badge>
-            </div>
-            <p className="mt-1 text-[12px] text-rp-text-2">
-              {trf('Khóa {0} tuần · mặc định {1} buổi/tuần', {
-                0: current.courseDurationWeeks ?? 10,
-                1: current.defaultSessionsPerWeek ?? 3,
-              })}
-            </p>
-          </Card>
-
-          <Card className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-rp-text-muted">{tr('Sĩ số & thời lượng')}</p>
-            <p className="mt-1.5 text-[15px] font-semibold text-rp-text">
-              {trf('{0}–{1} học viên / lớp', { 0: current.minLearnersToStart ?? 1, 1: current.maxLearners })}
-            </p>
-            <p className="mt-1 text-[12px] text-rp-text-2">
-              {trf('{0} phút / buổi · nghỉ {1} phút', { 0: current.sessionMinutes, 1: current.restMinutes })}
-            </p>
-          </Card>
-
-          <Card className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-rp-text-muted">{tr('Khóa ghi danh & hủy/dời')}</p>
-            <p className="mt-1.5 text-[15px] font-semibold text-rp-text">
-              {trf('Trước khai giảng {0} phút', { 0: current.enrollmentCutoffMinutesBeforeFirstSession })}
-            </p>
-            <p className="mt-1 text-[12px] text-rp-text-2">
-              {trf('Hủy ≥ {0} giờ · Dời ≥ {1} giờ', { 0: current.cancellationLeadHours, 1: current.reschedulingLeadHours })}
-            </p>
-          </Card>
-
-          <Card className="p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-rp-text-muted">{tr('Đánh giá & KPI')}</p>
-            <p className="mt-1.5 text-[15px] font-semibold text-rp-text">
-              {trf('{0} lượt đánh giá · bài tập {1} {2}%', {
-                0: current.placementAttemptLimit,
-                1: current.remediationThresholdComparison,
-                2: current.remediationCompletionThresholdPercent,
-              })}
-            </p>
-            <p className="mt-1 text-[12px] text-rp-text-2">
-              {trf('Chu kỳ KPI: {0} ngày · Hạn mức: {1}/ngày', { 0: current.kpiReportingPeriodDays, 1: current.dailySessionCap })}
-            </p>
-          </Card>
+      {/* Version History Table Directly Below Cards */}
+      {!historyQuery.isError && (
+        <section className="space-y-2.5">
+          <AdminDataTable
+            stickyHeader
+            scrollClassName="max-h-[420px]"
+            columns={historyColumns}
+            rows={history}
+            rowKey={(item) => item.id ?? item.version}
+            loading={historyQuery.isPending}
+            itemLabel="phiên bản"
+            onRowClick={(row) => setViewedVersion(row.version)}
+            rowClassName={(row) => {
+              const isViewed = viewedPolicy && Number(row.version) === Number(viewedPolicy.version);
+              if (row.isActive) {
+                return isViewed
+                  ? 'cursor-pointer bg-emerald-50/85'
+                  : 'cursor-pointer bg-emerald-50/45';
+              }
+              return isViewed
+                ? 'cursor-pointer bg-rp-brand-tint/55'
+                : 'cursor-pointer';
+            }}
+            empty={<EmptyState variant="compact" illustration="certificate" title={tr('Chưa có phiên bản chính sách nào.')} />}
+            rowActions={(row) => (
+              <AdminRowActions>
+                <AdminIconAction
+                  kind="edit"
+                  tone="brand"
+                  tooltip="Chỉnh sửa phiên bản"
+                  onClick={() => openEditDrawer(row)}
+                />
+                <AdminIconAction
+                  icon={CheckCircle2}
+                  tone="success"
+                  tooltip={row.isActive ? tr('Phiên bản đang được áp dụng') : tr('Áp dụng phiên bản')}
+                  disabled={Boolean(row.isActive) || activateVersion.isPending}
+                  onClick={() => setActivateTarget(row)}
+                />
+                <AdminIconAction
+                  kind="delete"
+                  tone="danger"
+                  tooltip={row.canDelete ? tr('Xóa phiên bản') : (row.deleteBlockedReason || tr('Không thể xóa phiên bản này'))}
+                  disabled={!row.canDelete || Boolean(row.isActive) || deleteVersion.isPending}
+                  onClick={() => setDeleteTarget(row)}
+                />
+              </AdminRowActions>
+            )}
+          />
         </section>
       )}
 
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rp-line pb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[15px] font-semibold text-rp-text">{tr('Lịch sử phiên bản chính sách')}</h3>
-            <Badge tone="neutral" size="sm" icon={false}>{trf('{0} phiên bản', { 0: history.length })}</Badge>
-          </div>
-        </div>
-        <AdminDataTable
-          columns={historyColumns}
-          rows={history}
-          rowKey={(item) => item.id ?? item.version}
-          loading={historyQuery.isPending}
-          itemLabel="phiên bản"
-          empty={<EmptyState variant="compact" illustration="certificate" title={tr('Chưa có phiên bản chính sách nào.')} />}
-          rowActions={(row) => (
-            <AdminRowActions>
-              <AdminIconAction
-                icon={GitCompare}
-                tone="brand"
-                tooltip="So sánh & xem chi tiết phiên bản chính sách"
-                onClick={() => setCompareTarget(row)}
-              />
-            </AdminRowActions>
-          )}
-        />
-      </div>
-
-      {/* Version Diff Comparison Modal */}
-      {compareTarget && (
+      {/* Single-Card Section Edit Modal */}
+      {sectionEditor && sectionEditorMeta && (
         <Modal
-          open={Boolean(compareTarget)}
-          onClose={() => setCompareTarget(null)}
-          title={trf('Chi tiết & so sánh phiên bản v{0}', { 0: compareTarget.version })}
-          description={
-            compareBaseline && compareBaseline.version !== compareTarget.version
-              ? trf('So sánh cấu hình v{0} với v{1}.', { 0: compareTarget.version, 1: compareBaseline.version })
-              : undefined
+          open={Boolean(sectionEditor)}
+          onClose={closeSectionModal}
+          size={sectionEditor.sectionKey === 'structure' ? 'lg' : 'md'}
+          title={trf('Chỉnh sửa {0}', { 0: tr(sectionEditorMeta.title) })}
+          titleBadge={
+            <Badge tone={sectionEditor.basePolicy.isActive ? 'success' : 'neutral'} size="sm" icon={false}>
+              v{sectionEditor.basePolicy.version}
+            </Badge>
           }
-          size="lg"
-        >
-          <div className="rounded-xl border border-rp-line">
-            <table className="w-full border-collapse text-center text-[13px]">
-              <thead className="sticky top-0 z-10 bg-rp-table-head text-xs uppercase text-rp-text-muted shadow-[0_1px_0_var(--color-rp-line)]">
-                <tr>
-                  <th className="border-b border-rp-line px-3.5 py-2.5">{tr('Tham số')}</th>
-                  {compareBaseline && compareBaseline.version !== compareTarget.version && (
-                    <th className="border-b border-rp-line px-3.5 py-2.5">v{compareBaseline.version}</th>
-                  )}
-                  <th className="border-b border-rp-line px-3.5 py-2.5">v{compareTarget.version}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-rp-line">
-                {POLICY_COMPARE_FIELDS.map((meta) => {
-                  const valA = formatCompareValue(compareBaseline, meta);
-                  const valB = formatCompareValue(compareTarget, meta);
-                  const changed = Boolean(compareBaseline && compareBaseline.version !== compareTarget.version && valA !== valB);
-                  return (
-                    <tr key={meta.key} className={changed ? 'bg-amber-50/75' : 'transition-colors duration-150 hover:bg-rp-row-hover'}>
-                      <td className="px-3.5 py-2 font-medium text-rp-text">
-                        {tr(meta.label)}
-                        {changed && <Badge tone="warning" size="sm" className="ml-2" icon={false}>{tr('Thay đổi')}</Badge>}
-                      </td>
-                      {compareBaseline && compareBaseline.version !== compareTarget.version && (
-                        <td className="px-3.5 py-2 text-rp-text-muted">{valA}</td>
-                      )}
-                      <td className={changed ? 'px-3.5 py-2 font-semibold text-rp-brand-strong' : 'px-3.5 py-2 font-medium text-rp-text-2'}>{valB}</td>
-                    </tr>
-                  );
+          footer={
+            <>
+              <Button
+                type="button"
+                size="md"
+                variant="danger"
+                disabled={updateSection.isPending}
+                onClick={closeSectionModal}
+              >
+                {tr('Hủy')}
+              </Button>
+              <Button
+                type="button"
+                size="md"
+                variant="success"
+                icon={CheckCircle2}
+                disabled={sectionEditorInvalid || updateSection.isPending}
+                loading={updateSection.isPending}
+                onClick={() => updateSection.mutate({
+                  policy: sectionEditor.basePolicy,
+                  sectionKey: sectionEditor.sectionKey,
+                  sourceDraft: activeSectionDraft,
                 })}
-              </tbody>
-            </table>
-          </div>
+              >
+                {tr('Lưu thay đổi')}
+              </Button>
+            </>
+          }
+        >
+          <SectionFields
+            sectionKey={sectionEditor.sectionKey}
+            draft={activeSectionDraft}
+            validation={sectionValidation}
+            supportedLevels={supportedLevels}
+            onFieldChange={sectionHandlers.onFieldChange}
+            onLevelLimitChange={sectionHandlers.onLevelLimitChange}
+            onSessionRangeChange={sectionHandlers.onSessionRangeChange}
+            compactCols={sectionEditor.sectionKey !== 'structure'}
+            tr={tr}
+            trf={trf}
+          />
         </Modal>
       )}
 
-      {/* 6-Step Create Version Right-Side Drawer */}
+      {/* Full-Version Publish / Edit Right-Side Drawer */}
       <SideDrawer
-        open={wizardOpen}
-        onClose={() => {
-          if (createVersion.isPending) return;
-          if (form && (draftDiffs.length > 0 || draft.effectiveDate !== defaultEffectiveDate)) {
-            setConfirmDiscardOpen(true);
-            return;
-          }
-          closeWizardImmediate();
-        }}
+        open={Boolean(drawerState)}
+        onClose={closeDrawer}
         side="right"
-        size="2xl"
-        title={tr('Ban hành chính sách')}
-        dismissible={!createVersion.isPending}
+        size="xl"
+        title={
+          drawerState?.mode === 'edit'
+            ? trf('Chỉnh sửa phiên bản v{0}', { 0: drawerState?.basePolicy?.version })
+            : tr('Ban hành chính sách mới')
+        }
       >
-        {({ titleId }) => {
-          const requestClose = () => {
-            if (createVersion.isPending) return;
-            if (form && (draftDiffs.length > 0 || draft.effectiveDate !== defaultEffectiveDate)) {
-              setConfirmDiscardOpen(true);
-              return;
-            }
-            closeWizardImmediate();
-          };
-          const currentStepLabel = WIZARD_STEPS[stepIndex]?.label || '';
-          return (
-            <>
-              <DrawerHeader
-                titleId={titleId}
-                title={tr('Ban hành chính sách')}
-                subtitle={trf('Bước {0}/{1} · {2}', {
-                  0: stepIndex + 1,
-                  1: WIZARD_STEPS.length,
-                  2: tr(currentStepLabel.replace(/^\d+\.\s*/, '')),
-                })}
-                onClose={requestClose}
-              />
+        {({ titleId, descId }) => (
+          <>
+            <DrawerHeader
+              titleId={titleId}
+              descId={descId}
+              title={
+                drawerState?.mode === 'edit'
+                  ? trf('Chỉnh sửa phiên bản v{0}', { 0: drawerState?.basePolicy?.version })
+                  : tr('Ban hành chính sách mới')
+              }
+              subtitle={
+                drawerState?.mode === 'edit'
+                  ? trf('Cập nhật trực tiếp toàn bộ cấu hình của phiên bản v{0}.', { 0: drawerState?.basePolicy?.version })
+                  : trf('Tạo phiên bản chính sách v{0} từ cấu hình hiện tại.', { 0: latestLiveVersion + 1 })
+              }
+              titleBadge={
+                drawerState?.mode === 'edit' && drawerState?.basePolicy ? (
+                  <Badge tone={drawerState.basePolicy.isActive ? 'success' : 'neutral'} size="sm" icon={false}>
+                    v{drawerState.basePolicy.version}
+                  </Badge>
+                ) : (
+                  <Badge tone="brand" size="sm" icon={false}>
+                    v{latestLiveVersion + 1}
+                  </Badge>
+                )
+              }
+              onClose={closeDrawer}
+            />
 
-              {/* Wizard layout: fixed header → fixed step navigation → scrolling body → fixed footer. */}
-              <div className="shrink-0 overflow-x-auto border-b border-rp-line bg-rp-surface px-5 py-2.5">
-                <Tabs
-                  variant="pill"
-                  tone="segmented"
-                  size="sm"
-                  className="min-w-max sm:flex-nowrap"
-                  label={tr('Các bước cấu hình chính sách')}
-                  value={wizardStep}
-                  onChange={setWizardStep}
-                  tabs={WIZARD_STEPS.map((s) => ({ value: s.value, label: tr(s.label) }))}
+            <DrawerBody className="space-y-6 px-6 py-5">
+              {activeDraft && POLICY_SECTION_ORDER.map((key, idx) => {
+                const meta = POLICY_SECTION_META[key];
+                return (
+                  <section
+                    key={key}
+                    className={idx > 0 ? 'space-y-4 border-t border-rp-line pt-5' : 'space-y-4'}
+                  >
+                    <SectionHeading code={meta.code} title={tr(meta.title)} />
+                    <SectionFields
+                      sectionKey={key}
+                      draft={activeDraft}
+                      validation={drawerValidation}
+                      supportedLevels={supportedLevels}
+                      onFieldChange={drawerHandlers.onFieldChange}
+                      onLevelLimitChange={drawerHandlers.onLevelLimitChange}
+                      onSessionRangeChange={drawerHandlers.onSessionRangeChange}
+                      tr={tr}
+                      trf={trf}
+                    />
+                  </section>
+                );
+              })}
+            </DrawerBody>
+
+            <DrawerFooter className="flex flex-wrap items-center justify-between gap-3">
+              {drawerState?.mode === 'publish' ? (
+                <Switch
+                  label="Áp dụng ngay sau khi ban hành"
+                  checked={applyImmediately}
+                  disabled={createVersion.isPending}
+                  onCheckedChange={setApplyImmediately}
                 />
+              ) : (
+                <span className="text-xs font-medium text-rp-text-muted">
+                  {drawerState?.basePolicy?.isActive
+                    ? tr('Phiên bản đang áp dụng; thay đổi có hiệu lực cho đề xuất và lớp mới.')
+                    : tr('Chỉ cập nhật phiên bản này, không thay đổi chính sách đang áp dụng.')}
+                </span>
+              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="md"
+                  variant="danger"
+                  disabled={createVersion.isPending || updateVersion.isPending}
+                  onClick={closeDrawer}
+                >
+                  {tr('Hủy')}
+                </Button>
+                {drawerState?.mode === 'edit' ? (
+                  <Button
+                    type="button"
+                    size="md"
+                    variant="success"
+                    icon={CheckCircle2}
+                    disabled={!activeDraft || drawerValidation.hasErrors || updateVersion.isPending}
+                    loading={updateVersion.isPending}
+                    onClick={() => updateVersion.mutate({
+                      policy: drawerState.basePolicy,
+                      sourceDraft: activeDraft,
+                    })}
+                  >
+                    {tr('Lưu thay đổi')}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="md"
+                    variant="success"
+                    icon={CheckCircle2}
+                    disabled={!activeDraft || drawerValidation.hasErrors || createVersion.isPending}
+                    loading={createVersion.isPending}
+                    onClick={() => setConfirmPublishOpen(true)}
+                  >
+                    {trf('Ban hành v{0}', { 0: latestLiveVersion + 1 })}
+                  </Button>
+                )}
               </div>
-
-              <DrawerBody padded={false}>
-                <div className="space-y-5 px-5 py-4">
-
-                  {formInvalid && (
-                    <Banner tone="warning" title={tr('Cần chỉnh sửa tham số chưa hợp lệ')}>
-                      {tr('Kiểm tra lại sĩ số tối thiểu/tối đa, danh sách cường độ buổi/tuần hoặc cường độ mặc định.')}
-                    </Banner>
-                  )}
-
-                  {wizardStep === 'class' && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={tr('Ngày hiệu lực (00:00 GMT+7)')}>
-                        <DateInput
-                          value={draft.effectiveDate}
-                          onChange={(e) => setField('effectiveDate', e?.target ? e.target.value : e)}
-                        />
-                      </Field>
-                      <Field
-                        label={tr('Sĩ số tối đa mỗi lớp (1–20)')}
-                        error={maxLearnersInvalid ? tr('Sĩ số tối đa phải nằm trong khoảng 1–20.') : undefined}
-                      >
-                        <Input type="number" min={1} max={20} invalid={maxLearnersInvalid} value={draft.maxLearners} onChange={(e) => setField('maxLearners', e.target.value)} />
-                      </Field>
-                      <Field
-                        label={tr('Số học viên tối thiểu để khai giảng')}
-                        error={minLearnersInvalid ? tr('Không được lớn hơn sĩ số tối đa và phải ≥ 1.') : undefined}
-                      >
-                        <Input
-                          type="number"
-                          min={1}
-                          max={Number(draft.maxLearners) || 20}
-                          invalid={minLearnersInvalid}
-                          value={draft.minLearnersToStart}
-                          onChange={(e) => setField('minLearnersToStart', e.target.value)}
-                        />
-                      </Field>
-                      <Field label={tr('Thời lượng khóa lớp nhóm (tuần)')}>
-                        <Input type="number" min={1} max={52} value={draft.courseDurationWeeks} onChange={(e) => setField('courseDurationWeeks', e.target.value)} />
-                      </Field>
-                      <Field
-                        label={tr('Cường độ buổi học của mỗi lớp nhóm / tuần (VD: 2,3,4)')}
-                        error={sessionsCsvInvalid ? tr('Nhập các số 1–7, cách nhau bởi dấu phẩy.') : undefined}
-                      >
-                        <Input
-                          value={draft.allowedSessionsPerWeekCsv}
-                          invalid={sessionsCsvInvalid}
-                          onChange={(e) => setField('allowedSessionsPerWeekCsv', e.target.value)}
-                        />
-                      </Field>
-                      <Field
-                        label={tr('Cường độ lớp nhóm mặc định (khuyến nghị)')}
-                        error={defaultSpwInvalid ? tr('Giá trị mặc định phải nằm trong danh sách được phép.') : undefined}
-                      >
-                        <CustomSelect
-                          value={String(draft.defaultSessionsPerWeek)}
-                          invalid={defaultSpwInvalid}
-                          onChange={(val) => setField('defaultSessionsPerWeek', val)}
-                          options={(allowedSessionsPerWeek.length ? allowedSessionsPerWeek : [Number(draft.defaultSessionsPerWeek)]).map((n) => ({
-                            value: String(n),
-                            label: trf('{0} buổi/tuần', { 0: n }),
-                          }))}
-                        />
-                      </Field>
-                      <Field label={tr('Thời gian giữ chỗ khi thanh toán (phút)')}>
-                        <Input type="number" min={1} max={120} value={draft.checkoutHoldMinutes} onChange={(e) => setField('checkoutHoldMinutes', e.target.value)} />
-                      </Field>
-                    </div>
-                  )}
-
-                  {wizardStep === 'schedule' && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={tr('Thời lượng buổi (phút)')}>
-                        <Input type="number" min={30} max={180} value={draft.sessionMinutes} onChange={(e) => setField('sessionMinutes', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Nghỉ giữa buổi (phút)')}>
-                        <Input type="number" min={0} max={120} value={draft.restMinutes} onChange={(e) => setField('restMinutes', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Số khung giờ tối đa Giáo viên đăng ký / ngày')}>
-                        <Input type="number" min={1} max={12} value={draft.dailySessionCap} onChange={(e) => setField('dailySessionCap', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Hạn mức khung giờ Giáo viên / tuần (0 = không giới hạn)')}>
-                        <Input type="number" min={0} max={84} value={draft.weeklySessionCap} onChange={(e) => setField('weeklySessionCap', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Hạn công bố lịch (ngày)')}>
-                        <Input type="number" min={1} max={365} value={draft.publicationHorizonDays} onChange={(e) => setField('publicationHorizonDays', e.target.value)} />
-                      </Field>
-                    </div>
-                  )}
-
-                  {wizardStep === 'changes' && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={tr('Khóa ghi danh trước khai giảng (phút)')}>
-                        <Input type="number" min={0} max={10080} value={draft.enrollmentCutoffMinutesBeforeFirstSession} onChange={(e) => setField('enrollmentCutoffMinutesBeforeFirstSession', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Báo trước hủy lịch (giờ)')}>
-                        <Input type="number" min={0} max={720} value={draft.cancellationLeadHours} onChange={(e) => setField('cancellationLeadHours', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Báo trước dời lịch (giờ)')}>
-                        <Input type="number" min={0} max={720} value={draft.reschedulingLeadHours} onChange={(e) => setField('reschedulingLeadHours', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Báo trước khi thay giáo viên chính (giờ)')}>
-                        <Input type="number" min={0} max={720} value={draft.mentorReplacementLeadHours} onChange={(e) => setField('mentorReplacementLeadHours', e.target.value)} />
-                      </Field>
-                      <div className="sm:col-span-2 space-y-2.5 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
-                        <Checkbox
-                          checked={Boolean(draft.learnerTransferEnabled)}
-                          onChange={(e) => setField('learnerTransferEnabled', e.target.checked)}
-                          label={tr('Cho phép học viên gửi yêu cầu chuyển lớp (luôn cần Admin duyệt)')}
-                        />
-                        <Checkbox
-                          checked={false}
-                          disabled
-                          readOnly
-                          onChange={() => {}}
-                          label={tr('Cho phép chuyển khi lớp hiện tại đã khai giảng')}
-                        />
-                        <p id="transfer-after-start-note" className="text-[11.5px] text-rp-brand-strong">
-                          {tr('Theo chính sách hiện hành: không chuyển lớp sau khi khóa học bắt đầu.')}
-                        </p>
-                        <Checkbox
-                          checked={Boolean(draft.mentorReplacementEnabled)}
-                          onChange={(e) => setField('mentorReplacementEnabled', e.target.checked)}
-                          label={tr('Cho phép Admin thay giáo viên chính cho phần còn lại của lớp')}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {wizardStep === 'homework' && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={tr('Hạn nộp bài tập mặc định (ngày)')}>
-                        <Input type="number" min={1} max={365} value={draft.homeworkDeadlineDays} onChange={(e) => setField('homeworkDeadlineDays', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Giới hạn lượt đánh giá năng lực')}>
-                        <Input type="number" min={1} max={20} value={draft.placementAttemptLimit} onChange={(e) => setField('placementAttemptLimit', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Ngưỡng nộp bài tập để xét học lại (%)')}>
-                        <Input type="number" min={0.01} max={100} step="0.01" value={draft.remediationCompletionThresholdPercent} onChange={(e) => setField('remediationCompletionThresholdPercent', e.target.value)} />
-                      </Field>
-                      <Field label={tr('Điều kiện so sánh tỷ lệ nộp bài tập')}>
-                        <CustomSelect
-                          value={draft.remediationThresholdComparison}
-                          onChange={(val) => setField('remediationThresholdComparison', val)}
-                          options={[
-                            { value: '>', label: tr('> (lớn hơn hẳn)') },
-                            { value: '>=', label: tr('>= (từ ngưỡng trở lên)') },
-                          ]}
-                        />
-                      </Field>
-                      <div className="sm:col-span-2 space-y-2.5 rounded-xl border border-rp-line bg-rp-bg-2 p-3.5">
-                        <Checkbox checked disabled onChange={() => {}} label={tr('Bắt buộc minh chứng kỳ thi JLPT (theo quy định)')} />
-                        <Checkbox checked disabled onChange={() => {}} label={tr('Admin duyệt yêu cầu học lại (theo quy định)')} />
-                      </div>
-                    </div>
-                  )}
-
-                  {wizardStep === 'kpi' && (
-                    <div className="space-y-4">
-                      <Field label={tr('Chu kỳ báo cáo KPI (ngày)')}>
-                        <Input type="number" min={1} max={366} value={draft.kpiReportingPeriodDays} onChange={(e) => setField('kpiReportingPeriodDays', e.target.value)} />
-                      </Field>
-                      <Banner tone="info" title={tr('Hiệu lực áp dụng theo phiên bản')}>
-                        {tr('Phiên bản mới chỉ áp dụng cho lớp và lịch phát sinh từ 00:00 GMT+7 ngày hiệu lực; dữ liệu đã công bố giữ nguyên cấu hình tại thời điểm tạo.')}
-                      </Banner>
-                    </div>
-                  )}
-
-                  {wizardStep === 'review' && (
-                    <div className="space-y-3.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/70 px-3.5 py-2.5 text-xs">
-                        <span className="font-semibold text-rp-text">
-                          {draftDiffs.length > 0
-                            ? trf('Có {0} tham số thay đổi so với v{1}', { 0: draftDiffs.length, 1: current?.version ?? 0 })
-                            : tr('Chưa có thay đổi tham số (chỉ cập nhật ngày hiệu lực nếu ban hành)')}
-                        </span>
-                        <Badge tone={draftDiffs.length > 0 ? 'warning' : 'neutral'} size="sm" icon={false}>
-                          {trf('{0} / {1} thay đổi', { 0: draftDiffs.length, 1: POLICY_COMPARE_FIELDS.length })}
-                        </Badge>
-                      </div>
-                      <div className="rounded-xl border border-rp-line bg-rp-surface">
-                        <table className="w-full table-fixed border-collapse text-center text-[13px]">
-                          <thead className="sticky top-0 z-10 bg-rp-table-head text-xs uppercase text-rp-text-muted shadow-[0_1px_0_var(--color-rp-line)]">
-                            <tr>
-                              <th className="w-[48%] px-3.5 py-2.5">{tr('Tham số')}</th>
-                              <th className="w-[26%] px-3.5 py-2.5">{tr('Hiện hành')}</th>
-                              <th className="w-[26%] px-3.5 py-2.5">{tr('Dự thảo mới')}</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-rp-line">
-                            {POLICY_COMPARE_FIELDS.map((meta) => {
-                              const prev = formatCompareValue(current, meta);
-                              const next = formatCompareValue(draft, meta);
-                              const changed = Boolean(current && prev !== next);
-                              return (
-                                <tr key={meta.key} className={changed ? 'bg-amber-50/75' : 'transition-colors duration-150 hover:bg-rp-row-hover'}>
-                                  <td className="px-3.5 py-2 font-medium text-rp-text">
-                                    <span className="align-middle">{tr(meta.label)}</span>
-                                    {changed && <Badge tone="warning" size="sm" className="ml-2" icon={false}>{tr('Thay đổi')}</Badge>}
-                                  </td>
-                                  <td className="px-3.5 py-2 tabular-nums text-rp-text-muted">{prev}</td>
-                                  <td className={changed ? 'px-3.5 py-2 font-bold tabular-nums text-rp-brand-strong' : 'px-3.5 py-2 font-medium tabular-nums text-rp-text-2'}>
-                                    {next}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </DrawerBody>
-
-              <DrawerFooter>
-                <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                  <div>
-                    {stepIndex > 0 && (
-                      <Button
-                        variant="outline"
-                        icon={ArrowLeft}
-                        onClick={() => setWizardStep(WIZARD_STEPS[stepIndex - 1].value)}
-                      >
-                        {tr('Bước trước')}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      disabled={createVersion.isPending}
-                      onClick={requestClose}
-                    >
-                      {tr('Hủy')}
-                    </Button>
-                    {stepIndex < WIZARD_STEPS.length - 1 && (
-                      <Button
-                        variant="secondary"
-                        iconRight={ArrowRight}
-                        onClick={() => setWizardStep(WIZARD_STEPS[stepIndex + 1].value)}
-                      >
-                        {tr('Tiếp theo')}
-                      </Button>
-                    )}
-                    <Button
-                      variant="primary"
-                      icon={CheckCircle2}
-                      disabled={createVersion.isPending || currentQuery.isPending || currentBlocked || formInvalid}
-                      loading={createVersion.isPending}
-                      onClick={() => createVersion.mutate()}
-                      data-testid="publish-policy-version-btn"
-                    >
-                      {createVersion.isPending ? tr('Đang ban hành…') : tr('Ban hành')}
-                    </Button>
-                  </div>
-                </div>
-              </DrawerFooter>
-            </>
-          );
-        }}
+            </DrawerFooter>
+          </>
+        )}
       </SideDrawer>
 
+      {/* Confirm Publish New Version */}
       <AlertDialog
-        open={confirmDiscardOpen}
-        onClose={() => setConfirmDiscardOpen(false)}
-        onConfirm={closeWizardImmediate}
-        tone="warning"
-        title={tr('Bỏ thay đổi chính sách chưa ban hành?')}
-        description={tr('Các tham số dự thảo hiện tại sẽ không được lưu nếu bạn đóng bảng cấu hình.')}
-        confirmLabel={tr('Đóng & bỏ thay đổi')}
-        cancelLabel={tr('Tiếp tục chỉnh sửa')}
+        open={confirmPublishOpen}
+        onClose={() => !createVersion.isPending && setConfirmPublishOpen(false)}
+        onConfirm={() => createVersion.mutate({
+          sourceDraft: activeDraft,
+          applyNow: applyImmediately,
+          sourceVersion: drawerState?.basePolicy?.version,
+        })}
+        loading={createVersion.isPending}
+        tone="success"
+        cancelVariant="danger"
+        title={
+          applyImmediately
+            ? trf('Xác nhận ban hành & áp dụng phiên bản v{0}?', { 0: latestLiveVersion + 1 })
+            : trf('Xác nhận ban hành phiên bản v{0}?', { 0: latestLiveVersion + 1 })
+        }
+        description={
+          applyImmediately
+            ? tr('Phiên bản mới sẽ được áp dụng ngay cho toàn hệ thống. Các lớp học và giao dịch đã xác lập giữ nguyên snapshot cũ.')
+            : tr('Phiên bản mới sẽ được lưu ở trạng thái Đã ban hành để kích hoạt khi cần.')
+        }
+        confirmLabel={applyImmediately ? tr('Ban hành & áp dụng ngay') : tr('Ban hành phiên bản')}
+        cancelLabel={tr('Hủy')}
+      />
+
+      {/* Confirm Activate Existing Version */}
+      <AlertDialog
+        open={Boolean(activateTarget)}
+        onClose={() => !activateVersion.isPending && setActivateTarget(null)}
+        onConfirm={() => activateTarget && activateVersion.mutate(activateTarget)}
+        loading={activateVersion.isPending}
+        tone="success"
+        cancelVariant="danger"
+        title={trf('Áp dụng phiên bản v{0} cho toàn hệ thống?', { 0: activateTarget?.version })}
+        description={tr('Hệ thống sẽ chuyển sang sử dụng phiên bản này cho các đề xuất và lớp mới; không làm thay đổi snapshot của các lớp đã mở.')}
+        confirmLabel={tr('Áp dụng phiên bản')}
+        cancelLabel={tr('Hủy')}
+      />
+
+      {/* Confirm Delete Version */}
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => !deleteVersion.isPending && setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteVersion.mutate(deleteTarget)}
+        loading={deleteVersion.isPending}
+        tone="danger"
+        title={trf('Xác nhận xóa phiên bản v{0}?', { 0: deleteTarget?.version })}
+        description={tr('Phiên bản chưa áp dụng và chưa có dữ liệu tham chiếu này sẽ bị xóa khỏi danh sách quản lý. Số phiên bản này sẽ không được tái sử dụng.')}
+        confirmLabel={tr('Xóa phiên bản')}
+        cancelLabel={tr('Hủy')}
       />
     </div>
   );

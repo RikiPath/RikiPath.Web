@@ -1,42 +1,85 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Download, History, Layers, PlayCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  captureMainScrollTop,
+  captureNavigationOrigin,
+  saveListViewState,
+} from '@/utils/navigationContext.js';
+import {
+  ChevronDown,
+  ChevronRight,
+  FileCheck2,
+  History,
+  PlayCircle,
+  RotateCcw,
+} from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import {
-  getMockTestInfo,
   getPracticeSets,
   startMockTest,
 } from '@/features/mock-test/api/mockTestApi.js';
 import { exportExamFile, triggerBlobDownload } from '@/features/content-author/api/contentAuthoringV2Api.js';
 import { api } from '@/api/client.js';
+import { useAuth } from '@/app/auth/authContext.js';
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
+import ExamCatalogCard, { ExamCatalogCardSkeleton } from '@/features/mock-test/components/ExamCatalogCard.jsx';
+import ExamFilterToolbar from '@/features/mock-test/components/ExamFilterToolbar.jsx';
+import PracticeSetInfoModal from '@/features/mock-test/components/PracticeSetInfoModal.jsx';
+import ResumeOrRestartModal from '@/features/mock-test/components/ResumeOrRestartModal.jsx';
+import {
+  PRACTICE_STATUS_FILTER_OPTIONS,
+  SKILL_FILTER_OPTIONS,
+  formatMockDateTime,
+} from '@/features/mock-test/utils/practiceStatusHelpers.js';
 import {
   Badge,
   Banner,
   Button,
   Card,
   ContextualErrorState,
-  CustomSelect,
   EmptyState,
-  Input,
   PageContainer,
-  SakuraLoader,
+  ProgressBar,
   notify,
 } from '@/components/ui';
-import { ControlGroup, filterSupportedJlptLevels, IllustratedPageHeader, LevelTabs } from '@/features/learner-ui';
+import { ControlGroup, filterSupportedJlptLevels, IllustratedPageHeader } from '@/features/learner-ui';
 import { useLocale } from '@/locales/locale.js';
 
 export default function PracticeSetsPage() {
   const { tr, trf } = useLocale();
+  const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const selectedId = Number(params.get('testId')) || null;
+
+  function openPracticeAttempt(attemptId, { result = false } = {}) {
+    saveListViewState('/practice-sets', {
+      search: location.search,
+      scrollTop: captureMainScrollTop(),
+    });
+    const path = result ? `/practice-sets/result/${attemptId}/` : `/practice-sets/attempt/${attemptId}/`;
+    navigate(path, {
+      state: {
+        navigationOrigin: captureNavigationOrigin(location, { backLabel: 'Quay lại bộ đề' }),
+      },
+    });
+  }
+
+  const deepLinkTestId = Number(params.get('testId')) || null;
   const levelParam = params.get('level') || 'ALL';
 
   const [skillFilter, setSkillFilter] = useState('ALL');
-  const [kindFilter, setKindFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [keyword, setKeyword] = useState('');
+
+  const [infoModalTestId, setInfoModalTestId] = useState(null);
+  const [deepLinkDismissed, setDeepLinkDismissed] = useState(false);
+  const [resumeTarget, setResumeTarget] = useState(null);
+  const [showAllInProgress, setShowAllInProgress] = useState(false);
+
+  const activeInfoModalTestId = infoModalTestId ?? (!deepLinkDismissed ? deepLinkTestId : null);
 
   const levelsQuery = useQuery({
     queryKey: ['jlpt-levels-supported'],
@@ -49,50 +92,117 @@ export default function PracticeSetsPage() {
   const activeLevelObj = (levelsQuery.data || []).find((l) => l.code === levelParam) || null;
 
   const practiceQuery = useQuery({
-    queryKey: ['learner-practice-sets', activeLevelObj?.id, skillFilter],
+    queryKey: ['learner-practice-sets', user?.userId, activeLevelObj?.id, statusFilter],
     queryFn: () =>
       getPracticeSets({
         levelId: activeLevelObj?.id || undefined,
-        skill: skillFilter !== 'ALL' ? skillFilter : undefined,
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
       }),
   });
 
-  const detailQuery = useQuery({
-    queryKey: ['practice-set-info', selectedId],
-    queryFn: () => getMockTestInfo(selectedId),
-    enabled: Boolean(selectedId),
-  });
-
   const startMutation = useMutation({
-    mutationFn: (testId) => startMockTest(testId),
+    mutationFn: ({ testId, forceNew }) => startMockTest(testId, { forceNew }),
     onSuccess: (attempt) => {
-      navigate(`/mock-tests?attemptId=${attempt.attemptId}`);
+      setResumeTarget(null);
+      closeInfoModal();
+      void queryClient.invalidateQueries({ queryKey: ['learner-practice-sets'] });
+      openPracticeAttempt(attempt.attemptId);
     },
     onError: (err) => notify.apiError(err, tr('Không thể bắt đầu bộ đề luyện tập'), { key: 'ps-start-err' }),
   });
 
+  const allItems = useMemo(() => practiceQuery.data || [], [practiceQuery.data]);
+
   const items = useMemo(() => {
-    const raw = practiceQuery.data || [];
     const q = keyword.trim().toLowerCase();
-    return raw.filter((item) => {
-      if (kindFilter !== 'ALL' && item.examKind !== kindFilter) return false;
+    return allItems.filter((item) => {
+      if (skillFilter === 'Mixed') {
+        if (item.examKind !== 'MixedPractice' && (item.includedSkills || []).length < 3) {
+          return false;
+        }
+      } else if (skillFilter !== 'ALL') {
+        const skills = (item.includedSkills || []).join(' ').toLowerCase();
+        const title = String(item.title || '').toLowerCase();
+        const target = skillFilter.toLowerCase();
+        const matchesKanjiAlias = target === 'kanji' && (skills.includes('kanji') || title.includes('kanji') || title.includes('hán tự'));
+        if (!skills.includes(target) && !title.includes(target) && !matchesKanjiAlias) {
+          return false;
+        }
+      }
       if (!q) return true;
       return (
         String(item.title || '').toLowerCase().includes(q) ||
-        String(item.description || '').toLowerCase().includes(q)
+        String(item.description || '').toLowerCase().includes(q) ||
+        String(item.jlptLevelName || '').toLowerCase().includes(q)
       );
     });
-  }, [practiceQuery.data, kindFilter, keyword]);
+  }, [allItems, skillFilter, keyword]);
+
+  const inProgressItems = useMemo(
+    () => allItems.filter((item) => item.userStatus === 'IN_PROGRESS' && item.activeAttemptId),
+    [allItems],
+  );
+
+  const infoInitialSummary = useMemo(
+    () => allItems.find((item) => item.mockTestId === activeInfoModalTestId) || null,
+    [allItems, activeInfoModalTestId],
+  );
+
+  const hasActiveFilters =
+    levelParam !== 'ALL' ||
+    skillFilter !== 'ALL' ||
+    statusFilter !== 'ALL' ||
+    keyword.trim().length > 0;
+
+  function handleResetFilters() {
+    setKeyword('');
+    setSkillFilter('ALL');
+    setStatusFilter('ALL');
+    setParams({});
+  }
+
+  function openInfoModal(testId) {
+    setDeepLinkDismissed(false);
+    setInfoModalTestId(testId);
+  }
+
+  function closeInfoModal() {
+    setInfoModalTestId(null);
+    setDeepLinkDismissed(true);
+    if (deepLinkTestId) {
+      const next = new URLSearchParams(params);
+      next.delete('testId');
+      setParams(next, { replace: true });
+    }
+  }
+
+  function handleCardPrimaryAction(item) {
+    if (!item || startMutation.isPending) return;
+    if (item.userStatus === 'UNAVAILABLE' || (item.canStart === false && item.userStatus !== 'IN_PROGRESS')) {
+      notify.info(item.unavailableReason || tr('Bộ đề hiện chưa khả dụng.'), '', { key: 'ps-unavail' });
+      return;
+    }
+    if (item.userStatus === 'IN_PROGRESS' && item.activeAttemptId) {
+      setResumeTarget(item);
+      return;
+    }
+    startMutation.mutate({ testId: item.mockTestId, forceNew: false });
+  }
 
   async function handleDownloadPdf(examId) {
     try {
       const { blob, fileName } = await exportExamFile(examId, 'pdf', false);
       triggerBlobDownload(blob, fileName);
-      notify.success(tr('Đã tải xuống bản PDF đề luyện tập.'), '', { key: 'ps-pdf-ok' });
+      notify.success(tr('Đã tải xuống bản PDF bộ đề luyện tập.'), '', { key: 'ps-pdf-ok' });
     } catch (err) {
-      notify.apiError(err, tr('Chưa tải được file PDF đề luyện tập'), { key: 'ps-pdf-err' });
+      notify.apiError(err, tr('Chưa tải được file PDF bộ đề luyện tập'), { key: 'ps-pdf-err' });
     }
   }
+
+  const levelOptions = useMemo(
+    () => [{ code: 'ALL', label: 'Tất cả' }, ...(levelsQuery.data || []).map((l) => ({ code: l.code, label: l.code }))],
+    [levelsQuery.data],
+  );
 
   return (
     <LearnerShell breadcrumb={tr('Bộ đề luyện tập')}>
@@ -100,21 +210,13 @@ export default function PracticeSetsPage() {
         <IllustratedPageHeader
           icon="mock"
           tone="sakura"
-          eyebrow={tr('Luyện tập theo kỹ năng & Hỗn hợp')}
+          eyebrow={tr('Luyện tập theo kỹ năng')}
           title={tr('Bộ đề luyện tập JLPT')}
-          description={tr('Ôn tập linh hoạt từng kỹ năng (Từ vựng, Kanji, Ngữ pháp, Đọc hiểu, Nghe hiểu) hoặc bài tập hỗn hợp nhiều kỹ năng. Thi thử JLPT đầy đủ nằm ở mục riêng.')}
+          description={tr('Rèn luyện từng kỹ năng hoặc kết hợp nhiều kỹ năng để từng bước nâng cao năng lực tiếng Nhật.')}
           actions={
             <ControlGroup>
-              {levelsQuery.data?.length > 0 && !selectedId && (
-                <LevelTabs
-                  label={tr('Cấp độ luyện tập')}
-                  value={levelParam}
-                  onChange={(code) => setParams(code && code !== 'ALL' ? { level: code } : {})}
-                  levels={[{ id: 'ALL', code: 'ALL', label: tr('Tất cả') }, ...levelsQuery.data]}
-                />
-              )}
-              <Button as={Link} to="/mock-tests/" variant="outline" size="md">
-                {tr('Sang Thi thử JLPT')}
+              <Button as={Link} to="/mock-tests/" variant="outline" size="md" icon={FileCheck2}>
+                {tr('Thi thử JLPT')}
               </Button>
               <Button as={Link} to="/exam-result/" variant="primary" size="md" icon={History}>
                 {tr('Lịch sử & kết quả')}
@@ -123,160 +225,177 @@ export default function PracticeSetsPage() {
           }
         />
 
-        {selectedId ? (
-          detailQuery.isPending ? (
-            <SakuraLoader variant="section" context="mocktest" delay={140} />
-          ) : detailQuery.isError ? (
-            <Card>
-              <ContextualErrorState error={detailQuery.error} compact onRetry={() => detailQuery.refetch()} />
-            </Card>
-          ) : detailQuery.data ? (
-            <Card className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="brand" icon={false}>{detailQuery.data.jlptLevelName}</Badge>
-                  <Badge tone="info" icon={false}>
-                    {detailQuery.data.examKind === 'MixedPractice' ? tr('Hỗn hợp nhiều kỹ năng') : tr('Luyện tập kỹ năng')}
-                  </Badge>
-                </div>
-                <Button variant="outline" size="sm" icon={Download} onClick={() => handleDownloadPdf(selectedId)}>
-                  {tr('Tải đề PDF')}
-                </Button>
+        <ExamFilterToolbar
+          searchValue={keyword}
+          onSearchChange={setKeyword}
+          searchPlaceholder="Tìm bộ đề luyện tập…"
+          levels={levelOptions}
+          activeLevel={levelParam}
+          onLevelChange={(code) => {
+            const next = new URLSearchParams(params);
+            if (code && code !== 'ALL') next.set('level', code);
+            else next.delete('level');
+            setParams(next);
+          }}
+          selects={[
+            { key: 'skill', label: 'Kỹ năng', value: skillFilter, onChange: setSkillFilter, options: SKILL_FILTER_OPTIONS },
+            { key: 'status', label: 'Trạng thái', value: statusFilter, onChange: setStatusFilter, options: PRACTICE_STATUS_FILTER_OPTIONS },
+          ]}
+          hasActiveFilters={hasActiveFilters}
+          onReset={handleResetFilters}
+        />
+
+        {inProgressItems.length > 0 && (
+          <Card className="rp-resume-strip border-amber-200/80 bg-gradient-to-r from-[#FFF9F2] via-white to-[#FFF7FA] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Badge tone="warning" size="sm" icon={PlayCircle}>{tr('Tiếp tục luyện tập')}</Badge>
+                <span className="text-xs font-medium text-rp-text-muted">
+                  {trf('Bạn có {0} bộ đề đang làm dở', { 0: inProgressItems.length })}
+                </span>
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-rp-text">{tr(detailQuery.data.title)}</h2>
-                {detailQuery.data.description && (
-                  <p className="mt-1 text-sm text-rp-text-2">{tr(detailQuery.data.description)}</p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-3 text-sm text-rp-text-2">
-                <span>{trf('{0} phút', { 0: detailQuery.data.timeLimitMinutes })}</span>
-                <span>{trf('{0} câu', { 0: detailQuery.data.questionCount })}</span>
-              </div>
-              <ul className="divide-y divide-rp-line rounded-xl border border-rp-line">
-                {(detailQuery.data.sections || []).map((section, idx) => (
-                  <li key={idx} className="flex flex-wrap justify-between gap-2 px-4 py-3 text-sm">
-                    <span className="font-medium text-rp-text">{section.title}</span>
-                    <span className="text-rp-text-muted">
-                      {section.skillName ? `${section.skillName} · ` : ''}
-                      {trf('{0} câu', { 0: section.questionCount })}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex flex-wrap gap-2.5">
-                <Button variant="secondary" onClick={() => setParams(levelParam !== 'ALL' ? { level: levelParam } : {})}>
-                  {tr('Về danh sách bộ đề')}
-                </Button>
+              {inProgressItems.length > 1 && (
                 <Button
-                  variant="primary"
-                  icon={PlayCircle}
-                  loading={startMutation.isPending}
-                  onClick={() => startMutation.mutate(selectedId)}
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  iconRight={ChevronDown}
+                  onClick={() => setShowAllInProgress((v) => !v)}
                 >
-                  {tr('Bắt đầu luyện tập')}
+                  {showAllInProgress
+                    ? tr('Thu gọn')
+                    : trf('Xem thêm ({0})', { 0: inProgressItems.length - 1 })}
                 </Button>
-              </div>
-            </Card>
-          ) : null
-        ) : (
-          <>
-            <Card className="flex flex-wrap items-center gap-3 p-3.5">
-              <div className="min-w-[200px] flex-1">
-                <Input
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  placeholder={tr('Tìm bộ đề theo tên hoặc chủ đề…')}
-                />
-              </div>
-              <CustomSelect
-                fitContent
-                size="sm"
-                value={skillFilter}
-                onChange={setSkillFilter}
-                options={[
-                  { value: 'ALL', label: tr('Mọi kỹ năng') },
-                  { value: 'Vocabulary', label: 'Từ vựng (Vocabulary)' },
-                  { value: 'Kanji', label: 'Hán tự (Kanji)' },
-                  { value: 'Grammar', label: 'Ngữ pháp (Grammar)' },
-                  { value: 'Reading', label: 'Đọc hiểu (Reading)' },
-                  { value: 'Listening', label: 'Nghe hiểu (Listening)' },
-                ]}
-              />
-              <CustomSelect
-                fitContent
-                size="sm"
-                value={kindFilter}
-                onChange={setKindFilter}
-                options={[
-                  { value: 'ALL', label: tr('Mọi dạng bộ đề') },
-                  { value: 'PracticeSet', label: tr('Đơn kỹ năng') },
-                  { value: 'MixedPractice', label: tr('Hỗn hợp (Mixed)') },
-                ]}
-              />
-            </Card>
+              )}
+            </div>
 
-            {startMutation.error && (
-              <Banner tone="danger">{formatApiError(startMutation.error, tr('Không mở được lượt luyện tập.'))}</Banner>
-            )}
-
-            {practiceQuery.isPending ? (
-              <SakuraLoader variant="section" context="mocktest" delay={140} />
-            ) : practiceQuery.isError ? (
-              <Card>
-                <ContextualErrorState error={practiceQuery.error} compact onRetry={() => practiceQuery.refetch()} />
-              </Card>
-            ) : items.length === 0 ? (
-              <Card>
-                <EmptyState
-                  variant="compact"
-                  illustration="book"
-                  title={tr('Chưa có bộ đề luyện tập phù hợp.')}
-                  description={tr('Hãy chọn cấp độ hoặc kỹ năng khác, hoặc thử các đề Thi thử JLPT đầy đủ.')}
-                />
-              </Card>
-            ) : (
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {items.map((item) => (
-                  <li key={item.mockTestId}>
-                    <Card className="flex h-full flex-col justify-between gap-4">
-                      <div className="space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge tone="brand" size="sm" icon={false}>{item.jlptLevelName}</Badge>
-                          <Badge tone={item.examKind === 'MixedPractice' ? 'warning' : 'info'} size="sm" icon={false}>
-                            <Layers className="mr-1 h-3 w-3" />
-                            {item.examKind === 'MixedPractice' ? tr('Hỗn hợp nhiều kỹ năng') : tr('Luyện tập kỹ năng')}
-                          </Badge>
-                          <Badge tone="neutral" size="sm" icon={false}>
-                            {trf('{0} phút', { 0: item.timeLimitMinutes })}
-                          </Badge>
-                          <Badge tone="neutral" size="sm" icon={false}>
-                            {trf('{0} câu', { 0: item.questionCount })}
-                          </Badge>
-                        </div>
-                        <h3 className="font-semibold text-rp-text">{tr(item.title)}</h3>
-                        {item.description && <p className="text-sm text-rp-text-2">{tr(item.description)}</p>}
+            <div className="space-y-2.5">
+              {(showAllInProgress ? inProgressItems : inProgressItems.slice(0, 1)).map((active) => {
+                const answered = active.activeAnsweredCount ?? 0;
+                const total = active.activeTotalQuestions ?? active.questionCount ?? 0;
+                const pct = active.activeProgressPercent ?? (total > 0 ? Math.round((answered / total) * 100) : 0);
+                return (
+                  <div
+                    key={active.mockTestId}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rp-line/80 bg-white px-3.5 py-3"
+                  >
+                    <div className="min-w-[200px] flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="brand" size="sm" icon={false}>{active.jlptLevelName}</Badge>
+                        <p className="text-sm font-bold text-rp-text">{tr(active.title)}</p>
                       </div>
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-rp-text-muted">
+                        <span className="font-semibold text-rp-brand-strong tabular-nums">
+                          {trf('Đã hoàn thành {0}/{1} câu ({2}%)', { 0: answered, 1: total, 2: pct })}
+                        </span>
+                        {active.activeLastSavedAt && (
+                          <span>{trf('Lưu gần nhất: {0}', { 0: formatMockDateTime(active.activeLastSavedAt) })}</span>
+                        )}
+                      </div>
+                      <ProgressBar value={pct} max={100} label={active.title} />
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        icon={RotateCcw}
+                        onClick={() => setResumeTarget(active)}
+                      >
+                        {tr('Bắt đầu lại')}
+                      </Button>
                       <Button
                         type="button"
                         variant="primary"
-                        size="md"
-                        onClick={() =>
-                          setParams({
-                            ...(levelParam !== 'ALL' ? { level: levelParam } : {}),
-                            testId: String(item.mockTestId),
-                          })
-                        }
+                        size="sm"
+                        iconRight={ChevronRight}
+                        onClick={() => openPracticeAttempt(active.activeAttemptId)}
                       >
-                        {tr('Xem & làm bài')}
+                        {tr('Làm tiếp')}
                       </Button>
-                    </Card>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {startMutation.error && (
+          <Banner tone="danger">{formatApiError(startMutation.error, tr('Không mở được lượt luyện tập.'))}</Banner>
+        )}
+
+        {practiceQuery.isPending ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3].map((n) => (
+              <ExamCatalogCardSkeleton key={n} />
+            ))}
+          </div>
+        ) : practiceQuery.isError ? (
+          <Card>
+            <ContextualErrorState error={practiceQuery.error} compact onRetry={() => practiceQuery.refetch()} />
+          </Card>
+        ) : items.length === 0 ? (
+          <Card>
+            <EmptyState
+              variant="compact"
+              illustration="book"
+              title={tr('Chưa có bộ đề luyện tập phù hợp.')}
+              description={tr('Hãy thử bỏ bớt bộ lọc đang chọn hoặc sang mục Thi thử JLPT để làm đề tổng hợp.')}
+              action={
+                hasActiveFilters ? (
+                  <Button type="button" variant="outline" size="sm" icon={RotateCcw} onClick={handleResetFilters}>
+                    {tr('Đặt lại bộ lọc')}
+                  </Button>
+                ) : null
+              }
+            />
+          </Card>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-rp-text-muted">
+              <span>{trf('Hiển thị {0} bộ đề luyện tập phù hợp', { 0: items.length })}</span>
+            </div>
+
+            <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {items.map((item) => (
+                <li key={item.mockTestId} className="min-w-0">
+                  <ExamCatalogCard
+                    item={item}
+                    variant="practice"
+                    pending={startMutation.isPending}
+                    onViewInfo={(target) => openInfoModal(target.mockTestId)}
+                    onViewResult={(target) => openPracticeAttempt(target.latestCompletedAttemptId, { result: true })}
+                    onPrimaryAction={(target) => handleCardPrimaryAction(target)}
+                    onRequestRestart={(target) => setResumeTarget(target)}
+                  />
+                </li>
+              ))}
+            </ul>
           </>
         )}
+
+        <PracticeSetInfoModal
+          open={Boolean(activeInfoModalTestId)}
+          testId={activeInfoModalTestId}
+          initialSummary={infoInitialSummary}
+          onClose={closeInfoModal}
+          onDownloadPdf={handleDownloadPdf}
+          starting={startMutation.isPending}
+          onStartOrResume={(summary) => handleCardPrimaryAction(summary)}
+        />
+
+        <ResumeOrRestartModal
+          open={Boolean(resumeTarget)}
+          summary={resumeTarget}
+          onClose={() => setResumeTarget(null)}
+          loading={startMutation.isPending}
+          onContinue={(summary) => {
+            setResumeTarget(null);
+            openPracticeAttempt(summary.activeAttemptId);
+          }}
+          onStartNew={(summary) => startMutation.mutate({ testId: summary.mockTestId, forceNew: true })}
+        />
       </PageContainer>
     </LearnerShell>
   );

@@ -1,9 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
-  FileText,
+  CalendarDays,
+  CheckCircle2,
+  Info,
+  Loader2,
+  MessageSquareText,
   Paperclip,
+  RotateCcw,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -18,12 +23,23 @@ import {
   Input,
   Textarea,
   formatIsoDateDisplay,
+  formatTimeRange,
   notify,
 } from '@/components/ui';
 import {
+  computeProposalTuitionPreview,
+  evaluateCourseStartDate,
+  findEarliestAvailableStartDate,
   resolveJlptLevelAvailability,
-  validateCourseStartDate,
+  sortWeeklySessions,
+  weekdayLabelVn,
 } from '@/features/scheduling/utils/proposalValidation.js';
+import {
+  formatAttachmentSize,
+  getAttachmentIconComponent,
+  MAX_PROPOSAL_ATTACHMENT_BYTES,
+  MAX_PROPOSAL_ATTACHMENTS,
+} from '@/features/scheduling/utils/attachmentHelpers.js';
 import { uploadOptionalProposalAttachment } from '@/features/scheduling/api/teachingProposalApi.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { shiftDateKey, toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
@@ -34,10 +50,12 @@ const ELEVATED_FIELD_CLS = 'bg-white border-rp-line shadow-[0_1px_2px_rgba(20,24
 /**
  * Step 2: Course Info Drawer ("Thông tin lớp dự kiến").
  * Concise, form-first drawer keeping all 6 fields, shared Sakura DatePicker
- * with disabledDate enforcement, qualification-aware JLPT selector, and clean inline errors.
+ * with disabledDate + per-day disabled-reason inspection, qualification-aware JLPT selector,
+ * compact "Thời gian bắt đầu" guidance box, and reliable attachment uploader.
  */
 export default function TeachingProposalCourseInfoDrawer({
   open,
+  mode = 'create',
   onClose,
   draft,
   onChange,
@@ -45,41 +63,86 @@ export default function TeachingProposalCourseInfoDrawer({
   qualifiedLevels = [],
   policy,
   validation,
+  commitments = [],
+  commitmentsLoading = false,
+  nowMs: propNowMs,
   readOnly = false,
   mentorVerified = true,
   mentorVerifiedJlptLevel = null,
   showAllErrors = false,
   serverValidating = false,
   onOpenProposalList = null,
+  onEditSchedule = null,
+  scheduleChanged = false,
   onProceedToReview,
 }) {
   const { tr, trf } = useLocale();
+  const [fallbackNowMs] = useState(() => Date.now());
+  const nowMs = propNowMs || fallbackNowMs;
+  const isRevision = mode === 'revision';
   const fileInputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploadTasks, setUploadTasks] = useState([]);
   const [touched, setTouched] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const sessionKey = open ? String(draft?.id ?? 'new') : '';
+  const sessionKey = open ? `${mode}:${draft?.id ?? 'new'}` : '';
   const [prevSessionKey, setPrevSessionKey] = useState('');
   if (sessionKey !== prevSessionKey) {
     setPrevSessionKey(sessionKey);
     setTouched({});
     setSubmitAttempted(false);
+    setUploadTasks([]);
   }
 
   const markTouched = (field) => {
     setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
   };
 
-  const todayVn = useMemo(() => toVnDateKey(new Date()), []);
-  const leadDays = Math.max(0, Number(policy?.minimumProposalLeadDays ?? 7));
+  const todayVn = useMemo(() => toVnDateKey(new Date(nowMs)), [nowMs]);
+  const leadDays = Math.max(0, Number(policy?.minimumProposalLeadDays ?? 14));
   const minDateVn = useMemo(() => shiftDateKey(todayVn, leadDays), [todayVn, leadDays]);
 
+  const draftCertificateLevelId = draft?.certificateLevelId;
+  const selectedLevelObj = useMemo(
+    () => (availableLevels?.length ? availableLevels : qualifiedLevels || [])
+      .find((l) => Number(l.certificateLevelId ?? l.id) === Number(draftCertificateLevelId)) || null,
+    [availableLevels, qualifiedLevels, draftCertificateLevelId]
+  );
+  const selectedLevelCode = selectedLevelObj?.code || draft?.jlptLevelCode || '';
+  const courseDurationWeeks = Number(draft?.courseDurationWeeks || policy?.courseDurationWeeks || 10);
+  const sessionDurationMinutes = Number(draft?.sessionDurationMinutes || policy?.sessionDurationMinutes || 90);
+  const minPerWeek = Number(policy?.minSessionsPerWeek ?? 2);
+  const maxPerWeek = Number(policy?.maxSessionsPerWeek ?? 4);
   const draftWeeklySessions = draft?.weeklySessions;
-  const weeklySessions = useMemo(() => draftWeeklySessions || [], [draftWeeklySessions]);
+  const weeklySessions = useMemo(() => sortWeeklySessions(draftWeeklySessions || []), [draftWeeklySessions]);
+  const plannedTotalSessions = weeklySessions.length * courseDurationWeeks;
+  const totalTeachingHours = Math.round(((plannedTotalSessions * sessionDurationMinutes) / 60) * 10) / 10;
+  const tuitionPreview = useMemo(
+    () => computeProposalTuitionPreview(selectedLevelCode, plannedTotalSessions, policy),
+    [selectedLevelCode, plannedTotalSessions, policy]
+  );
+
+  const evaluateStartDay = useCallback(
+    (dayKey) => evaluateCourseStartDate({ dayKey, weeklySessions, commitments, policy, nowMs }),
+    [weeklySessions, commitments, policy, nowMs]
+  );
+
   const isStartDateDisabled = useCallback(
-    (dayKey) => !validateCourseStartDate({ dayKey, weeklySessions, policy }).valid,
-    [weeklySessions, policy]
+    (dayKey) => !evaluateStartDay(dayKey).valid,
+    [evaluateStartDay]
+  );
+
+  const getStartDateDisabledReason = useCallback(
+    (dayKey) => {
+      const res = evaluateStartDay(dayKey);
+      return res.valid ? '' : tr(res.reason || 'Ngày này hiện chưa khả dụng.');
+    },
+    [evaluateStartDay, tr]
+  );
+
+  const earliestStartInfo = useMemo(
+    () => findEarliestAvailableStartDate({ weeklySessions, commitments, policy, nowMs }),
+    [weeklySessions, commitments, policy, nowMs]
   );
 
   const levelsList = useMemo(
@@ -98,8 +161,19 @@ export default function TeachingProposalCourseInfoDrawer({
         mentorVerified,
         mentorVerifiedJlptLevel,
         currentProposalId,
+        maxActiveClassesByLevel: policy?.maxActiveClassesByLevel,
+        maxTotalActiveClassesPerMentor: Number(policy?.maxTotalActiveClassesPerMentor || 0),
       })),
-    [validatedLevels, levelsList, qualifiedLevels, mentorVerified, mentorVerifiedJlptLevel, currentProposalId]
+    [
+      validatedLevels,
+      levelsList,
+      qualifiedLevels,
+      mentorVerified,
+      mentorVerifiedJlptLevel,
+      currentProposalId,
+      policy?.maxActiveClassesByLevel,
+      policy?.maxTotalActiveClassesPerMentor,
+    ]
   );
 
   const allLevelsUnavailable = useMemo(
@@ -122,6 +196,8 @@ export default function TeachingProposalCourseInfoDrawer({
     () => (validation?.errors || []).filter((e) => e.step === 1),
     [validation?.errors]
   );
+  const hasInvalidRevisionSchedule = isRevision
+    && (weeklySessions.length < minPerWeek || weeklySessions.length > maxPerWeek || scheduleErrors.length > 0);
 
   const shouldShowFieldError = (field) => Boolean(showAllErrors || submitAttempted || touched[field]);
   const getFieldError = (field, codes) => {
@@ -133,12 +209,15 @@ export default function TeachingProposalCourseInfoDrawer({
     'PROPOSAL_LEVEL_REQUIRED',
     'PROPOSAL_LEVEL_INVALID',
     'PROPOSAL_LEVEL_NOT_SUPPORTED',
+    'PROPOSAL_LEVEL_DISABLED',
+    'MENTOR_TOTAL_CLASS_LIMIT_REACHED',
+    'MENTOR_ALL_LEVELS_OCCUPIED',
     'PROPOSAL_DUPLICATE_ACTIVE_LEVEL',
     'DUPLICATE_ACTIVE_LEVEL_PROPOSAL',
     'INSUFFICIENT_TEACHING_QUALIFICATION',
     'MENTOR_QUALIFICATION_NOT_VERIFIED',
   ]);
-  const dateError = getFieldError('expectedStartDate', [
+  const startDateErrorCodes = [
     'PROPOSAL_START_DATE_REQUIRED',
     'PROPOSAL_START_DATE_PAST',
     'PAST_SCHEDULE_SLOT',
@@ -146,6 +225,24 @@ export default function TeachingProposalCourseInfoDrawer({
     'INSUFFICIENT_PROPOSAL_LEAD_TIME',
     'INVALID_COURSE_START_DATE',
     'COURSE_START_SESSION_MISMATCH',
+    'PROPOSAL_START_DATE_OUT_OF_HORIZON',
+    'PROPOSAL_CONFLICT_PENDING_PROPOSAL',
+    'PROPOSAL_CONFLICT_APPROVED_SCHEDULE',
+    'PROPOSAL_REST_VIOLATION',
+    'PROPOSAL_DAILY_CAP_EXCEEDED',
+    'PROPOSAL_WEEKLY_CAP_EXCEEDED',
+  ];
+  const dateError = getFieldError('expectedStartDate', startDateErrorCodes);
+  const hasStartDateError = step2Errors.some((e) => startDateErrorCodes.includes(e.code));
+  const isStartDateValid = Boolean(
+    draft.expectedStartDate
+    && !hasStartDateError
+    && !commitmentsLoading
+    && validation?.projectedEndDate
+    && scheduleErrors.length === 0
+  );
+  const titleError = getFieldError('courseTitle', [
+    'PROPOSAL_TITLE_REQUIRED',
   ]);
   const objectiveError = getFieldError('courseObjective', [
     'PROPOSAL_OBJECTIVE_REQUIRED',
@@ -164,46 +261,73 @@ export default function TeachingProposalCourseInfoDrawer({
     });
   };
 
+  const attachmentsRef = useRef(draft?.optionalAttachments || []);
+  useEffect(() => {
+    attachmentsRef.current = draft?.optionalAttachments || [];
+  }, [draft?.optionalAttachments]);
+
+  const isAnyUploading = uploadTasks.some((t) => t.status === 'uploading');
+  const hasFailedUpload = uploadTasks.some((t) => t.status === 'failed');
+
+  const runUploadTask = async (task) => {
+    setUploadTasks((prev) => [
+      ...prev.filter((item) => item.tempId !== task.tempId),
+      { ...task, status: 'uploading', errorMessage: '' },
+    ]);
+    try {
+      const uploaded = await uploadOptionalProposalAttachment(task.file);
+      const url = uploaded?.url || uploaded?.fileUrl || uploaded?.publicUrl;
+      if (!url) {
+        throw new Error(tr('Không nhận được đường dẫn tệp sau khi tải lên.'));
+      }
+      const nextAttachment = {
+        name: uploaded?.originalFileName || task.name,
+        url,
+        storedFileName: uploaded?.storedFileName || null,
+        contentType: task.contentType || null,
+        sizeBytes: uploaded?.sizeBytes || task.sizeBytes || null,
+      };
+      const latestList = attachmentsRef.current || [];
+      if (latestList.length < MAX_PROPOSAL_ATTACHMENTS) {
+        onChange({ optionalAttachments: [...latestList, nextAttachment] });
+      }
+      setUploadTasks((prev) => prev.filter((item) => item.tempId !== task.tempId));
+      notify.success(tr('Đã đính kèm tệp tham khảo.'));
+    } catch (err) {
+      const message = describeApiError(err).message || err?.message || tr('Chưa thể tải tệp lên. Vui lòng thử lại.');
+      setUploadTasks((prev) => prev.map((item) => (
+        item.tempId === task.tempId
+          ? { ...item, status: 'failed', errorMessage: message }
+          : item
+      )));
+      notify.error(message);
+    }
+  };
+
   const handleOptionalFileChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || readOnly) return;
 
     const current = draft.optionalAttachments || [];
-    if (current.length >= 5) {
-      notify.error(tr('Tối đa 5 tệp đính kèm cho mỗi đề xuất.'));
+    if (current.length + uploadTasks.length >= MAX_PROPOSAL_ATTACHMENTS) {
+      notify.error(trf('Tối đa {0} tệp đính kèm cho mỗi đề xuất.', { 0: MAX_PROPOSAL_ATTACHMENTS }));
       return;
     }
 
-    setUploading(true);
-    try {
-      const uploaded = await uploadOptionalProposalAttachment(file);
-      const url = uploaded?.url || uploaded?.fileUrl || uploaded?.publicUrl;
-      if (!url) {
-        notify.error(tr('Không nhận được đường dẫn tệp sau khi tải lên.'));
-        return;
-      }
-      onChange({
-        optionalAttachments: [
-          ...current,
-          {
-            name: uploaded?.originalFileName || file.name,
-            url,
-            storedFileName: uploaded?.storedFileName || null,
-            contentType: file.type || null,
-            sizeBytes: file.size || null,
-          },
-        ],
-      });
-      notify.success(tr('Đã đính kèm tệp tham khảo.'));
-    } catch (err) {
-      notify.error(
-        describeApiError(err).message
-        || tr('Chưa thể tải tệp lên. Bạn vẫn có thể gửi đề xuất mà không cần tệp đính kèm.')
-      );
-    } finally {
-      setUploading(false);
+    if (file.size > MAX_PROPOSAL_ATTACHMENT_BYTES) {
+      notify.error(tr('Dung lượng tệp vượt quá giới hạn 25 MB.'));
+      return;
     }
+
+    const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await runUploadTask({
+      tempId,
+      file,
+      name: file.name,
+      sizeBytes: file.size || 0,
+      contentType: file.type || '',
+    });
   };
 
   const removeAttachment = (index) => {
@@ -211,14 +335,25 @@ export default function TeachingProposalCourseInfoDrawer({
     onChange({ optionalAttachments: (draft.optionalAttachments || []).filter((_, i) => i !== index) });
   };
 
+  const removeUploadTask = (tempId) => {
+    setUploadTasks((prev) => prev.filter((t) => t.tempId !== tempId));
+  };
+
   const handleContinueToReview = () => {
-    setTouched({ certificateLevelId: true, expectedStartDate: true, courseObjective: true });
+    setTouched({ certificateLevelId: true, expectedStartDate: true, courseTitle: true, courseObjective: true });
     setSubmitAttempted(true);
+    if (isAnyUploading || hasFailedUpload) {
+      return;
+    }
     if (!readOnly && (!validation?.step2Valid || !validation?.step1Valid)) {
       return;
     }
     onProceedToReview?.();
   };
+
+  const feedbackMentionsAttachment = isRevision
+    && Boolean(draft?.reviewReason)
+    && /tài liệu|đính kèm|tệp|file|giáo trình|đề cương|syllabus|attachment/i.test(String(draft.reviewReason));
 
   return (
     <Drawer
@@ -226,18 +361,23 @@ export default function TeachingProposalCourseInfoDrawer({
       onClose={onClose}
       width="w-[min(520px,100vw)]"
       padded={false}
-      title={tr('Thông tin lớp dự kiến')}
-      description={tr('Điền thông tin lớp để gửi quản trị viên phê duyệt.')}
+      title={isRevision ? tr('Chỉnh sửa đề xuất mở lớp') : tr('Thông tin lớp dự kiến')}
+      description={
+        isRevision
+          ? tr('Cập nhật thông tin theo yêu cầu của quản trị viên trước khi gửi lại xét duyệt.')
+          : tr('Điền thông tin lớp để gửi quản trị viên phê duyệt.')
+      }
       footer={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            {tr('Quay lại lịch')}
+            {isRevision ? tr('Đóng') : tr('Quay lại lịch')}
           </Button>
           {onProceedToReview && (
             <Button
               type="button"
               iconRight={ArrowRight}
               loading={serverValidating}
+              disabled={isAnyUploading || hasFailedUpload}
               onClick={handleContinueToReview}
             >
               {tr('Kiểm tra đề xuất')}
@@ -247,6 +387,102 @@ export default function TeachingProposalCourseInfoDrawer({
       }
     >
       <div className="min-h-full bg-[#F5F4F7] px-5 py-4 space-y-4">
+        {isRevision && draft?.reviewReason && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50/95 px-3.5 py-3 text-orange-950 shadow-[0_1px_2px_rgba(20,24,35,0.04)]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C2410C]">
+                <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-[#EA580C]" aria-hidden="true" />
+                {tr('Yêu cầu từ quản trị viên')}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10.5px] font-bold text-orange-800">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#EA580C]" aria-hidden="true" />
+                {tr('Cần bổ sung')}
+              </span>
+            </div>
+            <p className="m-0 mt-1.5 text-xs leading-relaxed text-orange-950">{draft.reviewReason}</p>
+          </div>
+        )}
+
+        {isRevision && (
+          <div
+            data-testid="revision-schedule-summary"
+            className={`rounded-xl border bg-white p-3.5 shadow-[0_1px_2px_rgba(20,24,35,0.04)] space-y-2.5 ${
+              hasInvalidRevisionSchedule
+                ? 'border-red-300 bg-red-50/30'
+                : 'border-rp-line'
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-rp-text-muted">
+                  {tr('Lịch giảng dạy')}
+                </span>
+                {scheduleChanged && (
+                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10.5px] font-bold text-emerald-700">
+                    {tr('Đã cập nhật lịch')}
+                  </span>
+                )}
+              </div>
+              {!readOnly && onEditSchedule && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  icon={CalendarDays}
+                  data-testid="revision-edit-schedule-btn"
+                  onClick={onEditSchedule}
+                >
+                  {tr('Chỉnh sửa lịch')}
+                </Button>
+              )}
+            </div>
+
+            {weeklySessions.length === 0 ? (
+              <p className="m-0 text-xs text-rp-text-muted">{tr('Chưa có buổi học nào.')}</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {weeklySessions.map((s) => (
+                  <span
+                    key={s.key || `${s.weekday}-${s.startMinute}`}
+                    className="inline-flex items-center rounded-lg border border-[#F2CCD7] bg-[#FFF8FA] px-2.5 py-1 text-xs font-semibold tabular-nums text-[#7D2941]"
+                  >
+                    {tr(weekdayLabelVn(s.weekday))} · {formatTimeRange(s.startClock, s.endClock)}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold tabular-nums text-rp-text-2">
+              <span>{trf('{0} buổi/tuần', { 0: weeklySessions.length })}</span>
+              <span aria-hidden="true">·</span>
+              <span>{trf('{0} buổi ({1} tuần)', { 0: plannedTotalSessions, 1: courseDurationWeeks })}</span>
+              <span aria-hidden="true">·</span>
+              <span>{trf('{0} giờ', { 0: totalTeachingHours })}</span>
+            </div>
+
+            {hasInvalidRevisionSchedule && (
+              <div className="rounded-lg border border-red-200 bg-red-50/90 px-3 py-2 text-xs text-red-900 space-y-1">
+                <p className="m-0 font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-700" aria-hidden="true" />
+                  {weeklySessions.length < minPerWeek
+                    ? trf('Lịch giảng dạy hiện chỉ có {0}/{1} buổi tối thiểu mỗi tuần. Hãy bấm "Chỉnh sửa lịch" để bổ sung.', {
+                      0: weeklySessions.length,
+                      1: minPerWeek,
+                    })
+                    : tr('Lịch giảng dạy cần được kiểm tra hoặc điều chỉnh trước khi gửi lại xét duyệt.')}
+                </p>
+                {scheduleErrors.length > 0 && (
+                  <ul className="m-0 list-disc pl-4 space-y-0.5">
+                    {scheduleErrors.map((err, idx) => (
+                      <li key={`${err.code}-${idx}`}>{err.message}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {!mentorVerified && (
           <Banner tone="warning" title={tr('Hồ sơ Giáo viên chưa được phê duyệt')}>
             {tr('Bạn cần hoàn tất xác minh hồ sơ chuyên môn trước khi gửi đề xuất lên quản trị viên.')}
@@ -264,14 +500,14 @@ export default function TeachingProposalCourseInfoDrawer({
             actions={
               !allBlockedByQualification && onOpenProposalList ? (
                 <Button type="button" size="sm" variant="outline" onClick={onOpenProposalList}>
-                  {tr('Xem danh sách đăng ký')}
+                  {tr('Mở Lịch sử đăng ký')}
                 </Button>
               ) : null
             }
           >
             {allBlockedByQualification
               ? tr('Vui lòng cập nhật và chờ quản trị viên xác minh chứng chỉ JLPT trong mục Hồ sơ chuyên môn.')
-              : tr('Mỗi trình độ N5–N2 chỉ được phép có 1 đề xuất chờ duyệt hoặc 1 lớp đang hoạt động cùng lúc.')}
+              : tr('Hiện tại tất cả cấp độ đủ điều kiện giảng dạy của bạn đã đạt giới hạn đề xuất hoặc lớp đang hoạt động.')}
           </Banner>
         )}
 
@@ -280,6 +516,7 @@ export default function TeachingProposalCourseInfoDrawer({
             label={tr('Trình độ JLPT giảng dạy')}
             required
             error={levelError}
+            hint={isRevision ? <span className="text-rp-text-2">{tr('Cấp độ JLPT được giữ cố định cho đề xuất đang bổ sung.')}</span> : undefined}
           >
             {({ id, describedBy, invalid }) => (
               <CustomSelect
@@ -288,19 +525,22 @@ export default function TeachingProposalCourseInfoDrawer({
                 invalid={invalid}
                 triggerClassName={ELEVATED_FIELD_CLS}
                 value={draft.certificateLevelId ? String(draft.certificateLevelId) : ''}
-                disabled={readOnly || levelAvailability.length === 0}
+                disabled={readOnly || isRevision || levelAvailability.length === 0}
                 aria-label={tr('Chọn trình độ JLPT')}
                 onChange={handleSelectLevel}
                 options={[
                   { value: '', label: tr('Chọn trình độ JLPT') },
                   ...levelAvailability.map((lvl) => {
                     const baseLabel = `${lvl.code}${lvl.name && lvl.name !== lvl.code ? ` · ${lvl.name}` : ''}`;
+                    const remainingDesc = lvl.isAvailable && Number(lvl.maxActiveClasses) > 1
+                      ? trf('Còn {0}/{1} lớp khả dụng', { 0: lvl.remainingSlots ?? Math.max(0, lvl.maxActiveClasses - (lvl.activeCount || 0)), 1: lvl.maxActiveClasses })
+                      : undefined;
                     return {
                       value: String(lvl.certificateLevelId),
                       label: baseLabel,
                       disabled: !lvl.isAvailable,
                       description: lvl.isAvailable
-                        ? undefined
+                        ? remainingDesc
                         : (lvl.unavailableReason || tr('Không đủ trình độ chuyên môn.')),
                     };
                   }),
@@ -310,14 +550,14 @@ export default function TeachingProposalCourseInfoDrawer({
           </Field>
 
           <Field
-            label={tr('Ngày khai giảng dự kiến')}
+            label={tr('Ngày bắt đầu dự kiến')}
             required
             error={dateError}
             hint={
               !dateError && draft.expectedStartDate && validation?.projectedEndDate
                 ? (
-                  <span className="font-semibold text-rp-brand-strong">
-                    {trf('Dự kiến kết thúc: {0}', {
+                  <span className="font-semibold text-rp-brand-strong tabular-nums">
+                    {trf('Ngày kết thúc dự kiến: {0}', {
                       0: formatIsoDateDisplay(validation.projectedEndDate),
                     })}
                   </span>
@@ -332,10 +572,11 @@ export default function TeachingProposalCourseInfoDrawer({
                 fullWidth
                 triggerClassName={ELEVATED_FIELD_CLS}
                 min={minDateVn}
+                max={shiftDateKey(todayVn, Math.max(120, Number(policy?.publicationHorizonDays || 120), leadDays + courseDurationWeeks * 7))}
                 disabledDate={isStartDateDisabled}
+                getDisabledReason={getStartDateDisabledReason}
                 disabled={readOnly}
                 value={draft.expectedStartDate || ''}
-                placeholder={tr('dd/MM/yyyy')}
                 invalid={invalid}
                 onBlur={() => markTouched('expectedStartDate')}
                 onChange={(iso) => {
@@ -347,11 +588,82 @@ export default function TeachingProposalCourseInfoDrawer({
           </Field>
         </div>
 
-        {draft.expectedStartDate && scheduleErrors.length > 0 && (
+        {weeklySessions.length > 0 && (
+          <div
+            data-testid="course-start-info-box"
+            className={`rounded-xl border px-3.5 py-2.5 space-y-1.5 transition-colors ${
+              isStartDateValid
+                ? 'border-emerald-200 bg-emerald-50/75 shadow-[0_1px_2px_rgba(16,185,129,0.08)]'
+                : 'border-rp-brand-soft bg-[#FFF6F9] shadow-[0_1px_2px_rgba(181,61,92,0.06)]'
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+                  isStartDateValid ? 'text-emerald-800' : 'text-rp-brand-strong'
+                }`}
+              >
+                <Info
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    isStartDateValid ? 'text-emerald-600' : 'text-rp-brand-strong'
+                  }`}
+                  aria-hidden="true"
+                />
+                {tr('Thời gian khóa học')}
+              </span>
+              <span
+                className={`rounded-full border bg-white/85 px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                  isStartDateValid
+                    ? 'border-emerald-200 text-emerald-700'
+                    : 'border-rp-brand-soft text-rp-brand-strong'
+                }`}
+              >
+                {trf('{0} tuần · {1} buổi', { 0: courseDurationWeeks, 1: plannedTotalSessions })}
+              </span>
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <p className="m-0 text-xs leading-relaxed text-rp-text-2">
+                {trf('Ngày bắt đầu được đề xuất dựa trên lịch dạy bạn đã chọn, đảm bảo đủ thời gian xét duyệt, tuyển sinh và không trùng lịch trong suốt {0} tuần.', { 0: courseDurationWeeks })}
+              </p>
+              {isStartDateValid && (
+                <CheckCircle2
+                  className="h-4 w-4 shrink-0 text-emerald-600"
+                  aria-label={tr('Ngày bắt đầu hợp lệ')}
+                />
+              )}
+            </div>
+            {commitmentsLoading ? (
+              <p className="m-0 flex items-center gap-1.5 text-xs text-rp-brand-strong/80">
+                <Loader2 className="h-3 w-3 animate-spin shrink-0" aria-hidden="true" />
+                {tr('Đang kiểm tra ngày bắt đầu khả dụng...')}
+              </p>
+            ) : !earliestStartInfo ? (
+              <p className="m-0 text-xs font-medium text-amber-800">
+                {tr('Chưa có ngày bắt đầu khả dụng trong phạm vi cho phép. Vui lòng điều chỉnh khung giờ hoặc ngày dạy.')}
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        {tuitionPreview.totalCourseTuition > 0 && (
+          <div className="rounded-xl border border-rp-line bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(20,24,35,0.04)]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-rp-text-2">
+                {tr('Học phí trọn khóa áp dụng cho học viên')}
+              </span>
+              <span className="text-sm font-bold tabular-nums text-rp-brand-strong">
+                {tuitionPreview.formattedTotal}
+                <span className="ml-1 text-xs font-medium text-rp-text-muted">/{tr('học viên')}</span>
+              </span>
+            </div>
+          </div>
+        )}
+
+        {!isRevision && draft.expectedStartDate && scheduleErrors.length > 0 && (
           <Banner
             tone="danger"
             icon={AlertTriangle}
-            title={tr('Lịch dạy đang chọn xung đột với ngày khai giảng này')}
+            title={tr('Lịch dạy đang chọn xung đột với ngày bắt đầu này')}
             actions={
               <Button type="button" size="sm" variant="outline" onClick={onClose}>
                 {tr('Quay lại lịch để chỉnh')}
@@ -367,16 +679,22 @@ export default function TeachingProposalCourseInfoDrawer({
         )}
 
         <Field
-          label={tr('Tên hiển thị đề xuất (không bắt buộc)')}
-          hint={<span className="text-rp-text-2">{tr('Giúp bạn và quản trị viên dễ phân biệt khi phụ trách nhiều lớp khác cấp độ.')}</span>}
+          label={tr('Tên lớp')}
+          required
+          error={titleError}
         >
           <Input
             maxLength={200}
             disabled={readOnly}
             className={ELEVATED_FIELD_CLS}
             value={draft.courseTitle || ''}
-            onChange={(e) => onChange({ courseTitle: e.target.value })}
+            onBlur={() => markTouched('courseTitle')}
+            onChange={(e) => {
+              markTouched('courseTitle');
+              onChange({ courseTitle: e.target.value });
+            }}
             placeholder={tr('Ví dụ: JLPT N3 Tối Thứ 2–4–6 (Tháng 12)')}
+            invalid={Boolean(titleError)}
           />
         </Field>
 
@@ -384,7 +702,6 @@ export default function TeachingProposalCourseInfoDrawer({
           label={tr('Mục tiêu khóa học')}
           required
           error={objectiveError}
-          hint={<span className="text-rp-text-2">{tr('Nêu rõ đầu ra kỹ năng hoặc mục tiêu điểm số để quản trị viên thẩm định và học viên dễ nắm bắt.')}</span>}
         >
           <Textarea
             rows={5}
@@ -402,10 +719,7 @@ export default function TeachingProposalCourseInfoDrawer({
           />
         </Field>
 
-        <Field
-          label={tr('Ghi chú cho quản trị viên (không bắt buộc)')}
-          hint={<span className="text-rp-text-2">{tr('Ghi chú thêm về đối tượng học viên, yêu cầu đầu vào hoặc lưu ý tổ chức lớp nếu có.')}</span>}
-        >
+        <Field label={tr('Ghi chú cho quản trị viên (nếu có)')}>
           <Textarea
             rows={4}
             maxLength={2000}
@@ -418,13 +732,21 @@ export default function TeachingProposalCourseInfoDrawer({
         </Field>
 
         {/* Strictly OPTIONAL attachments */}
-        <div className="rounded-xl border border-dashed border-rp-line bg-white p-3.5 shadow-[0_1px_2px_rgba(20,24,35,0.05)] space-y-3">
+        <div
+          className={`rounded-xl border border-dashed p-3.5 shadow-[0_1px_2px_rgba(20,24,35,0.05)] space-y-3 ${
+            feedbackMentionsAttachment
+              ? 'border-orange-300 bg-orange-50/40'
+              : 'border-rp-line bg-white'
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               <p className="m-0 flex items-center gap-1.5 text-sm font-semibold text-rp-text">
                 <Paperclip className="h-4 w-4 text-rp-brand" />
                 {tr('Tài liệu / đề cương đính kèm')}
-                <Badge tone="neutral" size="sm" icon={false}>{tr('Không bắt buộc')}</Badge>
+                <Badge tone="neutral" size="sm" icon={false} className="px-2 py-0 text-[10.5px] leading-4">
+                  {tr('Nếu có')}
+                </Badge>
               </p>
               <p className="m-0 text-xs text-rp-text-2">
                 {tr('Hỗ trợ PDF, Word, ảnh hoặc bảng tính (tối đa 5 tệp).')}
@@ -444,8 +766,8 @@ export default function TeachingProposalCourseInfoDrawer({
                   size="sm"
                   variant="outline"
                   icon={Upload}
-                  loading={uploading}
-                  disabled={uploading || (draft.optionalAttachments || []).length >= 5}
+                  loading={isAnyUploading}
+                  disabled={isAnyUploading || (draft.optionalAttachments || []).length + uploadTasks.length >= MAX_PROPOSAL_ATTACHMENTS}
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {tr('Tải tệp tham khảo')}
@@ -454,35 +776,107 @@ export default function TeachingProposalCourseInfoDrawer({
             )}
           </div>
 
-          {(draft.optionalAttachments || []).length > 0 && (
+          {((draft.optionalAttachments || []).length > 0 || uploadTasks.length > 0) && (
             <ul className="m-0 list-none space-y-1.5 p-0">
-              {(draft.optionalAttachments || []).map((att, idx) => (
-                <li
-                  key={`${att.url}-${idx}`}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-rp-line bg-white px-3 py-2 text-xs"
-                >
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rp-link flex min-w-0 items-center gap-2 font-medium text-rp-text hover:text-rp-brand"
+              {(draft.optionalAttachments || []).map((att, idx) => {
+                const IconComp = getAttachmentIconComponent(att.name, att.contentType);
+                const sizeText = formatAttachmentSize(att.sizeBytes);
+                return (
+                  <li
+                    key={`${att.storedFileName || att.name}-${idx}`}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-rp-line bg-white px-3 py-2 text-xs"
                   >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-rp-brand" />
-                    <span className="truncate">{att.name}</span>
-                  </a>
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      icon={Trash2}
-                      onClick={() => removeAttachment(idx)}
-                      aria-label={tr('Xóa tệp đính kèm')}
-                    />
-                  )}
-                </li>
-              ))}
+                    <span
+                      title={att.name}
+                      className="flex min-w-0 items-center gap-2 font-medium text-rp-text"
+                    >
+                      <IconComp className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" aria-hidden="true" />
+                      <span className="truncate">{att.name}</span>
+                      {sizeText && (
+                        <span className="shrink-0 text-[11px] font-normal tabular-nums text-rp-text-muted">
+                          ({sizeText})
+                        </span>
+                      )}
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label={tr('Đã tải lên')} />
+                    </span>
+                    {!readOnly && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        icon={Trash2}
+                        onClick={() => removeAttachment(idx)}
+                        aria-label={tr('Xóa tệp đính kèm')}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+
+              {uploadTasks.map((task) => {
+                const IconComp = getAttachmentIconComponent(task.name, task.contentType);
+                const sizeText = formatAttachmentSize(task.sizeBytes);
+                const isFailed = task.status === 'failed';
+                return (
+                  <li
+                    key={task.tempId}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs ${
+                      isFailed ? 'border-red-200 bg-red-50/60' : 'border-rp-line bg-rp-bg-2/50'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2 font-medium text-rp-text">
+                        {task.status === 'uploading' ? (
+                          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-rp-brand" aria-hidden="true" />
+                        ) : (
+                          <IconComp className="h-3.5 w-3.5 shrink-0 text-red-600" aria-hidden="true" />
+                        )}
+                        <span className="truncate">{task.name}</span>
+                        {sizeText && (
+                          <span className="shrink-0 text-[11px] font-normal tabular-nums text-rp-text-muted">
+                            ({sizeText})
+                          </span>
+                        )}
+                      </div>
+                      <p className={`m-0 text-[11px] ${isFailed ? 'text-red-700' : 'text-rp-text-muted'}`}>
+                        {task.status === 'uploading' ? tr('Đang tải tệp lên...') : (task.errorMessage || tr('Tải tệp thất bại.'))}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {isFailed && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          icon={RotateCcw}
+                          onClick={() => void runUploadTask(task)}
+                        >
+                          {tr('Thử lại')}
+                        </Button>
+                      )}
+                      {isFailed && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          icon={Trash2}
+                          onClick={() => removeUploadTask(task.tempId)}
+                          aria-label={tr('Xóa tệp lỗi')}
+                        />
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
+          )}
+
+          {(isAnyUploading || hasFailedUpload) && (
+            <p className="m-0 text-xs font-medium text-amber-800">
+              {isAnyUploading
+                ? tr('Đang tải tệp lên. Vui lòng đợi hoàn tất trước khi tiếp tục.')
+                : tr('Có tệp tải lên thất bại. Vui lòng thử lại hoặc xóa tệp lỗi trước khi tiếp tục.')}
+            </p>
           )}
         </div>
       </div>

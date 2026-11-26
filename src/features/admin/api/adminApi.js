@@ -1,7 +1,4 @@
 import { api } from '@/api/client.js';
-import { translateTemplate } from '@/locales/locale.js';
-
-const missingApi = (name) => () => Promise.reject(new Error(translateTemplate('Backend không có API {0}.', { 0: name })));
 
 export const getAdminUsers = (params) => api.get('/admin/users', { params });
 export const createAdminUser = (data) => api.post('/admin/users', data);
@@ -9,37 +6,18 @@ export const getAdminUser = (id) => api.get(`/admin/users/${id}`);
 export const updateAdminUser = (id, data) => api.put(`/admin/users/${id}`, data);
 export const disableAdminUser = (id) => api.delete(`/admin/users/${id}`);
 
-// Subscription plan and feature CRUD was removed. Group Learning uses /study-courses/plans.
-export const getAdminPlans = missingApi('gói đăng ký tổng');
-export const createAdminPlan = missingApi('gói đăng ký tổng');
-export const getAdminPlan = missingApi('gói đăng ký tổng');
-export const updateAdminPlan = missingApi('gói đăng ký tổng');
-export const disableAdminPlan = missingApi('gói đăng ký tổng');
-export const getAdminFeatures = missingApi('feature');
-export const createAdminFeature = missingApi('feature');
-export const getAdminFeature = missingApi('feature');
-export const updateAdminFeature = missingApi('feature');
-export const disableAdminFeature = missingApi('feature');
-
 export const getAdminMentorAvailabilities = () => api.get('/admin/mentor-availabilities');
 
 export async function getAdminMentorSchedule(mentorId, from, to) {
   const data = await api.get(`/admin/mentor-availabilities/mentor/${mentorId}/schedule`, { params: { from, to } });
   return data?.result || [];
 }
-export const createAdminMentorAvailability = missingApi('tạo khung giờ admin');
-export const updateAdminMentorAvailability = missingApi('sửa khung giờ admin');
-export const deleteAdminMentorAvailability = missingApi('xóa khung giờ admin');
 
 // Mentors and overview
 export const createAdminMentor = (data) => api.post('/admin/mentors', data);
 export const getAdminMentors = (params) => api.get('/admin/mentors', { params });
 export const setAdminMentorActive = (mentorId, isActive) => api.put(`/admin/mentors/${mentorId}/active`, null, { params: { isActive } });
 export const getAdminDashboard = () => api.get('/admin/dashboard');
-
-// Content moderation (legacy)
-// export const getAdminPendingContent = (entityType, params) => api.get(`/content-management/admin/pending/${entityType}`, { params });
-export const getAdminContentDetails = () => Promise.reject(new Error('Chưa hỗ trợ xem chi tiết nội dung này.'));
 
 export const getAdminPendingContent = (entityType, params) => api.get('/content-approvals/pending', {
   params: { ...params, ...(entityType ? { entityType: entityType === 'GrammarPattern' ? 'Grammar' : entityType } : {}) },
@@ -50,18 +28,6 @@ export const reviewAdminContent = (requestId, data) => api.post(`/content-approv
 export async function getPendingApprovals(params = {}) {
   const res = await api.get('/content-approvals/pending', { params });
   return res?.result ?? res;
-}
-
-export function getApprovalDetail() {
-  return Promise.reject(new Error('Chưa hỗ trợ xem chi tiết yêu cầu duyệt này.'));
-}
-
-export function approveContent() {
-  return Promise.reject(new Error('Thao tác này chưa được hỗ trợ.'));
-}
-
-export function rejectContent() {
-  return Promise.reject(new Error('Thao tác này chưa được hỗ trợ.'));
 }
 
 export function unwrapApiResult(response) {
@@ -221,8 +187,33 @@ export async function getMentorGroupPolicyHistory() {
   return unwrapApiList(data);
 }
 
+export async function getMentorGroupPolicyLevels() {
+  const data = await api.get('/admin/mentor-group-policies/levels');
+  return unwrapApiList(data);
+}
+
 export async function createMentorGroupPolicyVersion(payload) {
   const data = await api.post('/admin/mentor-group-policies', payload);
+  return data?.result ?? data;
+}
+
+export async function updateMentorGroupPolicyVersion(policyId, payload) {
+  const data = await api.put(`/admin/mentor-group-policies/${policyId}`, payload);
+  return data?.result ?? data;
+}
+
+export async function updateMentorGroupPolicySection(policyId, sectionKey, payload) {
+  const data = await api.patch(`/admin/mentor-group-policies/${policyId}/sections/${sectionKey}`, payload);
+  return data?.result ?? data;
+}
+
+export async function activateMentorGroupPolicyVersion(policyId) {
+  const data = await api.post(`/admin/mentor-group-policies/${policyId}/activate`);
+  return data?.result ?? data;
+}
+
+export async function deleteMentorGroupPolicyVersion(policyId) {
+  const data = await api.delete(`/admin/mentor-group-policies/${policyId}`);
   return data?.result ?? data;
 }
 
@@ -264,6 +255,15 @@ export async function getAdminPayments(params = {}) {
 
 export async function getAdminPaymentDetail(stream, id) {
   const data = await api.get(`/admin/payments/${encodeURIComponent(stream)}/${id}`);
+  return data?.result ?? data;
+}
+
+export async function refundStudyCoursePayment(studyCourseId, reason, refundAmount = null) {
+  const payload = { reason };
+  if (refundAmount != null && Number.isFinite(Number(refundAmount))) {
+    payload.refundAmount = Math.trunc(Number(refundAmount));
+  }
+  const data = await api.post(`/admin/payments/study-course/${studyCourseId}/refund`, payload);
   return data?.result ?? data;
 }
 

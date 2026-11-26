@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BookmarkPlus,
   ExternalLink,
@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
-import { notify } from '@/components/ui';
+import { Tooltip, notify } from '@/components/ui';
 import {
   computeContentVersionHash,
   getHighlightColorMeta,
@@ -19,39 +19,15 @@ import {
   suggestKindForSelection,
 } from '@/features/notebook/utils/notebookModel.js';
 import { useOptionalSmartNotebook } from '@/features/notebook/context/smartNotebookState.js';
+import {
+  extractCleanSelectionText,
+  isNodeBlockedForTranslation,
+  MAX_TRANSLATION_TEXT_LENGTH,
+  validateJapaneseSelection,
+} from '@/utils/japaneseTextValidator.js';
 import NotebookQuickSavePopover from './NotebookQuickSavePopover.jsx';
 import SelectionSrsModal from './SelectionSrsModal.jsx';
 import SelectionTranslatePopover from './SelectionTranslatePopover.jsx';
-
-function isNodeBlockedForCapture(node) {
-  if (!node) return true;
-  let el = node?.nodeType === 1 ? node : node?.parentElement;
-  while (el) {
-    const tag = el.tagName?.toUpperCase();
-    if (
-      tag === 'INPUT' ||
-      tag === 'TEXTAREA' ||
-      tag === 'SELECT' ||
-      tag === 'OPTION' ||
-      tag === 'BUTTON' ||
-      tag === 'LABEL' ||
-      tag === 'CODE' ||
-      tag === 'PRE' ||
-      el.isContentEditable ||
-      el.hasAttribute?.('disabled') ||
-      el.getAttribute?.('aria-disabled') === 'true' ||
-      el.getAttribute?.('role') === 'dialog' ||
-      el.getAttribute?.('data-notebook-ignore') === 'true' ||
-      el.getAttribute?.('data-exam-attempt-active') === 'true' ||
-      el.getAttribute?.('data-notebook-capture-ignore') === 'true' ||
-      el.getAttribute?.('data-no-capture') === 'true'
-    ) {
-      return true;
-    }
-    el = el.parentElement;
-  }
-  return false;
-}
 
 function findNotebookHost(node) {
   let el = node?.nodeType === 1 ? node : node?.parentElement;
@@ -82,6 +58,7 @@ function getAutoContentHost(range) {
     : range.commonAncestorContainer.parentElement;
   let compactTextHost = null;
   while (el && el !== root) {
+    if (el.getAttribute?.('data-translate-scope') === 'deny') return null;
     if (/^(P|LI|BLOCKQUOTE|TD|TH|H[1-6])$/.test(el.tagName) && el.textContent?.trim().length <= 2000) {
       return el;
     }
@@ -143,31 +120,41 @@ function extractSelectionSnapshot() {
   const sel = window.getSelection?.();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
 
-  const rawSelection = String(sel.toString() || '');
-  const text = rawSelection.trim();
-  if (!text || text.length > 1000) return null;
-
   const range = sel.getRangeAt(0);
-  if (isNodeBlockedForCapture(range.startContainer) || isNodeBlockedForCapture(range.endContainer)) {
+  if (isNodeBlockedForTranslation(range.startContainer) || isNodeBlockedForTranslation(range.endContainer)) {
     return null;
   }
+
+  // Extract clean text cleanly: ignores <rt>/<rp> furigana, preserves multi-line order, strips HTML
+  const text = extractCleanSelectionText(range);
+  if (!text) return null;
 
   const rect = range.getBoundingClientRect();
   if (!rect || (rect.width === 0 && rect.height === 0)) return null;
 
   const explicitHost = findNotebookHost(range.startContainer);
-  const host = explicitHost && explicitHost === findNotebookHost(range.endContainer)
-    ? explicitHost
-    : getAutoContentHost(range);
+  const isExplicitHost = Boolean(explicitHost && explicitHost === findNotebookHost(range.endContainer));
+  const host = isExplicitHost ? explicitHost : getAutoContentHost(range);
   if (!host) return null;
+
+  const translationValidation = validateJapaneseSelection(text, { maxLength: MAX_TRANSLATION_TEXT_LENGTH });
+  const canTranslate = translationValidation.valid || translationValidation.reason === 'too-long';
+
+  // Strictly suppress floating selection tools when user highlights UI labels or non-Japanese text outside explicit study hosts.
+  if (!canTranslate && !isExplicitHost) {
+    return null;
+  }
+
   const fullText = host.getAttribute('data-notebook-raw-text') || host.textContent || '';
   const contentId = host.getAttribute('data-notebook-content-id')
     || getAutoContentPath(host, document.getElementById('rp-main'));
   if (!contentId) return null;
+
   const sourceTitle =
     host?.getAttribute('data-notebook-source-title') ||
     (typeof document !== 'undefined' ? document.title.replace(/\s*\|\s*RikiPath.*$/, '') : '');
 
+  const rawSelection = String(sel.toString() || '');
   let anchorPrefix = '';
   let anchorSuffix = '';
   let startOffset = null;
@@ -188,10 +175,11 @@ function extractSelectionSnapshot() {
   }
 
   let contextSentence = '';
-  if (fullText) {
-    const pos = startOffset;
-    if (pos != null && pos >= 0) {
-      contextSentence = fullText.slice(Math.max(0, pos - 40), pos + text.length + 40).trim();
+  if (fullText && text.length <= MAX_TRANSLATION_TEXT_LENGTH) {
+    if (startOffset != null && startOffset >= 0) {
+      contextSentence = fullText.slice(Math.max(0, startOffset - 40), startOffset + text.length + 40).trim();
+    } else if (fullText.length <= 240) {
+      contextSentence = fullText.trim();
     }
   }
 
@@ -210,6 +198,9 @@ function extractSelectionSnapshot() {
     endOffset,
     contextSentence,
     kind: suggestKindForSelection(text),
+    canTranslate,
+    translationValidation,
+    isExplicitHost,
     rect: { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
     pos: { top, left: centerX },
   };
@@ -217,6 +208,7 @@ function extractSelectionSnapshot() {
 
 export default function LearnerSelectionCaptureLayer() {
   const { tr } = useLocale();
+  const location = useLocation();
   const navigate = useNavigate();
   const nb = useOptionalSmartNotebook();
 
@@ -225,6 +217,15 @@ export default function LearnerSelectionCaptureLayer() {
   const [translateReq, setTranslateReq] = useState(null);
   const [editingNote, setEditingNote] = useState('');
   const [lastDetailId, setLastDetailId] = useState(null);
+  const [lastRouteKey, setLastRouteKey] = useState(`${location.pathname}${location.search}`);
+
+  const routeKey = `${location.pathname}${location.search}`;
+  if (routeKey !== lastRouteKey) {
+    setLastRouteKey(routeKey);
+    setToolbar(null);
+    setTranslateReq(null);
+    setSrsModalReq(null);
+  }
 
   const detail = nb?.activeHighlightDetail || null;
   const detailKey = detail?.entry?.highlightId || detail?.entry?.noteEntryId || null;
@@ -248,10 +249,16 @@ export default function LearnerSelectionCaptureLayer() {
     };
 
     const onMouseUp = (event) => {
-      if (!event.target.closest?.('[data-selection-toolbar="true"]')) evaluateSelection(40);
+      if (!event.target.closest?.('[data-selection-toolbar="true"]')
+        && !event.target.closest?.('[data-translate-popover="true"]')) {
+        evaluateSelection(40);
+      }
     };
     const onTouchEnd = (event) => {
-      if (!event.target.closest?.('[data-selection-toolbar="true"]')) evaluateSelection(180);
+      if (!event.target.closest?.('[data-selection-toolbar="true"]')
+        && !event.target.closest?.('[data-translate-popover="true"]')) {
+        evaluateSelection(180);
+      }
     };
     const onKeyUp = (e) => {
       if (e.key === 'Escape') {
@@ -274,15 +281,20 @@ export default function LearnerSelectionCaptureLayer() {
     const onPointerDown = (event) => {
       if (!event.target.closest?.('[data-selection-toolbar="true"]')) {
         setToolbar(null);
-        window.getSelection?.()?.removeAllRanges?.();
       }
     };
+    const onScrollOrResize = () => {
+      setToolbar((prev) => (prev ? null : prev));
+    };
 
+    const mainEl = document.getElementById('rp-main');
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('mouseup', onMouseUp);
     document.addEventListener('touchend', onTouchEnd);
     document.addEventListener('keyup', onKeyUp);
     document.addEventListener('selectionchange', onSelectionChange);
+    window.addEventListener('resize', onScrollOrResize);
+    mainEl?.addEventListener('scroll', onScrollOrResize, { passive: true });
     return () => {
       if (timerId) window.clearTimeout(timerId);
       document.removeEventListener('mouseup', onMouseUp);
@@ -290,6 +302,8 @@ export default function LearnerSelectionCaptureLayer() {
       document.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('selectionchange', onSelectionChange);
       document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('resize', onScrollOrResize);
+      mainEl?.removeEventListener('scroll', onScrollOrResize);
     };
   }, [nb]);
 
@@ -326,7 +340,7 @@ export default function LearnerSelectionCaptureLayer() {
       if (!frame) frame = window.requestAnimationFrame(paint);
     };
     const onClick = (event) => {
-      if (!window.getSelection?.()?.isCollapsed || isNodeBlockedForCapture(event.target)) return;
+      if (!window.getSelection?.()?.isCollapsed || isNodeBlockedForTranslation(event.target)) return;
       const caret = document.caretRangeFromPoint?.(event.clientX, event.clientY);
       if (!caret) return;
       const host = getAutoContentHost(caret);
@@ -407,9 +421,9 @@ export default function LearnerSelectionCaptureLayer() {
     }
   }
 
-  function handleOpenNotebook() {
-    if (!toolbar) return;
-    const snap = toolbar;
+  function handleOpenNotebook(overrideSnap = null) {
+    const snap = overrideSnap || toolbar;
+    if (!snap) return;
     setToolbar(null);
     if (nb.notebookLocked) {
       notify.warning(tr('Cần gói Tự học để lưu vào Sổ tay'), '', { key: 'sel-nb-lock' });
@@ -421,10 +435,10 @@ export default function LearnerSelectionCaptureLayer() {
     });
   }
 
-  function handleOpenSrs() {
-    if (!toolbar) return;
-    const snap = toolbar;
-    const meta = resolveTargetMetadata(nb.currentUrlKey, snap.contentId);
+  function handleOpenSrs(overrideSnap = null) {
+    const snap = overrideSnap || toolbar;
+    if (!snap) return;
+    const meta = resolveTargetMetadata(nb.currentUrlKey, snap.contentId || '');
     setToolbar(null);
     setSrsModalReq({
       ...snap,
@@ -434,15 +448,23 @@ export default function LearnerSelectionCaptureLayer() {
   }
 
   function handleOpenTranslate() {
-    if (!toolbar) return;
-    const snap = toolbar;
+    if (!toolbar || !toolbar.canTranslate) return;
+    // Freeze full selection snapshot synchronously before clearing selection/toolbar.
+    const frozen = {
+      ...toolbar,
+      selectedText: toolbar.selectedText,
+      contextSentence: toolbar.contextSentence,
+      rect: { ...toolbar.rect },
+      validation: toolbar.translationValidation,
+      requestedAt: Date.now(),
+    };
     setToolbar(null);
-    setTranslateReq({ ...snap });
+    setTranslateReq(frozen);
   }
 
   const activeToolbar = nb?.isLearner && nb?.policy?.selectionAllowed ? toolbar : null;
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const toolbarWidth = Math.min(390, vw - 24);
+  const toolbarWidth = Math.min(activeToolbar?.canTranslate ? 400 : 320, vw - 24);
   const toolbarLeft = activeToolbar ? Math.max(12, Math.min(activeToolbar.pos.left - toolbarWidth / 2, vw - toolbarWidth - 12)) : 12;
   const toolbarTop = activeToolbar ? Math.max(12, Math.min(activeToolbar.pos.top, (typeof window !== 'undefined' ? window.innerHeight : 800) - 54)) : 12;
 
@@ -452,10 +474,11 @@ export default function LearnerSelectionCaptureLayer() {
         <div
           role="toolbar"
           data-selection-toolbar="true"
+          data-translate-scope="deny"
           aria-label={tr('Công cụ học nhanh từ đoạn đã chọn')}
           data-notebook-capture-ignore="true"
           onMouseDown={(e) => e.preventDefault()}
-          className="fixed z-[90] flex max-w-[calc(100vw-24px)] items-center gap-0.5 rounded-full border border-[#EAE3E4] bg-[#1D243B] px-1.5 py-1.5 text-white shadow-xl sm:gap-1 sm:px-2.5"
+          className="fixed z-[90] flex max-w-[calc(100vw-24px)] items-center gap-0.5 rounded-full border border-rp-line bg-[#1D243B] px-1.5 py-1.5 text-white shadow-xl sm:gap-1 sm:px-2.5"
           style={{ left: `${toolbarLeft}px`, top: `${toolbarTop}px` }}
         >
           {/* 3 Highlight Colors ONLY (#F6D56D Cream Yellow, #8EDAC4 Mint Green, #F5A9C4 Sakura Pink) */}
@@ -475,7 +498,7 @@ export default function LearnerSelectionCaptureLayer() {
 
           <button
             type="button"
-            onClick={handleOpenNotebook}
+            onClick={() => handleOpenNotebook()}
             aria-label={tr('Lưu vào Sổ tay')}
             className="inline-flex h-8 items-center gap-1 border-r border-white/15 px-1.5 text-[12px] font-semibold text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white sm:px-2.5"
           >
@@ -485,24 +508,31 @@ export default function LearnerSelectionCaptureLayer() {
 
           <button
             type="button"
-            onClick={handleOpenSrs}
+            onClick={() => handleOpenSrs()}
             aria-label={tr('Thêm hoặc quản lý Thẻ SRS')}
-            className="inline-flex h-8 items-center gap-1 border-r border-white/15 px-1.5 text-[12px] font-semibold text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white sm:px-2.5"
+            className={cx(
+              'inline-flex h-8 items-center gap-1 px-1.5 text-[12px] font-semibold text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white sm:px-2.5',
+              activeToolbar.canTranslate ? 'border-r border-white/15' : 'rounded-full',
+            )}
           >
             <Repeat className="h-3.5 w-3.5 text-[#8EDAC4]" aria-hidden="true" />
             <span>{tr('Thẻ SRS')}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleOpenTranslate}
-            aria-label={tr('Dịch Nhật → Việt')}
-            className="inline-flex h-8 items-center gap-1 rounded-full px-1.5 text-[12px] font-semibold text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white sm:px-2.5"
-          >
-            <Languages className="h-3.5 w-3.5 text-[#F6D56D]" aria-hidden="true" />
-            <span>{tr('Dịch')}</span>
-          </button>
-
+          {activeToolbar.canTranslate && (
+            <Tooltip content={tr('Dịch sang tiếng Việt')}>
+              <button
+                type="button"
+                data-testid="floating-translate-btn"
+                onClick={handleOpenTranslate}
+                aria-label={tr('Dịch sang tiếng Việt')}
+                className="inline-flex h-8 items-center gap-1 rounded-full px-1.5 text-[12px] font-semibold text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white sm:px-2.5"
+              >
+                <Languages className="h-3.5 w-3.5 text-[#F6D56D]" aria-hidden="true" />
+                <span>{tr('Dịch')}</span>
+              </button>
+            </Tooltip>
+          )}
         </div>
       )}
 
@@ -512,7 +542,8 @@ export default function LearnerSelectionCaptureLayer() {
           role="dialog"
           aria-label={tr('Chi tiết highlight')}
           data-notebook-capture-ignore="true"
-          className="fixed z-[91] w-[min(92vw,340px)] rounded-2xl border border-[#EAE3E4] bg-[#FFFCF8] p-3.5 shadow-2xl"
+          data-translate-scope="deny"
+          className="fixed z-[91] w-[min(92vw,340px)] rounded-2xl border border-rp-line bg-rp-surface p-3.5 shadow-2xl"
           style={{
             left: `${Math.max(12, Math.min((detail.rect?.left ?? 160), vw - 356))}px`,
             top: `${Math.min((detail.rect?.bottom ?? 200) + 10, (typeof window !== 'undefined' ? window.innerHeight : 800) - 290)}px`,
@@ -520,7 +551,7 @@ export default function LearnerSelectionCaptureLayer() {
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="rp-jp truncate text-[14.5px] font-bold text-rp-navy">
+              <p className="rp-jp truncate text-[14.5px] font-bold text-rp-text">
                 {detail.entry.selectedText || detail.entry.term}
               </p>
               {detail.entry.meaning && (
@@ -531,7 +562,7 @@ export default function LearnerSelectionCaptureLayer() {
               type="button"
               aria-label={tr('Đóng')}
               onClick={() => nb.setActiveHighlightDetail(null)}
-              className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-muted hover:bg-[#FFF0F4]"
+              className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint"
             >
               <X className="h-4 w-4" />
             </button>
@@ -564,7 +595,7 @@ export default function LearnerSelectionCaptureLayer() {
                       }
                     }}
                     style={{ backgroundColor: c.hex }}
-                    className={`h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 ${active ? 'border-rp-navy scale-110' : 'border-white'}`}
+                    className={`h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 ${active ? 'border-rp-text scale-110' : 'border-white'}`}
                   />
                 );
               })}
@@ -576,7 +607,7 @@ export default function LearnerSelectionCaptureLayer() {
             value={editingNote}
             onChange={(e) => setEditingNote(e.target.value)}
             placeholder={tr('Thêm ghi chú cho highlight này…')}
-            className="mt-2.5 w-full rounded-xl border border-[#EAE3E4] bg-white px-2.5 py-1.5 text-[12px] text-rp-text focus:border-rp-brand-strong focus:outline-none"
+            className="mt-2.5 w-full rounded-xl border border-rp-line bg-rp-bg-2 px-2.5 py-1.5 text-[12px] text-rp-text focus:border-rp-brand-strong focus:outline-none"
           />
 
           <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -597,7 +628,7 @@ export default function LearnerSelectionCaptureLayer() {
                     notify.apiError(err, tr('Chưa bỏ được highlight'));
                   }
                 }}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 text-[11.5px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-danger-line bg-rp-danger-bg px-2.5 text-[11.5px] font-semibold text-rp-danger hover:opacity-90 disabled:opacity-50"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>{tr('Bỏ')}</span>
@@ -615,7 +646,7 @@ export default function LearnerSelectionCaptureLayer() {
                     sourceTitle: target.sourceTitle || '',
                   });
                 }}
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#EAE3E4] bg-white px-2.5 text-[11.5px] font-semibold text-rp-navy hover:bg-[#FFF0F4]"
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rp-line bg-rp-surface px-2.5 text-[11.5px] font-semibold text-rp-text hover:bg-rp-brand-tint"
               >
                 <Repeat className="h-3.5 w-3.5 text-rp-brand-strong" />
                 <span>{detail.entry.linkedReviewCardId ? tr('Đã thêm') : tr('Thẻ SRS')}</span>
@@ -631,7 +662,7 @@ export default function LearnerSelectionCaptureLayer() {
                     nb.setActiveHighlightDetail(null);
                     navigate(`/kanji-notebook/?noteId=${nId}&entryId=${eId}`);
                   }}
-                  className="inline-flex h-8 items-center rounded-lg border border-[#EAE3E4] bg-white px-2 text-rp-text-2 hover:bg-[#FFF0F4]"
+                  className="inline-flex h-8 items-center rounded-lg border border-rp-line bg-rp-surface px-2 text-rp-text-2 hover:bg-rp-brand-tint"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                 </button>
@@ -680,10 +711,17 @@ export default function LearnerSelectionCaptureLayer() {
 
       {translateReq && (
         <SelectionTranslatePopover
+          key={`${translateReq.selectedText}-${translateReq.requestedAt || 0}`}
           request={translateReq}
           onClose={() => setTranslateReq(null)}
+          onSaveNotebook={handleOpenNotebook}
+          onSaveSrs={handleOpenSrs}
         />
       )}
     </>
   );
+}
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(' ');
 }

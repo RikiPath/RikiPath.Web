@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import { createMeetingHubConnection } from '@/features/meetings/services/mentorMeetingHub.js';
 import { getSession } from '@/app/auth/session.js';
 import { useLocale } from '@/locales/locale.js';
+import { formatTime } from '@/utils/dateTimeFormat.js';
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
 
@@ -46,10 +47,7 @@ const hubErrorMessage = (err, fallback) => {
 };
 
 // ---- Chat: server là nguồn sự thật (id, người gửi, giờ gửi). Tin nhắn chỉ nằm trong RAM server. ----
-const formatChatTime = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
+const formatChatTime = (iso) => formatTime(iso, '');
 
 // "Tin của tôi" xác định theo userId (ConnectionId đổi sau mỗi lần F5 / reconnect nên không dùng được).
 const toChatMessage = (raw, selfUserId) => ({

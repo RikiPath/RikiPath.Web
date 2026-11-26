@@ -1,9 +1,10 @@
-import { ArrowLeft, ArrowRight, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { Button, cx } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 
 /**
- * Sticky bottom navigation bar for the 5-step onboarding wizard.
+ * Sticky bottom navigation bar for the 5-step onboarding wizard. The review step has a single primary action,
+ * "Xác nhận mục tiêu" (saves the goal and returns to the Dashboard), next to "Quay lại".
  */
 export default function OnboardingWizardNav({
   currentStepIndex,
@@ -11,11 +12,9 @@ export default function OnboardingWizardNav({
   canAdvance,
   busy = false,
   savingMode = null,
-  hasExamDate = false,
   onPrevious,
   onNext,
-  onSubmitPlanOnly,
-  onSubmitWithAssessment,
+  onConfirm,
   className,
 }) {
   const { tr } = useLocale();
@@ -42,50 +41,17 @@ export default function OnboardingWizardNav({
         >
           {tr('Quay lại')}
         </Button>
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-          {hasExamDate ? (
-            <>
-              <Button
-                variant="secondary"
-                size="md"
-                loading={savingMode === 'saveOnly'}
-                disabled={busy || isSaving}
-                onClick={onSubmitPlanOnly}
-                className="w-full sm:w-auto"
-              >
-                {tr('Chỉ lưu & vào trang chủ')}
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                icon={Sparkles}
-                loading={savingMode === 'assessment'}
-                disabled={busy || isSaving || !canAdvance}
-                onClick={onSubmitWithAssessment}
-                className="w-full sm:w-auto"
-              >
-                {savingMode === 'assessment'
-                  ? tr('Đang bắt đầu bài đánh giá…')
-                  : tr('Bắt đầu đánh giá năng lực')}
-              </Button>
-            </>
-          ) : (
-            <Button
-              variant="primary"
-              size="lg"
-              icon={Check}
-              loading={savingMode === 'saveOnly'}
-              disabled={busy || isSaving || !canAdvance}
-              onClick={onSubmitPlanOnly}
-              className="w-full sm:w-auto"
-            >
-              {savingMode === 'saveOnly'
-                ? tr('Đang lưu mục tiêu…')
-                : tr('Tạo kế hoạch học tập')}
-            </Button>
-          )}
-        </div>
+        <Button
+          variant="primary"
+          size="lg"
+          icon={Check}
+          loading={isSaving}
+          disabled={busy || isSaving || !canAdvance}
+          onClick={onConfirm}
+          className="w-full sm:w-auto sm:min-w-[200px]"
+        >
+          {isSaving ? tr('Đang lưu mục tiêu…') : tr('Xác nhận mục tiêu')}
+        </Button>
       </div>
     );
   }

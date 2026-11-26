@@ -91,7 +91,7 @@ export default function PackageSummaryCard({ className }) {
   } else if (status === ACCESS.PENDING_PAYMENT) {
     badge = <Badge tone="warning" size="sm" icon={false}>{tr('Chờ thanh toán')}</Badge>;
     title = tr('Gói đang chờ thanh toán');
-    body = <p className="text-[12px] leading-5 text-rp-text-2">{tr('Hoàn tất thanh toán để mở khóa bài học tự học.')}</p>;
+    body = <p className="text-[12px] leading-5 text-rp-text-2">{tr('Hoàn tất thanh toán để bắt đầu học.')}</p>;
     cta = { to: PLANS_PATH, label: 'Xem gói học', variant: 'primary' };
   } else if (status === ACCESS.EXPIRED) {
     badge = <Badge tone="neutral" size="sm" icon={false}>{tr('Đã hết hạn')}</Badge>;

@@ -165,40 +165,72 @@ export function resolveDashboardPrimaryFlow({
       ? Number(studyAccess.learningPathUsesRemaining)
       : null;
 
-  if (!targetLevel) {
+  const hasConfirmedGoal = Boolean(roadmapAccess.hasConfirmedGoal ?? targetLevel);
+  const hasPlacementCompleted = Boolean(roadmapAccess.hasPlacementCompleted);
+  const aiEligible = Boolean(roadmapAccess.aiRoadmapEligible ?? hasPlacementCompleted);
+  const standardEligible = Boolean(
+    roadmapAccess.standardRoadmapEligible ??
+    hasPlacementCompleted,
+  );
+
+  // Sequential flow: step 1 is always the JLPT goal (the assessment stays locked until it is confirmed).
+  if (!hasConfirmedGoal) {
     return {
       stage: 'needs-goal',
       to: '/onboarding/',
       ctaLabel: 'Đặt mục tiêu JLPT',
-      hint: 'Chọn cấp độ JLPT và thời lượng học mỗi ngày để hệ thống cá nhân hóa lộ trình.',
+      hint: 'Hãy chọn mục tiêu JLPT để RikiPath chuẩn bị bài đánh giá phù hợp với bạn.',
     };
   }
 
-  if (!roadmapAccess.hasActiveAiPath && !roadmapAccess.isPending && !roadmapAccess.hasPlacementCompleted) {
+  if (!roadmapAccess.isPending && !standardEligible && !roadmapAccess.hasActiveAiPath) {
+    if (roadmapAccess.isPlacementInProgress) {
+      return {
+        stage: 'placement-in-progress',
+        to: '/app/placement-test/',
+        ctaLabel: roadmapAccess.hasPendingPlacementSubmission
+          ? 'Nộp bài đánh giá'
+          : 'Tiếp tục đánh giá năng lực',
+        hint: 'Bạn có bài đánh giá đang làm dở. Hoàn thành để nhận lộ trình phù hợp.',
+      };
+    }
     return {
       stage: 'needs-placement',
       to: '/app/placement-test/',
-      ctaLabel: 'Làm bài đánh giá năng lực',
-      hint: 'Kiểm tra nhanh 4 kỹ năng để xác định đúng điểm xuất phát JLPT của bạn.',
+      ctaLabel: 'Đánh giá năng lực',
+      hint: 'Bước tiếp theo, hãy đánh giá năng lực để tìm ra lộ trình học phù hợp với bạn.',
     };
   }
 
-  if (!roadmapAccess.hasActiveAiPath && !roadmapAccess.isPending && roadmapAccess.hasPlacementCompleted) {
+  if (!roadmapAccess.isPending && standardEligible && !aiEligible) {
+    return {
+      stage: 'standard-roadmap',
+      to: '/roadmap/',
+      secondaryTo: '/app/placement-test/',
+      ctaLabel: 'Mở lộ trình tiêu chuẩn',
+      secondaryLabel: 'Đánh giá năng lực',
+      hint: 'Lộ trình tiêu chuẩn đã sẵn sàng. Bạn có thể đánh giá năng lực bất cứ lúc nào.',
+    };
+  }
+
+  if (!roadmapAccess.hasActiveAiPath && !roadmapAccess.isPending && aiEligible) {
     if (aiRemaining === 0) {
       return {
         stage: 'needs-ai-credit',
         to: '/plans/',
-        secondaryTo: '/app/placement-test/',
+        secondaryTo: '/roadmap/',
         ctaLabel: 'Xem gói lượt AI',
-        secondaryLabel: 'Xem kết quả đánh giá',
-        hint: 'Bạn đã hoàn thành đánh giá năng lực. Bổ sung lượt AI để mở khóa lộ trình cá nhân hóa.',
+        secondaryLabel: 'Mở lộ trình tiêu chuẩn',
+        hint: 'Bạn có thể học theo lộ trình tiêu chuẩn, hoặc thêm lượt AI để tạo lộ trình cá nhân hóa.',
       };
     }
     return {
       stage: 'ready-for-ai',
       to: '/roadmap/?generateAi=1',
+      secondaryTo: '/roadmap/',
       ctaLabel: 'Tạo lộ trình học với AI',
-      hint: 'Bạn đã hoàn thành đánh giá năng lực. Khởi tạo lộ trình học từng ngày dành riêng cho bạn.',
+      secondaryLabel: 'Mở lộ trình tiêu chuẩn',
+      hint: 'Mục tiêu và kết quả đánh giá đã sẵn sàng. Hãy tạo lộ trình học phù hợp với bạn.',
     };
   }
 

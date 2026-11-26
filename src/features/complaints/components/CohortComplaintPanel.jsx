@@ -32,7 +32,8 @@ const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
 const EVIDENCE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
 const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
 const categoryLabel = (v) => COMPLAINT_CATEGORIES.find((c) => c.value === v)?.label || v;
-const badgeTone = (s) => (s === 'Resolved' ? 'success' : s === 'Rejected' ? 'neutral' : 'warning');
+const STATUS_TONE = { Open: 'warning', UnderReview: 'info', Resolved: 'success', Rejected: 'danger' };
+const badgeTone = (s) => STATUS_TONE[s] || 'neutral';
 
 const ACTOR_ROLE_LABELS = {
   Learner: 'Học viên',

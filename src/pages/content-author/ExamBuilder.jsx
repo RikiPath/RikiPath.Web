@@ -28,6 +28,7 @@ import {
   ContextualErrorState,
   CustomSelect,
   DataRefreshBoundary,
+  RichQuestionText,
   DataTable,
   FeatureIcon,
   Field,
@@ -63,6 +64,11 @@ import {
   createBlankCanonicalQuestion,
 } from '@/features/content-author/utils/canonicalQuestionTemplates.js';
 import { useLocale } from '@/locales/locale.js';
+import {
+  formatApprovalStatusLabel,
+  formatQuestionTypeLabel,
+  formatSkillNameLabel,
+} from '@/utils/terminology.js';
 import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const EXAM_KIND_LABELS = {
@@ -196,7 +202,7 @@ export default function ExamBuilder() {
     onSuccess: (submitted) => {
       setEditingExam(submitted);
       refreshExams();
-      notify.success(tr('Đã gửi đề thi để Admin kiểm duyệt.'), '', { key: 'exam-sub-ok' });
+      notify.success(tr('Đã gửi đề thi để Quản trị viên kiểm duyệt.'), '', { key: 'exam-sub-ok' });
     },
     onError: (err) => notify.apiError(err, tr('Chưa gửi duyệt được đề thi'), { key: 'exam-sub-err' }),
   });
@@ -362,7 +368,7 @@ export default function ExamBuilder() {
             <Badge tone="neutral" size="sm" icon={false}>v{row.version || 1}</Badge>
           </div>
           <p className="font-semibold text-rp-text">{row.title}</p>
-          {row.reviewNote && <p className="text-xs text-amber-800">{tr('Phản hồi Admin')}: {row.reviewNote}</p>}
+          {row.reviewNote && <p className="text-xs text-amber-800">{tr('Phản hồi Quản trị viên')}: {row.reviewNote}</p>}
         </div>
       ),
     },
@@ -656,7 +662,7 @@ export default function ExamBuilder() {
                         options={skills.map((sk) => ({ value: String(sk.id), label: sk.name }))}
                       />
                     </Field>
-                    <Field label={tr('Phần Admin cấu hình')}>
+                    <Field label={tr('Phần Quản trị viên cấu hình')}>
                       <CustomSelect
                         value={section.certificateSectionId ? String(section.certificateSectionId) : ''}
                         onChange={(v) => {
@@ -730,7 +736,7 @@ export default function ExamBuilder() {
                                   {q.questionType && <Badge tone="info" size="sm" icon={false}>{q.questionType}</Badge>}
                                 </div>
                                 <p className="rp-jp truncate font-medium text-rp-text">
-                                  {q.questionText || trf('Câu hỏi liên kết Ngân hàng #{0}', { 0: slot.questionBankItemId })}
+                                  {q.questionText ? <RichQuestionText text={q.questionText} /> : trf('Câu hỏi liên kết Ngân hàng #{0}', { 0: slot.questionBankItemId })}
                                 </p>
                               </div>
                               {!isLocked && (
@@ -780,7 +786,7 @@ export default function ExamBuilder() {
                     if (saved?.id) submitMutation.mutate(saved.id);
                   }}
                 >
-                  {tr('Gửi Admin duyệt')}
+                  {tr('Gửi Quản trị viên duyệt')}
                 </Button>
               </div>
             )}
@@ -914,10 +920,10 @@ export default function ExamBuilder() {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge tone="neutral" size="sm" icon={false}>{q.certificateLevelCode}</Badge>
-                      <Badge tone="info" size="sm" icon={false}>{q.skillName}</Badge>
-                      <Badge tone="brand" size="sm" icon={false}>{q.questionType}</Badge>
+                      <Badge tone="info" size="sm" icon={false}>{formatSkillNameLabel(q.skillName, tr)}</Badge>
+                      <Badge tone="brand" size="sm" icon={false}>{formatQuestionTypeLabel(q.questionType, tr)}</Badge>
                       <Badge tone={PUBLISH_BADGES[q.publishStatus]?.tone || 'neutral'} size="sm" icon={false}>
-                        {q.publishStatus}
+                        {formatApprovalStatusLabel(q.publishStatus, tr)}
                       </Badge>
                     </div>
                     <p className="rp-jp text-sm font-medium text-rp-text">{q.questionText}</p>

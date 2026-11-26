@@ -17,10 +17,13 @@ import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import { useLocale } from '@/locales/locale.js';
 import { useWorkspaceCalendar } from '@/features/calendar/hooks/useWorkspaceCalendar.js';
 import { displayCourseTitle } from '@/features/calendar/utils/calendarEventsModel.js';
+import { resolveCourseLifecycle } from '@/features/scheduling/utils/teachingLifecycleModel.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { StatusBadge } from '@/features/admin/components/AdminPrimitives.jsx';
 import { getSession } from '@/app/auth/session.js';
 import { useLearnerAnalyticsFeed } from '@/features/dashboard/hooks/useLearnerAnalyticsFeed.js';
 import { useLearningPathAccess } from '@/features/learning-path/useLearningPathAccess.js';
+import { RoadmapSetupState } from '@/features/learning-path/components/RoadmapSetupState.jsx';
 import {
   LearningAnalytics,
   LearningJourneyMap,
@@ -46,17 +49,10 @@ import {
   RefreshingIndicator,
   SakuraLoader,
   SrsLoopIcon,
+  notify,
   cx,
 } from '@/components/ui';
 import '@/features/learner-ui/dashboard.css';
-
-const COURSE_STATUS = {
-  Active: { tone: 'success', label: 'Đang học' },
-  Ready: { tone: 'info', label: 'Sắp khai giảng' },
-  PendingPayment: { tone: 'warning', label: 'Chờ thanh toán' },
-  Completed: { tone: 'neutral', label: 'Đã hoàn thành' },
-  Transferred: { tone: 'neutral', label: 'Đã chuyển lớp' },
-};
 
 const SCENE_COPY = {
   dawn: { hello: 'Chào buổi sáng', jp: 'おはようございます' },
@@ -112,8 +108,23 @@ function MetricRow({ icon, label, value, unit, loading, error, onRetry, tr, to, 
 }
 
 /** Completed lessons + today's SRS due cards in one card (real counts only; nothing is hard-coded). */
-function ProgressReviewCard({ completedLessons, totalLessons, completionPct, dueCards, loading, errors, onRetry, srsWidgetQuery, className }) {
+function ProgressReviewCard({
+  hasValidRoadmap,
+  hasConfirmedGoal,
+  setupLoading,
+  completedLessons,
+  totalLessons,
+  completionPct,
+  dueCards,
+  loading,
+  errors,
+  onRetry,
+  srsWidgetQuery,
+  className,
+}) {
   const { tr } = useLocale();
+  const progressLoading = Boolean(setupLoading || loading.completion);
+  const showRoadmapMetrics = Boolean(hasValidRoadmap && !progressLoading && totalLessons > 0);
   return (
     <section
       aria-label={tr('Tiến độ & Ôn tập')}
@@ -123,30 +134,50 @@ function ProgressReviewCard({ completedLessons, totalLessons, completionPct, due
       <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rp-text-muted">{tr('Tiến độ & Ôn tập')}</p>
 
       <div className="space-y-2">
-        <MetricRow
-          icon="lesson_done"
-          label="Bài học đã hoàn thành"
-          value={completedLessons}
-          unit={totalLessons > 0 ? `/ ${totalLessons}` : 'bài'}
-          loading={Boolean(loading.completion)}
-          error={errors.completion}
-          onRetry={onRetry.completion}
-          to="/lessons/"
-          tr={tr}
-        >
-          {totalLessons > 0 && <span className="text-[13px] font-extrabold tabular-nums text-rp-success">{completionPct}%</span>}
-        </MetricRow>
-        {totalLessons > 0 && completedLessons != null && (
-          <span
-            className="block h-1.5 overflow-hidden rounded-full bg-rp-mint-bg"
-            role="progressbar"
-            aria-label={tr('Tiến độ bài học')}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={completionPct}
-          >
-            <span className="rp-grow-x block h-full origin-left rounded-full bg-rp-mint" style={{ transform: `scaleX(${Math.max(0.02, completionPct / 100)})` }} />
-          </span>
+        {!progressLoading && !hasValidRoadmap ? (
+          <div className="flex items-center gap-3" data-progress-state="no-roadmap">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rp-bg-2">
+              <WebClayIcon name="lesson_done" size="xs" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-medium text-rp-text-muted">{tr('Tiến độ lộ trình')}</p>
+              <p className="mt-0.5 text-[15px] font-bold leading-6 text-rp-text-2">{tr('Chưa có lộ trình')}</p>
+            </div>
+            <Link
+              to={hasConfirmedGoal ? '/roadmap/' : '/onboarding/'}
+              className="rp-focus rp-link shrink-0 rounded text-xs font-semibold"
+            >
+              {hasConfirmedGoal ? tr('Thiết lập') : tr('Đặt mục tiêu')}
+            </Link>
+          </div>
+        ) : (
+          <>
+            <MetricRow
+              icon="lesson_done"
+              label="Bài học đã hoàn thành"
+              value={completedLessons}
+              unit={totalLessons > 0 ? `/ ${totalLessons}` : 'bài'}
+              loading={progressLoading}
+              error={errors.completion}
+              onRetry={onRetry.completion}
+              to="/roadmap/"
+              tr={tr}
+            >
+              {showRoadmapMetrics && <span className="text-[13px] font-extrabold tabular-nums text-rp-success">{completionPct}%</span>}
+            </MetricRow>
+            {showRoadmapMetrics && completedLessons != null && (
+              <span
+                className="block h-1.5 overflow-hidden rounded-full bg-rp-mint-bg"
+                role="progressbar"
+                aria-label={tr('Tiến độ bài học')}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={completionPct}
+              >
+                <span className="rp-grow-x block h-full origin-left rounded-full bg-rp-mint" style={{ transform: `scaleX(${Math.max(0.02, completionPct / 100)})` }} />
+              </span>
+            )}
+          </>
         )}
       </div>
 
@@ -310,7 +341,9 @@ function GroupLearningWidget({ className }) {
 
           <ul className="space-y-2">
             {courses.slice(0, 2).map((c) => {
-              const s = COURSE_STATUS[c.status] || { tone: 'neutral', label: c.status };
+              const s = c.paymentStatus === 'Pending'
+                ? { tone: 'warning', label: 'Chờ thanh toán' }
+                : resolveCourseLifecycle(c);
               const total = Array.isArray(c.sessions) ? c.sessions.length : 0;
               const present = Array.isArray(c.sessions) ? c.sessions.filter((x) => x.status === 'Present').length : 0;
               return (
@@ -332,7 +365,7 @@ function GroupLearningWidget({ className }) {
                         {c.level || 'JLPT'}{c.mentorName ? ` · ${c.mentorName}` : ''}{total > 0 ? ` · ${present}/${total}` : ''}
                       </span>
                     </span>
-                    <Badge tone={s.tone} size="sm">{tr(s.label)}</Badge>
+                    <StatusBadge tone={s.tone} label={s.label} />
                   </Link>
                 </li>
               );
@@ -364,15 +397,39 @@ export default function HomeLearner({ data = null }) {
   const dueCards = isNum(data?.dueCards) ? Math.max(0, data.dueCards) : null;
   const streakDays = isNum(data?.streakDays) ? data.streakDays : null;
   const longestStreak = isNum(data?.longestStreakDays) ? data.longestStreakDays : null;
-  const completedLessons = isNum(data?.completedExercises) ? data.completedExercises : null;
-  const totalLessons = isNum(data?.totalLessons) ? data.totalLessons : 0;
-  const activeToday = Boolean(data?.activeToday);
   const loading = data?.loading ?? {};
+  const setupLoading = Boolean(loading.profile || (authenticated && roadmapAccess.isPending));
+  const hasValidRoadmap = authenticated
+    ? Boolean(roadmapAccess.hasAnyValidRoadmap)
+    : Boolean(data?.hasValidRoadmap ?? targetLevel);
+  const hasConfirmedGoal = authenticated
+    ? Boolean(roadmapAccess.hasConfirmedGoal)
+    : Boolean(targetLevel);
+  const completedLessons = hasValidRoadmap
+    ? (isNum(roadmapAccess.roadmapCompletedLessons) ? roadmapAccess.roadmapCompletedLessons : isNum(data?.completedExercises) ? data.completedExercises : null)
+    : null;
+  const totalLessons = hasValidRoadmap
+    ? (isNum(roadmapAccess.roadmapTotalLessons) ? roadmapAccess.roadmapTotalLessons : isNum(data?.totalLessons) ? data.totalLessons : 0)
+    : 0;
+  const activeToday = Boolean(data?.activeToday);
   const errors = data?.errors ?? {};
   const queries = data?.queries ?? {};
   const fetching = data?.fetching ?? {};
   const onRetry = data?.onRetry ?? {};
   const name = data?.displayName;
+
+  async function handleActivateStandard() {
+    try {
+      await roadmapAccess.activateStandardRoadmap();
+      notify.success(
+        tr('Lộ trình tiêu chuẩn đã sẵn sàng!'),
+        tr('Bạn đã có thể bắt đầu học ngay trên hành trình JLPT của mình.'),
+        { key: 'dashboard-activate-standard' },
+      );
+    } catch (err) {
+      notify.apiError(err, tr('Chưa tạo được lộ trình. Vui lòng thử lại.'), { key: 'dashboard-activate-standard' });
+    }
+  }
 
   const rawSkills = useMemo(() => {
     if (Array.isArray(data?.rawSkills) && data.rawSkills.length > 0) return data.rawSkills;
@@ -468,7 +525,7 @@ export default function HomeLearner({ data = null }) {
                   </h1>
 
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    {loading.profile ? (
+                    {setupLoading ? (
                       <SakuraLoader variant="inline" context="dashboard" label={tr('Đang tải bảng học tập')} tone={lightText ? 'light' : 'brand'} />
                     ) : (
                       <p className={cx('text-sm leading-6', lightText ? 'text-white/90' : 'text-rp-text-2')}>
@@ -479,7 +536,7 @@ export default function HomeLearner({ data = null }) {
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                    {loading.profile ? null : primaryFlow.stage === 'active-roadmap' && !primaryFlow.nextDay?.lessons?.[0]?.lessonId ? (
+                    {setupLoading ? null : primaryFlow.stage === 'active-roadmap' && !primaryFlow.nextDay?.lessons?.[0]?.lessonId ? (
                       <Link
                         to={primaryFlow.to}
                         className="rp-focus rp-press rp-btn-primary group inline-flex h-10 items-center gap-2 rounded-rp-input bg-rp-brand-pressed px-4 text-sm font-semibold text-white shadow-rp-brand hover:bg-rp-brand-strong"
@@ -505,8 +562,10 @@ export default function HomeLearner({ data = null }) {
                       >
                         {primaryFlow.stage === 'ready-for-ai' ? (
                           <Sparkles aria-hidden="true" className="h-4 w-4" />
-                        ) : primaryFlow.stage === 'needs-placement' ? (
+                        ) : primaryFlow.stage === 'needs-placement' || primaryFlow.stage === 'placement-in-progress' ? (
                           <ClipboardCheck aria-hidden="true" className="h-4 w-4" />
+                        ) : primaryFlow.stage === 'standard-roadmap' ? (
+                          <Route aria-hidden="true" className="h-4 w-4" />
                         ) : (
                           <Target aria-hidden="true" className="h-4 w-4" />
                         )}
@@ -515,7 +574,7 @@ export default function HomeLearner({ data = null }) {
                       </Link>
                     )}
 
-                    {primaryFlow.secondaryTo && (
+                    {!setupLoading && primaryFlow.secondaryTo && (
                       <Link
                         to={primaryFlow.secondaryTo}
                         className={cx(
@@ -570,6 +629,9 @@ export default function HomeLearner({ data = null }) {
           />
           <ProgressReviewCard
             className="h-full"
+            hasValidRoadmap={hasValidRoadmap}
+            hasConfirmedGoal={hasConfirmedGoal}
+            setupLoading={setupLoading}
             completedLessons={completedLessons}
             totalLessons={totalLessons}
             completionPct={completionPct}
@@ -582,12 +644,27 @@ export default function HomeLearner({ data = null }) {
           <PackageSummaryCard className="h-full" />
         </section>
 
-        {/* Band 3: Interactive learning journey (scenes of real milestones, swipe / buttons / keys) */}
-        <LearningJourneyMap
-          targetLevel={targetLevel}
-          roadmapAccess={roadmapAccess}
-          hasAiCredit={Number(studyAccess?.learningPathUsesRemaining ?? 1) !== 0}
-        />
+        {/* Band 3: Setup-required card when incomplete; interactive Sakura landscape roadmap once valid */}
+        {setupLoading ? (
+          <Card className="p-5">
+            <SakuraLoader variant="section" context="roadmap" label={tr('Đang tải lộ trình học')} delay={120} />
+          </Card>
+        ) : !hasValidRoadmap ? (
+          <RoadmapSetupState
+            variant="dashboard"
+            flow={roadmapAccess}
+            targetLevelName={targetLevel}
+            onActivateStandard={authenticated ? handleActivateStandard : undefined}
+            activatingStandard={roadmapAccess.activatingStandardRoadmap}
+            activateStandardError={roadmapAccess.activateStandardError}
+          />
+        ) : (
+          <LearningJourneyMap
+            targetLevel={targetLevel}
+            roadmapAccess={roadmapAccess}
+            hasAiCredit={Number(studyAccess?.learningPathUsesRemaining ?? 1) !== 0}
+          />
+        )}
 
         {/* Band 4: Discovery & practice (~60%) + Group learning with a Teacher (~40%) on one row */}
         <section aria-label={tr('Khám phá và học nhóm')} className="rp-cq-two-col rp-discovery-row">

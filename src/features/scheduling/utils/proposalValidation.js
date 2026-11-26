@@ -1,8 +1,13 @@
 import { clockFromMinutes } from './slotPlannerModel.js';
 import { toVnDateKey, mondayOfDateKey, shiftDateKey } from './calendarGeometry.js';
+import { readLocale } from '../../../locales/locale.js';
 
 function vnDateTimeToUtcIso(dayKey, minuteOfDay) {
   return new Date(`${dayKey}T${clockFromMinutes(minuteOfDay)}:00+07:00`).toISOString();
+}
+
+function vnDateTimeToUtcMs(dayKey, minuteOfDay) {
+  return new Date(vnDateTimeToUtcIso(dayKey, minuteOfDay)).getTime();
 }
 
 export const SUPPORTED_PROPOSAL_JLPT_CODES = Object.freeze(['N5', 'N4', 'N3', 'N2']);
@@ -26,8 +31,8 @@ export function canMentorTeachJlptLevel(verifiedMentorCode, targetCode) {
 
 export const PROPOSAL_DAYPART_WINDOWS = Object.freeze({
   Morning: { id: 'Morning', label: 'Sáng', rangeLabel: '07:00–11:00', startMin: 7 * 60, endMin: 11 * 60, defaultStartMin: 8 * 60 + 30 },
-  Noon: { id: 'Noon', label: 'Trưa', rangeLabel: '11:30–13:30', startMin: 11 * 60 + 30, endMin: 13 * 60 + 30, defaultStartMin: 11 * 60 + 30 },
-  Afternoon: { id: 'Afternoon', label: 'Chiều', rangeLabel: '13:30–17:30', startMin: 13 * 60 + 30, endMin: 17 * 60 + 30, defaultStartMin: 13 * 60 + 30 },
+  Noon: { id: 'Noon', label: 'Trưa', rangeLabel: '11:00–13:00', startMin: 11 * 60, endMin: 13 * 60, defaultStartMin: 11 * 60 + 15 },
+  Afternoon: { id: 'Afternoon', label: 'Chiều', rangeLabel: '13:00–18:00', startMin: 13 * 60, endMin: 18 * 60, defaultStartMin: 13 * 60 + 30 },
   Evening: { id: 'Evening', label: 'Tối', rangeLabel: '18:00–22:00', startMin: 18 * 60, endMin: 22 * 60, defaultStartMin: 18 * 60 },
 });
 
@@ -47,16 +52,24 @@ export const DEFAULT_PROPOSAL_POLICY = Object.freeze({
   gridStepMinutes: 15,
   operatingStartMinute: 7 * 60,
   operatingEndMinute: 22 * 60,
-  minimumProposalLeadDays: 7,
-  minimumPublishedEnrollmentDays: 3,
+  minimumProposalLeadDays: 14,
+  minimumPublishedEnrollmentDays: 7,
+  checkoutHoldMinutes: 10,
+  enrollmentCutoffMinutesBeforeFirstSession: 0,
+  maxTotalActiveClassesPerMentor: 4,
+  maxActiveClassesByLevel: Object.freeze({
+    N5: 1,
+    N4: 1,
+    N3: 1,
+    N2: 1,
+  }),
+  tuitionPerSessionByLevel: Object.freeze({
+    N5: 60000,
+    N4: 75000,
+    N3: 90000,
+    N2: 110000,
+  }),
 });
-
-export const PROPOSAL_PROGRAM_TYPES = Object.freeze([
-  { value: 'StandardJlpt', label: 'Khóa JLPT tiêu chuẩn (10 tuần)' },
-  { value: 'IntensiveJlpt', label: 'Khóa JLPT tăng cường' },
-  { value: 'ExamPrepJlpt', label: 'Luyện đề & chốt kỳ thi JLPT' },
-  { value: 'CustomJlpt', label: 'Chương trình thiết kế riêng' },
-]);
 
 export const PROPOSAL_STATUS_META = Object.freeze({
   Draft: {
@@ -73,9 +86,9 @@ export const PROPOSAL_STATUS_META = Object.freeze({
   },
   ChangesRequested: {
     label: 'Cần bổ sung',
-    tone: 'brand',
-    dot: '#E05A7A',
-    pillClass: 'border-[#F2CCD7] bg-[#FFF5F7] text-[#B53D5C]',
+    tone: 'warning',
+    dot: '#EA580C',
+    pillClass: 'border-orange-200 bg-orange-50 text-orange-800',
   },
   Approved: {
     label: 'Đã duyệt',
@@ -106,8 +119,28 @@ export function weekdayLabelVn(weekday) {
 
 export function normalizeProposalPolicy(apiPolicy = null) {
   const allowed = Array.isArray(apiPolicy?.allowedSessionsPerWeek) && apiPolicy.allowedSessionsPerWeek.length > 0
-    ? apiPolicy.allowedSessionsPerWeek.map(Number).filter((n) => n >= 1 && n <= 7).sort((a, b) => a - b)
+    ? apiPolicy.allowedSessionsPerWeek.map(Number).filter((n) => Number.isInteger(n) && n >= 1).sort((a, b) => a - b)
     : DEFAULT_PROPOSAL_POLICY.allowedSessionsPerWeek;
+
+  const rawTuition = apiPolicy?.tuitionPerSessionByLevel && typeof apiPolicy.tuitionPerSessionByLevel === 'object'
+    ? apiPolicy.tuitionPerSessionByLevel
+    : {};
+  const tuitionPerSessionByLevel = {
+    N5: Number(rawTuition.N5 ?? rawTuition.n5 ?? apiPolicy?.tuitionPerSessionN5 ?? DEFAULT_PROPOSAL_POLICY.tuitionPerSessionByLevel.N5),
+    N4: Number(rawTuition.N4 ?? rawTuition.n4 ?? apiPolicy?.tuitionPerSessionN4 ?? DEFAULT_PROPOSAL_POLICY.tuitionPerSessionByLevel.N4),
+    N3: Number(rawTuition.N3 ?? rawTuition.n3 ?? apiPolicy?.tuitionPerSessionN3 ?? DEFAULT_PROPOSAL_POLICY.tuitionPerSessionByLevel.N3),
+    N2: Number(rawTuition.N2 ?? rawTuition.n2 ?? apiPolicy?.tuitionPerSessionN2 ?? DEFAULT_PROPOSAL_POLICY.tuitionPerSessionByLevel.N2),
+  };
+
+  const rawLimits = apiPolicy?.maxActiveClassesByLevel && typeof apiPolicy.maxActiveClassesByLevel === 'object'
+    ? apiPolicy.maxActiveClassesByLevel
+    : {};
+  const hasRawLimits = Object.keys(rawLimits).length > 0;
+  const maxActiveClassesByLevel = hasRawLimits
+    ? Object.fromEntries(
+      Object.entries(rawLimits).map(([k, v]) => [String(k || '').trim().toUpperCase(), Number(v)])
+    )
+    : { ...DEFAULT_PROPOSAL_POLICY.maxActiveClassesByLevel };
 
   return {
     ...DEFAULT_PROPOSAL_POLICY,
@@ -115,6 +148,8 @@ export function normalizeProposalPolicy(apiPolicy = null) {
     allowedSessionsPerWeek: allowed,
     minSessionsPerWeek: Number(apiPolicy?.minSessionsPerWeek ?? allowed[0] ?? 2),
     maxSessionsPerWeek: Number(apiPolicy?.maxSessionsPerWeek ?? allowed[allowed.length - 1] ?? 4),
+    minLearners: Number(apiPolicy?.minLearners ?? apiPolicy?.minLearnersToStart ?? DEFAULT_PROPOSAL_POLICY.minLearners),
+    maxLearners: Number(apiPolicy?.maxLearners ?? DEFAULT_PROPOSAL_POLICY.maxLearners),
     courseDurationWeeks: Number(apiPolicy?.courseDurationWeeks ?? 10),
     sessionDurationMinutes: Number(apiPolicy?.sessionDurationMinutes ?? apiPolicy?.sessionMinutes ?? 90),
     restMinutes: Number(apiPolicy?.restMinutes ?? 15),
@@ -125,6 +160,43 @@ export function normalizeProposalPolicy(apiPolicy = null) {
     operatingEndMinute: Number(apiPolicy?.operatingEndMinute ?? 22 * 60),
     minimumProposalLeadDays: Number(apiPolicy?.minimumProposalLeadDays ?? DEFAULT_PROPOSAL_POLICY.minimumProposalLeadDays),
     minimumPublishedEnrollmentDays: Number(apiPolicy?.minimumPublishedEnrollmentDays ?? DEFAULT_PROPOSAL_POLICY.minimumPublishedEnrollmentDays),
+    checkoutHoldMinutes: Number(apiPolicy?.checkoutHoldMinutes ?? DEFAULT_PROPOSAL_POLICY.checkoutHoldMinutes),
+    enrollmentCutoffMinutesBeforeFirstSession: Number(
+      apiPolicy?.enrollmentCutoffMinutesBeforeFirstSession ?? DEFAULT_PROPOSAL_POLICY.enrollmentCutoffMinutesBeforeFirstSession
+    ),
+    maxTotalActiveClassesPerMentor: Number(
+      apiPolicy?.maxTotalActiveClassesPerMentor ?? DEFAULT_PROPOSAL_POLICY.maxTotalActiveClassesPerMentor
+    ),
+    maxActiveClassesByLevel,
+    tuitionPerSessionByLevel,
+  };
+}
+
+export function formatTuitionVnd(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  const tag = { vi: 'vi-VN', ja: 'ja-JP', en: 'en-US' }[readLocale()] || 'vi-VN';
+  return `${Math.round(n).toLocaleString(tag)} đ`;
+}
+
+/**
+ * Computes read-only full-course learner tuition preview for a proposal
+ * based on the active Admin tuition table (never mentor earnings/payroll).
+ */
+export function computeProposalTuitionPreview(levelCode, totalSessions, policy = DEFAULT_PROPOSAL_POLICY) {
+  const p = normalizeProposalPolicy(policy);
+  const code = String(levelCode || '').trim().toUpperCase();
+  const perSession = Number(p.tuitionPerSessionByLevel?.[code] || 0);
+  const sessions = Math.max(0, Number(totalSessions) || 0);
+  const totalCourseTuition = perSession > 0 && sessions > 0 ? perSession * sessions : 0;
+  return {
+    levelCode: code || null,
+    tuitionPerSession: perSession,
+    totalSessions: sessions,
+    totalCourseTuition,
+    formattedPerSession: formatTuitionVnd(perSession),
+    formattedTotal: formatTuitionVnd(totalCourseTuition),
+    policyVersion: p.policyVersion ?? p.version ?? null,
   };
 }
 
@@ -134,19 +206,20 @@ export function weeklySlotKey(weekday, startMinute) {
 
 export function daypartForMinute(startMinute) {
   const m = Number(startMinute);
-  if (m < 11 * 60 + 30) return 'Morning';
-  if (m < 13 * 60 + 30) return 'Noon';
+  if (m < 11 * 60) return 'Morning';
+  if (m < 13 * 60) return 'Noon';
   if (m < 18 * 60) return 'Afternoon';
   return 'Evening';
 }
 
-export function sortWeeklySessions(sessions = []) {
+export function sortWeeklySessions(sessions = [], defaultDurationMinutes = 90) {
   const dedup = new Map();
+  const fallbackDuration = Number(defaultDurationMinutes) > 0 ? Number(defaultDurationMinutes) : 90;
   for (const s of sessions || []) {
     if (s == null || !Number.isFinite(Number(s.weekday)) || !Number.isFinite(Number(s.startMinute))) continue;
     const weekday = Number(s.weekday);
     const startMinute = Number(s.startMinute);
-    const endMinute = Number(s.endMinute) > startMinute ? Number(s.endMinute) : startMinute + 90;
+    const endMinute = Number(s.endMinute) > startMinute ? Number(s.endMinute) : startMinute + fallbackDuration;
     const key = weeklySlotKey(weekday, startMinute);
     if (!dedup.has(key)) {
       dedup.set(key, {
@@ -216,13 +289,244 @@ export function weeklySessionsToCalendarSlots({
   });
 }
 
+function shortDateDdMm(dayKey) {
+  const parts = String(dayKey || '').split('-');
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : String(dayKey || '');
+}
+
 /**
- * Finds the earliest calendar date (Asia/Ho_Chi_Minh) that satisfies lead-time policy
- * AND matches one of the selected weekly weekdays so Session 1 always aligns with ExpectedStartDate.
+ * Evaluates a candidate course start date against ALL scheduling rules:
+ * past time, lead time, registration horizon, selected weekday match,
+ * and full 10-week occurrence conflicts / 15-min rest / daily cap / weekly cap.
+ */
+export function evaluateCourseStartDate({
+  dayKey,
+  weeklySessions = [],
+  commitments = [],
+  policy = DEFAULT_PROPOSAL_POLICY,
+  nowMs = Date.now(),
+} = {}) {
+  const p = normalizeProposalPolicy(policy);
+  const todayVn = toVnDateKey(new Date(nowMs));
+  const sorted = sortWeeklySessions(weeklySessions);
+
+  if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(String(dayKey))) {
+    return {
+      valid: false,
+      code: 'PROPOSAL_START_DATE_REQUIRED',
+      reason: 'Vui lòng chọn ngày bắt đầu dự kiến.',
+    };
+  }
+
+  const startWd = dayKeyToWeekday(dayKey);
+  if (dayKey < todayVn) {
+    return {
+      valid: false,
+      code: 'PAST_SCHEDULE_SLOT',
+      reason: 'Đã quá thời gian này.',
+    };
+  }
+  if (dayKey === todayVn) {
+    const sameWdSlots = sorted.filter((s) => Number(s.weekday) === startWd);
+    const earliestMin = sameWdSlots.length > 0
+      ? Math.min(...sameWdSlots.map((s) => s.startMinute))
+      : p.operatingEndMinute;
+    if (vnDateTimeToUtcMs(dayKey, earliestMin) <= nowMs) {
+      return {
+        valid: false,
+        code: 'PAST_SCHEDULE_SLOT',
+        reason: 'Đã quá thời gian này.',
+      };
+    }
+  }
+
+  const minProposalDate = shiftDateKey(todayVn, p.minimumProposalLeadDays);
+  if (dayKey < minProposalDate) {
+    return {
+      valid: false,
+      code: 'INSUFFICIENT_PROPOSAL_LEAD_TIME',
+      reason: 'Chưa đủ thời gian xét duyệt và tuyển sinh.',
+    };
+  }
+
+  const maxAdvanceDays = Number(p.maxProposalStartAdvanceDays || 0);
+  if (maxAdvanceDays > 0 && dayKey > shiftDateKey(todayVn, maxAdvanceDays)) {
+    return {
+      valid: false,
+      code: 'PROPOSAL_START_DATE_OUT_OF_HORIZON',
+      reason: 'Ngày này nằm ngoài thời gian được phép đăng ký.',
+    };
+  }
+
+  if (sorted.length > 0 && !sorted.some((s) => Number(s.weekday) === startWd)) {
+    return {
+      valid: false,
+      code: 'COURSE_START_SESSION_MISMATCH',
+      reason: 'Không có khung giờ giảng dạy vào ngày này.',
+    };
+  }
+
+  if (sorted.length === 0) {
+    return {
+      valid: true,
+      code: null,
+      reason: null,
+      projectedEndDate: null,
+      occurrences: [],
+      totalSessions: 0,
+    };
+  }
+
+  const occurrences = expandProposalOccurrences({
+    expectedStartDate: dayKey,
+    weeklySessions: sorted,
+    courseDurationWeeks: p.courseDurationWeeks,
+    sessionDurationMinutes: p.sessionDurationMinutes,
+  });
+
+  if (occurrences.length === 0 || occurrences[0].startMs <= nowMs) {
+    return {
+      valid: false,
+      code: 'SESSION_ALREADY_STARTED',
+      reason: 'Đã quá thời gian này.',
+    };
+  }
+
+  const activeCommitments = (commitments || []).filter(
+    (c) => c && c.startMs && c.endMs && c.status !== 'Cancelled' && c.status !== 'Rejected' && c.status !== 'Withdrawn'
+  );
+
+  if (activeCommitments.length > 0) {
+    const restMs = p.restMinutes * 60 * 1000;
+    const commitmentCountByDay = new Map();
+    const commitmentCountByWeek = new Map();
+    for (const c of activeCommitments) {
+      const dk = c.dayKey || toVnDateKey(new Date(c.startMs));
+      commitmentCountByDay.set(dk, (commitmentCountByDay.get(dk) || 0) + 1);
+      const wm = mondayOfDateKey(dk);
+      commitmentCountByWeek.set(wm, (commitmentCountByWeek.get(wm) || 0) + 1);
+    }
+
+    const occCountByDay = new Map();
+    const occCountByWeek = new Map();
+    for (const occ of occurrences) {
+      occCountByDay.set(occ.localDate, (occCountByDay.get(occ.localDate) || 0) + 1);
+      const wm = mondayOfDateKey(occ.localDate);
+      occCountByWeek.set(wm, (occCountByWeek.get(wm) || 0) + 1);
+
+      for (const c of activeCommitments) {
+        if (c.startMs < occ.endMs && occ.startMs < c.endMs) {
+          const targetLabel = c.jlptLevelCode ? `lớp ${c.jlptLevelCode}` : (c.label || 'lịch đã đăng ký');
+          return {
+            valid: false,
+            code: c.kind === 'pendingProposal' ? 'PROPOSAL_CONFLICT_PENDING_PROPOSAL' : 'PROPOSAL_CONFLICT_APPROVED_SCHEDULE',
+            reason: `Trùng ${targetLabel} ngày ${shortDateDdMm(occ.localDate)}.`,
+            conflictDate: occ.localDate,
+          };
+        }
+        const gapMs = occ.startMs >= c.endMs ? occ.startMs - c.endMs : c.startMs - occ.endMs;
+        if (gapMs < restMs) {
+          return {
+            valid: false,
+            code: 'PROPOSAL_REST_VIOLATION',
+            reason: `Cần nghỉ ít nhất ${p.restMinutes} phút giữa hai buổi.`,
+            conflictDate: occ.localDate,
+          };
+        }
+      }
+    }
+
+    if (p.dailySessionCap > 0) {
+      for (const [dk, occCount] of occCountByDay.entries()) {
+        if ((commitmentCountByDay.get(dk) || 0) + occCount > p.dailySessionCap) {
+          return {
+            valid: false,
+            code: 'PROPOSAL_DAILY_CAP_EXCEEDED',
+            reason: 'Vượt giới hạn số buổi giảng dạy trong ngày.',
+            conflictDate: dk,
+          };
+        }
+      }
+    }
+
+    if (p.weeklySessionCap > 0) {
+      for (const [wm, occCount] of occCountByWeek.entries()) {
+        if ((commitmentCountByWeek.get(wm) || 0) + occCount > p.weeklySessionCap) {
+          return {
+            valid: false,
+            code: 'PROPOSAL_WEEKLY_CAP_EXCEEDED',
+            reason: 'Lịch giảng dạy trong 10 tuần chưa khả dụng.',
+            conflictDate: wm,
+          };
+        }
+      }
+    }
+  }
+
+  return {
+    valid: true,
+    code: null,
+    reason: null,
+    projectedEndDate: occurrences[occurrences.length - 1].localDate,
+    occurrences,
+    totalSessions: occurrences.length,
+  };
+}
+
+/**
+ * Finds the earliest calendar date (Asia/Ho_Chi_Minh) that satisfies ALL start-date rules:
+ * lead time, horizon, weekday pattern match, AND full 10-week conflict/rest/cap checks.
+ */
+export function findEarliestAvailableStartDate({
+  minDateKey = null,
+  weeklySessions = [],
+  commitments = [],
+  policy = DEFAULT_PROPOSAL_POLICY,
+  nowMs = Date.now(),
+  maxSearchDays = 365,
+} = {}) {
+  const p = normalizeProposalPolicy(policy);
+  const sorted = sortWeeklySessions(weeklySessions);
+  if (sorted.length === 0) return null;
+
+  const todayVn = toVnDateKey(new Date(nowMs));
+  const minLeadDate = shiftDateKey(todayVn, p.minimumProposalLeadDays);
+  const floorDate = minDateKey && minDateKey > minLeadDate ? minDateKey : minLeadDate;
+  const allowedWeekdays = new Set(sorted.map((s) => Number(s.weekday)));
+
+  const maxAdvanceDays = Number(p.maxProposalStartAdvanceDays || 0);
+  const horizonLimit = maxAdvanceDays > 0
+    ? shiftDateKey(todayVn, Math.min(maxAdvanceDays, maxSearchDays))
+    : shiftDateKey(floorDate, maxSearchDays);
+
+  for (let candidate = floorDate; candidate <= horizonLimit; candidate = shiftDateKey(candidate, 1)) {
+    if (!allowedWeekdays.has(dayKeyToWeekday(candidate))) continue;
+    const evaluation = evaluateCourseStartDate({
+      dayKey: candidate,
+      weeklySessions: sorted,
+      commitments,
+      policy: p,
+      nowMs,
+    });
+    if (evaluation.valid) {
+      return {
+        startDate: candidate,
+        projectedEndDate: evaluation.projectedEndDate,
+        totalSessions: evaluation.totalSessions,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Finds the earliest valid start date string (YYYY-MM-DD), including full 10-week conflict checks when commitments are supplied.
  */
 export function findEarliestValidStartDate({
   minDateKey = null,
   weeklySessions = [],
+  commitments = [],
   policy = DEFAULT_PROPOSAL_POLICY,
   nowMs = Date.now(),
 } = {}) {
@@ -233,62 +537,33 @@ export function findEarliestValidStartDate({
   const sorted = sortWeeklySessions(weeklySessions);
   if (sorted.length === 0) return floorDate;
 
-  const allowedWeekdays = new Set(sorted.map((s) => Number(s.weekday)));
-  for (let i = 0; i < 7; i += 1) {
-    const candidate = shiftDateKey(floorDate, i);
-    if (allowedWeekdays.has(dayKeyToWeekday(candidate))) {
-      return candidate;
-    }
-  }
-  return floorDate;
+  const available = findEarliestAvailableStartDate({
+    minDateKey,
+    weeklySessions: sorted,
+    commitments,
+    policy: p,
+    nowMs,
+  });
+  return available?.startDate || null;
 }
 
 /**
- * Validates a candidate course start date against past-time, minimum lead-time, and weekly pattern match.
+ * Validates a candidate course start date against past-time, minimum lead-time, weekly pattern match, and optional commitments.
  */
 export function validateCourseStartDate({
   dayKey,
   weeklySessions = [],
+  commitments = [],
   policy = DEFAULT_PROPOSAL_POLICY,
   nowMs = Date.now(),
 } = {}) {
-  const p = normalizeProposalPolicy(policy);
-  const todayVn = toVnDateKey(new Date(nowMs));
-  const minProposalDate = shiftDateKey(todayVn, p.minimumProposalLeadDays);
-
-  if (!dayKey) {
-    return {
-      valid: false,
-      code: 'PROPOSAL_START_DATE_REQUIRED',
-      reason: 'Vui lòng chọn ngày khai giảng dự kiến.',
-    };
-  }
-  if (dayKey < todayVn) {
-    return {
-      valid: false,
-      code: 'PAST_SCHEDULE_SLOT',
-      reason: 'Ngày khai giảng dự kiến không được ở trong quá khứ.',
-    };
-  }
-  if (dayKey < minProposalDate) {
-    return {
-      valid: false,
-      code: 'INSUFFICIENT_PROPOSAL_LEAD_TIME',
-      reason: `Ngày khai giảng cần cách thời điểm gửi đề xuất ít nhất ${p.minimumProposalLeadDays} ngày.`,
-    };
-  }
-  const sorted = sortWeeklySessions(weeklySessions);
-  if (sorted.length > 0) {
-    const startWd = dayKeyToWeekday(dayKey);
-    if (!sorted.some((s) => Number(s.weekday) === startWd)) {
-      return {
-        valid: false,
-        code: 'COURSE_START_SESSION_MISMATCH',
-        reason: 'Ngày khai giảng dự kiến phải trùng với một thứ đã đăng ký trong lịch dạy hàng tuần.',
-      };
-    }
-  }
-  return { valid: true, code: null, reason: null };
+  return evaluateCourseStartDate({
+    dayKey,
+    weeklySessions,
+    commitments,
+    policy,
+    nowMs,
+  });
 }
 
 /**
@@ -407,7 +682,9 @@ export function resolveStableReferenceWeek({
 export function buildProposalPreviewCalendarSlots({
   weeklySessions = [],
   expectedStartDate = null,
+  visibleRange = null,
   referenceWeekKey = null,
+  commitments = [],
   policy = DEFAULT_PROPOSAL_POLICY,
   nowMs = Date.now(),
 } = {}) {
@@ -419,6 +696,7 @@ export function buildProposalPreviewCalendarSlots({
       mode: 'empty',
       slots: [],
       occurrences: [],
+      weeklyPatternCount: 0,
       courseStartDate: expectedStartDate || null,
       courseEndDate: null,
       referenceWeekKey: null,
@@ -427,9 +705,11 @@ export function buildProposalPreviewCalendarSlots({
   }
 
   if (expectedStartDate) {
-    const startCheck = validateCourseStartDate({
+    // Structural check for start date (note: commitment overlaps are highlighted on finite cards, not hidden)
+    const startCheck = evaluateCourseStartDate({
       dayKey: expectedStartDate,
       weeklySessions: sorted,
+      commitments: [],
       policy: p,
       nowMs,
     });
@@ -440,17 +720,18 @@ export function buildProposalPreviewCalendarSlots({
           mode: 'invalid_start_date',
           slots: [],
           occurrences: [],
+          weeklyPatternCount: sorted.length,
           courseStartDate: expectedStartDate,
           courseEndDate: null,
           referenceWeekKey: null,
           startDateWarning: {
             code: startCheck.code,
-            message: 'Ngày khai giảng không còn phù hợp. Vui lòng chọn ngày khai giảng mới để tiếp tục.',
+            message: 'Ngày bắt đầu không còn phù hợp. Vui lòng chọn ngày bắt đầu mới để tiếp tục.',
           },
         };
       }
-      // If expectedStartDate is simply on a weekday no longer in weeklySessions, fall through to
-      // reference-week preview below so selected slots never vanish from the Calendar grid.
+      // If expectedStartDate is on a weekday no longer in weeklySessions, fall through to
+      // visible-range representative projection so selected patterns remain visible on Calendar.
     } else {
       const occurrences = expandProposalOccurrences({
         expectedStartDate,
@@ -464,12 +745,13 @@ export function buildProposalPreviewCalendarSlots({
           mode: 'invalid_start_date',
           slots: [],
           occurrences: [],
+          weeklyPatternCount: sorted.length,
           courseStartDate: expectedStartDate,
           courseEndDate: null,
           referenceWeekKey: null,
           startDateWarning: {
             code: 'SESSION_ALREADY_STARTED',
-            message: 'Ngày khai giảng không còn phù hợp. Vui lòng chọn ngày khai giảng mới để tiếp tục.',
+            message: 'Ngày bắt đầu không còn phù hợp. Vui lòng chọn ngày bắt đầu mới để tiếp tục.',
           },
         };
       }
@@ -494,6 +776,7 @@ export function buildProposalPreviewCalendarSlots({
             weekNumber: occ.weekNumber,
             totalSessions: occurrences.length,
             isFiniteOccurrence: true,
+            isRepresentativeProjection: false,
           };
         });
 
@@ -501,6 +784,7 @@ export function buildProposalPreviewCalendarSlots({
         mode: 'finite_10_weeks',
         slots,
         occurrences,
+        weeklyPatternCount: sorted.length,
         courseStartDate: expectedStartDate,
         courseEndDate,
         referenceWeekKey: mondayOfDateKey(expectedStartDate),
@@ -509,44 +793,77 @@ export function buildProposalPreviewCalendarSlots({
     }
   }
 
-  // No expectedStartDate yet: project onto ONE stable future reference week (never infinite across navigation)
-  const stableMon = resolveStableReferenceWeek({
-    weeklySessions: sorted,
-    preferredReferenceWeekKey: referenceWeekKey,
-    policy: p,
-    nowMs,
-  });
+  // No valid expectedStartDate yet: project selected weekly patterns onto EVERY matching future date
+  // in the currently visible Calendar range (Day / Week / Month), never past `nowMs`, never persisted.
+  const todayVn = toVnDateKey(new Date(nowMs));
+  const fallbackMon = referenceWeekKey
+    ? mondayOfDateKey(referenceWeekKey)
+    : mondayOfDateKey(todayVn);
+  const rangeStart = visibleRange?.startKey || fallbackMon;
+  const rangeEnd = visibleRange?.endKey || shiftDateKey(fallbackMon, 6);
+  const loopStart = rangeStart > todayVn ? rangeStart : todayVn;
+
+  const patternsByWeekday = new Map();
+  for (const s of sorted) {
+    const wd = Number(s.weekday);
+    const list = patternsByWeekday.get(wd) || [];
+    list.push(s);
+    patternsByWeekday.set(wd, list);
+  }
+
+  const activeCommitments = (commitments || []).filter(
+    (c) => c && c.startMs && c.endMs && c.status !== 'Cancelled' && c.status !== 'Rejected' && c.status !== 'Withdrawn'
+  );
 
   const slots = [];
-  for (const s of sorted) {
-    const dayKey = shiftDateKey(stableMon, (s.weekday + 6) % 7);
-    const endMin = s.startMinute + p.sessionDurationMinutes;
-    const startUtcIso = vnDateTimeToUtcIso(dayKey, s.startMinute);
-    const endUtcIso = vnDateTimeToUtcIso(dayKey, endMin);
-    const startMs = new Date(startUtcIso).getTime();
-    if (!Number.isFinite(startMs) || startMs <= nowMs) continue;
-    slots.push({
-      key: `ref_${s.key}_${dayKey}`,
-      weeklyKey: s.key,
-      weekday: s.weekday,
-      dayKey,
-      startMin: s.startMinute,
-      endMin,
-      startClock: clockFromMinutes(s.startMinute),
-      endClock: clockFromMinutes(endMin),
-      startUtcIso,
-      endUtcIso,
-      isReferencePreview: true,
-    });
+  if (loopStart <= rangeEnd) {
+    for (let dk = loopStart; dk <= rangeEnd; dk = shiftDateKey(dk, 1)) {
+      const dayPatterns = patternsByWeekday.get(dayKeyToWeekday(dk));
+      if (!dayPatterns || dayPatterns.length === 0) continue;
+      for (const s of dayPatterns) {
+        const endMin = s.startMinute + p.sessionDurationMinutes;
+        const startUtcIso = vnDateTimeToUtcIso(dk, s.startMinute);
+        const endUtcIso = vnDateTimeToUtcIso(dk, endMin);
+        const startMs = new Date(startUtcIso).getTime();
+        const endMs = new Date(endUtcIso).getTime();
+        if (!Number.isFinite(startMs) || startMs <= nowMs) continue;
+
+        const hasVisibleDateConflict = activeCommitments.some(
+          (c) => c.dayKey === dk && c.startMs < endMs && startMs < c.endMs
+        );
+        slots.push({
+          key: `rep_${s.key}_${dk}`,
+          weeklyKey: s.key,
+          weekday: s.weekday,
+          dayKey: dk,
+          startMin: s.startMinute,
+          endMin,
+          startClock: clockFromMinutes(s.startMinute),
+          endClock: clockFromMinutes(endMin),
+          startUtcIso,
+          endUtcIso,
+          sessionNumber: null,
+          totalSessions: null,
+          isRepresentativeProjection: true,
+          isReferencePreview: true,
+          isFiniteOccurrence: false,
+          hasVisibleDateConflict,
+          visibleConflictTooltip: hasVisibleDateConflict
+            ? 'Khung giờ này đã có lịch vào ngày đang xem. Hệ thống sẽ kiểm tra lại khi chọn ngày bắt đầu.'
+            : null,
+        });
+      }
+    }
   }
 
   return {
-    mode: 'reference_week',
+    mode: 'visible_representative',
     slots,
     occurrences: [],
+    weeklyPatternCount: sorted.length,
     courseStartDate: null,
     courseEndDate: null,
-    referenceWeekKey: stableMon,
+    referenceWeekKey: mondayOfDateKey(loopStart),
     startDateWarning: null,
   };
 }
@@ -564,8 +881,13 @@ export function resolveJlptLevelAvailability({
   currentProposalId = null,
   mentorVerified = true,
   mentorVerifiedJlptLevel = null,
+  maxActiveClassesByLevel = null,
+  maxActiveClassesPerLevel = 1,
+  maxTotalActiveClassesPerMentor = 0,
   nowMs = Date.now(),
 }) {
+  const effectiveMaxPerLevel = Math.max(1, Number(maxActiveClassesPerLevel) || 1);
+  const effectiveMaxTotal = Math.max(0, Number(maxTotalActiveClassesPerMentor) || 0);
   const source = (Array.isArray(availableLevels) && availableLevels.length > 0 ? availableLevels : qualifiedLevels) || [];
   const supported = source.filter((lvl) =>
     SUPPORTED_PROPOSAL_JLPT_CODES.includes(String(lvl?.code || '').trim().toUpperCase())
@@ -578,20 +900,40 @@ export function resolveJlptLevelAvailability({
   const activeCohorts = (cohorts || []).filter((c) => {
     if (!c) return false;
     const status = String(c.status || '').trim();
-    if (status !== 'Published' && status !== 'Draft') return false;
-    if (c.endsAt && new Date(c.endsAt).getTime() <= nowMs) return false;
+    if (!status || status === 'Cancelled' || status === 'Completed') return false;
+    const confirmed = Number(c.confirmedEnrolledCount ?? c.enrolledCount ?? 0);
+    const endsAtMs = c.endsAt ? new Date(c.endsAt).getTime() : NaN;
+    if (confirmed === 0 && Number.isFinite(endsAtMs) && endsAtMs <= nowMs) return false;
     return true;
   });
 
+  const endedCohortById = new Map();
+  for (const c of cohorts || []) {
+    if (!c?.id) continue;
+    const status = String(c.status || '').trim();
+    const confirmed = Number(c.confirmedEnrolledCount ?? c.enrolledCount ?? 0);
+    const endsAtMs = c.endsAt ? new Date(c.endsAt).getTime() : NaN;
+    if (status === 'Cancelled' || status === 'Completed' || (confirmed === 0 && Number.isFinite(endsAtMs) && endsAtMs <= nowMs)) {
+      endedCohortById.set(Number(c.id), c);
+    }
+  }
+
   const activeCohortByProposalId = new Map();
   const activeCohortByLevelId = new Map();
+  const activeCountByLevelId = new Map();
+  const countedProposalIds = new Set();
+
   for (const c of activeCohorts) {
     if (c.sourceProposalId != null) {
       activeCohortByProposalId.set(Number(c.sourceProposalId), c);
+      countedProposalIds.add(Number(c.sourceProposalId));
     }
     const cid = Number(c.certificateLevelId ?? levelIdByCode.get(String(c.jlptLevelCode || c.levelCode || c.level || '').toUpperCase()) ?? 0);
-    if (cid > 0 && !activeCohortByLevelId.has(cid)) {
-      activeCohortByLevelId.set(cid, c);
+    if (cid > 0) {
+      activeCountByLevelId.set(cid, (activeCountByLevelId.get(cid) || 0) + 1);
+      if (!activeCohortByLevelId.has(cid)) {
+        activeCohortByLevelId.set(cid, c);
+      }
     }
   }
 
@@ -601,23 +943,44 @@ export function resolveJlptLevelAvailability({
     if (currentProposalId != null && Number(p.id) === Number(currentProposalId)) continue;
     const lvlId = Number(p.certificateLevelId);
     if (p.status === 'PendingReview' || p.status === 'ChangesRequested') {
+      activeCountByLevelId.set(lvlId, (activeCountByLevelId.get(lvlId) || 0) + 1);
       if (!activeProposalByLevelId.has(lvlId)) activeProposalByLevelId.set(lvlId, p);
-    } else if (p.status === 'Approved') {
+    } else if (p.status === 'Approved' && !countedProposalIds.has(Number(p.id))) {
       const linked = activeCohortByProposalId.get(Number(p.id));
-      const hasLinkedCancelled = p.linkedCohortStatus === 'Cancelled';
+      const hasLinkedEnded = p.linkedCohortStatus === 'Cancelled'
+        || p.linkedCohortStatus === 'Completed'
+        || (p.linkedCohortId != null && endedCohortById.has(Number(p.linkedCohortId)));
       const hasFutureGenerated = (Array.isArray(p.generatedAvailabilityIds) && p.generatedAvailabilityIds.length > 0)
         && (!p.occurrencesPreview?.length || p.occurrencesPreview.some((o) => new Date(o.endUtc || o.endUtcIso || `${o.localDate}T23:59:00+07:00`).getTime() > nowMs));
-      if (!hasLinkedCancelled && (linked || (!p.linkedCohortId && hasFutureGenerated))) {
+      if (!hasLinkedEnded && (linked || (!p.linkedCohortId && hasFutureGenerated))) {
+        activeCountByLevelId.set(lvlId, (activeCountByLevelId.get(lvlId) || 0) + 1);
         if (!activeProposalByLevelId.has(lvlId)) activeProposalByLevelId.set(lvlId, p);
       }
     }
   }
 
+  let totalActiveClasses = 0;
+  for (const cnt of activeCountByLevelId.values()) {
+    totalActiveClasses += cnt;
+  }
+  const totalLimitReached = effectiveMaxTotal > 0 && totalActiveClasses >= effectiveMaxTotal;
+
   return supported.map((lvl) => {
     const id = Number(lvl.certificateLevelId ?? lvl.id);
     const code = String(lvl.code || '').trim().toUpperCase();
-    const blockingCohort = activeCohortByLevelId.get(id);
-    const blockingProposal = activeProposalByLevelId.get(id);
+    const activeCount = activeCountByLevelId.get(id) || 0;
+    const rawConfigured = maxActiveClassesByLevel && typeof maxActiveClassesByLevel === 'object'
+      ? (maxActiveClassesByLevel[code] ?? maxActiveClassesByLevel[code.toLowerCase()])
+      : undefined;
+    const levelMax = Number.isFinite(Number(rawConfigured))
+      ? Math.max(0, Number(rawConfigured))
+      : Number.isFinite(Number(lvl.maxActiveClasses))
+        ? Math.max(0, Number(lvl.maxActiveClasses))
+        : effectiveMaxPerLevel;
+    const levelDisabled = levelMax <= 0;
+    const levelAtCap = levelMax > 0 && activeCount >= levelMax;
+    const blockingCohort = levelAtCap ? activeCohortByLevelId.get(id) : null;
+    const blockingProposal = levelAtCap ? activeProposalByLevelId.get(id) : null;
 
     // 1. Check verified teaching qualification first (server authoritative, mirrored client-side)
     let isQualified = lvl.isQualified !== false;
@@ -641,22 +1004,36 @@ export function resolveJlptLevelAvailability({
 
     if (!isQualified) {
       // Already blocked by qualification; keep exact qualification reason.
+    } else if (levelDisabled) {
+      isAvailable = false;
+      blockingStatus = 'LevelDisabled';
+      unavailableReason = `Cấp độ JLPT ${code} hiện tạm ngưng nhận đăng ký mở lớp mới theo cấu hình hệ thống.`;
+    } else if (totalLimitReached) {
+      isAvailable = false;
+      blockingStatus = 'TotalClassLimit';
+      unavailableReason = `Bạn đã đạt giới hạn tối đa ${effectiveMaxTotal} lớp/đề xuất đang hoạt động (${totalActiveClasses}/${effectiveMaxTotal}).`;
     } else if (blockingCohort) {
       isAvailable = false;
       const isFuture = blockingCohort.startsAt && new Date(blockingCohort.startsAt).getTime() > nowMs;
-      blockingStatus = isFuture && blockingCohort.status === 'Published' ? 'RecruitingCohort' : 'ActiveCohort';
-      unavailableReason = blockingStatus === 'RecruitingCohort'
-        ? `Bạn đã có lớp ${code} đang mở tuyển sinh.`
-        : `Bạn đã có lớp ${code} đang mở.`;
+      blockingStatus = levelMax === 1
+        ? (isFuture && blockingCohort.status === 'Published' ? 'RecruitingCohort' : 'ActiveCohort')
+        : 'LevelLimitReached';
+      unavailableReason = levelMax === 1
+        ? (blockingStatus === 'RecruitingCohort'
+          ? `Bạn đã có lớp ${code} đang mở tuyển sinh.`
+          : `Bạn đã có lớp ${code} đang mở.`)
+        : `Bạn đã đạt giới hạn tối đa ${levelMax} lớp/đề xuất đang hoạt động ở cấp độ JLPT ${code} (${activeCount}/${levelMax}).`;
       blockingCohortId = Number(blockingCohort.id);
       blockingProposalId = blockingCohort.sourceProposalId ? Number(blockingCohort.sourceProposalId) : null;
       blockingTitle = blockingCohort.name || null;
     } else if (blockingProposal) {
       isAvailable = false;
-      blockingStatus = blockingProposal.status;
+      blockingStatus = levelMax === 1 ? blockingProposal.status : 'LevelLimitReached';
       blockingProposalId = Number(blockingProposal.id);
       blockingTitle = blockingProposal.courseTitle || null;
-      if (blockingProposal.status === 'PendingReview') {
+      if (levelMax > 1) {
+        unavailableReason = `Bạn đã đạt giới hạn tối đa ${levelMax} lớp/đề xuất đang hoạt động ở cấp độ JLPT ${code} (${activeCount}/${levelMax}).`;
+      } else if (blockingProposal.status === 'PendingReview') {
         unavailableReason = `Bạn đã có lớp ${code} đang chờ duyệt.`;
       } else if (blockingProposal.status === 'ChangesRequested') {
         unavailableReason = `Bạn đã có lớp ${code} cần chỉnh sửa bổ sung.`;
@@ -664,13 +1041,26 @@ export function resolveJlptLevelAvailability({
         unavailableReason = `Bạn đã có lớp ${code} đã duyệt.`;
       }
     } else if (lvl.isAvailableForNewProposal === false && (currentProposalId == null || Number(lvl.blockingProposalId) !== Number(currentProposalId))) {
-      isAvailable = false;
-      unavailableReason = lvl.unavailableReason || `Cấp độ ${code} hiện không khả dụng.`;
-      blockingStatus = lvl.blockingStatus || null;
-      blockingProposalId = lvl.blockingProposalId ? Number(lvl.blockingProposalId) : null;
-      blockingCohortId = lvl.blockingCohortId ? Number(lvl.blockingCohortId) : null;
-      blockingTitle = lvl.blockingTitle || null;
+      const serverCohortEnded = lvl.blockingCohortId != null && endedCohortById.has(Number(lvl.blockingCohortId));
+      const serverProposalReleased = lvl.blockingProposalId != null && (proposals || []).some(
+        (p) => Number(p.id) === Number(lvl.blockingProposalId) && (p.status === 'Rejected' || p.status === 'Withdrawn'),
+      );
+      if (!serverCohortEnded && !serverProposalReleased) {
+        isAvailable = false;
+        unavailableReason = lvl.unavailableReason || `Cấp độ ${code} hiện không khả dụng.`;
+        blockingStatus = lvl.blockingStatus || null;
+        blockingProposalId = lvl.blockingProposalId ? Number(lvl.blockingProposalId) : null;
+        blockingCohortId = lvl.blockingCohortId ? Number(lvl.blockingCohortId) : null;
+        blockingTitle = lvl.blockingTitle || null;
+      }
     }
+
+    const levelRemaining = Math.max(0, levelMax - activeCount);
+    const remainingSlots = !isAvailable
+      ? 0
+      : effectiveMaxTotal > 0
+        ? Math.max(0, Math.min(levelRemaining, effectiveMaxTotal - totalActiveClasses))
+        : levelRemaining;
 
     return {
       ...lvl,
@@ -684,8 +1074,66 @@ export function resolveJlptLevelAvailability({
       blockingProposalId,
       blockingCohortId,
       blockingTitle,
+      activeCount,
+      maxActiveClasses: levelMax,
+      remainingSlots,
     };
   });
+}
+
+/**
+ * Computes whether the Mentor has exhausted all JLPT levels or total class / weekly load capacity
+ * permitted by their verified qualification and active Admin policy.
+ */
+export function computeMentorRegistrationCapacity({
+  levelAvailability = [],
+  mentorVerified = true,
+  loaded = true,
+  weeklySessionCap = 0,
+  currentWeeklyCommittedCount = 0,
+  minSessionsPerWeek = 0,
+  maxTotalActiveClassesPerMentor = 0,
+} = {}) {
+  const list = Array.isArray(levelAvailability) ? levelAvailability : [];
+  const qualifiedLevels = list.filter((l) => l && l.isQualified);
+  const availableLevels = qualifiedLevels.filter((l) => l.isAvailable);
+  const totalActiveCount = list.reduce((sum, l) => sum + Number(l?.activeCount || 0), 0);
+  const effectiveMaxTotal = Math.max(0, Number(maxTotalActiveClassesPerMentor) || 0);
+  const totalLimitReached = Boolean(
+    loaded
+    && mentorVerified
+    && qualifiedLevels.length > 0
+    && (list.some((l) => l?.blockingStatus === 'TotalClassLimit')
+      || (effectiveMaxTotal > 0 && totalActiveCount >= effectiveMaxTotal)),
+  );
+  const noLevelsLeft = Boolean(
+    loaded && mentorVerified && qualifiedLevels.length > 0 && availableLevels.length === 0,
+  );
+  const remainingWeeklySlots = Number(weeklySessionCap) > 0
+    ? Math.max(0, Number(weeklySessionCap) - Math.max(0, Number(currentWeeklyCommittedCount) || 0))
+    : null;
+  const weeklyCapExhausted = Boolean(
+    loaded
+    && mentorVerified
+    && qualifiedLevels.length > 0
+    && remainingWeeklySlots !== null
+    && Number(minSessionsPerWeek) > 0
+    && remainingWeeklySlots < Number(minSessionsPerWeek),
+  );
+  const isCapacityExhausted = totalLimitReached || noLevelsLeft || weeklyCapExhausted;
+  return {
+    qualifiedCount: qualifiedLevels.length,
+    availableCount: availableLevels.length,
+    usedCount: Math.max(0, qualifiedLevels.length - availableLevels.length),
+    totalActiveCount,
+    maxTotalActiveClasses: effectiveMaxTotal,
+    isCapacityExhausted,
+    message: weeklyCapExhausted && !noLevelsLeft && !totalLimitReached
+      ? `Hạn mức giảng dạy hằng tuần (${weeklySessionCap} buổi/tuần) không đủ cho một lớp mới.`
+      : totalLimitReached
+        ? `Bạn đã đạt giới hạn tối đa ${effectiveMaxTotal || totalActiveCount} lớp/đề xuất đang hoạt động.`
+        : 'Bạn đã sử dụng hết hạn mức đăng ký ở tất cả các cấp độ đủ điều kiện giảng dạy.',
+  };
 }
 
 function statusFriendlyText(status, kind) {
@@ -1054,7 +1502,7 @@ export function validateWeeklySlotAddition({
     // Checks upcoming commitments inside the future planning window `[todayVn, todayVn + leadDays + 10 weeks]`.
     void viewAnchorKey;
     const todayVn = toVnDateKey(new Date(nowMs));
-    const leadDays = Math.max(0, Number(p.minimumProposalLeadDays ?? 7));
+    const leadDays = Math.max(0, Number(p.minimumProposalLeadDays ?? DEFAULT_PROPOSAL_POLICY.minimumProposalLeadDays));
     const horizonEndKey = shiftDateKey(todayVn, leadDays + p.courseDurationWeeks * 7);
 
     const relevant = (commitments || []).filter((c) => {
@@ -1260,6 +1708,8 @@ export function validateProposalState({
     proposals,
     cohorts,
     currentProposalId: proposal.id || null,
+    maxActiveClassesByLevel: p.maxActiveClassesByLevel,
+    maxTotalActiveClassesPerMentor: p.maxTotalActiveClassesPerMentor,
     nowMs,
   });
 
@@ -1293,7 +1743,11 @@ export function validateProposalState({
         ? 'MENTOR_QUALIFICATION_NOT_VERIFIED'
         : supportedLevel.blockingStatus === 'InsufficientQualification'
           ? 'INSUFFICIENT_TEACHING_QUALIFICATION'
-          : 'PROPOSAL_DUPLICATE_ACTIVE_LEVEL';
+          : supportedLevel.blockingStatus === 'LevelDisabled'
+            ? 'PROPOSAL_LEVEL_DISABLED'
+            : supportedLevel.blockingStatus === 'TotalClassLimit'
+              ? 'MENTOR_TOTAL_CLASS_LIMIT_REACHED'
+              : 'PROPOSAL_DUPLICATE_ACTIVE_LEVEL';
       errors.push({
         step: 2,
         field: 'certificateLevelId',
@@ -1301,6 +1755,15 @@ export function validateProposalState({
         message: supportedLevel.unavailableReason || `${supportedLevel.code}: Cấp độ này hiện không khả dụng.`,
       });
     }
+  }
+
+  if (!String(proposal.courseTitle || '').trim()) {
+    errors.push({
+      step: 2,
+      field: 'courseTitle',
+      code: 'PROPOSAL_TITLE_REQUIRED',
+      message: 'Vui lòng nhập tên lớp.',
+    });
   }
 
   if (!String(proposal.courseObjective || '').trim()) {
@@ -1312,12 +1775,23 @@ export function validateProposalState({
     });
   }
 
-  const startCheck = validateCourseStartDate({
+  const structuralStartCheck = validateCourseStartDate({
     dayKey: proposal.expectedStartDate,
     weeklySessions: sessions,
+    commitments: [],
     policy: p,
     nowMs,
   });
+  const startCheck = structuralStartCheck.valid
+    ? validateCourseStartDate({
+      dayKey: proposal.expectedStartDate,
+      weeklySessions: sessions,
+      commitments,
+      policy: p,
+      nowMs,
+    })
+    : structuralStartCheck;
+
   if (!startCheck.valid) {
     errors.push({
       step: 2,
@@ -1340,7 +1814,7 @@ export function validateProposalState({
     });
   }
 
-  // Step 1 schedule checks: 2–4 sessions/week
+  // Step 1 schedule checks: dynamic sessions/week from active policy
   if (sessions.length < p.minSessionsPerWeek) {
     errors.push({
       step: 1,
@@ -1354,6 +1828,13 @@ export function validateProposalState({
       field: 'weeklySessions',
       code: 'PROPOSAL_MAX_SESSIONS_EXCEEDED',
       message: `Mỗi đề xuất chỉ được chọn tối đa ${p.maxSessionsPerWeek} buổi/tuần (hiện có ${sessions.length} buổi/tuần).`,
+    });
+  } else if (Array.isArray(p.allowedSessionsPerWeek) && p.allowedSessionsPerWeek.length > 0 && !p.allowedSessionsPerWeek.includes(sessions.length)) {
+    errors.push({
+      step: 1,
+      field: 'weeklySessions',
+      code: 'PROPOSAL_UNSUPPORTED_WEEKLY_COUNT',
+      message: `Số buổi mỗi tuần phải nằm trong danh sách cho phép (${p.allowedSessionsPerWeek.join(', ')} buổi/tuần).`,
     });
   }
 
@@ -1387,7 +1868,7 @@ export function validateProposalState({
     }
   }
 
-  const occurrences = proposal.expectedStartDate && sessions.length > 0 && startCheck.valid
+  const occurrences = proposal.expectedStartDate && sessions.length > 0 && structuralStartCheck.valid
     ? expandProposalOccurrences({
       expectedStartDate: proposal.expectedStartDate,
       weeklySessions: sessions,
@@ -1401,14 +1882,14 @@ export function validateProposalState({
       step: 2,
       field: 'expectedStartDate',
       code: 'SESSION_ALREADY_STARTED',
-      message: 'Buổi học đầu tiên đã trôi qua hoặc đã bắt đầu. Vui lòng chọn ngày khai giảng muộn hơn.',
+      message: 'Buổi học đầu tiên đã trôi qua hoặc đã bắt đầu. Vui lòng chọn ngày bắt đầu muộn hơn.',
     });
   }
 
   if (!proposal.expectedStartDate && sessions.length > 0 && !errors.some((e) => e.step === 1)) {
     warnings.push({
       code: 'PRELIMINARY_VALIDATION_ONLY',
-      message: 'Đang kiểm tra sơ bộ theo lịch tuần. Chọn ngày khai giảng ở Bước 2 để kiểm tra toàn bộ 10 tuần.',
+      message: `Đang kiểm tra sơ bộ theo lịch tuần. Chọn ngày bắt đầu ở Bước 2 để kiểm tra toàn bộ ${p.courseDurationWeeks} tuần.`,
     });
   }
 
@@ -1844,7 +2325,8 @@ export function validateCompleteWeeklyPlan({
   }
   return {
     valid: failures.length === 0 && !pastOccurrence
-      && sessions.length >= p.minSessionsPerWeek && sessions.length <= p.maxSessionsPerWeek,
+      && sessions.length >= p.minSessionsPerWeek && sessions.length <= p.maxSessionsPerWeek
+      && (!Array.isArray(p.allowedSessionsPerWeek) || p.allowedSessionsPerWeek.length === 0 || p.allowedSessionsPerWeek.includes(sessions.length)),
     validationScope: startCheck.valid ? 'full' : 'preliminary',
     startDateMismatch: Boolean(expectedStartDate) && startCheck.code === 'COURSE_START_SESSION_MISMATCH',
     pastOccurrence,

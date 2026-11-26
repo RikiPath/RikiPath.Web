@@ -18,6 +18,7 @@ export const REGISTRATION_TABLE_STATUS_OPTIONS = Object.freeze([
   { id: 'ALL', label: 'Tất cả trạng thái', dotClass: 'bg-[#CE476D]' },
   { id: 'selected', label: 'Đang chọn', dotClass: 'bg-[#22C55E]' },
   { id: 'pending', label: 'Chờ duyệt', dotClass: 'bg-[#E4A020]' },
+  { id: 'needsRevision', label: 'Cần bổ sung', dotClass: 'bg-[#EA580C]' },
   { id: 'approved', label: 'Đã duyệt', dotClass: 'bg-[#16A34A]' },
   { id: 'rejected', label: 'Bị từ chối', dotClass: 'bg-[#DC3545]' },
 ]);
@@ -25,7 +26,7 @@ export const REGISTRATION_TABLE_STATUS_OPTIONS = Object.freeze([
 export const REGISTRATION_TABLE_SORT_OPTIONS = Object.freeze([
   { id: 'default', label: 'Ưu tiên đang chọn & trạng thái' },
   { id: 'createdAt', label: 'Ngày đăng ký' },
-  { id: 'startDate', label: 'Ngày khai giảng' },
+  { id: 'startDate', label: 'Ngày bắt đầu' },
   { id: 'jlpt', label: 'Cấp độ JLPT' },
   { id: 'status', label: 'Trạng thái' },
   { id: 'frequency', label: 'Tần suất (buổi/tuần)' },
@@ -56,16 +57,18 @@ function jlptRank(code) {
 function statusGroupRank(group) {
   switch (group) {
     case 'selected': return 0;
-    case 'pending': return 1;
-    case 'approved': return 2;
-    case 'rejected': return 3;
-    default: return 4;
+    case 'needsRevision': return 1;
+    case 'pending': return 2;
+    case 'approved': return 3;
+    case 'rejected': return 4;
+    default: return 5;
   }
 }
 
 function mapProposalStatusGroup(status) {
   if (status === 'Draft') return 'selected';
-  if (status === 'PendingReview' || status === 'ChangesRequested') return 'pending';
+  if (status === 'ChangesRequested') return 'needsRevision';
+  if (status === 'PendingReview') return 'pending';
   if (status === 'Approved') return 'approved';
   if (status === 'Rejected') return 'rejected';
   return null;
@@ -485,18 +488,18 @@ function matchesRegistrationNonStatus(row, {
 }
 
 /**
- * Computes exact registration-based status counters (`ALL === selected + pending + approved + rejected`).
+ * Computes exact registration-based status counters (`ALL === selected + pending + needsRevision + approved + rejected`).
  * Strictly counts parent registrations (never individual occurrences or weekly patterns).
  */
 export function computeRegistrationRowCounts(rows = [], filters = {}) {
-  const counts = { ALL: 0, selected: 0, pending: 0, approved: 0, rejected: 0 };
+  const counts = { ALL: 0, selected: 0, pending: 0, needsRevision: 0, approved: 0, rejected: 0 };
   for (const row of rows || []) {
     if (!row || !matchesRegistrationNonStatus(row, filters)) continue;
     if (counts[row.statusGroup] != null) {
       counts[row.statusGroup] += 1;
     }
   }
-  counts.ALL = counts.selected + counts.pending + counts.approved + counts.rejected;
+  counts.ALL = counts.selected + counts.pending + counts.needsRevision + counts.approved + counts.rejected;
   return counts;
 }
 

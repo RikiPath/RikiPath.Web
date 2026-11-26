@@ -56,7 +56,7 @@ function shiftMonthKey(monthAnchorKey, delta) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
 }
 
-function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMap, onChangeMonth, onSelectDay, tr, locale }) {
+function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMap, onChangeMonth, onSelectDay, tr, locale, roleKey }) {
   const { cells } = useMemo(() => buildMonthMatrix(monthAnchorKey, todayKey), [monthAnchorKey, todayKey]);
   const [year, month] = monthAnchorKey.split('-').map(Number);
   const monthLabel = new Date(Date.UTC(year, month - 1, 15)).toLocaleDateString(currentIntlTag(), {
@@ -146,24 +146,41 @@ function MiniCalendarGrid({ monthAnchorKey, selectedDayKey, todayKey, dayTonesMa
           );
         })}
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-rp-line/60 pt-1.5 text-[10px] font-semibold text-rp-text-2">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-class" />
-          {tr('Lớp học')}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-homework" />
-          {tr('Bài tập')}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-srs" />
-          {tr('Ôn tập')}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-reminder" />
-          {tr('Nhắc nhở')}
-        </span>
-      </div>
+      {roleKey === 'Mentor' ? (
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-rp-line/60 pt-1.5 text-[10px] font-semibold text-rp-text-2">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#6B7280]" />
+            {tr('Sắp diễn ra')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
+            {tr('Đang diễn ra')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" />
+            {tr('Đã hoàn thành')}
+          </span>
+        </div>
+      ) : (
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-rp-line/60 pt-1.5 text-[10px] font-semibold text-rp-text-2">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-class" />
+            {tr('Lớp học')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-homework" />
+            {tr('Bài tập')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-srs" />
+            {tr('Ôn tập')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-rp-cal-reminder" />
+            {tr('Nhắc nhở')}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -313,9 +330,6 @@ function CalendarPopoverBody({
           <p className="truncate text-[13.5px] font-bold capitalize text-rp-text">{todayFormatted}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="inline-flex items-center gap-1 rounded-full bg-rp-brand-tint px-2 py-0.5 text-[10.5px] font-semibold text-rp-brand-strong">
-            <Clock className="h-3 w-3" /> GMT+7
-          </span>
           {!isLoading && !hardError && (roleKey === 'Admin' || roleKey === 'ContentAuthor' ? hasAnyUpcoming : true) && (
             <RefreshButton
               iconOnly
@@ -341,6 +355,7 @@ function CalendarPopoverBody({
           onSelectDay={setSelectedDayKey}
           tr={tr}
           locale={locale}
+          roleKey={roleKey}
         />
       )}
 
@@ -377,28 +392,60 @@ function CalendarPopoverBody({
             )}
 
             {/* Live Room Highlight */}
-            {liveSessions.length > 0 && (
-              <div className="rounded-xl border border-l-[3.5px] border-rp-cal-class-border border-l-rp-cal-class bg-rp-cal-class-bg p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wide text-rp-cal-class-text">
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-rp-cal-class" />
-                      {tr('Phòng học đang mở')}
-                    </span>
-                    <p className="mt-0.5 truncate font-bold text-rp-cal-class-text">{liveSessions[0].title}</p>
-                    <p className="text-[11.5px] text-rp-cal-class-text/85">{liveSessions[0].detail}</p>
+            {liveSessions.length > 0 && (() => {
+              const firstLive = liveSessions[0];
+              if (roleKey === 'Mentor') {
+                const isActuallyLive = firstLive.tone === 'workLive';
+                const toneMeta = getToneMeta(firstLive.tone || 'workLive');
+                return (
+                  <div className={cx('rounded-xl p-3', toneMeta.card)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wide">
+                          <span className={cx('h-2 w-2 rounded-full', toneMeta.dot, isActuallyLive && 'animate-pulse')} />
+                          {isActuallyLive ? tr('Đang diễn ra') : tr('Sắp diễn ra · Phòng đã mở')}
+                        </span>
+                        <p className="mt-0.5 truncate font-bold">{firstLive.title}</p>
+                        <p className="text-[11.5px] opacity-85">{firstLive.detail}</p>
+                      </div>
+                      <Link
+                        to={firstLive.roomHref}
+                        onClick={onClose}
+                        className={cx(
+                          'rp-focus inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95',
+                          isActuallyLive ? 'bg-[#D97706]' : 'bg-[#4B5563]',
+                        )}
+                      >
+                        <Video className="h-3.5 w-3.5" />
+                        {isActuallyLive ? tr('Vào phòng học') : tr('Tham gia phòng học')}
+                      </Link>
+                    </div>
                   </div>
-                  <Link
-                    to={liveSessions[0].roomHref}
-                    onClick={onClose}
-                    className="rp-focus inline-flex shrink-0 items-center gap-1 rounded-xl bg-rp-cal-class px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95"
-                  >
-                    <Video className="h-3.5 w-3.5" />
-                    {roleKey === 'Mentor' ? tr('Vào dạy') : tr('Tham gia')}
-                  </Link>
+                );
+              }
+              return (
+                <div className="rounded-xl border border-l-[3.5px] border-rp-cal-class-border border-l-rp-cal-class bg-rp-cal-class-bg p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wide text-rp-cal-class-text">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-rp-cal-class" />
+                        {tr('Phòng học đang mở')}
+                      </span>
+                      <p className="mt-0.5 truncate font-bold text-rp-cal-class-text">{firstLive.title}</p>
+                      <p className="text-[11.5px] text-rp-cal-class-text/85">{firstLive.detail}</p>
+                    </div>
+                    <Link
+                      to={firstLive.roomHref}
+                      onClick={onClose}
+                      className="rp-focus inline-flex shrink-0 items-center gap-1 rounded-xl bg-rp-cal-class px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95"
+                    >
+                      <Video className="h-3.5 w-3.5" />
+                      {tr('Tham gia')}
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Selected Specific Day View */}
             {roleKey !== 'Admin' && roleKey !== 'ContentAuthor' && isViewingOtherDay ? (
@@ -419,20 +466,24 @@ function CalendarPopoverBody({
                   <div className="flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-rp-line bg-rp-bg-2/60 px-3 py-3.5 text-center">
                     <SpotArt name="calendar" size={64} />
                     <p className="text-xs text-rp-text-muted">
-                      {tr('Không có lớp học, bài tập hay lịch ôn tập trong ngày này.')}
+                      {roleKey === 'Mentor'
+                        ? tr('Chưa có lịch giảng dạy.')
+                        : tr('Không có lớp học, bài tập hay lịch ôn tập trong ngày này.')}
                     </p>
                   </div>
                 ) : (
                   <ul className="space-y-1.5">
                     {selectedDayEvents.map((ev) => {
-                      const catMeta = getCalendarCategoryMeta(ev);
-                      const catLabel = ev.eventType === 'homework'
-                        ? tr('Bài tập')
-                        : ev.eventType === 'srs'
-                          ? tr('Ôn tập')
-                          : ev.eventType === 'reminder'
-                            ? tr('Nhắc nhở')
-                            : tr('Lớp học');
+                      const catMeta = roleKey === 'Mentor' ? getToneMeta(ev.tone) : getCalendarCategoryMeta(ev);
+                      const catLabel = roleKey === 'Mentor'
+                        ? tr(ev.statusLabel || catMeta.label)
+                        : ev.eventType === 'homework'
+                          ? tr('Bài tập')
+                          : ev.eventType === 'srs'
+                            ? tr('Ôn tập')
+                            : ev.eventType === 'reminder'
+                              ? tr('Nhắc nhở')
+                              : tr('Lớp học');
                       const CatIcon = ev.eventType === 'homework'
                         ? BookCheck
                         : ev.eventType === 'srs'
@@ -622,7 +673,9 @@ function CalendarPopoverBody({
             ) : !hasAnyUpcoming ? (
               <div className="rounded-xl border border-dashed border-rp-line bg-rp-bg-2/60 px-4 py-5 text-center">
                 <SpotArt name="calendar" size={88} className="mx-auto" />
-                <p className="mt-2 font-semibold text-rp-text">{tr('Bạn chưa có lịch học sắp tới.')}</p>
+                <p className="mt-2 font-semibold text-rp-text">
+                  {roleKey === 'Mentor' ? tr('Chưa có lịch giảng dạy.') : tr('Bạn chưa có lịch học sắp tới.')}
+                </p>
                 {roleKey === 'Learner' && (
                   <Link
                     to="/cohorts"
@@ -642,42 +695,55 @@ function CalendarPopoverBody({
                       {roleKey === 'Mentor' ? tr('Buổi dạy sắp tới') : tr('Buổi học sắp tới')}
                     </h3>
                     <ul className="space-y-1.5">
-                      {upcomingSessions.slice(0, 3).map((ev) => (
-                        <li key={ev.id}>
-                          <Link
-                            to={ev.canJoin ? ev.roomHref : (ev.secondaryHref || ev.href || fullCalendarRoute)}
-                            onClick={onClose}
-                            className={cx(
-                              'group rp-focus flex items-center justify-between gap-2 rounded-xl px-3 py-2',
-                              CALENDAR_CATEGORIES.class.card,
-                              CALENDAR_CATEGORIES.class.hoverCard,
-                            )}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-semibold text-rp-cal-class-text">
-                                {ev.title}
-                              </p>
-                              <p className="truncate text-[11.5px] text-rp-cal-class-text/80">
-                                {formatVnDateTime(ev.scheduledAt)} · {ev.statusLabel}
-                              </p>
-                            </div>
-                            {ev.canJoin ? (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-rp-cal-class px-2.5 py-1 text-[11.5px] font-semibold text-white transition-transform duration-150 group-hover:scale-[1.03]">
-                                {tr('Vào phòng')}
-                                <ArrowRight className="h-3 w-3 transition-transform duration-150 group-hover:translate-x-0.5" />
-                              </span>
-                            ) : (
-                              <span
-                                title={tr(ev.joinReason)}
-                                aria-label={tr('Mở trước 15p')}
-                                className={CALENDAR_CATEGORIES.class.arrowChip}
-                              >
-                                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
-                              </span>
-                            )}
-                          </Link>
-                        </li>
-                      ))}
+                      {upcomingSessions.slice(0, 1).map((ev) => {
+                        const evMeta = roleKey === 'Mentor' ? getToneMeta(ev.tone) : CALENDAR_CATEGORIES.class;
+                        const targetHref = ev.canJoin && ev.roomHref ? ev.roomHref : (ev.href || ev.secondaryHref || fullCalendarRoute);
+                        return (
+                          <li key={ev.id}>
+                            <Link
+                              to={targetHref}
+                              onClick={onClose}
+                              className={cx(
+                                'group rp-focus flex items-center justify-between gap-2 rounded-xl px-3 py-2',
+                                evMeta.card,
+                                evMeta.hoverCard,
+                              )}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate font-semibold">
+                                  {ev.title}
+                                </p>
+                                <p className="truncate text-[11.5px] opacity-85">
+                                  {formatVnDateTime(ev.scheduledAt)} · {ev.statusLabel}
+                                </p>
+                              </div>
+                              {ev.canJoin && ev.roomHref ? (
+                                <span
+                                  className={cx(
+                                    'inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold text-white transition-transform duration-150 group-hover:scale-[1.03]',
+                                    roleKey === 'Mentor'
+                                      ? (ev.tone === 'workLive' ? 'bg-[#D97706]' : 'bg-[#4B5563]')
+                                      : 'bg-rp-cal-class',
+                                  )}
+                                >
+                                  {roleKey === 'Mentor'
+                                    ? (ev.tone === 'workLive' ? tr('Vào phòng học') : tr('Tham gia phòng học'))
+                                    : tr('Vào phòng')}
+                                  <ArrowRight className="h-3 w-3 transition-transform duration-150 group-hover:translate-x-0.5" />
+                                </span>
+                              ) : (
+                                <span
+                                  title={roleKey === 'Mentor' ? tr(ev.hrefLabel || 'Xem chi tiết lớp') : tr(ev.joinReason)}
+                                  aria-label={tr('Xem chi tiết lớp')}
+                                  className={evMeta.arrowChip}
+                                >
+                                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+                                </span>
+                              )}
+                            </Link>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 )}

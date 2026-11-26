@@ -4,13 +4,12 @@ import {
   BookOpen,
   CheckCircle2,
   ClipboardCheck,
-  LockKeyhole,
   RotateCcw,
   Sparkles,
   Target,
 } from 'lucide-react';
 import { errorMessage } from '@/api/apiErrors.js';
-import { Badge, Banner, Button, HaruMascot, SakuraLoader, cx } from '@/components/ui';
+import { Banner, Button, SakuraLoader, cx } from '@/components/ui';
 import { SrsLoopIcon } from '@/components/ui/SakuraIcons.js';
 import { WebClayIcon } from '@/features/learner-ui';
 import { useLocale } from '@/locales/locale.js';
@@ -62,7 +61,7 @@ export function LearningPathUnlockGuide({
       id: 'placement',
       icon3d: 'mock',
       title: tr('Làm bài đánh giá năng lực'),
-      detail: hasPlacement ? tr('Đã ghi nhận kết quả đánh giá năng lực.') : tr('Kiểm tra trình độ hiện tại để AI hiểu đúng xuất phát điểm.'),
+      detail: hasPlacement ? tr('Đã ghi nhận kết quả đánh giá năng lực.') : tr('Khám phá trình độ tiếng Nhật hiện tại.'),
       done: hasPlacement,
       current: hasGoal && !hasPlacement,
       Icon: ClipboardCheck,
@@ -70,8 +69,8 @@ export function LearningPathUnlockGuide({
     {
       id: 'ai',
       icon3d: 'roadmap',
-      title: tr('Tạo lộ trình học cá nhân hóa với AI'),
-      detail: tr('Mở khóa các chặng học, lịch học theo ngày và gợi ý ôn tập riêng.'),
+      title: tr('Tạo lộ trình cá nhân hóa AI'),
+      detail: tr('Chặng học, lịch học mỗi ngày và gợi ý ôn tập dành riêng cho bạn.'),
       done: hasActive,
       current: hasGoal && hasPlacement && !hasActive,
       Icon: Sparkles,
@@ -86,26 +85,23 @@ export function LearningPathUnlockGuide({
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2.5">
-          <Badge tone="brand" icon={LockKeyhole} size="sm">
-            {tr('Lộ trình cá nhân hóa đang khóa')}
-          </Badge>
           <Heading className={cx('font-extrabold text-rp-navy', compact ? 'text-lg leading-6' : 'text-xl leading-7 sm:text-2xl')}>
             {flow?.step === 'generate-ai'
-              ? tr('Sẵn sàng mở khóa lộ trình học với AI')
+              ? tr('Sẵn sàng tạo lộ trình AI')
               : flow?.step === 'placement'
-                ? tr('Làm bài đánh giá để mở khóa lộ trình')
-                : tr('Hoàn thành các bước để mở khóa lộ trình của bạn')}
+                ? tr('Hiểu rõ hơn về trình độ của bạn')
+                : tr('Bạn muốn bắt đầu từ đâu?')}
           </Heading>
           <p className="text-sm leading-6 text-rp-text-2">
             {flow?.step === 'generate-ai'
-              ? tr('Bạn đã hoàn thành mục tiêu và đánh giá năng lực. Hãy tạo lộ trình AI để bắt đầu hành trình học tập.')
-              : tr('Để lộ trình sát với trình độ thật, RikiPath mở khóa lộ trình cá nhân hóa sau khi bạn hoàn thành đánh giá năng lực và tạo lộ trình AI.')}
+              ? tr('Mục tiêu và kết quả đánh giá đã sẵn sàng. Hãy tạo lộ trình học phù hợp với bạn.')
+              : tr('Đặt mục tiêu và đánh giá năng lực để RikiPath xây dựng lộ trình sát với trình độ của bạn.')}
           </p>
         </div>
 
         {!compact && (
-          <div className="hidden shrink-0 items-center justify-center rounded-full border border-rp-brand-border/60 bg-rp-brand-tint/45 p-3 lg:flex">
-            <HaruMascot pose="guiding" size={108} />
+          <div className="hidden shrink-0 items-center justify-center rounded-full border border-rp-brand-border/60 bg-rp-brand-tint/45 p-4 lg:flex">
+            <WebClayIcon name="roadmap" size="lg" />
           </div>
         )}
       </div>

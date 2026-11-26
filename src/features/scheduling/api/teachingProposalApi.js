@@ -29,6 +29,9 @@ export const submitTeachingProposal = async (id, { idempotencyKey, expectedRevis
     expectedRevision,
   })).result;
 
+export const resubmitTeachingProposal = async (id, body) =>
+  (await api.post(`/mentor/teaching-proposals/${id}/resubmit`, body)).result;
+
 export const withdrawTeachingProposal = async (id, { reason = null, expectedRevision = null } = {}) =>
   (await api.post(`/mentor/teaching-proposals/${id}/withdraw`, {
     reason: reason || null,
@@ -37,6 +40,12 @@ export const withdrawTeachingProposal = async (id, { reason = null, expectedRevi
 
 export const cloneTeachingProposalDraft = async (id) =>
   (await api.post(`/mentor/teaching-proposals/${id}/clone-draft`)).result;
+
+export const fetchMentorProposalAttachmentBlob = async (proposalId, index, { download = false } = {}) =>
+  api.get(`/mentor/teaching-proposals/${proposalId}/attachments/${index}`, {
+    params: download ? { download: true } : undefined,
+    responseType: 'blob',
+  });
 
 /**
  * Upload an OPTIONAL reference attachment (syllabus/notes PDF/image).
@@ -68,6 +77,12 @@ export const getAdminTeachingProposals = async (params = {}) => {
 export const getAdminTeachingProposal = async (id) =>
   (await api.get(`/admin/teaching-proposals/${id}`)).result;
 
+export const fetchAdminProposalAttachmentBlob = async (proposalId, index, { download = false } = {}) =>
+  api.get(`/admin/teaching-proposals/${proposalId}/attachments/${index}`, {
+    params: download ? { download: true } : undefined,
+    responseType: 'blob',
+  });
+
 export const reviewAdminTeachingProposal = async (id, { decision, reason = null, expectedRevision }) =>
   (await api.post(`/admin/teaching-proposals/${id}/review`, {
     decision,
@@ -75,9 +90,14 @@ export const reviewAdminTeachingProposal = async (id, { decision, reason = null,
     expectedRevision,
   })).result;
 
-export const getApprovedProposalsForCohort = async (params = {}) => {
-  const query = {};
-  if (params.mentorId) query.mentorId = Number(params.mentorId);
-  if (params.certificateLevelId) query.certificateLevelId = Number(params.certificateLevelId);
-  return (await api.get('/admin/teaching-proposals/approved-for-cohort', { params: Object.keys(query).length ? query : undefined })).result || [];
-};
+export const prevalidateBulkApproveProposals = async ({ items, reason = null }) =>
+  (await api.post('/admin/teaching-proposals/bulk-approve/validate', {
+    items,
+    reason: reason || null,
+  })).result;
+
+export const bulkApproveTeachingProposals = async ({ items, reason = null }) =>
+  (await api.post('/admin/teaching-proposals/bulk-approve', {
+    items,
+    reason: reason || null,
+  })).result;

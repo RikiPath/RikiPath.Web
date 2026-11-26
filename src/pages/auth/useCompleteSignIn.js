@@ -79,10 +79,11 @@ export function useCompleteSignIn() {
         return;
       }
 
-      const home = prefetchFailed && !cachedProfile ? '/app' : learnerHomePath(cachedProfile, role);
-      const target = home === '/onboarding'
-        ? home
-        : postLoginDestination(from ? `${from.pathname || ''}${from.search || ''}` : '', home, (path) => canAccessPath(path, roles));
+      const home = prefetchFailed && !cachedProfile ? '/app' : learnerHomePath(cachedProfile, role, nextSession);
+      const fromUrl = from ? `${from.pathname || ''}${from.search || ''}` : '';
+      const target = fromUrl
+        ? postLoginDestination(fromUrl, home, (path) => canAccessPath(path, roles))
+        : home;
       navigate(target, { replace: true });
       return;
     }

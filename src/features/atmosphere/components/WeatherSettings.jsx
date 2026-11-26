@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Check,
@@ -15,7 +15,7 @@ import {
 import { cx } from '@/components/ui';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { PERIOD_LABEL, coarsen, weatherLabel } from '../atmosphereLogic.js';
-import { searchCities } from '../weatherService.js';
+import { detectApproximateLocation, reverseGeocode, searchCities } from '../weatherService.js';
 import { iconForScene, modeIcons } from '../engine/weatherIcon.js';
 import WeatherIcon from './WeatherIcon.jsx';
 
@@ -210,19 +210,38 @@ function StatusLine({ atmosphere, tr }) {
   );
 }
 
+function getBrowserPosition(options) {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+function browserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return '';
+  }
+}
+
 /* ------------------------------------------------------------------ location */
-function LocationPicker({ prefs, setPrefs, tr }) {
+function LocationPicker({ prefs, setPrefs, tr, locale }) {
   const [query, setQuery] = useState('');
   const [geoState, setGeoState] = useState('idle');
+  const geoAbortRef = useRef(null);
   const term = useDebounced(query.trim(), 350);
   const listId = useId();
   const results = useQuery({
-    queryKey: ['atmosphere-geocode', term.toLowerCase()],
+    queryKey: ['atmosphere-geocode', locale, term.toLowerCase()],
     enabled: term.length >= 2,
-    queryFn: ({ signal }) => searchCities(term, signal),
+    queryFn: ({ signal }) => searchCities(term, signal, locale),
     staleTime: 24 * 60 * 60 * 1000,
     retry: 0,
   });
+
+  useEffect(() => () => {
+    geoAbortRef.current?.abort();
+  }, []);
 
   // Choosing a place keeps the current mode (it also drives "Chỉ bầu trời"); only "Tắt hoàn toàn" switches on weather.
   const choose = (loc) => {
@@ -230,21 +249,67 @@ function LocationPicker({ prefs, setPrefs, tr }) {
     setQuery('');
   };
 
-  const useDevice = () => {
-    if (!('geolocation' in navigator)) {
-      setGeoState('unsupported');
+  const useDevice = async () => {
+    geoAbortRef.current?.abort();
+    const controller = new AbortController();
+    geoAbortRef.current = controller;
+    setGeoState('asking');
+
+    let browserDenied = false;
+    let browserUnsupported = !('geolocation' in navigator) || (typeof window !== 'undefined' && window.isSecureContext === false);
+
+    if (!browserUnsupported) {
+      // Check Permissions API first when supported so an already-denied permission skips useless prompts
+      // and falls back immediately to approximate network location.
+      try {
+        const perm = await navigator.permissions?.query?.({ name: 'geolocation' });
+        if (perm?.state === 'denied') browserDenied = true;
+      } catch {
+        // Permissions API unsupported or restricted; proceed directly to getCurrentPosition.
+      }
+    }
+
+    if (!browserUnsupported && !browserDenied) {
+      try {
+        const pos = await getBrowserPosition({
+          enableHighAccuracy: false,
+          timeout: 8_000,
+          maximumAge: 10 * 60 * 1000,
+        });
+        if (controller.signal.aborted) return;
+        // Only a ~11 km rounded position is kept; the precise fix is discarded right here.
+        const latitude = coarsen(pos.coords.latitude, 1);
+        const longitude = coarsen(pos.coords.longitude, 1);
+        const place = await reverseGeocode(latitude, longitude, controller.signal, locale);
+        if (controller.signal.aborted) return;
+        choose({
+          name: place?.name || tr('Vị trí hiện tại'),
+          region: place?.region || '',
+          country: place?.country || '',
+          latitude,
+          longitude,
+          timezone: browserTimeZone(),
+          source: 'device',
+        });
+        setGeoState('device-ok');
+        return;
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (err?.code === 1) browserDenied = true;
+      }
+    }
+
+    // Automatic coarse network/IP fallback when GPS permission is denied, blocked by OS,
+    // timed out, or unavailable on desktop browsers.
+    const approx = await detectApproximateLocation(controller.signal, locale);
+    if (controller.signal.aborted) return;
+    if (approx) {
+      choose(approx);
+      setGeoState(browserDenied ? 'approx-denied' : 'approx');
       return;
     }
-    setGeoState('asking');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGeoState('idle');
-        // Only a ~11 km rounded position is kept; the precise fix is discarded right here.
-        choose({ name: tr('Vị trí hiện tại'), latitude: coarsen(pos.coords.latitude, 1), longitude: coarsen(pos.coords.longitude, 1), source: 'device' });
-      },
-      (err) => setGeoState(err?.code === 1 ? 'denied' : 'failed'),
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 10 * 60 * 1000 },
-    );
+
+    setGeoState(browserDenied ? 'denied' : browserUnsupported ? 'unsupported' : 'failed');
   };
 
   const list = results.data || [];
@@ -309,7 +374,10 @@ function LocationPicker({ prefs, setPrefs, tr }) {
         {geoState === 'asking' ? <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed aria-hidden="true" className="h-3.5 w-3.5" />}
         {tr('Dùng vị trí hiện tại')}
       </button>
-      <p role="status" className="min-h-[1rem] text-[11px] text-rp-text-muted">
+      <p role="status" className={cx('min-h-[1rem] text-[11px]', geoState === 'device-ok' || geoState === 'approx' ? 'text-rp-success' : geoState === 'denied' || geoState === 'failed' ? 'text-rp-warning' : 'text-rp-text-muted')}>
+        {geoState === 'device-ok' && tr('Đã cập nhật vị trí hiện tại.')}
+        {geoState === 'approx-denied' && tr('Trình duyệt đang chặn quyền GPS — đã dùng vị trí ước tính theo mạng.')}
+        {geoState === 'approx' && tr('Đã xác định vị trí gần đúng theo kết nối mạng.')}
         {geoState === 'denied' && tr('Bạn đã từ chối quyền vị trí. Hãy tìm thành phố thủ công.')}
         {geoState === 'failed' && tr('Không xác định được vị trí. Hãy tìm thành phố thủ công.')}
         {geoState === 'unsupported' && tr('Trình duyệt không hỗ trợ định vị.')}
@@ -320,7 +388,7 @@ function LocationPicker({ prefs, setPrefs, tr }) {
 }
 
 export default function WeatherSettings({ atmosphere }) {
-  const { tr, trf } = useLocale();
+  const { locale, tr, trf } = useLocale();
   const { prefs, setPrefs, scene } = atmosphere;
   const modeId = useId();
   const icons = modeIcons(scene);
@@ -378,7 +446,7 @@ export default function WeatherSettings({ atmosphere }) {
 
         <section aria-labelledby={`${modeId}-place`}>
           <SectionTitle id={`${modeId}-place`}>{tr('Địa điểm thời tiết')}</SectionTitle>
-          <LocationPicker prefs={prefs} setPrefs={setPrefs} tr={tr} />
+          <LocationPicker prefs={prefs} setPrefs={setPrefs} tr={tr} locale={locale} />
         </section>
 
       </div>

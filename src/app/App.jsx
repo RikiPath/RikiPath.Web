@@ -70,6 +70,7 @@ const PAGES = {
   GroupLearningProgressPage: page(() => import('@/pages/learner/GroupLearningProgressPage.jsx')),
   StudyCoursesPage: page(() => import('@/pages/shared/StudyCoursesPage.jsx')),
   MentorClassWorkspace: page(() => import('@/pages/mentor/MentorClassWorkspace.jsx')),
+  MentorLearnerCompetencyPage: page(() => import('@/pages/mentor/MentorLearnerCompetencyPage.jsx')),
   // mentor & shared meeting
   MentorPublicProfile: page(() => import('@/pages/learner/MentorPublicProfile.jsx')),
   ConsultationRoom: page(() => import('@/pages/shared/MeetingRoom.jsx')),

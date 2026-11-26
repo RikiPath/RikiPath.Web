@@ -18,13 +18,19 @@ export function useAdminAction({ toastKey = 'admin-action', defaultErrorTitle = 
     const toastId = opts.silentLoading ? null : notify.loading(opts.loading || 'Đang xử lý…', '', { key });
     try {
       const result = await fn();
-      invalidateSidebarCounters(queryClient);
-      if (onAfterSuccess) await onAfterSuccess(result);
       const resolved = typeof message === 'function' ? message(result) : message;
       if (resolved) {
         notify.success(resolved, '', { id: toastId || undefined, key, replace: true });
       } else if (toastId) {
         notify.dismiss(toastId);
+      }
+      invalidateSidebarCounters(queryClient);
+      if (onAfterSuccess) {
+        try {
+          await onAfterSuccess(result);
+        } catch {
+          // Keep the confirmed success state if a follow-up background refresh fails transiently.
+        }
       }
       return result;
     } catch (e) {

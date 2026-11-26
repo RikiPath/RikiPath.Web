@@ -107,12 +107,12 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
   const createMutation = useMutation({
     mutationFn: (payload) => createAdminMentor(payload),
     onSuccess: async (_, vars) => {
-      await invalidateAdminDomains(queryClient, ['mentors', 'users']);
       setCreateOpen(false);
       setForm(EMPTY_FORM);
       setFormErrors({});
       setSubmitError('');
       notify.success(trf('Đã thêm Giáo viên {0}.', { 0: vars.fullName }), '', { key: 'admin-mentor-create', replace: true });
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['mentors', 'users'])]);
     },
     onError: (err) => {
       const msg = describeApiError(err)?.message || tr('Không thể thêm Giáo viên.');
@@ -124,7 +124,6 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
   const toggleMutation = useMutation({
     mutationFn: ({ mentor, nextActive }) => setAdminMentorActive(mentor.id, nextActive),
     onSuccess: async (_, { mentor, nextActive }) => {
-      await invalidateAdminDomains(queryClient, ['mentors', 'users']);
       setToggleTarget(null);
       if (detailMentor?.id === mentor.id) setDetailMentor((d) => (d ? { ...d, isActive: nextActive } : d));
       notify.success(
@@ -132,6 +131,7 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
         '',
         { key: 'admin-mentor-status', replace: true },
       );
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['mentors', 'users'])]);
     },
     onError: (err) => {
       setToggleTarget(null);

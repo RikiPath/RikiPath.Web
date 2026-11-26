@@ -6,10 +6,8 @@ const root = '/study-courses';
 
 export const courseGet = async (path = '') => (await api.get(root + path)).result;
 export const coursePost = async (path, body = {}) => (await api.post(root + path, body)).result;
-export const saveCoursePlan = async (plan) =>
-  (await (plan.id ? api.put(`${root}/plans/${plan.id}`, plan) : api.post(`${root}/plans`, plan))).result;
 
-const COHORT_FILTER_KEYS = ['mentorId', 'level', 'intensity', 'weekday', 'fromTime', 'toTime'];
+const COHORT_FILTER_KEYS = ['mentorId', 'level', 'sessionsPerWeek', 'intensity', 'weekday', 'fromTime', 'toTime'];
 
 /** Bỏ tham số rỗng; chỉ gửi các bộ lọc mà máy chủ hỗ trợ. */
 export function cohortQueryParams(params = {}) {
@@ -17,7 +15,7 @@ export function cohortQueryParams(params = {}) {
   for (const key of COHORT_FILTER_KEYS) {
     const value = params?.[key];
     if (value === undefined || value === null || value === '' || value === 'ALL') continue;
-    out[key] = key === 'mentorId' || key === 'weekday' ? Number(value) : String(value);
+    out[key] = ['mentorId', 'weekday', 'sessionsPerWeek'].includes(key) ? Number(value) : String(value);
   }
   return out;
 }
@@ -28,14 +26,6 @@ export const getCohorts = async (params) => {
   return (await api.get(`${root}/cohorts`, config)).result || [];
 };
 
-/** Admin xem trước xung đột lịch khi chọn Mentor + khung giờ cho lớp. */
-export const previewCohortSchedule = async ({ mentorId, availabilityIds = [], cohortId } = {}) => {
-  const body = { mentorId: Number(mentorId), availabilityIds: availabilityIds.map(Number) };
-  if (cohortId) body.cohortId = Number(cohortId);
-  return (await api.post(`${root}/cohorts/schedule-preview`, body)).result;
-};
-export const saveCohort = async (cohort) =>
-  (await (cohort.id ? api.put(`${root}/cohorts/${cohort.id}`, cohort) : api.post(`${root}/cohorts`, cohort))).result;
 export const enrollCohort = async (cohortId, body) =>
   (await api.post(`${root}/cohorts/${cohortId}/enroll`, body)).result;
 export const reconcileCoursePayment = async (courseId) =>
@@ -43,12 +33,6 @@ export const reconcileCoursePayment = async (courseId) =>
 export const cancelCohortEnrollment = async (courseId, reason) =>
   (await api.post(`${root}/${courseId}/cancel-enrollment`, { reason: reason || null })).result;
 
-export const getCohortEntitlements = async (cohortId) =>
-  (await api.get(`${root}/cohorts/${cohortId}/entitlements`)).result || [];
-export const grantCohortEntitlement = async (cohortId, body) =>
-  (await api.post(`${root}/cohorts/${cohortId}/entitlements`, body)).result;
-export const revokeCohortEntitlement = async (entitlementId, reason) =>
-  (await api.post(`${root}/entitlements/${entitlementId}/revoke`, { reason })).result;
 export const getMyEntitlements = async () =>
   (await api.get(`${root}/my-entitlements`)).result || [];
 
@@ -72,9 +56,6 @@ export async function openRetakeEvidence(courseId, requestId) {
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
-export const getAdminAvailabilitySlots = async () =>
-  (await api.get('/admin/mentor-availabilities')).result || [];
 
 export const getCohortHomework = async (cohortId, learnerId) => {
   const params = {};
@@ -180,7 +161,7 @@ export const getMentorAssignments = async (cohortId) =>
 export const SCHEDULE_REQUEST_STATUS = Object.freeze({
   Pending: 'Chờ duyệt',
   Approved: 'Đã duyệt',
-  Rejected: 'Từ chối',
+  Rejected: 'Bị từ chối',
   Withdrawn: 'Đã rút',
 });
 export const SCHEDULE_REQUEST_KIND = Object.freeze({

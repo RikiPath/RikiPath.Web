@@ -35,7 +35,8 @@ export const ROUTES = [
   { path: '/app', page: 'Dashboard', roles: L },
   { path: '/roadmap', page: 'RoadmapJLPT', roles: L },
   { path: '/roadmap/stages/:stageId', page: 'RoadmapStageDetail', roles: L },
-  { path: '/placement', page: 'PlacementTest', roles: L },
+  // One general assessment page for every entry point (Sidebar, Dashboard, links).
+  { path: '/placement', page: 'ExamN3', roles: L },
   { path: '/placement/exam', page: 'PlacementExam', roles: L },
   { path: '/placement/result/:attemptId', page: 'PlacementResult', roles: L },
   { path: '/placement-test', page: 'ExamN3', roles: L },
@@ -65,8 +66,12 @@ export const ROUTES = [
   { path: '/daily-srs/templates', page: 'DailySRS', props: { section: 'templates' }, roles: L },
   { path: '/daily-srs/progress', page: 'DailySRS', props: { section: 'progress' }, roles: L },
   { path: '/practice-sets', page: 'PracticeSetsPage', roles: L },
+  { path: '/practice-sets/attempt/:attemptId', page: 'MockTestPage', props: { routeMode: 'practice' }, roles: L },
+  { path: '/practice-sets/result/:attemptId', page: 'MockTestPage', props: { routeMode: 'practice', resultOnly: true }, roles: L },
   { path: '/mock-test', page: 'MockTestPage', roles: L },
   { path: '/mock-tests', page: 'MockTestPage', roles: L },
+  { path: '/mock-tests/attempt/:attemptId', page: 'MockTestPage', props: { routeMode: 'mock' }, roles: L },
+  { path: '/mock-tests/result/:attemptId', page: 'MockTestPage', props: { routeMode: 'mock', resultOnly: true }, roles: L },
   { path: '/exam-result', page: 'ExamResult', roles: L },
   { path: '/profile', page: 'AccountProfile', roles: ANY },
   { path: '/settings', page: 'LearnerSettings', roles: ANY },
@@ -94,7 +99,9 @@ export const ROUTES = [
   { path: '/mentor-overview', page: 'ConsultantOverview', roles: MA },
   { path: '/mentor-study-courses', page: 'MentorClassWorkspace', roles: M },
   { path: '/mentor-study-courses/:cohortId', page: 'MentorClassWorkspace', roles: M },
+  { path: '/mentor-study-courses/:cohortId/learners/:learnerId/competency', page: 'MentorLearnerCompetencyPage', roles: M },
   { path: '/mentor/cohorts/:cohortId', page: 'MentorClassWorkspace', roles: M },
+  { path: '/mentor/cohorts/:cohortId/learners/:learnerId/competency', page: 'MentorLearnerCompetencyPage', roles: M },
   { path: '/mentor/complaints/:complaintId', page: 'MentorDisputes', roles: MA },
   { path: '/mentor/bookings/:id', page: 'WorkSchedule', roles: MA },
   { path: '/mentor/meetings/:roomId', page: 'ConsultationRoom', roles: MA },
@@ -147,7 +154,6 @@ export const ROUTES = [
   { path: '/admin/mentor-verifications', page: 'AdminMentorHub', roles: A },
   { path: '/admin/mentor-schedules', page: 'AdminMentorHub', roles: A },
   { path: '/admin/mentor-qualifications', page: 'AdminMentorHub', roles: A },
-  { path: '/admin/mentor-group-policy', page: 'AdminMentorHub', roles: A },
   { path: '/admin/slot-review', page: 'AdminSlotReview', roles: A },
   { path: '/admin/mentor-template', page: 'AdminMentorTemplate', roles: A },
   { path: '/admin/mentor-quality', page: 'AdminMentorQuality', roles: A },
@@ -158,6 +164,7 @@ export const ROUTES = [
 // consultation packages and mentor payout URLs land on their replacements.
 export const REDIRECTS = [
   ['/landing', '/'],
+  ['/account-profile', '/profile'],
   ['/course-detail', '/courses'],
   ['/dashboard', '/app'],
   ['/home-learner', '/app'],
@@ -201,6 +208,10 @@ export const REDIRECTS = [
   ['/admin/group-courses', '/admin/study-courses'],
   ['/admin/mentor-plans', '/admin/study-courses'],
   ['/admin/mentor-compensation', '/admin/mentor-quality'],
+  ['/admin/policies/teaching', '/admin/policies'],
+  ['/admin/policies/admission', '/admin/policies'],
+  ['/admin/policies/training', '/admin/policies'],
+  ['/admin/mentor-group-policy', '/admin/policies'],
 ];
 
 export const ROLE_HOME = {

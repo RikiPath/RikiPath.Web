@@ -56,6 +56,7 @@ function CalendarDateField({
   min,
   max,
   disabledDate,
+  getDisabledReason,
   disabled = false,
   invalid = false,
   placeholder,
@@ -71,6 +72,7 @@ function CalendarDateField({
   const { locale, tr } = useLocale();
   const [cursorMonth, setCursorMonth] = useState(() => (value || min || todayKey()).slice(0, 7));
   const [focusedDayKey, setFocusedDayKey] = useState(() => value || min || todayKey());
+  const [inspectedDisabledDay, setInspectedDisabledDay] = useState(null);
   const wasOpenRef = useRef(false);
   const dayButtonRefs = useRef(new Map());
   const gridId = useId();
@@ -89,14 +91,26 @@ function CalendarDateField({
     return false;
   }, [min, max, disabledDate]);
 
+  const resolveDisabledReason = useCallback((dayKey) => {
+    if (!dayKey) return '';
+    if (typeof getDisabledReason === 'function') {
+      return String(getDisabledReason(dayKey) || '');
+    }
+    if (min && dayKey < min) return tr('Ngày này nằm trước thời gian cho phép.');
+    if (max && dayKey > max) return tr('Ngày này vượt quá thời gian cho phép.');
+    return '';
+  }, [getDisabledReason, min, max, tr]);
+
   const handleOpenChange = useCallback((open) => {
     if (open) {
       wasOpenRef.current = true;
       const seed = value || (min && min > today ? min : today);
       setCursorMonth(seed.slice(0, 7));
       setFocusedDayKey(seed);
+      setInspectedDisabledDay(null);
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false;
+      setInspectedDisabledDay(null);
       onBlur?.();
     }
   }, [value, min, today, onBlur]);
@@ -119,7 +133,7 @@ function CalendarDateField({
     }
   };
 
-  const placeholderText = placeholder || (locale === 'ja' ? 'yyyy/mm/dd' : 'dd/MM/yyyy');
+  const placeholderText = placeholder || (locale === 'ja' ? 'YYYY/MM/DD' : 'DD/MM/YYYY');
 
   return (
     <Popover
@@ -162,7 +176,10 @@ function CalendarDateField({
             <div className="flex items-center gap-0.5">
               <button
                 type="button"
-                onClick={() => setCursorMonth((current) => shiftMonth(current, -1))}
+                onClick={() => {
+                  setInspectedDisabledDay(null);
+                  setCursorMonth((current) => shiftMonth(current, -1));
+                }}
                 aria-label={tr('Tháng trước')}
                 className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
               >
@@ -170,7 +187,10 @@ function CalendarDateField({
               </button>
               <button
                 type="button"
-                onClick={() => setCursorMonth((current) => shiftMonth(current, 1))}
+                onClick={() => {
+                  setInspectedDisabledDay(null);
+                  setCursorMonth((current) => shiftMonth(current, 1));
+                }}
                 aria-label={tr('Tháng sau')}
                 className="rp-focus flex h-7 w-7 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
               >
@@ -183,11 +203,18 @@ function CalendarDateField({
             {(WEEKDAYS[locale] || WEEKDAYS.vi).map((day) => <span key={day} className="py-1">{day}</span>)}
           </div>
 
-          <div id={gridId} role="grid" aria-label={monthLabel} className="grid grid-cols-7 gap-0.5">
+          <div
+            id={gridId}
+            role="grid"
+            aria-label={monthLabel}
+            onMouseLeave={() => setInspectedDisabledDay(null)}
+            className="grid grid-cols-7 gap-0.5"
+          >
             {days.map((day) => {
               const selected = day.key === value;
               const isToday = day.key === today;
               const unavailable = isDateUnavailable(day.key);
+              const disabledReason = unavailable ? resolveDisabledReason(day.key) : '';
               const isFocused = day.key === focusedDayKey;
               return (
                 <button
@@ -197,10 +224,25 @@ function CalendarDateField({
                     else dayButtonRefs.current.delete(day.key);
                   }}
                   type="button"
-                  disabled={unavailable}
+                  aria-disabled={unavailable || undefined}
                   tabIndex={isFocused || selected ? 0 : -1}
-                  aria-label={formatIsoDateDisplay(day.key)}
+                  aria-label={disabledReason ? `${formatIsoDateDisplay(day.key)} — ${disabledReason}` : formatIsoDateDisplay(day.key)}
                   aria-pressed={selected}
+                  onMouseEnter={() => {
+                    if (unavailable && disabledReason) {
+                      setInspectedDisabledDay({ key: day.key, reason: disabledReason });
+                    } else if (!unavailable) {
+                      setInspectedDisabledDay(null);
+                    }
+                  }}
+                  onFocus={() => {
+                    setFocusedDayKey(day.key);
+                    if (unavailable && disabledReason) {
+                      setInspectedDisabledDay({ key: day.key, reason: disabledReason });
+                    } else if (!unavailable) {
+                      setInspectedDisabledDay(null);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'ArrowLeft') { e.preventDefault(); moveFocusByDays(-1); }
                     else if (e.key === 'ArrowRight') { e.preventDefault(); moveFocusByDays(1); }
@@ -208,17 +250,27 @@ function CalendarDateField({
                     else if (e.key === 'ArrowDown') { e.preventDefault(); moveFocusByDays(7); }
                   }}
                   onClick={() => {
+                    if (unavailable) {
+                      if (disabledReason) {
+                        setInspectedDisabledDay({ key: day.key, reason: disabledReason });
+                      }
+                      return;
+                    }
+                    setInspectedDisabledDay(null);
                     onChange?.(day.key);
                     close();
                   }}
                   className={cx(
-                    'rp-focus flex h-8 items-center justify-center rounded-lg text-[11.5px] transition-colors disabled:cursor-not-allowed disabled:opacity-30',
-                    !day.inMonth && 'text-rp-text-muted/60',
-                    selected
-                      ? 'bg-rp-brand-pressed font-bold text-white shadow-rp-xs'
-                      : isToday
-                        ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
-                        : 'text-rp-text hover:bg-rp-brand-tint/70',
+                    'rp-focus flex h-8 items-center justify-center rounded-lg text-[11.5px] transition-colors',
+                    unavailable
+                      ? 'cursor-not-allowed text-rp-text-muted/40 hover:bg-rp-bg-2/60'
+                      : !day.inMonth
+                        ? 'text-rp-text-muted/60 hover:bg-rp-brand-tint/70'
+                        : selected
+                          ? 'bg-rp-brand-pressed font-bold text-white shadow-rp-xs'
+                          : isToday
+                            ? 'bg-rp-brand-tint font-bold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border'
+                            : 'text-rp-text hover:bg-rp-brand-tint/70',
                   )}
                 >
                   {day.day}
@@ -226,6 +278,18 @@ function CalendarDateField({
               );
             })}
           </div>
+
+          {inspectedDisabledDay?.reason && (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="datepicker-disabled-reason"
+              className="mt-2 rounded-lg border border-rp-brand-soft bg-[#FFF6F9] px-2.5 py-1.5 text-[11px] leading-4 text-rp-brand-strong"
+            >
+              <span className="font-bold text-rp-brand-pressed">{formatIsoDateDisplay(inspectedDisabledDay.key)}: </span>
+              <span className="font-medium">{inspectedDisabledDay.reason}</span>
+            </div>
+          )}
 
           {(clearable || showToday) && (
             <div className="mt-2.5 flex justify-between border-t border-rp-line pt-2">
@@ -242,7 +306,11 @@ function CalendarDateField({
                 <button
                   type="button"
                   disabled={isDateUnavailable(today)}
-                  onClick={() => { onChange?.(today); close(); }}
+                  onClick={() => {
+                    if (isDateUnavailable(today)) return;
+                    onChange?.(today);
+                    close();
+                  }}
                   className="rp-focus rounded-lg px-2 py-1 text-xs font-semibold text-rp-brand-strong hover:bg-rp-brand-tint disabled:opacity-40"
                 >
                   {tr('Hôm nay')}
@@ -267,6 +335,7 @@ export function DatePicker({
   min,
   max,
   disabledDate,
+  getDisabledReason,
   disabled = false,
   invalid = false,
   placeholder,
@@ -290,6 +359,7 @@ export function DatePicker({
       min={min}
       max={max}
       disabledDate={disabledDate}
+      getDisabledReason={getDisabledReason}
       disabled={disabled}
       invalid={invalid}
       placeholder={placeholder}

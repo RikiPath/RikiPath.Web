@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Toaster as HotToaster, toast as hotToast } from 'react-hot-toast';
-import { CircleAlert, Info, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import { Button } from './core.jsx';
 import { cx } from './cx.js';
 import { useFocusTrap } from './hooks.js';
@@ -10,6 +10,7 @@ import {
   consumeFlashToast,
   dismissToast,
   registerToastEngine,
+  releaseToast,
   setConfirmHandler,
   unregisterToastEngine,
 } from './feedbackStore.js';
@@ -24,6 +25,11 @@ function Portal({ children }) {
 
 /** Exit window (ms) for dialogs closed through `open={false}`; matches --rp-dur-overlay-out + one frame. */
 const DIALOG_EXIT_MS = 180;
+const DRAWER_EXIT_MS = 230;
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+}
 
 /**
  * True for a short moment after `open` turns false, so a dialog can play its exit animation before it unmounts.
@@ -34,20 +40,21 @@ function useExitPresence(open, ms = DIALOG_EXIT_MS) {
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
-    setClosing(!open);
+    setClosing(!open && !prefersReducedMotion());
   }
   useEffect(() => {
     if (!closing) return undefined;
-    const timer = setTimeout(() => setClosing(false), ms);
+    const timer = setTimeout(() => setClosing(false), prefersReducedMotion() ? 0 : ms);
     return () => clearTimeout(timer);
   }, [closing, ms]);
   return closing;
 }
 
-const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', wizard: 'max-w-[840px]', xl: 'max-w-4xl', '2xl': 'max-w-[1080px]' };
+const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', wizard: 'max-w-[840px]', xl: 'max-w-4xl', '2xl': 'max-w-[1080px]', '3xl': 'max-w-[1160px]' };
 
 export function Modal(props) {
-  const { open, onClose, size = 'md', dismissible = true, initialFocusRef, className, describedBy } = props;
+  // `bare`: no header bar — a floating close button and the body owns its own heading (guides, illustrations).
+  const { open, onClose, size = 'md', dismissible = true, initialFocusRef, className, describedBy, bare = false, labelledBy } = props;
   const { tr } = useLocale();
   // While the exit animation plays, keep showing what was on screen: parents often clear the data that fed
   // the dialog (selected item, unlock target) in the same tick they close it.
@@ -72,7 +79,7 @@ export function Modal(props) {
           ref={ref}
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? titleId : undefined}
+          aria-labelledby={title && !bare ? titleId : labelledBy}
           aria-describedby={description ? descId : describedBy}
           tabIndex={-1}
           className={cx(
@@ -82,7 +89,12 @@ export function Modal(props) {
             className,
           )}
         >
-          {(title || dismissible) && (
+          {bare && dismissible && (
+            <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-rp-text-muted transition-colors hover:bg-rp-muted hover:text-rp-text">
+              <X aria-hidden="true" className="h-[18px] w-[18px]" />
+            </button>
+          )}
+          {!bare && (title || dismissible) && (
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-rp-line px-5 py-3.5">
               <div className="min-w-0">
                 {title && (
@@ -104,7 +116,7 @@ export function Modal(props) {
           )}
           {/* Non-scrolling band under the header (wizard steppers, filters): the body scrolls below it, never under it. */}
           {subheader && <div className="shrink-0 border-b border-rp-line bg-rp-surface px-5 py-3">{subheader}</div>}
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          <div className={cx('min-h-0 flex-1 overflow-y-auto', bare ? 'px-6 pb-6 pt-7' : 'px-5 py-4')}>{children}</div>
           {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-rp-line bg-rp-bg-2 px-5 py-3">{footer}</div>}
         </div>
       </div>
@@ -122,16 +134,21 @@ const DRAWER_SIZES = {
   '2xl': 'w-full md:w-[min(880px,92vw)] lg:w-[clamp(720px,62vw,920px)]',
 };
 
-export function DrawerHeader({ title, subtitle, description, onClose, closeLabel = 'Đóng', titleId, descId, className }) {
+export function DrawerHeader({ title, titleBadge, subtitle, description, onClose, closeLabel = 'Đóng', titleId, descId, className }) {
   const { tr } = useLocale();
   const sub = subtitle ?? description;
   return (
     <div className={cx('flex shrink-0 items-center justify-between gap-3 border-b border-rp-line bg-rp-surface px-5 py-3.5', className)}>
       <div className="min-w-0 flex-1">
-        {title && (
-          <h2 id={titleId} className="truncate text-base font-bold text-rp-text">
-            {typeof title === 'string' ? tr(title) : title}
-          </h2>
+        {(title || titleBadge) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {title && (
+              <h2 id={titleId} className="truncate text-base font-bold text-rp-text">
+                {typeof title === 'string' ? tr(title) : title}
+              </h2>
+            )}
+            {titleBadge}
+          </div>
         )}
         {sub && (
           <p id={descId} className="mt-0.5 truncate text-[12.5px] leading-5 text-rp-text-muted">
@@ -169,45 +186,69 @@ export function DrawerFooter({ className, children }) {
   );
 }
 
-export function SideDrawer({
-  open,
-  onClose,
-  title,
-  description,
-  side = 'right',
-  size = '2xl',
-  width,
-  labelledBy,
-  dismissible = true,
-  className,
-  children,
-}) {
+export function SideDrawer(props) {
+  const {
+    open,
+    onClose,
+    initialFocusRef,
+    dismissible = true,
+    zIndexClass = 'z-[95]',
+  } = props;
+  // Keep snapshot of drawer content while exit slide/fade animation plays so closing transitions never blank or crash.
+  const [shown, setShown] = useState(props);
+  if (open && shown !== props) setShown(props);
+  const active = open ? props : shown;
+  const {
+    title,
+    subtitle,
+    description,
+    side = 'right',
+    size = '2xl',
+    width,
+    labelledBy,
+    className,
+    children,
+  } = active;
+
   const ref = useRef(null);
   const titleId = useId();
   const descId = useId();
-  useFocusTrap(ref, { open, onEscape: dismissible ? onClose : undefined });
-  if (!open) return null;
+  const closing = useExitPresence(open, DRAWER_EXIT_MS);
+  useFocusTrap(ref, { open, onEscape: dismissible ? onClose : undefined, initialFocusRef });
+  if (!open && !closing) return null;
+
+  const sub = subtitle ?? description;
   const resolvedWidth = side === 'bottom'
     ? 'inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-rp-card-lg'
     : cx('inset-y-0', width || DRAWER_SIZES[size] || DRAWER_SIZES.md);
-  const motionCls = side === 'bottom' ? 'rp-anim-modal' : side === 'left' ? 'rp-anim-left left-0' : 'rp-anim-right right-0';
+  const sidePos = side === 'bottom' ? '' : side === 'left' ? 'left-0' : 'right-0';
+  const motionCls = side === 'bottom'
+    ? (closing ? 'rp-drawer-out-bottom' : 'rp-drawer-in-bottom')
+    : side === 'left'
+      ? (closing ? 'rp-drawer-out-left' : 'rp-drawer-in-left')
+      : (closing ? 'rp-drawer-out-right' : 'rp-drawer-in-right');
+
   return (
     <Portal>
-      <div className="fixed inset-0 z-[95]">
+      <div inert={closing || undefined} className={cx('fixed inset-0 overflow-hidden', zIndexClass)}>
         <div
           aria-hidden="true"
-          className="rp-anim-fade rp-backdrop absolute inset-0"
-          onClick={dismissible ? onClose : undefined}
+          className={cx(
+            'rp-backdrop absolute inset-0',
+            closing ? 'rp-drawer-backdrop-out' : 'rp-drawer-backdrop-in',
+          )}
+          onClick={dismissible && !closing ? onClose : undefined}
         />
         <aside
           ref={ref}
           role="dialog"
           aria-modal="true"
           aria-labelledby={labelledBy || (title ? titleId : undefined)}
-          aria-describedby={description ? descId : undefined}
+          aria-describedby={sub ? descId : undefined}
           tabIndex={-1}
           className={cx(
-            'absolute flex flex-col bg-rp-surface shadow-rp-pop outline-none motion-reduce:animate-none',
+            'absolute flex flex-col bg-rp-surface shadow-rp-pop outline-none',
+            sidePos,
             motionCls,
             resolvedWidth,
             className,
@@ -220,42 +261,63 @@ export function SideDrawer({
   );
 }
 
-export function Drawer({
-  open,
-  onClose,
-  title,
-  description,
-  side = 'right',
-  size,
-  width,
-  padded = true,
-  children,
-  footer,
-  labelledBy,
-}) {
+export function Drawer(props) {
+  const { open } = props;
+  const [shown, setShown] = useState(props);
+  if (open && shown !== props) setShown(props);
+  const active = open ? props : shown;
+  const {
+    onClose,
+    title,
+    titleBadge,
+    subtitle,
+    description,
+    side = 'right',
+    size,
+    width,
+    padded = true,
+    dismissible = true,
+    initialFocusRef,
+    zIndexClass,
+    className,
+    headerClassName,
+    bodyClassName,
+    children,
+    footer,
+    labelledBy,
+  } = active;
+
   return (
     <SideDrawer
       open={open}
       onClose={onClose}
       title={title}
+      subtitle={subtitle}
       description={description}
       side={side}
       size={size || 'md'}
       width={width}
       labelledBy={labelledBy}
+      dismissible={dismissible}
+      initialFocusRef={initialFocusRef}
+      zIndexClass={zIndexClass}
+      className={className}
     >
       {({ titleId, descId }) => (
         <>
-          {title && (
+          {(title || titleBadge || subtitle || description) && (
             <DrawerHeader
               title={title}
+              titleBadge={titleBadge}
+              subtitle={subtitle}
               description={description}
-              onClose={onClose}
+              onClose={dismissible ? onClose : undefined}
               titleId={titleId}
               descId={descId}
+              className={headerClassName}
             />
           )}
-          <DrawerBody padded={padded}>{children}</DrawerBody>
+          <DrawerBody padded={padded} className={bodyClassName}>{children}</DrawerBody>
           {footer && <DrawerFooter>{footer}</DrawerFooter>}
         </>
       )}
@@ -274,6 +336,7 @@ export function AlertDialog({
   confirmLabel = 'Xác nhận',
   cancelLabel = 'Hủy',
   tone = 'danger',
+  cancelVariant = 'secondary',
   onConfirm,
   onCancel,
   onClose,
@@ -291,8 +354,21 @@ export function AlertDialog({
   // Destructive dialogs focus "Hủy" first so Enter never confirms by accident.
   useFocusTrap(ref, { open, onEscape: isBusy ? undefined : resolvedCancel, initialFocusRef: cancelRef });
   if (!open) return null;
-  const Icon = tone === 'danger' ? TriangleAlert : tone === 'warning' ? CircleAlert : Info;
-  const iconCls = tone === 'danger' ? 'bg-rp-danger-bg text-rp-danger' : tone === 'warning' ? 'bg-rp-warning-bg text-rp-warning' : 'bg-rp-brand-tint text-rp-brand-strong';
+  const Icon = tone === 'danger'
+    ? TriangleAlert
+    : tone === 'warning'
+      ? CircleAlert
+      : tone === 'success'
+        ? CircleCheck
+        : Info;
+  const iconCls = tone === 'danger'
+    ? 'bg-rp-danger-bg text-rp-danger'
+    : tone === 'warning'
+      ? 'bg-rp-warning-bg text-rp-warning'
+      : tone === 'success'
+        ? 'bg-rp-success-bg text-rp-success'
+        : 'bg-rp-brand-tint text-rp-brand-strong';
+  const confirmVariant = tone === 'danger' ? 'danger' : tone === 'success' ? 'success' : 'primary';
   return (
     <Portal>
       <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -317,8 +393,8 @@ export function AlertDialog({
             </div>
           </div>
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button ref={cancelRef} variant="secondary" onClick={resolvedCancel} disabled={isBusy}>{tr(cancelLabel)}</Button>
-            <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={isBusy}>{tr(confirmLabel)}</Button>
+            <Button ref={cancelRef} variant={cancelVariant} onClick={resolvedCancel} disabled={isBusy}>{tr(cancelLabel)}</Button>
+            <Button variant={confirmVariant} onClick={onConfirm} loading={isBusy}>{tr(confirmLabel)}</Button>
           </div>
         </div>
       </div>
@@ -381,7 +457,7 @@ export function FeedbackProvider({ children }) {
     registerToastEngine({
       show: (item) => {
         hotToast.custom(
-          (t) => <SakuraToast t={t} item={item} onDismiss={dismissToast} />,
+          (t) => <SakuraToast t={t} item={item} onDismiss={dismissToast} onExpire={releaseToast} />,
           {
             id: item.id,
             duration: item.duration,
@@ -402,13 +478,15 @@ export function FeedbackProvider({ children }) {
   return (
     <>
       {children}
-      {/* Single global viewport, rendered at the app root (outside AppShell's overflow/transform containers). */}
-      <HotToaster
-        position={narrow ? 'top-center' : 'top-right'}
-        gutter={10}
-        containerClassName="rp-toaster-root"
-        containerStyle={narrow ? { top: 12, left: 16, right: 16, zIndex: TOAST_Z } : { top: 20, right: 20, left: 20, zIndex: TOAST_Z }}
-      />
+      {/* Single global viewport mounted via Portal directly on document.body so no Drawer/Modal/AppShell stacking context can ever obscure toasts. */}
+      <Portal>
+        <HotToaster
+          position={narrow ? 'top-center' : 'top-right'}
+          gutter={10}
+          containerClassName="rp-toaster-root"
+          containerStyle={narrow ? { top: 12, left: 16, right: 16, zIndex: TOAST_Z } : { top: 20, right: 20, left: 20, zIndex: TOAST_Z }}
+        />
+      </Portal>
       <ConfirmHost />
     </>
   );

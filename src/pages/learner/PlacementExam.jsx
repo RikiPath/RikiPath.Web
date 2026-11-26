@@ -1,22 +1,24 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
 import { getActivePlacement, savePlacementAnswer, submitPlacement } from '@/features/placement/api/placementApi.js';
+import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
 import ExamWorkspace from '@/features/mock-test/components/ExamWorkspace.jsx';
 import { describeApiError } from '@/api/apiErrors.js';
 import { recordDiagnostic } from '@/api/diagnostics.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 import {
+  BackButton,
   Button,
   Card,
   ContextualErrorState,
   Modal,
   PageContainer,
   Radio,
+  RichQuestionText,
   SakuraLoader,
   notify,
   useUnsavedGuard,
@@ -95,9 +97,9 @@ export default function PlacementExam() {
       notify.loading(tr('Đang nộp bài đánh giá…'), '', { key: 'placement-submit', maxWaitMs: 30000 });
       return submitPlacement(attempt.attemptId, payload());
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setConfirmOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ['learner', 'placement-status'] });
+      await invalidateLearnerSetupQueries(queryClient);
       notify.success(tr('Đã hoàn thành bài đánh giá năng lực!'), '', { key: 'placement-submit', replace: true });
       navigate(`/placement/result/${result.attemptId}`, { replace: true });
     },
@@ -134,9 +136,7 @@ export default function PlacementExam() {
     <LearnerShell pathname={pathname} breadcrumb={tr('Đánh giá năng lực')}>
       <PageContainer data-page="PlacementExam" width={attempt ? 'default' : 'reading'} density="comfortable" className="space-y-4 text-rp-text">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Link to="/placement/" className="rp-link inline-flex items-center gap-1 text-xs font-semibold">
-            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Về trang đánh giá')}
-          </Link>
+          <BackButton fallbackTo="/placement/" label="Về trang đánh giá" variant="ghost" />
         </div>
 
         {activeQuery.isPending && !seeded && (
@@ -196,7 +196,7 @@ export default function PlacementExam() {
                         name={`q-${question.questionId}`}
                         checked={selected}
                         onChange={() => choose(question, option.optionId)}
-                        label={option.content}
+                        label={<RichQuestionText text={option.content} />}
                       />
                     </div>
                   );

@@ -178,7 +178,7 @@ export default function StreakDialog({
     : atRisk
       ? tr('Hoàn thành một hoạt động học hôm nay để duy trì chuỗi ngày học của bạn.')
       : start
-        ? tr('Hoàn thành một hoạt động học hợp lệ hôm nay để bắt đầu hành trình duy trì thói quen.')
+        ? tr('Học một hoạt động bất kỳ hôm nay để bắt đầu chuỗi ngày học.')
         : isMilestone
           ? tr(MILESTONE_COPY[days] || 'Một cột mốc mới trên hành trình học tiếng Nhật của bạn. Tiếp tục giữ lửa nhé!')
           : tr('Hôm nay bạn đã học rồi. Quay lại vào ngày mai để giữ lửa nhé!');

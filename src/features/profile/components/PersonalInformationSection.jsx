@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, BookOpenCheck, Check, PencilLine, Phone, Shield, UserCheck } from 'lucide-react';
 import { AlertDialog, Button, Field, Input, notify } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { formatApprovalStatusLabel } from '@/utils/terminology.js';
 import { getMyMentorProfile } from '@/features/mentor/api/mentorProfileApi.js';
 import { updateProfile } from '../api/profileApi.js';
 import { PHONE_REGEX, ROLE_META } from '../profileConstants.js';
@@ -239,7 +240,8 @@ export default function PersonalInformationSection({
                 <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[12px]">
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#EAE3E4] bg-white px-2.5 py-0.5 font-medium text-rp-text-2">
                     <UserCheck aria-hidden="true" className="h-3.5 w-3.5 text-rp-brand-strong" />
-                    {mentorProfileQuery.data.verificationStatusDescription || mentorProfileQuery.data.verificationStatus}
+                    {mentorProfileQuery.data.verificationStatusDescription
+                      || formatApprovalStatusLabel(mentorProfileQuery.data.verificationStatus, tr)}
                   </span>
                   {mentorProfileQuery.data.jlptLevel && (
                     <span className="inline-flex items-center rounded-full border border-[#F2D5DF] bg-[#FFF0F4] px-2.5 py-0.5 font-semibold text-rp-brand-strong">
@@ -263,13 +265,15 @@ export default function PersonalInformationSection({
             </Button>
           )}
           {role === 'Mentor' && (
-            <Link
-              to="/mentor-profile"
-              className="rp-focus inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#EAE3E4] bg-white px-3 text-[12px] font-medium text-rp-brand-strong hover:bg-[#FFF0F4]"
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              iconRight={ArrowRight}
+              onClick={() => onSwitchTab?.('professional')}
             >
-              {tr('Hồ sơ giảng dạy & chứng chỉ')}
-              <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-            </Link>
+              {tr('Hồ sơ chuyên môn & chứng chỉ')}
+            </Button>
           )}
           {role === 'ContentAuthor' && (
             <Link

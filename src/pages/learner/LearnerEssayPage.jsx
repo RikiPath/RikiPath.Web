@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Image as ImageIcon, Maximize2, PanelLeftOpen, Plus, ScanText } from 'lucide-react';
+import { Check, Image as ImageIcon, Maximize2, PanelLeftOpen, Plus, ScanText, Ticket } from 'lucide-react';
 
 import { api } from '@/api/client.js';
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
@@ -49,18 +49,10 @@ const QUOTA_ERROR_CODES = new Set([
   'SELF_STUDY_PACKAGE_REQUIRED',
 ]);
 
+import { formatDateTime } from '@/utils/dateTimeFormat.js';
+
 function formatDate(value) {
-  if (!value) return '—';
-  const date = parseUtcDate(value);
-  if (!date || Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTime(value, '—');
 }
 
 function validateFile(file) {
@@ -426,7 +418,7 @@ export default function LearnerEssayPage() {
           actions={
             <ControlGroup>
               {writingQuota !== null && (
-                <CounterPill tone={writingQuota > 0 ? 'brand' : 'neutral'}>
+                <CounterPill icon={Ticket} tone={writingQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI viết: {0}', { 0: writingQuota })}
                 </CounterPill>
               )}

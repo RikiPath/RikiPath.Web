@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Award, Check, Clock, Compass, Flag, GraduationCap } from 'lucide-react';
 import { AlertDialog, Button, SakuraLoader, cx, notify } from '@/components/ui';
+import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
 import { useCertificateLevelsQuery, useCertificateTypesQuery } from '@/features/learning-path/hooks/useCertificates.js';
 import { useLocale } from '@/locales/locale.js';
 import { setStudyLevel } from '../api/profileApi.js';
 
 export default function LearningGoalsSection({ profile, onProfileUpdated }) {
   const { tr, trf, locale } = useLocale();
+  const qc = useQueryClient();
   const { data: certificateTypes = [], isPending: loadingTypes } = useCertificateTypesQuery();
 
   const targetCertId = useMemo(() => {
@@ -34,6 +36,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
     mutationFn: setStudyLevel,
     onSuccess: (updated) => {
       setConfirmSwitchOpen(false);
+      invalidateLearnerSetupQueries(qc);
       onProfileUpdated?.(updated);
       notify.success(tr('Đã cập nhật cấp độ đang học trên lộ trình.'), '', { key: 'goal-level-ok' });
     },

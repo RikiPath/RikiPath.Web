@@ -225,11 +225,24 @@ export default function LearningAnalytics({
     for (const m of Array.isArray(mockHistory) ? mockHistory : []) {
       const ts = m?.submittedAt || m?.completedAt || m?.startedAt;
       if (!ts) continue;
+      const sc = m?.scoring;
+      const metaText =
+        sc?.scoreType === 'PRACTICE_SCALE_10'
+          ? `${sc.normalizedScore}/10 điểm`
+          : sc?.scoreType === 'JLPT_MOCK_180'
+            ? `${sc.normalizedScore}/180 điểm`
+            : m.totalScore != null && Number.isFinite(Number(m.totalScore))
+              ? `${Math.round(Number(m.totalScore))}%`
+              : m.scorePercent != null
+                ? `${Math.round(Number(m.scorePercent))}%`
+                : m.correctCount != null
+                  ? `${m.correctCount}/${m.totalQuestions || '?'}`
+                  : tr('Đã nộp');
       items.push({
         id: `mock-${m.attemptId || m.id || ts}`,
         icon: m.attemptKind === 'Placement' ? 'placement' : 'mock',
         title: m.mockTestTitle || m.title || (m.attemptKind === 'Placement' ? tr('Đánh giá năng lực JLPT') : tr('Thi thử JLPT')),
-        meta: m.scorePercent != null ? `${Math.round(Number(m.scorePercent))}%` : m.correctCount != null ? `${m.correctCount}/${m.totalQuestions || '?'}` : tr('Đã nộp'),
+        meta: metaText,
         date: ts,
         to: m.attemptKind === 'Placement' ? `/app/placement-test/?attemptId=${m.attemptId}` : '/exam-result/',
       });
@@ -507,7 +520,7 @@ export default function LearningAnalytics({
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-rp-line/70 rp-anim-fade">
-            {recentFeed.map((ev) => (
+            {recentFeed.slice(0, 4).map((ev) => (
               <li key={ev.id}>
                 <Link
                   to={ev.to}

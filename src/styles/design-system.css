@@ -24,7 +24,9 @@
   /* Motion */
   --rp-dur-fast: 140ms;        /* hover colour, press feedback */
   --rp-dur-standard: 200ms;    /* control state changes (check, focus, underline) */
-  --rp-dur-overlay: 260ms;     /* popovers, dialogs, drawers, toasts */
+  --rp-dur-overlay: 260ms;     /* popovers, dialogs, toasts */
+  --rp-dur-drawer-in: 260ms;   /* drawer / slide-over enter (220–300ms) */
+  --rp-dur-drawer-out: 220ms;  /* drawer / slide-over exit (180–250ms) */
   --rp-dur-expand: 240ms;      /* disclosure open: accordion, conditional form section */
   --rp-dur-collapse: 200ms;    /* disclosure close (slightly quicker than open) */
   --rp-dur-overlay-out: 160ms; /* dialog / sheet exit */
@@ -60,6 +62,8 @@
     --rp-dur-fast: 0ms;
     --rp-dur-standard: 0ms;
     --rp-dur-overlay: 0ms;
+    --rp-dur-drawer-in: 0ms;
+    --rp-dur-drawer-out: 0ms;
     --rp-dur-expand: 0ms;
     --rp-dur-collapse: 0ms;
     --rp-dur-overlay-out: 0ms;
@@ -264,6 +268,79 @@
 @keyframes rp-fade-out { from { opacity: 1; } to { opacity: 0; } }
 .rp-anim-modal-out { animation: rp-sheet-out var(--rp-dur-overlay-out) var(--rp-ease-standard) both; pointer-events: none; }
 .rp-anim-fade-out { animation: rp-fade-out var(--rp-dur-overlay-out) var(--rp-ease-standard) both; pointer-events: none; }
+
+/* Global Drawer / SlideOver enter & exit (GPU-composited transform + opacity, never on Modals). */
+@keyframes rp-drawer-in-right {
+  from { opacity: 0.72; transform: translate3d(100%, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-drawer-out-right {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(100%, 0, 0); }
+}
+@keyframes rp-drawer-in-left {
+  from { opacity: 0.72; transform: translate3d(-100%, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-drawer-out-left {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(-100%, 0, 0); }
+}
+@keyframes rp-drawer-in-bottom {
+  from { opacity: 0.72; transform: translate3d(0, 100%, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes rp-drawer-out-bottom {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(0, 100%, 0); }
+}
+.rp-drawer-backdrop-in {
+  animation: rp-fade-in var(--rp-dur-drawer-in) var(--rp-ease-out) both;
+}
+.rp-drawer-backdrop-out {
+  animation: rp-fade-out var(--rp-dur-drawer-out) var(--rp-ease-standard) both;
+  pointer-events: none;
+}
+.rp-drawer-in-right {
+  animation: rp-drawer-in-right var(--rp-dur-drawer-in) var(--rp-ease-out) both;
+  will-change: transform, opacity;
+}
+.rp-drawer-out-right {
+  animation: rp-drawer-out-right var(--rp-dur-drawer-out) var(--rp-ease-standard) both;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+.rp-drawer-in-left {
+  animation: rp-drawer-in-left var(--rp-dur-drawer-in) var(--rp-ease-out) both;
+  will-change: transform, opacity;
+}
+.rp-drawer-out-left {
+  animation: rp-drawer-out-left var(--rp-dur-drawer-out) var(--rp-ease-standard) both;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+.rp-drawer-in-bottom {
+  animation: rp-drawer-in-bottom var(--rp-dur-drawer-in) var(--rp-ease-out) both;
+  will-change: transform, opacity;
+}
+.rp-drawer-out-bottom {
+  animation: rp-drawer-out-bottom var(--rp-dur-drawer-out) var(--rp-ease-standard) both;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-drawer-backdrop-in,
+  .rp-drawer-backdrop-out,
+  .rp-drawer-in-right,
+  .rp-drawer-out-right,
+  .rp-drawer-in-left,
+  .rp-drawer-out-left,
+  .rp-drawer-in-bottom,
+  .rp-drawer-out-bottom {
+    animation: none;
+    will-change: auto;
+  }
+}
 
 /* Chevron of a disclosure trigger: rotates with the same timing as the panel. */
 .rp-disclosure-chevron { transition: transform var(--rp-dur-expand) var(--rp-ease-out); }

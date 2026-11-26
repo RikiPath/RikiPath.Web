@@ -1,11 +1,12 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { CLASSIC_CLOUD_PATH, buildCloudField, visibleCount } from '../engine/clouds.js';
+import { SUN_PASS_SHAPE, buildCloudField, sunPassEnabled, visibleCount } from '../engine/clouds.js';
 import { createParticleEngine, particleBudget } from '../engine/particles.js';
 
 // RikiPath Dynamic Sky 2.0 — decorative, aria-hidden, pointer-events: none.
 // The ORIGINAL sky is the base: its four painted periods + weather veils (crossfaded), stars, sun glow, Fuji & torii,
-// classic cloud silhouette, CSS rain sheet and SVG sakura petals. 2.0 only adds layers on top of it:
-// depth-layered drifting clouds, a clearer moon, near rain/snow drops (canvas), mist, storm glow and a seasonal branch.
+// CSS rain sheet and SVG sakura petals. 2.0 adds layers on top of it: volumetric depth-layered cumulus that
+// occlude the sun/moon (light bleeds around them), a density-driven cloud bank and mood, a cloud that sometimes
+// passes the sun, a clearer moon, near rain/snow drops (canvas), mist, storm glow and a seasonal branch.
 
 const PETAL_PATH = 'M6 0C9 2.5 11 5.6 11 8.6 11 11.6 8.8 13.4 6 13.4S1 11.6 1 8.6C1 5.6 3 2.5 6 0z';
 const PETAL_SLOTS = 10;
@@ -80,6 +81,44 @@ function Silhouette({ period }) {
 }
 
 /* ------------------------------------------------------------------ clouds */
+/** Shared gradients (one set per sky): puff body lit from above, soft lit caps. Colours follow the palette vars. */
+function CloudDefs() {
+  return (
+    <svg className="rp-sky-defs" width="0" height="0" focusable="false">
+      <defs>
+        <linearGradient id="rp-cloud-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: 'var(--rp-cloud-hi)' }} />
+          <stop offset="0.55" style={{ stopColor: 'color-mix(in srgb, var(--rp-cloud-hi) 72%, var(--rp-cloud-lo))' }} />
+          <stop offset="1" style={{ stopColor: 'var(--rp-cloud-lo)' }} />
+        </linearGradient>
+        <radialGradient id="rp-cloud-cap" cx="0.42" cy="0.38" r="0.62">
+          <stop offset="0" style={{ stopColor: 'var(--rp-cloud-hi)', stopOpacity: 0.95 }} />
+          <stop offset="1" style={{ stopColor: 'var(--rp-cloud-hi)', stopOpacity: 0 }} />
+        </radialGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/** Volumetric cumulus: shadowed back puffs, gradient-lit front puffs on a flat base, highlight caps. */
+function CumulusBody({ shape }) {
+  const puffs = (list) => list.map((c, i) => <circle key={i} cx={c.cx} cy={c.cy} r={c.r} />);
+  const base = <ellipse cx={shape.base.cx} cy={shape.base.cy} rx={shape.base.rx} ry={shape.base.ry} />;
+  return (
+    <>
+      <g className="rp-cloud-back">{puffs(shape.back)}</g>
+      <g className="rp-cloud-body" fill="url(#rp-cloud-grad)">
+        {puffs(shape.front)}
+        {base}
+      </g>
+      <g className="rp-cloud-underside">{base}</g>
+      <g className="rp-cloud-cap" fill="url(#rp-cloud-cap)">{puffs(shape.lights)}</g>
+    </>
+  );
+}
+
+const viewBoxWidth = (shape) => Number(shape.viewBox.split(' ')[2]);
+
 const Cloud = memo(function Cloud({ slot, layer, on }) {
   const { shape } = slot;
   const style = {
@@ -88,43 +127,59 @@ const Cloud = memo(function Cloud({ slot, layer, on }) {
     '--rp-cloud-delay': `${slot.delay}s`,
     '--rp-cloud-rest': `${Math.round((-slot.delay / slot.duration) * 100) - 8}vw`,
   };
-  const common = {
-    className: 'rp-sky-cloud',
-    'data-layer': layer,
-    'data-on': on ? 'true' : 'false',
-    'data-mobile-hidden': slot.mobileHidden ? 'true' : undefined,
-    width: shape.width,
-    height: shape.height,
-    style,
-  };
-  if (shape.classic) {
-    // Original silhouette with a soft underside shade and a lit top rim.
-    const mirror = shape.flip ? 'translate(84 0) scale(-1 1)' : undefined;
-    return (
-      <svg {...common} viewBox="0 0 84 40" preserveAspectRatio="none">
-        <g transform={mirror}>
-          <path d={CLASSIC_CLOUD_PATH} className="rp-cloud-shade" transform="translate(0 2.2)" />
-          <path d={CLASSIC_CLOUD_PATH} className="rp-cloud-body" />
-          <path d={CLASSIC_CLOUD_PATH} className="rp-cloud-rim" transform="translate(4.2 1.6) scale(0.9 0.84)" />
-        </g>
-      </svg>
-    );
-  }
-  const body = (
-    <>
-      {shape.circles.map((c, i) => (
-        <circle key={i} cx={c.cx} cy={c.cy} r={c.r} />
-      ))}
-      <rect x={shape.baseRect.x} y={shape.baseRect.y} width={shape.baseRect.w} height={shape.baseRect.h} rx={shape.baseRect.r} />
-    </>
-  );
   return (
-    <svg {...common} viewBox={`0 0 ${shape.width} ${shape.height}`}>
-      <g className="rp-cloud-shade" transform="translate(0 2.4)">{body}</g>
-      <g className="rp-cloud-body">{body}</g>
+    <svg
+      className="rp-sky-cloud"
+      data-layer={layer}
+      data-on={on ? 'true' : 'false'}
+      data-mobile-hidden={slot.mobileHidden ? 'true' : undefined}
+      width={shape.width}
+      height={shape.height}
+      viewBox={shape.viewBox}
+      style={style}
+    >
+      <g transform={shape.flip ? `translate(${viewBoxWidth(shape)} 0) scale(-1 1)` : undefined}>
+        <CumulusBody shape={shape} />
+      </g>
     </svg>
   );
 });
+
+/** Cloud bank for broken / overcast skies: a row of large solid puffs hanging from the top edge, slowly drifting. */
+const BANK_PUFFS = [
+  [10, 6, 24], [38, 2, 30], [70, 8, 26], [104, 0, 34], [140, 7, 27], [172, 3, 31], [206, 9, 25], [236, 1, 33],
+  [272, 6, 28], [306, 2, 31], [340, 8, 26], [372, 3, 30], [404, 7, 27],
+];
+function CloudBank({ opacity }) {
+  return (
+    <svg className="rp-sky-bank" viewBox="0 0 420 46" preserveAspectRatio="none" style={{ opacity }}>
+      <rect x="-10" y="-10" width="440" height="20" className="rp-bank-ceiling" />
+      <g className="rp-cloud-back">
+        {BANK_PUFFS.map(([x, y, r], i) => (
+          <circle key={i} cx={x + 14} cy={y - 4} r={r * 0.8} />
+        ))}
+      </g>
+      <g className="rp-cloud-body" fill="url(#rp-cloud-grad)">
+        {BANK_PUFFS.map(([x, y, r], i) => (
+          <circle key={i} cx={x} cy={y} r={r * 0.72} />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+/** A cumulus that periodically drifts across the sun; the sky dims while it covers the disc (same timeline). */
+function SunPass({ x, y, reverse }) {
+  return (
+    <span className="rp-sky-pass" data-reverse={reverse ? 'true' : undefined} style={{ transform: `translate3d(calc(${x}), ${y}px, 0)` }}>
+      <svg width={SUN_PASS_SHAPE.width} height={SUN_PASS_SHAPE.height} viewBox={SUN_PASS_SHAPE.viewBox} className="rp-sky-pass-cloud">
+        <g transform={reverse ? `translate(${viewBoxWidth(SUN_PASS_SHAPE)} 0) scale(-1 1)` : undefined}>
+          <CumulusBody shape={SUN_PASS_SHAPE} />
+        </g>
+      </svg>
+    </span>
+  );
+}
 
 /* ------------------------------------------------------------------ moon */
 function MoonDisc({ phase }) {
@@ -317,6 +372,10 @@ export default function AtmosphericSky({ scene, intensity = 'low', reducedMotion
   }, [budget, windX, tone, precipLevel, intensity, compact, lowPower, reducedMotion]);
 
   const { sun, moonView } = scene;
+  const density = scene.cloudDensity || 'scattered';
+  const mood = scene.mood || { dim: 0, deck: 0 };
+  const bankOpacity = Math.max(mood.deck, clamp((scene.overcast - 0.3) / 0.5, 0, 1));
+  const passOn = sunPassEnabled({ density, sunOpacity: sun.opacity, reducedMotion });
   const showBranch = scene.season.decoration === 'sakura' && scene.decorationFactor > 0;
   const rainSheets = precipKind === 'rain' ? (precipLevel === 'light' ? 1 : 2) : 0;
 
@@ -352,15 +411,32 @@ export default function AtmosphericSky({ scene, intensity = 'low', reducedMotion
         {moonView.opacity > 0 && <MoonDisc phase={scene.moon.phase} />}
       </span>
       <Silhouette period={visual.period} />
+      <CloudDefs />
       {['far', 'mid'].map((layer) => {
         const slots = field[layer];
         const on = visibleCount(layer, slots.length, scene.cloudFraction);
         return slots.map((slot, i) => <Cloud key={slot.id} slot={slot} layer={layer} on={i < on} />);
       })}
-      <span className="rp-sky-deck" style={{ opacity: clamp((scene.overcast - 0.35) / 0.6, 0, 1) }} />
+      {passOn && <SunPass x={bandX(sun.p)} y={sun.y} reverse={rate < 0} />}
+      <span className="rp-sky-deck" style={{ opacity: clamp((scene.overcast - 0.35) / 0.6, 0, 1) * 0.7 }} />
+      <CloudBank opacity={bankOpacity} />
       {field.near.map((slot, i) => (
         <Cloud key={slot.id} slot={slot} layer="near" on={i < visibleCount('near', field.near.length, scene.cloudFraction)} />
       ))}
+      {/* Mood: density dims the whole sky; a passing cloud adds a brief shaded moment (same timeline as SunPass). */}
+      <span className="rp-sky-dim" style={{ opacity: mood.dim }} />
+      {passOn && <span className="rp-sky-shade" data-reverse={rate < 0 ? 'true' : undefined} />}
+      {/* Light wrapping cloud edges near the sun / moon (screen blend): a sun behind clouds still glows through. */}
+      <span
+        className="rp-sky-bloom"
+        data-diffuse={density === 'broken' || density === 'overcast' ? 'true' : undefined}
+        data-low={scene.solar.elevation < 8 ? 'true' : undefined}
+        style={{ opacity: scene.sunGlow ?? sun.opacity, transform: `translate3d(calc(${bandX(sun.p)} - 110px), ${sun.y - 110}px, 0)` }}
+      />
+      <span
+        className="rp-sky-moonbloom"
+        style={{ opacity: Math.round(moonView.opacity * 80) / 100, transform: `translate3d(calc(${bandX(moonView.p)} - 60px), ${moonView.y - 60}px, 0)` }}
+      />
       {scene.lightning && intensity !== 'low' && !reducedMotion && <span className="rp-sky-lightning" />}
       {Array.from({ length: 2 }, (_, i) => (
         <span key={i} className="rp-sky-rain" data-layer={i} data-level={precipLevel || undefined} data-on={i < rainSheets ? 'true' : 'false'} />

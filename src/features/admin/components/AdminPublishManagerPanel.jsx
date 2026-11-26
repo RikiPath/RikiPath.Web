@@ -55,7 +55,7 @@ export default function AdminPublishManagerPanel() {
       notify.success(
         confirmItem.publish
           ? tr('Đã xuất bản nội dung.')
-          : tr('Đã ngừng xuất bản an toàn (dữ liệu & lịch sử SRS của Learner được bảo toàn).'),
+          : tr('Đã ngừng xuất bản an toàn (dữ liệu & lịch sử SRS của Học viên được bảo toàn).'),
       );
       setConfirmItem(null);
       await queryClient.invalidateQueries({ queryKey: ['admin-publish-catalog'] });
@@ -68,7 +68,7 @@ export default function AdminPublishManagerPanel() {
   return (
     <div className="space-y-4">
       <Banner tone="info" title={tr('Ngừng xuất bản an toàn · Không xóa lịch sử học')}>
-        {tr('Khi Admin ngừng xuất bản một mục học liệu hoặc bài học, Learner chưa học sẽ không còn thấy mục đó ở kho chung, nhưng thẻ SRS và lịch sử ôn của Learner đã lưu trước đó vẫn được bảo toàn nguyên vẹn.')}
+        {tr('Khi Quản trị viên ngừng xuất bản một mục học liệu hoặc bài học, Học viên chưa học sẽ không còn thấy mục đó ở kho chung, nhưng thẻ SRS và lịch sử ôn của Học viên đã lưu trước đó vẫn được bảo toàn nguyên vẹn.')}
       </Banner>
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#EAE3E4] bg-[#FFFCF8] p-3.5">
@@ -166,7 +166,7 @@ export default function AdminPublishManagerPanel() {
                     <p className="text-xs text-rp-text-2 truncate">{item.subtitle}</p>
                   )}
                   <p className="text-[11px] text-rp-text-muted">
-                    {trf('Đang có {0} thẻ SRS Learner gắn với mục này', { 0: item.enrolledLearnerCount || 0 })}
+                    {trf('Đang có {0} thẻ SRS của Học viên gắn với mục này', { 0: item.enrolledLearnerCount || 0 })}
                     {item.unpublishedReason ? ` · ${tr('Lý do')}: ${item.unpublishedReason}` : ''}
                   </p>
                 </div>
@@ -225,7 +225,7 @@ export default function AdminPublishManagerPanel() {
           <div className="space-y-3">
             <p className="text-sm text-rp-text-2">
               {confirmItem.publish
-                ? trf('Xuất bản lại “{0}” để Learner mới có thể nhìn thấy.', { 0: confirmItem.item.title })
+                ? trf('Xuất bản lại “{0}” để Học viên mới có thể nhìn thấy.', { 0: confirmItem.item.title })
                 : trf('Ngừng xuất bản “{0}” (hiện có {1} thẻ SRS đang học sẽ vẫn được giữ nguyên).', {
                     0: confirmItem.item.title,
                     1: confirmItem.item.enrolledLearnerCount || 0,

@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { ChevronDown, GraduationCap, Mic, PenLine, Plus, Route, Sparkles } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 
 import { Badge, Button, Card, Collapsible, Modal, cx } from '@/components/ui';
 import { AdminIconAction, AdminRowActions } from '@/features/admin/components/AdminPrimitives.jsx';
 import { featureDisplayName, formatVnd } from '@/features/checkout/planGroups.js';
+import { AI_CREDIT_ICON, PLAN_GROUP_ICONS } from '@/features/checkout/planIcons.js';
 import { useLocale } from '@/locales/locale.js';
 import { adminVariantLabel, priceRangeLabel } from './adminPlansModel.js';
-
-const GROUP_ICONS = { study: GraduationCap, speaking: Mic, writing: PenLine, credit: Sparkles, path: Route };
 
 function PlanDetailModal({ plan, features, onClose }) {
   const { tr, trf } = useLocale();
@@ -71,7 +70,7 @@ export default function AdminPlanGroupsPanel({ groups, features, onEdit, onCreat
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1" data-testid="admin-plan-groups">
       {groups.map((group) => {
         const open = !collapsed.has(group.key);
-        const Icon = GROUP_ICONS[group.meta?.icon] ?? Sparkles;
+        const Icon = PLAN_GROUP_ICONS[group.meta?.icon] ?? AI_CREDIT_ICON;
         const panelId = `plan-group-${group.key}`;
         const title = group.meta ? tr(group.meta.title) : (group.variants[0]?.name ?? group.key);
         const range = priceRangeLabel(group);

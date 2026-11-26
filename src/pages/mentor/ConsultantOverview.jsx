@@ -37,7 +37,7 @@ const QUICK_ACTIONS = [
   { to: '/mentor-attendance-kpi/', label: 'Điểm danh & KPI', note: 'Chỉ số giảng dạy thực tế', feature: 'reading' },
   { to: '/mentor-reviews/', label: 'Đánh giá học viên', note: 'Phản hồi từ học viên lớp nhóm', feature: 'grammar' },
   { to: '/mentor-disputes/', label: 'Khiếu nại & hỗ trợ', note: 'Theo dõi và phản hồi yêu cầu từ học viên', feature: 'neutral' },
-  { to: '/mentor-profile/', label: 'Hồ sơ chuyên môn', note: 'Giới thiệu, chứng chỉ & trạng thái duyệt', feature: 'neutral' },
+  { to: '/profile/?tab=professional', label: 'Hồ sơ chuyên môn', note: 'Giới thiệu, chứng chỉ & trạng thái duyệt', feature: 'neutral' },
 ];
 
 const DAY_MS = 24 * 3600 * 1000;

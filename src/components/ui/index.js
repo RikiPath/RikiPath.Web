@@ -25,4 +25,6 @@ export { default as UnifiedToolbar, UnifiedToolbar as FilterToolbar } from './Un
 export { notify, pushToast, dismissToast, clearToasts, confirmAction, consumeFlashToast } from './feedbackStore.js';
 export * from './hooks.js';
 export * from './logic.js';
+export * from './navigation.jsx';
+export { default as RichQuestionText } from '../RichQuestionText.jsx';
 export { cx } from './cx.js';

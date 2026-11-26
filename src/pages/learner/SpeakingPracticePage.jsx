@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-import { ArrowLeft, HelpCircle, Mic, RotateCcw, Square } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Mic, RotateCcw, Square, Ticket } from 'lucide-react';
 import {
   Badge,
   Banner,
@@ -138,7 +138,7 @@ export default function SpeakingPracticePage() {
                 />
               </div>
               {speakingQuota !== null && (
-                <CounterPill tone={speakingQuota > 0 ? 'brand' : 'neutral'}>
+                <CounterPill icon={Ticket} tone={speakingQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI nói: {0}', { 0: speakingQuota })}
                 </CounterPill>
               )}

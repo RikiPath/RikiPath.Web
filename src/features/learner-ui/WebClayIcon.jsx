@@ -40,6 +40,9 @@ const ALIAS_MAP = {
   streak_flame: 'streak',
   trophy: 'achievement',
   assessment: 'placement',
+  // Compass sticker = "find your direction": setup / journey headings.
+  journey: 'dashboard',
+  compass: 'dashboard',
 };
 
 const SIZE_PX = {

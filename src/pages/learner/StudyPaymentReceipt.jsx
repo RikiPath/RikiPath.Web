@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { CircleCheck, Clock, RefreshCw, XCircle } from 'lucide-react';
+import { CircleCheck, Clock, RefreshCw, TicketCheck, XCircle } from 'lucide-react';
 import { useAuth } from '@/app/auth/authContext.js';
 import { LearnerShell } from '@/layouts';
 import { getStudyPurchaseStatus } from '@/features/checkout/api/subscriptionApi.js';
@@ -190,7 +190,7 @@ export default function StudyPaymentReceipt() {
         <h1 className="mt-4 text-xl font-bold text-rp-text" aria-live="polite">{copy.title}</h1>
         <div className="mt-2 flex justify-center">
           <Badge tone={paid ? 'success' : pending ? 'warning' : 'neutral'}>
-            {trf('Đơn gói tự học #{0}', { 0: purchaseId })}
+            {purchased?.planName ? tr('Biên nhận gói tự học') : tr('Biên nhận thanh toán')}
           </Badge>
         </div>
         {paid && (
@@ -219,7 +219,10 @@ export default function StudyPaymentReceipt() {
             {purchased.aiUsesRemaining > 0 && (
               <div>
                 <dt className="text-xs text-rp-text-muted">{tr('Lượt AI của gói')}</dt>
-                <dd className="font-semibold text-rp-text">{trf('{0} lượt', { 0: purchased.aiUsesRemaining })}</dd>
+                <dd className="inline-flex items-center gap-1.5 font-semibold text-rp-text">
+                  <TicketCheck aria-hidden="true" className="h-4 w-4 text-rp-brand-strong" />
+                  <span>{trf('{0} lượt', { 0: purchased.aiUsesRemaining })}</span>
+                </dd>
               </div>
             )}
           </dl>

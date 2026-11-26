@@ -128,6 +128,8 @@ describe('admin console v2.1 UI, modal, drawer & scroll contracts', () => {
     assert.ok(src.includes('tooltip="Chỉnh sửa vai trò"'));
     assert.ok(src.includes('fullName: target.name'));
     assert.ok(src.includes('role: nextRole'));
+    assert.ok(src.includes("u.role !== 'Admin'"), 'AdminUsers must exclude the system Admin / current self account from the user list');
+    assert.equal(src.includes("value: 'Admin', label: 'Quản trị viên'"), false, 'AdminUsers role filter must omit Admin since the list excludes Admin accounts');
     assert.ok(primitives.includes('export function DetailModal'));
     assert.ok(primitives.includes('export function RoleEditModal'));
     assert.ok(primitives.includes('export function AdminAccountIdentityHeader'));

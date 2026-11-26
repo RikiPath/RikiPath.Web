@@ -25,7 +25,7 @@ const STATUS_LABELS = {
   Cancelled: 'Đã hủy',
   PaymentFailed: 'Thanh toán không thành công',
   PaymentExpired: 'Thanh toán hết hạn',
-  PaymentReview: 'Đã nhận thanh toán – chờ Admin xử lý',
+  PaymentReview: 'Đã nhận thanh toán – chờ Quản trị viên xử lý',
   Scheduled: 'Chờ học',
   Present: 'Có mặt',
   Absent: 'Vắng',
@@ -71,7 +71,7 @@ function RetakeDecisionForm({ busy, canClaim, cohorts, excludeCohortId, onSubmit
         });
       }}
     >
-      <h3 className="m-0 text-sm font-bold text-rp-text">{tr('Quyết định của Admin')}</h3>
+      <h3 className="m-0 text-sm font-bold text-rp-text">{tr('Quyết định của Quản trị viên')}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={tr('Quyết định')}>
           <CustomSelect
@@ -284,7 +284,7 @@ export default function AdminRetakeSupportPanel({
                 </p>
                 <p className="course-meta m-0">
                   {currentCourse.eligibility.canClaim
-                    ? tr('Đủ điều kiện nộp minh chứng trượt JLPT chính thức để Admin xem xét hỗ trợ.')
+                    ? tr('Đủ điều kiện nộp minh chứng trượt JLPT chính thức để Quản trị viên xem xét hỗ trợ.')
                     : currentCourse.eligibility.reasons.join(' ')}
                 </p>
               </div>
@@ -331,7 +331,7 @@ export default function AdminRetakeSupportPanel({
                           </Link>
                         )}
                       </div>
-                      {s.note && <p className="course-meta">{tr(s.note)}</p>}
+                      {s.note && <p className="course-meta">{s.note}</p>}
                     </article>
                   );
                 })
@@ -354,8 +354,8 @@ export default function AdminRetakeSupportPanel({
                       <h3>{trf('Yêu cầu hỗ trợ · {0}', { 0: showStatus(r.status) })}</h3>
                       <span className="course-meta">{trf('Thi: {0} · Công bố: {1}', { 0: fmtDate(r.examDate), 1: fmtDate(r.resultPublishedAt) })}</span>
                     </div>
-                    {r.reason && <p className="course-pre"><strong>{tr('Lý do học viên:')}</strong> {tr(r.reason)}</p>}
-                    {r.response && <p className="course-pre"><strong>{tr('Quyết định của Admin:')}</strong> {r.response}</p>}
+                    {r.reason && <p className="course-pre"><strong>{tr('Lý do học viên:')}</strong> {r.reason}</p>}
+                    {r.response && <p className="course-pre"><strong>{tr('Quyết định của Quản trị viên:')}</strong> {r.response}</p>}
                     {r.mentorSupportPlan && (
                       <div className="course-notice">
                         <strong>{trf('Lộ trình hỗ trợ từ Giáo viên ({0}):', { 0: fmtDate(r.mentorSupportPlanAtUtc) })}</strong>

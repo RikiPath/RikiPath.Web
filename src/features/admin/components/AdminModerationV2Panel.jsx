@@ -27,6 +27,7 @@ import {
   ContextualErrorState,
   CustomSelect,
   Pagination,
+  RichQuestionText,
   SakuraLoader,
   Textarea,
   UnifiedToolbar,
@@ -34,30 +35,38 @@ import {
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import {
+  formatApprovalStatusLabel,
+  formatAuditActionLabel,
+  formatContentEntityLabel,
+  formatExamKindLabel,
+  formatRightsStatusLabel,
+  formatSourceTypeLabel,
+} from '@/utils/terminology.js';
 import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 
 const APPROVAL_BADGES = {
   Draft: { label: 'Bản nháp', tone: 'neutral' },
   PendingReview: { label: 'Chờ duyệt', tone: 'warning' },
-  ChangesRequested: { label: 'Yêu cầu sửa', tone: 'info' },
+  ChangesRequested: { label: 'Cần bổ sung', tone: 'info' },
   Approved: { label: 'Đã duyệt', tone: 'success' },
-  Rejected: { label: 'Từ chối', tone: 'danger' },
+  Rejected: { label: 'Bị từ chối', tone: 'danger' },
 };
 
 const ENTITY_FILTER_OPTIONS = [
   { value: 'ALL', label: 'Mọi loại nội dung' },
-  { value: 'QuestionBank', label: 'Câu hỏi Ngân hàng (QuestionBank)' },
-  { value: 'Passage', label: 'Đoạn đọc / Nhóm nghe (Passage)' },
-  { value: 'PracticeSet', label: 'Bộ đề luyện / Mixed (PracticeSet)' },
-  { value: 'MockTest', label: 'Đề thi thử JLPT (MockTest)' },
+  { value: 'QuestionBank', label: 'Câu hỏi ngân hàng' },
+  { value: 'Passage', label: 'Đoạn đọc / Nhóm nghe' },
+  { value: 'PracticeSet', label: 'Bộ đề luyện tập / Hỗn hợp' },
+  { value: 'MockTest', label: 'Đề thi thử JLPT' },
 ];
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'ALL', label: 'Tất cả trạng thái' },
   { value: 'PendingReview', label: 'Chờ duyệt' },
-  { value: 'ChangesRequested', label: 'Đã yêu cầu sửa' },
+  { value: 'ChangesRequested', label: 'Cần bổ sung' },
   { value: 'Approved', label: 'Đã duyệt' },
-  { value: 'Rejected', label: 'Từ chối' },
+  { value: 'Rejected', label: 'Bị từ chối' },
 ];
 
 function mapUnpublishTargetType(entityType) {
@@ -82,7 +91,7 @@ function StructuredPreviewBlock({ detail }) {
     return (
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="brand" size="sm" icon={false}>{preview.examKind}</Badge>
+          <Badge tone="brand" size="sm" icon={false}>{formatExamKindLabel(preview.examKind, tr)}</Badge>
           {preview.certificateLevelCode && <Badge tone="neutral" size="sm" icon={false}>{preview.certificateLevelCode}</Badge>}
           {preview.timeLimitMinutes && <Badge tone="info" size="sm" icon={false}>{preview.timeLimitMinutes} phút</Badge>}
         </div>
@@ -92,7 +101,7 @@ function StructuredPreviewBlock({ detail }) {
             <Card key={sIdx} className="space-y-2 border-rp-line bg-slate-50/60 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
                 <span>#{sIdx + 1} · {sec.title}</span>
-                <span className="text-xs text-rp-text-muted">{sec.questions?.length || 0} câu · {sec.durationMinutes || '—'}p</span>
+                <span className="text-xs text-rp-text-muted">{sec.questions?.length || 0} câu · {sec.durationMinutes || '—'} phút</span>
               </div>
               {Array.isArray(sec.questions) && sec.questions.length > 0 && (
                 <ul className="space-y-1.5 text-xs">
@@ -106,7 +115,7 @@ function StructuredPreviewBlock({ detail }) {
                           {q.questionType && <Badge tone="brand" size="sm" icon={false}>{q.questionType}</Badge>}
                           {slot.questionBankItemId && <Badge tone="success" size="sm" icon={false}>Bank #{slot.questionBankItemId}</Badge>}
                         </div>
-                        <p className="rp-jp mt-1 text-rp-text">{q.questionText}</p>
+                        <RichQuestionText as="p" text={q.questionText} className="rp-jp mt-1 text-rp-text" />
                         {q.audioUrl && <audio controls src={q.audioUrl} className="mt-1.5 h-8 w-full" />}
                       </li>
                     );
@@ -132,7 +141,7 @@ function StructuredPreviewBlock({ detail }) {
             <Badge tone="brand" size="sm" icon={false}>{p.passageCode}</Badge>
           </div>
           <p className="font-semibold text-rp-text">{p.title}</p>
-          {p.passageText && <p className="rp-jp mt-2 whitespace-pre-wrap text-sm">{p.passageText}</p>}
+          {p.passageText && <RichQuestionText as="p" text={p.passageText} className="rp-jp mt-2 whitespace-pre-wrap text-sm" />}
           {p.audioUrl && (
             <div className="mt-2 space-y-1">
               <audio controls src={p.audioUrl} className="w-full" />
@@ -145,7 +154,7 @@ function StructuredPreviewBlock({ detail }) {
         <div className="space-y-2">
           {preview.questions.map((q, i) => (
             <Card key={i} className="space-y-1.5 p-3 text-sm">
-              <p className="rp-jp font-semibold">{i + 1}. {q.questionText}</p>
+              <p className="rp-jp font-semibold">{i + 1}. <RichQuestionText text={q.questionText} /></p>
               {q.options?.map((opt, oIdx) => (
                 <div
                   key={oIdx}
@@ -153,7 +162,7 @@ function StructuredPreviewBlock({ detail }) {
                     opt.isCorrect ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-950' : 'border-rp-line'
                   }`}
                 >
-                  {opt.optionText}
+                  <RichQuestionText text={opt.optionText} />
                 </div>
               ))}
             </Card>
@@ -398,7 +407,7 @@ export default function AdminModerationV2Panel() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge tone="brand" size="sm" icon={false}>{item.entityType}</Badge>
+                            <Badge tone="brand" size="sm" icon={false}>{formatContentEntityLabel(item.entityType, tr)}</Badge>
                             {item.levelCode && <Badge tone="neutral" size="sm" icon={false}>{item.levelCode}</Badge>}
                             {item.aiProvenance?.aiAssisted && (
                               <Badge tone="warning" size="sm" icon={false}>AI</Badge>
@@ -406,7 +415,7 @@ export default function AdminModerationV2Panel() {
                           </div>
                           <p className="truncate text-sm font-bold text-rp-text">{item.rowKey}</p>
                           <p className="text-[11px] text-rp-text-muted">
-                            #{item.requestId} · {item.authorName} · {item.sourceType || 'Manual'}
+                            #{item.requestId} · {item.authorName} · {formatSourceTypeLabel(item.sourceType, tr)}
                           </p>
                         </div>
                         <Badge tone={badgeMeta.tone} size="sm" icon={false}>{tr(badgeMeta.label)}</Badge>
@@ -451,11 +460,11 @@ export default function AdminModerationV2Panel() {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge tone={APPROVAL_BADGES[summary.status]?.tone || 'neutral'} size="sm" icon={false}>
-                      {tr(APPROVAL_BADGES[summary.status]?.label || summary.status)}
+                      {formatApprovalStatusLabel(summary.status, tr)}
                     </Badge>
                     {detail.currentEntityPublishStatus && (
                       <Badge tone="info" size="sm" icon={false}>
-                        {detail.currentEntityPublishStatus} · v{detail.currentEntityVersion ?? 1}
+                        {formatApprovalStatusLabel(detail.currentEntityPublishStatus, tr)} · v{detail.currentEntityVersion ?? 1}
                       </Badge>
                     )}
                   </div>
@@ -464,9 +473,9 @@ export default function AdminModerationV2Panel() {
                 {/* Source, Rights & AI Provenance */}
                 <Card className="space-y-2 border-rp-line bg-slate-50/70 p-3 text-xs">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span><strong>{tr('Nguồn gốc')}:</strong> {summary.sourceType || 'Manual'}</span>
+                    <span><strong>{tr('Nguồn gốc')}:</strong> {formatSourceTypeLabel(summary.sourceType, tr)}</span>
                     {summary.sourceReference && <span><strong>{tr('Tham chiếu')}:</strong> {summary.sourceReference}</span>}
-                    <span><strong>{tr('Bản quyền khai báo')}:</strong> {summary.rightsStatus || 'Owned'}</span>
+                    <span><strong>{tr('Bản quyền khai báo')}:</strong> {formatRightsStatusLabel(summary.rightsStatus, tr)}</span>
                   </div>
                   {summary.aiProvenance?.aiAssisted && (
                     <div className="flex flex-wrap items-center gap-2 text-amber-900">
@@ -494,7 +503,7 @@ export default function AdminModerationV2Panel() {
                     <ul className="space-y-1">
                       {detail.reviewHistory.map((h, i) => (
                         <li key={i} className="text-rp-text-2">
-                          <strong>{h.action}</strong> ({h.toStatus}) · {h.actorName} · {formatVnDateTime(h.atUtc)}
+                          <strong>{formatAuditActionLabel(h.action, tr)}</strong> ({formatApprovalStatusLabel(h.toStatus, tr)}) · {h.actorName} · {formatVnDateTime(h.atUtc)}
                           {h.note ? ` — "${h.note}"` : ''}
                         </li>
                       ))}

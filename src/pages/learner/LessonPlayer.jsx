@@ -53,6 +53,8 @@ import {
 import LessonKnowledgeSections from '@/features/learning-journey/components/LessonKnowledgeSections.jsx';
 import LessonFlashcards from '@/features/learning-journey/components/LessonFlashcards.jsx';
 import LessonQuickCheck from '@/features/learning-journey/components/LessonQuickCheck.jsx';
+import RoadmapMilestoneDialog from '@/features/learning-journey/components/RoadmapMilestoneDialog.jsx';
+import { learningMomentsKey } from '@/features/learning-moments/learningMomentsApi.js';
 
 const CATALOG_SKILL = { listening: 'Listening', reading: 'Reading' };
 
@@ -148,6 +150,8 @@ export default function LessonPlayer() {
   const [learnIndex, setLearnIndex] = useState(() => (lessonId ? readLearnPosition(userId, lessonId) : 0));
   const [view, setView] = useState('list');
   const [lastResult, setLastResult] = useState(null);
+  // Roadmap milestone reported by the server for the last Quick Check (null = nothing to celebrate / explain).
+  const [milestone, setMilestone] = useState(null);
   const [justCompleted, setJustCompleted] = useState(false);
   const [attemptActive, setAttemptActive] = useState(false);
   const [pendingLeave, setPendingLeave] = useState(null);
@@ -210,6 +214,8 @@ export default function LessonPlayer() {
       client.invalidateQueries({ queryKey: ['learner', 'notifications'] }),
       client.invalidateQueries({ queryKey: ['learner', 'skill-breakdown'] }),
       client.invalidateQueries({ queryKey: ['ai-learning-path'] }),
+      client.invalidateQueries({ queryKey: ['learner'] }),
+      client.invalidateQueries({ queryKey: learningMomentsKey }),
     ]);
     void invalidateSrsAndCalendarCaches(client);
   }, [client]);
@@ -295,6 +301,14 @@ export default function LessonPlayer() {
     setStep('result');
     await syncProgress();
     if (mode === 'roadmap') await journey.roadmapQuery.refetch();
+    // The server compares with earlier attempts, so only a real transition (or a fail) opens a dialog.
+    if (mode === 'roadmap' && result?.progression && result.progression.milestone !== 'NONE') {
+      setMilestone({
+        progression: result.progression,
+        scorePercent: result.scorePercent,
+        passingScorePercent: result.minimumPassingScorePercent,
+      });
+    }
   };
 
   // ── Navigation guards ─────────────────────────────────────────────────────────────────────────────
@@ -542,7 +556,7 @@ export default function LessonPlayer() {
 
         {viewStep === 'result' && (
           <section className="rp-anim-fade space-y-3" aria-label={tr('Kết quả')}>
-            {(lastResult?.passed || justCompleted) && (
+            {((lastResult?.passed && !lastResult?.progression) || justCompleted) && (
               <CelebrationScene
                 variant="inline"
                 tier="lesson"
@@ -697,6 +711,12 @@ export default function LessonPlayer() {
         lessonId={lessonId}
         initialSuggestions={completionPayload?.suggestedSrsCards || detail?.suggestedSrsCards}
         lessonTitle={detail?.title}
+      />
+      <RoadmapMilestoneDialog
+        milestone={milestone}
+        onClose={() => setMilestone(null)}
+        onReview={() => setStep('learn')}
+        onRetry={() => setStep('practice')}
       />
     </LearnerShell>
   );

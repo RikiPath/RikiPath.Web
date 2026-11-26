@@ -1,5 +1,6 @@
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { PublicShell } from '@/layouts';
+import { BackButton } from '@/components/ui';
 import { FEATURES, FEATURE_LIST } from './featureContent.js';
 import Icon from '@/components/ui/Icon.jsx';
 import { useLocale } from '@/locales/locale.js';
@@ -16,11 +17,14 @@ export default function FeatureDetail() {
     <PublicShell pathname={pathname}>
       <div className="min-h-screen bg-rp-bg text-rp-text" data-page="FeatureDetail">
         <div className="mx-auto max-w-[1100px] px-5 py-12 sm:px-8">
-          <nav className="mb-8 flex items-center gap-2 text-xs font-semibold text-rp-text-2">
-            <Link className="hover:text-rp-brand" to="/">{tr('Trang chủ')}</Link>
-            <Icon name="chevron_right" className="text-[16px]" />
-            <span className="text-rp-text">{tr(feature.title)}</span>
-          </nav>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <BackButton fallbackTo="/" label="Quay lại trang chủ" />
+            <nav className="flex items-center gap-2 text-xs font-semibold text-rp-text-2">
+              <Link className="hover:text-rp-brand" to="/">{tr('Trang chủ')}</Link>
+              <Icon name="chevron_right" className="text-[16px]" />
+              <span className="text-rp-text">{tr(feature.title)}</span>
+            </nav>
+          </div>
 
           <section className="rp-catalog-card overflow-hidden rounded-[28px]">
             <div className="grid lg:grid-cols-12">

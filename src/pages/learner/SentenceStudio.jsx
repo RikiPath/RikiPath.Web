@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
-import { History } from 'lucide-react';
+import { History, Ticket } from 'lucide-react';
 import {
   Banner,
   Button,
@@ -114,7 +114,7 @@ export default function SentenceStudio() {
           actions={
             <ControlGroup>
               {writingQuota !== null && (
-                <CounterPill tone={writingQuota > 0 ? 'brand' : 'neutral'}>
+                <CounterPill icon={Ticket} tone={writingQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI viết: {0}', { 0: writingQuota })}
                 </CounterPill>
               )}

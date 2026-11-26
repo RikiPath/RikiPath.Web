@@ -110,7 +110,7 @@ describe('Mentor Calendar & List View Synchronization', () => {
     });
     assert.equal(pendingN4.length, 40);
 
-    // 4 selected weekly patterns WITHOUT expectedStartDate -> exactly 4 pattern rows (NOT 40 fake dated rows)
+    // 4 selected weekly patterns WITHOUT expectedStartDate projected onto a future visible week -> 4 patterns
     const previewWithoutStart = buildProposalPreviewCalendarSlots({
       weeklySessions: [
         { key: '1_480', weekday: 1, startMinute: 480, endMinute: 570 },
@@ -119,10 +119,11 @@ describe('Mentor Calendar & List View Synchronization', () => {
         { key: '6_480', weekday: 6, startMinute: 480, endMinute: 570 },
       ],
       expectedStartDate: null,
+      visibleRange: { startKey: '2026-11-30', endKey: '2026-12-06' },
       policy: DEFAULT_PROPOSAL_POLICY,
       nowMs: NOW_MS,
     });
-    assert.equal(previewWithoutStart.mode, 'reference_week');
+    assert.equal(previewWithoutStart.mode, 'visible_representative');
     assert.equal(previewWithoutStart.slots.length, 4);
 
     const selectedEvents = buildSelectedEvents(previewWithoutStart.slots);
@@ -141,11 +142,11 @@ describe('Mentor Calendar & List View Synchronization', () => {
 
     // Calendar official counts: strictly exclude selected & withdrawn -> ALL = 40
     const calCounts = computeRegistrationStatusCounts(allEvents, { nowMs: NOW_MS });
-    assert.deepEqual(calCounts, { ALL: 40, pending: 40, approved: 0, rejected: 0 });
+    assert.deepEqual(calCounts, { ALL: 40, pending: 40, needsRevision: 0, approved: 0, rejected: 0 });
 
     // List View counts (all time): include 4 selected patterns + 40 pending -> ALL = 44
     const listCounts = computeListRegistrationStatusCounts(allEvents, { nowMs: NOW_MS });
-    assert.deepEqual(listCounts, { ALL: 44, selected: 4, pending: 40, approved: 0, rejected: 0 });
+    assert.deepEqual(listCounts, { ALL: 44, selected: 4, pending: 40, needsRevision: 0, approved: 0, rejected: 0 });
 
     // List View rows default (ALL, keepSelectedVisible=true, no calendar dateRange cap) -> 44 rows
     const listAll = filterRegistrationEvents(allEvents, {
@@ -189,7 +190,7 @@ describe('Mentor Calendar & List View Synchronization', () => {
         { key: '5_540', weekday: 5, startMinute: 540, endMinute: 630 },
         { key: '6_540', weekday: 6, startMinute: 540, endMinute: 630 },
       ],
-      expectedStartDate: '2026-12-07', // Monday (>= 7 days lead from 2026-11-24)
+      expectedStartDate: '2026-12-14', // Monday (>= 14 days lead from 2026-11-24)
       policy: DEFAULT_PROPOSAL_POLICY,
       nowMs: NOW_MS,
     });
@@ -200,7 +201,7 @@ describe('Mentor Calendar & List View Synchronization', () => {
     const combined = [...pendingN4, ...selectedN3, ...pendingN4.slice(0, 3)]; // Inject duplicates to verify dedupe
 
     const listCounts = computeListRegistrationStatusCounts(combined, { nowMs: NOW_MS });
-    assert.deepEqual(listCounts, { ALL: 80, selected: 40, pending: 40, approved: 0, rejected: 0 });
+    assert.deepEqual(listCounts, { ALL: 80, selected: 40, pending: 40, needsRevision: 0, approved: 0, rejected: 0 });
 
     // Filter by JLPT N3 -> strictly 40 selected rows; N4 -> strictly 40 pending rows
     const onlyN3 = filterRegistrationEvents(combined, {
@@ -231,8 +232,8 @@ describe('Mentor Calendar & List View Synchronization', () => {
   });
 
   it('enforces UI & architecture contracts for synchronized Calendar/List workspace', () => {
-    assert.deepEqual(REGISTRATION_STATUS_OPTIONS.map((o) => o.id), ['ALL', 'pending', 'approved', 'rejected']);
-    assert.deepEqual(LIST_REGISTRATION_STATUS_OPTIONS.map((o) => o.id), ['ALL', 'selected', 'pending', 'approved', 'rejected']);
+    assert.deepEqual(REGISTRATION_STATUS_OPTIONS.map((o) => o.id), ['ALL', 'pending', 'needsRevision', 'approved', 'rejected']);
+    assert.deepEqual(LIST_REGISTRATION_STATUS_OPTIONS.map((o) => o.id), ['ALL', 'selected', 'pending', 'needsRevision', 'approved', 'rejected']);
     assert.deepEqual(REGISTRATION_EVENT_TYPE_OPTIONS.map((o) => o.id), ['ALL', 'Draft', 'Proposal']);
 
     const calSrc = fs.readFileSync(
@@ -254,6 +255,7 @@ describe('Mentor Calendar & List View Synchronization', () => {
     assert.ok(pageSrc.includes('handleWithdrawProposalById'), 'MentorShiftSchedule must wire whole-proposal withdraw action');
     assert.ok(pageSrc.includes('handleReregisterProposalById'), 'MentorShiftSchedule must wire validated re-register flow');
     assert.ok(pageSrc.includes('reregisterConfirmTarget'), 'Re-registering while an active selection exists must require confirmation');
-    assert.ok(!pageSrc.includes('listDrawerOpen'), 'Duplicate Registration History drawer must be consolidated into List View');
+    assert.ok(pageSrc.includes('listDrawerOpen'), 'Registration History toolbar button and drawer must remain accessible from MentorShiftSchedule');
+    assert.ok(!pageSrc.includes('lastSubmittedBanner'), 'Green post-submit banner above calendar must be removed in favor of toast notification');
   });
 });

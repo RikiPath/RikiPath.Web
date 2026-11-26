@@ -41,6 +41,10 @@ function LessonRow({ lesson, index, current, stages, requiresPlan, buildLessonHr
   const completed = state.code === 'COMPLETED';
   const lock = lessonLockReason(stages, lesson);
   const cta = lessonCta(lesson, current);
+  // Passing score comes from the Quick Check configuration on the server (never a frontend constant).
+  const passScore = Number.isFinite(Number(lesson.quickCheckPassingScorePercent)) && lesson.quickCheckPassingScorePercent != null
+    ? Number(lesson.quickCheckPassingScorePercent)
+    : null;
   const nodeTone = completed
     ? 'border-rp-success bg-rp-success text-white'
     : locked
@@ -84,9 +88,18 @@ function LessonRow({ lesson, index, current, stages, requiresPlan, buildLessonHr
               </span>
             )}
             {lesson.bestPracticeScore != null && (
-              <span>{trf('Điểm kiểm tra nhanh cao nhất: {0}%', { 0: Math.round(lesson.bestPracticeScore) })}</span>
+              <span>
+                {!completed && passScore != null
+                  ? trf('Điểm cao nhất: {0}% · Cần đạt {1}%', { 0: Math.round(lesson.bestPracticeScore), 1: Math.round(passScore) })
+                  : trf('Điểm kiểm tra nhanh cao nhất: {0}%', { 0: Math.round(lesson.bestPracticeScore) })}
+              </span>
             )}
           </p>
+          {!locked && !completed && state.code === 'NEEDS_REVIEW' && passScore != null && (
+            <p className="mt-1.5 text-[12px] text-rp-text-2">
+              {trf('Đạt từ {0}% ở bài kiểm tra nhanh để hoàn thành bài này và mở bài tiếp theo.', { 0: Math.round(passScore) })}
+            </p>
+          )}
           {locked && lock && (
             <p className="mt-1.5 text-[12px] text-rp-text-2">
               {lock.value ? trf(lock.template, { 0: tr(lock.value) }) : tr(lock.template)}

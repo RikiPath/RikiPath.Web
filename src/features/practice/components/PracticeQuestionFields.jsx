@@ -1,10 +1,10 @@
-import { Radio } from '@/components/ui';
+import { Radio, RichQuestionText } from '@/components/ui';
 
 export default function PracticeQuestionFields({ questions, answers, onAnswer, disabled, name }) {
   return questions.map((question, index) => (
     <fieldset key={question.questionId} className="rounded-xl border border-rp-line bg-rp-surface p-3.5" disabled={disabled}>
       <legend className="max-w-full break-words px-1.5 text-sm font-semibold text-rp-text">
-        {index + 1}. {question.questionText}
+        {index + 1}. <RichQuestionText text={question.questionText} />
       </legend>
       <div className="mt-2 space-y-1.5">
         {question.options.map((option) => (
@@ -13,7 +13,7 @@ export default function PracticeQuestionFields({ questions, answers, onAnswer, d
               name={`${name}-${question.questionId}`}
               checked={answers[question.questionId] === option.optionId}
               onChange={() => onAnswer(question.questionId, option.optionId)}
-              label={option.optionText}
+              label={<RichQuestionText text={option.optionText} />}
             />
           </div>
         ))}

@@ -287,7 +287,7 @@ test('Section 8 & 15.E: Restored draft with expired start date renders 0 past ca
   assert.equal(preview.mode, 'invalid_start_date');
   assert.equal(preview.slots.length, 0);
   assert.ok(preview.startDateWarning);
-  assert.match(preview.startDateWarning.message, /Ngày khai giảng không còn phù hợp/);
+  assert.match(preview.startDateWarning.message, /Ngày bắt đầu không còn phù hợp/);
   // Weekly patterns remain intact in the proposal object
   assert.equal(expiredProposal.weeklySessions.length, 2);
 

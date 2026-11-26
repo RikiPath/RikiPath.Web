@@ -20,6 +20,7 @@ export const ADMIN_KEYS = {
   mentorTemplates: ['admin-mentor-templates'],
   policyCurrent: ['admin-group-policy-current'],
   policyHistory: ['admin-group-policy-history'],
+  policyLevels: ['admin-group-policy-levels'],
   policyForPlans: ['admin-group-policy-current-for-plans'],
   cohorts: ['admin-cohorts'],
   coursePlans: ['admin-course-plans-snapshot'],
@@ -45,7 +46,20 @@ export function invalidateAdminDomains(queryClient, domains = []) {
     add(ADMIN_KEYS.pendingSlots, ADMIN_KEYS.teachingProposals, ADMIN_KEYS.mentorSlots, ADMIN_KEYS.mentorCalendar, ADMIN_KEYS.dashboard);
   }
   if (domains.includes('policy')) {
-    add(ADMIN_KEYS.policyCurrent, ADMIN_KEYS.policyHistory, ADMIN_KEYS.policyForPlans, ADMIN_KEYS.dashboard);
+    add(
+      ADMIN_KEYS.policyCurrent,
+      ADMIN_KEYS.policyHistory,
+      ADMIN_KEYS.policyLevels,
+      ADMIN_KEYS.policyForPlans,
+      ADMIN_KEYS.mentors,
+      ADMIN_KEYS.cohorts,
+      ADMIN_KEYS.coursePlans,
+      ['mentor-teaching-proposals-context'],
+      ['mentor-scheduling-plans'],
+      ['my-mentor-schedule'],
+      ['study-plans'],
+      ADMIN_KEYS.dashboard,
+    );
   }
   if (domains.includes('cohorts')) {
     add(ADMIN_KEYS.cohorts, ADMIN_KEYS.coursePlans, ADMIN_KEYS.dashboard);

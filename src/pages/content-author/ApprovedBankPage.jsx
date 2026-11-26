@@ -300,7 +300,7 @@ export default function ApprovedBankPage({
               description={
                 hasFilters
                   ? tr('Thử thay đổi từ khóa hoặc chọn cấp độ khác.')
-                  : tr('Các mục bạn soạn và được Admin duyệt sẽ xuất hiện tại đây.')
+                  : tr('Các mục bạn soạn và được Quản trị viên duyệt sẽ xuất hiện tại đây.')
               }
               action={
                 hasFilters ? (

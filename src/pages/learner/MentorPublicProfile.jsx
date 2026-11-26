@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Briefcase, Building2, Star } from 'lucide-react';
+import { ArrowRight, Briefcase, Building2, Star } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { getPublicMentorProfile } from '@/features/mentor/api/mentorProfileApi.js';
 import { getCohorts, getMentorCohortReviewSummary } from '@/features/cohorts/api/cohortApi';
 import CohortSummaryCard from '@/features/cohorts/components/CohortSummaryCard';
-import { Avatar, Badge, Card, EmptyState, ErrorState, PageContainer, SakuraLoader } from '@/components/ui';
+import { Avatar, BackButton, Badge, Card, EmptyState, ErrorState, PageContainer, SakuraLoader } from '@/components/ui';
 import '@/pages/shared/studyCourses.css';
 import { useLocale } from '@/locales/locale.js';
 
@@ -39,11 +39,9 @@ export default function MentorPublicProfile() {
   return (
     <LearnerShell breadcrumb={profile?.name || tr('Hồ sơ Giáo viên')}>
       <PageContainer width="default">
-        <Link to="/mentors/" className="rp-focus rp-link mb-4 inline-flex items-center gap-1.5 rounded text-sm font-semibold">
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          {' '}
-          {tr('Tất cả Giáo viên')}
-        </Link>
+        <div className="mb-4">
+          <BackButton fallbackTo="/mentors/" label="Quay lại danh sách giáo viên" restoreListKey="/mentors" />
+        </div>
 
         {!valid ? (
           <Card>
@@ -125,7 +123,7 @@ export default function MentorPublicProfile() {
                 {tr('Lớp nhóm đang mở')}
               </h2>
               <p className="text-sm text-rp-text-muted">
-                {tr('10 tuần · 90 phút/buổi · 1–4 học viên · học phí trọn khóa')}
+                {tr('Lớp học nhóm trực tuyến theo lịch cố định · học phí trọn khóa')}
               </p>
             </div>
             {cohorts.length > 0 && (
@@ -155,7 +153,7 @@ export default function MentorPublicProfile() {
               <div className="course-grid">
                 {cohorts.map((cohort) => (
                   <CohortSummaryCard key={cohort.id} cohort={cohort} showFullSchedule={false}>
-                    <Link className="course-pill-link" to={`/cohorts?mentorId=${id}`} style={{ marginTop: 10 }}>
+                    <Link className="course-pill-link" to={`/cohorts?mentorId=${id}&cohortId=${cohort.id}`} style={{ marginTop: 10 }}>
                       {tr('Xem chi tiết & giữ chỗ')}
                     </Link>
                   </CohortSummaryCard>

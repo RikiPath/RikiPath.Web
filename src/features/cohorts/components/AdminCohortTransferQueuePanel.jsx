@@ -31,6 +31,7 @@ import {
   rejectTransfer,
 } from '@/features/cohorts/api/cohortApi';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { formatAuditActionLabel, formatRoleLabel } from '@/utils/terminology.js';
 import { useLocale } from '@/locales/locale.js';
 
 const STATUS_META = {
@@ -65,7 +66,7 @@ function CohortCard({ cohort, selected, onSelect }) {
       </div>
       <p className="font-semibold text-rp-text">{cohort.name}</p>
       <p className="text-xs text-rp-text-muted">
-        {trf('Giáo viên: {0} · Khai giảng {1}', { 0: cohort.mentorName, 1: date(cohort.startsAt) })}
+        {trf('Giáo viên: {0} · Bắt đầu {1}', { 0: cohort.mentorName, 1: date(cohort.startsAt) })}
       </p>
       {onSelect && (
         <Button size="sm" variant={selected ? 'primary' : 'outline'} onClick={onSelect}>
@@ -134,12 +135,6 @@ export default function AdminCohortTransferQueuePanel({
 
   const columns = [
     {
-      key: 'id',
-      header: '#',
-      compact: true,
-      render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span>,
-    },
-    {
       key: 'learnerName',
       header: tr('Học viên'),
       render: (r) => <span className="font-semibold text-rp-text">{r.learnerName}</span>,
@@ -152,7 +147,7 @@ export default function AdminCohortTransferQueuePanel({
     {
       key: 'requestedTargetCohortName',
       header: tr('Lớp đề xuất'),
-      render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedTargetCohortName || tr('Admin chọn')}</span>,
+      render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedTargetCohortName || tr('Quản trị viên chọn')}</span>,
     },
     {
       key: 'createdAtUtc',
@@ -258,7 +253,7 @@ export default function AdminCohortTransferQueuePanel({
       <Drawer
         open={drawerOpen}
         onClose={() => setSelectedId(null)}
-        title={request ? `${tr('Yêu cầu chuyển lớp')} #${request.id}` : tr('Chi tiết yêu cầu chuyển lớp')}
+        title={request ? `${tr('Yêu cầu chuyển lớp')} · ${request.learnerName}` : tr('Chi tiết yêu cầu chuyển lớp')}
         width="w-[min(560px,100vw)]"
       >
         {request && (
@@ -281,7 +276,7 @@ export default function AdminCohortTransferQueuePanel({
             </div>
 
             <Card className="space-y-2 bg-rp-bg-2/40 p-4 text-sm">
-              <p><strong>{tr('Lý do học viên')}:</strong> {tr(request.reason)}</p>
+              <p><strong>{tr('Lý do học viên')}:</strong> {request.reason}</p>
               {detail.sourceEnrollment && (
                 <p className="text-xs text-rp-text-muted">
                   {trf('Ghi danh ({1}) · Có mặt {2}/{3} · Vắng {4} · Còn {5} buổi · Bài tập {6}/{7}', {
@@ -382,7 +377,7 @@ export default function AdminCohortTransferQueuePanel({
                 <p className="text-xs font-semibold text-rp-text-muted">{tr('Lịch sử xử lý')}</p>
                 <ul className="space-y-1 text-xs text-rp-text-2">
                   {request.history.map((h, i) => (
-                    <li key={i}>{date(h.atUtc)} · {h.actorRole} · {h.action}: {h.detail}</li>
+                    <li key={i}>{date(h.atUtc)} · {formatRoleLabel(h.actorRole, tr)} · {formatAuditActionLabel(h.action, tr)}: {h.detail}</li>
                   ))}
                 </ul>
               </div>

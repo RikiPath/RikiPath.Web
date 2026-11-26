@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CalendarDays, CheckCircle2, ChevronDown, Play, RotateCcw, Sparkles, TrendingUp } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
   proposeLearningPath,
   startLearningPathDay,
 } from '@/features/learning-path/api/learningPathApi.js';
+import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
 import HorizontalAiRoadmapTree from '@/features/learning-path/components/HorizontalAiRoadmapTree.jsx';
 import { getStudyStreak } from '@/features/progress/api/analyticsApi.js';
 import { WebClayIcon } from '@/features/learner-ui';
@@ -23,7 +24,6 @@ import {
   Card,
   CelebrationScene,
   CompletionSummary,
-  HaruMascot,
   SakuraLoader,
   notify,
   resolveLessonCelebrationTier,
@@ -92,7 +92,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
         queryClient.setQueryData(['ai-learning-path', userId], res.active);
         notify.success(tr('Lộ trình cá nhân hóa AI đã sẵn sàng!'), '', { key: 'ai-path-propose' });
       }
-      void queryClient.invalidateQueries({ queryKey: ['study-subscription'] });
+      void invalidateLearnerSetupQueries(queryClient);
     },
     onError: (err) => {
       notify.apiError(err, tr('Chưa tạo được lộ trình học AI'), { key: 'ai-path-propose' });
@@ -104,6 +104,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
     onSuccess: (confirmed) => {
       setPreviewPath(null);
       queryClient.setQueryData(['ai-learning-path', userId], confirmed);
+      void invalidateLearnerSetupQueries(queryClient);
       notify.success(tr('Đã áp dụng lộ trình học mới!'), '', { key: 'ai-path-confirm' });
     },
     onError: (err) => notify.apiError(err, tr('Chưa áp dụng được lộ trình mới'), { key: 'ai-path-confirm' }),
@@ -163,15 +164,10 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
     onError: (err) => notify.apiError(err, tr('Chưa ghi nhận hoàn thành ngày học'), { key: 'ai-day-complete' }),
   });
 
-  const triggerGenerate = searchParams.get('generateAi') === '1';
-  useEffect(() => {
-    if (!enabled || !triggerGenerate || autoTriggeredRef.current || proposeMutation.isPending) return;
-    autoTriggeredRef.current = true;
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('generateAi');
-    setSearchParams(nextParams, { replace: true });
-    proposeMutation.mutate();
-  }, [enabled, triggerGenerate, searchParams, setSearchParams, proposeMutation]);
+  // `?generateAi=1` is orchestrated strictly by `RoadmapJLPT` after prerequisite validation.
+  void autoTriggeredRef;
+  void searchParams;
+  void setSearchParams;
 
   if (!enabled) return null;
 
@@ -192,7 +188,9 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
     return (
       <Card id="ai-roadmap-panel" className="mb-5 border-rp-line bg-white">
         <div className="flex flex-col items-center gap-4 py-4 text-center sm:flex-row sm:text-left">
-          <HaruMascot pose="studying" size={112} className="shrink-0" />
+          <div className="flex shrink-0 items-center justify-center rounded-2xl border border-rp-brand-border/60 bg-rp-brand-tint/40 p-4">
+            <WebClayIcon name="roadmap" size="lg" />
+          </div>
           <div className="min-w-0 flex-1 space-y-2">
             <Badge tone="brand" icon={Sparkles} size="sm">
               {tr('Lộ trình cá nhân hóa AI')}

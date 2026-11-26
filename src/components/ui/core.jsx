@@ -29,8 +29,11 @@ const BUTTON_VARIANTS = {
   soft: 'bg-rp-brand-tint text-rp-brand-strong border border-rp-brand-soft hover:bg-rp-brand-soft disabled:opacity-60 disabled:hover:bg-rp-brand-tint',
   ghost: 'bg-transparent text-rp-text-2 hover:bg-rp-muted hover:text-rp-text disabled:text-rp-text-disabled disabled:hover:bg-transparent disabled:hover:text-rp-text-disabled',
   link: 'rp-underline bg-transparent text-rp-brand-strong hover:text-rp-brand-deep px-1 shadow-none disabled:text-rp-text-disabled',
+  success:
+    'rp-btn-primary bg-rp-brand-pressed text-white shadow-rp-brand hover:bg-rp-brand-strong enabled:hover:scale-[1.02] enabled:hover:shadow-[0_10px_24px_-8px_rgba(194,67,98,0.45)] enabled:active:scale-[0.985] enabled:active:duration-100 motion-reduce:transform-none disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:shadow-none',
   danger: 'bg-rp-danger text-white hover:bg-[#A61F1F] disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:hover:bg-rp-muted-strong',
-  'danger-soft': 'bg-rp-danger-bg text-rp-danger border border-rp-danger-line hover:bg-[#FADCDC] disabled:opacity-60 disabled:hover:bg-rp-danger-bg',
+  'danger-soft':
+    'bg-rp-muted/70 text-rp-text-2 border border-rp-line hover:border-rp-danger-line hover:bg-rp-danger-bg/60 hover:text-rp-danger disabled:opacity-60 disabled:hover:border-rp-line disabled:hover:bg-rp-muted/70 disabled:hover:text-rp-text-2',
 };
 
 const BUTTON_SIZES = {
@@ -70,7 +73,7 @@ export const Button = forwardRef(function Button(
   const isDisabled = disabled || loading;
   const isNativeButton = Tag === 'button';
   const compactIcon = size === 'sm' || size === 'xs';
-  const spinnerTone = variant === 'primary' || variant === 'danger' ? 'light' : 'brand';
+  const spinnerTone = variant === 'primary' || variant === 'danger' || variant === 'success' ? 'light' : 'brand';
   // Without a leading icon the spinner sits over the (transparent, still announced) label, so the width never changes.
   const overlaySpinner = loading && !Icon && children != null;
   return (
@@ -205,7 +208,7 @@ export function PageHeader({ title, description, subtitle, actions, eyebrow, cla
   const { tr } = useLocale();
   const resolvedDescription = description ?? subtitle;
   return (
-    <header className={cx('mb-[var(--rp-space-section)] flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}>
+    <header data-page-header="true" data-translate-scope="deny" className={cx('mb-[var(--rp-space-section)] flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}>
       <div className="min-w-0 flex-1">
         {eyebrow && <p className="rp-type-caption mb-1 font-semibold uppercase tracking-[0.12em] text-rp-brand">{tr(eyebrow)}</p>}
         <h1 className="rp-type-page-title text-rp-text">{tr(title)}</h1>
@@ -353,6 +356,129 @@ export const Input = forwardRef(function Input({ invalid, className, icon: LeadI
         )}
       />
       {input}
+    </div>
+  );
+});
+
+export const NumberInput = forwardRef(function NumberInput(
+  {
+    value,
+    onChange,
+    min = 0,
+    max = Number.MAX_SAFE_INTEGER,
+    step = 1,
+    disabled = false,
+    invalid = false,
+    size = 'md',
+    fullWidth = false,
+    integerOnly = true,
+    unit,
+    className = '',
+    decrementLabel = 'Giảm',
+    incrementLabel = 'Tăng',
+    onKeyDown,
+    ...rest
+  },
+  ref,
+) {
+  const { tr } = useLocale();
+  const heightCls = size === 'sm'
+    ? 'h-8 text-xs rounded-[10px]'
+    : size === 'lg'
+      ? 'h-12 text-[15px] rounded-xl'
+      : 'h-10 text-sm rounded-rp-input';
+  const btnWidth = size === 'sm' ? 'w-8' : size === 'lg' ? 'w-11' : 'w-9';
+  const parsed = Number(value);
+  const hasNumeric = value !== '' && value !== null && value !== undefined && Number.isFinite(parsed);
+  const clamp = (n) => Math.min(max, Math.max(min, n));
+  const hasExplicitWidth = /(?:^|\s)(?:w-|min-w-|max-w-)/.test(className);
+
+  const handleStep = (delta) => {
+    if (disabled) return;
+    const base = hasNumeric ? (integerOnly ? Math.trunc(parsed) : parsed) : clamp(0);
+    onChange?.(clamp(base + delta * step));
+  };
+
+  const control = (
+    <div
+      className={cx(
+        'inline-flex items-stretch overflow-hidden border bg-rp-surface transition-colors focus-within:border-rp-brand focus-within:ring-2 focus-within:ring-rp-brand/15',
+        fullWidth ? 'w-full' : (!hasExplicitWidth && 'w-[132px]'),
+        heightCls,
+        invalid ? 'border-rp-danger' : 'border-rp-line',
+        disabled && 'cursor-not-allowed bg-rp-bg-2 opacity-60',
+        className,
+      )}
+    >
+      <button
+        type="button"
+        disabled={disabled || (hasNumeric && parsed <= min)}
+        aria-label={tr(decrementLabel)}
+        onClick={() => handleStep(-1)}
+        className={cx(
+          'flex shrink-0 items-center justify-center border-r border-rp-line font-semibold text-rp-text-2 transition-colors hover:bg-rp-bg-2 disabled:pointer-events-none disabled:opacity-40',
+          btnWidth,
+        )}
+      >
+        −
+      </button>
+      <input
+        ref={ref}
+        type="number"
+        inputMode={integerOnly ? 'numeric' : 'decimal'}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        aria-invalid={invalid || undefined}
+        value={value ?? ''}
+        onKeyDown={(e) => {
+          onKeyDown?.(e);
+          if (e.defaultPrevented) return;
+          if (integerOnly && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const blocked = min >= 0 ? ['-', '+', 'e', 'E', '.', ','] : ['+', 'e', 'E', '.', ','];
+            if (blocked.includes(e.key)) e.preventDefault();
+          }
+        }}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === '') {
+            onChange?.('');
+            return;
+          }
+          if (integerOnly) {
+            const pattern = min >= 0 ? /^\d+$/ : /^-?\d+$/;
+            if (!pattern.test(raw)) return;
+            const intVal = Number.parseInt(raw, 10);
+            if (Number.isFinite(intVal)) onChange?.(intVal);
+            return;
+          }
+          const num = Number(raw);
+          if (Number.isFinite(num)) onChange?.(num);
+        }}
+        className="w-full min-w-0 bg-transparent px-2 text-center font-semibold tabular-nums text-rp-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        {...rest}
+      />
+      <button
+        type="button"
+        disabled={disabled || (hasNumeric && parsed >= max)}
+        aria-label={tr(incrementLabel)}
+        onClick={() => handleStep(1)}
+        className={cx(
+          'flex shrink-0 items-center justify-center border-l border-rp-line font-semibold text-rp-text-2 transition-colors hover:bg-rp-bg-2 disabled:pointer-events-none disabled:opacity-40',
+          btnWidth,
+        )}
+      >
+        +
+      </button>
+    </div>
+  );
+
+  if (!unit) return control;
+  return (
+    <div className="inline-flex max-w-full items-center gap-2">
+      {control}
+      <span className="whitespace-nowrap text-[13px] font-medium text-rp-text-muted">{tr(unit)}</span>
     </div>
   );
 });
@@ -1040,22 +1166,48 @@ export function Radio({ label, description, className, ...rest }) {
   );
 }
 
-export function Checkbox({ label, description, className, ...rest }) {
+export function Checkbox({ label, description, indeterminate = false, className, ...rest }) {
   const { tr } = useLocale();
   const id = useId();
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = Boolean(indeterminate);
+    }
+  }, [indeterminate]);
+
+  const hasText = Boolean(label || description);
+
   return (
-    <label htmlFor={id} className={cx('flex cursor-pointer items-start gap-2.5 text-sm text-rp-text', className)}>
-      {/* Native input stays focusable/accessible; the visible box draws its tick (stroke) when checked. */}
-      <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0">
-        <input id={id} type="checkbox" className="rp-check peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
+    <label
+      htmlFor={id}
+      className={cx(
+        'inline-flex items-start text-sm text-rp-text',
+        rest.disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+        hasText && 'flex gap-2.5',
+        className,
+      )}
+    >
+      {/* Native input stays focusable/accessible; the visible box draws its tick or dash when checked/indeterminate. */}
+      <span className={cx('relative inline-flex h-[18px] w-[18px] shrink-0', hasText && 'mt-0.5')}>
+        <input id={id} type="checkbox" className="rp-check peer absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed" ref={inputRef} aria-checked={indeterminate ? 'mixed' : rest.checked} {...rest} />
         <span aria-hidden="true" className="rp-check-box pointer-events-none flex h-full w-full items-center justify-center rounded-[5px] border-[1.5px] border-rp-line-strong bg-rp-surface">
-          <AnimatedTick sizeClass="h-[15px] w-[15px]" className="rp-check-tick" />
+          {indeterminate ? (
+            <svg viewBox="0 0 16 16" fill="none" className="h-[14px] w-[14px] text-white" aria-hidden="true">
+              <path d="M3.5 8h9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <AnimatedTick sizeClass="h-[15px] w-[15px]" className="rp-check-tick" />
+          )}
         </span>
       </span>
-      <span>
-        <span className="font-medium">{tr(label)}</span>
-        {description && <span className="block text-xs text-rp-text-muted">{tr(description)}</span>}
-      </span>
+      {hasText && (
+        <span>
+          {label && <span className="font-medium">{tr(label)}</span>}
+          {description && <span className="block text-xs text-rp-text-muted">{tr(description)}</span>}
+        </span>
+      )}
     </label>
   );
 }
@@ -1681,6 +1833,17 @@ export function SkeletonLoader({ variant = 'cards', count = 3, lines = 3, classN
 export function ProgressBar({ value = 0, max = 100, label, tone = 'brand', size = 'md', className }) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   const heightCls = size === 'sm' ? 'h-1.5' : size === 'lg' ? 'h-3' : 'h-2';
+  const fillCls =
+    tone === 'success'
+      ? 'bg-emerald-500'
+      : tone === 'danger'
+        ? 'bg-rose-500'
+        : tone === 'warning'
+          ? 'bg-amber-500'
+          : tone === 'info'
+            ? 'bg-sky-500'
+            : 'bg-rp-brand';
+  const trackCls = 'bg-[#E5E7EB]';
   return (
     <div className={className}>
       <div
@@ -1689,10 +1852,10 @@ export function ProgressBar({ value = 0, max = 100, label, tone = 'brand', size 
         aria-valuemin={0}
         aria-valuemax={max}
         aria-valuenow={Math.round(value)}
-        className={cx('overflow-hidden rounded-full bg-rp-brand-soft', heightCls)}
+        className={cx('overflow-hidden rounded-full', trackCls, heightCls)}
       >
         <div
-          className={cx('h-full rounded-full transition-[width] duration-500', tone === 'success' ? 'bg-rp-success' : 'bg-rp-brand')}
+          className={cx('h-full rounded-full transition-[width] duration-500', fillCls)}
           style={{ width: `${pct}%` }}
         />
       </div>

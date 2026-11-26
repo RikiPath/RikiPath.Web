@@ -97,8 +97,8 @@ export default function SrsCardLibraryTab({
       if (items.length <= 1 && page > 1) {
         setPage((p) => Math.max(1, p - 1));
       }
-      await refreshAll();
-      notify.success(tr('Đã xóa thẻ khỏi bộ thẻ của bạn'));
+      notify.success(tr('Đã xóa thẻ khỏi bộ thẻ của bạn'), '', { key: 'srs-card-remove', replace: true });
+      await Promise.allSettled([refreshAll()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa xóa được thẻ')),
   });
@@ -469,13 +469,13 @@ function CreateSrsCardModal({ card, onClose, onSaved }) {
       });
     },
     onSuccess: async (outcome) => {
-      await onSaved?.();
       if (outcome?.action === 'AlreadyExists' || outcome?.action === 'LinkedSource') {
-        notify.info(tr('Thẻ này đã có trong Thẻ của tôi'));
+        notify.info(tr('Thẻ này đã có trong Thẻ của tôi'), '', { key: 'srs-card-save', replace: true });
       } else {
-        notify.success(tr(card ? 'Đã cập nhật thẻ' : 'Đã tạo thẻ mới'));
+        notify.success(tr(card ? 'Đã cập nhật thẻ' : 'Đã tạo thẻ mới'), '', { key: 'srs-card-save', replace: true });
       }
       onClose?.();
+      await Promise.allSettled([onSaved?.()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa lưu được thẻ')),
   });

@@ -5,11 +5,10 @@ import { SmartNotebookProvider } from '@/features/notebook/context/SmartNotebook
 import FloatingNotebookWidget from '@/features/notebook/components/FloatingNotebookWidget.jsx';
 import LearnerSelectionCaptureLayer from '@/features/notebook/components/LearnerSelectionCaptureLayer.jsx';
 
-const FloatingSakuraCompanion = lazy(() => import('@/features/companion/FloatingSakuraCompanion.jsx'));
 // Learning Moments: one app-level celebration coordinator (lazy: loads only for learner pages).
 const LearningMomentsManager = lazy(() => import('@/features/learning-moments/LearningMomentsManager.jsx'));
 
-/** Learner area — mounts Smart Notebook dock & Interactive 3D Sakura Fox Companion on a shared draggable collision-aware dock layer. */
+/** Learner area — mounts Smart Notebook dock on a shared draggable collision-aware dock layer. */
 export default function LearnerShell({ children, breadcrumb, searchValue, onSearchChange, searchPlaceholder }) {
   return (
     <SmartNotebookProvider roleKey="Learner">
@@ -25,9 +24,6 @@ export default function LearnerShell({ children, breadcrumb, searchValue, onSear
         </AppShell>
         <LearnerSelectionCaptureLayer />
         <FloatingNotebookWidget />
-        <Suspense fallback={null}>
-          <FloatingSakuraCompanion />
-        </Suspense>
         <Suspense fallback={null}>
           <LearningMomentsManager />
         </Suspense>

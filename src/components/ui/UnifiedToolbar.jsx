@@ -77,6 +77,7 @@ export function UnifiedToolbar({
     <div
       role={ariaLabel ? 'region' : undefined}
       aria-label={ariaLabel ? tr(ariaLabel) : undefined}
+      data-translate-scope="deny"
       className={cx(
         'rp-unified-toolbar rp-admin-filterbar flex min-w-0 shrink-0 flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3',
         surfaceClass,
@@ -121,6 +122,7 @@ export function UnifiedToolbar({
         >
           {hasSearch && (
             <SearchInput
+              size={search.size || 'md'}
               fitContent={search.fitContent ?? true}
               value={search.value ?? ''}
               onChange={search.onChange}

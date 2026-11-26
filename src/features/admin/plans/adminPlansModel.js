@@ -16,6 +16,7 @@ export const PLAN_CATEGORY_OPTIONS = [
   { value: 'writing', label: 'Luyện viết AI', creditOnly: false },
   { value: 'ai_grading', label: 'Lượt chấm AI', creditOnly: true },
   { value: 'learning_path', label: 'Lượt lộ trình AI', creditOnly: true },
+  { value: 'combo', label: 'Gói kết hợp', creditOnly: false },
 ];
 
 /** Admin DTO → the plan shape the Learner catalog helpers/cards use. */
@@ -232,6 +233,7 @@ const PLAN_CATEGORY_LABELS = {
   writing: 'Luyện viết AI',
   ai_grading: 'Lượt chấm AI',
   learning_path: 'Lượt lộ trình AI',
+  combo: 'Gói kết hợp',
 };
 
 /**

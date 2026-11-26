@@ -1,18 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
-import { ExternalLink, FileText, ShieldCheck } from 'lucide-react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
+import { FileText, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
 import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
-import { AdminShell, MentorShell } from '@/layouts';
+import { AdminShell } from '@/layouts';
 import {
-  Avatar,
   Badge,
   Banner,
   Button,
-  Card,
-  CardHeader,
   ContextualErrorState,
   CustomSelect,
   Field,
@@ -62,9 +59,9 @@ const STATUS_BADGE_TONE = {
 const STATUS_LABELS = {
   Approved: 'Đã phê duyệt',
   Pending: 'Chờ xét duyệt',
-  Rejected: 'Chưa đạt yêu cầu',
+  Rejected: 'Không được phê duyệt',
   ChangesRequested: 'Cần bổ sung hồ sơ',
-  Unverified: 'Chưa gửi xét duyệt',
+  Unverified: 'Chưa gửi hồ sơ',
 };
 
 function toForm(profile) {
@@ -101,12 +98,7 @@ function isValidHttpUrl(raw) {
   }
 }
 
-function displayName(profile) {
-  const name = (profile?.fullName || `${profile?.firstName || ''} ${profile?.lastName || ''}`).trim();
-  return name || profile?.email || 'Giáo viên';
-}
-
-export default function MentorProfile() {
+export default function MentorProfile({ embedded = false } = {}) {
   const { tr } = useLocale();
   const { pathname } = useLocation();
   const { primaryRole } = useAuth();
@@ -122,10 +114,12 @@ export default function MentorProfile() {
   const [openingDoc, setOpeningDoc] = useState(false);
   const [validationError, setValidationError] = useState('');
 
+  const shouldRedirectEmbedded = !embedded && !isAdminViewer;
+
   const query = useQuery({
     queryKey: profileKey,
     queryFn: getMyMentorProfile,
-    enabled: !isAdminViewer,
+    enabled: !isAdminViewer && !shouldRedirectEmbedded,
   });
 
   const [syncedProfile, setSyncedProfile] = useState(null);
@@ -220,6 +214,10 @@ export default function MentorProfile() {
     },
   });
 
+  if (shouldRedirectEmbedded) {
+    return <Navigate to="/profile/?tab=professional" replace />;
+  }
+
   if (isAdminViewer) {
     return (
       <AdminShell pathname={pathname} breadcrumb={tr('Hồ sơ chuyên môn')}>
@@ -250,7 +248,6 @@ export default function MentorProfile() {
   const lockedVerified = isApproved || isPendingReview;
   const missingProfile = query.error?.status === 404;
   const loadBlocked = query.isError && !missingProfile;
-  const name = displayName(profile);
   const statusTone = STATUS_BADGE_TONE[profile?.verificationStatus] || 'neutral';
   const statusLabel = profile?.verificationStatusDescription || STATUS_LABELS[profile?.verificationStatus] || 'Chưa có hồ sơ';
   const teachingLevels = Array.isArray(profile?.teachingJlptLevels) ? profile.teachingJlptLevels : [];
@@ -286,314 +283,247 @@ export default function MentorProfile() {
   };
 
   return (
-    <MentorShell pathname={pathname} breadcrumb={tr('Hồ sơ chuyên môn')}>
-      <PageContainer width="default" density="comfortable" className="text-rp-text">
-        <h1 className="sr-only">{tr('Hồ sơ chuyên môn')}</h1>
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-          <RefreshingIndicator active={query.isFetching && !query.isPending} />
+    <div className="space-y-5 text-rp-text">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-rp-line pb-4">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold text-rp-text">{tr('Hồ sơ chuyên môn')}</h2>
+            <Badge tone={statusTone} size="sm">{tr(statusLabel)}</Badge>
+            <RefreshingIndicator active={query.isFetching && !query.isPending} />
+          </div>
+          <p className="text-xs text-rp-text-muted">
+            {tr('Quản lý trình độ JLPT, kinh nghiệm, giới thiệu giảng dạy và chứng chỉ xác minh.')}
+          </p>
+          {teachingLevels.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-xs text-rp-text-muted">{tr('Cấp độ được phép giảng dạy')}:</span>
+              {teachingLevels.map((lv) => (
+                <Badge key={lv} tone="brand" icon={false} size="sm">{lv}</Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {profile?.hasVerificationDocument && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={FileText}
+              loading={openingDoc}
+              onClick={handleViewDoc}
+            >
+              {tr('Xem chứng chỉ')}
+            </Button>
+          )}
           <Button
             type="submit"
             form="mentor-profile-form"
             variant="primary"
+            size="sm"
             loading={save.isPending}
             disabled={query.isPending || loadBlocked || isPendingReview || !isDirty || Boolean(videoUrlError)}
           >
             {tr('Lưu hồ sơ')}
           </Button>
         </div>
+      </div>
 
-        {query.isPending && <SakuraLoader variant="section" context="profile" delay={160} className="mb-4" />}
+      {query.isPending && <SakuraLoader variant="section" context="profile" delay={160} />}
 
-        {loadBlocked && (
-          <Card className="mb-4">
-            <ContextualErrorState
-              error={query.error}
-              title={tr('Chưa tải được hồ sơ chuyên môn')}
-              onRetry={() => query.refetch()}
-              retrying={query.isFetching}
-            />
-          </Card>
-        )}
+      {loadBlocked && (
+        <ContextualErrorState
+          error={query.error}
+          title={tr('Chưa tải được hồ sơ chuyên môn')}
+          onRetry={() => query.refetch()}
+          retrying={query.isFetching}
+        />
+      )}
 
-        {!query.isPending && !loadBlocked && (
-          <div className="grid items-start gap-4 lg:grid-cols-[312px_minmax(0,1fr)]">
-            {/* Sidebar tóm tắt trạng thái */}
-            <aside>
-              <Card className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Avatar src={profile?.avatarUrl} name={name} size={56} className="rounded-2xl" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-base font-semibold text-rp-text">{name}</p>
-                    <p className="truncate text-xs text-rp-text-muted">{profile?.email || tr('Chưa có email')}</p>
-                  </div>
-                </div>
+      {!query.isPending && !loadBlocked && (
+        <div className="space-y-4">
+          {profile?.rejectionReason && (
+            <Banner tone="danger" title="Lý do cần chỉnh sửa">
+              {profile.rejectionReason}
+            </Banner>
+          )}
+          {profile?.reviewNotes && (
+            <p className="rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2 text-xs leading-relaxed text-rp-text-2">
+              {profile.reviewNotes}
+            </p>
+          )}
 
-                <div>
-                  <Badge tone={statusTone} size="md">
-                    {tr(statusLabel)}
-                  </Badge>
-                </div>
+          <Tabs
+            variant="pill"
+            label={tr('Mục hồ sơ chuyên môn')}
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: 'info', label: 'Thông tin chuyên môn' },
+              { value: 'verification', label: 'Chứng chỉ & xét duyệt' },
+            ]}
+          />
 
-                <Button
-                  as={Link}
-                  to="/profile"
-                  variant="secondary"
-                  size="sm"
-                  wrap
-                  className="h-auto min-h-8 w-full justify-start py-1.5"
-                  icon={ExternalLink}
-                >
-                  {tr('Cập nhật họ tên, ảnh & bảo mật')}
-                </Button>
+          {validationError && (
+            <Banner tone="danger" onDismiss={() => setValidationError('')}>
+              {tr(validationError)}
+            </Banner>
+          )}
 
-                <dl className="space-y-3 border-t border-rp-line pt-3 text-[13px]">
-                  <div>
-                    <dt className="text-xs text-rp-text-muted">{tr('Trạng thái nhận lịch')}</dt>
-                    <dd className="mt-0.5 font-medium text-rp-text">
-                      {profile?.isBookable ? tr('Đang mở') : tr('Chưa mở')}
-                    </dd>
-                  </div>
-
-                  {teachingLevels.length > 0 && (
-                    <div>
-                      <dt className="text-xs text-rp-text-muted">{tr('Trình độ được cấp phép dạy')}</dt>
-                      <dd className="mt-1 flex flex-wrap gap-1.5">
-                        {teachingLevels.map((lv) => (
-                          <Badge key={lv} tone="brand" icon={false} size="sm">{lv}</Badge>
-                        ))}
-                      </dd>
-                    </div>
-                  )}
-
-                  <div>
-                    <dt className="text-xs text-rp-text-muted">{tr('Chứng chỉ xác minh')}</dt>
-                    <dd className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-rp-text">
-                        {profile?.hasVerificationDocument ? tr('Đã tải lên') : tr('Chưa có')}
-                      </span>
-                      {profile?.hasVerificationDocument && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={FileText}
-                          className="rp-link"
-                          loading={openingDoc}
-                          onClick={handleViewDoc}
-                        >
-                          {tr('Xem chứng chỉ')}
-                        </Button>
-                      )}
-                    </dd>
-                  </div>
-
-                  {profile?.phoneNumber && (
-                    <div>
-                      <dt className="text-xs text-rp-text-muted">{tr('Điện thoại')}</dt>
-                      <dd className="mt-0.5 font-medium text-rp-text">{profile.phoneNumber}</dd>
-                    </div>
-                  )}
-                </dl>
-
-                {profile?.rejectionReason && (
-                  <Banner tone="danger" title="Lý do cần chỉnh sửa">
-                    {profile.rejectionReason}
-                  </Banner>
-                )}
-                {profile?.reviewNotes && (
-                  <p className="rounded-xl border border-rp-line bg-rp-bg-2 px-3 py-2 text-xs leading-relaxed text-rp-text-2">
-                    {profile.reviewNotes}
-                  </p>
-                )}
-              </Card>
-            </aside>
-
-            {/* Nội dung chính */}
-            <div className="min-w-0 space-y-4">
-              <Tabs
-                variant="pill"
-                label={tr('Mục hồ sơ chuyên môn')}
-                value={tab}
-                onChange={setTab}
-                tabs={[
-                  { value: 'info', label: 'Thông tin chuyên môn' },
-                  { value: 'verification', label: 'Chứng chỉ & xét duyệt' },
-                ]}
-              />
-
-              {validationError && (
-                <Banner tone="danger" onDismiss={() => setValidationError('')}>
-                  {tr(validationError)}
+          {tab === 'info' && (
+            <div className="space-y-4">
+              {isApproved && (
+                <Banner tone="success">
+                  {tr('Hồ sơ đã được phê duyệt: Chuyên môn, JLPT, Kinh nghiệm và Nơi công tác được cố định theo chứng chỉ đã duyệt. Bạn vẫn có thể cập nhật Giới thiệu và Video.')}
+                </Banner>
+              )}
+              {isPendingReview && (
+                <Banner tone="warning">
+                  {tr('Hồ sơ đang chờ Quản trị viên xét duyệt nên tạm khóa chỉnh sửa cho tới khi có kết quả.')}
                 </Banner>
               )}
 
-              {tab === 'info' && (
-                <Card>
-                  <CardHeader
-                    title="Thông tin chuyên môn"
-                    description="Thông tin này hiển thị trên trang giới thiệu Giáo viên với học viên sau khi hồ sơ được duyệt."
+              <form id="mentor-profile-form" onSubmit={handleSave} className="space-y-4">
+                <Field label="Giới thiệu bản thân" counter={`${form.bio.length} / 2000`}>
+                  <Textarea
+                    disabled={isPendingReview || save.isPending}
+                    value={form.bio}
+                    onChange={setField('bio')}
+                    maxLength={2000}
+                    rows={4}
+                    placeholder={tr('Kinh nghiệm giảng dạy, phong cách hướng dẫn và thế mạnh của bạn…')}
                   />
+                </Field>
 
-                  <div className="mt-3 space-y-3">
-                    {isApproved && (
-                      <Banner tone="success">
-                        {tr('Hồ sơ đã được phê duyệt: Chuyên môn, JLPT, Kinh nghiệm và Nơi công tác được cố định theo chứng chỉ đã duyệt. Bạn vẫn có thể cập nhật Giới thiệu và Video.')}
-                      </Banner>
-                    )}
-                    {isPendingReview && (
-                      <Banner tone="warning">
-                        {tr('Hồ sơ đang chờ Quản trị viên xét duyệt nên tạm khóa chỉnh sửa cho tới khi có kết quả.')}
-                      </Banner>
-                    )}
-                  </div>
-
-                  <form id="mentor-profile-form" onSubmit={handleSave} className="mt-4 space-y-4">
-                    <Field label="Giới thiệu bản thân" counter={`${form.bio.length} / 2000`}>
-                      <Textarea
-                        disabled={isPendingReview || save.isPending}
-                        value={form.bio}
-                        onChange={setField('bio')}
-                        maxLength={2000}
-                        rows={4}
-                        placeholder={tr('Kinh nghiệm giảng dạy, phong cách hướng dẫn và thế mạnh của bạn…')}
-                      />
-                    </Field>
-
-                    <Field
-                      label={lockedVerified ? 'Chuyên môn (đã xác minh)' : 'Chuyên môn'}
-                      hint="Ví dụ: Giao tiếp N3–N2, Luyện đề JLPT, Kaiwa doanh nghiệp."
-                    >
-                      <Input
-                        disabled={lockedVerified || save.isPending}
-                        value={form.expertise}
-                        onChange={setField('expertise')}
-                        maxLength={500}
-                      />
-                    </Field>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={lockedVerified ? 'Trình độ JLPT (đã xác minh)' : 'Trình độ JLPT'}>
-                        <CustomSelect
-                          disabled={lockedVerified || save.isPending}
-                          value={form.jlptLevel}
-                          onChange={setField('jlptLevel')}
-                          options={JLPT.map((level) => ({ value: level, label: `JLPT ${level}` }))}
-                        />
-                      </Field>
-
-                      <Field label={lockedVerified ? 'Số năm kinh nghiệm (đã xác minh)' : 'Số năm kinh nghiệm'}>
-                        <Input
-                          disabled={lockedVerified || save.isPending}
-                          type="number"
-                          min={0}
-                          max={50}
-                          value={form.yearsOfExperience}
-                          onChange={setField('yearsOfExperience')}
-                        />
-                      </Field>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label={lockedVerified ? 'Nơi công tác (đã xác minh)' : 'Nơi công tác'}>
-                        <Input
-                          disabled={lockedVerified || save.isPending}
-                          value={form.workplace}
-                          onChange={setField('workplace')}
-                          maxLength={200}
-                        />
-                      </Field>
-
-                      <Field label="Link video giới thiệu" error={videoUrlError}>
-                        <Input
-                          disabled={isPendingReview || save.isPending}
-                          type="url"
-                          value={form.introductionVideoUrl}
-                          onChange={setField('introductionVideoUrl')}
-                          maxLength={MAX_VIDEO_URL_LEN}
-                          placeholder="https://..."
-                          invalid={Boolean(videoUrlError)}
-                        />
-                      </Field>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
-                      <span className="text-xs text-rp-text-muted">
-                        {isDirty ? tr('Bạn có thay đổi chưa lưu.') : tr('Hồ sơ đang ở phiên bản mới nhất.')}
-                      </span>
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        loading={save.isPending}
-                        disabled={isPendingReview || !isDirty || Boolean(videoUrlError)}
-                      >
-                        {tr('Lưu hồ sơ')}
-                      </Button>
-                    </div>
-                  </form>
-                </Card>
-              )}
-
-              {tab === 'verification' && (
-                <Card className="space-y-4">
-                  <CardHeader
-                    title="Chứng chỉ & xét duyệt"
-                    description="Tải lên bằng cấp hoặc chứng chỉ JLPT định dạng PDF, JPEG hoặc PNG (tối đa 5 MB)."
+                <Field
+                  label={lockedVerified ? 'Chuyên môn (đã xác minh)' : 'Chuyên môn'}
+                  hint="Ví dụ: Giao tiếp N3–N2, Luyện đề JLPT, Kaiwa doanh nghiệp."
+                >
+                  <Input
+                    disabled={lockedVerified || save.isPending}
+                    value={form.expertise}
+                    onChange={setField('expertise')}
+                    maxLength={500}
                   />
+                </Field>
 
-                  {lockedVerified && (
-                    <Banner tone={isApproved ? 'success' : 'warning'}>
-                      {isApproved
-                        ? tr('Chứng chỉ của bạn đã được xác minh và phê duyệt.')
-                        : tr('Hồ sơ đang trong hàng đợi xét duyệt; không thể thay đổi chứng chỉ trong lúc chờ.')}
-                    </Banner>
-                  )}
-
-                  {isDirty && !lockedVerified && (
-                    <Banner tone="warning">
-                      {tr('Bạn có thay đổi chưa lưu ở mục Thông tin chuyên môn. Hãy lưu hồ sơ trước khi gửi xét duyệt.')}
-                    </Banner>
-                  )}
-
-                  <FileUpload
-                    label={upload.isPending ? 'Đang tải chứng chỉ…' : 'Chọn tệp chứng chỉ xác minh'}
-                    hint={tr('Chấp nhận PDF, JPG, PNG · tối đa 5 MB.')}
-                    accept={CERT_TYPES}
-                    maxBytes={MAX_CERT_BYTES}
-                    files={certFiles}
-                    disabled={lockedVerified || upload.isPending}
-                    onChange={(files) => {
-                      setCertFiles(files);
-                      if (files[0]) upload.mutate(files[0]);
-                    }}
-                  />
-
-                  <Field label="Ghi chú gửi Quản trị viên" counter={`${notes.length} / 1000`}>
-                    <Textarea
-                      disabled={lockedVerified || submit.isPending}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      maxLength={1000}
-                      rows={3}
-                      placeholder={tr('Ghi chú thêm về bằng cấp hoặc lịch sử giảng dạy nếu cần…')}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label={lockedVerified ? 'Trình độ JLPT (đã xác minh)' : 'Trình độ JLPT'}>
+                    <CustomSelect
+                      disabled={lockedVerified || save.isPending}
+                      value={form.jlptLevel}
+                      onChange={setField('jlptLevel')}
+                      options={JLPT.map((level) => ({ value: level, label: `JLPT ${level}` }))}
                     />
                   </Field>
 
-                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rp-line pt-4">
-                    <Button
-                      variant="primary"
-                      icon={ShieldCheck}
-                      loading={submit.isPending}
-                      disabled={lockedVerified || isDirty || !profile?.hasVerificationDocument}
-                      onClick={() => submit.mutate()}
-                    >
-                      {tr('Gửi hồ sơ xét duyệt')}
-                    </Button>
-                  </div>
-                </Card>
-              )}
+                  <Field label={lockedVerified ? 'Số năm kinh nghiệm (đã xác minh)' : 'Số năm kinh nghiệm'}>
+                    <Input
+                      disabled={lockedVerified || save.isPending}
+                      type="number"
+                      min={0}
+                      max={50}
+                      value={form.yearsOfExperience}
+                      onChange={setField('yearsOfExperience')}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label={lockedVerified ? 'Nơi công tác (đã xác minh)' : 'Nơi công tác'}>
+                    <Input
+                      disabled={lockedVerified || save.isPending}
+                      value={form.workplace}
+                      onChange={setField('workplace')}
+                      maxLength={200}
+                    />
+                  </Field>
+
+                  <Field label="Link video giới thiệu" error={videoUrlError}>
+                    <Input
+                      disabled={isPendingReview || save.isPending}
+                      type="url"
+                      value={form.introductionVideoUrl}
+                      onChange={setField('introductionVideoUrl')}
+                      maxLength={MAX_VIDEO_URL_LEN}
+                      placeholder="https://..."
+                      invalid={Boolean(videoUrlError)}
+                    />
+                  </Field>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rp-line pt-4">
+                  <span className="text-xs text-rp-text-muted">
+                    {isDirty ? tr('Bạn có thay đổi chưa lưu.') : tr('Hồ sơ đang ở phiên bản mới nhất.')}
+                  </span>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    loading={save.isPending}
+                    disabled={isPendingReview || !isDirty || Boolean(videoUrlError)}
+                  >
+                    {tr('Lưu hồ sơ')}
+                  </Button>
+                </div>
+              </form>
             </div>
-          </div>
-        )}
-      </PageContainer>
-    </MentorShell>
+          )}
+
+          {tab === 'verification' && (
+            <div className="space-y-4">
+              {lockedVerified && (
+                <Banner tone={isApproved ? 'success' : 'warning'}>
+                  {isApproved
+                    ? tr('Chứng chỉ của bạn đã được xác minh và phê duyệt.')
+                    : tr('Hồ sơ đang trong hàng đợi xét duyệt; không thể thay đổi chứng chỉ trong lúc chờ.')}
+                </Banner>
+              )}
+
+              {isDirty && !lockedVerified && (
+                <Banner tone="warning">
+                  {tr('Bạn có thay đổi chưa lưu ở mục Thông tin chuyên môn. Hãy lưu hồ sơ trước khi gửi xét duyệt.')}
+                </Banner>
+              )}
+
+              <FileUpload
+                label={upload.isPending ? 'Đang tải chứng chỉ…' : 'Chọn tệp chứng chỉ xác minh'}
+                hint={tr('Chấp nhận PDF, JPG, PNG · tối đa 5 MB.')}
+                accept={CERT_TYPES}
+                maxBytes={MAX_CERT_BYTES}
+                files={certFiles}
+                disabled={lockedVerified || upload.isPending}
+                onChange={(files) => {
+                  setCertFiles(files);
+                  if (files[0]) upload.mutate(files[0]);
+                }}
+              />
+
+              <Field label="Ghi chú gửi Quản trị viên" counter={`${notes.length} / 1000`}>
+                <Textarea
+                  disabled={lockedVerified || submit.isPending}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  placeholder={tr('Ghi chú thêm về bằng cấp hoặc lịch sử giảng dạy nếu cần…')}
+                />
+              </Field>
+
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rp-line pt-4">
+                <Button
+                  variant="primary"
+                  icon={ShieldCheck}
+                  loading={submit.isPending}
+                  disabled={lockedVerified || isDirty || !profile?.hasVerificationDocument}
+                  onClick={() => submit.mutate()}
+                >
+                  {tr('Gửi hồ sơ xét duyệt')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

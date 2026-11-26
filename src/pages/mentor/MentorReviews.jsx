@@ -23,18 +23,10 @@ import { getMentorCohortReviewSummary } from '@/features/cohorts/api/cohortApi.j
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
+import { formatDateTime } from '@/utils/dateTimeFormat.js';
+
 function when(value) {
-  if (!value) return '';
-  const date = parseUtcDate(value);
-  if (!date || Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTime(value, '');
 }
 
 function StarRow({ rating, label }) {

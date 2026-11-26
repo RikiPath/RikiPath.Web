@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { ArrowRight, CalendarDays, Clock, GraduationCap, Layers, Lightbulb } from 'lucide-react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { CalendarDays, Clock, GraduationCap, Layers, Lightbulb } from 'lucide-react';
 import BrandMark from '@/components/brand/BrandMark.jsx';
 import LanguageSwitch from '@/components/brand/LanguageSwitch.jsx';
 import OnboardingStepper from '@/features/auth/components/OnboardingStepper.jsx';
@@ -20,13 +21,18 @@ import {
   formatStudySummaryText,
   getFurthestAccessibleStep,
 } from '@/features/auth/components/onboardingWizardLogic.js';
-import { Badge, Button, CelebrationScene, notify } from '@/components/ui';
+import { notify } from '@/components/ui';
 import { buildLearningGoal, isJlptExamDate } from '@/features/learning-path/utils/learningGoal.js';
 import { getSession, patchSession } from '@/app/auth/session.js';
 import { queryClient } from '@/api/queryClient.js';
-import { getPlacementStatus, placementAssessmentKey, startPlacementAttempt } from '@/features/placement/api/placementApi.js';
+import { learningMomentsKey } from '@/features/learning-moments/learningMomentsApi.js';
 import { useSetJlptGoalMutation } from '@/features/auth/hooks/useAuthMutations.js';
 import { useLearnerProfile } from '@/features/dashboard/hooks/useLearnerHome.js';
+import { getPlacementStatus } from '@/features/placement/api/placementApi.js';
+import {
+  invalidateLearnerSetupQueries,
+  placementStatusQueryKey,
+} from '@/features/learning-path/useLearningPathAccess.js';
 import {
   useCertificateLevelsQuery,
   useCertificateTypesQuery,
@@ -34,11 +40,20 @@ import {
 import { useLocale } from '@/locales/locale.js';
 
 export default function OnboardingSurvey() {
-  const { tr, trf } = useLocale();
+  const { tr } = useLocale();
+  const location = useLocation();
   const navigate = useNavigate();
   const session = getSession();
   const profileQuery = useLearnerProfile();
   const profile = profileQuery.data;
+  const placementStatusQuery = useQuery({
+    queryKey: placementStatusQueryKey(session?.userId),
+    queryFn: () => getPlacementStatus(),
+    enabled: Boolean(session?.accessToken && !session?.isPreview),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const placementStatus = placementStatusQuery.data ?? null;
   const goalMutation = useSetJlptGoalMutation();
 
   // Wizard step state (persists user inputs across all step switches)
@@ -125,8 +140,6 @@ export default function OnboardingSurvey() {
   // Submission & feedback state
   const [error, setError] = useState('');
   const [savingMode, setSavingMode] = useState(null);
-  const [goalSavedPendingPlacementSync, setGoalSavedPendingPlacementSync] = useState(false);
-  const [goalCelebration, setGoalCelebration] = useState(null);
   const submittingRef = useRef(false);
 
   const busy = Boolean(savingMode) || loadingTypes || loadingLevels || profileQuery.isLoading;
@@ -182,7 +195,6 @@ export default function OnboardingSurvey() {
 
   function clearFeedback() {
     setError('');
-    setGoalSavedPendingPlacementSync(false);
   }
 
   function handleSelectCert(certId) {
@@ -224,7 +236,12 @@ export default function OnboardingSurvey() {
     navigate('/app', { replace: true });
   }
 
-  async function submitOnboarding({ saveOnly }) {
+  /**
+   * "Xác nhận mục tiêu": validate → save the goal (server records the goal-confirmed journey event) → refresh the
+   * learner caches → go to the Dashboard. The celebration is a server Learning Moment shown by the Dashboard once
+   * it has loaded; onboarding itself shows no intermediate popup and never starts the placement test on its own.
+   */
+  async function confirmGoal() {
     if (savingMode || submittingRef.current) return;
 
     let payload;
@@ -247,85 +264,30 @@ export default function OnboardingSurvey() {
       if (heldOptions.length && !keepSavedCertificate) {
         payload.declaredJlptCertificateCode = hasCertificate ? heldCode : 'NONE';
       }
+      payload.confirmedFromOnboarding = true;
     } catch (validationError) {
-      setError(validationError.message);
+      setError(tr(validationError.message));
       return;
     }
 
     setError('');
     submittingRef.current = true;
-    setSavingMode(saveOnly ? 'saveOnly' : 'assessment');
-    let goalSaved = goalSavedPendingPlacementSync;
-
+    setSavingMode('confirm');
     try {
-      const savedProfile = goalSaved
-        ? profile
-        : await goalMutation.mutateAsync(payload);
-
-      goalSaved = true;
-      setGoalSavedPendingPlacementSync(false);
+      await goalMutation.mutateAsync(payload);
       patchSession({ skipOnboarding: false });
-
-      if (saveOnly) {
-        notify.success(tr('Đã cập nhật mục tiêu JLPT.'), '', { key: 'jlpt-goal-saved' });
-        setGoalCelebration({
-          levelCode: savedProfile?.targetJlptLevelName || selectedLevel?.code || selectedCert?.name || 'JLPT',
-          nextUrl: isJlpt ? '/app/placement-test/' : '/app',
-          saveOnly: true,
-        });
-        return;
-      }
-
-      const status = {
-        targetJlptLevelId: activeLevelId,
-        targetJlptLevelName: savedProfile?.targetJlptLevelName || selectedLevel?.code,
-      };
-      const current = await getPlacementStatus();
-      const targetLevelCode = status.targetJlptLevelName || selectedLevel?.code || 'JLPT';
-      if (current.hasActiveAttempt || current.latestCompletedAttemptId || current.attemptAllowance?.started > 0) {
-        notify.success(
-          tr('Đã lưu mục tiêu học tập.'),
-          tr('Sẵn sàng khám phá năng lực hiện tại.'),
-          { key: 'jlpt-goal-saved' },
-        );
-        setGoalCelebration({
-          levelCode: targetLevelCode,
-          nextUrl: '/app/placement-test/',
-          saveOnly: false,
-        });
-        return;
-      }
-      const attempt = await startPlacementAttempt();
-      queryClient.setQueryData(placementAssessmentKey(session, attempt.attemptId), {
-        attempt,
-        status: { ...current, ...status },
-      });
-      notify.success(
-        tr('Đã lưu mục tiêu JLPT.'),
-        tr('Bài đánh giá năng lực của bạn đã sẵn sàng.'),
-        { key: 'jlpt-goal-saved' },
-      );
-      setGoalCelebration({
-        levelCode: targetLevelCode,
-        nextUrl: `/app/placement-test/?attemptId=${attempt.attemptId}`,
-        saveOnly: false,
-      });
+      await invalidateLearnerSetupQueries(queryClient);
+      await queryClient.invalidateQueries({ queryKey: learningMomentsKey });
+      const rawReturn = location.state?.from?.pathname
+        ? `${location.state.from.pathname}${location.state.from.search || ''}`
+        : '';
+      const destination = rawReturn && !rawReturn.startsWith('/onboarding') && !rawReturn.startsWith('/auth')
+        ? rawReturn
+        : '/app';
+      navigate(destination, { replace: true });
     } catch (err) {
-      const fallback = goalSaved
-        ? 'Vui lòng thử bắt đầu lại.'
-        : 'Không lưu được mục tiêu. Vui lòng thử lại.';
-      setGoalSavedPendingPlacementSync(goalSaved);
-      setError(`${goalSaved ? 'Mục tiêu đã lưu. ' : ''}${err?.message || fallback}`);
-      if (goalSaved) {
-        notify.warning(tr('Mục tiêu đã được lưu'), err?.message || fallback, {
-          key: 'onboarding-goal-partial',
-        });
-      } else {
-        notify.apiError(err, tr('Không lưu được mục tiêu'), {
-          key: 'onboarding-goal-error',
-        });
-      }
-    } finally {
+      setError(tr('Không lưu được mục tiêu. Vui lòng thử lại.'));
+      notify.apiError(err, tr('Không lưu được mục tiêu'), { key: 'onboarding-goal-error' });
       submittingRef.current = false;
       setSavingMode(null);
     }
@@ -518,6 +480,7 @@ export default function OnboardingSurvey() {
               {stepIndex === 1 && (
                 <Step2LevelPanel
                   profile={profile}
+                  placementStatus={placementStatus}
                   selectedCert={selectedCert}
                   levels={levels}
                   activeLevelId={activeLevelId}
@@ -589,7 +552,6 @@ export default function OnboardingSurvey() {
                   minutes={minutes}
                   maxMinutes={maxMinutes}
                   examDate={examDate}
-                  goalSavedPendingPlacementSync={goalSavedPendingPlacementSync}
                   error={error}
                   profileError={profileQuery.isError}
                   busy={busy}
@@ -607,69 +569,13 @@ export default function OnboardingSurvey() {
             canAdvance={canAdvanceCurrent}
             busy={busy && !savingMode ? false : Boolean(savingMode)}
             savingMode={savingMode}
-            hasExamDate={Boolean(examDate)}
             onPrevious={handlePrevious}
             onNext={handleNext}
-            onSubmitPlanOnly={() => submitOnboarding({ saveOnly: true })}
-            onSubmitWithAssessment={() => submitOnboarding({ saveOnly: false })}
+            onConfirm={confirmGoal}
           />
         </section>
       </main>
 
-      <CelebrationScene
-        open={Boolean(goalCelebration)}
-        variant="overlay"
-        tier="goal"
-        badge={goalCelebration ? `JLPT ${goalCelebration.levelCode}` : ''}
-        title={
-          goalCelebration
-            ? trf('Mục tiêu {0} đã sẵn sàng!', { 0: goalCelebration.levelCode })
-            : ''
-        }
-        description={tr('Làm bài đánh giá ngắn để kiểm tra trình độ hiện tại và chuẩn bị lộ trình phù hợp nhất cho bạn.')}
-        onSkip={() => navigate('/app', { replace: true })}
-        skipLabel={tr('Đóng')}
-        actions={
-          goalCelebration && (
-            <>
-              <Button
-                variant="primary"
-                size="lg"
-                iconRight={ArrowRight}
-                className="rp-celebrate-cta-glow"
-                onClick={() => navigate(goalCelebration.nextUrl, { replace: true })}
-              >
-                {tr('Làm bài đánh giá năng lực')}
-              </Button>
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={() => navigate('/app', { replace: true })}
-              >
-                {tr('Về Bảng học tập')}
-              </Button>
-            </>
-          )
-        }
-      >
-        {goalCelebration && (
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Badge tone="brand" size="sm" icon={false}>
-              {selectedCert?.name || 'JLPT'} {goalCelebration.levelCode}
-            </Badge>
-            {studySummaryText && (
-              <Badge tone="neutral" size="sm" icon={false}>
-                {studySummaryText} {tr('phút / ngày')}
-              </Badge>
-            )}
-            {examContext && (
-              <Badge tone="info" size="sm" icon={false}>
-                {tr(examContext.monthKey)} · {examContext.year}
-              </Badge>
-            )}
-          </div>
-        )}
-      </CelebrationScene>
     </div>
   );
 }

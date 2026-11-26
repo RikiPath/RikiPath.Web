@@ -1,5 +1,6 @@
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryClient } from '@tanstack/react-query';
 import { classifyApiErrorState } from './apiErrors.js';
+import { notify } from '@/components/ui/feedbackStore.js';
 
 const NO_RETRY_STATUSES = new Set([400, 401, 403, 404, 409, 413, 415, 422]);
 
@@ -18,6 +19,15 @@ export function shouldRetryQuery(failureCount, error) {
 }
 
 export const queryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      // Fall back to global error toast if a mutation did not define its own onError handler.
+      if (mutation?.options?.onError) return;
+      if (mutation?.meta?.silentError) return;
+      if (!error || error.isCancelled || error.code === 'ERR_CANCELED') return;
+      notify.apiError(error);
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: shouldRetryQuery,

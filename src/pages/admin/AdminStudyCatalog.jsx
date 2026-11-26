@@ -6,7 +6,6 @@ import { describeApiError } from '@/api/apiErrors.js';
 import { courseGet } from '@/features/cohorts/api/cohortApi';
 import {
   AlertDialog,
-  Badge,
   Banner,
   Button,
   Checkbox,
@@ -22,6 +21,12 @@ import {
   UnifiedToolbar,
 } from '@/components/ui';
 import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
+import {
+  AdminDataTable,
+  AdminIconAction,
+  AdminRowActions,
+  AdminStatusBadge,
+} from '@/features/admin/components/AdminPrimitives.jsx';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -590,82 +595,107 @@ export default function AdminStudyCatalog() {
                 </div>
               ) : (
                 <>
-                  {/* Desktop Table */}
-                  <div className="hidden overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-xs md:block">
-                    <div className="rp-table-scroll max-h-[calc(100vh-280px)]">
-                      <table className="w-full border-collapse text-center text-sm" data-testid="certificates-table">
-                        <thead className="sticky top-0 z-10 bg-rp-table-head shadow-[0_1px_0_var(--color-rp-line)]">
-                          <tr className="border-b border-rp-line bg-rp-table-head text-xs font-semibold uppercase tracking-[0.04em] text-rp-text-muted">
-                            <th scope="col" className="w-[18%] px-5 py-3">{tr('Tên chứng chỉ')}</th>
-                            <th scope="col" className="px-4 py-3">{tr('Mô tả')}</th>
-                            <th scope="col" className="w-[120px] px-4 py-3">{tr('Số cấp độ')}</th>
-                            <th scope="col" className="w-[148px] px-4 py-3">{tr('Thứ tự')}</th>
-                            <th scope="col" className="w-[152px] px-4 py-3">{tr('Trạng thái')}</th>
-                            <th scope="col" className="w-[110px] px-5 py-3">{tr('Thao tác')}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-rp-line/70">
-                          {types.map((cert, idx) => {
+                  {/* Desktop Table — Standardized AdminDataTable matching /admin/users/ */}
+                  <div className="hidden md:block" data-testid="certificates-table">
+                    <AdminDataTable
+                      rows={types}
+                      rowKey={(cert) => cert.id}
+                      itemLabel="chứng chỉ"
+                      minTableWidth="min-w-[680px]"
+                      columns={[
+                        {
+                          key: 'name',
+                          header: tr('Tên chứng chỉ'),
+                          align: 'left',
+                          width: 'w-[18%]',
+                          render: (cert) => <span className="font-semibold text-rp-text">{cert.name}</span>,
+                        },
+                        {
+                          key: 'description',
+                          header: tr('Mô tả'),
+                          align: 'left',
+                          render: (cert) => (
+                            <span className="text-rp-text-2">{cert.description ? tr(cert.description) : '—'}</span>
+                          ),
+                        },
+                        {
+                          key: 'levelCount',
+                          header: tr('Số cấp độ'),
+                          align: 'center',
+                          compact: true,
+                          render: (cert) => {
                             const levelCount = levelCountByCertId.get(Number(cert.id)) || 0;
-                            const canMoveUp = idx > 0;
-                            const canMoveDown = idx < types.length - 1;
                             return (
-                              <tr key={cert.id} className="transition-colors duration-150 hover:bg-rp-row-hover">
-                                <td className="px-5 py-3.5 font-semibold text-rp-text">{cert.name}</td>
-                                <td className="px-4 py-3.5 text-rp-text-2">{cert.description ? tr(cert.description) : '—'}</td>
-                                <td className="px-4 py-3.5 text-center tabular-nums text-rp-text-2">
-                                  {trf('{0} cấp độ', { 0: levelCount })}
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <IconButton
-                                      size="sm"
-                                      variant="outline"
-                                      icon={ArrowUp}
-                                      label={tr('Di chuyển lên')}
-                                      disabled={!canMoveUp || isMutating}
-                                      onClick={() => handleReorder('certificates', cert, -1)}
-                                      data-testid={`move-up-cert-${cert.id}`}
-                                      className="!h-7 !w-7"
-                                    />
-                                    <span className="inline-block min-w-[24px] text-center font-semibold tabular-nums text-rp-text">
-                                      {cert.sortOrder ?? idx + 1}
-                                    </span>
-                                    <IconButton
-                                      size="sm"
-                                      variant="outline"
-                                      icon={ArrowDown}
-                                      label={tr('Di chuyển xuống')}
-                                      disabled={!canMoveDown || isMutating}
-                                      onClick={() => handleReorder('certificates', cert, 1)}
-                                      data-testid={`move-down-cert-${cert.id}`}
-                                      className="!h-7 !w-7"
-                                    />
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <Badge size="sm" tone={cert.isActive ? 'success' : 'neutral'}>
-                                    {cert.isActive ? tr('Hoạt động') : tr('Ngừng sử dụng')}
-                                  </Badge>
-                                </td>
-                                <td className="px-5 py-3.5">
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    icon={Pencil}
-                                    disabled={isMutating}
-                                    onClick={() => openEditModal('certificates', cert)}
-                                    data-testid={`edit-cert-${cert.id}`}
-                                  >
-                                    {tr('Sửa')}
-                                  </Button>
-                                </td>
-                              </tr>
+                              <span className="tabular-nums text-rp-text-2">
+                                {trf('{0} cấp độ', { 0: levelCount })}
+                              </span>
                             );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                          },
+                        },
+                        {
+                          key: 'sortOrder',
+                          header: tr('Thứ tự'),
+                          align: 'center',
+                          compact: true,
+                          render: (cert) => {
+                            const idx = types.findIndex((item) => Number(item.id) === Number(cert.id));
+                            const canMoveUp = idx > 0;
+                            const canMoveDown = idx >= 0 && idx < types.length - 1;
+                            return (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <IconButton
+                                  size="sm"
+                                  variant="outline"
+                                  icon={ArrowUp}
+                                  label={tr('Di chuyển lên')}
+                                  disabled={!canMoveUp || isMutating}
+                                  onClick={() => handleReorder('certificates', cert, -1)}
+                                  data-testid={`move-up-cert-${cert.id}`}
+                                  className="!h-7 !w-7"
+                                />
+                                <span className="inline-block min-w-[24px] text-center font-semibold tabular-nums text-rp-text">
+                                  {cert.sortOrder ?? idx + 1}
+                                </span>
+                                <IconButton
+                                  size="sm"
+                                  variant="outline"
+                                  icon={ArrowDown}
+                                  label={tr('Di chuyển xuống')}
+                                  disabled={!canMoveDown || isMutating}
+                                  onClick={() => handleReorder('certificates', cert, 1)}
+                                  data-testid={`move-down-cert-${cert.id}`}
+                                  className="!h-7 !w-7"
+                                />
+                              </div>
+                            );
+                          },
+                        },
+                        {
+                          key: 'isActive',
+                          header: tr('Trạng thái'),
+                          align: 'center',
+                          compact: true,
+                          render: (cert) => (
+                            <AdminStatusBadge
+                              tone={cert.isActive ? 'success' : 'neutral'}
+                              label={cert.isActive ? 'Hoạt động' : 'Ngừng sử dụng'}
+                            />
+                          ),
+                        },
+                      ]}
+                      rowActions={(cert) => (
+                        <AdminRowActions>
+                          <AdminIconAction
+                            kind="edit"
+                            tone="brand"
+                            tooltip="Chỉnh sửa chứng chỉ"
+                            disabled={isMutating}
+                            onClick={() => openEditModal('certificates', cert)}
+                            data-testid={`edit-cert-${cert.id}`}
+                          />
+                        </AdminRowActions>
+                      )}
+                    />
                   </div>
 
                   {/* Mobile / Tablet Compact List */}
@@ -686,9 +716,10 @@ export default function AdminStudyCatalog() {
                                 {cert.description ? tr(cert.description) : '—'}
                               </p>
                             </div>
-                            <Badge size="sm" tone={cert.isActive ? 'success' : 'neutral'}>
-                              {cert.isActive ? tr('Hoạt động') : tr('Ngừng sử dụng')}
-                            </Badge>
+                            <AdminStatusBadge
+                              tone={cert.isActive ? 'success' : 'neutral'}
+                              label={cert.isActive ? 'Hoạt động' : 'Ngừng sử dụng'}
+                            />
                           </div>
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-rp-line/70 pt-3">
                             <div className="flex items-center gap-2 text-xs text-rp-text-muted tabular-nums">
@@ -750,90 +781,108 @@ export default function AdminStudyCatalog() {
                 </div>
               ) : (
                 <>
-                  {/* Desktop Table */}
-                  <div className="hidden overflow-hidden rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-xs md:block">
-                    <div className="rp-table-scroll max-h-[calc(100vh-280px)]">
-                      <table className="w-full border-collapse text-center text-sm" data-testid="levels-table">
-                        <thead className="sticky top-0 z-10 bg-rp-table-head shadow-[0_1px_0_var(--color-rp-line)]">
-                          <tr className="border-b border-rp-line bg-rp-table-head text-xs font-semibold uppercase tracking-[0.04em] text-rp-text-muted">
-                            <th scope="col" className="w-[14%] px-5 py-3">{tr('Cấp độ')}</th>
-                            <th scope="col" className="w-[15%] px-4 py-3">{tr('Chứng chỉ')}</th>
-                            <th scope="col" className="px-4 py-3">{tr('Mô tả')}</th>
-                            <th scope="col" className="w-[148px] px-4 py-3">{tr('Thứ tự')}</th>
-                            <th scope="col" className="w-[152px] px-4 py-3">{tr('Trạng thái')}</th>
-                            <th scope="col" className="w-[110px] px-5 py-3">{tr('Thao tác')}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-rp-line/70">
-                          {filteredLevels.map((lv) => {
+                  {/* Desktop Table — Standardized AdminDataTable matching /admin/users/ */}
+                  <div className="hidden md:block" data-testid="levels-table">
+                    <AdminDataTable
+                      rows={filteredLevels}
+                      rowKey={(lv) => lv.id}
+                      itemLabel="cấp độ"
+                      minTableWidth="min-w-[680px]"
+                      columns={[
+                        {
+                          key: 'code',
+                          header: tr('Cấp độ'),
+                          align: 'left',
+                          compact: true,
+                          render: (lv) => (
+                            <span className="inline-flex min-w-[44px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2.5 py-0.5 text-[13px] font-bold text-rp-brand-strong">
+                              {lv.code}
+                            </span>
+                          ),
+                        },
+                        {
+                          key: 'certificate',
+                          header: tr('Chứng chỉ'),
+                          align: 'left',
+                          compact: true,
+                          render: (lv) => {
                             const parentCert = certById.get(Number(lv.certificateTypeId));
+                            return <span className="font-medium text-rp-text">{parentCert?.name || '—'}</span>;
+                          },
+                        },
+                        {
+                          key: 'description',
+                          header: tr('Mô tả'),
+                          align: 'left',
+                          render: (lv) => (
+                            <span className="text-rp-text-2">{lv.description ? tr(lv.description) : '—'}</span>
+                          ),
+                        },
+                        {
+                          key: 'sortOrder',
+                          header: tr('Thứ tự'),
+                          align: 'center',
+                          compact: true,
+                          render: (lv) => {
                             const scopeSiblings = siblingsByCertId.get(Number(lv.certificateTypeId)) || [];
                             const scopeIndex = scopeSiblings.findIndex((item) => Number(item.id) === Number(lv.id));
                             const canMoveUp = scopeIndex > 0;
                             const canMoveDown = scopeIndex >= 0 && scopeIndex < scopeSiblings.length - 1;
                             return (
-                              <tr key={lv.id} className="transition-colors duration-150 hover:bg-rp-row-hover">
-                                <td className="px-5 py-3.5">
-                                  <span className="inline-flex min-w-[44px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2.5 py-0.5 text-[13px] font-bold text-rp-brand-strong">
-                                    {lv.code}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3.5 font-medium text-rp-text">
-                                  {parentCert?.name || '—'}
-                                </td>
-                                <td className="px-4 py-3.5 text-rp-text-2">
-                                  {lv.description ? tr(lv.description) : '—'}
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <IconButton
-                                      size="sm"
-                                      variant="outline"
-                                      icon={ArrowUp}
-                                      label={tr('Di chuyển lên')}
-                                      disabled={!canMoveUp || isMutating}
-                                      onClick={() => handleReorder('levels', lv, -1)}
-                                      data-testid={`move-up-level-${lv.id}`}
-                                      className="!h-7 !w-7"
-                                    />
-                                    <span className="inline-block min-w-[24px] text-center font-semibold tabular-nums text-rp-text">
-                                      {lv.sortOrder ?? scopeIndex + 1}
-                                    </span>
-                                    <IconButton
-                                      size="sm"
-                                      variant="outline"
-                                      icon={ArrowDown}
-                                      label={tr('Di chuyển xuống')}
-                                      disabled={!canMoveDown || isMutating}
-                                      onClick={() => handleReorder('levels', lv, 1)}
-                                      data-testid={`move-down-level-${lv.id}`}
-                                      className="!h-7 !w-7"
-                                    />
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <Badge size="sm" tone={lv.isActive ? 'success' : 'neutral'}>
-                                    {lv.isActive ? tr('Hoạt động') : tr('Ngừng sử dụng')}
-                                  </Badge>
-                                </td>
-                                <td className="px-5 py-3.5">
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    icon={Pencil}
-                                    disabled={isMutating}
-                                    onClick={() => openEditModal('levels', lv)}
-                                    data-testid={`edit-level-${lv.id}`}
-                                  >
-                                    {tr('Sửa')}
-                                  </Button>
-                                </td>
-                              </tr>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <IconButton
+                                  size="sm"
+                                  variant="outline"
+                                  icon={ArrowUp}
+                                  label={tr('Di chuyển lên')}
+                                  disabled={!canMoveUp || isMutating}
+                                  onClick={() => handleReorder('levels', lv, -1)}
+                                  data-testid={`move-up-level-${lv.id}`}
+                                  className="!h-7 !w-7"
+                                />
+                                <span className="inline-block min-w-[24px] text-center font-semibold tabular-nums text-rp-text">
+                                  {lv.sortOrder ?? scopeIndex + 1}
+                                </span>
+                                <IconButton
+                                  size="sm"
+                                  variant="outline"
+                                  icon={ArrowDown}
+                                  label={tr('Di chuyển xuống')}
+                                  disabled={!canMoveDown || isMutating}
+                                  onClick={() => handleReorder('levels', lv, 1)}
+                                  data-testid={`move-down-level-${lv.id}`}
+                                  className="!h-7 !w-7"
+                                />
+                              </div>
                             );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                          },
+                        },
+                        {
+                          key: 'isActive',
+                          header: tr('Trạng thái'),
+                          align: 'center',
+                          compact: true,
+                          render: (lv) => (
+                            <AdminStatusBadge
+                              tone={lv.isActive ? 'success' : 'neutral'}
+                              label={lv.isActive ? 'Hoạt động' : 'Ngừng sử dụng'}
+                            />
+                          ),
+                        },
+                      ]}
+                      rowActions={(lv) => (
+                        <AdminRowActions>
+                          <AdminIconAction
+                            kind="edit"
+                            tone="brand"
+                            tooltip="Chỉnh sửa cấp độ"
+                            disabled={isMutating}
+                            onClick={() => openEditModal('levels', lv)}
+                            data-testid={`edit-level-${lv.id}`}
+                          />
+                        </AdminRowActions>
+                      )}
+                    />
                   </div>
 
                   {/* Mobile / Tablet Compact List */}
@@ -858,9 +907,10 @@ export default function AdminStudyCatalog() {
                                 {parentCert?.name || '—'}
                               </span>
                             </div>
-                            <Badge size="sm" tone={lv.isActive ? 'success' : 'neutral'}>
-                              {lv.isActive ? tr('Hoạt động') : tr('Ngừng sử dụng')}
-                            </Badge>
+                            <AdminStatusBadge
+                              tone={lv.isActive ? 'success' : 'neutral'}
+                              label={lv.isActive ? 'Hoạt động' : 'Ngừng sử dụng'}
+                            />
                           </div>
                           {lv.description && (
                             <p className="mt-2 text-[13px] text-rp-text-2">{tr(lv.description)}</p>

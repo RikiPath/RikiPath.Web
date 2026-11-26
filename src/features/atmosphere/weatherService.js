@@ -7,6 +7,23 @@ import { coarsen } from './atmosphereLogic.js';
 const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
 const FORECAST_URL = env.VITE_OPEN_METEO_FORECAST_URL || 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_URL = env.VITE_OPEN_METEO_GEOCODE_URL || 'https://geocoding-api.open-meteo.com/v1/search';
+const REVERSE_GEOCODE_URL = env.VITE_REVERSE_GEOCODE_URL || 'https://api.bigdatacloud.net/data/reverse-geocode-client';
+const IP_GEO_PRIMARY_URL = env.VITE_IP_GEO_URL || 'https://get.geojs.io/v1/ip/geo.json';
+const IP_GEO_FALLBACK_URL = 'https://ipwho.is/';
+
+function withTimeoutSignal(externalSignal, ms = 7_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('timeout')), ms);
+  const onAbort = () => controller.abort(externalSignal?.reason);
+  externalSignal?.addEventListener?.('abort', onAbort, { once: true });
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      externalSignal?.removeEventListener?.('abort', onAbort);
+    },
+  };
+}
 
 async function getJson(url, signal) {
   const res = await fetch(url, { signal, headers: { Accept: 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer' });
@@ -73,4 +90,109 @@ export async function searchCities(query, signal, language = 'vi') {
       timezone: r.timezone ? String(r.timezone) : '',
       source: 'search',
     }));
+}
+
+/**
+ * Resolves coarse (~11 km) coordinates into a readable city/country label.
+ * Best-effort only: returns null on network error or offline so callers can fall back cleanly.
+ */
+export async function reverseGeocode(latitude, longitude, signal, language = 'vi') {
+  const lat = coarsen(latitude, 1);
+  const lon = coarsen(longitude, 1);
+  if (lat === null || lon === null) return null;
+  const { signal: timedSignal, cleanup } = withTimeoutSignal(signal, 5_000);
+  try {
+    const lang = String(language || 'vi').toLowerCase().startsWith('ja') ? 'ja' : 'vi';
+    const params = new URLSearchParams({
+      latitude: String(lat),
+      longitude: String(lon),
+      localityLanguage: lang,
+    });
+    const json = await getJson(`${REVERSE_GEOCODE_URL}?${params}`, timedSignal);
+    const city = String(json?.city || json?.locality || json?.principalSubdivision || '').trim();
+    const region = String(json?.principalSubdivision || '').trim();
+    const country = String(json?.countryName || '').trim();
+    if (!city && !country) return null;
+    return {
+      name: city || region || country,
+      region: region && region !== city ? region : '',
+      country,
+    };
+  } catch {
+    return null;
+  } finally {
+    cleanup();
+  }
+}
+
+/**
+ * Coarse city-level network/IP location fallback when browser GPS is blocked, denied,
+ * unsupported, or unavailable (e.g., Windows location services disabled or insecure LAN origin).
+ * Uses keyless CORS-enabled providers with credentials omitted and rounds coordinates to ~11 km.
+ */
+export async function detectApproximateLocation(signal, language = 'vi') {
+  const providers = [
+    async (s) => {
+      const json = await getJson(IP_GEO_PRIMARY_URL, s);
+      const latitude = coarsen(json?.latitude, 1);
+      const longitude = coarsen(json?.longitude, 1);
+      if (latitude === null || longitude === null) return null;
+      return {
+        name: String(json?.city || json?.region || '').trim(),
+        region: String(json?.region || '').trim(),
+        country: String(json?.country || '').trim(),
+        latitude,
+        longitude,
+        timezone: typeof json?.timezone === 'string' ? json.timezone : '',
+        source: 'ip',
+      };
+    },
+    async (s) => {
+      const json = await getJson(IP_GEO_FALLBACK_URL, s);
+      if (json?.success === false) return null;
+      const latitude = coarsen(json?.latitude, 1);
+      const longitude = coarsen(json?.longitude, 1);
+      if (latitude === null || longitude === null) return null;
+      return {
+        name: String(json?.city || json?.region || '').trim(),
+        region: String(json?.region || '').trim(),
+        country: String(json?.country || '').trim(),
+        latitude,
+        longitude,
+        timezone: typeof json?.timezone?.id === 'string' ? json.timezone.id : '',
+        source: 'ip',
+      };
+    },
+  ];
+
+  for (const runProvider of providers) {
+    const { signal: timedSignal, cleanup } = withTimeoutSignal(signal, 6_000);
+    try {
+      const base = await runProvider(timedSignal);
+      if (!base) continue;
+      const localized = await reverseGeocode(base.latitude, base.longitude, signal, language);
+      const name = localized?.name || base.name || base.region || base.country;
+      const region = localized ? localized.region : (base.region && base.region !== name ? base.region : '');
+      const country = localized?.country || base.country;
+      const timezone = base.timezone || (() => {
+        try {
+          return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        } catch {
+          return '';
+        }
+      })();
+      return {
+        ...base,
+        name: name || 'Vị trí hiện tại',
+        region,
+        country,
+        timezone,
+      };
+    } catch {
+      // Try next provider
+    } finally {
+      cleanup();
+    }
+  }
+  return null;
 }

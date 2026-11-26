@@ -56,7 +56,7 @@ const AUTHORING_TOOLS = [
   {
     to: '/exam-builder/',
     title: 'Đề thi thử',
-    description: 'Dựng cấu trúc đề thi theo phần thi Admin đã cấu hình, đáp án và lời giải.',
+    description: 'Dựng cấu trúc đề thi theo phần thi Quản trị viên đã cấu hình, đáp án và lời giải.',
     icon: ClipboardList,
     feature: 'mock',
   },
@@ -77,7 +77,7 @@ const AUTHORING_TOOLS = [
   {
     to: '/bulk-import/?view=history',
     title: 'Lịch sử nhập liệu',
-    description: 'Theo dõi các lô Excel đã nhập, chỉnh sửa dòng lỗi và gửi Admin duyệt theo lô.',
+    description: 'Theo dõi các lô Excel đã nhập, chỉnh sửa dòng lỗi và gửi Quản trị viên duyệt theo lô.',
     icon: History,
     feature: 'stats',
   },
@@ -184,7 +184,7 @@ export default function CMSStudio() {
             },
             {
               key: 'PendingReview',
-              label: tr('Chờ Admin duyệt'),
+              label: tr('Chờ duyệt'),
               count: stats.pending,
               icon: Clock3,
               toneClass: 'bg-amber-50 text-amber-700',
@@ -229,7 +229,7 @@ export default function CMSStudio() {
         {stats.rejected > 0 && (
           <Banner
             tone="warning"
-            title={trf('Bạn có {0} mục bị Admin từ chối cần chỉnh sửa', { 0: stats.rejected })}
+            title={trf('Bạn có {0} mục bị Quản trị viên từ chối cần chỉnh sửa', { 0: stats.rejected })}
             actions={
               <Link
                 to="/author-dashboard/?status=Rejected"
@@ -239,7 +239,7 @@ export default function CMSStudio() {
               </Link>
             }
           >
-            {tr('Mở từng mục bị từ chối để đọc góp ý của Admin, chỉnh sửa nội dung và gửi duyệt lại.')}
+            {tr('Mở từng mục bị từ chối để đọc góp ý của Quản trị viên, chỉnh sửa nội dung và gửi duyệt lại.')}
           </Banner>
         )}
 

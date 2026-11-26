@@ -1,40 +1,47 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft,
   BookCheck,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  Clock,
   LayoutGrid,
   LifeBuoy,
   TrendingUp,
+  Users,
   Video,
 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
-import HoldCountdown from '@/features/checkout/components/HoldCountdown.jsx';
 import {
-  cancelCohortEnrollment,
   courseGet,
   getCourseCompletionSummary,
   openRetakeEvidence,
-  reconcileCoursePayment,
   uploadRetakeEvidence,
 } from '@/features/cohorts/api/cohortApi';
-import { paymentStateMessage } from '@/api/apiErrors.js';
 import { useLearnerCohortWorkspace } from '@/features/cohorts/hooks/useLearnerCohortWorkspace.js';
-import { courseHasStarted } from '@/features/cohorts/utils/completionHelpers';
+import { isConfirmedCourseAccess } from '@/features/cohorts/utils/completionHelpers';
+import OccupancyProgressBar from '@/features/cohorts/components/OccupancyProgressBar.jsx';
+import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
 import CohortHomeworkPanel from '@/features/homework/components/CohortHomeworkPanel';
 import CohortCompletionSummary from '@/features/cohorts/components/CohortCompletionSummary';
+import CohortMentorReviewSection from '@/features/cohorts/components/CohortMentorReviewSection.jsx';
 import LearnerCohortTransferPanel from '@/features/cohorts/components/LearnerCohortTransferPanel';
 import CohortComplaintPanel from '@/features/complaints/components/CohortComplaintPanel';
 import { displayCourseTitle, getSessionJoinState } from '@/features/calendar/utils/calendarEventsModel.js';
+import {
+  computeClassProgress,
+  computeLearnerAttendance,
+  resolveCourseLifecycle,
+} from '@/features/scheduling/utils/teachingLifecycleModel.js';
+import { formatDate, formatTimeRange } from '@/utils/dateTimeFormat.js';
 import { formatVnDateTime, parseUtcDate, sessionStatusLabel } from '@/utils/vnDateTime.js';
 import { useNow } from '@/hooks/useNow.js';
 import { useLocale } from '@/locales/locale.js';
 import {
+  BackButton,
   Badge,
   Banner,
   Button,
@@ -42,18 +49,20 @@ import {
   CardHeader,
   ContextualEmptyState,
   ContextualErrorState,
+  DataTable,
   DateInput,
   Field,
   FileUpload,
-  Input,
   PageContainer,
   ProgressBar,
   SakuraLoader,
   Tabs,
   Textarea,
-  confirmAction,
+  UserAvatar,
   Collapsible,
+  cx,
 } from '@/components/ui';
+import { StatusBadge } from '@/features/admin/components/AdminPrimitives.jsx';
 import { IllustratedPageHeader } from '@/features/learner-ui';
 import '@/pages/shared/studyCourses.css';
 
@@ -65,14 +74,14 @@ const SECTIONS = [
   { value: 'support', label: 'Đánh giá & hỗ trợ', icon: LifeBuoy },
 ];
 
-const STATUS_META = {
-  PendingPayment: { tone: 'warning', label: 'Chờ thanh toán' },
-  Ready: { tone: 'info', label: 'Sắp khai giảng' },
-  Active: { tone: 'success', label: 'Đang học' },
-  Completed: { tone: 'neutral', label: 'Đã hoàn thành' },
-  Transferred: { tone: 'neutral', label: 'Đã chuyển lớp' },
-  Cancelled: { tone: 'neutral', label: 'Đã hủy' },
-};
+const CANCELLED_SESSION_STATUSES = new Set(['Cancelled', 'CancelledByMentor', 'CancelledByLearner', 'TransferredOut']);
+
+const ATTENDANCE_STATUS_META = Object.freeze({
+  Present: { tone: 'success', label: 'Có mặt' },
+  Absent: { tone: 'danger', label: 'Vắng mặt' },
+  ExcusedAbsent: { tone: 'warning', label: 'Vắng có phép' },
+  PendingConfirmation: { tone: 'neutral', label: 'Chờ xác nhận' },
+});
 
 function toUtcIsoDate(val) {
   if (!val) return null;
@@ -100,8 +109,8 @@ export default function CohortWorkspacePage() {
     });
   };
 
-  const [cancelReason, setCancelReason] = useState('');
   const [showComplaintBox, setShowComplaintBox] = useState(false);
+  const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [examDate, setExamDate] = useState('');
   const [resultPublishedAt, setResultPublishedAt] = useState('');
   const [retakeReason, setRetakeReason] = useState('');
@@ -110,27 +119,53 @@ export default function CohortWorkspacePage() {
   const workspace = useLearnerCohortWorkspace({ includeCohorts: true, includeHomework: true });
   const { uid, courses, cohorts, homeworks, coursesQuery, busy, actionError, actionNotice, setActionError, setActionNotice, runAction } = workspace;
 
+  const matchedSummary = useMemo(
+    () => courses.find((c) => Number(c.id) === numericId) || null,
+    [courses, numericId],
+  );
+  const hasConfirmedAccess = isConfirmedCourseAccess(matchedSummary);
+
   const detailQuery = useQuery({
     queryKey: ['learner-cohort-workspace', 'detail', uid, numericId],
     queryFn: () => courseGet(`/${numericId}`),
-    enabled: Boolean(numericId) && Number.isFinite(numericId),
+    enabled: Boolean(numericId) && Number.isFinite(numericId) && (hasConfirmedAccess || (!coursesQuery.isPending && !matchedSummary)),
     staleTime: 30_000,
+    retry: (count, err) => err?.status !== 403 && err?.status !== 404 && count < 1,
   });
 
   const current = useMemo(() => {
-    const listed = courses.find((c) => Number(c.id) === numericId);
-    return detailQuery.data || listed || null;
-  }, [courses, detailQuery.data, numericId]);
+    const candidate = detailQuery.data || matchedSummary || null;
+    return isConfirmedCourseAccess(candidate) ? candidate : null;
+  }, [detailQuery.data, matchedSummary]);
 
   const currentCohort = useMemo(
     () => cohorts.find((c) => c.id === current?.cohortId) || null,
     [cohorts, current?.cohortId],
   );
 
+  const title = current ? displayCourseTitle(current, tr('Không gian lớp học')) : tr('Không gian lớp học');
+  const sessions = useMemo(() => (Array.isArray(current?.sessions) ? current.sessions : []), [current]);
+  const sessionMinutes = current?.sessionMinutes || 90;
+
+  const validSessions = useMemo(
+    () =>
+      sessions
+        .filter((s) => s && !CANCELLED_SESSION_STATUSES.has(s.status))
+        .sort((a, b) => (parseUtcDate(a.scheduledAt)?.getTime() ?? 0) - (parseUtcDate(b.scheduledAt)?.getTime() ?? 0)),
+    [sessions],
+  );
+  const firstValidSession = validSessions[0] || null;
+
+  const lifecycle = useMemo(
+    () => resolveCourseLifecycle(current, nowMs, currentCohort),
+    [current, nowMs, currentCohort],
+  );
+  const isStartedOrCompleted = lifecycle.id === 'Teaching' || lifecycle.id === 'Completed';
+
   const completionQuery = useQuery({
     queryKey: ['learner-cohort-workspace', 'completion', uid, numericId],
     queryFn: () => getCourseCompletionSummary(numericId),
-    enabled: Boolean(current?.cohortId && numericId),
+    enabled: Boolean(hasConfirmedAccess && current?.cohortId && numericId && isStartedOrCompleted),
     staleTime: 60_000,
     retry: false,
   });
@@ -153,28 +188,160 @@ export default function CohortWorkspacePage() {
     );
   }, [homeworks, current]);
 
-  const title = current ? displayCourseTitle(current, tr('Không gian lớp học')) : tr('Không gian lớp học');
-  const sessions = useMemo(() => (Array.isArray(current?.sessions) ? current.sessions : []), [current]);
-  const attendedCount = sessions.filter((s) => s.status === 'Present').length;
-  const absentCount = sessions.filter((s) => s.status === 'Absent' || s.status === 'ExcusedAbsent').length;
-  const scheduledCount = sessions.filter((s) => s.status === 'Scheduled').length;
-  const progressPct = sessions.length > 0 ? Math.round((attendedCount / sessions.length) * 100) : 0;
+  const progress = useMemo(
+    () => computeClassProgress(sessions, current?.totalSessions || validSessions.length),
+    [sessions, current?.totalSessions, validSessions.length],
+  );
+  const attendance = useMemo(() => computeLearnerAttendance(sessions), [sessions]);
 
-  const sessionMinutes = current?.sessionMinutes || 90;
+  const attendanceHistoryRows = useMemo(() => {
+    if (!isStartedOrCompleted) return [];
+    const latestByNumber = new Map();
+    for (const s of sessions) {
+      if (!s || CANCELLED_SESSION_STATUSES.has(s.status)) continue;
+      const num = Number(s.number ?? 0);
+      const key = num > 0 ? `num:${num}` : `id:${s.id}`;
+      const attempt = Number(s.attempt || 1);
+      const prev = latestByNumber.get(key);
+      if (!prev || attempt >= Number(prev.attempt || 1)) {
+        latestByNumber.set(key, s);
+      }
+    }
+
+    const rows = [];
+    for (const s of latestByNumber.values()) {
+      const startDate = parseUtcDate(s.scheduledAt);
+      const startMs = startDate?.getTime() ?? NaN;
+      const endDate = Number.isFinite(startMs) ? new Date(startMs + sessionMinutes * 60_000) : null;
+      const endMs = endDate?.getTime() ?? NaN;
+      const isMarked = s.status === 'Present' || s.status === 'Absent' || s.status === 'ExcusedAbsent';
+      const isOccurredPending = s.status === 'Scheduled' && Number.isFinite(endMs) && endMs <= nowMs;
+      if (!isMarked && !isOccurredPending) continue;
+
+      rows.push({
+        id: s.id ?? `s-${s.number}`,
+        number: Number(s.number || 0),
+        scheduledAt: s.scheduledAt,
+        startDate,
+        endDate,
+        statusKey: isMarked ? s.status : 'PendingConfirmation',
+      });
+    }
+    return rows.sort((a, b) => b.number - a.number);
+  }, [sessions, sessionMinutes, nowMs, isStartedOrCompleted]);
+
+  const homeworkSummaryStats = useMemo(() => {
+    if (classHomeworks.length > 0) {
+      const assigned = classHomeworks.length;
+      const graded = classHomeworks.filter((h) => h.status === 'Graded' || Boolean(h.publishedGrade)).length;
+      const submitted = classHomeworks.filter(
+        (h) => Boolean(h.submission) || h.status === 'Submitted' || h.status === 'Graded',
+      ).length;
+      const outstanding = Math.max(0, assigned - submitted);
+      return { assigned, submitted, graded, outstanding };
+    }
+    const serverHw = completionQuery.data?.homework;
+    return {
+      assigned: serverHw?.assigned ?? 0,
+      submitted: serverHw?.submitted ?? 0,
+      graded: serverHw?.graded ?? 0,
+      outstanding: serverHw?.outstanding ?? 0,
+    };
+  }, [classHomeworks, completionQuery.data?.homework]);
+
+  const publishedFeedbackList = useMemo(
+    () => (Array.isArray(completionQuery.data?.mentorFeedback) ? completionQuery.data.mentorFeedback : []),
+    [completionQuery.data?.mentorFeedback],
+  );
+
+  const attendanceColumns = useMemo(
+    () => [
+      {
+        key: 'number',
+        header: tr('Buổi học'),
+        sortValue: (row) => row.number,
+        render: (row) => (
+          <span className="font-semibold tabular-nums text-rp-text">
+            {trf('Buổi {0}', { 0: row.number })}
+          </span>
+        ),
+      },
+      {
+        key: 'date',
+        header: tr('Ngày học'),
+        sortValue: (row) => row.startDate?.getTime() || 0,
+        render: (row) => (
+          <span className="whitespace-nowrap tabular-nums text-xs text-rp-text-2">
+            {formatDate(row.scheduledAt, '—')}
+          </span>
+        ),
+      },
+      {
+        key: 'time',
+        header: tr('Thời gian'),
+        sortable: false,
+        render: (row) => (
+          <span className="whitespace-nowrap tabular-nums text-xs font-medium text-rp-text">
+            {formatTimeRange(row.startDate, row.endDate, '—')}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        header: tr('Trạng thái điểm danh'),
+        sortValue: (row) => row.statusKey,
+        render: (row) => {
+          const meta = ATTENDANCE_STATUS_META[row.statusKey] || ATTENDANCE_STATUS_META.PendingConfirmation;
+          return <StatusBadge tone={meta.tone} label={tr(meta.label)} />;
+        },
+      },
+    ],
+    [tr, trf],
+  );
+
+  const totalSessionsCount = progress.totalSessions || current?.totalSessions || validSessions.length || 0;
+  const weeksCount = current?.cohortCourseDurationWeeks
+    || currentCohort?.courseDurationWeeks
+    || (totalSessionsCount > 0 && current?.sessionsPerWeek > 0
+      ? Math.max(1, Math.ceil(totalSessionsCount / current.sessionsPerWeek))
+      : null);
+  const capacity = Number(current?.cohortCapacity ?? currentCohort?.capacitySnapshot ?? currentCohort?.capacity ?? current?.capacitySnapshot ?? 0) || 0;
+  const confirmedCount = Math.max(
+    current && isConfirmedCourseAccess(current) ? 1 : 0,
+    Number(currentCohort?.confirmedEnrolledCount ?? current?.cohortConfirmedEnrolledCount ?? 0) || 0,
+  );
+  const enrollmentClosesAt = current?.cohortEnrollmentClosesAtUtc ?? currentCohort?.enrollmentClosesAtUtc ?? null;
+
+  const weeklyPatternText = useMemo(() => {
+    if (currentCohort?.schedulePattern?.length) {
+      return schedulePatternText(currentCohort.schedulePattern, currentCohort.sessions || []);
+    }
+    const enriched = validSessions.map((s) => {
+      const startMs = parseUtcDate(s.scheduledAt)?.getTime();
+      return {
+        ...s,
+        startTime: s.scheduledAt,
+        endTime: Number.isFinite(startMs) ? new Date(startMs + sessionMinutes * 60_000).toISOString() : undefined,
+      };
+    });
+    return schedulePatternText([], enriched);
+  }, [currentCohort, validSessions, sessionMinutes]);
+
   const nextSession = useMemo(
     () =>
-      sessions.find((s) => {
+      validSessions.find((s) => {
         if (s.status !== 'Scheduled') return false;
         const startMs = parseUtcDate(s.scheduledAt)?.getTime() ?? 0;
         return startMs + sessionMinutes * 60_000 >= nowMs - 30 * 60_000;
       }) || null,
-    [sessions, sessionMinutes, nowMs],
+    [validSessions, sessionMinutes, nowMs],
   );
-  const nextJoinState = nextSession && current ? getSessionJoinState(nextSession, current, nowMs) : null;
-  const started = courseHasStarted(current, nowMs);
-  const canCancelBeforeStart = Boolean(
-    current && current.cohortId && current.status !== 'Cancelled' && current.paymentStatus === 'Paid' && !started,
-  );
+  const nextJoinState = nextSession && current
+    ? getSessionJoinState(nextSession, current, nowMs, { lifecycleId: lifecycle.id })
+    : null;
+  const firstJoinState = firstValidSession && current
+    ? getSessionJoinState(firstValidSession, current, nowMs, { lifecycleId: lifecycle.id })
+    : null;
 
   const pendingHwCount = classHomeworks.filter((h) => h.status !== 'Graded' && !h.submission).length;
   const tabsWithCounts = useMemo(
@@ -194,19 +361,27 @@ export default function CohortWorkspacePage() {
     [cohortIdValue, courseIdValue, title],
   );
 
-  const statusMeta = STATUS_META[current?.status] || { tone: 'neutral', label: current?.status || '—' };
+  // Chặn truy cập trực tiếp qua URL /my-courses/:id/ khi chưa xác nhận thanh toán / ghi danh chưa có hiệu lực.
+  if (!coursesQuery.isPending && matchedSummary && !isConfirmedCourseAccess(matchedSummary)) {
+    return <Navigate to="/my-courses" replace />;
+  }
+  if (detailQuery.isError && detailQuery.error?.status === 403) {
+    return <Navigate to="/my-courses" replace />;
+  }
 
   return (
     <LearnerShell breadcrumb={title}>
       <PageContainer width="default" className="space-y-5">
         <div>
-          <Link
-            to="/my-courses"
-            className="rp-focus mb-3 inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold text-rp-text-muted hover:text-rp-brand-strong"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {tr('Quay lại Lớp của tôi')}
-          </Link>
+          <div className="mb-3">
+            <BackButton
+              fallbackTo="/my-courses/"
+              label="Quay lại lớp của tôi"
+              defaultOriginLabel="Quay lại"
+              restoreListKey="/my-courses"
+              variant="ghost"
+            />
+          </div>
 
           <IllustratedPageHeader
             icon="group"
@@ -214,19 +389,31 @@ export default function CohortWorkspacePage() {
             eyebrow={current?.level ? `JLPT ${current.level} · ${tr('Học nhóm')}` : tr('Không gian lớp học')}
             title={title}
             description={
-              current
-                ? trf('Giáo viên: {0} · {1} buổi · {2} phút/buổi', {
-                    0: current.mentorName || tr('Chưa phân công'),
-                    1: sessions.length || current.totalSessions || 0,
-                    2: current.sessionMinutes || 90,
-                  })
-                : undefined
+              current ? (
+                <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-rp-text-muted">
+                  <UserAvatar
+                    src={current.mentorAvatarUrl || currentCohort?.mentorAvatarUrl}
+                    name={current.mentorName || tr('Giáo viên')}
+                    size="xs"
+                  />
+                  <span>
+                    {tr('Giáo viên:')}{' '}
+                    <span className="font-semibold text-rp-text">{current.mentorName || tr('Chưa phân công')}</span>
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="tabular-nums">
+                    {trf('{0} buổi', { 0: totalSessionsCount })}
+                    {weeksCount ? ` · ${trf('{0} tuần', { 0: weeksCount })}` : ''}
+                    {` · ${trf('{0} phút/buổi', { 0: sessionMinutes })}`}
+                  </span>
+                </span>
+              ) : undefined
             }
             actions={
               current && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={statusMeta.tone}>{tr(statusMeta.label)}</Badge>
-                  {nextJoinState?.canJoin && (
+                  <StatusBadge tone={lifecycle.tone} label={lifecycle.label} />
+                  {lifecycle.id === 'Teaching' && nextJoinState?.canJoin && (
                     <Link
                       to={nextJoinState.roomHref}
                       className="rp-focus inline-flex h-11 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-sm font-semibold text-white hover:opacity-95"
@@ -252,7 +439,7 @@ export default function CohortWorkspacePage() {
           </Banner>
         )}
 
-        {coursesQuery.isPending && !current ? (
+        {(coursesQuery.isPending || detailQuery.isLoading) && !current ? (
           <Card className="p-8">
             <SakuraLoader context="cohort" label={tr('Đang tải không gian lớp học...')} />
           </Card>
@@ -290,125 +477,300 @@ export default function CohortWorkspacePage() {
 
             {/* TAB 1: OVERVIEW */}
             {activeSection === 'overview' && (
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Card className="space-y-4 p-5">
-                  <CardHeader title={tr('Buổi học tiếp theo & Phòng học chung')} />
-                  {nextSession ? (
-                    <div className="space-y-2.5 rounded-2xl border border-rp-line bg-rp-bg-2/60 p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-rp-text">
-                          {tr('Buổi')} {nextSession.number}
-                        </span>
-                        <Badge tone={nextJoinState?.isLive ? 'success' : 'brand'} size="sm">
-                          {nextJoinState?.isLive ? tr('Phòng đang mở') : sessionStatusLabel(nextSession)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm font-semibold text-rp-brand-strong">
-                        {formatVnDateTime(nextSession.scheduledAt)}
-                      </p>
-                      <p className="text-xs text-rp-text-muted">{tr(nextJoinState?.reason || '')}</p>
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {nextJoinState?.canJoin ? (
-                          <Link
-                            to={nextJoinState.roomHref}
-                            className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-xs font-semibold text-white hover:opacity-95"
-                          >
-                            <Video className="h-3.5 w-3.5" />
-                            {tr('Vào phòng học chung')}
-                          </Link>
+              <div className="grid gap-5 lg:grid-cols-12">
+                {/* LEFT COLUMN: Stage-adaptive session block + standardized Course Info */}
+                <div className="space-y-5 lg:col-span-7">
+                  <Card className="space-y-4 p-5">
+                    {lifecycle.id === 'Recruiting' && (
+                      <>
+                        <CardHeader title={tr('Buổi đầu tiên dự kiến')} />
+                        <div className="space-y-2.5 rounded-2xl border border-rp-info-line bg-rp-info-bg/40 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-bold text-rp-text">
+                              {firstValidSession ? `${tr('Buổi')} ${firstValidSession.number}` : tr('Buổi khai giảng dự kiến')}
+                            </span>
+                            <StatusBadge tone="info" label="Đang tuyển sinh" />
+                          </div>
+                          <p className="text-sm font-semibold tabular-nums text-rp-brand-strong">
+                            {firstValidSession
+                              ? formatVnDateTime(firstValidSession.scheduledAt)
+                              : current.cohortFirstSessionStartUtc
+                                ? formatVnDateTime(current.cohortFirstSessionStartUtc)
+                                : tr('Chưa xếp lịch')}
+                          </p>
+                          <p className="text-xs text-rp-text-muted">
+                            {tr('Lớp đang tuyển sinh. Phòng học trực tuyến sẽ mở trước giờ bắt đầu 15 phút khi lớp chính thức khai giảng.')}
+                          </p>
+                          <div className="pt-1">
+                            <Button type="button" variant="secondary" size="sm" onClick={() => setSection('schedule')}>
+                              {tr('Xem toàn bộ lịch học')}
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {lifecycle.id === 'Upcoming' && (
+                      <>
+                        <CardHeader title={tr('Buổi học đầu tiên')} />
+                        {firstValidSession ? (
+                          <div className="space-y-2.5 rounded-2xl border border-rp-line bg-rp-bg-2/60 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-bold text-rp-text">
+                                {tr('Buổi')} {firstValidSession.number}
+                              </span>
+                              <StatusBadge tone="neutral" label="Sắp diễn ra" />
+                            </div>
+                            <p className="text-sm font-semibold tabular-nums text-rp-brand-strong">
+                              {formatVnDateTime(firstValidSession.scheduledAt)}
+                            </p>
+                            <p className="text-xs text-rp-text-muted">{tr(firstJoinState?.reason || '')}</p>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {firstJoinState?.canJoin ? (
+                                <Link
+                                  to={firstJoinState.roomHref}
+                                  className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-xs font-semibold text-white hover:opacity-95"
+                                >
+                                  <Video className="h-3.5 w-3.5" />
+                                  {tr('Vào phòng học chung')}
+                                </Link>
+                              ) : (
+                                <Button type="button" variant="secondary" size="sm" disabled icon={Video}>
+                                  {tr('Chưa tới giờ vào phòng')}
+                                </Button>
+                              )}
+                              <Button type="button" variant="ghost" size="sm" onClick={() => setSection('schedule')}>
+                                {tr('Xem toàn bộ lịch học')}
+                              </Button>
+                            </div>
+                          </div>
                         ) : (
-                          <Button type="button" variant="secondary" size="sm" disabled icon={Video}>
-                            {tr('Chưa tới giờ vào phòng')}
-                          </Button>
+                          <ContextualEmptyState
+                            variant="compact"
+                            illustration="calendar"
+                            title={tr('Chưa có lịch buổi đầu tiên')}
+                            description={tr('Thời gian buổi học đầu tiên sẽ hiển thị ngay khi lịch được xác lập.')}
+                          />
                         )}
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setSection('schedule')}>
-                          {tr('Xem toàn bộ lịch học')}
-                        </Button>
+                      </>
+                    )}
+
+                    {lifecycle.id === 'Teaching' && (
+                      <>
+                        <CardHeader title={tr('Buổi học tiếp theo & Phòng học chung')} />
+                        {nextSession ? (
+                          <div className="space-y-2.5 rounded-2xl border border-rp-line bg-rp-bg-2/60 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-bold text-rp-text">
+                                {tr('Buổi')} {nextSession.number}
+                              </span>
+                              <StatusBadge
+                                tone={nextJoinState?.isLive ? 'success' : 'neutral'}
+                                label={nextJoinState?.isLive ? 'Phòng đang mở' : sessionStatusLabel(nextSession)}
+                              />
+                            </div>
+                            <p className="text-sm font-semibold tabular-nums text-rp-brand-strong">
+                              {formatVnDateTime(nextSession.scheduledAt)}
+                            </p>
+                            <p className="text-xs text-rp-text-muted">{tr(nextJoinState?.reason || '')}</p>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {nextJoinState?.canJoin ? (
+                                <Link
+                                  to={nextJoinState.roomHref}
+                                  className="rp-focus inline-flex h-9 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-xs font-semibold text-white hover:opacity-95"
+                                >
+                                  <Video className="h-3.5 w-3.5" />
+                                  {tr('Vào phòng học chung')}
+                                </Link>
+                              ) : (
+                                <Button type="button" variant="secondary" size="sm" disabled icon={Video}>
+                                  {tr('Chưa tới giờ vào phòng')}
+                                </Button>
+                              )}
+                              <Button type="button" variant="ghost" size="sm" onClick={() => setSection('schedule')}>
+                                {tr('Xem toàn bộ lịch học')}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 rounded-2xl border border-rp-line bg-rp-bg-2/60 p-4 text-xs">
+                            <p className="font-semibold text-rp-text">{tr('Tất cả buổi học theo lịch đã diễn ra')}</p>
+                            <p className="text-rp-text-muted">
+                              {tr('Chờ Giáo viên hoàn tất điểm danh các buổi còn lại để chốt tổng kết khóa học.')}
+                            </p>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setSection('schedule')}>
+                              {tr('Xem toàn bộ lịch học')}
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {lifecycle.id === 'Completed' && (
+                      <>
+                        <CardHeader title={tr('Lớp học đã hoàn thành')} />
+                        <div className="space-y-2.5 rounded-2xl border border-rp-success-line bg-rp-success-bg/50 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-bold text-rp-text">
+                              {trf('{0}/{1} buổi đã hoàn thành', {
+                                0: progress.completedSessions,
+                                1: totalSessionsCount,
+                              })}
+                            </span>
+                            <StatusBadge tone="success" label="Đã hoàn thành" />
+                          </div>
+                          <p className="text-xs text-rp-text-muted">
+                            {tr('Khóa học đã hoàn tất đủ số buổi cam kết. Bạn có thể xem lại lịch sử buổi học, bài tập hoặc gửi yêu cầu hỗ trợ JLPT.')}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <Button type="button" variant="secondary" size="sm" onClick={() => setSection('schedule')}>
+                              {tr('Xem toàn bộ lịch học')}
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setSection('support')}>
+                              {tr('Đánh giá & hỗ trợ')}
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {lifecycle.id === 'Cancelled' && (
+                      <>
+                        <CardHeader title={tr('Lớp học đã bị hủy')} />
+                        <div className="space-y-2 rounded-2xl border border-rp-danger-line bg-rp-danger-bg/40 p-4 text-xs">
+                          <p className="font-semibold text-rp-danger">{tr('Lớp học này đã ngừng vận hành.')}</p>
+                          <p className="text-rp-text-muted">
+                            {tr('Phòng học trực tuyến đã đóng. Vui lòng kiểm tra mục Đánh giá & hỗ trợ nếu cần liên hệ Quản trị viên.')}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </Card>
+
+                  <Card className="space-y-4 p-5">
+                    <CardHeader title={tr('Thông tin khóa học')} />
+                    <div className="space-y-2.5 rounded-2xl border border-rp-line/80 bg-rp-bg-2/40 p-4 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-rp-text-muted">
+                          <Clock aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-brand" />
+                          {tr('Hạn tuyển sinh')}
+                        </span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {enrollmentClosesAt ? formatVnDateTime(enrollmentClosesAt) : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-rp-text-muted">
+                          <CalendarDays aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-brand" />
+                          {tr('Ngày bắt đầu')}
+                        </span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {current.startsAt ? formatDate(current.startsAt, '—') : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-rp-text-muted">
+                          <CalendarDays aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-brand" />
+                          {tr('Ngày kết thúc')}
+                        </span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {current.endsAt ? formatDate(current.endsAt, '—') : '—'}
+                        </span>
+                      </div>
+                      <div className="border-t border-rp-line/60 pt-2.5 flex items-center justify-between gap-3">
+                        <span className="text-rp-text-muted">{tr('Tần suất học')}</span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {current.sessionsPerWeek ? trf('{0} buổi/tuần', { 0: current.sessionsPerWeek }) : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-rp-text-muted">{tr('Thời lượng khóa học')}</span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {weeksCount
+                            ? `${trf('{0} tuần', { 0: weeksCount })} · ${trf('{0} buổi', { 0: totalSessionsCount })}`
+                            : trf('{0} buổi', { 0: totalSessionsCount })}
+                        </span>
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="shrink-0 text-rp-text-muted">{tr('Lịch học hằng tuần')}</span>
+                        <span className="text-right font-medium text-rp-text">{weeklyPatternText}</span>
+                      </div>
+                      <div className="border-t border-rp-line/60 pt-2.5 flex items-center justify-between gap-3">
+                        <span className="text-rp-text-muted">{tr('Giáo viên phụ trách')}</span>
+                        <span className="inline-flex items-center gap-2">
+                          <UserAvatar
+                            src={current.mentorAvatarUrl || currentCohort?.mentorAvatarUrl}
+                            name={current.mentorName || tr('Giáo viên')}
+                            size="xs"
+                          />
+                          <span className="font-semibold text-rp-text">
+                            {current.mentorName || tr('Chưa phân công')}
+                          </span>
+                        </span>
                       </div>
                     </div>
-                  ) : (
-                    <ContextualEmptyState
-                      variant="compact"
-                      illustration="calendar"
-                      title={tr('Không còn buổi học sắp tới')}
-                      description={tr('Tất cả các buổi trong khóa này đã diễn ra hoặc chưa được xếp thêm.')}
-                    />
-                  )}
+                  </Card>
+                </div>
 
-                  <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-rp-line/80 bg-rp-bg-2/40 p-3.5 text-xs">
-                    <div>
-                      <dt className="text-rp-text-muted">{tr('Khai giảng')}</dt>
-                      <dd className="mt-0.5 font-semibold text-rp-text">
-                        {current.startsAt ? formatVnDateTime(current.startsAt) : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-rp-text-muted">{tr('Dự kiến kết thúc')}</dt>
-                      <dd className="mt-0.5 font-semibold text-rp-text">
-                        {current.endsAt ? formatVnDateTime(current.endsAt) : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-rp-text-muted">{tr('Chuyên cần')}</dt>
-                      <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">
-                        {attendedCount}/{sessions.length} ({progressPct}%)
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-rp-text-muted">{tr('Bài tập chưa nộp')}</dt>
-                      <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">{pendingHwCount}</dd>
-                    </div>
-                  </dl>
-                </Card>
-
-                <div className="space-y-4">
-                  {current.paymentStatus === 'Pending' && (
-                    <Card className="space-y-3 border-rp-warning-line bg-rp-warning-bg/70 p-5" role="status">
-                      <p className="font-bold text-rp-warning">{paymentStateMessage('AwaitingPayment')}</p>
-                      {current.paymentExpiresAt && <HoldCountdown expiresAt={current.paymentExpiresAt} className="flex" />}
-                      <p className="text-xs text-rp-text-2">
-                        {trf(
-                          'Chỗ được giữ đến: {0}. Hệ thống chỉ xác nhận ghi danh sau khi thanh toán thành công.',
-                          { 0: current.paymentExpiresAt ? formatVnDateTime(current.paymentExpiresAt) : '—' },
-                        )}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {typeof current.checkoutUrl === 'string' && current.checkoutUrl.startsWith('https://') && (
-                          <a
-                            href={current.checkoutUrl}
-                            className="rp-focus inline-flex h-9 items-center rounded-xl bg-rp-warning px-4 text-xs font-semibold text-white hover:opacity-90"
-                          >
-                            {tr('Tiếp tục thanh toán')}
-                          </a>
-                        )}
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() =>
-                            wrappedAction(
-                              () => reconcileCoursePayment(current.id),
-                              (res) =>
-                                res?.paymentState === 'Confirmed' || res?.paymentStatus === 'Paid'
-                                  ? 'Thanh toán đã được xác nhận. Bạn đã ghi danh thành công!'
-                                  : paymentStateMessage(res?.paymentState) || 'Đang chờ xác nhận thanh toán.',
-                            )
-                          }
-                        >
-                          {tr('Kiểm tra trạng thái thanh toán')}
-                        </Button>
+                {/* RIGHT COLUMN: Class occupancy, course progress & attendance, homework */}
+                <div className="space-y-5 lg:col-span-5">
+                  {capacity > 0 && (
+                    <Card className="space-y-3 p-5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-sm font-bold text-rp-text">
+                          <Users aria-hidden="true" className="h-4 w-4 text-rp-brand" />
+                          {tr('Sĩ số lớp học')}
+                        </span>
+                        <span className="text-xs font-semibold tabular-nums text-rp-text">
+                          {trf('{0}/{1} học viên', { 0: confirmedCount, 1: capacity })}
+                        </span>
                       </div>
+                      <OccupancyProgressBar
+                        enrolledCount={confirmedCount}
+                        capacity={capacity}
+                        size="md"
+                        label={trf('Sĩ số lớp học {0}/{1} học viên', { 0: confirmedCount, 1: capacity })}
+                      />
                     </Card>
                   )}
+
+                  <Card className="space-y-4 p-5">
+                    <CardHeader title={tr('Tiến trình & chuyên cần')} />
+                    <div className="space-y-4 text-xs">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-rp-text-muted">{tr('Tiến trình khóa học')}</span>
+                          <span className="font-semibold tabular-nums text-rp-text">
+                            {trf('{0}/{1} buổi', { 0: progress.completedSessions, 1: totalSessionsCount })} ({progress.percent}%)
+                          </span>
+                        </div>
+                        <ProgressBar
+                          value={progress.completedSessions}
+                          max={totalSessionsCount || 1}
+                          tone="success"
+                          size="sm"
+                          label={trf('Tiến trình khóa học {0}/{1} buổi', { 0: progress.completedSessions, 1: totalSessionsCount })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-line/80 bg-rp-bg-2/50 px-3.5 py-2.5">
+                        <span className="font-medium text-rp-text-muted">{tr('Chuyên cần cá nhân')}</span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {attendance.markedCount === 0
+                            ? tr('Chưa có điểm danh')
+                            : `${attendance.presentCount}/${attendance.markedCount} ${tr('buổi')} (${attendance.percent}%)`}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
 
                   {classHomeworks.length > 0 && (
                     <Card className="space-y-3 p-5">
                       <CardHeader
-                        title={tr('Bài tập gần đây')}
+                        title={pendingHwCount > 0 ? tr('Bài tập chưa nộp') : tr('Bài tập gần đây')}
                         actions={
                           <Button type="button" variant="ghost" size="sm" onClick={() => setSection('homework')}>
-                            {tr('Mở mục Bài tập')}
+                            {tr('Xem bài tập')}
                           </Button>
                         }
                       />
@@ -422,46 +784,6 @@ export default function CohortWorkspacePage() {
                           </li>
                         ))}
                       </ul>
-                    </Card>
-                  )}
-
-                  {canCancelBeforeStart && (
-                    <Card className="space-y-2.5 border-dashed p-4">
-                      <p className="text-xs font-bold text-rp-text">{tr('Hủy ghi danh trước ngày khai giảng')}</p>
-                      <p className="text-xs text-rp-text-muted">
-                        {tr('Bạn chỉ có thể hủy ghi danh cá nhân khi lớp chưa bắt đầu buổi đầu tiên.')}
-                      </p>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <div className="flex-1">
-                          <Input
-                            maxLength={300}
-                            value={cancelReason}
-                            onChange={(e) => setCancelReason(e.target.value)}
-                            placeholder={tr('Lý do hủy ghi danh (không bắt buộc)...')}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="danger"
-                          size="sm"
-                          disabled={busy}
-                          onClick={async () => {
-                            const ok = await confirmAction({
-                              title: tr('Xác nhận hủy ghi danh lớp?'),
-                              description: tr('Chỗ của bạn trong lớp sẽ được giải phóng ngay. Bạn có chắc chắn muốn hủy?'),
-                              confirmLabel: tr('Hủy ghi danh'),
-                              tone: 'danger',
-                            });
-                            if (!ok) return;
-                            await wrappedAction(
-                              () => cancelCohortEnrollment(current.id, cancelReason),
-                              'Đã hủy ghi danh cá nhân và giải phóng 1 chỗ trong lớp.',
-                            );
-                          }}
-                        >
-                          {tr('Hủy ghi danh')}
-                        </Button>
-                      </div>
                     </Card>
                   )}
                 </div>
@@ -481,7 +803,7 @@ export default function CohortWorkspacePage() {
                     />
                   ) : (
                     sessions.map((s) => {
-                      const joinState = getSessionJoinState(s, current, nowMs);
+                      const joinState = getSessionJoinState(s, current, nowMs, { lifecycleId: lifecycle.id });
                       return (
                         <article className="course-row" key={s.id}>
                           <div className="course-buttons" style={{ justifyContent: 'space-between' }}>
@@ -534,56 +856,210 @@ export default function CohortWorkspacePage() {
 
             {/* TAB 4: ATTENDANCE & PROGRESS */}
             {activeSection === 'progress' && (
-              <div className="space-y-5">
-                <Card className="space-y-4 p-5">
-                  <CardHeader
-                    title={tr('Tiến độ chuyên cần & điều kiện hoàn thành')}
-                    actions={
-                      <Link to="/group-learning/progress" className="rp-link text-xs font-semibold">
-                        {tr('Xem tổng hợp tất cả lớp')}
-                      </Link>
+              !isStartedOrCompleted ? (
+                <Card className="p-6">
+                  <ContextualEmptyState
+                    variant="compact"
+                    illustration={lifecycle.id === 'Cancelled' ? 'classroom' : 'calendar'}
+                    title={
+                      lifecycle.id === 'Cancelled'
+                        ? tr('Lớp học đã bị hủy.')
+                        : tr('Điểm danh và tiến độ sẽ khả dụng khi lớp học bắt đầu.')
+                    }
+                    description={
+                      lifecycle.id !== 'Cancelled' && firstValidSession
+                        ? trf('Buổi học đầu tiên dự kiến: {0}', { 0: formatVnDateTime(firstValidSession.scheduledAt) })
+                        : undefined
                     }
                   />
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
-                      <p className="text-xs text-rp-text-muted">{tr('Buổi có mặt')}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums text-rp-success">{attendedCount}</p>
-                    </div>
-                    <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
-                      <p className="text-xs text-rp-text-muted">{tr('Buổi vắng')}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums text-rp-text">{absentCount}</p>
-                    </div>
-                    <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
-                      <p className="text-xs text-rp-text-muted">{tr('Buổi sắp tới')}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums text-rp-brand-strong">{scheduledCount}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-1.5 flex justify-between text-xs text-rp-text-muted">
-                      <span>{tr('Tỷ lệ tham gia toàn khóa')}</span>
-                      <span className="font-semibold tabular-nums text-rp-text">{progressPct}%</span>
-                    </div>
-                    <ProgressBar value={progressPct} max={100} />
-                  </div>
                 </Card>
+              ) : (
+                <div className="space-y-5">
+                  {/* 1. Compact Dashboard + Course Progress */}
+                  <Card className="space-y-4 p-5">
+                    <CardHeader
+                      title={tr('Tiến độ & chuyên cần lớp học')}
+                      actions={
+                        <Link to="/group-learning/progress" className="rp-link text-xs font-semibold">
+                          {tr('Xem tổng hợp tất cả lớp')}
+                        </Link>
+                      }
+                    />
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
+                        <p className="text-xs text-rp-text-muted">{tr('Buổi đã hoàn thành')}</p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-rp-text">
+                          {progress.completedSessions}/{totalSessionsCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
+                        <p className="text-xs text-rp-text-muted">{tr('Có mặt')}</p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-rp-success">{attendance.presentCount}</p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
+                        <p className="text-xs text-rp-text-muted">{tr('Vắng mặt')}</p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-rp-text">
+                          {attendance.absentCount + attendance.excusedCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
+                        <p className="text-xs text-rp-text-muted">{tr('Tỷ lệ chuyên cần')}</p>
+                        <p className={cx('mt-1 font-bold tabular-nums', attendance.markedCount > 0 ? 'text-xl text-rp-brand-strong' : 'text-sm text-rp-text-muted')}>
+                          {attendance.markedCount === 0
+                            ? tr('Chưa có điểm danh')
+                            : `${attendance.percent}%`}
+                        </p>
+                      </div>
+                    </div>
 
-                {current.cohortId && (
-                  <CohortCompletionSummary
-                    courseId={current.id}
-                    summary={completionQuery.data || null}
-                    error={completionQuery.error || null}
-                    onRetry={() => completionQuery.refetch()}
-                    retrying={completionQuery.isFetching}
-                    busy={busy}
-                    onRun={wrappedAction}
-                  />
-                )}
-              </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs text-rp-text-muted">
+                        <span>{tr('Tiến trình khóa học')}</span>
+                        <span className="font-semibold tabular-nums text-rp-text">
+                          {trf('{0}/{1} buổi', { 0: progress.completedSessions, 1: totalSessionsCount })} ({progress.percent}%)
+                        </span>
+                      </div>
+                      <ProgressBar value={progress.completedSessions} max={totalSessionsCount || 1} tone="success" />
+                    </div>
+                  </Card>
+
+                  {/* 2. Attendance History Table (Shared DataTable, past/marked sessions only) */}
+                  <Card className="space-y-4 p-5">
+                    <CardHeader
+                      title={tr('Lịch sử điểm danh')}
+                      actions={
+                        attendanceHistoryRows.length > 5 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAllAttendance((v) => !v)}
+                          >
+                            {showAllAttendance
+                              ? tr('Thu gọn')
+                              : trf('Xem tất cả ({0})', { 0: attendanceHistoryRows.length })}
+                          </Button>
+                        )
+                      }
+                    />
+                    {attendanceHistoryRows.length === 0 ? (
+                      <ContextualEmptyState
+                        variant="compact"
+                        illustration="calendar"
+                        title={tr('Chưa có dữ liệu điểm danh nào được ghi nhận.')}
+                      />
+                    ) : (
+                      <DataTable
+                        columns={attendanceColumns}
+                        rows={showAllAttendance ? attendanceHistoryRows : attendanceHistoryRows.slice(0, 5)}
+                        rowKey={(r) => r.id}
+                        pageSize={showAllAttendance ? 15 : 5}
+                        alwaysShowPagination={false}
+                        itemLabel="buổi học"
+                        minTableWidth="min-w-[440px]"
+                      />
+                    )}
+                  </Card>
+
+                  {/* 3. Homework Statistics (cohort-scoped, balanced 4 cards) */}
+                  <Card className="space-y-4 p-5">
+                    <CardHeader
+                      title={tr('Thống kê bài tập')}
+                      actions={
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setSection('homework')}>
+                          {tr('Xem chi tiết bài tập')}
+                        </Button>
+                      }
+                    />
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5 text-xs">
+                        <p className="text-rp-text-muted">{tr('Được giao')}</p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-rp-text">{homeworkSummaryStats.assigned}</p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5 text-xs">
+                        <p className="text-rp-text-muted">{tr('Đã nộp')}</p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-rp-text">{homeworkSummaryStats.submitted}</p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5 text-xs">
+                        <p className="text-rp-text-muted">{tr('Đã chấm')}</p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-rp-success">{homeworkSummaryStats.graded}</p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5 text-xs">
+                        <p className="text-rp-text-muted">{tr('Chưa nộp')}</p>
+                        <p className={cx('mt-1 text-xl font-bold tabular-nums', homeworkSummaryStats.outstanding > 0 ? 'text-rp-brand-strong' : 'text-rp-text')}>
+                          {homeworkSummaryStats.outstanding}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* 4. Published Mentor Feedback (shown alongside or inside Teaching/Completed) */}
+                  {lifecycle.id !== 'Completed' && (
+                    <Card className="space-y-4 p-5">
+                      <CardHeader title={tr('Nhận xét của Giáo viên')} />
+                      {completionQuery.isPending ? (
+                        <SakuraLoader variant="inline" size={18} context="data" delay={140} />
+                      ) : publishedFeedbackList.length === 0 ? (
+                        <ContextualEmptyState
+                          variant="inline"
+                          size="sm"
+                          illustration="review"
+                          title={tr('Chưa có nhận xét nào được công bố.')}
+                        />
+                      ) : (
+                        <div className="space-y-2.5 text-xs">
+                          {publishedFeedbackList.map((f, idx) => (
+                            <article key={`${f.publishedAtUtc}-${idx}`} className="space-y-2 rounded-xl border border-rp-line bg-rp-bg-2/50 p-3.5">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <UserAvatar src={f.mentorAvatarUrl} name={f.mentorName || tr('Giáo viên')} size="xs" />
+                                  <span className="font-semibold text-rp-text">{f.mentorName || tr('Giáo viên')}</span>
+                                </div>
+                                <span className="text-[11px] tabular-nums text-rp-text-muted">
+                                  {formatVnDateTime(f.publishedAtUtc)}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {f.title && <span className="font-medium text-rp-text-2">{f.title}</span>}
+                                {f.score != null && (
+                                  <Badge tone="brand" icon={false} size="sm">
+                                    {trf('Điểm {0}', { 0: f.score })}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="whitespace-pre-wrap leading-relaxed text-rp-text-2">{f.feedback}</p>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
+                  {/* 5. Official End-of-Course Summary Report — Strictly ONLY when class is Completed */}
+                  {current.cohortId && lifecycle.id === 'Completed' && (
+                    <CohortCompletionSummary
+                      summary={completionQuery.data || null}
+                      error={completionQuery.error || null}
+                      onRetry={() => completionQuery.refetch()}
+                      retrying={completionQuery.isFetching}
+                    />
+                  )}
+                </div>
+              )
             )}
 
             {/* TAB 5: REVIEWS & SUPPORT */}
             {activeSection === 'support' && (
               <div className="space-y-5">
+                {current.cohortId && (
+                  <CohortMentorReviewSection
+                    courseId={current.id}
+                    summary={completionQuery.data || null}
+                    busy={busy}
+                    onRun={wrappedAction}
+                  />
+                )}
+
                 {current.cohortId && current.status !== 'Completed' && (
                   <LearnerCohortTransferPanel course={current} cohorts={cohorts} busy={busy} onRun={wrappedAction} />
                 )}
@@ -592,7 +1068,7 @@ export default function CohortWorkspacePage() {
                   <Card className="space-y-4 p-5">
                     <CardHeader title={tr('Hỗ trợ ôn lại khi trượt JLPT chính thức')} />
                     <p className="text-xs text-rp-text-muted">
-                      {tr('Admin duyệt minh chứng và điều kiện nộp bài tập. Sau khi Admin duyệt, Giáo viên lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
+                      {tr('Quản trị viên duyệt minh chứng và điều kiện nộp bài tập. Sau khi Quản trị viên duyệt, Giáo viên lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
                     </p>
 
                     {current.status === 'Completed' && !(current.requests || []).some((r) => r.status === 'Pending') && (
@@ -613,7 +1089,7 @@ export default function CohortWorkspacePage() {
                             setResultPublishedAt('');
                             setRetakeReason('');
                             setRetakeFile(null);
-                          }, 'Đã gửi yêu cầu hỗ trợ JLPT lên Admin.');
+                          }, 'Đã gửi yêu cầu hỗ trợ JLPT lên Quản trị viên.');
                         }}
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -652,7 +1128,7 @@ export default function CohortWorkspacePage() {
                             disabled={busy || !examDate || !resultPublishedAt || !retakeReason.trim()}
                             loading={busy}
                           >
-                            {tr('Gửi Admin xét duyệt')}
+                            {tr('Gửi Quản trị viên xét duyệt')}
                           </Button>
                         </div>
                       </form>
@@ -720,7 +1196,7 @@ export default function CohortWorkspacePage() {
                     <div>
                       <h3 className="text-sm font-bold text-rp-text">{tr('Khiếu nại & hỗ trợ lớp học')}</h3>
                       <p className="mt-0.5 text-xs text-rp-text-muted">
-                        {tr('Mở mục này khi bạn cần báo cáo chất lượng buổi học, lịch dạy hoặc cần Admin hỗ trợ.')}
+                        {tr('Mở mục này khi bạn cần báo cáo chất lượng buổi học, lịch dạy hoặc cần Quản trị viên hỗ trợ.')}
                       </p>
                     </div>
                     <ChevronDown aria-hidden="true" className="rp-disclosure-chevron h-4 w-4 shrink-0 text-rp-text-muted" />

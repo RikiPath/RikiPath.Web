@@ -87,7 +87,8 @@ export function useProposalDraftPersistence({
 
   const syncNow = useCallback(async ({ forceRevision = null } = {}) => {
     const current = draftRef.current;
-    if (!current || !isEditable || !userId) return null;
+    // Strict Official Proposal Protection: autosave may ONLY persist unsent 'Draft' selections
+    if (!current || current.status !== 'Draft' || !isEditable || !userId) return null;
     // Zero Selection Invariant: never create or persist a 0-session Draft to Backend
     if (!hasActiveWeeklySelection(current)) return null;
     if (savingInFlightRef.current) return null;
@@ -188,7 +189,7 @@ export function useProposalDraftPersistence({
     const handleOffline = () => {
       setIsOnline(false);
       const current = draftRef.current;
-      if (current && isEditable && userId && hasActiveWeeklySelection(current)) {
+      if (current && current.status === 'Draft' && isEditable && userId && hasActiveWeeklySelection(current)) {
         writeLocalDraft(userId, current.id || 'new', {
           draft: current,
           dirty: true,
@@ -199,7 +200,7 @@ export function useProposalDraftPersistence({
     };
     const handleStorage = (event) => {
       const current = draftRef.current;
-      if (!current || !isEditable || !userId || !event?.key || !event?.newValue) return;
+      if (!current || current.status !== 'Draft' || !isEditable || !userId || !event?.key || !event?.newValue) return;
       const prefix = `rikipath:v4:proposal-draft:${String(userId)}:`;
       if (!event.key.startsWith(prefix)) return;
       const watchedKey = `${prefix}${current.id || 'new'}`;
@@ -239,7 +240,7 @@ export function useProposalDraftPersistence({
   const hasMeaningfulContent = hasActiveWeeklySelection(draft);
 
   useEffect(() => {
-    if (!draft || !isEditable || !userId || conflictState) return undefined;
+    if (!draft || draft.status !== 'Draft' || !isEditable || !userId || conflictState) return undefined;
     if (draftFingerprint === lastSyncedHashRef.current && draft.id) return undefined;
     if (!hasMeaningfulContent) return undefined;
 
@@ -267,6 +268,9 @@ export function useProposalDraftPersistence({
    */
   const hydrateFromServer = useCallback((serverDraft) => {
     if (!userId) return serverDraft;
+    if (serverDraft?.status && serverDraft.status !== 'Draft') {
+      return serverDraft;
+    }
     const localRecord = readLocalDraft(userId, serverDraft?.id || 'new');
     const reconciled = reconcileDraftWithServer({ serverDraft, localRecord });
 

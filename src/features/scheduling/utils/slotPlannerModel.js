@@ -445,6 +445,51 @@ export function computeDayRestWindows({ dayKey, occupiedItems = [], policy }) {
 }
 
 /**
+ * Converts ONLY currently visible blocking calendar events for a day into rest-window sources
+ * for visual `"Nghỉ 15 phút"` decorations.
+ * Ensures display filters (statusFilter, JLPT filter, search, etc.) never leave orphaned rest
+ * decorations on empty grid slots, while real conflict/rest validation remains backed by all
+ * unfiltered commitments.
+ */
+export function buildVisibleRestWindowSources(visibleDayEvents = []) {
+  const sources = [];
+  for (const ev of visibleDayEvents || []) {
+    if (!ev || !ev.dayKey) continue;
+    if (
+      ev.tone === 'rejected'
+      || ev.tone === 'cancelled'
+      || ev.tone === 'conflict'
+      || ev.sourceKind === 'rejected'
+      || ev.sourceKind === 'rejectedProposal'
+      || ev.sourceKind === 'cancelled'
+      || ev.sourceKind === 'draftGhost'
+      || ev.sourceKind === 'conflict'
+      || ev.sourceKind === 'externalBusy'
+    ) {
+      continue;
+    }
+    const startMin = Number.isFinite(Number(ev.startMin))
+      ? Number(ev.startMin)
+      : ((Number(ev.startHour) || 0) * 60 + (Number(ev.startMinute) || 0));
+    let endMin = Number.isFinite(Number(ev.endMin))
+      ? Number(ev.endMin)
+      : ((Number(ev.endHour) || 0) * 60 + (Number(ev.endMinute) || 0));
+    if (endMin <= startMin) {
+      endMin = Math.min(24 * 60, startMin + 90);
+    }
+    sources.push({
+      id: ev.id,
+      dayKey: ev.dayKey,
+      startMin,
+      endMin,
+      label: ev.timeLabel || `${clockFromMinutes(startMin)}–${clockFromMinutes(endMin)}`,
+      blocksRest: true,
+    });
+  }
+  return sources;
+}
+
+/**
  * Expands a single-day OR weekly recurring 90-minute schedule draft across every generated date
  * and validates EVERY occurrence against overlaps, 15-min rest buffers, daily/weekly caps, and limits.
  */
@@ -666,28 +711,30 @@ export const SCHEDULE_STATUS_OPTIONS = Object.freeze([
 ]);
 
 /**
- * Simplified 3-status filter strictly for the Teaching Registration Calendar (`/mentor-shift-schedule/`).
- * Separates Proposal Review statuses (Chờ duyệt / Đã duyệt / Bị từ chối) from:
- * - Selection State (Đang chọn / Đã chọn — unsent draft preview, never counted here)
+ * Official status filter strictly for the Teaching Registration Calendar (`/mentor-shift-schedule/`).
+ * Separates Proposal Review statuses (Chờ duyệt / Cần bổ sung / Đã duyệt / Bị từ chối) from:
+ * - Selection State (Đang chọn — unsent draft preview, never counted here)
  * - Class Lifecycle (managed in Lớp đang phụ trách)
  * - Teaching Session Lifecycle (managed in Lịch làm việc)
  */
 export const REGISTRATION_STATUS_OPTIONS = Object.freeze([
   { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
+  { id: 'needsRevision', label: 'Cần bổ sung', tone: 'needsRevision', dotClass: 'bg-[#EA580C]' },
   { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
   { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
 ]);
 
 /**
  * List View status filter for the Teaching Registration workspace (`/mentor-shift-schedule/`).
- * Includes Selection State (`Đã chọn`) alongside the 3 official review statuses so List View
+ * Includes Selection State (`Đang chọn`) alongside the 4 official review statuses so List View
  * exposes the complete registration dataset without mixing class/session lifecycle statuses.
  */
 export const LIST_REGISTRATION_STATUS_OPTIONS = Object.freeze([
   { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
-  { id: 'selected', label: 'Đã chọn', tone: 'selected', dotClass: 'bg-[#22C55E]' },
+  { id: 'selected', label: 'Đang chọn', tone: 'selected', dotClass: 'bg-[#22C55E]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
+  { id: 'needsRevision', label: 'Cần bổ sung', tone: 'needsRevision', dotClass: 'bg-[#EA580C]' },
   { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
   { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
 ]);
@@ -778,8 +825,8 @@ export function classifyScheduleEvent(ev) {
 }
 
 /**
- * Maps an event on the Teaching Registration Calendar to one of the 3 official review statuses:
- * `'pending' | 'approved' | 'rejected'`, or `null` for non-official / excluded items
+ * Maps an event on the Teaching Registration Calendar to one of the 4 official review statuses:
+ * `'pending' | 'needsRevision' | 'approved' | 'rejected'`, or `null` for non-official / excluded items
  * (Selection State drafts, ghost previews, pending moves, cancelled/withdrawn items, external busy).
  *
  * Approved proposals that later became recruiting/upcoming/ongoing/completed classes remain `'approved'`
@@ -806,6 +853,13 @@ export function classifyRegistrationEvent(ev) {
     || (ev.tone === 'cancelled' && !s?.rejectedAt && ev.sourceKind !== 'rejected' && ev.sourceKind !== 'rejectedProposal')
   ) {
     return null;
+  }
+  if (
+    ev.proposalStatus === 'ChangesRequested'
+    || ev.sourceKind === 'needsRevisionProposal'
+    || ev.tone === 'needsRevision'
+  ) {
+    return 'needsRevision';
   }
   if (
     ev.sourceKind === 'rejected'
@@ -880,7 +934,7 @@ function matchesNonStatusCriteria(ev, {
 /**
  * Computes consistent, deduplicated official occurrence counts for the Teaching Registration Calendar.
  * Strictly excludes unsent draft selections (`selected`), cancelled/withdrawn events, and guarantees:
- * `counts.ALL === counts.pending + counts.approved + counts.rejected`.
+ * `counts.ALL === counts.pending + counts.needsRevision + counts.approved + counts.rejected`.
  */
 export function computeRegistrationStatusCounts(events, {
   eventTypeFilter = 'ALL',
@@ -890,7 +944,7 @@ export function computeRegistrationStatusCounts(events, {
   searchQuery = '',
   nowMs = Date.now(),
 } = {}) {
-  const counts = { ALL: 0, pending: 0, approved: 0, rejected: 0 };
+  const counts = { ALL: 0, pending: 0, needsRevision: 0, approved: 0, rejected: 0 };
   const seenKeys = new Set();
 
   for (const ev of events || []) {
@@ -909,15 +963,15 @@ export function computeRegistrationStatusCounts(events, {
     counts[regStatus] += 1;
   }
 
-  counts.ALL = counts.pending + counts.approved + counts.rejected;
+  counts.ALL = counts.pending + counts.needsRevision + counts.approved + counts.rejected;
   return counts;
 }
 
 /**
  * Computes complete row counts for List View on the Teaching Registration workspace,
  * including `selected` (weekly patterns or finite preview occurrences) alongside
- * official `pending`, `approved`, and `rejected` occurrences.
- * Guarantees: `counts.ALL === counts.selected + counts.pending + counts.approved + counts.rejected`.
+ * official `pending`, `needsRevision`, `approved`, and `rejected` occurrences.
+ * Guarantees: `counts.ALL === counts.selected + counts.pending + counts.needsRevision + counts.approved + counts.rejected`.
  */
 export function computeListRegistrationStatusCounts(events, {
   eventTypeFilter = 'ALL',
@@ -927,7 +981,7 @@ export function computeListRegistrationStatusCounts(events, {
   searchQuery = '',
   nowMs = Date.now(),
 } = {}) {
-  const counts = { ALL: 0, selected: 0, pending: 0, approved: 0, rejected: 0 };
+  const counts = { ALL: 0, selected: 0, pending: 0, needsRevision: 0, approved: 0, rejected: 0 };
   const seenKeys = new Set();
 
   for (const ev of events || []) {
@@ -956,7 +1010,7 @@ export function computeListRegistrationStatusCounts(events, {
     counts[regStatus] += 1;
   }
 
-  counts.ALL = counts.selected + counts.pending + counts.approved + counts.rejected;
+  counts.ALL = counts.selected + counts.pending + counts.needsRevision + counts.approved + counts.rejected;
   return counts;
 }
 

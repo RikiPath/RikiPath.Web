@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { Bell, ShieldCheck, SlidersHorizontal, Target, UserRound } from 'lucide-react';
+import { Bell, GraduationCap, ShieldCheck, SlidersHorizontal, Target, UserRound } from 'lucide-react';
 import { AdminShell, ContentAuthorShell, LearnerShell, MentorShell } from '@/layouts';
 import { useAuth } from '@/app/auth/authContext.js';
 import { AlertDialog, ContextualErrorState, RefreshingIndicator, SakuraLoader, cx } from '@/components/ui';
@@ -17,9 +17,11 @@ import NotificationPreferencesSection from './NotificationPreferencesSection.jsx
 import PreferencesSection from './PreferencesSection.jsx';
 import LearningGoalsSection from './LearningGoalsSection.jsx';
 import LearnerAchievementsSection from '@/features/learning-moments/LearnerAchievementsSection.jsx';
+import MentorProfile from '@/pages/mentor/MentorProfile.jsx';
 
 const TAB_ICONS = {
   UserRound,
+  GraduationCap,
   ShieldCheck,
   Bell,
   SlidersHorizontal,
@@ -219,6 +221,9 @@ export default function ProfileWorkspace({ defaultTab = 'profile' }) {
                       onProfileSaved={syncAccountCaches}
                       onSwitchTab={handleTabClick}
                     />
+                  )}
+                  {activeTab === 'professional' && role === 'Mentor' && (
+                    <MentorProfile embedded />
                   )}
                   {activeTab === 'security' && (
                     <AccountSecuritySection

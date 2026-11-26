@@ -1,13 +1,12 @@
 import { useLocation } from 'react-router-dom';
-import { BadgeCheck, CalendarCheck, GraduationCap, SlidersHorizontal, UsersRound } from 'lucide-react';
+import { BadgeCheck, CalendarCheck, GraduationCap, UsersRound } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
 import { AdminWorkspace } from '@/features/admin/components/AdminPrimitives.jsx';
+import AdminTeachingProposalReviewPanel from '@/features/scheduling/components/AdminTeachingProposalReviewPanel.jsx';
 import AdminConsultants from './AdminConsultants.jsx';
 import AdminMentorVerifications from './AdminMentorVerifications.jsx';
 import AdminMentorQualifications from './AdminMentorQualifications.jsx';
-import AdminMentorGroupPolicy from './AdminMentorGroupPolicy.jsx';
-import AdminSlotReview from './AdminSlotReview.jsx';
 import { useLocale } from '@/locales/locale.js';
 
 function cleanPath(pathname) {
@@ -40,26 +39,20 @@ const ROUTE_META = {
     title: 'Phân quyền giảng dạy JLPT',
     icon: GraduationCap,
   },
-  '/admin/mentor-group-policy': {
-    breadcrumb: 'Chính sách lớp nhóm',
-    title: 'Chính sách lớp nhóm',
-    icon: SlidersHorizontal,
-  },
 };
 
 export default function AdminMentorHub() {
   const { tr } = useLocale();
   const { pathname, search } = useLocation();
   const current = cleanPath(pathname);
-  const queryTab = new URLSearchParams(search).get('tab');
+  const initialProposalId = new URLSearchParams(search).get('proposalId');
 
   const meta = ROUTE_META[current] || ROUTE_META['/admin/mentors'];
   const isSchedules = current === '/admin/mentor-schedules';
   const isVerifications = current === '/admin/mentor-verifications';
   const isQualifications = current === '/admin/mentor-qualifications';
-  const isGroupPolicy = current === '/admin/mentor-group-policy';
 
-  const isViewportLocked = !isVerifications && !isGroupPolicy;
+  const isViewportLocked = !isVerifications;
 
   return (
     <AdminShell pathname={pathname} breadcrumb={tr(meta.breadcrumb)}>
@@ -71,19 +64,15 @@ export default function AdminMentorHub() {
 
         {isSchedules ? (
           <div className="flex min-h-0 flex-1 flex-col gap-4">
-            <AdminSlotReview
-              embedded
+            <AdminTeachingProposalReviewPanel
+              initialProposalId={initialProposalId}
               fillHeight
-              allowedTabs={['proposals', 'review']}
-              initialTabOverride={queryTab === 'review' ? 'review' : 'proposals'}
             />
           </div>
         ) : isVerifications ? (
           <AdminMentorVerifications />
         ) : isQualifications ? (
           <AdminMentorQualifications fillHeight />
-        ) : isGroupPolicy ? (
-          <AdminMentorGroupPolicy />
         ) : (
           <AdminConsultants fillHeight />
         )}

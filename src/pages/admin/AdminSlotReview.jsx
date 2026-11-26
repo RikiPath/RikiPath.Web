@@ -48,7 +48,8 @@ import {
   notify,
 } from '@/components/ui';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
-import { currentIntlTag, useLocale } from '@/locales/locale.js';
+import { useLocale } from '@/locales/locale.js';
+import { formatDateTime } from '@/utils/dateTimeFormat.js';
 
 const TABS = [
   { id: 'proposals', label: 'Đề xuất mở lớp' },
@@ -58,18 +59,7 @@ const TABS = [
 ];
 
 function formatSlotTime(value) {
-  if (!value) return '—';
-  const date = parseUtcDate(value);
-  if (!date || Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTime(value, '—');
 }
 
 export default function AdminSlotReview({
@@ -129,8 +119,8 @@ export default function AdminSlotReview({
     onSuccess: async (_, vars) => {
       setModalAction(null);
       setReason('');
-      await refreshAll();
       notify.success(vars.approve ? tr('Đã phê duyệt khung giờ.') : tr('Đã từ chối khung giờ.'), '', { key: 'admin-slot-review-one', replace: true });
+      await Promise.allSettled([refreshAll()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa xử lý được khung giờ'), { key: 'admin-slot-review-one-err', replace: true }),
   });
@@ -140,12 +130,12 @@ export default function AdminSlotReview({
     onSuccess: async (_, vars) => {
       setModalAction(null);
       setReason('');
-      await refreshAll();
       notify.success(
         vars.approve ? tr('Đã phê duyệt các khung giờ đã chọn.') : tr('Đã từ chối các khung giờ đã chọn.'),
         '',
         { key: 'admin-slot-review-batch', replace: true },
       );
+      await Promise.allSettled([refreshAll()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa xử lý được khung giờ chờ duyệt'), { key: 'admin-slot-review-batch-err', replace: true }),
   });
@@ -155,12 +145,12 @@ export default function AdminSlotReview({
     onSuccess: async (_, vars) => {
       setModalAction(null);
       setReason('');
-      await refreshAll();
       notify.success(
         vars.approve ? tr('Đã chấp thuận yêu cầu hủy khung giờ.') : tr('Đã từ chối yêu cầu hủy khung giờ.'),
         '',
         { key: 'admin-slot-cancel-review', replace: true },
       );
+      await Promise.allSettled([refreshAll()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa xử lý được yêu cầu hủy'), { key: 'admin-slot-cancel-review-err', replace: true }),
   });
@@ -170,8 +160,8 @@ export default function AdminSlotReview({
     onSuccess: async () => {
       setModalAction(null);
       setReason('');
-      await refreshAll();
       notify.success(tr('Đã phản hồi yêu cầu đổi tiết.'), '', { key: 'admin-slot-change-review', replace: true });
+      await Promise.allSettled([refreshAll()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa xử lý được yêu cầu đổi tiết'), { key: 'admin-slot-change-review-err', replace: true }),
   });
@@ -276,7 +266,7 @@ export default function AdminSlotReview({
     },
     {
       key: 'startTime',
-      header: tr('Thời gian (GMT+7)'),
+      header: tr('Thời gian'),
       compact: true,
       render: (row) => (
         <span className="whitespace-nowrap text-xs font-medium text-rp-text-2">

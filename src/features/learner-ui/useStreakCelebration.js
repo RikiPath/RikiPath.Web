@@ -4,26 +4,28 @@ import { claimStreakCelebration, getStreakCelebration } from '@/features/progres
 import { getSession } from '@/app/auth/session.js';
 import { learnerKeys, learnerScopeKey } from '@/features/dashboard/hooks/useLearnerHome.js';
 import { notify } from '@/components/ui';
-import { STREAK_MILESTONES } from './learnerTokens.js';
+import { CELEBRATION_KIND, acquireCelebration, canOpenCelebration, scopeCelebrationGate } from '@/features/learning-moments/celebrationGate.js';
 
 export const streakCelebrationKey = ['learner', 'streak-celebration'];
 
 const SAFE_CONTEXT_RETRY_MS = 2000;
 // Learning Moments (onboarding, placement, first lesson…) get the first slot; streak waits for a calm screen.
 const FIRST_ATTEMPT_DELAY_MS = 1500;
+// While the gate is closed (milestone pending / cooldown) check back rarely instead of every 2s.
+const GATE_RETRY_MS = 30_000;
 
 /**
  * Presentation policy (celebrate meaningful progress, not every visit):
  * - milestone reached today → big dialog;
  * - ordinary daily extension → small toast only;
- * - streak at risk → big reminder only when today's activity would hit a milestone or a 7+ day streak is at risk;
- *   otherwise nothing is shown (the event is not consumed).
+ * - streak at risk (first visit of a new study day, live streak, nothing studied yet) → keep-streak reminder
+ *   dialog, once per day (the server claim is atomic per learner + Vietnam study day).
  */
 export function streakPresentation(event) {
   const days = Number(event?.currentStreakDays) || 0;
   if (event?.eventType === 'milestone') return 'dialog';
   if (event?.eventType === 'daily') return 'toast';
-  if (event?.eventType === 'atRisk') return STREAK_MILESTONES.includes(days + 1) || days >= 7 ? 'dialog' : 'none';
+  if (event?.eventType === 'atRisk') return days > 0 ? 'dialog' : 'none';
   return 'none';
 }
 
@@ -65,6 +67,7 @@ export function useStreakCelebration({ enabled = true } = {}) {
 
   const [celebration, setCelebration] = useState(null);
   const claimedIdsRef = useRef(new Set());
+  const releaseRef = useRef(null);
   const presentation = eventQuery.data?.hasPendingEvent ? streakPresentation(eventQuery.data) : 'none';
   const eventId = presentation !== 'none' ? eventQuery.data.eventId : null;
 
@@ -79,6 +82,22 @@ export function useStreakCelebration({ enabled = true } = {}) {
         timer = window.setTimeout(attempt, SAFE_CONTEXT_RETRY_MS);
         return;
       }
+      // Dialog reminders go through the shared celebration gate: never while a Learning Moment is pending or
+      // right after one was shown/closed ("Để sau" is not followed by another popup). The unclaimed server event
+      // simply stays pending for a calmer moment; toasts are not modal and only need a calm screen.
+      let release = null;
+      if (presentation !== 'toast') {
+        scopeCelebrationGate(session?.userId ?? null);
+        if (!canOpenCelebration(CELEBRATION_KIND.REMINDER)) {
+          timer = window.setTimeout(attempt, GATE_RETRY_MS);
+          return;
+        }
+        release = acquireCelebration(CELEBRATION_KIND.REMINDER, eventId);
+        if (!release) {
+          timer = window.setTimeout(attempt, GATE_RETRY_MS);
+          return;
+        }
+      }
       claimedIdsRef.current.add(eventId);
       try {
         const result = await claimStreakCelebration(eventId);
@@ -90,11 +109,15 @@ export function useStreakCelebration({ enabled = true } = {}) {
           if (presentation === 'toast') {
             notify.success(`🔥 ${result.currentStreakDays}`, 'Chuỗi ngày học của bạn vừa tăng thêm một ngày!', { key: 'streak-daily-toast' });
           } else {
+            releaseRef.current = release;
+            release = null;
             setCelebration(result);
           }
         }
+        release?.({ shown: false });
       } catch {
         // Network failure before the server recorded the claim: allow a later retry (still idempotent server-side).
+        release?.({ shown: false });
         claimedIdsRef.current.delete(eventId);
       }
     };
@@ -108,9 +131,15 @@ export function useStreakCelebration({ enabled = true } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, eventId, presentation, queryClient]);
 
+  useEffect(() => () => releaseRef.current?.({ shown: false }), []);
+
   return {
     event: eventQuery.data || null,
     celebration,
-    dismiss: () => setCelebration(null),
+    dismiss: () => {
+      releaseRef.current?.();
+      releaseRef.current = null;
+      setCelebration(null);
+    },
   };
 }

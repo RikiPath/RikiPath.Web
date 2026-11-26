@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, PenLine } from 'lucide-react';
+import { PenLine } from 'lucide-react';
 import { ContentAuthorShell } from '@/layouts';
-import { Card, ContextualEmptyState, PageContainer, PageHeader } from '@/components/ui';
+import { BackButton, Card, ContextualEmptyState, PageContainer, PageHeader } from '@/components/ui';
 import { ManualContentWorkspace } from './ManualContentPage.jsx';
 import { useLocale } from '@/locales/locale.js';
 
@@ -21,13 +21,7 @@ export default function CmsLessonDetail() {
   return (
     <ContentAuthorShell breadcrumb={tr('Chi tiết bài học')}>
       <PageContainer as="div" data-page="CmsLessonDetail" width="reading" className="space-y-5">
-        <Link
-          to="/lesson-cms"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-rp-text-2 hover:text-rp-brand-strong"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>{tr('Quay lại danh sách Bài học')}</span>
-        </Link>
+        <BackButton fallbackTo="/lesson-cms/" label="Quay lại quản lý nội dung" restoreListKey="/lesson-cms" />
         <PageHeader
           eyebrow={tr('Bài học')}
           title={tr('Trình biên soạn bài học')}

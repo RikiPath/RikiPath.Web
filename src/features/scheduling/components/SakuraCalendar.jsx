@@ -122,7 +122,7 @@ const TimeGridEvent = memo(function TimeGridEvent({ event, firstHour, hourHeight
   return (
     <button
       type="button"
-      title={`${event.fullTitle || event.title} · ${timeRangeText(event)} · ${tr(event.statusLabel || meta.label)}`}
+      title={event.tooltip ? tr(event.tooltip) : `${event.fullTitle || event.title} · ${timeRangeText(event)} · ${tr(event.statusLabel || meta.label)}`}
       onClick={(e) => {
         e.stopPropagation();
         if (event.onClick) {
@@ -137,11 +137,11 @@ const TimeGridEvent = memo(function TimeGridEvent({ event, firstHour, hourHeight
     >
       <div className="flex items-start gap-1.5">
         <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
-        <span className={`line-clamp-2 text-[11.5px] font-bold leading-snug ${event.tone === 'cancelled' ? 'line-through' : ''}`}>
+        <span className={`${event.minimalDetail && height < 58 ? 'line-clamp-1' : 'line-clamp-2'} text-[11.5px] font-bold leading-snug ${event.tone === 'cancelled' ? 'line-through' : ''}`}>
           {tr(event.title)}
         </span>
       </div>
-      {height >= 36 && (
+      {height >= 34 && (
         <span className="mt-0.5 block truncate text-[10px] font-medium tabular-nums opacity-85">
           {timeRangeText(event)}{event.detail && event.detail !== timeRangeText(event) ? ` · ${event.detail}` : ''}
         </span>
@@ -386,88 +386,76 @@ export default function SakuraCalendar({
 
   return (
     <div className={`min-w-0 rounded-2xl border border-rp-line bg-white shadow-xs ${className}`} data-sakura-calendar="true">
-      {/* Toolbar */}
-      <div className={headerTopRight
-        ? 'flex flex-col gap-2.5 border-b border-rp-line px-4 py-3'
-        : 'flex flex-wrap items-center justify-between gap-3 border-b border-rp-line px-4 py-3'}
-      >
-        <div className={headerTopRight
-          ? 'flex flex-wrap items-center justify-between gap-2.5'
-          : 'flex min-w-0 flex-wrap items-center gap-2'}
-        >
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {/* Container-Aware Responsive Toolbar: 1 row when wide, auto-wraps when narrow */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-rp-line px-4 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAnchor(todayKey)}
+            className="inline-flex h-8.5 shrink-0 items-center whitespace-nowrap rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+          >
+            {tr('Hôm nay')}
+          </button>
+
+          <div className="inline-flex shrink-0 items-center rounded-xl border border-rp-line bg-white p-0.5">
             <button
               type="button"
-              onClick={() => setAnchor(todayKey)}
-              className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+              aria-label={tr('Khoảng thời gian trước')}
+              onClick={() => setAnchor(stepAnchorKey(anchorKey, view, -1))}
+              className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
             >
-              {tr('Hôm nay')}
+              <ChevronLeft className="h-4 w-4" />
             </button>
-
-            <div className="inline-flex items-center rounded-xl border border-rp-line bg-white p-0.5">
-              <button
-                type="button"
-                aria-label={tr('Khoảng thời gian trước')}
-                onClick={() => setAnchor(stepAnchorKey(anchorKey, view, -1))}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label={tr('Khoảng thời gian sau')}
-                onClick={() => setAnchor(stepAnchorKey(anchorKey, view, 1))}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-
-            <Popover
-              open={miniOpen}
-              onOpenChange={setMiniOpen}
-              align="start"
-              label={tr('Chọn ngày trên lịch')}
-              trigger={({ props, toggle }) => (
-                <button
-                  {...props}
-                  type="button"
-                  onClick={toggle}
-                  aria-label={tr('Mở lịch chọn ngày nhanh')}
-                  className="inline-flex min-h-9 flex-col items-start justify-center rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
-                >
-                  <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-rp-text">
-                    {L.rangeTitle(range, anchorKey, view)}
-                    <CalendarDays className="h-3.5 w-3.5 text-rp-brand-strong" />
-                  </span>
-                  <span className="text-[11px] font-medium text-rp-text-muted">{L.rangeSubtitle(range, view)}</span>
-                </button>
-              )}
+            <button
+              type="button"
+              aria-label={tr('Khoảng thời gian sau')}
+              onClick={() => setAnchor(stepAnchorKey(anchorKey, view, 1))}
+              className="inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rp-text-muted hover:bg-rp-brand-tint hover:text-rp-brand-strong"
             >
-              <MiniMonthPicker
-                anchorKey={anchorKey}
-                todayKey={todayKey}
-                eventsByDay={eventsByDay}
-                onPickDay={(picked) => {
-                  setAnchor(picked);
-                  setMiniOpen(false);
-                }}
-              />
-            </Popover>
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
-          {headerTopRight && (
-            <div className="ml-auto flex items-center gap-2">
-              {headerTopRight}
-            </div>
-          )}
+
+          <Popover
+            open={miniOpen}
+            onOpenChange={setMiniOpen}
+            align="start"
+            label={tr('Chọn ngày trên lịch')}
+            trigger={({ props, toggle }) => (
+              <button
+                {...props}
+                type="button"
+                onClick={toggle}
+                aria-label={tr('Mở lịch chọn ngày nhanh')}
+                className="inline-flex min-h-8.5 shrink-0 flex-col items-start justify-center whitespace-nowrap rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+              >
+                <span className="flex items-center gap-1.5 text-[14.5px] font-bold tracking-tight text-rp-text">
+                  {L.rangeTitle(range, anchorKey, view)}
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0 text-rp-brand-strong" />
+                </span>
+                <span className="text-[11px] font-medium text-rp-text-muted">{L.rangeSubtitle(range, view)}</span>
+              </button>
+            )}
+          >
+            <MiniMonthPicker
+              anchorKey={anchorKey}
+              todayKey={todayKey}
+              eventsByDay={eventsByDay}
+              onPickDay={(picked) => {
+                setAnchor(picked);
+                setMiniOpen(false);
+              }}
+            />
+          </Popover>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           {/* Primary Toggle: Lịch | Danh sách — shared Tabs, so the active pill slides like every other segmented control */}
           <Tabs
             variant="pill"
             tone="segmented"
             size="sm"
+            className="shrink-0"
             label={tr('Chế độ hiển thị')}
             value={view === 'agenda' ? 'agenda' : 'calendar'}
             onChange={(next) => {
@@ -484,7 +472,7 @@ export default function SakuraCalendar({
             <div
               role="group"
               aria-label={tr('Khung thời gian lịch')}
-              className="inline-flex rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
+              className="inline-flex shrink-0 items-center rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
             >
               {VIEWS.filter((v) => v.id !== 'agenda').map((v) => {
                 const active = view === v.id;
@@ -508,6 +496,8 @@ export default function SakuraCalendar({
           )}
 
           {toolbarExtra}
+
+          {headerTopRight}
 
           {showToneFilter && availableTones.length > 0 && (
             <StatusDotListbox
@@ -578,7 +568,7 @@ export default function SakuraCalendar({
               context="calendar"
               illustration="calendar"
               title={tr(emptyTitle)}
-              description={tr(emptyDescription)}
+              description={emptyDescription ? tr(emptyDescription) : undefined}
             />
           </div>
         )}
@@ -597,9 +587,7 @@ export default function SakuraCalendar({
                   overflowY: 'scroll',
                 }}
               >
-                <div className="flex items-end justify-end bg-white px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-rp-text-muted">
-                  GMT+7
-                </div>
+                <div className="flex items-end justify-end bg-white px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-rp-text-muted" />
                 {weekDays.map((day) => {
                   const isSelectedDay = day.key === anchorKey;
                   return (
@@ -871,10 +859,12 @@ export default function SakuraCalendar({
                       </span>
                     </div>
                     <p className={`font-bold text-rp-text ${ev.tone === 'cancelled' ? 'line-through opacity-75' : ''}`}>
-                      {tr(ev.fullTitle || ev.title)}
+                      {tr(ev.minimalDetail ? ev.title : (ev.fullTitle || ev.title))}
                     </p>
                     <p className="text-xs font-medium tabular-nums text-rp-text-2">
-                      {timeRangeText(ev)} · {L.duration(durationMinutes(ev))} · {tr(typeLabel)}
+                      {ev.minimalDetail
+                        ? `${timeRangeText(ev)}${ev.detail ? ` · ${ev.detail}` : ''}`
+                        : `${timeRangeText(ev)} · ${L.duration(durationMinutes(ev))} · ${tr(typeLabel)}`}
                     </p>
                     <div className="flex flex-wrap gap-2 pt-1">
                       <button
@@ -925,7 +915,7 @@ export default function SakuraCalendar({
                         : ev.eventType === 'reminder'
                           ? 'Nhắc nhở'
                           : isCohort ? 'Buổi lớp nhóm' : 'Lịch học')
-                    : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký');
+                    : (ev.minimalDetail ? 'Buổi giảng dạy' : (isCohort ? 'Buổi lớp nhóm' : 'Khung giờ đăng ký'));
                   const typeBadgeClass = isAvailabilityOnly
                     ? 'border-[#99F6E4] bg-[#F0FDFA] text-[#0F766E]'
                     : catMeta.pill;
@@ -943,7 +933,7 @@ export default function SakuraCalendar({
                           </span>
                         </div>
                         <div className={`mt-0.5 text-[11.5px] text-rp-text-2 ${ev.tone === 'cancelled' ? 'line-through opacity-75' : ''}`}>
-                          {tr(ev.fullTitle || ev.title)}
+                          {tr(ev.minimalDetail ? ev.title : (ev.fullTitle || ev.title))}
                           {ev.detail && ev.detail !== timeRangeText(ev) ? ` · ${ev.detail}` : ''}
                         </div>
                       </td>
@@ -1050,11 +1040,67 @@ export default function SakuraCalendar({
           open={Boolean(selectedEvent)}
           onClose={() => setSelectedEvent(null)}
           title={tr(selectedEvent.title)}
+          titleBadge={selectedEvent.minimalDetail ? (() => {
+            const meta = getToneMeta(selectedEvent.tone);
+            return (
+              <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.pill}`}>
+                <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                {tr(selectedEvent.statusLabel || meta.label)}
+              </span>
+            );
+          })() : undefined}
           size="md"
         >
           {(() => {
             const meta = getToneMeta(selectedEvent.tone);
             const closeDetail = () => setSelectedEvent(null);
+            if (selectedEvent.minimalDetail) {
+              return (
+                <div className="space-y-4">
+                  {Array.isArray(selectedEvent.metaRows) && selectedEvent.metaRows.length > 0 && (
+                    <dl className="divide-y divide-rp-line/60 rounded-xl border border-rp-line bg-rp-bg-2/50 px-3.5 py-1 text-[12.5px]">
+                      {selectedEvent.metaRows.map((row) => (
+                        <div key={row.label} className="flex items-center justify-between gap-4 py-2">
+                          <dt className="shrink-0 text-rp-text-muted">{tr(row.label)}</dt>
+                          <dd className="text-right font-semibold tabular-nums text-rp-text">{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-rp-line pt-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {selectedEvent.href && (
+                        <Link
+                          to={selectedEvent.href}
+                          onClick={closeDetail}
+                          className="inline-flex h-9 items-center rounded-xl bg-rp-brand-pressed px-4 text-[12.5px] font-semibold text-white transition-colors hover:bg-rp-brand-strong"
+                        >
+                          {tr(selectedEvent.hrefLabel || 'Xem chi tiết lớp')}
+                        </Link>
+                      )}
+                      {selectedEvent.secondaryHref && (
+                        <Link
+                          to={selectedEvent.secondaryHref}
+                          onClick={closeDetail}
+                          className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-3.5 text-[12.5px] font-semibold text-rp-text-2 transition-colors hover:bg-rp-brand-tint"
+                        >
+                          {tr(selectedEvent.secondaryLabel || 'Xem chi tiết lớp')}
+                        </Link>
+                      )}
+                      {renderEventActions && renderEventActions(selectedEvent, closeDetail)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeDetail}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rp-line bg-white px-3.5 text-[12.5px] font-semibold text-rp-text-2 hover:bg-rp-brand-tint"
+                    >
+                      <X className="h-3.5 w-3.5" /> {tr('Đóng')}
+                    </button>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div className="space-y-4">
                 <div className={`rounded-xl p-3.5 ${meta.card}`}>
@@ -1063,7 +1109,7 @@ export default function SakuraCalendar({
                       <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
                       {tr(selectedEvent.statusLabel || meta.label)}
                     </span>
-                    <span className="text-[12px] font-semibold tabular-nums">{L.duration(durationMinutes(selectedEvent))} · GMT+7</span>
+                    <span className="text-[12px] font-semibold tabular-nums">{L.duration(durationMinutes(selectedEvent))}</span>
                   </div>
                   <p className="mt-2 text-[13px] font-semibold">
                     {L.fullDay(selectedEvent.dayKey, todayKey)} · {timeRangeText(selectedEvent)}

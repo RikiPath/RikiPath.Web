@@ -15,24 +15,21 @@ export default function Dashboard() {
     return <Navigate to="/auth" replace />;
   }
 
-  if (
-    !home.isLoading &&
-    home.profile &&
-    !home.profile.targetJlptLevelId &&
-    !home.session?.skipOnboarding
-  ) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
   const name = displayName(home.profile, home.session);
+  const setupState = home.profile?.setupState ?? null;
+  const hasValidRoadmap = setupState
+    ? Boolean(setupState.hasAnyValidRoadmap)
+    : Boolean(home.completion?.hasValidRoadmap);
 
   return (
     <HomeLearner
       data={{
         displayName: name && name !== 'bạn' ? name : undefined,
         targetLevel: home.profile?.targetJlptLevelName,
-        completedExercises: home.completion?.completedLessons,
-        totalLessons: home.completion?.totalLessons,
+        setupState,
+        hasValidRoadmap,
+        completedExercises: hasValidRoadmap ? (setupState?.roadmapCompletedLessons ?? home.completion?.completedLessons) : null,
+        totalLessons: hasValidRoadmap ? (setupState?.roadmapTotalLessons ?? home.completion?.totalLessons) : null,
         streakDays: home.streak?.currentStreakDays,
         longestStreakDays: home.streak?.longestStreakDays,
         lastActivityDate: home.streak?.lastActivityDate,

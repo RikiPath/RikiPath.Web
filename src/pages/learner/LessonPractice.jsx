@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
 import { useLocale } from '@/locales/locale.js';
@@ -16,6 +15,7 @@ import {
 import { describeApiError } from '@/api/apiErrors.js';
 import {
   AnimatedScoreReveal,
+  BackButton,
   Badge,
   Banner,
   Button,
@@ -127,9 +127,11 @@ export default function LessonPractice() {
     <LearnerShell pathname="/lesson-practice" breadcrumb={tr('Bài tập')}>
       <PageContainer width="reading" density="comfortable" className="text-rp-text space-y-4">
         <div>
-          <Link to={lessonId ? `/lesson-player/?lessonId=${lessonId}` : '/lessons/'} className="rp-link inline-flex items-center gap-1 text-[13px] font-medium">
-            <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Về bài học')}
-          </Link>
+          <BackButton
+            fallbackTo={lessonId ? `/lesson-player/?lessonId=${lessonId}` : '/lessons/'}
+            label="Về bài học"
+            variant="ghost"
+          />
           <header className="mt-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-rp-brand-strong">{tr('Bài tập của bài học')}</p>
             <h1 className="mt-1 rp-type-page-title text-rp-text">{tr('Làm bài rồi xem đáp án')}</h1>

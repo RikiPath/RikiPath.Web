@@ -45,7 +45,6 @@ import {
   SpellCheck,
   Star,
   UserCheck,
-  UserRound,
   Users,
   UsersRound,
   Wand2,
@@ -304,27 +303,23 @@ export const ROLE_NAV = {
         label: 'Giảng dạy',
         items: [
           {
-            id: 'mentor-classes',
             to: '/mentor-study-courses',
-            label: 'Lớp học nhóm',
+            label: 'Quản lý lớp học',
             icon: GroupClassIcon,
             tone: 'group',
-            defaultOpen: true,
-            children: [
-              {
-                to: '/mentor-study-courses',
-                label: 'Lớp đang phụ trách',
-                icon: GroupClassIcon,
-                tone: 'group',
-                prefix: true,
-                alsoActive: ['/mentor/cohorts'],
-                counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COHORT_ATTENDANCE_PENDING,
-                keywords: ['cohort', 'học viên', 'điểm danh'],
-              },
-              { to: '/mentor-homework', label: 'Bài tập & chấm điểm', icon: ClipboardList, tone: 'writing', counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_HOMEWORK_TO_GRADE },
-              { to: '/mentor-grading', label: 'Chấm bài luyện tập', icon: ListChecks, tone: 'mock' },
-            ],
+            prefix: true,
+            alsoActive: ['/mentor/cohorts'],
+            counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COHORT_ATTENDANCE_PENDING,
+            keywords: ['cohort', 'lớp học', 'học viên', 'điểm danh'],
           },
+          {
+            to: '/mentor-homework',
+            label: 'Bài tập & chấm điểm',
+            icon: ClipboardList,
+            tone: 'writing',
+            counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_HOMEWORK_TO_GRADE,
+          },
+          { to: '/mentor-grading', label: 'Chấm bài luyện tập', icon: ListChecks, tone: 'mock' },
           {
             to: '/work-schedule',
             label: 'Lịch làm việc',
@@ -345,30 +340,39 @@ export const ROLE_NAV = {
         ],
       },
       {
-        label: 'Chất lượng & Hồ sơ',
+        label: 'Chất lượng & hỗ trợ',
+        items: [
+          { to: '/mentor-attendance-kpi', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'reading' },
+          { to: '/mentor-reviews', label: 'Đánh giá học viên', icon: Star, tone: 'grammar', alsoActive: ['/mentor/reviews'] },
+          {
+            to: '/mentor-disputes',
+            label: 'Khiếu nại & hỗ trợ',
+            icon: Gavel,
+            tone: 'neutral',
+            alsoActive: ['/mentor/complaints', '/mentor/disputes'],
+            counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COMPLAINTS_AWAITING_RESPONSE,
+          },
+        ],
+      },
+      {
+        label: 'Tài khoản',
         items: [
           {
-            id: 'mentor-quality',
-            to: '/mentor-attendance-kpi',
-            label: 'Chất lượng & phản hồi',
-            icon: ChartNoAxesCombined,
-            tone: 'reading',
-            defaultOpen: true,
-            children: [
-              { to: '/mentor-attendance-kpi', label: 'Điểm danh & KPI', icon: ChartNoAxesCombined, tone: 'reading' },
-              { to: '/mentor-reviews', label: 'Đánh giá học viên', icon: Star, tone: 'grammar', alsoActive: ['/mentor/reviews'] },
-              { to: '/mentor-disputes', label: 'Khiếu nại & hỗ trợ', icon: Gavel, tone: 'neutral', alsoActive: ['/mentor/complaints', '/mentor/disputes'], counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COMPLAINTS_AWAITING_RESPONSE },
-            ],
+            to: '/profile',
+            label: 'Tài khoản & cài đặt',
+            icon: Settings,
+            tone: 'neutral',
+            alsoActive: ['/settings', '/mentor-profile', '/mentor/profile'],
+            counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_PROFILE_ACTION_REQUIRED,
+            keywords: ['hồ sơ cá nhân', 'hồ sơ chuyên môn', 'chứng chỉ', 'bảo mật', 'cài đặt'],
           },
-          { to: '/mentor-profile', label: 'Hồ sơ chuyên môn', icon: UserRound, tone: 'neutral', alsoActive: ['/mentor/profile'], counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_PROFILE_ACTION_REQUIRED },
-          { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings'] },
         ],
       },
     ],
   },
   ContentAuthor: {
     home: '/cms-studio',
-    area: 'Tác giả nội dung',
+    area: 'Quản lý nội dung',
     groups: [
       {
         label: 'Tổng quan',
@@ -468,19 +472,38 @@ export const ROLE_NAV = {
         ],
       },
       {
-        label: 'Cấu hình',
+        label: 'Quản lý nội dung',
+        items: [
+          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'sakura', alsoActive: ['/admin/approval-content'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_CONTENT_REVIEW },
+        ],
+      },
+      {
+        label: 'Cấu hình hệ thống',
         items: [
           { to: '/admin/study-catalog', label: 'Chứng chỉ & cấp độ', icon: GraduationCap, tone: 'neutral' },
-          { to: '/admin/certificate-sections', label: 'Phần thi', icon: Library, tone: 'neutral' },
-          { to: '/admin/plans', label: 'Gói học & bảng giá', icon: Package, tone: 'neutral' },
+          { to: '/admin/certificate-sections', label: 'Cấu trúc đề thi', icon: Library, tone: 'neutral' },
+          { to: '/admin/plans', label: 'Gói học & học phí', icon: Package, tone: 'neutral' },
           {
             to: '/admin/policies',
-            label: 'Chính sách học tập',
+            label: 'Chính sách lớp học',
             icon: SlidersHorizontal,
             tone: 'neutral',
-            alsoActive: ['/admin/mentor-group-policy'],
+            keywords: [
+              'Chính sách vận hành',
+              'Lớp học & giảng dạy',
+              'Tuyển sinh & ghi danh',
+              'Chính sách đào tạo',
+              'sĩ số',
+              'giới hạn lớp',
+              'bài tập',
+              'KPI',
+            ],
           },
-          { to: '/admin/content-review', label: 'Duyệt nội dung', icon: ShieldCheck, tone: 'neutral', alsoActive: ['/admin/approval-content'], counterKey: SIDEBAR_COUNTER_KEYS.ADMIN_CONTENT_REVIEW },
+        ],
+      },
+      {
+        label: 'Tài khoản & cài đặt',
+        items: [
           { to: '/profile', label: 'Tài khoản & cài đặt', icon: Settings, tone: 'neutral', alsoActive: ['/settings', '/update-email', '/change-password'] },
         ],
       },
@@ -593,9 +616,25 @@ export function buildBreadcrumbs(roleKey, pathname, search, pageLabel) {
   }
   // The page's own label is only added on sub-pages (detail views); on a page the sidebar
   // already names, legacy per-page breadcrumb strings would just repeat or contradict it.
+  // However, when a list route also hosts a query-based detail/result view (e.g. `?attemptId=`,
+  // `?submissionId=`, `?id=`) with a distinct pageLabel, keep the list crumb clickable and append pageLabel.
+  const searchParams = search ? new URLSearchParams(search) : null;
+  const hasDetailQuery = Boolean(
+    searchParams && (
+      searchParams.get('attemptId')
+      || searchParams.get('submissionId')
+      || searchParams.get('id')
+      || searchParams.get('lessonId')
+      || searchParams.get('editId')
+    ),
+  );
   const onNavPage = active && clean(active.item.to) === clean(pathname);
   const last = trail[trail.length - 1];
-  if (pageLabel && !onNavPage && pageLabel !== last.label) {
+  const isAliasFallback = pageLabel === 'Thi thử' && active?.item?.label === 'Thi thử JLPT';
+  if (pageLabel && (!onNavPage || (hasDetailQuery && !isAliasFallback)) && pageLabel !== last.label) {
+    if (onNavPage && active?.item?.to && last && !last.to) {
+      last.to = active.item.to;
+    }
     trail.push({ label: pageLabel });
   }
   return trail;

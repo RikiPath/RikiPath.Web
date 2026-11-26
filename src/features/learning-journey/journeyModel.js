@@ -113,16 +113,37 @@ export function findNextLessonInStage(stage, lessonId) {
   return lessons.slice(index + 1).find((lesson) => !lesson.isCompleted) ?? lessons[index + 1] ?? null;
 }
 
-/** Explanation for a locked lesson, naming the real prerequisite the Backend reported. */
+/**
+ * Explanation for a lesson the Backend reported as locked. The roadmap is strictly sequential on the server
+ * (a step opens when every earlier lesson is completed and every earlier stage check is passed), so the
+ * explanation names the first earlier step that is still open — the prerequisite only when it is the blocker.
+ * Never decides the lock itself.
+ */
 export function lessonLockReason(stages, lesson) {
   if (!lesson?.isLocked) return null;
-  const prerequisiteId = lesson.prerequisiteLessonId;
-  const prerequisite = prerequisiteId
-    ? (stages ?? []).flatMap((stage) => stage.lessons ?? []).find((item) => Number(item.lessonId) === Number(prerequisiteId))
+  const orderedStages = [...(stages ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const allLessons = orderedStages.flatMap((stage) => stage.lessons ?? []);
+  const prerequisite = lesson.prerequisiteLessonId
+    ? allLessons.find((item) => Number(item.lessonId) === Number(lesson.prerequisiteLessonId))
     : null;
-  return prerequisite
-    ? { template: 'Hoàn thành bài “{0}” để mở bài này.', value: prerequisite.title }
-    : { template: 'Hoàn thành bài luyện tập trước để mở bài này.', value: null };
+  if (prerequisite && !prerequisite.isCompleted) {
+    return { template: 'Hoàn thành bài “{0}” để mở bài này.', value: prerequisite.title };
+  }
+  for (const stage of orderedStages) {
+    const lessons = [...(stage.lessons ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    for (const item of lessons) {
+      if (Number(item.lessonId) === Number(lesson.lessonId)) {
+        return { template: 'Hoàn thành bài trước trong lộ trình để mở bài này.', value: null };
+      }
+      if (!item.isCompleted) return { template: 'Hoàn thành bài “{0}” để mở bài này.', value: item.title };
+    }
+    for (const checkpoint of [stage.groupQuiz, stage.stageAssessment]) {
+      if (checkpoint && checkpoint.questionCount > 0 && !checkpoint.isPassed) {
+        return { template: 'Vượt qua “{0}” để mở bài này.', value: checkpoint.title };
+      }
+    }
+  }
+  return { template: 'Hoàn thành bài trước trong lộ trình để mở bài này.', value: null };
 }
 
 export function journeyOverview(roadmap) {

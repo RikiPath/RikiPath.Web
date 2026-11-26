@@ -685,15 +685,29 @@ export function isActiveExamAttemptInDom() {
  */
 export function isNotebookCaptureSupportedOnPath(pathname = '') {
   const clean = String(pathname || '').replace(/\/+$/, '') || '/';
+  // Allow selection translation & notebook study on completed post-submission result/review routes!
+  const isPostSubmitReviewRoute =
+    clean.startsWith('/mock-tests/result/') ||
+    clean.startsWith('/practice-sets/result/') ||
+    clean.startsWith('/placement/result/') ||
+    clean === '/exam-result' ||
+    clean.startsWith('/exam-result/');
+
   if (
-    clean.startsWith('/placement/exam') ||
-    clean.startsWith('/placement-exam') ||
-    clean.startsWith('/placement-test') ||
-    clean.startsWith('/app/placement-test') ||
-    clean.startsWith('/mock-test') ||
-    clean.startsWith('/mock-tests') ||
-    clean.startsWith('/exam-n3') ||
-    clean.startsWith('/thi-thu')
+    !isPostSubmitReviewRoute && (
+      clean.startsWith('/placement/exam') ||
+      clean.startsWith('/placement-exam') ||
+      clean.startsWith('/placement-test') ||
+      clean.startsWith('/app/placement-test') ||
+      clean.startsWith('/mock-tests/attempt') ||
+      clean.startsWith('/practice-sets/attempt') ||
+      clean === '/mock-test' ||
+      clean.startsWith('/mock-test/') ||
+      clean === '/mock-tests' ||
+      clean.startsWith('/mock-tests/') ||
+      clean.startsWith('/exam-n3') ||
+      clean.startsWith('/thi-thu')
+    )
   ) {
     return { bubbleAllowed: false, selectionAllowed: false, reason: 'exam-policy' };
   }
@@ -713,6 +727,9 @@ export function isNotebookCaptureSupportedOnPath(pathname = '') {
     '/sentence-studio',
     '/ai-scoring',
     '/daily-srs',
+    '/practice-sets',
+    '/mock-tests/result',
+    '/placement/result',
     '/exam-result',
     '/homework',
     '/my-courses',

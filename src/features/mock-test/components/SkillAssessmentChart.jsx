@@ -192,8 +192,8 @@ export default function SkillAssessmentChart({ result, targetLevel, visibleLevel
   const [view, setView] = useState('result');
   const compare = view !== 'result';
   const history = useQuery({
-    queryKey: ['mock-test-history', user?.userId],
-    queryFn: getMockTestHistory,
+    queryKey: ['mock-test-history', user?.userId, 'MOCK'],
+    queryFn: () => getMockTestHistory({ kind: 'MOCK' }),
     enabled: compare,
     retry: false,
   });

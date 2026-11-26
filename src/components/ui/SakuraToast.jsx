@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { CheckmarkIcon, ErrorIcon, LoaderIcon } from 'react-hot-toast';
 import { X } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
@@ -25,13 +26,19 @@ const TONE_META = {
   loading: { label: 'Đang xử lý', icon: () => <LoaderIcon primary="#E05A7A" secondary="#F6D3DD" /> },
 };
 
-export default function SakuraToast({ t, item, onDismiss }) {
+export default function SakuraToast({ t, item, onDismiss, onExpire }) {
   const { tr } = useLocale();
   const meta = TONE_META[item?.tone] || TONE_META.info;
   const isError = item?.tone === 'error';
   const statusLabel = tr(meta.label);
   const headline = item?.title || item?.message;
   const detail = item?.title && item?.message ? item.message : null;
+
+  useEffect(() => {
+    if (t && t.visible === false && item?.id) {
+      onExpire?.(item.id);
+    }
+  }, [item?.id, onExpire, t, t?.visible]);
 
   return (
     <div

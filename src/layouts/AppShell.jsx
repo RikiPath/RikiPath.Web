@@ -5,9 +5,11 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  GraduationCap,
   KeyRound,
   Layers,
   LockKeyhole,
+  LockOpen,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -24,12 +26,18 @@ import { useLocale } from '@/locales/locale.js';
 import NotificationCenter from '@/features/notifications/components/NotificationCenter.jsx';
 import HeaderCalendarPopover from '@/features/calendar/components/HeaderCalendarPopover.jsx';
 import BackHomeLink from '@/components/brand/BackHomeLink.jsx';
-import { Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, SidebarBadge, Tooltip, UserAvatar, cx } from '@/components/ui';
+import { Breadcrumb, Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, SidebarBadge, Tooltip, UserAvatar, cx } from '@/components/ui';
+import { confirmActiveNavigationGuards, consumePendingScrollRestore, hasActiveNavigationGuards } from '@/utils/navigationContext.js';
 import { ROLE_NAV, buildBreadcrumbs, flattenNavItems, isNavItemActive } from './appNav.js';
 import { useSidebarCounters } from '@/features/sidebar-counters/hooks/useSidebarCounters.js';
 import { resolveNavItemBadge } from '@/features/sidebar-counters/sidebarCounterModel.js';
 import { StudyUnlockProvider } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { LOCK_REASON, useStudyUnlock } from '@/features/entitlements/studyUnlock.js';
+import { useJustUnlocked } from '@/features/entitlements/useJustUnlocked.js';
+import '@/features/learning-moments/learningMoments.css';
+import { setupFeatureForRoute, setupIndicatorForRoute } from '@/features/learning-path/learningPathFlow.js';
+import { useLearningPathAccess } from '@/features/learning-path/useLearningPathAccess.js';
+import { RoadmapSetupModal } from '@/features/learning-path/components/RoadmapSetupState.jsx';
 import { useAtmosphere } from '@/features/atmosphere/useAtmosphere.js';
 import { useHeaderGlass } from '@/features/atmosphere/useHeaderGlass.js';
 import AtmosphericSky from '@/features/atmosphere/components/AtmosphericSky.jsx';
@@ -39,7 +47,13 @@ import '@/features/atmosphere/atmosphere.css';
 
 const COLLAPSE_KEY = 'rp.sidebar.collapsed';
 
-const ROLE_LABEL = { Learner: 'Học viên', Mentor: 'Giáo viên', ContentAuthor: 'Tác giả nội dung', Admin: 'Quản trị viên' };
+const ROLE_LABEL = {
+  Learner: 'Học viên',
+  Mentor: 'Giáo viên',
+  Consultant: 'Giáo viên',
+  ContentAuthor: 'Quản lý nội dung',
+  Admin: 'Quản trị viên',
+};
 
 function readCollapsed() {
   try {
@@ -103,6 +117,16 @@ function LockedNavItem({ item, active, collapsed, onLockedClick, reasonText, tr 
   );
 }
 
+/** Temporary "Đã mở khóa" marker for a destination the Backend just unlocked (green = success/unlocked). */
+function JustUnlockedPill({ tr }) {
+  return (
+    <span className="rp-unlock-pill inline-flex shrink-0 items-center gap-1 rounded-full bg-rp-success-bg px-1.5 py-0.5 text-[10.5px] font-bold text-rp-success">
+      <LockOpen aria-hidden="true" className="h-3 w-3" />
+      {tr('Đã mở khóa')}
+    </span>
+  );
+}
+
 function isBranchFullyLocked(item, lockStateFor) {
   if (!item || typeof lockStateFor !== 'function') return false;
   const children = Array.isArray(item.children) ? item.children : [];
@@ -134,10 +158,14 @@ function NavItem({
   lockState = 'open',
   lockReason,
   onLockedClick,
+  setupIndicator = null,
+  onSetupRequiredClick,
 }) {
+  const guardNavigate = useNavigateGuarded();
   const Icon = item.icon;
   const label = tr(item.label);
   const badgeInfo = resolveNavItemBadge(item, counters, { collapsed, isStale: countersStale, tr, trf });
+  const setupReason = setupIndicator?.reason ? tr(setupIndicator.reason) : null;
   if (lockState === 'locked' && onLockedClick) {
     return (
       <LockedNavItem
@@ -153,15 +181,77 @@ function NavItem({
       />
     );
   }
+  if (setupIndicator && onSetupRequiredClick) {
+    const btn = (
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.();
+          onSetupRequiredClick(item);
+        }}
+        aria-haspopup="dialog"
+        data-setup-required="true"
+        aria-label={setupReason ? `${label} — ${setupReason}` : label}
+        className={cx(
+          'rp-focus rp-nav-locked group relative flex items-center rounded-xl text-left rp-type-nav transition-all duration-150',
+          collapsed
+            ? 'mx-auto h-10 w-10 justify-center p-0'
+            : 'min-h-10 w-full gap-2.5 px-2 py-1',
+          active
+            ? collapsed
+              ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border shadow-rp-xs'
+              : 'bg-rp-brand-tint/90 font-semibold text-rp-brand-strong shadow-rp-xs'
+            : 'font-medium text-rp-text-2 hover:bg-rp-muted/60 hover:text-rp-text',
+        )}
+      >
+        <span
+          aria-hidden="true"
+          data-tone={item.tone || 'neutral'}
+          className={cx(
+            'rp-nav-tile flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]',
+            active ? 'rp-nav-tile-active bg-current' : 'opacity-75 saturate-[0.65]',
+          )}
+        >
+          <Icon className={cx('h-[17px] w-[17px]', active && 'text-white')} />
+        </span>
+        {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+        {!collapsed && (
+          <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" />
+        )}
+        {collapsed && (
+          <span
+            aria-hidden="true"
+            className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-rp-line bg-white text-rp-text-muted shadow-rp-xs"
+          >
+            <LockKeyhole className="h-2.5 w-2.5" />
+          </span>
+        )}
+      </button>
+    );
+    return (
+      <Tooltip content={collapsed && setupReason ? `${label} — ${setupReason}` : (setupReason || label)} side="right" fullWidth>
+        {btn}
+      </Tooltip>
+    );
+  }
   const link = (
     <NavLink
       to={item.to}
       end={item.end}
-      onClick={onNavigate}
+      onClick={(e) => guardNavigate(e, item.to, onNavigate)}
       aria-current={active ? 'page' : undefined}
-      aria-label={collapsed ? (badgeInfo.tooltip ? `${label} — ${badgeInfo.tooltip}` : label) : undefined}
+      data-setup-required={setupIndicator ? 'true' : undefined}
+      title={setupReason || undefined}
+      aria-label={
+        setupReason
+          ? `${label} — ${setupReason}`
+          : collapsed
+            ? (badgeInfo.tooltip ? `${label} — ${badgeInfo.tooltip}` : label)
+            : undefined
+      }
       className={cx(
         'rp-focus rp-interactive group relative flex items-center rounded-xl rp-type-nav transition-all duration-150',
+        lockState === 'just-unlocked' && 'rp-unlock-flash',
         collapsed
           ? 'mx-auto h-10 w-10 justify-center p-0'
           : 'min-h-10 w-full gap-2.5 px-2 py-1',
@@ -169,7 +259,9 @@ function NavItem({
           ? collapsed
             ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border shadow-rp-xs'
             : 'bg-rp-brand-tint/90 font-semibold text-rp-brand-strong shadow-rp-xs'
-          : 'font-medium text-rp-text hover:bg-rp-muted/50',
+          : setupIndicator
+            ? 'font-medium text-rp-text-2 hover:bg-rp-muted/60 hover:text-rp-text'
+            : 'font-medium text-rp-text hover:bg-rp-muted/50',
       )}
     >
       {active && !collapsed && (
@@ -183,11 +275,27 @@ function NavItem({
           'rp-nav-tile rp-icon-tilt flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]',
           // Active: the tile turns solid in its own feature colour (bg-current) with a white glyph.
           active && 'rp-nav-tile-active bg-current',
+          setupIndicator && !active && 'opacity-80 saturate-[0.7]',
         )}
       >
         <Icon className={cx('h-[17px] w-[17px]', active && 'text-white')} />
       </span>
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+      {lockState === 'just-unlocked' && !collapsed && <JustUnlockedPill tr={tr} />}
+      {setupIndicator && !collapsed && (
+        <LockKeyhole
+          aria-hidden="true"
+          className="h-3.5 w-3.5 shrink-0 text-rp-text-muted"
+        />
+      )}
+      {setupIndicator && collapsed && (
+        <span
+          aria-hidden="true"
+          className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-rp-line bg-white text-rp-text-muted shadow-rp-xs"
+        >
+          <LockKeyhole className="h-2.5 w-2.5" />
+        </span>
+      )}
       {badgeInfo.count > 0 && (
         <SidebarBadge
           count={badgeInfo.count}
@@ -206,8 +314,15 @@ function NavItem({
       )}
     </NavLink>
   );
-  return collapsed ? (
-    <Tooltip content={renderCollapsedTooltip(label, badgeInfo)} side="right" fullWidth>
+  if (collapsed) {
+    return (
+      <Tooltip content={setupReason ? `${label} — ${setupReason}` : renderCollapsedTooltip(label, badgeInfo)} side="right" fullWidth>
+        {link}
+      </Tooltip>
+    );
+  }
+  return setupReason ? (
+    <Tooltip content={setupReason} side="right" fullWidth>
       {link}
     </Tooltip>
   ) : (
@@ -292,6 +407,7 @@ function FlyoutChildRow({
         }}
         className={cx(
           'rp-focus group flex min-h-9 items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-[13px] transition-colors',
+          lockStateFor(child) === 'just-unlocked' && 'rp-unlock-flash',
           childActive
             ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
             : 'font-medium text-rp-text-2 hover:bg-rp-muted/65 hover:text-rp-text',
@@ -311,6 +427,7 @@ function FlyoutChildRow({
             <span className="block truncate text-[11px] font-normal text-rp-text-muted">{tr(child.description)}</span>
           )}
         </span>
+        {lockStateFor(child) === 'just-unlocked' && <JustUnlockedPill tr={tr} />}
         {badgeInfo.count > 0 && (
           <SidebarBadge
             count={badgeInfo.count}
@@ -348,6 +465,7 @@ function CollapsedBranchFlyout({
   lockStateFor,
   onLockedClick,
 }) {
+  const flyoutNavigate = useNavigate();
   const menuRef = useRef(null);
   useEffect(() => {
     const onDown = (e) => {
@@ -381,7 +499,18 @@ function CollapsedBranchFlyout({
         <NavLink
           to={item.to}
           end
-          onClick={() => {
+          onClick={(e) => {
+            if (hasActiveNavigationGuards()) {
+              e.preventDefault();
+              void confirmActiveNavigationGuards().then((ok) => {
+                if (ok) {
+                  onClose();
+                  onNavigate?.();
+                  flyoutNavigate(item.to);
+                }
+              });
+              return;
+            }
             onClose();
             onNavigate?.();
           }}
@@ -1099,6 +1228,7 @@ function SidebarNav({
   roleKey,
   collapsed,
   onNavigate,
+  onSetupGuide,
   rememberScroll = false,
   counters = {},
   countersLoading = false,
@@ -1111,6 +1241,12 @@ function SidebarNav({
   const { tr, trf } = useLocale();
   const nav = ROLE_NAV[roleKey];
   const unlock = useStudyUnlock();
+  const navDestinations = useMemo(
+    () => [...new Set(nav.groups.flatMap((g) => flattenNavItems(g.items)).map((i) => i.to).filter(Boolean))],
+    [nav],
+  );
+  // Destinations the Backend just unlocked (e.g. right after a purchase) get a one-time highlight.
+  const justUnlocked = useJustUnlocked(unlock?.access, navDestinations);
   const storageKey = `rp.nav.expanded.${roleKey}`;
   const groupStorageKey = `rp.nav.groups.expanded.${roleKey}`;
 
@@ -1204,10 +1340,18 @@ function SidebarNav({
     });
   };
 
+  const roadmapAccess = useLearningPathAccess({ enabled: roleKey === 'Learner' });
   // loading / error → 'unknown' → rendered as a normal item (no lock flash, no false paywall).
-  const lockStateFor = (item) => (unlock ? unlock.access.lockStateFor(item.to) : 'open');
+  const lockStateFor = (item) => {
+    const state = unlock ? unlock.access.lockStateFor(item.to) : 'open';
+    return state !== 'locked' && justUnlocked.includes(item.to) ? 'just-unlocked' : state;
+  };
   const lockReasonFor = (item) => (unlock?.access.lockReasonFor ? unlock.access.lockReasonFor(item.to) : LOCK_REASON);
   const onLockedClick = unlock ? (item) => unlock.requestUnlock(item.to, item.label, item.icon) : undefined;
+  // One setup state decides every Learner lock: assessment needs a goal, roadmap needs a valid assessment.
+  const setupIndicatorFor = (item) => (roleKey === 'Learner' ? setupIndicatorForRoute(roadmapAccess, item.to) : null);
+  // The guide lives in AppShell (one instance), so closing the mobile drawer never unmounts it.
+  const onSetupRequiredClick = (item) => onSetupGuide?.(setupFeatureForRoute(item?.to) || 'roadmap');
   return (
     <nav
       ref={navRef}
@@ -1299,6 +1443,8 @@ function SidebarNav({
                         lockState={lockStateFor(item)}
                         lockReason={lockReasonFor(item)}
                         onLockedClick={onLockedClick}
+                        setupIndicator={setupIndicatorFor(item)}
+                        onSetupRequiredClick={onSetupRequiredClick}
                       />
                     )}
                   </li>
@@ -1309,6 +1455,7 @@ function SidebarNav({
         </div>
         );
       })}
+
     </nav>
   );
 }
@@ -1348,7 +1495,7 @@ function ProfileMenu({ roleKey }) {
       ? [{ to: '/profile?tab=goals', label: 'Mục tiêu học tập', icon: Target }]
       : []),
     ...(roleKey === 'Mentor'
-      ? [{ to: '/mentor-profile', label: 'Hồ sơ giảng dạy', icon: UserRound }]
+      ? [{ to: '/profile?tab=professional', label: 'Hồ sơ chuyên môn', icon: GraduationCap }]
       : []),
     ...(roleKey === 'ContentAuthor'
       ? [{ to: '/cms-studio', label: 'Biên soạn nội dung', icon: Layers }]
@@ -1435,15 +1582,23 @@ function ProfileMenu({ roleKey }) {
 
 /* ------------------------------------------------------------------ Quick Jump (Ctrl+K) */
 
-function QuickJumpModal({ open, onClose, groups, tr }) {
+function QuickJumpModal({ open, onClose, groups, tr, onSetupGuide }) {
   const navigate = useNavigate();
+  const { isLearner } = useAuth();
   const unlock = useStudyUnlock();
+  const roadmapAccess = useLearningPathAccess({ enabled: Boolean(isLearner) });
   const isLocked = (item) => Boolean(unlock) && unlock.access.lockStateFor(item.to) === 'locked';
   const lockReasonOf = (item) => unlock?.access.lockReasonFor?.(item.to) || LOCK_REASON;
+  const setupIndicatorOf = (item) => (isLearner ? setupIndicatorForRoute(roadmapAccess, item.to) : null);
   const go = (item) => {
     if (isLocked(item)) {
       handleClose();
       unlock.requestUnlock(item.to, item.label, item.icon);
+      return;
+    }
+    if (setupIndicatorOf(item)) {
+      handleClose();
+      onSetupGuide?.(setupFeatureForRoute(item.to) || 'roadmap');
       return;
     }
     navigate(item.to);
@@ -1485,7 +1640,8 @@ function QuickJumpModal({ open, onClose, groups, tr }) {
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title={tr('Chuyển nhanh đến chức năng')} size="md">
+    <>
+      <Modal open={open} onClose={handleClose} title={tr('Chuyển nhanh đến chức năng')} size="md">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -1517,24 +1673,27 @@ function QuickJumpModal({ open, onClose, groups, tr }) {
                   const tone = FEATURE_TONES[item.tone] || FEATURE_TONES.neutral;
                   const Icon = item.icon;
                   const locked = isLocked(item);
+                  const setupIndicator = !locked ? setupIndicatorOf(item) : null;
+                  const indicatorReason = locked ? tr(lockReasonOf(item)) : setupIndicator ? tr(setupIndicator.reason) : null;
                   return (
                     <li key={item.to}>
                       <button
                         type="button"
                         onClick={() => go(item)}
-                        aria-haspopup={locked ? 'dialog' : undefined}
-                        aria-label={locked ? `${tr(item.label)} — ${tr(lockReasonOf(item))}` : undefined}
-                        title={locked ? tr(lockReasonOf(item)) : undefined}
+                        aria-haspopup={(locked || setupIndicator) ? 'dialog' : undefined}
+                        data-setup-required={setupIndicator ? 'true' : undefined}
+                        aria-label={indicatorReason ? `${tr(item.label)} — ${indicatorReason}` : undefined}
+                        title={indicatorReason || undefined}
                         className={cx(
                           'rp-focus group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium',
-                          locked ? 'text-rp-text-muted hover:bg-rp-muted/75 hover:text-rp-text-2' : 'rp-interactive text-rp-text hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong',
+                          locked || setupIndicator ? 'text-rp-text-muted hover:bg-rp-muted/75 hover:text-rp-text-2' : 'rp-interactive text-rp-text hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong',
                         )}
                       >
-                        <span aria-hidden="true" className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tone.bg, tone.fg, locked ? 'opacity-75 saturate-[0.55]' : 'rp-icon-tilt')}>
+                        <span aria-hidden="true" className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tone.bg, tone.fg, locked || setupIndicator ? 'opacity-75 saturate-[0.55]' : 'rp-icon-tilt')}>
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1 truncate">{tr(item.label)}</span>
-                        {locked && <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" />}
+                        {(locked || setupIndicator) && <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" />}
                       </button>
                     </li>
                   );
@@ -1545,40 +1704,33 @@ function QuickJumpModal({ open, onClose, groups, tr }) {
         )}
       </div>
     </Modal>
+
+    </>
   );
+}
+
+function useNavigateGuarded() {
+  const navigate = useNavigate();
+  return (event, to, afterAllow) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (!hasActiveNavigationGuards()) {
+      afterAllow?.(event);
+      return;
+    }
+    event.preventDefault();
+    void confirmActiveNavigationGuards().then((ok) => {
+      if (!ok) return;
+      afterAllow?.(event);
+      navigate(to);
+    });
+  };
 }
 
 /* ------------------------------------------------------------------ Breadcrumbs */
 
 function Breadcrumbs({ trail }) {
-  const { tr } = useLocale();
   if (!trail.length) return null;
-  return (
-    <nav aria-label="Breadcrumb" className="hidden min-w-0 overflow-hidden md:block">
-      <ol className="flex min-w-0 items-center gap-1 overflow-hidden text-[13px]">
-        {trail.map((crumb, i) => {
-          const last = i === trail.length - 1;
-          const CrumbIcon = crumb.icon;
-          return (
-            <li key={`${crumb.label}-${i}`} className={cx('flex min-w-0 items-center gap-1', !last && 'max-w-[160px] shrink')}>
-              {i > 0 && <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-text-disabled" />}
-              {crumb.to && !last ? (
-                <Link to={crumb.to} className="rp-focus inline-flex min-w-0 items-center gap-1.5 truncate rounded text-rp-text-muted transition-colors hover:text-rp-brand-strong">
-                  {CrumbIcon && <CrumbIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 stroke-[1.9]" />}
-                  <span className="truncate">{tr(crumb.label)}</span>
-                </Link>
-              ) : (
-                <span aria-current={last ? 'page' : undefined} className={cx('inline-flex min-w-0 items-center gap-1.5 truncate', last ? 'font-semibold text-rp-text' : 'text-rp-text-muted')}>
-                  {CrumbIcon && <CrumbIcon aria-hidden="true" className={cx('h-3.5 w-3.5 shrink-0 stroke-[1.9]', last && 'text-rp-brand-strong')} />}
-                  <span className="truncate">{tr(crumb.label)}</span>
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
+  return <Breadcrumb items={trail} maxVisible={4} className="hidden md:block" />;
 }
 
 /* ------------------------------------------------------------------ Shell */
@@ -1595,7 +1747,11 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  // One setup guide for every entry point (Sidebar, mobile drawer, quick search); the clicked feature picks the story.
+  const [setupGuideFeature, setSetupGuideFeature] = useState(null);
+  const setupAccess = useLearningPathAccess({ enabled: roleKey === 'Learner' });
   const mainScrollRef = useRef(null);
+  const prevPathRef = useRef(pathname);
   const locationKey = `${pathname}${search}`;
   const [lastLocationKey, setLastLocationKey] = useState(locationKey);
   if (locationKey !== lastLocationKey) {
@@ -1604,8 +1760,19 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
   }
 
   useEffect(() => {
-    mainScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-  }, [pathname]);
+    const pathChanged = prevPathRef.current !== pathname;
+    prevPathRef.current = pathname;
+    const savedTop = consumePendingScrollRestore(pathname, search);
+    if (savedTop != null) {
+      window.requestAnimationFrame(() => {
+        mainScrollRef.current?.scrollTo({ top: savedTop, behavior: 'auto' });
+      });
+      return;
+    }
+    if (pathChanged) {
+      mainScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [pathname, search]);
 
   useEffect(() => {
     try {
@@ -1653,6 +1820,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
       <aside
         aria-label={area}
         data-collapsed={collapsed ? 'true' : 'false'}
+        data-translate-scope="deny"
         className={cx(
           // Starts under the full-width sky header (brand lives in the header, like a top app bar).
           'rp-shell-sidebar fixed bottom-0 left-0 top-[var(--spacing-rp-topbar)] z-40 hidden flex-col border-r border-rp-line bg-rp-surface transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] lg:flex',
@@ -1673,6 +1841,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         <SidebarNav
           roleKey={roleKey}
           collapsed={collapsed}
+          onSetupGuide={setSetupGuideFeature}
           rememberScroll
           counters={sidebarCounters.byKey}
           countersLoading={sidebarCounters.isLoading}
@@ -1715,6 +1884,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
             roleKey={roleKey}
             collapsed={false}
             onNavigate={() => setDrawerOpen(false)}
+            onSetupGuide={setSetupGuideFeature}
             counters={sidebarCounters.byKey}
             countersLoading={sidebarCounters.isLoading}
             countersStale={sidebarCounters.isStale}
@@ -1748,6 +1918,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
 
       {/* Full-width sky header (spans above the sidebar too) */}
       <header
+        data-translate-scope="deny"
         data-role={roleKey.toLowerCase()}
         data-sky={skyOn ? 'on' : 'off'}
         data-sky-tone={skyOn && atmosphere.scene.isDark ? 'dark' : 'light'}
@@ -1858,7 +2029,15 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         </div>
       </div>
 
-      <QuickJumpModal open={quickOpen} onClose={() => setQuickOpen(false)} groups={nav.groups} tr={tr} />
+      <QuickJumpModal open={quickOpen} onClose={() => setQuickOpen(false)} groups={nav.groups} tr={tr} onSetupGuide={setSetupGuideFeature} />
+      {roleKey === 'Learner' && (
+        <RoadmapSetupModal
+          open={Boolean(setupGuideFeature)}
+          feature={setupGuideFeature || 'roadmap'}
+          onClose={() => setSetupGuideFeature(null)}
+          roadmapAccess={setupAccess}
+        />
+      )}
     </div>
     </StudyUnlockProvider>
     </AtmosphereContext.Provider>

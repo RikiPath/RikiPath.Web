@@ -14,6 +14,7 @@ import {
   notify,
   pushToast,
   registerToastEngine,
+  releaseToast,
   unregisterToastEngine,
 } from '@/components/ui/feedbackStore.js';
 import { translateText } from '@/locales/locale.js';
@@ -99,6 +100,25 @@ describe('feedbackStore & react-hot-toast adapter', () => {
     }
     assert.equal(getToasts().length, 4);
     assert.ok(dismissed.includes(ids[0]), 'oldest toast should be dismissed from engine on overflow');
+  });
+
+  it('releases expired finite-duration toasts so repeated submissions with the same key always show', () => {
+    const shown = [];
+    registerToastEngine({
+      show: (item) => shown.push({ ...item }),
+      dismiss: () => {},
+      dismissAll: () => {},
+    });
+
+    const autoId1 = pushToast({ tone: 'success', title: 'Đăng ký mở lớp thành công', key: 'repeat-key', duration: 6000, now: 100_000 });
+    assert.ok(autoId1);
+    releaseToast(autoId1);
+    const autoId2 = pushToast({ tone: 'success', title: 'Đăng ký mở lớp thành công', key: 'repeat-key', duration: 6000, now: 105_000 });
+    assert.ok(autoId2, 'toast with same key must render again after previous toast auto-closed');
+    // Even without explicit releaseToast, elapsed duration prunes stale zombie entry
+    const autoId3 = pushToast({ tone: 'success', title: 'Đăng ký mở lớp thành công', key: 'repeat-key', duration: 6000, now: 112_000 });
+    assert.ok(autoId3, 'stale expired toast must be pruned automatically by duration');
+    assert.equal(shown.length, 3);
   });
 
   it('transitions notify.promise from loading to success on the same toast ID', async () => {
@@ -244,9 +264,13 @@ describe('feedbackStore & react-hot-toast adapter', () => {
 describe('Global toast architecture & domain safety contracts', () => {
   it('mounts exactly one react-hot-toast <HotToaster> inside FeedbackProvider at App root', () => {
     const overlaySrc = readSrc('src/components/ui/overlay.jsx');
+    const queryClientSrc = readSrc('src/api/queryClient.js');
     assert.match(overlaySrc, /Toaster as HotToaster/);
-    assert.match(overlaySrc, /<HotToaster[\s\S]*containerClassName="rp-toaster-root"/);
+    assert.match(overlaySrc, /<Portal>[\s\S]*<HotToaster[\s\S]*containerClassName="rp-toaster-root"/);
+    assert.match(overlaySrc, /onExpire=\{releaseToast\}/);
     assert.match(overlaySrc, /consumeFlashToast\(\)/);
+    assert.match(queryClientSrc, /new MutationCache\(/);
+    assert.match(queryClientSrc, /notify\.apiError/);
 
     const appSrc = readSrc('src/app/App.jsx');
     assert.match(appSrc, /<FeedbackProvider>[\s\S]*<RoutedApp \/>/);

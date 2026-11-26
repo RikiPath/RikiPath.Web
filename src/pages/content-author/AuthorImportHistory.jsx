@@ -98,7 +98,7 @@ function BatchContents({ batchId, batch, userId }) {
       return submitAuthorImportBatch(batchId);
     },
     onSuccess: async () => {
-      notify.success(tr('Đã gửi lô nội dung để Admin xét duyệt.'), '', { key: `author-batch-submit-${batchId}`, replace: true });
+      notify.success(tr('Đã gửi lô nội dung để Quản trị viên xét duyệt.'), '', { key: `author-batch-submit-${batchId}`, replace: true });
       setConfirmSubmit(false);
       await refresh();
     },
@@ -312,8 +312,8 @@ function BatchContents({ batchId, batch, userId }) {
         onClose={() => setConfirmSubmit(false)}
         onConfirm={() => submit.mutate()}
         loading={submit.isPending}
-        title={tr('Gửi toàn bộ lô Excel cho Admin duyệt?')}
-        description={trf('{0} bản nháp trong lô này sẽ được chuyển sang trạng thái Chờ Admin duyệt.', { 0: draftCount })}
+        title={tr('Gửi toàn bộ lô Excel cho Quản trị viên duyệt?')}
+        description={trf('{0} bản nháp trong lô này sẽ được chuyển sang trạng thái Chờ duyệt.', { 0: draftCount })}
         confirmLabel={tr('Xác nhận gửi')}
       />
     </div>
@@ -374,7 +374,7 @@ export default function AuthorImportHistory() {
               <span>{tr('Lịch sử nhập liệu')}</span>
             </span>
           }
-          description={tr('Theo dõi các lô Excel đã lưu bản nháp, chỉnh sửa dòng cần bổ sung và gửi Admin duyệt theo lô.')}
+          description={tr('Theo dõi các lô Excel đã lưu bản nháp, chỉnh sửa dòng cần bổ sung và gửi Quản trị viên duyệt theo lô.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               {!batchId && history.isSuccess && (history.data || []).length > 0 && (

@@ -68,7 +68,7 @@ export function useWorkspaceCalendar({
   const uid = session?.userId ?? 'anon';
   const roleKey = explicitRoleKey || navRoleFor(session?.role);
   const enabled = Boolean(session?.accessToken && !session?.isPreview && extraEnabled);
-  const nowMs = useNow(60_000);
+  const nowMs = useNow(30_000);
 
   const isLearner = roleKey === 'Learner';
   const isMentor = roleKey === 'Mentor';
@@ -160,7 +160,7 @@ export function useWorkspaceCalendar({
   const availabilityQuery = useQuery({
     queryKey: ['workspace-calendar', 'mentor-availability', uid],
     queryFn: async () => (await api.get('/mentor/availability')).result || [],
-    enabled: enabled && isMentor,
+    enabled: false,
     staleTime: 60_000,
     retry: shouldRetry,
   });
@@ -267,7 +267,7 @@ export function useWorkspaceCalendar({
       return buildMentorCalendarEvents({
         courses,
         cohorts: cohortsQuery.data || [],
-        availabilities: availabilityQuery.data || [],
+        mentorId: uid,
         nowMs,
         tr,
         trf,
@@ -285,7 +285,7 @@ export function useWorkspaceCalendar({
     srsSummaryQuery.data,
     srsCalendarQuery.data,
     cohortsQuery.data,
-    availabilityQuery.data,
+    uid,
     nowMs,
     tr,
     trf,
@@ -307,8 +307,8 @@ export function useWorkspaceCalendar({
     if (isLearner && changeRequestsQuery.isError) {
       list.push({ id: 'changes', label: tr('Yêu cầu dời lịch'), error: changeRequestsQuery.error, retry: changeRequestsQuery.refetch });
     }
-    if (isMentor && availabilityQuery.isError) {
-      list.push({ id: 'availability', label: tr('Khung rảnh cá nhân'), error: availabilityQuery.error, retry: availabilityQuery.refetch });
+    if (isMentor && cohortsQuery.isError) {
+      list.push({ id: 'cohorts', label: tr('Danh sách lớp giảng dạy'), error: cohortsQuery.error, retry: cohortsQuery.refetch });
     }
     if (isAdmin && adminRequestsQuery.isError) {
       list.push({ id: 'adminRequests', label: tr('Yêu cầu điều chỉnh lịch lớp'), error: adminRequestsQuery.error, retry: adminRequestsQuery.refetch });
@@ -334,9 +334,9 @@ export function useWorkspaceCalendar({
     changeRequestsQuery.isError,
     changeRequestsQuery.error,
     changeRequestsQuery.refetch,
-    availabilityQuery.isError,
-    availabilityQuery.error,
-    availabilityQuery.refetch,
+    cohortsQuery.isError,
+    cohortsQuery.error,
+    cohortsQuery.refetch,
     adminRequestsQuery.isError,
     adminRequestsQuery.error,
     adminRequestsQuery.refetch,
@@ -352,7 +352,7 @@ export function useWorkspaceCalendar({
   const isLoading = enabled && (isLearner
     ? coursesQuery.isLoading && homeworksQuery.isLoading
     : isMentor
-      ? coursesQuery.isLoading && availabilityQuery.isLoading
+      ? coursesQuery.isLoading && cohortsQuery.isLoading
       : isAdmin
         ? adminRequestsQuery.isLoading && changeRequestsQuery.isLoading && adminPendingSlotsQuery.isLoading
         : isContentAuthor
@@ -363,7 +363,7 @@ export function useWorkspaceCalendar({
     || homeworksQuery.isFetching
     || srsSummaryQuery.isFetching
     || srsQuery.isFetching
-    || availabilityQuery.isFetching
+    || cohortsQuery.isFetching
     || adminRequestsQuery.isFetching
     || adminPendingSlotsQuery.isFetching
     || authorApprovalsQuery.isFetching;
@@ -371,7 +371,7 @@ export function useWorkspaceCalendar({
   const hardError = isLearner
     ? coursesQuery.isError && homeworksQuery.isError && events.length === 0
     : isMentor
-      ? coursesQuery.isError && availabilityQuery.isError && events.length === 0
+      ? coursesQuery.isError && cohortsQuery.isError && events.length === 0
       : isAdmin
         ? adminRequestsQuery.isError && changeRequestsQuery.isError && adminPendingSlotsQuery.isError
         : isContentAuthor
@@ -391,7 +391,6 @@ export function useWorkspaceCalendar({
     }
     if (isMentor) {
       cohortsQuery.refetch();
-      availabilityQuery.refetch();
       mentorCalendarQuery.refetch();
     }
     if (isAdmin) {

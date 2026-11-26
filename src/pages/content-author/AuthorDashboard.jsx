@@ -147,7 +147,7 @@ export default function AuthorDashboard() {
     },
     onSuccess: () => {
       invalidateAll();
-      notify.success(tr('Đã lưu và gửi Admin duyệt.'), { key: 'author-dash-submit', replace: true });
+      notify.success(tr('Đã lưu và gửi Quản trị viên duyệt.'), { key: 'author-dash-submit', replace: true });
       setEditTarget(null);
     },
     onError: (err) => notify.apiError(err, tr('Không gửi duyệt được mục này'), { key: 'author-dash-submit', replace: true }),
@@ -158,7 +158,7 @@ export default function AuthorDashboard() {
     onSuccess: () => {
       invalidateAll();
       setSubmitTarget(null);
-      notify.success(tr('Đã gửi mục nội dung cho Admin duyệt.'), { key: 'author-dash-send', replace: true });
+      notify.success(tr('Đã gửi mục nội dung cho Quản trị viên duyệt.'), { key: 'author-dash-send', replace: true });
     },
     onError: (err) => notify.apiError(err, tr('Chưa thể gửi duyệt mục này'), { key: 'author-dash-send', replace: true }),
   });
@@ -334,7 +334,7 @@ export default function AuthorDashboard() {
               icon={Send}
               size="sm"
               variant="ghost"
-              label={tr('Gửi Admin duyệt')}
+              label={tr('Gửi Quản trị viên duyệt')}
               onClick={() => setSubmitTarget(row)}
             />
             <IconButton
@@ -385,7 +385,7 @@ export default function AuthorDashboard() {
         {counts.Rejected > 0 && statusFilter !== 'Rejected' && (
           <Banner
             tone="danger"
-            title={trf('Có {0} mục bị Admin từ chối cần rà soát', { 0: counts.Rejected })}
+            title={trf('Có {0} mục bị Quản trị viên từ chối cần rà soát', { 0: counts.Rejected })}
             actions={
               <Button size="sm" variant="outline" onClick={() => handleStatusChange('Rejected')}>
                 {tr('Lọc mục bị từ chối')}
@@ -667,8 +667,8 @@ export default function AuthorDashboard() {
           onClose={() => setSubmitTarget(null)}
           onConfirm={() => submitTarget?.targetEntityId && submitItem.mutate(submitTarget.targetEntityId)}
           loading={submitItem.isPending}
-          title={tr('Gửi Admin kiểm duyệt?')}
-          description={submitTarget ? trf('Mục "{0}" sẽ chuyển sang trạng thái Chờ Admin duyệt.', { 0: submitTarget.rowKey }) : ''}
+          title={tr('Gửi Quản trị viên kiểm duyệt?')}
+          description={submitTarget ? trf('Mục "{0}" sẽ chuyển sang trạng thái Chờ duyệt.', { 0: submitTarget.rowKey }) : ''}
           confirmLabel={tr('Gửi duyệt')}
         />
 

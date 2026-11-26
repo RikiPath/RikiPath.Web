@@ -40,6 +40,7 @@ import {
   notify,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { formatApprovalStatusLabel } from '@/utils/terminology.js';
 
 export default function SkillQuestionEditor({
   initialQuestion = null,
@@ -108,7 +109,7 @@ export default function SkillQuestionEditor({
     },
     onSuccess: (submitted) => {
       setQuestion(submitted);
-      notify.success(tr('Đã gửi câu hỏi cho Admin xét duyệt.'), '', { key: 'qb-sub-ok' });
+      notify.success(tr('Đã gửi câu hỏi cho Quản trị viên xét duyệt.'), '', { key: 'qb-sub-ok' });
       onSubmitted?.(submitted);
     },
     onError: (err) => notify.apiError(err, tr('Chưa thể gửi duyệt câu hỏi'), { key: 'qb-sub-err' }),
@@ -131,7 +132,7 @@ export default function SkillQuestionEditor({
     },
     onSuccess: (submitted) => {
       setGroup(submitted);
-      notify.success(tr('Đã gửi nhóm câu hỏi cho Admin xét duyệt.'), '', { key: 'pg-sub-ok' });
+      notify.success(tr('Đã gửi nhóm câu hỏi cho Quản trị viên xét duyệt.'), '', { key: 'pg-sub-ok' });
       onSubmitted?.(submitted);
     },
     onError: (err) => notify.apiError(err, tr('Chưa thể gửi duyệt nhóm câu hỏi'), { key: 'pg-sub-err' }),
@@ -510,7 +511,9 @@ export default function SkillQuestionEditor({
               options={['N5', 'N4', 'N3', 'N2'].map((c) => ({ value: c, label: `JLPT ${c}` }))}
             />
             <Badge tone="neutral" size="sm" icon={false}>
-              {isPassageMode ? `v${group.passage.version || 1} · ${group.passage.publishStatus || 'Draft'}` : `v${question.version || 1} · ${question.publishStatus || 'Draft'}`}
+              {isPassageMode
+                ? `v${group.passage.version || 1} · ${formatApprovalStatusLabel(group.passage.publishStatus || 'Draft', tr)}`
+                : `v${question.version || 1} · ${formatApprovalStatusLabel(question.publishStatus || 'Draft', tr)}`}
             </Badge>
           </div>
 
@@ -692,7 +695,7 @@ export default function SkillQuestionEditor({
                       rows={3}
                       value={group.passage.audioTranscript || ''}
                       onChange={(e) => setGroupPassageField({ audioTranscript: e.target.value })}
-                      placeholder={tr('Lời thoại hội thoại Nghe hiểu (dùng cho Admin duyệt & AI gợi ý câu hỏi)…')}
+                      placeholder={tr('Lời thoại hội thoại Nghe hiểu (dùng cho Quản trị viên duyệt & AI gợi ý câu hỏi)…')}
                     />
                   </label>
                 </div>
@@ -764,7 +767,7 @@ export default function SkillQuestionEditor({
                   {tr('Lưu Nháp nhóm câu hỏi')}
                 </Button>
                 <Button type="button" variant="primary" icon={Send} loading={submitGroup.isPending} onClick={() => submitGroup.mutate()}>
-                  {tr('Gửi Admin duyệt')}
+                  {tr('Gửi Quản trị viên duyệt')}
                 </Button>
               </>
             ) : (
@@ -773,7 +776,7 @@ export default function SkillQuestionEditor({
                   {tr('Lưu Nháp vào Ngân hàng')}
                 </Button>
                 <Button type="button" variant="primary" icon={Send} loading={submitQuestion.isPending} onClick={() => submitQuestion.mutate()}>
-                  {tr('Gửi Admin duyệt')}
+                  {tr('Gửi Quản trị viên duyệt')}
                 </Button>
               </>
             )}

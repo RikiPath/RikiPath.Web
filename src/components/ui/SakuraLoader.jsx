@@ -119,7 +119,8 @@ export function SakuraLoader({
   if (!open || !visible) return null;
 
   const text = resolveLoadingLabel({ label, context, tr });
-  const bloomSize = size ?? (blocking ? 72 : DEFAULT_SIZES[variant] ?? 44);
+  const numericSize = typeof size === 'number' && Number.isFinite(size) ? size : null;
+  const bloomSize = numericSize ?? (blocking ? 72 : DEFAULT_SIZES[variant] ?? 44);
   const renderDots = showDots ?? (variant !== 'inline');
 
   if (variant === 'inline') {

@@ -8,7 +8,7 @@ import WorkbookPreview from './WorkbookPreview.jsx';
 import { workbookEditKey } from '@/features/content-author/utils/workbookModel.js';
 
 import { ContentAuthorShell } from '@/layouts';
-import { Button, CustomSelect, EmptyState, FeatureIcon, Modal, PageContainer, PageHeader, SakuraLoader, Tabs } from '@/components/ui';
+import { Button, CustomSelect, EmptyState, FeatureIcon, Modal, PageContainer, PageHeader, RichQuestionText, SakuraLoader, Tabs } from '@/components/ui';
 import UnifiedMultiFormatImportPanel from '@/features/content-author/components/UnifiedMultiFormatImportPanel.jsx';
 import { FilePlus2, History } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -315,7 +315,7 @@ function DiffModal({ row, entityType, onClose }) {
                           <div className="flex items-start justify-between gap-2">
                             <div className="font-semibold leading-snug text-rp-text">
                               <span className="mr-1.5 text-rp-brand-strong">{tr('Câu')}{' '}{q.SortOrder ?? (qIdx + 1)}:</span>
-                              {q.QuestionText}
+                              <RichQuestionText text={q.QuestionText} />
                             </div>
                             {q.AudioUrl && (
                               <span className="inline-flex shrink-0 items-center gap-1 rounded bg-rp-brand-tint px-1.5 py-0.5 text-[10px] font-semibold text-rp-brand-strong">
@@ -341,7 +341,7 @@ function DiffModal({ row, entityType, onClose }) {
                                     <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${opt.IsCorrect ? 'bg-emerald-600 text-white' : 'bg-rp-bg-2 text-rp-text-2'}`}>
                                       {String.fromCharCode(65 + oIdx)}
                                     </span>
-                                    <span>{opt.OptionText}
+                                    <span><RichQuestionText text={opt.OptionText} />
                                       {(opt.ImageUrl ?? opt.imageUrl) && <img src={opt.ImageUrl ?? opt.imageUrl} alt={tr('Hình đáp án')} className="max-h-32 max-w-full rounded-md" />}
                                     </span>
                                   </div>
@@ -684,7 +684,7 @@ function ContentImportPreviewPage() {
         },
         onSuccess: (_, savedBatchId) => {
             refreshAuthorContent(savedBatchId);
-            notify.success('Đã gửi nội dung để Admin xét duyệt.', '', { key: 'import-submit-review', replace: true });
+            notify.success('Đã gửi nội dung để Quản trị viên xét duyệt.', '', { key: 'import-submit-review', replace: true });
         },
         onError: (err) => notify.apiError(err, 'Không gửi được nội dung để duyệt', {
             key: 'import-submit-review',
@@ -881,7 +881,7 @@ function ContentImportPreviewPage() {
                         <span>{tr('Nhập Excel')}</span>
                     </span>
                 }
-                description={tr('Tải tệp .xlsx để đối chiếu dữ liệu, chỉnh sửa trực tiếp nếu cần, lưu lô nháp hoặc gửi Admin duyệt.')}
+                description={tr('Tải tệp .xlsx để đối chiếu dữ liệu, chỉnh sửa trực tiếp nếu cần, lưu lô nháp hoặc gửi Quản trị viên duyệt.')}
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
                         <Button as={Link} to="?view=history" variant="secondary" size="sm" icon={History}>
@@ -1104,7 +1104,7 @@ function ContentImportPreviewPage() {
                                     disabled={!canSendForReview}
                                     className="rounded-xl bg-rp-brand-strong px-4 py-2.5 text-sm font-semibold text-white hover:bg-rp-brand-strong disabled:cursor-not-allowed disabled:opacity-50 rp-press"
                                 >
-                                    {submitReview.isPending ? tr('Đang gửi duyệt…') : tr('Gửi admin duyệt')}
+                                    {submitReview.isPending ? tr('Đang gửi duyệt…') : tr('Gửi Quản trị viên duyệt')}
                                 </button>}
                             </div>
                         </div>
@@ -1123,7 +1123,7 @@ function ContentImportPreviewPage() {
                                 <p className="font-semibold">
                                     {submitReview.isSuccess
                                         ? submitReview.data > 0
-                                            ? 'Đã gửi ' + submitReview.data + ' nội dung cho admin duyệt.'
+                                            ? 'Đã gửi ' + submitReview.data + ' nội dung cho Quản trị viên duyệt.'
                                             : tr('Lô này đã được gửi duyệt.')
                                         : 'Đã lưu ' + (confirmResult.draftsCreatedCount ?? 0) + ' bản nháp.'}
                                     {confirmResult.skippedCount > 0 && ' Đã bỏ qua ' + confirmResult.skippedCount + ' dòng khi lưu.'}

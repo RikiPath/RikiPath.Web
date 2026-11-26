@@ -1,28 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CalendarClock,
   CheckCircle2,
-  KeyRound,
-  ShieldAlert,
-  Trash2,
+  Clock,
+  GraduationCap,
+  Users,
   X,
 } from 'lucide-react';
 import {
-  AlertDialog,
-  Badge,
-  Banner,
   Button,
-  Card,
-  Checkbox,
   ContextualEmptyState,
-  ContextualErrorState,
   CustomSelect,
   Drawer,
-  Field,
-  Input,
-  Modal,
-  SakuraLoader,
   SearchInput,
+  UserAvatar,
 } from '@/components/ui';
 import {
   AdminDataTable,
@@ -31,359 +22,424 @@ import {
   AdminStatusBadge,
   AdminToolbar,
 } from '@/features/admin/components/AdminPrimitives.jsx';
+import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
+import OccupancyProgressBar from './OccupancyProgressBar.jsx';
+import ProposalDetailedScheduleCard from '@/features/scheduling/components/ProposalDetailedScheduleCard.jsx';
+import { mapCohortSessionsToOccurrences } from '@/features/scheduling/utils/proposalScheduleFormatters.js';
+import { formatTuitionVnd } from '@/features/scheduling/utils/proposalValidation.js';
 import {
-  getCohortEntitlements,
-  grantCohortEntitlement,
-  previewCohortSchedule,
-  revokeCohortEntitlement,
-  saveCohort,
-} from '@/features/cohorts/api/cohortApi';
-import { describeApiError } from '@/api/apiErrors';
-import ScheduleConflictList from '@/features/scheduling/components/ScheduleConflictList';
-import { formatVnDateTime, formatVnSlotWindow, parseUtcDate } from '@/utils/vnDateTime.js';
-import { translateTemplate, useLocale } from '@/locales/locale.js';
+  CLASS_LIFECYCLE_STATUSES,
+  computeClassProgress,
+  isConfirmedClassEnrollment,
+  resolveClassLifecycleStatus,
+  resolveWorkScheduleSessionStatus,
+} from '@/features/scheduling/utils/teachingLifecycleModel.js';
+import { formatDate } from '@/utils/dateTimeFormat.js';
+import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
-const PREVIEW_DEBOUNCE_MS = 400;
+const fmtDateOnly = (v) => (v ? formatDate(v, '—') : '—');
+const fmtDateTime = (v) => (v ? formatVnDateTime(v, '—') : '—');
 
-const ENTITLEMENT_STATUS_META = Object.freeze({
-  Active: { label: 'Đang hiệu lực', tone: 'success' },
-  Consumed: { label: 'Đã sử dụng', tone: 'warning' },
-  Revoked: { label: 'Đã thu hồi', tone: 'danger' },
-  Expired: { label: 'Hết hạn', tone: 'neutral' },
+function isActivePaymentHold(course, nowMs = Date.now()) {
+  if (!course) return false;
+  if (course.paymentStatus !== 'Pending' || course.status !== 'PendingPayment') return false;
+  if (!course.paymentExpiresAt) return true;
+  const expiresMs = parseUtcDate(course.paymentExpiresAt)?.getTime() ?? 0;
+  return expiresMs > nowMs;
+}
+
+function buildCleanCohortRoster(cohortCourses = [], nowMs = Date.now()) {
+  const byLearner = new Map();
+  for (const course of cohortCourses) {
+    if (!course) continue;
+    const confirmed = isConfirmedClassEnrollment(course);
+    const pendingHold = !confirmed && isActivePaymentHold(course, nowMs);
+    if (!confirmed && !pendingHold) continue;
+
+    const tier = confirmed ? 0 : 1;
+    const key = course.learnerId ?? `course-${course.id}`;
+    const existing = byLearner.get(key);
+    if (!existing) {
+      byLearner.set(key, { course, tier });
+      continue;
+    }
+
+    if (tier < existing.tier || (tier === existing.tier && Number(course.id) > Number(existing.course.id))) {
+      byLearner.set(key, { course, tier });
+    }
+  }
+
+  return [...byLearner.values()]
+    .sort((a, b) => a.tier - b.tier || Number(b.course.id) - Number(a.course.id))
+    .map((entry) => entry.course);
+}
+
+const SESSION_TONE_META = Object.freeze({
+  upcoming: { label: 'Sắp diễn ra', tone: 'neutral' },
+  session: { label: 'Sắp diễn ra', tone: 'neutral' },
+  live: { label: 'Đang diễn ra', tone: 'warning' },
+  completed: { label: 'Đã hoàn thành', tone: 'success' },
+  present: { label: 'Đã hoàn thành', tone: 'success' },
+  overdue_unhandled: { label: 'Chờ xác nhận', tone: 'warning' },
+  cancelled: { label: 'Đã hủy', tone: 'danger' },
 });
 
-const ENTITLEMENT_SOURCE_LABELS = Object.freeze({
-  AdminManualGrant: 'Admin cấp quyền trực tiếp',
-  OfficialJlptSupport: 'Hỗ trợ sau JLPT',
-  PlacementTopScore: 'Đặc cách xếp lớp',
-  ScholarshipGrant: 'Học bổng / Tài trợ nhóm',
-  RemediationApproved: 'Quyền ôn lại JLPT đã duyệt',
-  PartnerSponsor: 'Đối tác tài trợ',
-});
+function mergeCohortSessions(cohort, enrolledCourses = []) {
+  const repCourse = enrolledCourses.find((c) => Array.isArray(c.sessions) && c.sessions.length > 0) || null;
+  const repByNumber = new Map(
+    (repCourse?.sessions || []).map((s) => [Number(s.number), s]),
+  );
 
-const SOURCE_TYPES = [
-  { value: 'AdminManualGrant', label: 'Admin cấp quyền trực tiếp' },
-  { value: 'ScholarshipGrant', label: 'Học bổng / Tài trợ nhóm' },
-  { value: 'RemediationApproved', label: 'Quyền ôn lại JLPT đã duyệt' },
-  { value: 'PartnerSponsor', label: 'Đối tác tài trợ' },
-];
+  return [...(cohort.sessions || [])]
+    .sort((a, b) => Number(a.number) - Number(b.number))
+    .map((s) => {
+      const rep = repByNumber.get(Number(s.number));
+      const status = rep?.status || (cohort.status === 'Cancelled' ? 'Cancelled' : 'Scheduled');
+      return {
+        ...s,
+        scheduledAt: s.startTime || rep?.scheduledAt,
+        status,
+        sessionCompleted: cohort.status === 'Completed'
+          || Boolean(s.sessionCompleted)
+          || Boolean(rep?.confirmedAt)
+          || status === 'Completed'
+          || status === 'Present'
+          || status === 'Absent'
+          || status === 'ExcusedAbsent',
+      };
+    });
+}
 
-const planLabel = (p) =>
-  [
-    p.name,
-    `${p.level}`,
-    p.intensityLabel ? `${p.intensityLabel}${p.isRecommendedIntensity ? ' ★ khuyến nghị' : ''}` : null,
-    p.sessionsPerWeek ? translateTemplate('{0} buổi/tuần', { 0: p.sessionsPerWeek }) : null,
-    translateTemplate('{0} buổi', { 0: p.totalSessions ?? '?' }),
-    p.totalTeachingHours != null ? translateTemplate('{0} giờ', { 0: p.totalTeachingHours }) : null,
-    `tối đa ${p.capacity}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+function enrichCohortRow(cohort, allCourses = [], nowMs = Date.now()) {
+  const cohortCourses = allCourses.filter((c) => Number(c.cohortId) === Number(cohort.id));
+  const rosterCourses = buildCleanCohortRoster(cohortCourses, nowMs);
+  const confirmedCourses = rosterCourses.filter(isConfirmedClassEnrollment);
+  const activeHoldCourses = rosterCourses.filter((c) => !isConfirmedClassEnrollment(c));
 
-const fmtDate = (v) => (v ? formatVnDateTime(v, '—') : '—');
+  // Authoritative net tuition collection strictly from paid monetary orders (never seats * price or holds).
+  const monetaryOrders = cohortCourses.filter(
+    (c) => Number(c.amount || 0) > 0 && !c.retakeOfId && !c.transferredFromCourseId,
+  );
+  const settledOrders = monetaryOrders.filter(
+    (c) => c.status !== 'PaymentReview'
+      && (c.paymentStatus === 'Paid' || c.paymentStatus === 'PartiallyRefunded' || c.paymentStatus === 'Refunded'),
+  );
+  const fallbackGrossCollected = settledOrders.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const fallbackTotalRefunded = settledOrders.reduce((sum, c) => {
+    const amt = Number(c.amount || 0);
+    const refunded = Number(c.refundedAmount || 0);
+    if (c.paymentStatus === 'Refunded') return sum + (refunded > 0 ? Math.min(refunded, amt) : amt);
+    if (c.paymentStatus === 'PartiallyRefunded') return sum + Math.max(0, Math.min(refunded, amt));
+    return sum;
+  }, 0);
+  const fallbackNetCollected = Math.max(0, fallbackGrossCollected - fallbackTotalRefunded);
+
+  const mergedSessions = mergeCohortSessions(cohort, confirmedCourses);
+  const confirmedCount = cohort.confirmedEnrolledCount ?? confirmedCourses.length;
+  const pendingHolds = cohortCourses.length > 0 ? activeHoldCourses.length : (cohort.pendingHoldCount ?? 0);
+  const progress = computeClassProgress(mergedSessions, cohort.totalSessions || mergedSessions.length);
+  const lifecycle = resolveClassLifecycleStatus({
+    cohortStatus: cohort.status,
+    confirmedEnrolledCount: confirmedCount,
+    capacity: cohort.capacitySnapshot || cohort.capacity,
+    minLearnersToStart: cohort.minLearnersToStart ?? 1,
+    startsAt: cohort.startsAt,
+    enrollmentClosesAtUtc: cohort.enrollmentClosesAtUtc ?? null,
+    totalSessions: cohort.totalSessions || mergedSessions.length,
+    sessions: mergedSessions,
+    enrolledCourses: confirmedCourses,
+    nowMs,
+  });
+
+  return {
+    ...cohort,
+    lifecycle,
+    progress,
+    mergedSessions,
+    cohortCourses,
+    rosterCourses,
+    confirmedCourses,
+    confirmedCount,
+    pendingHolds,
+    tuitionPerLearner: cohort.tuitionPerLearner ?? cohort.price ?? 0,
+    totalCollectedAmount: cohort.totalCollectedAmount ?? fallbackNetCollected,
+    grossCollectedAmount: cohort.grossCollectedAmount ?? fallbackGrossCollected,
+    totalRefundedAmount: cohort.totalRefundedAmount ?? fallbackTotalRefunded,
+    scheduleSummary: schedulePatternText(cohort.schedulePattern, cohort.sessions),
+  };
+}
 
 export default function AdminCohortConsolePanel({
-  plans = [],
   cohorts = [],
-  mentors = [],
-  adminSlots = [],
-  approvedProposals = [],
-  initialProposalId = null,
+  courses = [],
+  initialCohortId = null,
   groupPolicy = null,
   toolbarTabs = null,
   onRefresh = null,
   refreshing = false,
   busy = false,
   fillHeight = false,
-  onRun,
 }) {
-  const { tr, trf } = useLocale();
-  const groupPlans = useMemo(() => plans.filter((p) => p.sessionType === 'Group'), [plans]);
-  const defaultPolicyCap = Number(groupPolicy?.maxLearners) || 4;
+  const { tr, trf, fmt } = useLocale();
+  const fmtCollectedVnd = (v) => `${Math.max(0, Math.round(Number(v) || 0)).toLocaleString(fmt.tag)} đ`;
 
   const [cohortSearch, setCohortSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [cohortModalOpen, setCohortModalOpen] = useState(false);
-  const [editingCohort, setEditingCohort] = useState(null);
-  const [sourceProposalId, setSourceProposalId] = useState('');
-  const [planId, setPlanId] = useState('');
-  const [name, setName] = useState('');
-  const [mentorId, setMentorId] = useState('');
-  const [capacity, setCapacity] = useState(defaultPolicyCap);
-  const [publish, setPublish] = useState(false);
-  const [pickedSlots, setPickedSlots] = useState([]);
-  const [formErrors, setFormErrors] = useState({});
-  const [appliedInitialProposal, setAppliedInitialProposal] = useState(false);
-
-  const [entitlementCohort, setEntitlementCohort] = useState(null);
-  const [entitlements, setEntitlements] = useState([]);
-  const [entitlementsLoading, setEntitlementsLoading] = useState(false);
-  const [entitlementsError, setEntitlementsError] = useState(null);
-  const [entitlementTick, setEntitlementTick] = useState(0);
-  const [learnerId, setLearnerId] = useState('');
-  const [sourceType, setSourceType] = useState('AdminManualGrant');
-  const [note, setNote] = useState('');
-  const [revokeTarget, setRevokeTarget] = useState(null);
-
-  const availableMentorSlots = useMemo(() => {
-    const selectedPlan = groupPlans.find((p) => String(p.id) === String(planId));
-    const editingSlotIds = new Set(
-      (editingCohort?.sessions || []).map((s) => s.availabilityId).filter(Boolean),
-    );
-    return adminSlots.filter((s) => {
-      const ownedByEditing = editingCohort && editingSlotIds.has(s.id);
-      if (!ownedByEditing && (!s.isApproved || s.rejectedAt || s.isInCohort || s.bookedCount > 0)) return false;
-      const start = parseUtcDate(s.startTime);
-      const end = parseUtcDate(s.endTime);
-      if (!ownedByEditing && (!start || start <= new Date())) return false;
-      if (mentorId && String(s.mentorId) !== String(mentorId)) return false;
-      if (!ownedByEditing && selectedPlan?.sessionMinutes && end && start) {
-        const mins = Math.round((end - start) / 60000);
-        if (mins !== selectedPlan.sessionMinutes) return false;
-      }
-      return true;
-    });
-  }, [adminSlots, mentorId, planId, groupPlans, editingCohort]);
-
-  const filteredCohorts = useMemo(() => {
-    const q = cohortSearch.trim().toLowerCase();
-    return cohorts.filter((c) => {
-      if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
-      if (!q) return true;
-      return (
-        String(c.name || '').toLowerCase().includes(q) ||
-        String(c.level || '').toLowerCase().includes(q) ||
-        String(c.mentorName || '').toLowerCase().includes(q)
-      );
-    });
-  }, [cohorts, cohortSearch, statusFilter]);
-
-  function applyApprovedProposal(proposal) {
-    if (!proposal) {
-      setSourceProposalId('');
-      return;
-    }
-    setSourceProposalId(String(proposal.id));
-    setMentorId(String(proposal.mentorId));
-    const matchedPlan = (proposal.coursePlanId && groupPlans.find((p) => Number(p.id) === Number(proposal.coursePlanId)))
-      || groupPlans.find((p) => String(p.level) === String(proposal.jlptLevelCode) && Number(p.sessionsPerWeek) === Number(proposal.weeklySessionCount))
-      || null;
-    if (matchedPlan) {
-      setPlanId(String(matchedPlan.id));
-      if (matchedPlan.capacity) setCapacity(Math.min(Number(matchedPlan.capacity), defaultPolicyCap));
-    } else {
-      setPlanId('');
-      setCapacity(defaultPolicyCap);
-    }
-    setName(
-      proposal.courseTitle?.trim()
-      || `${proposal.jlptLevelCode ? `JLPT ${proposal.jlptLevelCode}` : 'Lớp nhóm'} – ${proposal.mentorName || `#${proposal.mentorId}`}`
-    );
-    const validSlotIds = new Set(
-      adminSlots
-        .filter((s) => s.isApproved && !s.rejectedAt && !s.isInCohort && Number(s.bookedCount || 0) === 0)
-        .map((s) => s.id)
-    );
-    const proposalSlots = (proposal.generatedAvailabilityIds || []).filter((id) => validSlotIds.has(id));
-    setPickedSlots(proposalSlots);
-    setPublish(false);
-    setFormErrors({});
-  }
+  const [lifecycleFilter, setLifecycleFilter] = useState('ALL');
+  const [levelFilter, setLevelFilter] = useState('ALL');
+  const [mentorFilter, setMentorFilter] = useState('ALL');
+  const [detailCohortId, setDetailCohortId] = useState(null);
+  const [appliedInitialCohortId, setAppliedInitialCohortId] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const expiredSyncedIdsRef = useRef(new Set());
 
   useEffect(() => {
-    if (!initialProposalId || appliedInitialProposal || approvedProposals.length === 0) return undefined;
-    const match = approvedProposals.find((p) => String(p.id) === String(initialProposalId));
+    const timer = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Tự động loại bỏ giữ chỗ hết hạn đúng thời điểm trên UI và làm mới dữ liệu từ máy chủ không cần F5.
+  useEffect(() => {
+    const now = Date.now();
+    let hasNewlyExpired = false;
+    let earliestExpiryMs = Infinity;
+
+    for (const c of courses) {
+      if (!c || c.paymentStatus !== 'Pending' || !c.paymentExpiresAt) continue;
+      const expMs = parseUtcDate(c.paymentExpiresAt)?.getTime();
+      if (!Number.isFinite(expMs)) continue;
+      if (expMs <= now) {
+        if (!expiredSyncedIdsRef.current.has(c.id)) {
+          expiredSyncedIdsRef.current.add(c.id);
+          hasNewlyExpired = true;
+        }
+      } else if (expMs < earliestExpiryMs) {
+        earliestExpiryMs = expMs;
+      }
+    }
+
+    if (hasNewlyExpired && onRefresh) {
+      onRefresh();
+    }
+
+    if (!Number.isFinite(earliestExpiryMs)) return undefined;
+    const delayMs = Math.max(150, earliestExpiryMs - now + 200);
+    const timeoutId = setTimeout(() => {
+      setNowMs(Date.now());
+      onRefresh?.();
+    }, delayMs);
+    return () => clearTimeout(timeoutId);
+  }, [courses, nowMs, onRefresh]);
+
+  const enrichedCohorts = useMemo(
+    () => cohorts.map((c) => enrichCohortRow(c, courses, nowMs)),
+    [cohorts, courses, nowMs],
+  );
+
+  useEffect(() => {
+    if (!initialCohortId || appliedInitialCohortId || cohorts.length === 0) return undefined;
+    const match = cohorts.find((c) => String(c.id) === String(initialCohortId));
     if (!match) return undefined;
     let alive = true;
     Promise.resolve().then(() => {
       if (!alive) return;
-      setAppliedInitialProposal(true);
-      setEditingCohort(null);
-      applyApprovedProposal(match);
-      setCohortModalOpen(true);
+      setAppliedInitialCohortId(true);
+      setDetailCohortId(match.id);
     });
     return () => {
       alive = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialProposalId, appliedInitialProposal, approvedProposals]);
+  }, [initialCohortId, appliedInitialCohortId, cohorts]);
 
-  function openFromProposal(proposal) {
-    if (!proposal) return;
-    setEditingCohort(null);
-    applyApprovedProposal(proposal);
-    setCohortModalOpen(true);
-  }
+  const detailCohort = useMemo(
+    () => (detailCohortId != null ? enrichedCohorts.find((c) => c.id === detailCohortId) || null : null),
+    [enrichedCohorts, detailCohortId],
+  );
 
-  function startEditCohort(c) {
-    setEditingCohort(c);
-    setSourceProposalId(c.sourceProposalId ? String(c.sourceProposalId) : '');
-    setPlanId(c.planId ? String(c.planId) : '');
-    setName(c.name || '');
-    setMentorId(c.mentorId ? String(c.mentorId) : '');
-    setCapacity(c.capacity ?? defaultPolicyCap);
-    setPublish(c.status === 'Published');
-    setPickedSlots((c.sessions || []).map((s) => s.availabilityId).filter(Boolean));
-    setFormErrors({});
-    setCohortModalOpen(true);
-  }
+  const detailScheduleOccurrences = useMemo(() => {
+    if (!detailCohort || detailCohort.mergedSessions.length === 0) return [];
+    return mapCohortSessionsToOccurrences(detailCohort.mergedSessions, {
+      fallbackDurationMinutes: detailCohort.sessionMinutes,
+      resolveStatus: (s, { startDate, endDate }) => {
+        const sessionMeta = resolveWorkScheduleSessionStatus({
+          status: s.status,
+          cohortStatus: detailCohort.status,
+          sessionCompleted: s.sessionCompleted,
+          isSessionLive: Boolean(s.isSessionLive),
+          sessionStartedAtUtc: s.sessionStartedAtUtc || null,
+          startMs: startDate ? startDate.getTime() : NaN,
+          endMs: endDate ? endDate.getTime() : NaN,
+          nowMs,
+        });
+        return SESSION_TONE_META[sessionMeta.id] || SESSION_TONE_META.upcoming;
+      },
+    });
+  }, [detailCohort, nowMs]);
 
-  const selectedCohortId = entitlementCohort?.id;
-  useEffect(() => {
-    if (!selectedCohortId) return undefined;
-    let alive = true;
-    Promise.resolve()
-      .then(() => {
-        if (!alive) return null;
-        setEntitlementsLoading(true);
-        setEntitlementsError(null);
-        return getCohortEntitlements(Number(selectedCohortId));
-      })
-      .then((rows) => {
-        if (!alive || !rows) return;
-        setEntitlements(rows);
-        setEntitlementsError(null);
-      })
-      .catch((e) => alive && setEntitlementsError(e))
-      .finally(() => alive && setEntitlementsLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [selectedCohortId, cohorts, entitlementTick]);
+  const levelOptions = useMemo(() => {
+    const levels = [...new Set(cohorts.map((c) => String(c.level || '').trim()).filter(Boolean))].sort();
+    return [
+      { value: 'ALL', label: tr('Tất cả cấp độ') },
+      ...levels.map((lvl) => ({ value: lvl, label: lvl })),
+    ];
+  }, [cohorts, tr]);
 
-  const previewKey =
-    cohortModalOpen && mentorId && pickedSlots.length
-      ? `${mentorId}|${editingCohort?.id || ''}|${[...pickedSlots].sort((a, b) => a - b).join(',')}`
-      : '';
-  const [scheduleReport, setScheduleReport] = useState(null);
-  useEffect(() => {
-    if (!previewKey) return undefined;
-    let alive = true;
-    const [mid, cid, ids] = previewKey.split('|');
-    const timer = setTimeout(() => {
-      previewCohortSchedule({
-        mentorId: Number(mid),
-        availabilityIds: ids.split(',').map(Number),
-        cohortId: cid ? Number(cid) : undefined,
-      })
-        .then((report) => alive && setScheduleReport({ key: previewKey, isValid: report?.isValid !== false, conflicts: report?.conflicts || [], error: '' }))
-        .catch((err) => alive && setScheduleReport({ key: previewKey, isValid: true, conflicts: [], error: describeApiError(err).message }));
-    }, PREVIEW_DEBOUNCE_MS);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [previewKey]);
+  const mentorOptions = useMemo(() => {
+    const byId = new Map();
+    for (const c of cohorts) {
+      if (!c.mentorId) continue;
+      const key = String(c.mentorId);
+      if (!byId.has(key)) {
+        byId.set(key, c.mentorName || tr('Giáo viên'));
+      }
+    }
+    const sorted = [...byId.entries()]
+      .sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'vi'))
+      .map(([value, label]) => ({ value, label }));
+    return [
+      { value: 'ALL', label: tr('Tất cả giáo viên') },
+      ...sorted,
+    ];
+  }, [cohorts, tr]);
 
-  const activeReport = previewKey && scheduleReport?.key === previewKey ? scheduleReport : null;
-  const scheduleConflicts = activeReport?.conflicts || [];
-  const hasScheduleConflict = scheduleConflicts.length > 0 || activeReport?.isValid === false;
-  const checkingSchedule = Boolean(previewKey) && !activeReport;
-  const selectedPlan = groupPlans.find((p) => String(p.id) === String(planId)) || null;
-  const requiredSessionCount = selectedPlan?.totalSessions ? Number(selectedPlan.totalSessions) : null;
-
-  const slotMaxCap = useMemo(() => {
-    const pickedMax = availableMentorSlots
-      .filter((s) => pickedSlots.includes(s.id) && Number(s.maxLearners) > 0)
-      .map((s) => Number(s.maxLearners));
-    if (pickedMax.length > 0) return Math.min(...pickedMax);
-    return Number(selectedPlan?.capacity) || defaultPolicyCap;
-  }, [availableMentorSlots, pickedSlots, selectedPlan, defaultPolicyCap]);
-
-  const sessionCountMismatch = Boolean(requiredSessionCount && pickedSlots.length !== requiredSessionCount);
-  const capacityInvalid = Boolean(Number(capacity) < 1 || Number(capacity) > slotMaxCap);
-
-  const toggleSlot = (id) => {
-    setPickedSlots((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  };
-
-  function handleSaveCohort(e) {
-    e.preventDefault();
-    const errs = {};
-    if (!planId) errs.planId = tr('Vui lòng chọn gói học nhóm.');
-    if (!name.trim()) errs.name = tr('Vui lòng nhập tên lớp học.');
-    if (!mentorId) errs.mentorId = tr('Vui lòng chọn Giáo viên phụ trách.');
-    if (capacityInvalid) errs.capacity = trf('Sĩ số lớp phải từ 1 đến {0}.', { 0: slotMaxCap });
-    if (pickedSlots.length === 0) errs.slots = tr('Hãy chọn khung giờ học đã duyệt cho lớp.');
-    else if (sessionCountMismatch) errs.slots = trf('Cần chọn đúng {0} buổi theo cấu hình gói.', { 0: requiredSessionCount });
-    setFormErrors(errs);
-    if (Object.keys(errs).length > 0 || (publish && hasScheduleConflict)) return;
-
-    onRun(async () => {
-      await saveCohort({
-        id: editingCohort?.id,
-        planId: Number(planId),
-        name: name.trim(),
-        mentorId: Number(mentorId),
-        capacity: Number(capacity),
-        availabilityIds: pickedSlots,
-        publish,
-        revision: editingCohort?.revision ?? 1,
-        sourceProposalId: !editingCohort && sourceProposalId ? Number(sourceProposalId) : null,
-      });
-      setCohortModalOpen(false);
-      setEditingCohort(null);
-    }, editingCohort ? 'Đã cập nhật thông tin lớp nhóm.' : publish ? 'Đã lưu và công bố lớp nhóm.' : 'Đã lưu nháp lớp nhóm.');
-  }
-
-  const refreshSelectedEntitlements = async (cid) => {
-    const rows = await getCohortEntitlements(cid);
-    setEntitlements(rows);
-  };
+  const filteredCohorts = useMemo(() => {
+    const q = cohortSearch.trim().toLowerCase();
+    return enrichedCohorts.filter((c) => {
+      if (lifecycleFilter !== 'ALL' && c.lifecycle?.id !== lifecycleFilter) return false;
+      if (levelFilter !== 'ALL' && String(c.level || '').trim().toUpperCase() !== levelFilter.toUpperCase()) return false;
+      if (mentorFilter !== 'ALL' && String(c.mentorId || '') !== String(mentorFilter)) return false;
+      if (!q) return true;
+      return (
+        String(c.name || '').toLowerCase().includes(q)
+        || String(c.level || '').toLowerCase().includes(q)
+        || String(c.mentorName || '').toLowerCase().includes(q)
+        || String(c.scheduleSummary || '').toLowerCase().includes(q)
+      );
+    });
+  }, [enrichedCohorts, cohortSearch, lifecycleFilter, levelFilter, mentorFilter]);
 
   const columns = [
     {
       key: 'name',
-      header: tr('Tên lớp'),
-      render: (row) => <span className="font-semibold text-rp-text">{row.name}</span>,
-    },
-    {
-      key: 'level',
-      header: tr('Cấp độ'),
-      compact: true,
-      render: (row) => <AdminStatusBadge tone="brand" withDot={false} label={row.level} />,
+      header: tr('Lớp học'),
+      sortValue: (row) => row.name || '',
+      render: (row) => (
+        <div className="min-w-[180px] space-y-0.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDetailCohortId(row.id)}
+              title={row.name}
+              className="rp-focus block max-w-[240px] truncate rounded text-left text-[13.5px] font-semibold text-rp-text transition-colors hover:text-[#C84666]"
+            >
+              {row.name}
+            </button>
+            {row.level && <AdminStatusBadge tone="brand" withDot={false} label={row.level} />}
+          </div>
+          <div className="text-[11.5px] tabular-nums text-rp-text-muted">
+            {fmtDateOnly(row.startsAt)} – {fmtDateOnly(row.endsAt)}
+            {row.progress.totalSessions > 0 && ` · ${trf('{0} buổi', { 0: row.progress.totalSessions })}`}
+          </div>
+        </div>
+      ),
     },
     {
       key: 'mentorName',
       header: tr('Giáo viên'),
-      render: (row) => <span className="text-sm text-rp-text-2">{row.mentorName || `#${row.mentorId}`}</span>,
+      sortValue: (row) => row.mentorName || '',
+      render: (row) => (
+        <span className="text-sm font-medium text-rp-text-2">{row.mentorName || tr('Giáo viên')}</span>
+      ),
     },
     {
-      key: 'capacity',
-      header: tr('Sĩ số'),
-      compact: true,
+      key: 'schedule',
+      header: tr('Lịch học hàng tuần'),
       render: (row) => (
-        <span className="tabular-nums text-sm font-medium text-rp-text">
-          {row.enrolledCount ?? 0}/{row.capacity}
+        <span className="block max-w-[230px] text-xs leading-5 text-rp-text-2">
+          {row.scheduleSummary}
         </span>
       ),
     },
     {
-      key: 'startsAt',
-      header: tr('Khai giảng'),
+      key: 'capacity',
+      header: tr('Sĩ số & giữ chỗ'),
       compact: true,
-      render: (row) => <span className="whitespace-nowrap text-xs text-rp-text-2">{fmtDate(row.startsAt)}</span>,
+      sortValue: (row) => Number(row.confirmedCount || 0),
+      render: (row) => {
+        const cap = Number(row.capacitySnapshot || row.capacity || groupPolicy?.maxLearners || 0);
+        return (
+          <div className="min-w-[108px] space-y-1">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="tabular-nums font-semibold text-rp-text">
+                {row.confirmedCount}/{cap || '—'}
+              </span>
+              {row.pendingHolds > 0 && (
+                <span className="rounded-full border border-rp-warning-line bg-rp-warning-bg px-1.5 py-0.5 text-[10.5px] font-semibold text-rp-warning">
+                  {trf('+{0} giữ chỗ', { 0: row.pendingHolds })}
+                </span>
+              )}
+            </div>
+            <OccupancyProgressBar
+              enrolledCount={row.confirmedCount}
+              capacity={cap}
+              size="sm"
+              label={trf('Đã ghi danh: {0}/{1} học viên', { 0: row.confirmedCount, 1: cap })}
+            />
+          </div>
+        );
+      },
+    },
+    {
+      key: 'progress',
+      header: tr('Tiến trình'),
+      compact: true,
+      sortValue: (row) => Number(row.progress.completedSessions || 0),
+      render: (row) => (
+        <span className="whitespace-nowrap tabular-nums text-xs font-medium text-rp-text-2">
+          {row.progress.completedSessions}/{row.progress.totalSessions || 0} {tr('buổi')}
+        </span>
+      ),
+    },
+    {
+      key: 'price',
+      header: tr('Học phí'),
+      compact: true,
+      sortValue: (row) => Number(row.price || 0),
+      render: (row) => (
+        <span className="whitespace-nowrap tabular-nums text-sm font-semibold text-rp-text">
+          {formatTuitionVnd(row.price)}
+        </span>
+      ),
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
       compact: true,
-      render: (row) => (
-        <AdminStatusBadge
-          tone={row.status === 'Published' ? 'success' : 'neutral'}
-          label={row.status === 'Published' ? 'Đang mở' : row.status === 'Draft' ? 'Bản nháp' : row.status}
-        />
-      ),
+      sortValue: (row) => (row.status === 'Draft' ? 'Chờ mở lớp' : row.lifecycle?.label || ''),
+      render: (row) => {
+        if (row.status === 'Draft') {
+          return <AdminStatusBadge tone="neutral" label={tr('Chờ mở lớp')} />;
+        }
+        return <AdminStatusBadge tone={row.lifecycle.tone} label={tr(row.lifecycle.label)} />;
+      },
     },
   ];
 
-  const hasFilters = cohortSearch.trim() !== '' || statusFilter !== 'ALL';
+  const hasFilters =
+    cohortSearch.trim() !== ''
+    || lifecycleFilter !== 'ALL'
+    || levelFilter !== 'ALL'
+    || mentorFilter !== 'ALL';
   const hasAnyCohorts = cohorts.length > 0;
+  const resetFilters = () => {
+    setCohortSearch('');
+    setLifecycleFilter('ALL');
+    setLevelFilter('ALL');
+    setMentorFilter('ALL');
+  };
 
   return (
     <div className={fillHeight ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'}>
-      {/* Unified Toolbar (Tabs left when provided + Search/Filter/Refresh right) */}
       {(toolbarTabs || hasAnyCohorts) && (
         <AdminToolbar
           tabs={toolbarTabs}
@@ -404,19 +460,47 @@ export default function AdminCohortConsolePanel({
                 onChange={(e) => setCohortSearch(e.target.value)}
                 onClear={() => setCohortSearch('')}
                 placeholder="Tìm lớp, cấp độ, Giáo viên…"
-                aria-label={tr('Tìm lớp nhóm')}
+                aria-label={tr('Tìm lớp học')}
                 className="w-full sm:w-[245px]"
               />
 
               <CustomSelect
                 fitContent
-                value={statusFilter}
+                value={levelFilter}
+                aria-label={tr('Lọc theo cấp độ JLPT')}
+                onChange={setLevelFilter}
+                options={levelOptions}
+              />
+
+              <CustomSelect
+                fitContent
+                value={mentorFilter}
+                aria-label={tr('Lọc theo giáo viên')}
+                onChange={setMentorFilter}
+                options={mentorOptions}
+              />
+
+              <CustomSelect
+                fitContent
+                value={lifecycleFilter}
                 aria-label={tr('Lọc theo trạng thái lớp')}
-                onChange={setStatusFilter}
+                onChange={setLifecycleFilter}
                 options={[
                   { value: 'ALL', label: tr('Tất cả trạng thái') },
-                  { value: 'Published', label: tr('Đang mở'), dotClass: 'bg-[#16A34A]' },
-                  { value: 'Draft', label: tr('Bản nháp'), dotClass: 'bg-[#94A3B8]' },
+                  ...CLASS_LIFECYCLE_STATUSES.map((st) => ({
+                    value: st.id,
+                    label: tr(st.label),
+                    dotClass:
+                      st.tone === 'success'
+                        ? 'bg-[#16A34A]'
+                        : st.tone === 'info'
+                          ? 'bg-[#2563EB]'
+                          : st.tone === 'warning'
+                            ? 'bg-[#D97706]'
+                            : st.tone === 'danger'
+                              ? 'bg-[#DC2626]'
+                              : 'bg-[#94A3B8]',
+                  })),
                 ]}
               />
 
@@ -426,10 +510,7 @@ export default function AdminCohortConsolePanel({
                   size="sm"
                   className="h-9"
                   icon={X}
-                  onClick={() => {
-                    setCohortSearch('');
-                    setStatusFilter('ALL');
-                  }}
+                  onClick={resetFilters}
                 >
                   {tr('Xóa bộ lọc')}
                 </Button>
@@ -439,45 +520,22 @@ export default function AdminCohortConsolePanel({
         </AdminToolbar>
       )}
 
-      {approvedProposals.length > 0 && (
-        <Banner
-          tone="info"
-          title={trf('Có {0} đề xuất mở lớp đã duyệt từ Giáo viên sẵn sàng điều phối', { 0: approvedProposals.length })}
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={() => openFromProposal(approvedProposals[0])}>
-                {tr('Mở lớp từ đề xuất đã duyệt')}
-              </Button>
-              <Button as={Link} to="/admin/mentor-schedules/" size="sm" variant="outline">
-                {tr('Xem đề xuất mở lớp')}
-              </Button>
-            </div>
-          }
-        >
-          {tr('Lớp học được khởi tạo theo lịch cố định và đề xuất do Giáo viên đăng ký và đã được phê duyệt.')}
-        </Banner>
-      )}
-
-      {/* Cohorts Table */}
       {filteredCohorts.length === 0 ? (
         <ContextualEmptyState
           variant={hasAnyCohorts && hasFilters ? 'search' : 'default'}
           illustration={hasAnyCohorts && hasFilters ? 'search' : 'classroom'}
-          title={hasAnyCohorts && hasFilters ? tr('Không có lớp nhóm nào khớp bộ lọc') : tr('Chưa có lớp nhóm nào')}
+          title={hasAnyCohorts && hasFilters ? tr('Không có lớp học nào khớp bộ lọc') : tr('Chưa có lớp học nào')}
           description={
             hasAnyCohorts && hasFilters
-              ? tr('Thử thay đổi trạng thái hoặc xóa từ khóa tìm kiếm.')
-              : tr('Các lớp nhóm sẽ được tạo sau khi Giáo viên gửi đề xuất lịch dạy và được Admin phê duyệt.')
+              ? tr('Thử thay đổi bộ lọc cấp độ, giáo viên, trạng thái hoặc xóa từ khóa tìm kiếm.')
+              : tr('Lớp học và lịch tuyển sinh sẽ được tự động tạo ngay khi Quản trị viên phê duyệt đề xuất mở lớp.')
           }
           action={
             hasAnyCohorts && hasFilters ? (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setCohortSearch('');
-                  setStatusFilter('ALL');
-                }}
+                onClick={resetFilters}
               >
                 {tr('Xóa bộ lọc')}
               </Button>
@@ -493,296 +551,212 @@ export default function AdminCohortConsolePanel({
           columns={columns}
           rows={filteredCohorts}
           rowKey={(r) => r.id}
-          itemLabel="lớp nhóm"
+          itemLabel="lớp học"
           fillHeight={fillHeight}
           rowActions={(row) => (
             <AdminRowActions>
               <AdminIconAction
-                kind="edit"
+                kind="view"
                 tone="brand"
-                tooltip="Chỉnh sửa lớp nhóm"
-                onClick={() => startEditCohort(row)}
-              />
-              <AdminIconAction
-                icon={KeyRound}
-                tone="neutral"
-                tooltip="Quản lý quyền ghi danh"
-                onClick={() => setEntitlementCohort(row)}
+                tooltip="Xem chi tiết lớp"
+                onClick={() => setDetailCohortId(row.id)}
               />
             </AdminRowActions>
           )}
         />
       )}
 
-      {/* Proposal-based Create / Edit Cohort Modal */}
-      <Modal
-        open={cohortModalOpen}
-        onClose={() => !busy && setCohortModalOpen(false)}
-        title={editingCohort ? trf('Sửa lớp nhóm: {0}', { 0: editingCohort.name }) : tr('Mở lớp từ đề xuất đã duyệt')}
-        size="xl"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" disabled={busy} onClick={() => setCohortModalOpen(false)}>
-              {tr('Hủy')}
-            </Button>
-            <Button
-              loading={busy}
-              disabled={busy || (publish && hasScheduleConflict)}
-              onClick={handleSaveCohort}
-            >
-              {editingCohort ? tr('Lưu thay đổi') : publish ? tr('Lưu và mở lớp') : tr('Lưu bản nháp')}
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleSaveCohort} className="space-y-4">
-          {!editingCohort && approvedProposals.length > 0 && (
-            <div className="rounded-2xl border border-[#F2CCD7] bg-[#FFF5F7]/60 p-3.5 space-y-2">
-              <Field
-                label={tr('Đề xuất mở lớp đã duyệt từ Giáo viên')}
-                hint={tr('Tự động điền Giáo viên, gói phù hợp và các buổi học 10 tuần đã duyệt.')}
-              >
-                <CustomSelect
-                  value={sourceProposalId}
-                  aria-label={tr('Chọn đề xuất mở lớp đã duyệt')}
-                  onChange={(val) => {
-                    const found = approvedProposals.find((p) => String(p.id) === String(val));
-                    if (found) applyApprovedProposal(found);
-                  }}
-                  options={approvedProposals.map((p) => ({
-                    value: String(p.id),
-                    label: `#${p.id} · ${p.jlptLevelCode || 'JLPT'} · ${p.mentorName} · ${p.courseTitle?.trim() || trf('{0} buổi/tuần', { 0: p.weeklySessionCount })} (${p.generatedAvailabilityIds?.length || 0} buổi)`,
-                  }))}
-                />
-              </Field>
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={tr('Gói học nhóm')} required error={formErrors.planId}>
-              <CustomSelect
-                value={planId}
-                aria-label={tr('Chọn gói lớp nhóm')}
-                onChange={(nextPlanId) => {
-                  setPlanId(nextPlanId);
-                  setPickedSlots([]);
-                  const p = groupPlans.find((item) => String(item.id) === String(nextPlanId));
-                  if (p?.capacity) setCapacity(Math.min(Number(p.capacity), defaultPolicyCap));
-                }}
-                options={[
-                  { value: '', label: tr('Chọn gói lớp nhóm') },
-                  ...groupPlans.map((p) => ({ value: String(p.id), label: planLabel(p) })),
-                ]}
-              />
-            </Field>
-
-            <Field label={tr('Tên lớp học')} required error={formErrors.name}>
-              <Input
-                maxLength={200}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={tr('Ví dụ: JLPT N4 Tối thứ 2-4')}
-                invalid={Boolean(formErrors.name)}
-              />
-            </Field>
-
-            <Field label={tr('Giáo viên phụ trách')} required error={formErrors.mentorId}>
-              <CustomSelect
-                value={mentorId}
-                disabled={Boolean(editingCohort)}
-                aria-label={tr('Chọn Giáo viên')}
-                onChange={(val) => {
-                  setMentorId(val);
-                  setPickedSlots([]);
-                }}
-                options={[
-                  { value: '', label: tr('Chọn Giáo viên') },
-                  ...mentors.map((m) => ({ value: String(m.id), label: m.name || m.fullName || m.email })),
-                ]}
-              />
-            </Field>
-
-            <Field label={trf('Sĩ số lớp (1–{0})', { 0: slotMaxCap })} required error={formErrors.capacity}>
-              <Input
-                type="number"
-                min={1}
-                max={slotMaxCap}
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                invalid={Boolean(formErrors.capacity)}
-              />
-            </Field>
-          </div>
-
-          <div className="space-y-2 rounded-2xl border border-rp-line bg-rp-bg-2/40 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-rp-text">
-                {trf('Chọn khung giờ rảnh đã duyệt ({0}/{1} buổi)', { 0: pickedSlots.length, 1: requiredSessionCount || '?' })}
-              </p>
-              {formErrors.slots && <span className="text-xs font-medium text-rp-brand-strong">{formErrors.slots}</span>}
-            </div>
-
-            {availableMentorSlots.length === 0 ? (
-              <p className="text-xs text-rp-text-muted">
-                {tr('Chưa có khung giờ trống phù hợp cho Giáo viên và thời lượng buổi của gói đã chọn.')}
-              </p>
-            ) : (
-              <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                {availableMentorSlots.map((s) => {
-                  const checked = pickedSlots.includes(s.id);
-                  return (
-                    <label
-                      key={s.id}
-                      className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 text-xs transition-colors ${
-                        checked ? 'border-rp-brand-strong bg-white' : 'border-rp-line bg-white/70 hover:border-rp-brand-border'
-                      }`}
-                    >
-                      <Checkbox checked={checked} onChange={() => toggleSlot(s.id)} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-semibold text-rp-text">
-                          {formatVnSlotWindow(s.startTime, s.endTime)}
-                        </span>
-                        <span className="block text-rp-text-muted">{s.mentorName}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {checkingSchedule && <Banner tone="info">{tr('Đang kiểm tra xung đột lịch của Giáo viên…')}</Banner>}
-          {activeReport?.error && <Banner tone="warning">{activeReport.error}</Banner>}
-          {activeReport && !checkingSchedule && !hasScheduleConflict && !activeReport.error && (
-            <Banner tone="success" icon={CheckCircle2}>
-              {tr('Không phát hiện xung đột với lịch dạy hiện có của Giáo viên.')}
-            </Banner>
-          )}
-          {hasScheduleConflict && (
-            <Banner tone="danger" icon={ShieldAlert} title={tr('Phát hiện xung đột lịch')}>
-              <ScheduleConflictList conflicts={scheduleConflicts} compact />
-            </Banner>
-          )}
-
-          <Checkbox
-            checked={publish}
-            onChange={(e) => setPublish(e.target.checked)}
-            label={tr('Mở lớp ngay sau khi lưu (cần chọn đủ tổng buổi và không xung đột lịch)')}
-          />
-        </form>
-      </Modal>
-
-      {/* Entitlements Drawer */}
+      {/* Read-only Class & Enrollment Monitoring Drawer */}
       <Drawer
-        open={Boolean(entitlementCohort)}
-        onClose={() => setEntitlementCohort(null)}
-        title={entitlementCohort ? `${tr('Quyền ghi danh')}: ${entitlementCohort.name}` : ''}
-        width="w-[min(560px,100vw)]"
+        open={Boolean(detailCohort)}
+        onClose={() => setDetailCohortId(null)}
+        title={detailCohort ? detailCohort.name : ''}
+        titleBadge={
+          detailCohort ? (
+            <AdminStatusBadge
+              tone={detailCohort.status === 'Draft' ? 'neutral' : detailCohort.lifecycle.tone}
+              label={detailCohort.status === 'Draft' ? tr('Chờ mở lớp') : tr(detailCohort.lifecycle.label)}
+            />
+          ) : null
+        }
+        description={
+          detailCohort
+            ? `${detailCohort.level ? `${detailCohort.level} · ` : ''}${tr('Giáo viên')}: ${detailCohort.mentorName || '—'}`
+            : ''
+        }
+        width="w-[min(720px,100vw)]"
       >
-        {entitlementCohort && (
+        {detailCohort && (
           <div className="space-y-5">
-            <Card className="space-y-3 p-4">
-              <h3 className="text-sm font-bold text-rp-text">{tr('Cấp quyền ghi danh mới')}</h3>
-              <form
-                className="space-y-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const cid = Number(entitlementCohort.id);
-                  if (!learnerId) return;
-                  onRun(async () => {
-                    await grantCohortEntitlement(cid, {
-                      learnerId: Number(learnerId),
-                      sourceType,
-                      note: note.trim() || null,
-                    });
-                    setLearnerId('');
-                    setNote('');
-                    await refreshSelectedEntitlements(cid);
-                  }, 'Đã cấp quyền ghi danh lớp nhóm cho học viên.');
-                }}
-              >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={tr('Mã học viên (ID)')} required>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={learnerId}
-                      onChange={(e) => setLearnerId(e.target.value)}
-                      placeholder={tr('Ví dụ: 900001')}
-                    />
-                  </Field>
-                  <Field label={tr('Nguồn quyền ghi danh')}>
-                    <CustomSelect
-                      value={sourceType}
-                      aria-label={tr('Nguồn quyền ghi danh')}
-                      onChange={setSourceType}
-                      options={SOURCE_TYPES.map((t) => ({ value: t.value, label: tr(t.label) }))}
-                    />
-                  </Field>
+            {/* 4 Key Monitoring KPIs */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                  <Users className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
+                  <span>{tr('Đã ghi danh')}</span>
                 </div>
-                <Field label={tr('Ghi chú')}>
-                  <Input
-                    maxLength={500}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder={tr('VD: Đủ điều kiện khai giảng đợt mới')}
-                  />
-                </Field>
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={busy || !learnerId}>
-                    {tr('Cấp quyền ghi danh')}
-                  </Button>
+                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                  {detailCohort.confirmedCount}/{detailCohort.capacitySnapshot || detailCohort.capacity}
                 </div>
-              </form>
-            </Card>
-
-            <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-rp-text">{tr('Danh sách quyền đã cấp')}</h3>
-              {entitlementsLoading && entitlements.length === 0 ? (
-                <SakuraLoader variant="section" context="cohort" delay={140} />
-              ) : entitlementsError ? (
-                <ContextualErrorState
-                  compact
-                  error={entitlementsError}
-                  title={tr('Chưa tải được danh sách quyền ghi danh')}
-                  onRetry={() => setEntitlementTick((t) => t + 1)}
+                <OccupancyProgressBar
+                  enrolledCount={detailCohort.confirmedCount}
+                  capacity={detailCohort.capacitySnapshot || detailCohort.capacity || 0}
+                  size="sm"
+                  className="mt-1.5"
+                  label={trf('Đã ghi danh: {0}/{1} học viên', {
+                    0: detailCohort.confirmedCount,
+                    1: detailCohort.capacitySnapshot || detailCohort.capacity || 0,
+                  })}
                 />
-              ) : entitlements.length === 0 ? (
-                <ContextualEmptyState variant="compact" illustration="certificate" title={tr('Chưa có quyền ghi danh nào được cấp cho lớp này.')} />
+              </div>
+
+              <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                  <Clock className="h-3.5 w-3.5 text-rp-warning" aria-hidden="true" />
+                  <span>{tr('Đang giữ chỗ')}</span>
+                </div>
+                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                  {detailCohort.pendingHolds}
+                </div>
+                <div className="mt-0.5 text-[11px] text-rp-text-muted">
+                  {tr('Chờ hoàn tất thanh toán')}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-rp-success" aria-hidden="true" />
+                  <span>{tr('Tiến trình học')}</span>
+                </div>
+                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                  {detailCohort.progress.completedSessions}/{detailCohort.progress.totalSessions || 0} {tr('buổi')}
+                </div>
+                <div className="mt-0.5 text-[11px] tabular-nums text-rp-text-muted">
+                  {detailCohort.progress.percent}% {tr('khóa học')}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                  <GraduationCap className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
+                  <span>{tr('Tổng học phí đã thu')}</span>
+                </div>
+                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                  {fmtCollectedVnd(detailCohort.totalCollectedAmount)}
+                </div>
+                <div className="mt-0.5 text-[11px] tabular-nums text-rp-text-muted">
+                  {detailCohort.tuitionPerLearner > 0
+                    ? `${formatTuitionVnd(detailCohort.tuitionPerLearner)} / ${tr('học viên')}`
+                    : tr('Chưa cấu hình học phí')}
+                </div>
+                {Number(detailCohort.totalRefundedAmount || 0) > 0 && (
+                  <div className="mt-0.5 text-[10.5px] tabular-nums text-rp-text-muted">
+                    {trf('Thu {0} · Hoàn {1}', {
+                      0: fmtCollectedVnd(detailCohort.grossCollectedAmount),
+                      1: fmtCollectedVnd(detailCohort.totalRefundedAmount),
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Course Dates & Teaching Hours */}
+            <div className="rounded-xl border border-rp-line bg-rp-surface p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-1.5 text-sm font-bold text-rp-text">
+                  <CalendarClock className="h-4 w-4 text-rp-brand" aria-hidden="true" />
+                  <span>{tr('Thông tin khóa học')}</span>
+                </h3>
+                {Number(detailCohort.totalTeachingHours) > 0 && (
+                  <span className="text-xs font-medium tabular-nums text-rp-text-muted">
+                    {trf('{0} giờ giảng dạy', { 0: detailCohort.totalTeachingHours })}
+                  </span>
+                )}
+              </div>
+
+              <dl className="grid grid-cols-1 gap-2.5 text-xs sm:grid-cols-3">
+                <div className="rounded-lg bg-rp-muted/50 px-3 py-2">
+                  <dt className="text-rp-text-muted">{tr('Hạn tuyển sinh')}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">
+                    {fmtDateTime(detailCohort.enrollmentClosesAtUtc)}
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-rp-muted/50 px-3 py-2">
+                  <dt className="text-rp-text-muted">{tr('Ngày bắt đầu')}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">{fmtDateOnly(detailCohort.startsAt)}</dd>
+                </div>
+                <div className="rounded-lg bg-rp-muted/50 px-3 py-2">
+                  <dt className="text-rp-text-muted">{tr('Ngày kết thúc')}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">{fmtDateOnly(detailCohort.endsAt)}</dd>
+                </div>
+              </dl>
+            </div>
+
+            {/* Unified Detailed Course Schedule (Shared 2-Column Year-Grouped Card) */}
+            {detailScheduleOccurrences.length > 0 && (
+              <ProposalDetailedScheduleCard
+                occurrences={detailScheduleOccurrences}
+                durationWeeks={detailCohort.courseDurationWeeks || 10}
+                projected={false}
+                showStatusBadges
+                initialVisibleCount={6}
+                columns="responsive-3"
+                resetKey={`admin-cohort-${detailCohort.id}`}
+              />
+            )}
+
+            {/* Learners Roster */}
+            <div className="rounded-xl border border-rp-line bg-rp-surface p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-rp-text">
+                  {trf('Danh sách học viên ({0})', { 0: detailCohort.rosterCourses.length })}
+                </h3>
+              </div>
+
+              {detailCohort.rosterCourses.length === 0 ? (
+                <ContextualEmptyState
+                  variant="compact"
+                  illustration="classroom"
+                  title={tr('Chưa có học viên nào trong lớp')}
+                  description={tr('Học viên đã ghi danh hoặc đang giữ chỗ thanh toán hợp lệ sẽ hiển thị tại đây.')}
+                />
               ) : (
-                <div className="space-y-2.5">
-                  {entitlements.map((ent) => {
-                    const meta = ENTITLEMENT_STATUS_META[ent.status] || ENTITLEMENT_STATUS_META.Expired;
+                <div className="space-y-2">
+                  {detailCohort.rosterCourses.map((course) => {
+                    const isConfirmed = isConfirmedClassEnrollment(course);
+                    const learnerDisplay = course.learnerName || tr('Học viên');
+
                     return (
-                      <Card key={ent.id} className="space-y-2 p-3.5 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-rp-text">
-                              {ent.learnerName || tr('Học viên')} <span className="text-xs font-normal text-rp-text-muted">({ent.learnerEmail})</span>
-                            </p>
-                            <p className="text-xs text-rp-text-muted">
-                              {tr(ENTITLEMENT_SOURCE_LABELS[ent.sourceType] || ent.sourceType)} · {fmtDate(ent.grantedAtUtc)}
-                            </p>
+                      <div
+                        key={course.id}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-rp-line bg-rp-muted/20 px-3.5 py-2.5"
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <UserAvatar src={course.learnerAvatarUrl} name={learnerDisplay} size={34} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="truncate text-sm font-semibold text-rp-text">
+                                {learnerDisplay}
+                              </span>
+                              <AdminStatusBadge
+                                tone={isConfirmed ? 'success' : 'warning'}
+                                label={isConfirmed ? tr('Đã ghi danh') : tr('Chờ thanh toán')}
+                              />
+                            </div>
+                            {!isConfirmed && course.paymentExpiresAt && (
+                              <p className="mt-0.5 text-[11.5px] tabular-nums text-rp-warning">
+                                {tr('Hết hạn giữ chỗ')}: {fmtDateTime(course.paymentExpiresAt)}
+                              </p>
+                            )}
                           </div>
-                          <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>
                         </div>
-                        {ent.revocationReason && (
-                          <p className="text-xs text-rose-700">{tr('Lý do thu hồi')}: {ent.revocationReason}</p>
-                        )}
-                        {ent.status === 'Active' && (
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              icon={Trash2}
-                              disabled={busy}
-                              onClick={() => setRevokeTarget(ent)}
-                            >
-                              {tr('Thu hồi quyền')}
-                            </Button>
-                          </div>
-                        )}
-                      </Card>
+
+                        <span className="shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums text-rp-text">
+                          {Number(course.amount || 0) > 0
+                            ? formatTuitionVnd(course.amount)
+                            : tr('Quyền học được phê duyệt')}
+                        </span>
+                      </div>
                     );
                   })}
                 </div>
@@ -791,24 +765,6 @@ export default function AdminCohortConsolePanel({
           </div>
         )}
       </Drawer>
-
-      <AlertDialog
-        open={Boolean(revokeTarget)}
-        onClose={() => setRevokeTarget(null)}
-        onConfirm={() => {
-          const target = revokeTarget;
-          setRevokeTarget(null);
-          if (!target || !entitlementCohort) return;
-          onRun(async () => {
-            await revokeCohortEntitlement(target.id, 'Thu hồi bởi quản trị viên.');
-            await refreshSelectedEntitlements(Number(entitlementCohort.id));
-          }, 'Đã thu hồi quyền ghi danh.');
-        }}
-        tone="danger"
-        title={tr('Thu hồi quyền ghi danh này?')}
-        description={revokeTarget ? trf('Học viên "{0}" sẽ không còn sử dụng được mã quyền này.', { 0: revokeTarget.learnerName || revokeTarget.learnerEmail }) : ''}
-        confirmLabel={tr('Thu hồi quyền')}
-      />
     </div>
   );
 }

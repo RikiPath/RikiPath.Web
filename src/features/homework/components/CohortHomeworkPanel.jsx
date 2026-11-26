@@ -6,7 +6,6 @@ import {
   Download,
   ExternalLink,
   Plus,
-  Sparkles,
 } from 'lucide-react';
 import { useNow } from '@/hooks/useNow.js';
 import {
@@ -33,6 +32,7 @@ import {
   Checkbox,
   ContextualEmptyState,
   CustomSelect,
+  DatePicker,
   Drawer,
   Field,
   FileUpload,
@@ -40,6 +40,8 @@ import {
   Modal,
   Radio,
   Textarea,
+  TimeInput,
+  Tooltip,
 } from '@/components/ui';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
@@ -53,10 +55,10 @@ const scopeLabel = (scope) => (
       : 'Bài tập'
 );
 
-function toIsoWithVnOffset(localVal) {
-  if (!localVal) return null;
-  const isoCandidate = localVal.length === 16 ? `${localVal}:00+07:00` : `${localVal}+07:00`;
-  const parsed = new Date(isoCandidate);
+function toIsoWithVnOffset(dateKey, timeClock = '23:59') {
+  if (!dateKey) return null;
+  const clock = /^\d{2}:\d{2}$/.test(timeClock || '') ? timeClock : '23:59';
+  const parsed = new Date(`${dateKey}T${clock}:00+07:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
@@ -67,6 +69,9 @@ export default function CohortHomeworkPanel({
   coursesInCohort = [],
   items = [],
   role = 'Learner',
+  canAssign = true,
+  hideDisabledAssign = false,
+  assignBlockedReason = '',
   busy = false,
   onRun,
 }) {
@@ -75,13 +80,21 @@ export default function CohortHomeworkPanel({
   const isMentor = role === 'Mentor';
   const isLearner = role === 'Learner';
 
+  const activeLearners = useMemo(
+    () => (coursesInCohort || []).filter(
+      (c) => (!c.paymentStatus || c.paymentStatus === 'Paid') && (!c.status || c.status === 'Active'),
+    ),
+    [coursesInCohort],
+  );
+
   // Mentor Create Homework Modal state
   const [createOpen, setCreateOpen] = useState(false);
   const [scopeMode, setScopeMode] = useState('common');
   const [selectedLearners, setSelectedLearners] = useState([]);
   const [title, setTitle] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [dueAt, setDueAt] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('23:59');
   const [createError, setCreateError] = useState('');
 
   // Learner drafts & active Submission Modal
@@ -105,7 +118,8 @@ export default function CohortHomeworkPanel({
   const resetCreateForm = () => {
     setTitle('');
     setInstructions('');
-    setDueAt('');
+    setDueDate('');
+    setDueTime('23:59');
     setSelectedLearners([]);
     setCreateError('');
     setScopeMode('common');
@@ -113,6 +127,10 @@ export default function CohortHomeworkPanel({
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (!canAssign) {
+      setCreateError(assignBlockedReason || 'Chưa đủ điều kiện giao bài tập cho lớp hiện tại.');
+      return;
+    }
     const cleanTitle = title.trim();
     const cleanInstructions = instructions.trim();
     if (!cleanTitle || !cleanInstructions) {
@@ -123,8 +141,8 @@ export default function CohortHomeworkPanel({
       setCreateError('Chọn ít nhất một học viên để giao bài riêng.');
       return;
     }
-    const isoDue = toIsoWithVnOffset(dueAt);
-    if (dueAt && (!isoDue || new Date(isoDue).getTime() <= Date.now())) {
+    const isoDue = toIsoWithVnOffset(dueDate, dueTime);
+    if (dueDate && (!isoDue || new Date(isoDue).getTime() <= Date.now())) {
       setCreateError('Hạn nộp phải là thời điểm trong tương lai (giờ Việt Nam UTC+7).');
       return;
     }
@@ -139,7 +157,7 @@ export default function CohortHomeworkPanel({
       });
       resetCreateForm();
       setCreateOpen(false);
-    }, 'Đã giao bài tập cho lớp nhóm.');
+    }, 'Đã giao bài tập cho lớp.');
   };
 
   const openGradingDrawer = (item) => {
@@ -223,31 +241,51 @@ export default function CohortHomeworkPanel({
   return (
     <Card className="space-y-4">
       <CardHeader
-        title="Bài tập lớp nhóm (chung & cá nhân)"
-        description="Phân tách rõ bài giao chung cả lớp và bài giao riêng cho từng học viên. Học viên có thể nộp chữ viết hoặc ảnh/PDF bài làm."
-        actions={isMentor && Boolean(cohortId) && (
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            disabled={busy}
-            onClick={() => {
-              resetCreateForm();
-              setCreateOpen(true);
-            }}
-          >
-            {tr('Giao bài tập')}
-          </Button>
+        title="Bài tập lớp học (chung & cá nhân)"
+        description="Phân tách rõ bài giao chung cả lớp và bài giao riêng cho từng học viên. Học viên có thể nộp văn bản hoặc ảnh/PDF bài làm."
+        actions={isMentor && Boolean(cohortId) && (canAssign || !hideDisabledAssign) && (
+          canAssign ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              disabled={busy}
+              onClick={() => {
+                resetCreateForm();
+                setCreateOpen(true);
+              }}
+            >
+              {tr('Giao bài tập')}
+            </Button>
+          ) : (
+            <Tooltip content={tr(assignBlockedReason || 'Chỉ có thể giao bài tập khi lớp đã bắt đầu và có học viên chính thức.')}>
+              <span className="inline-flex">
+                <Button variant="primary" size="sm" icon={Plus} disabled>
+                  {tr('Giao bài tập')}
+                </Button>
+              </span>
+            </Tooltip>
+          )
         )}
       />
+
+      {isMentor && !canAssign && !hideDisabledAssign && Boolean(cohortId) && (
+        <Banner tone="info" title={tr('Chưa thể phát hành bài tập')}>
+          {tr(assignBlockedReason || 'Chỉ có thể giao bài tập khi lớp đang giảng dạy và đã có học viên ghi danh chính thức.')}
+        </Banner>
+      )}
 
       {items.length === 0 ? (
         <ContextualEmptyState
           variant="compact"
           context="homework"
           illustration="homework"
-          title="Chưa có bài tập nhóm nào được giao"
-          description={isMentor ? 'Bấm "Giao bài tập" để giao bài luyện tập hoặc viết cho lớp.' : 'Khi Giáo viên giao bài, danh sách sẽ hiển thị tại đây.'}
+          title="Chưa có bài tập nào được giao"
+          description={
+            isMentor
+              ? (canAssign ? 'Nhấn "Giao bài tập" để tạo bài mới cho lớp.' : '')
+              : 'Khi Giáo viên giao bài, danh sách sẽ hiển thị tại đây.'
+          }
         />
       ) : (
         <div className="space-y-3">
@@ -441,7 +479,8 @@ export default function CohortHomeworkPanel({
       <Modal
         open={createOpen}
         onClose={() => !busy && setCreateOpen(false)}
-        title={cohortName ? trf('Giao bài tập cho lớp {0}', { 0: cohortName }) : tr('Giao bài tập cho lớp')}
+        title="Giao bài tập"
+        description={cohortName || ''}
         size="md"
         footer={(
           <>
@@ -453,7 +492,7 @@ export default function CohortHomeworkPanel({
               form="mentor-create-homework-form"
               variant="primary"
               loading={busy}
-              disabled={!title.trim() || !instructions.trim() || (scopeMode === 'individual' && selectedLearners.length === 0)}
+              disabled={!canAssign || !title.trim() || !instructions.trim() || (scopeMode === 'individual' && selectedLearners.length === 0)}
             >
               {tr('Giao bài tập')}
             </Button>
@@ -473,6 +512,7 @@ export default function CohortHomeworkPanel({
             <Radio
               name="homework-scope"
               checked={scopeMode === 'individual'}
+              disabled={activeLearners.length === 0}
               onChange={() => setScopeMode('individual')}
               label="Giao riêng học viên"
             />
@@ -481,11 +521,11 @@ export default function CohortHomeworkPanel({
           {scopeMode === 'individual' && (
             <div className="space-y-2 rounded-xl border border-rp-line bg-rp-bg-2 p-3">
               <p className="text-xs font-semibold text-rp-text-2">{tr('Chọn học viên nhận bài:')}</p>
-              {coursesInCohort.length === 0 ? (
-                <p className="text-xs text-rp-text-muted">{tr('Chưa có học viên nào trong lớp.')}</p>
+              {activeLearners.length === 0 ? (
+                <p className="text-xs text-rp-text-muted">{tr('Lớp chưa có học viên đang theo học.')}</p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {coursesInCohort.map((c) => (
+                  {activeLearners.map((c) => (
                     <Checkbox
                       key={c.learnerId}
                       checked={selectedLearners.includes(c.learnerId)}
@@ -498,23 +538,35 @@ export default function CohortHomeworkPanel({
             </div>
           )}
 
+          <Field label="Tiêu đề bài tập" required>
+            <Input
+              required
+              disabled={busy}
+              maxLength={300}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={tr('Ví dụ: Luyện viết Kanji bài 5')}
+            />
+          </Field>
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tiêu đề bài tập" required>
-              <Input
-                required
+            <Field label="Ngày hết hạn (tùy chọn)">
+              <DatePicker
+                value={dueDate}
+                onChange={setDueDate}
                 disabled={busy}
-                maxLength={300}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={tr('Ví dụ: Luyện viết Kanji bài 5')}
+                placeholder={tr('Chọn ngày hạn nộp')}
+                aria-label={tr('Ngày hết hạn bài tập')}
+                fullWidth
               />
             </Field>
-            <Field label="Hạn nộp (giờ Việt Nam, tùy chọn)">
-              <Input
-                type="datetime-local"
-                disabled={busy}
-                value={dueAt}
-                onChange={(e) => setDueAt(e.target.value)}
+            <Field label="Giờ hết hạn (24h)">
+              <TimeInput
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+                disabled={busy || !dueDate}
+                step={900}
+                aria-label={tr('Giờ hết hạn bài tập')}
               />
             </Field>
           </div>
@@ -657,7 +709,7 @@ export default function CohortHomeworkPanel({
                 <Button
                   variant="soft"
                   size="sm"
-                  icon={Sparkles}
+                  icon={ClipboardCheck}
                   disabled={busy}
                   onClick={() => onRun(() => generateHomeworkAiDraft(gradingItem.id), aiDraftNotice)}
                 >

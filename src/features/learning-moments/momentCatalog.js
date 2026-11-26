@@ -1,3 +1,4 @@
+import { CalendarDays, Clock, GraduationCap, Layers, ListChecks, Route, Sparkles, TicketCheck, Timer } from 'lucide-react';
 import { currentIntlTag } from '@/locales/locale.js';
 
 /**
@@ -15,19 +16,40 @@ export const CELEBRATION_ACCENTS = {
   blue: { from: '#6E9BF2', to: '#3E6FD8', edge: '#2F58B4', halo: '#E3ECFF', soft: '#EEF3FF', text: '#2F58B4' },
 };
 
-const NEXT_STEP_CTA = {
-  placement: 'Làm bài đánh giá năng lực',
-  roadmap: 'Khám phá lộ trình',
-  lessons: 'Bắt đầu hành trình',
-};
-
 /** CTA per purchased plan kind (routes come from the server's `ctaHref`, these are only the labels). */
 const PURCHASE_CTA = {
   self_study: 'Bắt đầu học',
+  combo: 'Bắt đầu học',
   learning_path: 'Khám phá lộ trình AI',
   speaking: 'Bắt đầu luyện nói',
   writing: 'Bắt đầu luyện viết',
+  ai_grading: 'Bắt đầu sử dụng',
 };
+
+function formatMonthYear(isoDate) {
+  const date = isoDate ? new Date(`${String(isoDate).slice(0, 10)}T12:00:00Z`) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(currentIntlTag(), { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(date);
+}
+
+function positive(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Goal facts — only what the learner actually confirmed (server data), never placeholders. */
+function goalChips(data, trf) {
+  const chips = [];
+  if (data.targetLevel) chips.push({ label: `JLPT ${data.targetLevel}`, icon: GraduationCap });
+  const min = positive(data.dailyMinutesMin);
+  const max = positive(data.dailyMinutesMax);
+  const daily = positive(data.dailyMinutes);
+  if (min && max) chips.push({ label: trf('{0}–{1} phút/ngày', { 0: min, 1: max }), icon: Clock });
+  else if (daily) chips.push({ label: trf('{0} phút/ngày', { 0: daily }), icon: Clock });
+  const exam = formatMonthYear(data.examDate);
+  if (exam) chips.push({ label: trf('Thi {0}', { 0: exam }), icon: CalendarDays });
+  return chips;
+}
 
 function formatDate(iso) {
   const date = iso ? new Date(iso) : null;
@@ -44,48 +66,120 @@ export function describeMoment(moment, tr, trf) {
   const data = moment?.data || {};
   switch (moment?.type) {
     case 'PURCHASE_COMPLETED': {
+      const mode = data.mode || 'activation';
+      const plan = data.planName || '';
+      const aiUses = positive(data.aiUses);
       const chips = [
-        data.durationDays ? trf('{0} ngày sử dụng', { 0: data.durationDays }) : null,
-        data.aiUses ? trf('{0} lượt AI', { 0: data.aiUses }) : null,
-        data.endDate ? trf('Hiệu lực đến {0}', { 0: formatDate(data.endDate) }) : null,
+        positive(data.durationDays) ? { label: trf('{0} ngày sử dụng', { 0: positive(data.durationDays) }), icon: CalendarDays } : null,
+        aiUses ? { label: trf('{0} lượt AI', { 0: aiUses }), icon: TicketCheck } : null,
+        data.isUnlimited === 'true'
+          ? { label: tr('Không giới hạn thời hạn'), icon: Clock }
+          : (data.endDate && !String(data.endDate).startsWith('2099') && !String(data.endDate).startsWith('2100'))
+            ? { label: trf('Hiệu lực đến {0}', { 0: formatDate(data.endDate) }), icon: Clock }
+            : null,
       ].filter(Boolean);
+      let title;
+      let description;
+      if (mode === 'renewal') {
+        title = tr('Gia hạn gói học thành công!');
+        description = plan
+          ? trf('{0} đã được gia hạn. Bạn tiếp tục sử dụng đầy đủ quyền lợi mà không bị gián đoạn.', { 0: plan })
+          : tr('Gói học của bạn đã được gia hạn. Bạn tiếp tục sử dụng đầy đủ quyền lợi mà không bị gián đoạn.');
+      } else if (mode === 'topup') {
+        title = tr('Đã bổ sung lượt AI thành công!');
+        description = aiUses
+          ? trf('Bạn vừa nhận thêm {0} lượt AI. Lượt mới đã sẵn sàng để sử dụng ngay.', { 0: aiUses })
+          : tr('Lượt AI mới đã được cộng vào tài khoản và sẵn sàng để sử dụng ngay.');
+      } else if (mode === 'credit') {
+        title = tr('Chúc mừng! Lượt AI của bạn đã được kích hoạt');
+        description = plan
+          ? trf('Bạn đã nhận quyền lợi của {0}. Hãy dùng lượt AI để nhận góp ý và nâng cấp trải nghiệm học tập cùng RikiPath.', { 0: plan })
+          : tr('Lượt AI đã sẵn sàng. Hãy dùng để nhận góp ý và nâng cấp trải nghiệm học tập cùng RikiPath.');
+      } else {
+        title = tr('Chúc mừng! Gói học của bạn đã được kích hoạt');
+        description = plan
+          ? trf('Bạn đã mở khóa thành công các quyền lợi của {0}. Khám phá những tính năng mới và nâng cấp trải nghiệm học tập cùng RikiPath.', { 0: plan })
+          : tr('Bạn đã mở khóa thành công các quyền lợi của gói học. Khám phá những tính năng mới và nâng cấp trải nghiệm học tập cùng RikiPath.');
+      }
+      const benefits = Array.isArray(moment.benefits) ? moment.benefits.filter((b) => b?.name) : [];
       return {
+        variant: 'purchase',
+        // Unlock animation only when something new is actually unlocked.
+        unlock: mode === 'activation' || mode === 'credit',
         accent: 'emerald',
         visual: 'success',
-        animation: 'success-reveal',
-        confetti: true,
         eyebrow: tr('Thanh toán thành công'),
-        title: tr('Chúc mừng! Bạn đã mua gói thành công!'),
-        description: data.planName
-          ? trf('Gói {0} đã được kích hoạt. Bạn có thể bắt đầu sử dụng các quyền lợi ngay bây giờ.', { 0: data.planName })
-          : tr('Gói học của bạn đã được kích hoạt. Bạn có thể bắt đầu sử dụng các quyền lợi ngay bây giờ.'),
+        planName: plan,
+        title,
+        description,
         chips,
-        cta: tr(PURCHASE_CTA[data.kind] || 'Xem gói của tôi'),
+        benefits,
+        // The server points the CTA at a missing prerequisite (goal / placement) when the plan cannot be used yet.
+        cta: data.ctaStep === 'goal'
+          ? tr('Thiết lập mục tiêu học tập')
+          : data.ctaStep === 'placement'
+            ? tr('Làm bài đánh giá năng lực')
+            : tr(PURCHASE_CTA[data.kind] || 'Khám phá tính năng'),
       };
     }
-    case 'ONBOARDING_COMPLETED':
+    case 'GOAL_CONFIRMED':
+    case 'ONBOARDING_COMPLETED': {
+      // Step 1 of Goal → Assessment → Roadmap. Copy never shows backend reasons; CTA routes come from the server.
+      const title = data.targetLevel
+        ? trf('Mục tiêu JLPT {0} đã sẵn sàng!', { 0: data.targetLevel })
+        : tr('Mục tiêu JLPT của bạn đã sẵn sàng!');
+      const reusesAssessment = data.nextStep === 'roadmap' || data.readyForRoadmap === 'true';
       return {
+        variant: 'goal',
         accent: 'sakura',
         visual: 'compass',
-        animation: 'badge-pop',
-        eyebrow: tr('Chào mừng'),
-        title: tr('Chào mừng bạn đến với hành trình tiếng Nhật!'),
-        description: tr('RikiPath đã ghi nhận mục tiêu của bạn. Hãy bắt đầu từng bước để tiến gần hơn tới điều mình mong muốn nhé!'),
-        chips: data.targetLevel ? [trf('Mục tiêu: {0}', { 0: data.targetLevel })] : [],
-        cta: tr(NEXT_STEP_CTA[data.nextStep] || 'Bắt đầu hành trình'),
+        eyebrow: tr('Bước 1/3 hoàn tất'),
+        title,
+        description: reusesAssessment
+          ? tr('Mục tiêu và kết quả đánh giá đã sẵn sàng. Hãy tạo lộ trình học phù hợp với bạn.')
+          : data.compatibilityStatus === 'INSUFFICIENT_FOR_TARGET'
+            ? tr('Kết quả trước chưa phù hợp với mục tiêu mới. Hãy làm bài đánh giá cho mục tiêu hiện tại.')
+            : tr('Bước tiếp theo, hãy đánh giá năng lực để tìm ra lộ trình học phù hợp với bạn.'),
+        chips: goalChips(data, trf),
+        cta: reusesAssessment ? tr('Tạo lộ trình học') : tr('Đánh giá năng lực'),
       };
-    case 'PLACEMENT_COMPLETED':
-      return {
-        accent: 'blue',
+    }
+    case 'PLACEMENT_COMPLETED': {
+      const chips = [
+        data.targetLevel ? { label: `JLPT ${data.targetLevel}`, icon: GraduationCap } : null,
+        // An internal reference level, never an official JLPT result.
+        data.assessedLevel ? trf('Trình độ tham khảo: JLPT {0}', { 0: data.assessedLevel }) : null,
+      ].filter(Boolean);
+      const base = {
+        variant: 'journey',
+        accent: 'sakura',
         visual: 'target',
-        animation: 'badge-pop',
-        eyebrow: tr('Đánh giá năng lực'),
-        title: tr('Bạn đã hoàn thành bài đánh giá năng lực!'),
-        description: tr('RikiPath đã có thêm thông tin để giúp bạn chọn hướng học phù hợp hơn.'),
-        // An internal assessment — shown as a reference level, never as an official JLPT result.
-        chips: data.assessedLevel ? [trf('Trình độ tham khảo: {0}', { 0: data.assessedLevel })] : [],
-        cta: tr('Xem kết quả đánh giá'),
+        eyebrow: tr('Bước 2/3 hoàn tất'),
+        title: tr('Bạn đã hoàn thành bài đánh giá!'),
+        chips,
       };
+      if (data.nextStep === 'roadmap' && data.hasGoal !== 'false') {
+        return {
+          ...base,
+          description: tr('Mục tiêu và kết quả đánh giá đã sẵn sàng. Hãy tạo lộ trình học phù hợp với bạn.'),
+          cta: tr('Tạo lộ trình học'),
+        };
+      }
+      if (data.hasGoal === 'false' || data.nextStep === 'goal') {
+        return {
+          ...base,
+          eyebrow: tr('Đánh giá năng lực'),
+          description: tr('Hãy đặt mục tiêu JLPT để RikiPath tạo lộ trình học phù hợp với bạn.'),
+          cta: tr('Đặt mục tiêu JLPT'),
+        };
+      }
+      return {
+        ...base,
+        eyebrow: tr('Đánh giá năng lực'),
+        description: tr('Kết quả chưa đủ cho mục tiêu hiện tại. Hãy làm thêm bài đánh giá để nhận lộ trình phù hợp.'),
+        cta: tr('Đánh giá năng lực'),
+      };
+    }
     case 'FIRST_LESSON_COMPLETED':
       return {
         accent: 'emerald',
@@ -97,17 +191,31 @@ export function describeMoment(moment, tr, trf) {
         chips: data.lessonTitle ? [data.lessonTitle] : [],
         cta: data.hasPractice === 'true' ? tr('Luyện tập kiến thức vừa học') : tr('Khám phá bài tiếp theo'),
       };
-    case 'LEARNING_PATH_CREATED':
+    case 'LEARNING_PATH_CREATED': {
+      const ai = data.kind === 'ai' || data.kind === 'personalized';
+      const chips = [
+        data.targetLevel ? { label: `JLPT ${data.targetLevel}`, icon: GraduationCap } : null,
+        { label: ai ? tr('Lộ trình cá nhân hóa AI') : tr('Lộ trình tiêu chuẩn'), icon: ai ? Sparkles : Route },
+        positive(data.stages) ? { label: trf('{0} chặng học', { 0: positive(data.stages) }), icon: Layers } : null,
+        positive(data.lessons) ? { label: trf('{0} bài học', { 0: positive(data.lessons) }), icon: ListChecks } : null,
+        positive(data.planDays)
+          ? { label: trf('{0} ngày học', { 0: positive(data.planDays) }), icon: CalendarDays }
+          : positive(data.dailyMinutes) ? { label: trf('{0} phút/ngày', { 0: positive(data.dailyMinutes) }), icon: Timer } : null,
+      ].filter(Boolean);
       return {
-        accent: 'teal',
+        variant: 'journey',
+        ai,
+        accent: ai ? 'lavender' : 'sakura',
         visual: 'unlock',
-        animation: 'badge-pop',
-        eyebrow: tr('Lộ trình học'),
+        eyebrow: tr('Hành trình mới'),
         title: tr('Lộ trình học của bạn đã sẵn sàng!'),
-        description: tr('Các chặng học đã được sắp xếp theo mục tiêu của bạn. Cùng bắt đầu chặng đầu tiên nhé!'),
-        chips: [],
+        description: ai
+          ? tr('Hành trình chinh phục JLPT của bạn đã chính thức bắt đầu. Lộ trình được xây dựng từ mục tiêu và kết quả đánh giá năng lực thực tế của bạn — khám phá từng chặng học và tiến gần hơn đến cấp độ mong muốn.')
+          : tr('Hành trình chinh phục JLPT của bạn đã chính thức bắt đầu. Khám phá từng chặng học, hoàn thành các mục tiêu và tiến gần hơn đến cấp độ mà bạn mong muốn.'),
+        chips,
         cta: tr('Khám phá lộ trình'),
       };
+    }
     case 'MOCK_TEST_COMPLETED':
       return {
         accent: 'blue',
@@ -169,7 +277,7 @@ export function describeAchievement(a, tr, trf) {
   switch (a?.code) {
     case 'ONBOARDING_COMPLETED': return { visual: 'compass', accent: 'sakura', title: tr('Bắt đầu hành trình'), detail: tr('Đặt mục tiêu học tập đầu tiên') };
     case 'PLACEMENT_COMPLETED': return { visual: 'target', accent: 'blue', title: tr('Đánh giá năng lực'), detail: tr('Hoàn thành bài đánh giá đầu tiên') };
-    case 'LEARNING_PATH_CREATED': return { visual: 'unlock', accent: 'teal', title: tr('Lộ trình cá nhân'), detail: tr('Lộ trình học đầu tiên sẵn sàng') };
+    case 'LEARNING_PATH_CREATED': return { visual: 'unlock', accent: 'teal', title: tr('Lộ trình học'), detail: tr('Lộ trình học đầu tiên sẵn sàng') };
     case 'FIRST_LESSON_COMPLETED': return { visual: 'book', accent: 'emerald', title: tr('Bài học đầu tiên'), detail: tr('Hoàn thành bài học đầu tiên') };
     case 'LESSONS_COMPLETED': return { visual: 'book', accent: 'emerald', title: trf('{0} bài học', { 0: a.value }), detail: trf('Hoàn thành {0} bài học', { 0: a.value }) };
     case 'GROUP_QUIZ_PASSED': return { visual: 'medal', accent: 'gold', title: tr('Kiểm tra cuối chặng'), detail: tr('Vượt qua bài kiểm tra tổng hợp chặng học') };

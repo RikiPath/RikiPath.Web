@@ -202,47 +202,8 @@ export function ScheduleMoreFiltersPopover({
           </div>
         )}
 
-        {/* 1. Trạng thái (synced 1-to-1 with toolbar StatusDotListbox) OR Loại lịch (legacy mode) */}
-        {useSyncedStatusSection ? (
-          <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
-              {tr('Trạng thái')}
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {resolvedStatusOptions.map((opt) => {
-                const active = statusFilter === opt.id;
-                const labelText = opt.id === 'ALL' ? tr('Tất cả') : tr(opt.label);
-                const countVal = countsByStatus && countsByStatus[opt.id] != null ? countsByStatus[opt.id] : null;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    data-testid={`popover-status-filter-${opt.id}`}
-                    aria-pressed={active}
-                    onClick={() => onStatusChange(opt.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-[11.5px] font-semibold transition-colors ${
-                      active
-                        ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
-                        : 'border-rp-line bg-white text-rp-text-2 hover:bg-rp-bg-2'
-                    }`}
-                  >
-                    {opt.dotClass && <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${opt.dotClass}`} />}
-                    <span>{labelText}</span>
-                    {countVal != null && (
-                      <span
-                        className={`rounded-full px-1.5 py-px text-[10.5px] font-semibold tabular-nums ${
-                          active ? 'bg-white/80 text-rp-brand-strong' : 'bg-rp-bg-2 text-rp-text-muted'
-                        }`}
-                      >
-                        {countVal}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
+        {/* 1. Loại lịch (legacy mode only; when synced with toolbar StatusDotListbox, status lives outside) */}
+        {!useSyncedStatusSection && (
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
               {tr('Loại lịch')}
@@ -381,7 +342,7 @@ export function ScheduleMoreFiltersPopover({
           <div>
             <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
               <Clock className="h-3 w-3" />
-              <span>{tr('Khung giờ trong ngày (GMT+7)')}</span>
+              <span>{tr('Khung giờ trong ngày')}</span>
             </label>
             <div className="flex flex-wrap gap-1.5">
               <button

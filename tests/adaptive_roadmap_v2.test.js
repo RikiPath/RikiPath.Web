@@ -112,14 +112,15 @@ describe('Adaptive Learning Roadmap V2 — Model & UI Guarantees', () => {
     assert.equal(describeAchievement({ code: 'STAGE_ASSESSMENT_PASSED' }, id, fmt).title, 'Tổng kết cấp độ');
   });
 
-  it('keeps checkpoint modal non-dismissible during active attempt and exposes skip placement on ExamN3', () => {
+  it('keeps checkpoint modal non-dismissible during active attempt and offers no placement skip on ExamN3', () => {
     const cpModal = readSrc('src/features/learning-path/components/RoadmapCheckpointModal.jsx');
     const examN3 = readSrc('src/pages/learner/ExamN3.jsx');
     const roadmapJlpt = readSrc('src/pages/learner/RoadmapJLPT.jsx');
     const adminReview = readSrc('src/pages/admin/AdminContentReview.jsx');
 
     assert.match(cpModal, /data-exam-attempt-active/);
-    assert.match(examN3, /skipStandardPlacement/);
+    // Sequential flow: a new roadmap needs a real assessment, so the assessment page has no skip.
+    assert.doesNotMatch(examN3, /skipStandardPlacement/);
     assert.match(roadmapJlpt, /setRoadmapMode/);
     assert.match(adminReview, /question\.explanation \?\? question\.Explanation/);
   });

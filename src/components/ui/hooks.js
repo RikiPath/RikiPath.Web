@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { confirmAction } from './feedbackStore.js';
+import { registerNavigationGuard } from '@/utils/navigationContext.js';
 
 const FOCUSABLE =
   'a[href],area[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
@@ -109,6 +110,11 @@ export function useUnsavedGuard(dirty, options = {}) {
       tone: 'warning',
     });
   }, [dirty, title, description, confirmLabel, cancelLabel]);
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    return registerNavigationGuard(confirmLeave);
+  }, [dirty, confirmLeave]);
 
   return { dirty: Boolean(dirty), confirmLeave };
 }

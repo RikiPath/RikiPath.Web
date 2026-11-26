@@ -15,7 +15,7 @@ import {
 } from '@/features/auth/api/authApi.js';
 import { setJlptGoal } from '@/features/profile/api/profileApi.js';
 import { queryClient } from '@/api/queryClient.js';
-import { learnerKeys, learnerProfileQueryKey } from '@/features/dashboard/hooks/useLearnerHome.js';
+import { learnerProfileQueryKey } from '@/features/dashboard/hooks/useLearnerHome.js';
 
 export function useRegisterMutation() {
   return useMutation({ mutationFn: registerAccount });
@@ -81,9 +81,10 @@ export function useSetJlptGoalMutation() {
     mutationFn: (payload) => setJlptGoal(payload),
     onSuccess: (profile) => {
       queryClient.setQueryData(learnerProfileQueryKey(), profile);
-      queryClient.invalidateQueries({ queryKey: learnerKeys.profile });
+      void queryClient.invalidateQueries({ queryKey: ['learner'] });
       queryClient.removeQueries({ queryKey: ['placement-assessment'], type: 'inactive' });
       void queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] });
+      void queryClient.invalidateQueries({ queryKey: ['ai-learning-path'] });
     },
   });
 }

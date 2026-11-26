@@ -132,7 +132,7 @@ export default function SrsTemplatesPage() {
   const submitMut = useMutation({
     mutationFn: (id) => submitSrsTemplate(id),
     onSuccess: async () => {
-      notify.success(tr('Đã gửi thẻ mẫu lên Admin phê duyệt.'));
+      notify.success(tr('Đã gửi thẻ mẫu lên Quản trị viên phê duyệt.'));
       await refreshAll();
     },
     onError: (err) => notify.apiError(err, tr('Không thể gửi duyệt')),
@@ -212,7 +212,7 @@ export default function SrsTemplatesPage() {
               {tr('Thẻ mẫu SRS cho Học viên')}
             </h1>
             <p className="mt-1 text-sm text-rp-text-2">
-              {tr('Biên soạn thẻ Từ vựng và Kanji, xem trước như Học viên và gửi Admin phê duyệt.')}
+              {tr('Biên soạn thẻ Từ vựng và Kanji, xem trước như Học viên và gửi Quản trị viên phê duyệt.')}
             </p>
           </div>
           <Button type="button" variant="primary" size="md" icon={Plus} onClick={openCreate}>
@@ -280,7 +280,7 @@ export default function SrsTemplatesPage() {
               description={
                 hasActiveFilters
                   ? tr('Hãy thử từ khóa khác hoặc xóa bộ lọc để xem toàn bộ thẻ mẫu của bạn.')
-                  : tr('Nhấn “Tạo thẻ mẫu SRS” để biên soạn thẻ mới, xem trước và gửi Admin phê duyệt.')
+                  : tr('Nhấn “Tạo thẻ mẫu SRS” để biên soạn thẻ mới, xem trước và gửi Quản trị viên phê duyệt.')
               }
               action={hasActiveFilters ? (
                 <Button

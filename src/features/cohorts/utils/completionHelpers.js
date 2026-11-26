@@ -1,4 +1,5 @@
 // Tiện ích thuần cho phần tổng kết khóa học (tách khỏi file component để giữ fast-refresh).
+import { holdSecondsLeft } from '@/features/checkout/utils/hold.js';
 
 export const COMPLETION_NOTE =
   'Bản tổng kết này ghi nhận quá trình học tại RikiPath, không phải chứng chỉ JLPT chính thức.';
@@ -24,4 +25,32 @@ export function courseHasStarted(course, nowMs) {
   if (!nowMs || !course.startsAt) return false;
   const start = new Date(course.startsAt).getTime();
   return !Number.isNaN(start) && start <= nowMs;
+}
+
+const CONFIRMED_COURSE_STATUSES = new Set([
+  'Ready',
+  'Active',
+  'Completed',
+  'Transferred',
+]);
+
+/** Ghi danh chỉ được mở không gian lớp sau khi Backend xác nhận thanh toán và trạng thái khóa hợp lệ. */
+export function isConfirmedCourseAccess(course) {
+  if (!course) return false;
+  const paid = course.paymentStatus === 'Paid' || course.paymentStatus === 'PartiallyRefunded';
+  return paid && CONFIRMED_COURSE_STATUSES.has(course.status);
+}
+
+/** Khóa đang giữ chỗ chờ thanh toán PayOS và vẫn còn thời gian giữ chỗ hợp lệ. */
+export function isPendingPaymentCourse(course, nowMs = Date.now()) {
+  if (!course) return false;
+  if (course.paymentStatus !== 'Pending' || course.status !== 'PendingPayment') return false;
+  if (!course.paymentExpiresAt) return true;
+  const left = holdSecondsLeft(course.paymentExpiresAt, nowMs);
+  return left === null || left > 0;
+}
+
+/** Chỉ hiển thị trên /my-courses/ khi đang giữ chỗ còn hạn hoặc đã xác nhận ghi danh có hiệu lực. */
+export function isVisibleInMyCourses(course, nowMs = Date.now()) {
+  return isPendingPaymentCourse(course, nowMs) || isConfirmedCourseAccess(course);
 }

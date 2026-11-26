@@ -49,6 +49,7 @@ import {
   buildUserRegistrationSeries,
   buildUserRoleDistribution,
   computeDateWindow,
+  normalizeServerDailyRevenueSeries,
   summarizeMentorKpis,
 } from '@/features/admin/utils/dashboardAnalytics.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
@@ -138,7 +139,13 @@ export default function AdminDashboard() {
   const courses = useMemo(() => coursesQuery.data || [], [coursesQuery.data]);
   const paymentsData = paymentsQuery.data || {};
   const paymentItems = useMemo(() => paymentsData.items || [], [paymentsData.items]);
-  const paymentSummary = paymentsData.summary || {};
+  const paymentSummary = useMemo(() => paymentsData.summary || {}, [paymentsData.summary]);
+  const authoritativeRevenueSummary = useMemo(() => {
+    if (paymentSummary && (paymentSummary.totalPaidAmount != null || paymentSummary.dailySeries?.length)) {
+      return paymentSummary;
+    }
+    return stats?.revenueSummary || {};
+  }, [paymentSummary, stats]);
 
   const pendingRetakes = useMemo(
     () => courses.reduce((sum, c) => sum + (c.requests || []).filter((r) => r.status === 'Pending').length, 0),
@@ -163,10 +170,17 @@ export default function AdminDashboard() {
     () => buildUserRegistrationSeries(users, windowInfo.startMs),
     [users, windowInfo.startMs],
   );
-  const revenueSeries = useMemo(
-    () => buildRevenueSeries(paymentItems, windowInfo.days),
-    [paymentItems, windowInfo.days],
-  );
+  const revenueSeries = useMemo(() => {
+    const serverSeries = authoritativeRevenueSummary?.dailySeries?.length
+      ? authoritativeRevenueSummary.dailySeries
+      : stats?.revenueSummary?.dailySeries;
+    if (Array.isArray(serverSeries) && serverSeries.length > 0 && (rangeId === '30d' || rangeId === '7d' || serverSeries.some((p) => Number(p.totalPaidAmount || p.netAmount || 0) > 0))) {
+      const normalized = normalizeServerDailyRevenueSeries(serverSeries, windowInfo.days || 30);
+      if (windowInfo.days === 7 && normalized.length > 7) return normalized.slice(-7);
+      return normalized;
+    }
+    return buildRevenueSeries(paymentItems, windowInfo.days);
+  }, [authoritativeRevenueSummary, stats, rangeId, paymentItems, windowInfo.days]);
   const jlptDist = useMemo(() => buildJlptDistribution(cohorts, courses), [cohorts, courses]);
   const mentorSummary = useMemo(() => summarizeMentorKpis(kpiQuery.data || []), [kpiQuery.data]);
 
@@ -345,9 +359,16 @@ export default function AdminDashboard() {
                 <AdminStatCard
                   icon={CreditCard}
                   tone="brand"
-                  label="Doanh thu thành công"
-                  value={formatMoney(paymentSummary.totalPaidAmount || 0)}
-                  subtext={trf('{0} đơn thanh toán thành công', { 0: paymentSummary.paidCount ?? 0 })}
+                  label="Thực thu hệ thống"
+                  value={formatMoney(authoritativeRevenueSummary.netCollectedAmount ?? authoritativeRevenueSummary.totalPaidAmount ?? 0)}
+                  subtext={
+                    Number(authoritativeRevenueSummary.courseTuitionRevenue || 0) > 0 || Number(authoritativeRevenueSummary.subscriptionRevenue || 0) > 0
+                      ? trf('Gói: {0} · Lớp: {1}', {
+                        0: formatMoney(authoritativeRevenueSummary.subscriptionRevenue || 0),
+                        1: formatMoney(authoritativeRevenueSummary.courseTuitionRevenue || 0),
+                      })
+                      : trf('{0} đơn thanh toán thành công', { 0: paymentSummary.paidCount ?? 0 })
+                  }
                 />
               </Link>
               <Link to="/admin/users/" className="block rp-focus rounded-rp-card">

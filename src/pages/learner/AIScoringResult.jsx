@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { getSession } from '@/app/auth/session.js';
-import { PenLine } from 'lucide-react';
+import { PenLine, Ticket } from 'lucide-react';
 import {
+  BackButton,
   Badge,
   Banner,
   Button,
@@ -24,20 +25,12 @@ import {
   regradePracticeSubmission,
 } from '@/features/practice/api/practiceSubmissionApi.js';
 import { LearnerShell } from '@/layouts';
-import { currentIntlTag, useLocale } from '@/locales/locale.js';
-import { parseUtcDate } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
+
+import { formatDateTime } from '@/utils/dateTimeFormat.js';
 
 function formatWhen(value) {
-  if (!value) return '';
-  const date = parseUtcDate(value);
-  if (!date || Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTime(value, '');
 }
 
 export default function AIScoringResult() {
@@ -107,6 +100,9 @@ export default function AIScoringResult() {
   return (
     <LearnerShell pathname="/ai-scoring" breadcrumb={tr('Kết quả chấm')}>
       <PageContainer width="default" className="space-y-4">
+        <div>
+          <BackButton fallbackTo="/riki/essay/" label="Về Luyện viết" defaultOriginLabel="Quay lại" />
+        </div>
         <IllustratedPageHeader
           icon="achievement"
           tone="peach"
@@ -116,7 +112,7 @@ export default function AIScoringResult() {
           actions={
             <ControlGroup>
               {totalAiQuota !== null && (
-                <CounterPill tone={totalAiQuota > 0 ? 'brand' : 'neutral'}>
+                <CounterPill icon={Ticket} tone={totalAiQuota > 0 ? 'brand' : 'neutral'}>
                   {trf('Lượt AI còn: {0}', { 0: totalAiQuota })}
                 </CounterPill>
               )}

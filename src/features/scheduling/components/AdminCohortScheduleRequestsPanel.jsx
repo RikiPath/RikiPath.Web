@@ -29,7 +29,9 @@ import {
   AdminToolbar,
 } from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
+import { formatDate, formatTimeRange } from '@/utils/dateTimeFormat.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { formatAuditActionLabel, formatRoleLabel } from '@/utils/terminology.js';
 import ScheduleConflictList from './ScheduleConflictList';
 import { useLocale } from '@/locales/locale.js';
 
@@ -37,7 +39,7 @@ const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
 const STATUS_TONE = { Pending: 'warning', Approved: 'success', Rejected: 'danger', Withdrawn: 'neutral' };
 
 export function ScheduleRequestHistory({ history = [] }) {
-  const { trf } = useLocale();
+  const { tr, trf } = useLocale();
   if (!history.length) return null;
   return (
     <div className="space-y-1.5 border-t border-rp-line pt-3">
@@ -45,7 +47,7 @@ export function ScheduleRequestHistory({ history = [] }) {
       <ul className="space-y-1 text-xs text-rp-text-2">
         {history.map((h, i) => (
           <li key={`${h.atUtc}-${i}`}>
-            {date(h.atUtc)} · {h.actorRole} · {h.action}{h.detail ? `: ${h.detail}` : ''}
+            {date(h.atUtc)} · {formatRoleLabel(h.actorRole, tr)} · {formatAuditActionLabel(h.action, tr)}{h.detail ? `: ${h.detail}` : ''}
           </li>
         ))}
       </ul>
@@ -96,7 +98,7 @@ export function ShiftPreviewDetails({ preview }) {
             </summary>
             <ul className="mt-1 space-y-0.5">
               {validProposed.map((s) => (
-                <li key={s.number}>{trf('Buổi {0}: {1} – {2}', { 0: s.number, 1: date(s.startTime), 2: date(s.endTime) })}</li>
+                <li key={s.number}>{trf('Buổi {0}: {1} · {2}', { 0: s.number, 1: formatDate(s.startTime, '—'), 2: formatTimeRange(s.startTime, s.endTime, '—') })}</li>
               ))}
             </ul>
           </details>
@@ -156,8 +158,7 @@ export default function AdminCohortScheduleRequestsPanel({
   const blocked = selected?.kind === 'ShiftWeeks' && preview && !preview.eligible;
 
   const columns = [
-    { key: 'id', header: '#', compact: true, render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span> },
-    { key: 'cohortName', header: tr('Lớp'), render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || `#${r.cohortId}`}</span> },
+    { key: 'cohortName', header: tr('Lớp'), render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || tr('Lớp học nhóm')}</span> },
     {
       key: 'kind',
       header: tr('Loại yêu cầu'),
@@ -168,7 +169,7 @@ export default function AdminCohortScheduleRequestsPanel({
         </span>
       ),
     },
-    { key: 'requestedByRole', header: tr('Người gửi'), compact: true, render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedByRole}</span> },
+    { key: 'requestedByRole', header: tr('Người gửi'), compact: true, render: (r) => <span className="text-xs text-rp-text-muted">{formatRoleLabel(r.requestedByRole, tr)}</span> },
     { key: 'createdAtUtc', header: tr('Gửi lúc'), compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
     {
       key: 'status',
@@ -255,7 +256,7 @@ export default function AdminCohortScheduleRequestsPanel({
       <Drawer
         open={Boolean(selected)}
         onClose={() => setSelectedId(null)}
-        title={selected ? `${tr('Yêu cầu')} #${selected.id} · ${selected.cohortName || trf('Lớp #{0}', { 0: selected.cohortId })}` : ''}
+        title={selected ? `${tr('Yêu cầu điều chỉnh lịch')} · ${selected.cohortName || tr('Lớp học nhóm')}` : ''}
         width="w-[min(560px,100vw)]"
       >
         {selected && (
@@ -266,7 +267,7 @@ export default function AdminCohortScheduleRequestsPanel({
 
             <Card className="space-y-2 bg-rp-bg-2/40 p-4 text-sm">
               <p><strong>{tr('Loại')}:</strong> {tr(SCHEDULE_REQUEST_KIND[selected.kind] || selected.kind)}</p>
-              <p><strong>{tr('Lý do')}:</strong> {tr(selected.reason)}</p>
+              <p><strong>{tr('Lý do')}:</strong> {selected.reason}</p>
             </Card>
 
             {previewError && <Banner tone="danger">{previewError}</Banner>}
@@ -276,7 +277,7 @@ export default function AdminCohortScheduleRequestsPanel({
             {selected.status === 'Pending' && (
               <>
                 <Card className="space-y-3 p-4">
-                  <Field label={tr('Ghi chú duyệt (không bắt buộc)')}>
+                  <Field label={tr('Ghi chú duyệt (nếu có)')}>
                     <Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
                   </Field>
                   <Button

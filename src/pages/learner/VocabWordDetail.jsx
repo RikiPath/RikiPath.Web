@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bookmark, Repeat, Search, Volume2 } from 'lucide-react';
+import { Bookmark, Repeat, Search, Volume2 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import {
+  BackButton,
   Badge,
   Banner,
   Button,
@@ -123,17 +124,15 @@ export default function VocabWordDetail() {
   return (
     <LearnerShell breadcrumb={word?.word || tr('Chi tiết từ')}>
       <PageContainer width="reading" density="comfortable" className="space-y-4 text-rp-text">
+        <div>
+          <BackButton fallbackTo="/kanji-notebook/" label="Về Sổ tay cá nhân" restoreListKey="/kanji-notebook" />
+        </div>
         <IllustratedPageHeader
           icon="vocabulary"
           tone="mint"
           compact
           title={word?.word ? word.word : tr('Tra từ vựng tiếng Nhật')}
           description={tr('Xem cách đọc, nghĩa, ví dụ và lưu nhanh vào Sổ tay cá nhân.')}
-          actions={
-            <Button as={Link} to="/kanji-notebook/" variant="secondary" size="md" icon={ArrowLeft}>
-              {tr('Về Sổ tay cá nhân')}
-            </Button>
-          }
         />
 
         <form

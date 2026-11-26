@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Headphones, LockKeyhole, NotebookPen, PauseCircle, Sparkles } from 'lucide-react';
+import { BookOpen, Headphones, LockKeyhole, NotebookPen, PauseCircle, Ticket } from 'lucide-react';
 import { Button, Modal, cx } from '@/components/ui';
 import { LearningPathUnlockGuide } from '@/features/learning-path/components/LearningPathUnlockGuide.jsx';
 import { useLocale } from '@/locales/locale.js';
@@ -14,7 +14,7 @@ const BENEFITS = [
   { icon: BookOpen, text: 'Toàn bộ bài học JLPT theo cấp độ, kèm bài luyện tập' },
   { icon: Headphones, text: 'Bài nghe hiểu và đọc hiểu có câu hỏi luyện tập' },
   { icon: NotebookPen, text: 'Lưu tiến độ học tập, đánh dấu & đồng bộ ôn tập SRS' },
-  { icon: Sparkles, text: 'Lượt góp ý AI đi kèm theo từng gói' },
+  { icon: Ticket, text: 'Lượt góp ý AI đi kèm theo từng gói' },
 ];
 
 const PLAN_DESCRIPTION = 'Bạn cần mua gói tự học để mở khóa tính năng này và bắt đầu học tập.';
@@ -93,7 +93,7 @@ export function StudyUnlockDialog({ target, status, onClose }) {
           <div className="min-w-0">
             <p className="font-semibold text-rp-text">{tr(target.featureLabel)}</p>
             <p className="mt-1 text-sm leading-6 text-rp-text-2">
-              {tr('Tính năng này hiện chưa khả dụng. Bạn có thể quay lại sử dụng khi hệ thống mở lại.')}
+              {tr('Tính năng này tạm thời chưa mở. Vui lòng quay lại sau.')}
             </p>
           </div>
         </div>

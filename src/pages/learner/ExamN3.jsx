@@ -1,21 +1,21 @@
 import AssessmentResultDashboard from '@/features/mock-test/components/AssessmentResultDashboard.jsx';
 import ExamWorkspace from '@/features/mock-test/components/ExamWorkspace.jsx';
 import OrderingAnswer from '@/features/mock-test/components/OrderingAnswer.jsx';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, PlayCircle, Target } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import { getSession } from '@/app/auth/session.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 import {
-  Badge,
   Banner,
   Button,
   Card,
   Modal,
   PageContainer,
   Radio,
+  RichQuestionText,
   SakuraLoader,
 } from '@/components/ui';
 import {
@@ -25,19 +25,14 @@ import {
   getPlacementStatus,
   getActivePlacementAttempt,
   savePlacementAnswers,
-  skipStandardPlacement,
   startPlacementAttempt,
   submitPlacementAttempt,
 } from '@/features/placement/api/placementApi.js';
 import { useLocale } from '@/locales/locale.js';
-import { IllustratedPageHeader, WebClayIcon, resolveSurfaceTone } from '@/features/learner-ui';
-
-const PLACEMENT_SKILLS_PREVIEW = [
-  { key: 'vocabulary', label: 'Từ vựng', tone: 'mint' },
-  { key: 'grammar', label: 'Ngữ pháp', tone: 'peach' },
-  { key: 'reading', label: 'Đọc hiểu', tone: 'navy' },
-  { key: 'listening', label: 'Nghe hiểu', tone: 'sky' },
-];
+import { IllustratedPageHeader } from '@/features/learner-ui';
+import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
+import { resolveFeatureLock } from '@/features/learning-path/learningPathFlow.js';
+import { SetupGuideArt, SetupGuideSteps } from '@/features/entitlements/components/FeatureAccessModal.jsx';
 
 const assessmentUrl = '/app/placement-test';
 const chartLevelsByTarget = {
@@ -45,6 +40,13 @@ const chartLevelsByTarget = {
   N4: ['N5', 'N4'],
   N3: ['N4', 'N3'],
   N2: ['N3', 'N2'],
+};
+
+const SKILL_LABELS = {
+  vocabulary: 'Từ vựng',
+  grammar: 'Ngữ pháp',
+  reading: 'Đọc hiểu',
+  listening: 'Nghe hiểu',
 };
 
 function placementAnswer(questionId, value) {
@@ -170,7 +172,7 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
                       onChange={() => choose(question.questionId, option.optionId)}
                       label={(
                         <span className="min-w-0 whitespace-pre-wrap">
-                          {option.content}
+                          <RichQuestionText text={option.content} />
                           {option.imageUrl && (
                             <img
                               src={option.imageUrl}
@@ -223,10 +225,15 @@ export default function ExamN3() {
   const queryClient = useQueryClient();
   const session = getSession();
   const requestedId = Number(new URLSearchParams(search).get('attemptId')) || null;
-  const keyFor = (id) => placementAssessmentKey(session, id);
+
+  // One general assessment for the confirmed goal (the server picks the scope from the goal + question bank).
+  const scopeParams = useMemo(() => ({}), []);
+
+  const keyFor = (id, scope = '') => [...placementAssessmentKey(session, id), scope];
+  const scopeKey = 'goal';
   const query = useQuery({
-    queryKey: keyFor(requestedId),
-    queryFn: () => loadAssessment(requestedId),
+    queryKey: keyFor(requestedId, scopeKey),
+    queryFn: () => loadAssessment(requestedId, scopeParams),
     enabled: Boolean(session?.accessToken),
     retry: false,
     staleTime: 10_000,
@@ -236,28 +243,53 @@ export default function ExamN3() {
   const inFlight = useRef(false);
   const [error, setError] = useState('');
   const visibleError = error || query.error?.message;
+  const hasGoal = Boolean(status?.isGoalConfirmed && status?.targetJlptLevelId);
   const target = status?.targetJlptLevelName || 'cấp độ mục tiêu';
-  const { isLatest, matchesTarget, isDifferentGoal, canStartUpdatedAssessment, canRetake } = getPlacementResultActions(status, result);
-  const canSelfStudy = Boolean(result && status?.targetJlptLevelId && isLatest && matchesTarget && !result.isMiniAssessment);
+
+  const {
+    isLatest,
+    matchesTarget,
+    isDifferentGoal,
+    isInsufficientForTarget,
+    canPlan,
+    canSetGoal,
+    canSupplement,
+    canRetake,
+  } = getPlacementResultActions(status, result);
+  const canSelfStudy = Boolean(result && canPlan && !result.isMiniAssessment);
   const resultTarget = result?.screeningLevelName
     || result?.levelBreakdowns?.find((level) => level.jlptLevelId === result.assessmentTargetLevelId)?.jlptLevelName
-    || 'cấp độ của bài này';
+    || (result?.isComprehensiveAssessment ? tr('Tổng hợp N5–N3') : tr('cấp độ của bài này'));
   const chartTarget = Object.hasOwn(chartLevelsByTarget, resultTarget)
     ? resultTarget
     : Object.keys(chartLevelsByTarget).findLast(level => result?.levelBreakdowns?.some(item => item.jlptLevelName === level))
       ?? status?.targetJlptLevelName;
-  const showCurrentAssessment = isDifferentGoal || Boolean(active) || Boolean(status && !isLatest);
-  const allowance = status?.attemptAllowance;
+  const showCurrentAssessment = Boolean(active) || Boolean(status && result && !isLatest);
+  const allowance = status?.attemptAllowance ?? null;
+  const plannedLevels = Array.isArray(status?.plannedAssessmentLevelCodes) ? status.plannedAssessmentLevelCodes : [];
+  const plannedSkills = Array.isArray(status?.plannedSkillCodes) ? status.plannedSkillCodes : [];
+  // Direct URL without a goal shows the same guide as the locked Sidebar item.
+  const goalGate = resolveFeatureLock({ hasConfirmedGoal: false }, 'placement');
+  const quotaInitialized = Boolean(status?.quotaInitialized ?? allowance);
+  const pendingSubmissionId = allowance?.pendingSubmissionAttemptId ?? null;
+  // "Out of attempts" only from a loaded status with a confirmed goal — never for a missing goal or while loading.
+  const quotaExhausted = Boolean(
+    status &&
+    hasGoal &&
+    quotaInitialized &&
+    !status.hasActiveAttempt &&
+    !pendingSubmissionId &&
+    (status.cannotStartReason === 'PLACEMENT_ATTEMPT_LIMIT_REACHED' || allowance?.remaining === 0),
+  );
   const studyLevel = result?.skillAssessments?.find(item => item.skillCode === 'listening')?.recommendedStudyLevelCode
     ?? chartLevelsByTarget[chartTarget]?.[0] ?? chartTarget;
   const resultLevelSummary = result?.levelBreakdowns?.map((level) => level.jlptLevelName).filter(Boolean).join(' + ')
     || result?.screeningLevelName
     || '';
 
-
   function openAttempt(id, data) {
-    void queryClient.invalidateQueries({ queryKey: keyFor(null), exact: true, refetchType: 'none' });
-    queryClient.setQueryData(keyFor(id), data);
+    void queryClient.invalidateQueries({ queryKey: keyFor(null, scopeKey), exact: true, refetchType: 'none' });
+    queryClient.setQueryData(keyFor(id, scopeKey), data);
     navigate(`${assessmentUrl}?attemptId=${id}`, { replace: true });
   }
 
@@ -290,30 +322,30 @@ export default function ExamN3() {
   function start(retakeTargetAssessment = false) {
     return run(async () => {
       const next = await startPlacementAttempt({ retakeTargetAssessment });
+      await invalidateLearnerSetupQueries(queryClient);
       openAttempt(next.attemptId, { status, attempt: next });
     }, { errorTitle: 'Không thể bắt đầu bài đánh giá', toastKey: 'placement-n3-start' });
   }
 
-  function skipAssessment() {
+  function submitExpiredAttempt() {
+    if (!pendingSubmissionId) return undefined;
     return run(async () => {
-      await skipStandardPlacement();
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['learner', 'placement-status'] }),
-        queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] }),
-        queryClient.invalidateQueries({ queryKey: ['learner', 'profile'] }),
-      ]);
-      navigate('/roadmap/');
+      const completed = await submitPlacementAttempt(pendingSubmissionId, []);
+      await invalidateLearnerSetupQueries(queryClient);
+      const latestStatus = await getPlacementStatus(scopeParams).catch(() => status);
+      openAttempt(completed.attemptId, { status: latestStatus, result: completed });
     }, {
-      successMessage: 'Đã tạm bỏ qua bài đánh giá năng lực',
-      errorTitle: 'Không thể bỏ qua bài đánh giá',
-      toastKey: 'placement-n3-skip',
+      loadingMessage: 'Đang nộp lượt đã hết giờ…',
+      successMessage: 'Đã hoàn tất lượt đánh giá!',
+      errorTitle: 'Chưa nộp được lượt đánh giá',
+      toastKey: 'placement-n3-submit-expired',
     });
   }
 
   function returnToCurrentAssessment() {
     return run(async () => {
-      const current = await loadAssessment(null);
-      queryClient.setQueryData(keyFor(null), current);
+      const current = await loadAssessment(null, scopeParams);
+      queryClient.setQueryData(keyFor(null, scopeKey), current);
       navigate(assessmentUrl, { replace: true });
     }, { errorTitle: 'Không tải được lượt đánh giá hiện tại', toastKey: 'placement-n3-resume' });
   }
@@ -322,12 +354,10 @@ export default function ExamN3() {
     return run(async () => {
       await saved;
       const completed = await submitPlacementAttempt(id, answers);
+      await invalidateLearnerSetupQueries(queryClient);
       openAttempt(completed.attemptId, { result: completed });
-      void queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] });
-      void queryClient.invalidateQueries({ queryKey: ['learner', 'placement-status'] });
-      // Refresh eligibility separately so a status failure never loses a submitted result.
-      const latestStatus = await getPlacementStatus();
-      queryClient.setQueryData(keyFor(completed.attemptId), { status: latestStatus, result: completed });
+      const latestStatus = await getPlacementStatus(scopeParams);
+      queryClient.setQueryData(keyFor(completed.attemptId, scopeKey), { status: latestStatus, result: completed });
     }, {
       loadingMessage: 'Đang nộp bài đánh giá…',
       successMessage: 'Đã nộp bài đánh giá thành công!',
@@ -343,12 +373,12 @@ export default function ExamN3() {
         tone="navy"
         eyebrow="JLPT N5 – N2"
         title={tr('Đánh giá năng lực JLPT')}
-        description={tr('Kiểm tra trình độ hiện tại theo từng kỹ năng để nhận lộ trình học phù hợp.')}
-        actions={(
+        description={tr('Kiểm tra trình độ hiện tại để RikiPath xây dựng lộ trình học phù hợp với mục tiêu của bạn.')}
+        actions={hasGoal ? (
           <Button as={Link} to="/onboarding" variant="secondary" size="md">
             {tr('Đổi mục tiêu học tập')}
           </Button>
-        )}
+        ) : null}
       />
 
       {!session?.accessToken && (
@@ -396,18 +426,44 @@ export default function ExamN3() {
 
       {result && (
         <div className="space-y-4">
-          {canStartUpdatedAssessment && (
-            <Card className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-rp-text-2">{trf('Bạn có thể làm lượt đánh giá mới cho mục tiêu {0}.', { 0: target })}</p>
-              <Button variant="primary" size="sm" disabled={pending} onClick={() => start()}>
-                {trf('Bắt đầu bài đánh giá {0} mới', { 0: target })}
-              </Button>
-            </Card>
+          {isInsufficientForTarget && status?.placementCompatibilityReason && (
+            <Banner
+              tone="warning"
+              title={trf('Cần đánh giá bổ sung cho mục tiêu JLPT {0}', { 0: target })}
+              actions={
+                canSupplement && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => start(false)}
+                  >
+                    {trf('Đánh giá bổ sung {0}', { 0: target })}
+                  </Button>
+                )
+              }
+            >
+              {status.placementCompatibilityReason}
+            </Banner>
           )}
 
-          {isDifferentGoal && (
-            <Banner tone="info">
-              {tr('Kết quả này thuộc bài đánh giá trước đó. Hãy quay về bài đánh giá dành cho thiết lập mục tiêu')}{' '}<strong>{target}</strong>{' '}{tr('hiện tại để tiếp tục.')}
+          {!hasGoal && (
+            <Banner
+              tone="info"
+              title={tr('Bạn chưa thiết lập mục tiêu JLPT')}
+              actions={(
+                <div className="flex flex-wrap gap-2">
+                  <Button as={Link} to="/onboarding/" variant="primary" size="sm" icon={Target}>
+                    {tr('Thiết lập mục tiêu JLPT')}
+                  </Button>
+                  <Button as={Link} to="/app/" variant="secondary" size="sm">
+                    {tr('Để sau')}
+                  </Button>
+                </div>
+              )}
+            >
+              {tr('Kết quả đánh giá đã được lưu. Hãy chọn mục tiêu JLPT cho hành trình tiếp theo.')}
             </Banner>
           )}
 
@@ -416,54 +472,51 @@ export default function ExamN3() {
             onceKey={result.attemptId ? `assessment-${result.attemptId}` : undefined}
             badgeText={
               resultLevelSummary
-                ? `${result.isShortenedAssessment ? tr('Đánh giá rút gọn') : tr('Đánh giá năng lực')} · ${resultLevelSummary}`
+                ? `${result.isComprehensiveAssessment ? tr('Đánh giá tổng hợp') : tr('Đánh giá năng lực')} · ${resultLevelSummary}`
                 : tr('Đánh giá năng lực')
             }
             targetLevelLabel={status?.targetJlptLevelName}
             chartTarget={chartTarget}
             visibleLevels={chartLevelsByTarget[chartTarget]}
             allowanceText={
-              allowance && matchesTarget
-                ? trf('Còn {0}/{1} lượt đánh giá cho mục tiêu {2}', { 0: allowance.remaining, 1: allowance.limit, 2: target })
+              allowance && quotaInitialized && matchesTarget
+                ? trf('Còn {0}/{1} lượt đánh giá cho phạm vi này', { 0: allowance.remaining, 1: allowance.limit })
                 : undefined
             }
-            showAiCta={!showCurrentAssessment && canSelfStudy}
-            primaryCtaTo="/roadmap/?generateAi=1"
-            primaryCtaLabel={tr('Tạo lộ trình học với AI')}
+            showAiCta={!showCurrentAssessment && (canSelfStudy || canSetGoal)}
+            primaryCtaTo={canSetGoal ? '/onboarding/' : '/roadmap/'}
+            primaryCtaLabel={canSetGoal ? tr('Thiết lập mục tiêu JLPT') : tr('Tạo lộ trình học')}
             footerActions={
               <>
-                {!showCurrentAssessment && (canSelfStudy || canRetake) && (
+                {!showCurrentAssessment && canSelfStudy && (
                   <>
-                    {canSelfStudy && (
-                      <>
-                        <Button as={Link} to="/roadmap/" variant="secondary" size="sm" iconRight={ArrowRight}>
-                          {tr('Xem lộ trình học')}
-                        </Button>
-                        <Button
-                          as={Link}
-                          to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}
-                          variant="ghost"
-                          size="sm"
-                        >
-                          {tr('Tự ôn với audio')}
-                        </Button>
-                        <Button as={Link} to="/cohorts/" variant="ghost" size="sm">
-                          {tr('Tìm lớp nhóm cùng Giáo viên')}
-                        </Button>
-                      </>
-                    )}
-                    {canRetake && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={pending}
-                        onClick={() => start(true)}
-                      >
-                        {trf('Làm lại bài đánh giá {0}', { 0: resultTarget })}
-                      </Button>
-                    )}
+                    <Button as={Link} to="/roadmap/" variant="secondary" size="sm" iconRight={ArrowRight}>
+                      {tr('Xem lộ trình học')}
+                    </Button>
+                    <Button
+                      as={Link}
+                      to={studyLevel ? '/riki/listening/?level=' + studyLevel : '/riki/listening/'}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      {tr('Tự ôn với audio')}
+                    </Button>
+                    <Button as={Link} to="/cohorts/" variant="ghost" size="sm">
+                      {tr('Tìm lớp nhóm cùng Giáo viên')}
+                    </Button>
                   </>
+                )}
+
+                {canRetake && !isInsufficientForTarget && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => start(true)}
+                  >
+                    {trf('Đánh giá lại {0}', { 0: resultTarget })}
+                  </Button>
                 )}
 
                 {showCurrentAssessment && (
@@ -472,60 +525,111 @@ export default function ExamN3() {
                   </Button>
                 )}
 
-                {isLatest && matchesTarget && !showCurrentAssessment && !canSelfStudy && !canStartUpdatedAssessment && (
-                  <Link className="rp-focus rp-link inline-block text-sm font-semibold" to="/onboarding">
-                    {tr('Kiểm tra mục tiêu học tập')}
-                  </Link>
-                )}
+                <Button as={Link} to="/app/" variant="ghost" size="sm">
+                  {tr('Để sau')}
+                </Button>
               </>
             }
           />
         </div>
       )}
 
-      {status && !attempt && !result && (
+      {status && !attempt && !result && !hasGoal && !status.hasActiveAttempt && !pendingSubmissionId && (
+        <Card className="mx-auto max-w-[480px] text-center" data-gate="placement-goal-required">
+          {/* Same guide as the Sidebar/search lock for this feature and state (one resolver). */}
+          <SetupGuideArt art={goalGate.art} />
+          <p className="mt-3 text-[11.5px] font-extrabold uppercase tracking-[0.16em] text-rp-brand-strong">{tr(goalGate.category)}</p>
+          <h2 className="mt-1.5 text-[20px] font-extrabold leading-7 text-rp-text">{tr(goalGate.title)}</h2>
+          <p className="mt-1.5 text-sm leading-6 text-rp-text-2">{tr(goalGate.description)}</p>
+          <div className="mt-4"><SetupGuideSteps steps={goalGate.steps} /></div>
+          <div className="mt-5 space-y-1.5">
+            <Button as={Link} to={goalGate.primary.to} variant="primary" size="lg" className="rp-guide-cta w-full" iconRight={ArrowRight}>
+              {tr(goalGate.primary.label)}
+            </Button>
+            <Button as={Link} to="/app/" variant="ghost" size="md" className="w-full">
+              {tr('Để sau')}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {status && !attempt && !result && (hasGoal || status.hasActiveAttempt || pendingSubmissionId) && (
         <div className="space-y-4">
-          <Card className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-0 flex-1 space-y-1">
-              {allowance && (
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rp-brand-strong">
-                  {trf('Còn {0}/{1} lượt đánh giá.', { 0: allowance.remaining, 1: allowance.limit })}
-                </p>
-              )}
-              <h2 className="text-lg font-extrabold text-rp-navy">{trf('Mục tiêu {0}', { 0: target })}</h2>
-              <p className="text-xs leading-5 text-rp-text-2">{tr('Bài đánh giá gồm từ vựng, ngữ pháp, đọc hiểu và nghe hiểu.')}</p>
+          {!status.hasActiveAttempt && pendingSubmissionId && (
+            <Banner tone="warning" title={tr('Bài đánh giá đã hết giờ')}>
+              {tr('Hãy nộp bài để xem kết quả. Sau đó bạn có thể làm lượt mới nếu còn lượt.')}
+            </Banner>
+          )}
+
+          {quotaExhausted && (
+            <Banner tone="warning" title={tr('Bạn đã dùng hết lượt đánh giá')}>
+              {trf('Bạn đã dùng {0}/{1} lượt đánh giá năng lực.', { 0: allowance?.started ?? 0, 1: allowance?.limit ?? 0 })}
+            </Banner>
+          )}
+
+          <Card className="space-y-4" data-section="PlacementStartCard">
+            <div className="min-w-0 space-y-1">
+              <h2 className="text-lg font-extrabold text-rp-navy">{tr('Bài đánh giá năng lực')}</h2>
+              <p className="text-sm leading-6 text-rp-text-2">
+                {tr('Bài đánh giá giúp xác định trình độ hiện tại của bạn, không phụ thuộc vào cấp độ mục tiêu.')}
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {status.canStartNewAttempt !== false ? (
-                <>
-                  <Button variant="primary" size="md" disabled={pending} onClick={() => start()} iconRight={ArrowRight}>
-                    {tr('Bắt đầu bài đánh giá')}
-                  </Button>
-                  <Button type="button" variant="secondary" size="md" disabled={pending} onClick={skipAssessment}>
-                    {tr('Bỏ qua bài đánh giá năng lực')}
-                  </Button>
-                </>
-              ) : allowance?.remaining === 0 ? (
-                <Badge tone="warning" size="sm" icon={false}>{tr('Bạn đã dùng hết lượt cho mục tiêu này.')}</Badge>
+
+            <dl className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {hasGoal && (
+                <div className="rounded-xl border border-rp-line bg-rp-bg-2/60 px-3 py-2.5">
+                  <dt className="text-[12px] font-semibold text-rp-text-muted">{tr('Mục tiêu JLPT')}</dt>
+                  <dd className="mt-0.5 text-sm font-extrabold text-rp-navy">JLPT {target}</dd>
+                </div>
+              )}
+              {allowance && quotaInitialized && hasGoal && (
+                <div className="rounded-xl border border-rp-line bg-rp-bg-2/60 px-3 py-2.5">
+                  <dt className="text-[12px] font-semibold text-rp-text-muted">{tr('Lượt đánh giá còn lại')}</dt>
+                  <dd className="mt-0.5 text-sm font-extrabold tabular-nums text-rp-navy">{trf('{0}/{1} lượt', { 0: allowance.remaining, 1: allowance.limit })}</dd>
+                </div>
+              )}
+              {plannedLevels.length > 0 && (
+                <div className="rounded-xl border border-rp-line bg-rp-bg-2/60 px-3 py-2.5">
+                  <dt className="text-[12px] font-semibold text-rp-text-muted">{tr('Phạm vi đánh giá')}</dt>
+                  <dd className="mt-0.5 text-sm font-extrabold text-rp-navy">{plannedLevels.map((code) => `JLPT ${code}`).join(' · ')}</dd>
+                </div>
+              )}
+              {plannedSkills.length > 0 && (
+                <div className="rounded-xl border border-rp-line bg-rp-bg-2/60 px-3 py-2.5 sm:col-span-2 lg:col-span-3">
+                  <dt className="text-[12px] font-semibold text-rp-text-muted">{tr('Kỹ năng được đánh giá')}</dt>
+                  <dd className="mt-0.5 text-sm font-bold text-rp-navy">{plannedSkills.map((code) => tr(SKILL_LABELS[code] || code)).join(' · ')}</dd>
+                </div>
+              )}
+            </dl>
+            <p className="text-[12.5px] leading-5 text-rp-text-muted">
+              {tr('Số câu và thời gian làm bài được chuẩn bị từ ngân hàng câu hỏi khi bạn bắt đầu, và hiển thị ngay trên bài làm.')}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {status.hasActiveAttempt ? (
+                <Button variant="primary" size="md" disabled={pending} icon={PlayCircle} onClick={returnToCurrentAssessment}>
+                  {tr('Tiếp tục bài đánh giá')}
+                </Button>
+              ) : pendingSubmissionId ? (
+                <Button variant="primary" size="md" disabled={pending} onClick={submitExpiredAttempt}>
+                  {tr('Nộp bài đánh giá')}
+                </Button>
               ) : (
-                <Button as={Link} to="/onboarding" variant="primary" size="md">
-                  {tr('Chọn mục tiêu và ngày thi')}
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={pending || quotaExhausted || !hasGoal}
+                  onClick={() => start(false)}
+                  iconRight={ArrowRight}
+                >
+                  {tr('Bắt đầu đánh giá')}
                 </Button>
               )}
+              <Button as={Link} to="/app/" variant="ghost" size="md">
+                {tr('Để sau')}
+              </Button>
             </div>
           </Card>
-
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {PLACEMENT_SKILLS_PREVIEW.map(({ key, label, tone }) => {
-              const palette = resolveSurfaceTone(tone);
-              return (
-                <li key={key} className={`flex items-center gap-3.5 rounded-2xl border p-3.5 shadow-rp-xs ${palette.card}`}>
-                  <WebClayIcon name={key} size="md" tone={tone} hover />
-                  <span className="text-sm font-extrabold text-rp-navy">{tr(label)}</span>
-                </li>
-              );
-            })}
-          </ul>
         </div>
       )}
     </PageContainer>

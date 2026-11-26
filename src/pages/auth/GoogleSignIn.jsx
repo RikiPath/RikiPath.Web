@@ -5,8 +5,12 @@ import { useLocale } from '@/locales/locale.js';
 
 const envClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || '';
 const scriptUrl = 'https://accounts.google.com/gsi/client';
+const GIS_MAX_BUTTON_WIDTH = 400;
+const GIS_MIN_BUTTON_WIDTH = 200;
+const GIS_BUTTON_HEIGHT_SCALE = 1.3;
+
 let scriptPromise;
-let cachedServerClientId = null;
+let cachedServerConfig = null;
 
 function loadGoogleIdentity() {
   if (typeof window !== 'undefined' && window.google?.accounts?.id) {
@@ -65,25 +69,34 @@ function GoogleLogoIcon({ className = 'h-5 w-5 shrink-0' }) {
 
 export default function GoogleSignIn({ mode = 'login', disabled = false, onPendingChange, onSuccess }) {
   const { tr, locale } = useLocale();
-  const host = useRef(null);
+  const wrapperRef = useRef(null);
+  const overlayHostRef = useRef(null);
   const pending = useRef(false);
+  const authenticateRef = useRef(null);
   const callbacks = useRef({ disabled, onPendingChange, onSuccess });
-  const [serverClientId, setServerClientId] = useState(() => cachedServerClientId || '');
-  const resolvedClientId = envClientId || serverClientId;
+
+  const [serverClientId, setServerClientId] = useState(() => cachedServerConfig?.clientId || '');
+  const [backendOff, setBackendOff] = useState(() => cachedServerConfig?.enabled === false);
+  // Prefer authoritative server Client ID so the GIS audience always matches Backend validation.
+  const resolvedClientId = serverClientId || envClientId;
+
   const [credential, setCredential] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [prompting, setPrompting] = useState(false);
-  const [showGisFallback, setShowGisFallback] = useState(false);
+  const [initializing, setInitializing] = useState(false);
+  const [gisReady, setGisReady] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [error, setError] = useState('');
-  const [backendOff, setBackendOff] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     callbacks.current = { disabled, onPendingChange, onSuccess };
   }, [disabled, onPendingChange, onSuccess]);
 
+  // Always verify authoritative Google auth configuration from Backend once per session
+  // (falls back cleanly to VITE_GOOGLE_CLIENT_ID if the config endpoint is temporarily unreachable).
   useEffect(() => {
-    if (envClientId || cachedServerClientId) {
+    if (cachedServerConfig) {
       return undefined;
     }
     let active = true;
@@ -92,37 +105,57 @@ export default function GoogleSignIn({ mode = 'login', disabled = false, onPendi
         if (!active) return;
         const cfg = res?.result || res;
         const serverId = cfg?.clientId?.trim() || '';
-        if (cfg?.enabled === false || !serverId) {
+        const enabled = cfg?.enabled !== false && Boolean(serverId);
+        cachedServerConfig = { enabled, clientId: serverId };
+        if (!enabled) {
           setBackendOff(true);
           return;
         }
-        cachedServerClientId = serverId;
+        setBackendOff(false);
         setServerClientId(serverId);
       })
       .catch(() => {
-        // Keep button visible if envClientId exists; if neither exists, wait for user click to retry config fetch.
+        // Keep button usable if envClientId exists; retry on explicit click if neither exists.
       });
     return () => {
       active = false;
     };
   }, []);
 
+  // Track wrapper width so the invisible GIS click target always spans 100% of the Sakura button.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el || credential || backendOff) return undefined;
+
+    const measure = () => {
+      const nextWidth = Math.round(el.getBoundingClientRect().width || 0);
+      if (nextWidth > 0) {
+        setContainerWidth((prev) => (Math.abs(prev - nextWidth) >= 2 ? nextWidth : prev));
+      }
+    };
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [credential, backendOff]);
+
   const authenticate = useCallback(async (token, currentPassword) => {
     if (pending.current || callbacks.current.disabled) return;
     pending.current = true;
     setBusy(true);
-    setPrompting(false);
     setError('');
     callbacks.current.onPendingChange?.(true);
 
     try {
       const data = await continueWithGoogle(token, currentPassword);
       setCredential('');
-      setShowGisFallback(false);
       await callbacks.current.onSuccess?.(data);
     } catch (requestError) {
       const code = requestError?.data?.errorCode || requestError?.errorCode;
       if (requestError?.status === 503 && /cấu hình/i.test(requestError?.message || '')) {
+        cachedServerConfig = { enabled: false, clientId: '' };
         setBackendOff(true);
         setCredential('');
         return;
@@ -141,61 +174,67 @@ export default function GoogleSignIn({ mode = 'login', disabled = false, onPendi
     }
   }, [tr]);
 
-  const initializeGis = useCallback((identity, activeId) => {
-    identity.initialize({
-      client_id: activeId,
-      ux_mode: 'popup',
-      cancel_on_tap_outside: true,
-      callback: ({ credential: token }) => {
-        setPrompting(false);
-        if (pending.current || callbacks.current.disabled) return;
-        if (token) {
-          void authenticate(token);
-        } else {
-          setError(tr('Không nhận được thông tin xác thực từ Google. Hãy thử lại.'));
-        }
-      },
-    });
-  }, [authenticate, tr]);
-
-  const renderGisFallbackButton = useCallback((identity) => {
-    const container = host.current;
-    if (!container || typeof identity?.renderButton !== 'function') return;
-    const width = Math.max(240, Math.min(400, Math.floor(container.getBoundingClientRect().width || 320)));
-    container.replaceChildren();
-    identity.renderButton(container, {
-      type: 'standard',
-      theme: 'outline',
-      size: 'large',
-      text: mode === 'register' ? 'signup_with' : 'signin_with',
-      shape: 'rectangular',
-      locale: locale === 'ja' ? 'ja' : 'vi',
-      width,
-    });
-  }, [mode, locale]);
-
   useEffect(() => {
-    if (!resolvedClientId) return undefined;
+    authenticateRef.current = authenticate;
+  }, [authenticate]);
+
+  // Render the official Google Identity Services button as a single invisible overlay directly
+  // over the Sakura button so 1 click always opens Google's popup reliably without rendering a
+  // second button below or getting blocked by One Tap cooldowns / FedCM suppression.
+  useEffect(() => {
+    if (!resolvedClientId || backendOff || credential) return undefined;
+    const host = overlayHostRef.current;
+    if (!host) return undefined;
+
     let active = true;
     loadGoogleIdentity()
       .then((identity) => {
-        if (!active) return;
-        initializeGis(identity, resolvedClientId);
-        if (showGisFallback) {
-          renderGisFallbackButton(identity);
-        }
+        if (!active || !overlayHostRef.current) return;
+
+        identity.initialize({
+          client_id: resolvedClientId,
+          ux_mode: 'popup',
+          cancel_on_tap_outside: true,
+          callback: ({ credential: token }) => {
+            if (pending.current || callbacks.current.disabled) return;
+            if (token) {
+              void authenticateRef.current?.(token);
+            } else {
+              setError(tr('Không nhận được thông tin xác thực từ Google. Hãy thử lại.'));
+            }
+          },
+        });
+
+        const measuredWidth = containerWidth || Math.round(wrapperRef.current?.getBoundingClientRect().width || 360);
+        const buttonWidth = Math.max(GIS_MIN_BUTTON_WIDTH, Math.min(GIS_MAX_BUTTON_WIDTH, measuredWidth));
+        overlayHostRef.current.replaceChildren();
+        identity.renderButton(overlayHostRef.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: mode === 'register' ? 'signup_with' : 'signin_with',
+          shape: 'rectangular',
+          locale: locale === 'ja' ? 'ja' : 'vi',
+          width: buttonWidth,
+        });
+        setGisReady(true);
+        setInitializing(false);
       })
       .catch(() => {
-        // Handled on explicit click if script fails to load.
+        if (!active) return;
+        setGisReady(false);
+        setInitializing(false);
       });
+
     return () => {
       active = false;
     };
-  }, [resolvedClientId, showGisFallback, initializeGis, renderGisFallbackButton]);
+  }, [resolvedClientId, backendOff, credential, containerWidth, mode, locale, reloadNonce, tr]);
 
-  async function handleGoogleClick() {
-    if (pending.current || busy || prompting || disabled) return;
+  async function handleButtonFallbackClick() {
+    if (pending.current || busy || initializing || disabled) return;
     setError('');
+    setInitializing(true);
 
     let activeId = resolvedClientId;
     if (!activeId) {
@@ -203,40 +242,27 @@ export default function GoogleSignIn({ mode = 'login', disabled = false, onPendi
         const res = await getGoogleAuthConfig();
         const cfg = res?.result || res;
         activeId = cfg?.clientId?.trim() || '';
-        if (!activeId || cfg?.enabled === false) {
+        const enabled = cfg?.enabled !== false && Boolean(activeId);
+        cachedServerConfig = { enabled, clientId: activeId };
+        if (!enabled) {
           setBackendOff(true);
+          setInitializing(false);
           return;
         }
-        cachedServerClientId = activeId;
         setServerClientId(activeId);
       } catch {
+        setInitializing(false);
         setError(tr('Không thể kết nối đến hệ thống. Vui lòng thử lại.'));
         return;
       }
     }
 
-    setPrompting(true);
     try {
-      const identity = await loadGoogleIdentity();
-      initializeGis(identity, activeId);
-      identity.prompt((notification) => {
-        const notDisplayed = notification?.isNotDisplayed?.();
-        const skipped = notification?.isSkippedMoment?.();
-        const dismissed = notification?.isDismissedMoment?.();
-        if (notDisplayed || skipped) {
-          setPrompting(false);
-          setShowGisFallback(true);
-          renderGisFallbackButton(identity);
-        } else if (dismissed) {
-          const reason = notification?.getDismissedReason?.();
-          if (reason !== 'credential_returned') {
-            setPrompting(false);
-          }
-        }
-      });
+      await loadGoogleIdentity();
+      setReloadNonce((n) => n + 1);
     } catch {
-      setPrompting(false);
-      setError(tr('Không tải được đăng nhập Google.'));
+      setInitializing(false);
+      setError(tr('Không tải được đăng nhập Google. Vui lòng kiểm tra kết nối hoặc trình chặn quảng cáo.'));
     }
   }
 
@@ -248,7 +274,9 @@ export default function GoogleSignIn({ mode = 'login', disabled = false, onPendi
     );
   }
 
-  const isWorking = busy || prompting;
+  const isWorking = busy || initializing;
+  const overlayInteractive = gisReady && !disabled && !isWorking;
+  const scaleX = containerWidth > GIS_MAX_BUTTON_WIDTH ? containerWidth / GIS_MAX_BUTTON_WIDTH : 1;
 
   return (
     <div className="w-full space-y-3" data-purpose="google-auth-section">
@@ -261,14 +289,20 @@ export default function GoogleSignIn({ mode = 'login', disabled = false, onPendi
       </div>
 
       {!credential && (
-        <div className="space-y-2.5">
+        <div
+          ref={wrapperRef}
+          className={`group relative h-12 w-full overflow-hidden rounded-xl focus-within:ring-2 focus-within:ring-rp-brand/35 ${
+            disabled || isWorking ? 'cursor-not-allowed' : 'cursor-pointer'
+          }`}
+        >
           <button
             type="button"
             data-testid="google-signin-button"
+            tabIndex={overlayInteractive ? -1 : 0}
             disabled={disabled || isWorking}
             aria-busy={isWorking || undefined}
-            onClick={handleGoogleClick}
-            className="rp-focus rp-press flex h-12 w-full cursor-pointer select-none items-center justify-center gap-2.5 rounded-xl border border-rp-line bg-rp-surface px-5 text-[15px] font-semibold text-rp-text shadow-rp-xs transition-[border-color,background-color,color,box-shadow,transform] duration-150 hover:border-rp-brand-border hover:bg-rp-brand-tint/50 hover:text-rp-brand-strong disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handleButtonFallbackClick}
+            className="rp-focus rp-press flex h-12 w-full cursor-pointer select-none items-center justify-center gap-2.5 rounded-xl border border-rp-line bg-rp-surface px-5 text-[15px] font-semibold text-rp-text shadow-rp-xs transition-[border-color,background-color,color,box-shadow,transform] duration-150 group-hover:border-rp-brand-border group-hover:bg-rp-brand-tint/50 group-hover:text-rp-brand-strong hover:border-rp-brand-border hover:bg-rp-brand-tint/50 hover:text-rp-brand-strong disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isWorking ? (
               <SakuraSpinner size={18} tone="brand" />
@@ -278,17 +312,22 @@ export default function GoogleSignIn({ mode = 'login', disabled = false, onPendi
             <span>
               {busy
                 ? tr('Đang xác thực với Google…')
-                : prompting
-                  ? tr('Đang mở cửa sổ Google…')
+                : initializing
+                  ? tr('Đang chuẩn bị đăng nhập Google…')
                   : tr('Tiếp tục với Google')}
             </span>
           </button>
 
           <div
-            ref={host}
-            hidden={!showGisFallback}
-            className="flex min-h-10 w-full justify-center"
-            data-testid="google-gis-fallback"
+            ref={overlayHostRef}
+            aria-label={tr('Tiếp tục với Google')}
+            className={`absolute inset-0 z-10 flex items-center justify-center opacity-[0.001] ${
+              overlayInteractive ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+            style={{
+              transform: `scale(${scaleX.toFixed(3)}, ${GIS_BUTTON_HEIGHT_SCALE})`,
+              transformOrigin: 'center',
+            }}
           />
         </div>
       )}

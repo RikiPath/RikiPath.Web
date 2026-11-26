@@ -12,11 +12,20 @@ export async function lookupDictionary({ q = '', level = '' } = {}) {
   return unwrap(data);
 }
 
-export async function translateSelection({ text, contextSentence = '', targetLanguage = 'vi' }) {
-  const data = await api.post('/Dictionary/translate', {
-    text,
-    contextSentence,
-    targetLanguage,
-  });
+export async function translateSelection({
+  text,
+  contextSentence = '',
+  signal,
+} = {}) {
+  const data = await api.post(
+    '/Dictionary/translate',
+    {
+      text,
+      contextSentence,
+      sourceLanguage: 'ja',
+      targetLanguage: 'vi',
+    },
+    signal ? { signal } : undefined,
+  );
   return unwrap(data);
 }

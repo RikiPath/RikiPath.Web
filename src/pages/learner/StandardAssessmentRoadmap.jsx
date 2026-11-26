@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Banner, Button, Card, ContextualErrorState, EmptyState, ProgressBar, SakuraLoader } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { RoadmapSetupState } from '@/features/learning-path/components/RoadmapSetupState.jsx';
+import { useLearningPathAccess } from '@/features/learning-path/useLearningPathAccess.js';
 import { useJourneyRoadmap } from '@/features/learning-journey/useJourneyRoadmap.js';
 import {
   resolveNextStep,
@@ -18,7 +20,8 @@ import SkillSummary from '@/features/learning-journey/components/SkillSummary.js
  */
 export default function StandardAssessmentRoadmap() {
   const { tr, trf } = useLocale();
-  const journey = useJourneyRoadmap();
+  const roadmapAccess = useLearningPathAccess();
+  const journey = useJourneyRoadmap({ enabled: !roadmapAccess.isPending && roadmapAccess.standardRoadmapEligible });
   const { roadmapQuery, roadmap, overview, subscriptionQuery, requiresPlan, errorCode, isPreview } = journey;
 
   if (isPreview) {
@@ -30,7 +33,7 @@ export default function StandardAssessmentRoadmap() {
     );
   }
 
-  if (roadmapQuery.isPending && journey.enabled) {
+  if ((roadmapAccess.isPending && roadmapAccess.enabled) || (roadmapQuery.isPending && journey.enabled)) {
     return (
       <Card>
         <SakuraLoader variant="section" context="roadmap" label={tr('Đang tải lộ trình học của bạn')} delay={160} />
@@ -38,25 +41,19 @@ export default function StandardAssessmentRoadmap() {
     );
   }
 
-  if (errorCode === 'STANDARD_ROADMAP_PLACEMENT_REQUIRED') {
+  if (
+    !roadmapAccess.standardRoadmapEligible ||
+    errorCode === 'STANDARD_ROADMAP_PLACEMENT_REQUIRED' ||
+    errorCode === 'PLACEMENT_IN_PROGRESS' ||
+    errorCode === 'PLACEMENT_PENDING_SUBMISSION' ||
+    errorCode === 'STUDY_LEVEL_REQUIRED'
+  ) {
     return (
-      <Banner
-        tone="info"
-        actions={<Button as={Link} to="/app/placement-test" variant="primary" size="sm">{tr('Làm bài đánh giá năng lực')}</Button>}
-      >
-        {tr('Hoàn thành hoặc tạm bỏ qua bài đánh giá năng lực để hệ thống sắp xếp chặng học phù hợp.')}
-      </Banner>
-    );
-  }
-
-  if (errorCode === 'STUDY_LEVEL_REQUIRED') {
-    return (
-      <Banner
-        tone="info"
-        actions={<Button as={Link} to="/onboarding" variant="primary" size="sm">{tr('Chọn mục tiêu JLPT')}</Button>}
-      >
-        {tr('Vui lòng chọn chứng chỉ và mục tiêu JLPT trước khi tạo lộ trình.')}
-      </Banner>
+      <RoadmapSetupState
+        variant="page"
+        flow={roadmapAccess}
+        targetLevelName={roadmapAccess.profile?.targetJlptLevelName}
+      />
     );
   }
 

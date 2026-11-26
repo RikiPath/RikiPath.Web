@@ -88,7 +88,6 @@ export function useLearnerCohortWorkspace({
         : notify.loading(options.loading || 'Đang xử lý…', '', { key });
       try {
         const result = await fn();
-        await invalidateAll();
         const resolved = typeof message === 'function' ? message(result) : message;
         if (resolved) {
           const tone = typeof options.tone === 'function' ? options.tone(result) : options.tone || 'success';
@@ -96,6 +95,11 @@ export function useLearnerCohortWorkspace({
           notify[tone](resolved, '', { id: toastId || undefined, key, replace: true });
         } else if (toastId) {
           notify.dismiss(toastId);
+        }
+        try {
+          await invalidateAll();
+        } catch {
+          // Keep confirmed success feedback if background refresh fails transiently.
         }
         return result;
       } catch (err) {

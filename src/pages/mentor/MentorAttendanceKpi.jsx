@@ -30,8 +30,8 @@ import {
   formatTurnaroundVi,
   getMentorKpiSummary,
 } from '@/features/mentor/api/mentorGovernanceApi.js';
-import { parseUtcDate } from '@/utils/vnDateTime.js';
-import { currentIntlTag, useLocale } from '@/locales/locale.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
 function isoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -52,16 +52,7 @@ function presetRange(preset) {
 }
 
 function fmtDate(value) {
-  if (!value) return '—';
-  const d = parseUtcDate(value);
-  if (!d || Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString(currentIntlTag(), {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatVnDateTime(value, '—');
 }
 
 const KPI_RULES = [
@@ -124,11 +115,11 @@ export default function MentorAttendanceKpi() {
 
   if (isAdminViewer) {
     return (
-      <AdminShell pathname={pathname} breadcrumb={tr('Chấm công & KPI giảng dạy')}>
+      <AdminShell pathname={pathname} breadcrumb={tr('Điểm danh & KPI')}>
         <PageContainer width="default" density="comfortable" className="text-rp-text">
           <PageHeader
             eyebrow="Quản trị hệ thống"
-            title="Chấm công & KPI giảng dạy"
+            title="Điểm danh & KPI"
             description="Trang này dành cho Giáo viên theo dõi lịch sử giảng dạy cá nhân. Quản trị viên có thể xem thống kê chất lượng toàn đội ngũ tại mục Chất lượng Giáo viên."
           />
           <Banner
@@ -237,9 +228,9 @@ export default function MentorAttendanceKpi() {
   ];
 
   return (
-    <MentorShell pathname={pathname} breadcrumb={tr('Chấm công & KPI giảng dạy')}>
+    <MentorShell pathname={pathname} breadcrumb={tr('Điểm danh & KPI')}>
       <PageContainer width="default" density="comfortable" className="space-y-[var(--rp-space-section)] text-rp-text">
-        <h1 className="sr-only">{tr('Chấm công & KPI giảng dạy')}</h1>
+        <h1 className="sr-only">{tr('Điểm danh & KPI')}</h1>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Popover
             align="end"

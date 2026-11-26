@@ -31,7 +31,7 @@ export const ONBOARDING_STEPS = [
     shortTitle: 'Lịch thi',
     title: 'Kế hoạch ngày thi dự kiến',
     subtitle: 'Chọn kỳ thi mục tiêu hoặc bỏ qua bước này nếu bạn chưa có lịch thi cụ thể.',
-    tip: 'Ngày thi không bắt buộc để lưu kế hoạch học, nhưng cần thiết nếu bạn muốn bắt đầu bài đánh giá năng lực ngay.',
+    tip: 'Ngày thi là tùy chọn; bạn có thể xác nhận mục tiêu và đánh giá năng lực ngay cả khi chưa chọn ngày thi.',
   },
   {
     id: 'review',

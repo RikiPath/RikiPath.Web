@@ -29,8 +29,9 @@ export function sanitizePrefs(raw) {
   let location = null;
   const l = p.location;
   if (l && typeof l === 'object') {
-    const lat = coarsen(l.latitude, l.source === 'device' ? 1 : 2);
-    const lon = coarsen(l.longitude, l.source === 'device' ? 1 : 2);
+    const coarseSource = l.source === 'device' || l.source === 'ip';
+    const lat = coarsen(l.latitude, coarseSource ? 1 : 2);
+    const lon = coarsen(l.longitude, coarseSource ? 1 : 2);
     if (lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
       location = {
         name: String(l.name || '').slice(0, 80) || 'Vị trí đã chọn',
@@ -39,7 +40,7 @@ export function sanitizePrefs(raw) {
         latitude: lat,
         longitude: lon,
         timezone: typeof l.timezone === 'string' && /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)*$/.test(l.timezone) ? l.timezone.slice(0, 64) : '',
-        source: l.source === 'device' ? 'device' : 'search',
+        source: l.source === 'device' ? 'device' : l.source === 'ip' ? 'ip' : 'search',
       };
     }
   }

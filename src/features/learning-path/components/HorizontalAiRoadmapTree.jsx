@@ -15,7 +15,8 @@ import {
   Sparkles,
   Trophy,
 } from 'lucide-react';
-import { Badge, Button, Collapsible, HaruMascot, ProgressBar, cx } from '@/components/ui';
+import { Badge, Button, Collapsible, ProgressBar, cx } from '@/components/ui';
+import { WebClayIcon } from '@/features/learner-ui';
 import { useLocale } from '@/locales/locale.js';
 import {
   buildAiRoadmapTree,
@@ -426,7 +427,7 @@ export default function HorizontalAiRoadmapTree({
 
             <div className="mt-3 mr-3 rounded-rp-card border border-rp-brand-border bg-white p-3.5 shadow-rp-xs">
               <div className="flex items-center gap-2.5">
-                <HaruMascot pose="studying" size={44} className="shrink-0" />
+                <WebClayIcon name="journey" size="xs" className="shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[10.5px] font-bold uppercase tracking-wider text-rp-brand-strong">
                     {tr('Xuất phát')}

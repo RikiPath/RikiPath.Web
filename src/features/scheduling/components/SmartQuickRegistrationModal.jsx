@@ -74,7 +74,6 @@ const PLAN_KIND_LABELS = {
 /** Short, translatable reasons for a locked time option (full reasons stay on the row). */
 const LOCK_REASONS = {
   PROPOSAL_OWN_OVERLAP: 'Trùng buổi đã chọn',
-  PROPOSAL_OWN_REST_VIOLATION: 'Cần nghỉ 15 phút giữa hai buổi',
   PROPOSAL_REST_VIOLATION: 'Quá sát lịch đã có',
   PROPOSAL_CONFLICT_PENDING_PROPOSAL: 'Trùng đề xuất đang chờ duyệt',
   PROPOSAL_CONFLICT_APPROVED_SCHEDULE: 'Trùng lịch đã xác nhận',
@@ -83,6 +82,13 @@ const LOCK_REASONS = {
   PROPOSAL_MAX_SESSIONS_EXCEEDED: 'Đã đủ số buổi tối đa',
   OUT_OF_HOURS: 'Ngoài giờ cho phép',
 };
+
+function resolveLockReason(code, policy, tr, trf) {
+  if (code === 'PROPOSAL_OWN_REST_VIOLATION') {
+    return trf('Cần nghỉ {0} phút giữa hai buổi', { 0: Number(policy?.restMinutes ?? 15) });
+  }
+  return tr(LOCK_REASONS[code] || 'Không khả dụng');
+}
 
 const VISIBLE_PLAN_COUNT = 3;
 
@@ -178,10 +184,17 @@ export default function SmartQuickRegistrationModal({
   const { tr, trf } = useLocale();
   const headingRef = useRef(null);
 
-  const allowedCounts = useMemo(
-    () => (policy.allowedSessionsPerWeek?.length ? policy.allowedSessionsPerWeek : [2, 3, 4]),
-    [policy.allowedSessionsPerWeek],
-  );
+  const allowedCounts = useMemo(() => {
+    if (Array.isArray(policy?.allowedSessionsPerWeek) && policy.allowedSessionsPerWeek.length > 0) {
+      return policy.allowedSessionsPerWeek;
+    }
+    const min = Number(policy?.minSessionsPerWeek ?? 0);
+    const max = Number(policy?.maxSessionsPerWeek ?? 0);
+    if (min > 0 && max >= min) {
+      return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+    }
+    return [];
+  }, [policy?.allowedSessionsPerWeek, policy?.maxSessionsPerWeek, policy?.minSessionsPerWeek]);
   const timeWindowOptions = useMemo(() => resolveQuickScheduleTimeWindows(policy), [policy]);
   const hasExistingSelection = currentSessions.length > 0;
 
@@ -418,7 +431,7 @@ export default function SmartQuickRegistrationModal({
         value: String(m),
         label: `${clockFromMinutes(m)}–${clockFromMinutes(m + policy.sessionDurationMinutes)}`,
         disabled: !res.valid && !isCurrent,
-        description: res.valid ? undefined : (LOCK_REASONS[res.code] || 'Không khả dụng'),
+        description: res.valid ? undefined : resolveLockReason(res.code, policy, tr, trf),
       });
     }
     return opts;
@@ -509,7 +522,12 @@ export default function SmartQuickRegistrationModal({
         <div
           role="radiogroup"
           aria-label={tr('Số buổi mỗi tuần')}
-          className="grid gap-2.5 sm:grid-cols-3"
+          className={cx(
+            'grid gap-2.5',
+            allowedCounts.length > 6
+              ? 'max-h-[300px] grid-cols-2 overflow-y-auto pr-1 sm:grid-cols-4'
+              : 'grid-cols-2 sm:grid-cols-3',
+          )}
           onKeyDown={(e) => handleRovingKeyDown(e, enabledCounts.length, Math.max(0, enabledCounts.indexOf(target)), (i) => updatePrefs({ targetSessionsPerWeek: enabledCounts[i] }))}
         >
           {allowedCounts.map((n) => {
@@ -520,7 +538,10 @@ export default function SmartQuickRegistrationModal({
                 selected={target === n}
                 disabled={disabled}
                 tabIndex={target === n || (selectedIdx < 0 && n === enabledCounts[0]) ? 0 : -1}
-                onClick={() => updatePrefs({ targetSessionsPerWeek: n })}
+                onClick={() => updatePrefs({
+                  targetSessionsPerWeek: n,
+                  ...(n > 7 ? { allowMultiplePerDay: true } : {}),
+                })}
                 title={trf('{0} buổi/tuần', { 0: n })}
                 meta={disabled
                   ? trf('Lịch đang chọn đã có {0} buổi', { 0: keptSessions.length })
@@ -678,8 +699,8 @@ export default function SmartQuickRegistrationModal({
         <CalendarCheck aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0 text-rp-success" />
         <span>
           {full
-            ? trf('Đã kiểm tra trùng lịch cho cả {0} tuần từ ngày khai giảng {1}.', { 0: totalWeeks, 1: formatIsoDateDisplay(expectedStartDate) })
-            : trf('Khả dụng sơ bộ theo lịch tuần. Chọn ngày khai giảng trong thông tin lớp để kiểm tra đủ {0} tuần.', { 0: totalWeeks })}
+            ? trf('Đã kiểm tra trùng lịch cho cả {0} tuần từ ngày bắt đầu {1}.', { 0: totalWeeks, 1: formatIsoDateDisplay(expectedStartDate) })
+            : trf('Khả dụng sơ bộ theo lịch tuần. Chọn ngày bắt đầu trong thông tin lớp để kiểm tra đủ {0} tuần.', { 0: totalWeeks })}
         </span>
       </p>
     );
@@ -730,7 +751,7 @@ export default function SmartQuickRegistrationModal({
         )}
         {plan.startDateMismatch && (
           <span className="mt-2 block text-xs text-rp-text-muted">
-            {trf('Ngày khai giảng {0} không rơi vào ngày dạy của phương án này nên mới kiểm tra sơ bộ.', { 0: formatIsoDateDisplay(expectedStartDate) })}
+            {trf('Ngày bắt đầu {0} không rơi vào ngày dạy của phương án này nên mới kiểm tra sơ bộ.', { 0: formatIsoDateDisplay(expectedStartDate) })}
           </span>
         )}
       </ChoiceCard>
@@ -813,7 +834,7 @@ export default function SmartQuickRegistrationModal({
               </div>
               {rejected && rejected.code !== 'ALREADY_SELECTED' && (
                 <div className="text-xs text-rp-danger">
-                  <p>{tr(LOCK_REASONS[rejected.code] || 'Không khả dụng')}{rejected.reason ? ` — ${rejected.reason}` : ''}</p>
+                  <p>{resolveLockReason(rejected.code, policy, tr, trf)}{rejected.reason ? ` — ${rejected.reason}` : ''}</p>
                   {rejected.alternatives?.length > 0 && (
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="text-rp-text-2">{tr('Khung giờ thay thế:')}</span>
@@ -963,7 +984,7 @@ export default function SmartQuickRegistrationModal({
                 <Banner tone="warning">
                   {trf('Lịch sau điều chỉnh có {0} buổi/tuần, khác với {1} buổi/tuần bạn chọn ban đầu.', { 0: finalCount, 1: target })}
                 </Banner>
-                {finalCount >= policy.minSessionsPerWeek && finalCount <= policy.maxSessionsPerWeek ? (
+                {allowedCounts.includes(finalCount) ? (
                   <Checkbox
                     checked={countConfirmed}
                     onChange={(e) => setCountConfirmed(e.target.checked)}

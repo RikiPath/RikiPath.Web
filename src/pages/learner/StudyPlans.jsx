@@ -1,34 +1,56 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowRight,
+  ChevronRight,
+  Crown,
+  GraduationCap,
   History,
   Info,
+  Layers,
 } from 'lucide-react';
 
 import {
   Badge,
   Button,
-  Card,
   EmptyState,
   ErrorState,
+  IconButton,
   Modal,
   PageContainer,
   RefreshingIndicator,
-  SakuraLoader,
+  Skeleton,
+  Tooltip,
+  UnifiedToolbar,
+  CustomSelect,
+  cx,
   notify,
 } from '@/components/ui';
 import { IllustratedPageHeader } from '@/features/learner-ui';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell, PublicShell } from '@/layouts';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
-import { parseUtcDate } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 import { getStudyPlans } from '@/features/checkout/api/subscriptionApi.js';
+import ActiveSubscriptionsModal from '@/features/checkout/components/ActiveSubscriptionsModal.jsx';
+import PlanBenefitsModal from '@/features/checkout/components/PlanBenefitsModal.jsx';
 import PlanGroupCard from '@/features/checkout/components/PlanGroupCard.jsx';
+import PurchaseHistoryModal from '@/features/checkout/components/PurchaseHistoryModal.jsx';
 import StudyCheckoutModal from '@/features/checkout/components/StudyCheckoutModal.jsx';
-import { CHECKOUT_PLAN_PARAM, findGroupOfPlan, groupStudyPlans, parsePlanIdParam } from '@/features/checkout/planGroups.js';
+import {
+  CHECKOUT_PLAN_PARAM,
+  buildAiWalletItems,
+  buildUnifiedProductCatalog,
+  computeRemainingDays,
+  findGroupOfPlan,
+  formatPlanDate,
+  groupStudyPlans,
+  isUnlimitedSubscription,
+  matchesDurationBucket,
+  parsePlanIdParam,
+  summarizeSubscriptions,
+} from '@/features/checkout/planGroups.js';
+import { AI_CREDIT_ICON, PLAN_GROUP_ICONS } from '@/features/checkout/planIcons.js';
 
 const COMPARISON_ROWS = [
   {
@@ -57,47 +79,224 @@ const COMPARISON_ROWS = [
   },
 ];
 
-function money(value) {
-  return new Intl.NumberFormat(currentIntlTag(), {
-    style: 'currency',
-    currency: 'VND',
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
+const SORT_OPTIONS = [
+  { value: 'default', label: 'Thứ tự mặc định' },
+  { value: 'popular', label: 'Phổ biến nhất' },
+  { value: 'price_asc', label: 'Giá: Thấp đến cao' },
+  { value: 'price_desc', label: 'Giá: Cao đến thấp' },
+];
+
+const SHORT_WALLET_LABELS = {
+  aiGradingUsesRemaining: 'Lượt chấm AI',
+  learningPathUsesRemaining: 'Lượt tạo lộ trình',
+  speakingUsesRemaining: 'Lượt luyện nói',
+  writingUsesRemaining: 'Lượt luyện viết',
+};
+
+function PlansCatalogSkeleton({ showAccount }) {
+  return (
+    <div className="space-y-4" aria-hidden="true">
+      {showAccount && <Skeleton className="h-[68px] w-full" rounded="rounded-rp-card" />}
+      <Skeleton className="h-[54px] w-full" rounded="rounded-rp-card" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <Skeleton key={n} className="h-56 w-full" rounded="rounded-rp-card" />
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function formatExpiry(value) {
-  const parsed = parseUtcDate(value);
-  if (!parsed || Number.isNaN(parsed.getTime())) return '—';
-  return new Intl.DateTimeFormat(currentIntlTag(), {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Ho_Chi_Minh',
-  }).format(parsed);
-}
+/**
+ * Compact Account Status + Inline AI Wallet Strip matching the single-bar executive layout.
+ */
+function AccountStatusWalletBar({ access, summary, groups, mineQuery, onOpenActive, tr, trf }) {
+  const walletItems = useMemo(() => buildAiWalletItems(access, groups), [access, groups]);
+  const activeOrders = summary.activeOrders;
+  const upcomingOrders = summary.upcomingOrders;
+  const primaryOrder = activeOrders[0] ?? null;
 
-function purchaseStatusBadge(order, tr) {
-  const payStatus = String(order?.paymentStatus || '').toLowerCase();
-  if (payStatus === 'pending') return { tone: 'warning', label: tr('Chờ thanh toán') };
-  if (payStatus === 'cancelled' || payStatus === 'failed') return { tone: 'neutral', label: tr('Đã hủy') };
-  if (payStatus === 'expired') return { tone: 'neutral', label: tr('Quá hạn thanh toán') };
-  if (order?.active) return { tone: 'success', label: tr('Đang hiệu lực') };
-  return { tone: 'neutral', label: tr('Đã hết hạn') };
+  let statusContent;
+  if (mineQuery.isPending && !access) {
+    statusContent = <Skeleton className="h-10 w-60" rounded="rounded-xl" />;
+  } else if (mineQuery.isError) {
+    statusContent = (
+      <div className="flex items-center gap-2.5 text-xs">
+        <Badge tone="warning" size="sm" icon={false}>{tr('Tạm gián đoạn')}</Badge>
+        <span className="text-rp-text-2">{tr('Chưa tải được trạng thái gói.')}</span>
+        <button
+          type="button"
+          onClick={() => mineQuery.refetch()}
+          className="rp-focus font-semibold text-rp-brand-strong hover:underline"
+        >
+          {tr('Thử lại')}
+        </button>
+      </div>
+    );
+  } else if (primaryOrder) {
+    const unlimited = isUnlimitedSubscription(primaryOrder.endDate, undefined);
+    const remainingDays = computeRemainingDays(primaryOrder.endDate);
+    const expiringSoon = remainingDays !== null && remainingDays >= 0 && remainingDays <= 7;
+    const statusBadge = unlimited
+      ? { tone: 'brand', label: tr('Không giới hạn') }
+      : expiringSoon
+        ? { tone: 'warning', label: tr('Sắp hết hạn') }
+        : { tone: 'success', label: tr('Đang hiệu lực') };
+
+    statusContent = (
+      <button
+        type="button"
+        onClick={onOpenActive}
+        data-testid="account-summary-trigger"
+        className="rp-focus group flex w-full items-center gap-3 rounded-xl px-1 py-0.5 text-left transition-colors hover:bg-rp-bg-2/70 lg:w-auto"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rp-success/25 bg-rp-success-bg text-rp-success">
+          <Crown aria-hidden="true" className="h-4.5 w-4.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-rp-text-muted">{tr('Gói hiện tại')}</span>
+            <Badge tone={statusBadge.tone} size="sm" icon={false}>{statusBadge.label}</Badge>
+          </div>
+          <p className="mt-0.5 truncate text-[13.5px] font-bold text-rp-text">
+            {activeOrders.length > 1
+              ? trf('Đang sử dụng {0} gói', { 0: activeOrders.length })
+              : primaryOrder.planName}
+          </p>
+          <p className="truncate text-[11.5px] text-rp-text-muted">
+            {activeOrders.length > 1
+              ? `${primaryOrder.planName} · +${activeOrders.length - 1} ${tr('gói khác')}`
+              : unlimited
+                ? tr('Không giới hạn thời hạn')
+                : remainingDays !== null
+                  ? trf('Còn {0} ngày (hết hạn: {1})', {
+                    0: Math.max(0, remainingDays),
+                    1: formatPlanDate(primaryOrder.endDate),
+                  })
+                  : trf('Còn {0} lượt AI', { 0: primaryOrder.aiUsesRemaining ?? 0 })}
+          </p>
+        </div>
+        <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-rp-brand-strong" />
+      </button>
+    );
+  } else if (upcomingOrders.length > 0) {
+    statusContent = (
+      <button
+        type="button"
+        onClick={onOpenActive}
+        data-testid="account-summary-trigger"
+        className="rp-focus group flex w-full items-center gap-3 rounded-xl px-1 py-0.5 text-left transition-colors hover:bg-rp-bg-2/70 lg:w-auto"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rp-line bg-rp-bg-2 text-rp-text-2">
+          <GraduationCap aria-hidden="true" className="h-4.5 w-4.5" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-rp-text-muted">{tr('Gói hiện tại')}</span>
+            <Badge tone="info" size="sm" icon={false}>{tr('Chờ kích hoạt')}</Badge>
+          </div>
+          <p className="mt-0.5 text-[13.5px] font-bold text-rp-text">{upcomingOrders[0].planName}</p>
+        </div>
+        <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-text-muted" />
+      </button>
+    );
+  } else {
+    statusContent = (
+      <button
+        type="button"
+        onClick={onOpenActive}
+        data-testid="account-summary-trigger"
+        className="rp-focus group flex w-full items-center gap-3 rounded-xl px-1 py-0.5 text-left transition-colors hover:bg-rp-bg-2/70 lg:w-auto"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rp-line bg-rp-bg-2 text-rp-text-muted">
+          <GraduationCap aria-hidden="true" className="h-4.5 w-4.5" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-rp-text-muted">{tr('Gói hiện tại')}</span>
+            <Badge tone="neutral" size="sm" icon={false}>{tr('Miễn phí cơ bản')}</Badge>
+          </div>
+          <p className="mt-0.5 text-[13px] font-semibold text-rp-text">{tr('Chưa kích hoạt gói trả phí')}</p>
+        </div>
+        <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-rp-text-muted" />
+      </button>
+    );
+  }
+
+  return (
+    <section
+      aria-label={tr('Tài khoản và ví lượt AI')}
+      data-testid="account-summary-bar"
+      className="flex flex-col gap-3 rounded-rp-card border border-rp-line bg-rp-surface px-3.5 py-2.5 shadow-rp-xs lg:flex-row lg:items-center lg:justify-between lg:gap-4 sm:px-4"
+    >
+      <div className="min-w-0 lg:max-w-[40%] lg:shrink-0 lg:border-r lg:border-rp-line/80 lg:pr-5">
+        {statusContent}
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-2 border-t border-rp-line/70 pt-2.5 sm:flex-row sm:items-center sm:justify-between lg:border-t-0 lg:pt-0">
+        <span className="shrink-0 text-[11.5px] font-semibold text-rp-text-muted">
+          {tr('Ví lượt AI của bạn')}
+        </span>
+
+        {walletItems.length > 0 ? (
+          <div
+            data-testid="ai-wallet-strip"
+            className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-0 sm:divide-x sm:divide-rp-line/75"
+          >
+            {walletItems.map((item, idx) => {
+              const Icon = PLAN_GROUP_ICONS[item.icon] ?? AI_CREDIT_ICON;
+              const shortLabel = SHORT_WALLET_LABELS[item.key] || item.label;
+              return (
+                <div
+                  key={item.key}
+                  className={cx(
+                    'flex items-center gap-2',
+                    idx > 0 && 'sm:pl-4',
+                    idx < walletItems.length - 1 && 'sm:pr-4',
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border', item.accent.iconTile)}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-extrabold leading-4 tabular-nums text-rp-text">
+                      {item.remaining}
+                    </p>
+                    <p className="truncate text-[11px] font-medium leading-4 text-rp-text-muted">
+                      {tr(shortLabel)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <span className="text-xs text-rp-text-muted">{tr('Đang đồng bộ số dư lượt AI…')}</span>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export default function StudyPlans() {
-  const { trf, tr } = useLocale();
+  const { tr, trf } = useLocale();
   const { pathname } = useLocation();
   const session = getSession();
   const [searchParams, setSearchParams] = useSearchParams();
-  // Selected variant per group (plan id); groups without an entry show their default variant.
+
   const [selectedByGroup, setSelectedByGroup] = useState({});
-  // The plan being confirmed; kept as a fallback if it disappears from a refreshed catalog while open.
+  const [selectedSection, setSelectedSection] = useState('all');
+  const [durationFilter, setDurationFilter] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('default');
+
+  // Strict single-modal orchestration: opening one modal closes all others so modals never stack.
+  const [activeModal, setActiveModal] = useState(null); // null | 'active' | 'history' | 'comparison' | 'preview' | 'checkout'
+  const [previewTarget, setPreviewTarget] = useState(null); // { group, planId }
   const [checkoutPlan, setCheckoutPlan] = useState(null);
-  const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [benefitsModalOpen, setBenefitsModalOpen] = useState(false);
 
   const plansQuery = useQuery({
     queryKey: ['study-plans'],
@@ -115,327 +314,411 @@ export default function StudyPlans() {
     for (const group of groups) for (const variant of group.variants) map.set(variant.id, variant);
     return map;
   }, [groups]);
-  const modalPlan = checkoutPlan ? (livePlanById.get(checkoutPlan.id) ?? checkoutPlan) : null;
+
+  const sellablePlanIds = useMemo(() => new Set(livePlanById.keys()), [livePlanById]);
+  const subscriptionSummary = useMemo(() => summarizeSubscriptions(current), [current]);
+
+  const rawCatalog = useMemo(
+    () => buildUnifiedProductCatalog(groups, { search: searchTerm, sortBy, selectedSection, durationFilter }),
+    [groups, searchTerm, sortBy, selectedSection, durationFilter],
+  );
+  const activeTabExists = rawCatalog.tabs.some((tab) => tab.value === selectedSection);
+  const effectiveSelectedSection = activeTabExists ? selectedSection : 'all';
+  const durationExists = rawCatalog.durationOptions.some((opt) => opt.value === durationFilter);
+  const effectiveDurationFilter = durationExists ? durationFilter : 'ALL';
+
+  const catalog = useMemo(
+    () =>
+      effectiveSelectedSection === selectedSection && effectiveDurationFilter === durationFilter
+        ? rawCatalog
+        : buildUnifiedProductCatalog(groups, {
+          search: searchTerm,
+          sortBy,
+          selectedSection: effectiveSelectedSection,
+          durationFilter: effectiveDurationFilter,
+        }),
+    [rawCatalog, groups, searchTerm, sortBy, effectiveSelectedSection, selectedSection, effectiveDurationFilter, durationFilter],
+  );
+
+  function closeAllModals() {
+    setActiveModal(null);
+    setPreviewTarget(null);
+    setCheckoutPlan(null);
+  }
+
+  function openModal(kind) {
+    setCheckoutPlan(null);
+    setPreviewTarget(null);
+    setActiveModal(kind);
+  }
+
+  function openBenefitsPreview(group, plan) {
+    setCheckoutPlan(null);
+    setPreviewTarget({ groupKey: group.key, planId: plan.id });
+    setActiveModal('preview');
+  }
+
+  function openCheckout(planId) {
+    const plan = livePlanById.get(planId);
+    if (!plan) return;
+    setPreviewTarget(null);
+    setCheckoutPlan(plan);
+    setActiveModal('checkout');
+  }
 
   function selectVariant(groupKey, planId) {
     setSelectedByGroup((prev) => (prev[groupKey] === planId ? prev : { ...prev, [groupKey]: planId }));
   }
 
-  function openCheckout(planId) {
-    const plan = livePlanById.get(planId);
-    if (plan) setCheckoutPlan(plan);
+  function resetCatalogFilters() {
+    setSelectedSection('all');
+    setDurationFilter('ALL');
+    setSearchTerm('');
+    setSortBy('default');
   }
 
-  // Deep link `/plans?checkoutPlan=6` (and the legacy `/study-payment?planId=6` redirect): select the variant and
-  // open its confirmation once the catalog is loaded, then drop the param so refresh/back never reopen it.
+  // Deep link `/plans?checkoutPlan=6`
   const deepLinkParam = searchParams.get(CHECKOUT_PLAN_PARAM);
   const [consumedDeepLink, setConsumedDeepLink] = useState(null);
   const deepLinkReady = deepLinkParam !== null && !plansQuery.isPending;
   const deepLinkPlanId = parsePlanIdParam(deepLinkParam);
   const deepLinkPlan = deepLinkPlanId ? livePlanById.get(deepLinkPlanId) ?? null : null;
-  // Applied while rendering (React's "adjust state on input change" pattern), once per distinct param value.
+
   if (deepLinkReady && consumedDeepLink !== deepLinkParam) {
     setConsumedDeepLink(deepLinkParam);
     const group = deepLinkPlan ? findGroupOfPlan(groups, deepLinkPlan.id) : null;
     if (deepLinkPlan && group) {
       setSelectedByGroup((prev) => ({ ...prev, [group.key]: deepLinkPlan.id }));
+      setPreviewTarget(null);
       setCheckoutPlan(deepLinkPlan);
+      setActiveModal('checkout');
     }
   } else if (deepLinkParam === null && consumedDeepLink !== null) {
     setConsumedDeepLink(null);
   }
+
   const deepLinkMissing = deepLinkReady && !deepLinkPlan && !plansQuery.isError;
   useEffect(() => {
     if (!deepLinkReady) return;
     if (deepLinkMissing) {
-      notify.warning(tr('Gói này hiện không còn mở bán'), tr('Vui lòng chọn một gói khác trong danh sách.'), { key: 'checkout-deeplink-missing' });
+      notify.warning(tr('Gói này hiện không còn mở bán'), tr('Vui lòng chọn một gói khác trong danh sách.'), {
+        key: 'checkout-deeplink-missing',
+      });
     }
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.delete(CHECKOUT_PLAN_PARAM);
-      return next;
-    }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete(CHECKOUT_PLAN_PARAM);
+        return next;
+      },
+      { replace: true },
+    );
   }, [deepLinkReady, deepLinkMissing, setSearchParams, tr]);
 
-  const purchases = Array.isArray(current?.purchases) ? current.purchases : [];
-  const showAccountOverview = Boolean(
-    session?.accessToken && (mineQuery.isError || current),
-  );
+  const isAuthenticated = Boolean(session?.accessToken && !session?.isPreview);
   const Shell = session?.accessToken ? LearnerShell : PublicShell;
+
+  const sortOptions = useMemo(() => SORT_OPTIONS.map((o) => ({ value: o.value, label: tr(o.label) })), [tr]);
+  const localizedDurationOptions = useMemo(
+    () => catalog.durationOptions.map((o) => ({ value: o.value, label: tr(o.label) })),
+    [catalog.durationOptions, tr],
+  );
+  const localizedTabs = useMemo(
+    () => catalog.tabs.map((tab) => ({ value: tab.value, label: tr(tab.label) })),
+    [catalog.tabs, tr],
+  );
+
+  const hasActiveFilters = effectiveSelectedSection !== 'all' || effectiveDurationFilter !== 'ALL' || Boolean(searchTerm.trim());
+  // Auto-surface keyword search as catalog grows (>= 8 product families) while keeping compact 6-card view clean.
+  const showCatalogSearch = groups.length >= 8 || Boolean(searchTerm.trim());
+
+  const modalPlan = activeModal === 'checkout' && checkoutPlan ? (livePlanById.get(checkoutPlan.id) ?? checkoutPlan) : null;
+  const previewGroup = previewTarget ? (groups.find((g) => g.key === previewTarget.groupKey) ?? null) : null;
+  const previewPlan = previewGroup && previewTarget
+    ? (previewGroup.variants.find((v) => v.id === previewTarget.planId) ?? previewGroup.variants[0])
+    : null;
+
+  const activeOwnedCount = subscriptionSummary.activeOrders.length + subscriptionSummary.upcomingOrders.length;
 
   return (
     <Shell pathname={pathname} breadcrumb={tr('Gói học & quyền lợi')}>
-      <PageContainer data-page="StudyPlans" width="default" className="space-y-5">
+      <PageContainer data-page="StudyPlans" width="wide" className="space-y-4">
         <IllustratedPageHeader
           icon="ai"
           tone="sakura"
-          eyebrow={tr('GÓI TỰ HỌC & LƯỢT AI')}
-          title={tr('Gói tự học & quyền lợi học tập')}
-          description={tr('Gói tự học mở khóa bài học JLPT. Bổ sung Lượt AI khi cần chấm bài hoặc tạo lộ trình cá nhân hóa.')}
+          title={tr('Gói học & quyền lợi học tập')}
+          description={tr('Khám phá các gói học phù hợp với mục tiêu của bạn.')}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setBenefitsModalOpen(true)}
-                aria-label={tr('So sánh nhanh quyền lợi')}
-                title={tr('So sánh nhanh quyền lợi')}
-                className="rp-focus rp-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rp-line bg-rp-surface text-rp-brand-strong shadow-rp-xs transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint"
-              >
-                <Info aria-hidden="true" className="h-5 w-5" />
-              </button>
-              <RefreshingIndicator active={plansQuery.isFetching && !plansQuery.isPending} />
+              <RefreshingIndicator active={(plansQuery.isFetching || mineQuery.isFetching) && !plansQuery.isPending} />
+
+              <Tooltip content={tr('So sánh quyền lợi miễn phí & gói trả phí')}>
+                {isAuthenticated ? (
+                  <IconButton
+                    size="md"
+                    variant="outline"
+                    icon={Info}
+                    label={tr('So sánh quyền lợi')}
+                    onClick={() => openModal('comparison')}
+                    data-testid="btn-compare-benefits"
+                  />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="md"
+                    icon={Info}
+                    onClick={() => openModal('comparison')}
+                    data-testid="btn-compare-benefits"
+                  >
+                    {tr('So sánh quyền lợi')}
+                  </Button>
+                )}
+              </Tooltip>
+
+              {isAuthenticated && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    icon={Layers}
+                    onClick={() => openModal('active')}
+                    data-testid="btn-active-subscriptions"
+                  >
+                    <span>{tr('Gói đang sử dụng')}</span>
+                    {activeOwnedCount > 0 && (
+                      <Badge tone="brand" size="sm" icon={false} className="ml-0.5">
+                        {activeOwnedCount}
+                      </Badge>
+                    )}
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="md"
+                    icon={History}
+                    onClick={() => openModal('history')}
+                    data-testid="btn-purchase-history"
+                  >
+                    {tr('Lịch sử mua gói')}
+                  </Button>
+                </>
+              )}
             </div>
           }
         />
 
-        {/* Account Overview & AI Credits */}
-        {showAccountOverview && (
-          <Card className="p-4 sm:p-5">
-            {mineQuery.isError ? (
+        {plansQuery.isPending && groups.length === 0 ? (
+          <PlansCatalogSkeleton showAccount={isAuthenticated} />
+        ) : (
+          <>
+            {isAuthenticated && (
+              <AccountStatusWalletBar
+                access={current}
+                summary={subscriptionSummary}
+                groups={groups}
+                mineQuery={mineQuery}
+                onOpenActive={() => openModal('active')}
+                tr={tr}
+                trf={trf}
+              />
+            )}
+
+            {plansQuery.isError && groups.length === 0 ? (
               <ErrorState
-                error={mineQuery.error}
-                onRetry={() => mineQuery.refetch()}
-                retrying={mineQuery.isFetching}
-                compact
+                error={plansQuery.error}
+                title={tr('Chưa tải được danh sách gói học')}
+                onRetry={() => plansQuery.refetch()}
+                retrying={plansQuery.isFetching}
+              />
+            ) : groups.length === 0 ? (
+              <EmptyState
+                illustration="card"
+                title={tr('Chưa có gói học nào đang mở bán')}
+                description={tr('Các gói học và lượt AI sẽ hiển thị tại đây ngay khi được mở bán.')}
               />
             ) : (
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-0 md:divide-x md:divide-rp-line">
-                {/* Left Column: Subscription State */}
-                <div className="flex flex-col justify-between gap-3 md:pr-6">
-                  <div>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rp-navy">
-                        {tr('GÓI ĐANG SỬ DỤNG')}
-                      </p>
-                      <Badge tone={current?.active ? 'success' : 'neutral'} size="sm" icon={false}>
-                        {current?.active ? tr('Đang hiệu lực') : tr('Tài khoản miễn phí')}
-                      </Badge>
-                    </div>
-
-                    {current?.active ? (
-                      <div className="mt-2 space-y-1 text-sm text-rp-text">
-                        <p className="text-[16px] font-extrabold text-rp-navy">
-                          {current.planName || tr('Gói tự học')}
-                        </p>
-                        {current.selfStudyExpiresAt && (
-                          <p className="text-xs leading-5 text-rp-text-2">
-                            {trf('Còn {0} ngày tự học · Hết hạn lúc {1} (giờ Việt Nam)', {
-                              0: current.selfStudyDaysRemaining ?? 0,
-                              1: formatExpiry(current.selfStudyExpiresAt),
-                            })}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="mt-2">
-                        <p className="text-sm font-bold text-rp-navy">
-                          {tr('Bạn đang dùng đầy đủ các công cụ học tập miễn phí')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="md"
-                      icon={History}
-                      onClick={() => setHistoryModalOpen(true)}
-                      data-testid="open-purchase-history-btn"
-                    >
-                      {trf('Lịch sử gói đã mua ({0})', { 0: purchases.length })}
-                    </Button>
-                    <Button
-                      as={Link}
-                      to="/app"
-                      variant={current?.active ? 'primary' : 'outline'}
-                      size="md"
-                      iconRight={ArrowRight}
-                    >
-                      {tr('Vào trang ôn luyện')}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Right Column: AI Credits */}
-                <div className="border-t border-rp-line pt-4 md:border-t-0 md:pl-6 md:pt-0">
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-rp-brand-strong">
-                      {tr('LƯỢT AI HIỆN CÓ')}
-                    </p>
-                    <dl className="mt-2.5 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                      <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-brand-border/70 bg-rp-brand-tint/45 px-3 py-2.5">
-                        <dt className="font-medium text-rp-text-2">{tr('Lượt chấm AI nói/viết:')}</dt>
-                        <dd className="text-sm font-extrabold tabular-nums text-rp-brand-strong">
-                          {current?.aiGradingUsesRemaining ?? 0}
-                        </dd>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-lavender-line/80 bg-rp-lavender-bg/50 px-3 py-2.5">
-                        <dt className="font-medium text-rp-text-2">{tr('Lượt tạo lộ trình AI:')}</dt>
-                        <dd className="text-sm font-extrabold tabular-nums text-rp-navy">
-                          {current?.learningPathUsesRemaining ?? 0}
-                        </dd>
-                      </div>
-                      {(current?.speakingUsesRemaining > 0 || current?.writingUsesRemaining > 0) && (
-                        <>
-                          <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-sky-line/80 bg-rp-sky-bg/50 px-3 py-2">
-                            <dt className="font-medium text-rp-text-2">{tr('Lượt luyện nói riêng:')}</dt>
-                            <dd className="text-sm font-extrabold tabular-nums text-rp-navy">
-                              {current?.speakingUsesRemaining ?? 0}
-                            </dd>
-                          </div>
-                          <div className="flex items-center justify-between gap-2 rounded-xl border border-rp-peach-line/80 bg-rp-peach-bg/50 px-3 py-2">
-                            <dt className="font-medium text-rp-text-2">{tr('Lượt luyện viết riêng:')}</dt>
-                            <dd className="text-sm font-extrabold tabular-nums text-rp-navy">
-                              {current?.writingUsesRemaining ?? 0}
-                            </dd>
-                          </div>
-                        </>
+              <>
+                <UnifiedToolbar
+                  ariaLabel={tr('Bộ lọc danh sách gói học')}
+                  tabs={{
+                    value: effectiveSelectedSection,
+                    onChange: setSelectedSection,
+                    items: localizedTabs,
+                    size: 'sm',
+                  }}
+                  search={
+                    showCatalogSearch
+                      ? {
+                        value: searchTerm,
+                        onChange: setSearchTerm,
+                        placeholder: tr('Tìm gói học, kỹ năng AI...'),
+                        size: 'md',
+                      }
+                      : undefined
+                  }
+                  filters={
+                    <div className="flex flex-wrap items-center gap-2">
+                      {localizedDurationOptions.length > 1 && (
+                        <CustomSelect
+                          value={effectiveDurationFilter}
+                          onChange={setDurationFilter}
+                          options={localizedDurationOptions}
+                          size="md"
+                          fitContent
+                          aria-label={tr('Lọc theo thời hạn')}
+                        />
                       )}
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* Plans Grid */}
-        {plansQuery.isPending && groups.length === 0 && (
-          <SakuraLoader variant="section" context="payment" label={tr('Đang tải các gói tự học')} delay={160} />
-        )}
-
-        {plansQuery.isError && (
-          <Card>
-            <ErrorState
-              error={plansQuery.error}
-              onRetry={() => plansQuery.refetch()}
-              retrying={plansQuery.isFetching}
-              compact
-            />
-          </Card>
-        )}
-
-        {!plansQuery.isPending && !plansQuery.isError && groups.length === 0 && (
-          <Card>
-            <EmptyState variant="compact" illustration="certificate" title={tr('Chưa có gói tự học đang mở.')} />
-          </Card>
-        )}
-
-        {groups.length > 0 && (
-          <section aria-labelledby="plans-catalog-heading" className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h2 id="plans-catalog-heading" className="text-[16px] font-bold text-rp-text">
-                {tr('Chọn gói phù hợp với mục tiêu của bạn')}
-              </h2>
-              <p className="text-xs text-rp-text-muted">{tr('Chọn thời hạn ngay trên thẻ gói; giá và quyền lợi cập nhật theo lựa chọn.')}</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {groups.map((group) => (
-                <PlanGroupCard
-                  key={group.key}
-                  group={group}
-                  selectedPlanId={selectedByGroup[group.key] ?? group.defaultPlanId}
-                  onSelect={(planId) => selectVariant(group.key, planId)}
-                  onBuy={openCheckout}
-                  activePlanName={current?.active ? current?.planName : null}
-                  hasActiveSelfStudy={Boolean(current?.active)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {modalPlan && <StudyCheckoutModal key={modalPlan.id} plan={modalPlan} onClose={() => setCheckoutPlan(null)} />}
-
-        <Modal
-          open={benefitsModalOpen}
-          onClose={() => setBenefitsModalOpen(false)}
-          title={tr('So sánh nhanh quyền lợi')}
-          size="xl"
-          footer={<Button variant="secondary" onClick={() => setBenefitsModalOpen(false)}>{tr('Đóng')}</Button>}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-rp-line text-rp-text-muted">
-                  <th scope="col" className="py-3 pr-4 font-semibold">{tr('Tính năng')}</th>
-                  <th scope="col" className="px-3 py-3 font-semibold">{tr('Miễn phí')}</th>
-                  <th scope="col" className="px-3 py-3 font-semibold text-rp-brand-strong">{tr('Gói tự học')}</th>
-                  <th scope="col" className="pl-3 py-3 font-semibold text-rp-navy">{tr('Gói lượt AI')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-rp-line/70">
-                {COMPARISON_ROWS.map((row) => (
-                  <tr key={row.feature}>
-                    <th scope="row" className="py-3 pr-4 font-medium text-rp-text">{tr(row.feature)}</th>
-                    <td className="px-3 py-3 text-rp-text-2">{tr(row.free)}</td>
-                    <td className="px-3 py-3 font-semibold text-rp-brand-strong">{tr(row.selfStudy)}</td>
-                    <td className="pl-3 py-3 text-rp-navy">{tr(row.aiPack)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Modal>
-
-        {/* Purchase History Modal */}
-        <Modal
-          open={historyModalOpen}
-          onClose={() => setHistoryModalOpen(false)}
-          title={trf('Lịch sử gói đã mua ({0})', { 0: purchases.length })}
-          size="md"
-        >
-          {mineQuery.isPending ? (
-            <div className="py-6">
-              <SakuraLoader variant="section" context="payment" label={tr('Đang tải lịch sử gói đã mua…')} delay={60} />
-            </div>
-          ) : mineQuery.isError ? (
-            <ErrorState
-              error={mineQuery.error}
-              onRetry={() => mineQuery.refetch()}
-              retrying={mineQuery.isFetching}
-              compact
-            />
-          ) : purchases.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              illustration="certificate"
-              title={tr('Chưa có giao dịch mua gói')}
-              description={tr('Các gói tự học và gói lượt chấm AI bạn đã đăng ký sẽ hiển thị tại đây.')}
-            />
-          ) : (
-            <ul className="max-h-[60vh] divide-y divide-rp-line overflow-y-auto pr-1">
-              {purchases.map((order) => {
-                const timestamp = order.purchasedAt || order.createdAt || order.paidAt || order.endDate || order.expiresAt;
-                const badge = purchaseStatusBadge(order, tr);
-                return (
-                  <li key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-rp-navy">{order.planName}</p>
-                      <p className="mt-0.5 text-xs text-rp-text-2">
-                        <span className="font-semibold text-rp-brand-strong">{money(order.amountPaid)}</span>
-                        {timestamp ? ` · ${formatExpiry(timestamp)}` : ''}
-                        {order.endDate ? ` · ${tr('Hạn')}: ${formatExpiry(order.endDate)}` : ''}
-                      </p>
-                      <p className="mt-0.5 text-xs text-rp-text-muted">
-                        {trf('Mã đơn #{0}', { 0: order.id })}
-                        {order.startDate ? ` · ${tr('Kích hoạt')}: ${formatExpiry(order.startDate)}` : ''}
-                        {order.aiUsesRemaining > 0 ? ` · ${trf('{0} lượt AI còn lại', { 0: order.aiUsesRemaining })}` : ''}
-                      </p>
+                      <CustomSelect
+                        value={sortBy}
+                        onChange={setSortBy}
+                        options={sortOptions}
+                        size="md"
+                        fitContent
+                        aria-label={tr('Sắp xếp gói học')}
+                      />
                     </div>
-                    <Badge tone={badge.tone} size="sm" icon={false}>
-                      {badge.label}
-                    </Badge>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Modal>
+                  }
+                />
+
+                {hasActiveFilters && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-rp-text-muted">
+                    <span>
+                      {trf('Đang hiển thị {0}/{1} nhóm gói học', {
+                        0: catalog.totalFilteredCount,
+                        1: catalog.totalCatalogCount,
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetCatalogFilters}
+                      className="rp-focus font-semibold text-rp-brand-strong hover:underline"
+                    >
+                      {tr('Đặt lại bộ lọc')}
+                    </button>
+                  </div>
+                )}
+
+                {catalog.items.length === 0 ? (
+                  <EmptyState
+                    illustration="search"
+                    title={tr('Không tìm thấy gói học phù hợp')}
+                    description={tr('Thử đổi nhóm sản phẩm, thời hạn hoặc xóa từ khóa tìm kiếm để xem tất cả gói đang mở bán.')}
+                    action={
+                      <Button variant="secondary" onClick={resetCatalogFilters}>
+                        {tr('Xem tất cả gói học')}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <div
+                    data-testid="plans-product-grid"
+                    className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                  >
+                    {catalog.items.map((group) => {
+                      const storedId = selectedByGroup[group.key];
+                      const storedPlan = group.variants.find((v) => v.id === storedId) ?? null;
+                      const matchingVariant = effectiveDurationFilter !== 'ALL'
+                        ? (storedPlan && matchesDurationBucket(storedPlan, effectiveDurationFilter)
+                          ? storedPlan
+                          : group.variants.find((v) => matchesDurationBucket(v, effectiveDurationFilter)))
+                        : storedPlan;
+                      const activePlanId = matchingVariant?.id ?? group.defaultPlanId;
+
+                      return (
+                        <PlanGroupCard
+                          key={group.key}
+                          group={group}
+                          selectedPlanId={activePlanId}
+                          onSelect={(planId) => selectVariant(group.key, planId)}
+                          onBuy={openCheckout}
+                          onViewBenefits={openBenefitsPreview}
+                          activePlanName={current?.planName}
+                          hasActiveSelfStudy={Boolean(current?.active)}
+                          activeCategories={subscriptionSummary.activeCategories}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
       </PageContainer>
+
+      {/* Modal 1: Active Subscriptions ("Gói đang sử dụng") */}
+      <ActiveSubscriptionsModal
+        open={activeModal === 'active'}
+        onClose={closeAllModals}
+        access={current}
+        summary={subscriptionSummary}
+        accessQuery={mineQuery}
+        catalogByPlanId={livePlanById}
+        sellablePlanIds={sellablePlanIds}
+        onRenewPlan={openCheckout}
+        onOpenHistory={() => openModal('history')}
+      />
+
+      {/* Modal 2: Purchase History ("Lịch sử mua gói") */}
+      <PurchaseHistoryModal
+        open={activeModal === 'history'}
+        onClose={closeAllModals}
+      />
+
+      {/* Modal 3: Selected Variant Benefits Preview ("Xem quyền lợi") */}
+      <PlanBenefitsModal
+        open={activeModal === 'preview'}
+        onClose={closeAllModals}
+        group={previewGroup}
+        plan={previewPlan}
+        onBuy={openCheckout}
+      />
+
+      {/* Modal 4: Comparison Guide ("So sánh quyền lợi") */}
+      <Modal
+        open={activeModal === 'comparison'}
+        onClose={closeAllModals}
+        size="lg"
+        title={tr('So sánh quyền lợi miễn phí & gói trả phí')}
+        description={tr('Các công cụ nền tảng luôn miễn phí; gói học và lượt AI mở rộng phần nội dung chuyên sâu và AI.')}
+        footer={
+          <Button variant="secondary" onClick={closeAllModals}>
+            {tr('Đóng')}
+          </Button>
+        }
+      >
+        <div className="overflow-x-auto rounded-2xl border border-rp-line">
+          <table className="w-full min-w-[540px] border-collapse text-left text-xs sm:text-sm">
+            <thead>
+              <tr className="border-b border-rp-line bg-rp-table-head text-[11px] font-bold uppercase tracking-[0.05em] text-rp-brand-strong">
+                <th className="px-3.5 py-2.5">{tr('Tính năng')}</th>
+                <th className="px-3.5 py-2.5">{tr('Miễn phí')}</th>
+                <th className="px-3.5 py-2.5">{tr('Gói tự học')}</th>
+                <th className="px-3.5 py-2.5">{tr('Gói AI')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rp-line/70">
+              {COMPARISON_ROWS.map((row) => (
+                <tr key={row.feature} className="hover:bg-rp-row-hover">
+                  <td className="px-3.5 py-2.5 font-semibold text-rp-text">{tr(row.feature)}</td>
+                  <td className="px-3.5 py-2.5 text-rp-text-2">{tr(row.free)}</td>
+                  <td className="px-3.5 py-2.5 font-medium text-rp-brand-strong">{tr(row.selfStudy)}</td>
+                  <td className="px-3.5 py-2.5 text-rp-text-2">{tr(row.aiPack)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+
+      {/* Modal 5: PayOS Checkout Flow */}
+      {activeModal === 'checkout' && modalPlan && (
+        <StudyCheckoutModal
+          plan={modalPlan}
+          currentAccess={current}
+          onClose={closeAllModals}
+        />
+      )}
     </Shell>
   );
 }

@@ -177,7 +177,7 @@ describe('VN DateTime & Session formatting helpers', () => {
     assert.equal(sessionStatusLabel({ status: 'Assigned' }), 'Đã xác nhận');
     assert.equal(sessionStatusLabel({ status: 'Scheduled' }), 'Đã lên lịch');
     assert.equal(sessionStatusLabel({ status: 'Cancelled' }), 'Đã hủy');
-    assert.equal(sessionStatusLabel({ status: 'Completed' }), 'Đã hoàn tất');
+    assert.equal(sessionStatusLabel({ status: 'Completed' }), 'Đã hoàn thành');
     assert.equal(sessionStatusLabel({ status: 'AwaitingPayment' }), 'Chờ thanh toán');
     assert.equal(sessionStatusLabel({ status: 'UnexpectedInternalState' }), 'Trạng thái đang cập nhật');
   });

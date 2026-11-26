@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSession } from '@/app/auth/session.js';
 import { courseGet, getCohorts } from '@/features/cohorts/api/cohortApi.js';
@@ -14,6 +14,7 @@ import {
   requestChangeAvailabilitySlot,
 } from '@/features/scheduling/api/mentorScheduleManageApi.js';
 import { resolveSchedulePolicy } from '@/features/scheduling/utils/slotPlannerModel.js';
+import { buildMentorWorkScheduleSessions } from '@/features/scheduling/utils/teachingLifecycleModel.js';
 import { backendUtcDate } from '@/utils/mentorSchedule.js';
 import { useNow } from '@/hooks/useNow.js';
 
@@ -21,7 +22,12 @@ import { useNow } from '@/hooks/useNow.js';
  * Shared React Query workspace loader + normalized Cohort Session + GroupPolicy resolver
  * shared across MentorShiftSchedule, MentorAvailability, and WorkSchedule.
  */
-export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refetchSlotsMs = 15000 } = {}) {
+export function useMentorScheduleWorkspace({
+  includeCalendarStatus = false,
+  includeAvailability = true,
+  enabled = true,
+  refetchSlotsMs = 15000,
+} = {}) {
   const queryClient = useQueryClient();
   const currentTimeMs = useNow();
   const uid = getSession()?.userId ?? 'anon';
@@ -31,30 +37,35 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
   const scheduleQuery = useQuery({
     queryKey: scheduleKey,
     queryFn: getMyMentorSchedule,
+    enabled,
     retry: (count, err) => err?.status !== 404 && err?.status !== 403 && count < 1,
   });
 
   const availabilityQuery = useQuery({
     queryKey: slotsKey,
     queryFn: getMyAvailabilitySlots,
-    refetchInterval: refetchSlotsMs,
+    enabled: enabled && includeAvailability,
+    refetchInterval: enabled && includeAvailability ? refetchSlotsMs : false,
   });
 
   const cohortsQuery = useQuery({
     queryKey: ['mentor-scheduling-cohorts', uid],
     queryFn: () => getCohorts(),
-    refetchInterval: 30000,
+    enabled,
+    refetchInterval: enabled ? 30000 : false,
   });
 
   const coursesQuery = useQuery({
     queryKey: ['mentor-scheduling-courses', uid],
     queryFn: () => courseGet(),
-    refetchInterval: 15000,
+    enabled,
+    refetchInterval: enabled ? 15000 : false,
   });
 
   const plansQuery = useQuery({
     queryKey: ['mentor-scheduling-plans', uid],
     queryFn: () => courseGet('/plans'),
+    enabled,
     staleTime: 60000,
     retry: (count, err) => err?.status !== 403 && count < 1,
   });
@@ -62,7 +73,7 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
   const calendarQuery = useQuery({
     queryKey: ['mentor-calendar-status', uid],
     queryFn: getMentorCalendarStatus,
-    enabled: includeCalendarStatus,
+    enabled: enabled && includeCalendarStatus,
     retry: false,
   });
 
@@ -101,7 +112,7 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
     const nowMs = currentTimeMs;
     const reservesSeat = (c) => {
       if (!c) return false;
-      if (c.paymentStatus === 'Paid' && !['PaymentReview', 'Cancelled', 'Transferred'].includes(c.status)) return true;
+      if ((c.paymentStatus === 'Paid' || c.paymentStatus === 'PartiallyRefunded') && !['PaymentReview', 'Cancelled', 'Transferred'].includes(c.status)) return true;
       if (c.paymentStatus === 'Pending' && c.paymentExpiresAt) {
         const exp = backendUtcDate(c.paymentExpiresAt)?.getTime() || 0;
         return exp > nowMs;
@@ -240,6 +251,37 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
     }));
   }, [cohorts, coursesQuery.data, policy.sessionMinutes, currentTimeMs]);
 
+  const workScheduleSessions = useMemo(
+    () => buildMentorWorkScheduleSessions({
+      cohorts,
+      courses: Array.isArray(coursesQuery.data) ? coursesQuery.data : [],
+      defaultSessionMinutes: policy.sessionMinutes,
+      mentorId: uid,
+      nowMs: currentTimeMs,
+    }),
+    [cohorts, coursesQuery.data, policy.sessionMinutes, uid, currentTimeMs],
+  );
+
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return undefined;
+    let timer = null;
+    const onScheduleSyncEvent = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['mentor-scheduling-cohorts', uid] });
+        queryClient.invalidateQueries({ queryKey: ['mentor-scheduling-courses', uid] });
+        queryClient.invalidateQueries({ queryKey: ['workspace-calendar'] });
+      }, 200);
+    };
+    window.addEventListener('rikipath:payment-updated', onScheduleSyncEvent);
+    window.addEventListener('rikipath:schedule-updated', onScheduleSyncEvent);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('rikipath:payment-updated', onScheduleSyncEvent);
+      window.removeEventListener('rikipath:schedule-updated', onScheduleSyncEvent);
+    };
+  }, [enabled, queryClient, uid]);
+
   const externalBusyEvents = useMemo(
     () => (Array.isArray(calendarQuery.data?.busyEvents) ? calendarQuery.data.busyEvents : []),
     [calendarQuery.data]
@@ -269,6 +311,7 @@ export function useMentorScheduleWorkspace({ includeCalendarStatus = false, refe
     slots,
     cohorts,
     cohortSessions,
+    workScheduleSessions,
     externalBusyEvents,
     policy,
     invalidateScheduling,

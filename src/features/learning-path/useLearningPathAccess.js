@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth/authContext.js';
 import { getSession } from '@/app/auth/session.js';
 import { useLearnerProfile } from '@/features/dashboard/hooks/useLearnerHome.js';
-import { getPlacementStatus } from '@/features/placement/api/placementApi.js';
-import { getLatestLearningPath } from './api/learningPathApi.js';
+import { getPlacementStatus, skipStandardPlacement } from '@/features/placement/api/placementApi.js';
+import { activateStandardRoadmap, getLatestLearningPath } from './api/learningPathApi.js';
 import { computeLearningFlowState } from './learningPathFlow.js';
 
 export function aiLearningPathQueryKey(userId) {
@@ -16,8 +16,25 @@ export function placementStatusQueryKey(userId) {
 }
 
 /**
- * Shared Backend source of truth for step-by-step Goal -> Placement -> AI Learning Path locking.
- * Never unlocks `/roadmap` via local state; only `status === 'ACTIVE'` from Backend opens it.
+ * Invalidates every learner setup, placement, completion, learning moment, and roadmap cache atomically
+ * after a goal change, placement submission, explicit placement skip, or roadmap mutation.
+ */
+export async function invalidateLearnerSetupQueries(queryClient) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['learner'] }),
+    queryClient.invalidateQueries({ queryKey: ['assessment-roadmap'] }),
+    queryClient.invalidateQueries({ queryKey: ['ai-learning-path'] }),
+    queryClient.invalidateQueries({ queryKey: ['placement-assessment'] }),
+    queryClient.invalidateQueries({ queryKey: ['placement-status'] }),
+    queryClient.invalidateQueries({ queryKey: ['my-profile'] }),
+    queryClient.invalidateQueries({ queryKey: ['learning-moments'] }),
+    queryClient.invalidateQueries({ queryKey: ['study-subscription'] }),
+  ]);
+}
+
+/**
+ * Shared Backend source of truth for step-by-step Goal -> Placement -> Standard/AI Roadmap readiness.
+ * Never unlocks `/roadmap` via local state; derives strictly from Backend responses.
  */
 export function useLearningPathAccess({ enabled: enabledOverride } = {}) {
   const { isAuthenticated, isLearner, session, user } = useAuth();
@@ -33,7 +50,7 @@ export function useLearningPathAccess({ enabled: enabledOverride } = {}) {
     queryKey: placementStatusQueryKey(userId),
     queryFn: getPlacementStatus,
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
     retry: (count, err) => err?.status !== 401 && count < 1,
   });
 
@@ -48,9 +65,12 @@ export function useLearningPathAccess({ enabled: enabledOverride } = {}) {
       }
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
     retry: (count, err) => err?.status !== 401 && err?.status !== 404 && count < 1,
   });
+
+  const authoritativelyPending = enabled && (profileQuery.isPending || placementQuery.isPending || latestQuery.isPending);
+  const authoritativelyErrored = enabled && profileQuery.isError && !profileQuery.data;
 
   const flow = useMemo(
     () =>
@@ -58,18 +78,34 @@ export function useLearningPathAccess({ enabled: enabledOverride } = {}) {
         profile: profileQuery.data,
         placementStatus: placementQuery.data,
         latestPath: latestQuery.data,
-        isPending: enabled && latestQuery.isPending,
-        isError: enabled && latestQuery.isError,
+        setupState: profileQuery.data?.setupState ?? null,
+        isPending: authoritativelyPending,
+        isError: authoritativelyErrored || (enabled && latestQuery.isError),
       }),
     [
       enabled,
       profileQuery.data,
       placementQuery.data,
       latestQuery.data,
-      latestQuery.isPending,
+      authoritativelyPending,
+      authoritativelyErrored,
       latestQuery.isError,
     ],
   );
+
+  const skipPlacementMutation = useMutation({
+    mutationFn: () => skipStandardPlacement(),
+    onSuccess: async () => {
+      await invalidateLearnerSetupQueries(queryClient);
+    },
+  });
+
+  const activateStandardMutation = useMutation({
+    mutationFn: () => activateStandardRoadmap(),
+    onSuccess: async () => {
+      await invalidateLearnerSetupQueries(queryClient);
+    },
+  });
 
   const setLatestPath = useCallback(
     (nextPath) => {
@@ -90,14 +126,23 @@ export function useLearningPathAccess({ enabled: enabledOverride } = {}) {
     ...flow,
     enabled,
     profile: profileQuery.data ?? null,
+    setupState: profileQuery.data?.setupState ?? null,
+    placementStatusData: placementQuery.data ?? null,
     placementStatus: placementQuery.data ?? null,
+    placementState: flow.placementStatus,
     latestPath: latestQuery.data ?? null,
-    isPending: enabled && (latestQuery.isPending || profileQuery.isPending || placementQuery.isPending),
+    isPending: authoritativelyPending,
     isFetching: enabled && (latestQuery.isFetching || profileQuery.isFetching || placementQuery.isFetching),
-    isError: enabled && latestQuery.isError,
-    error: latestQuery.error ?? null,
+    isError: authoritativelyErrored || (enabled && latestQuery.isError && !profileQuery.data?.setupState),
+    error: profileQuery.error ?? latestQuery.error ?? null,
     setLatestPath,
     refetch: refetchAll,
     latestQuery,
+    skipPlacement: skipPlacementMutation.mutateAsync,
+    skippingPlacement: skipPlacementMutation.isPending,
+    skipPlacementError: skipPlacementMutation.error ?? null,
+    activateStandardRoadmap: activateStandardMutation.mutateAsync,
+    activatingStandardRoadmap: activateStandardMutation.isPending,
+    activateStandardError: activateStandardMutation.error ?? null,
   };
 }

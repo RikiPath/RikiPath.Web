@@ -36,5 +36,8 @@ describe('Registration verification navigation', () => {
     assert.ok(google.includes('GOOGLE_LINK_PASSWORD_REQUIRED'), 'GoogleSignIn must require existing RikiPath password when email collides');
     assert.ok(google.includes('GOOGLE_LINK_PASSWORD_INVALID'), 'GoogleSignIn must keep password prompt open on invalid link password');
     assert.ok(google.includes('getGoogleAuthConfig'), 'GoogleSignIn must resolve Client ID from Backend when build env is unset');
+    assert.ok(!google.includes('google-gis-fallback'), 'GoogleSignIn must never render a second visible GIS fallback button below the primary button');
+    assert.ok(!google.includes('showGisFallback'), 'GoogleSignIn must use a single-button invisible GIS overlay instead of spawning a duplicate button');
+    assert.ok(google.includes('opacity-[0.001]'), 'GoogleSignIn must overlay the official GIS trigger invisibly over the Sakura button for reliable 1-click popup sign-in');
   });
 });

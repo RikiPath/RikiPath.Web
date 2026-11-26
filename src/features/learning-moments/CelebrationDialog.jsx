@@ -1,30 +1,37 @@
 import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { useFocusTrap } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { CELEBRATION_ACCENTS } from './momentCatalog.js';
 import CelebrationVisual from './CelebrationVisual.jsx';
 import ConfettiBurst from './ConfettiBurst.jsx';
+import './learningMoments.css';
 
 /**
- * Shared Learning Moment dialog shell. The hero is a context-aware badge (CelebrationVisual: check for purchases,
- * medal/trophy for achievements, book/target/result/compass/unlock for learning events) — no mascot. Big moments add a
- * short confetti burst. Bottom sheet on phones, centered card from `sm`. Focus-trapped; Escape/backdrop close;
- * reduced-motion aware (all animation presets are CSS and disabled under prefers-reduced-motion).
+ * Shared Learning Moment dialog shell (goal confirmed, roadmap ready, placement, lessons, SRS, checkpoints).
+ * - `hero` replaces the default badge (GoalHero / JourneyHero); no mascot.
+ * - `chips` are strings or `{ label, icon }`; `children` renders extra facts above the actions.
+ * - Copy rises in with a short stagger after the hero. Bottom sheet on phones, centered card from `sm`.
+ * Focus-trapped; Escape/backdrop/X close ("Để sau" semantics); reduced-motion shows the final state.
  */
 export default function CelebrationDialog({
   open,
-  level = 'milestone',
   accent = 'sakura',
   visual = 'verified',
   animation = 'badge-pop',
   confetti = false,
+  hero = null,
   eyebrow,
   title,
   description,
   chips = [],
+  children,
   ctaLabel,
+  ctaIcon = ArrowRight,
+  secondaryLabel,
+  onSecondary,
+  extraAction,
   onCta,
   onClose,
 }) {
@@ -34,7 +41,9 @@ export default function CelebrationDialog({
   const descId = useId();
   useFocusTrap(panelRef, { open, onEscape: onClose });
   const a = CELEBRATION_ACCENTS[accent] || CELEBRATION_ACCENTS.sakura;
-  void level;
+  const CtaIcon = ctaIcon;
+  // Copy follows the hero; heroes with a longer intro push the text a little later.
+  const base = hero ? 520 : 260;
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -48,12 +57,12 @@ export default function CelebrationDialog({
         aria-labelledby={titleId}
         aria-describedby={descId}
         tabIndex={-1}
-        className="rp-streak-dialog rp-streak-dialog-in relative flex max-h-[96dvh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_30px_80px_-24px_rgba(40,30,60,0.4)] outline-none sm:rounded-[32px]"
+        className="rp-mh-dialog-in rp-pu-panel-body relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] bg-rp-surface shadow-[0_30px_80px_-24px_rgba(40,30,60,0.4)] outline-none sm:rounded-[28px]"
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-[240px]"
-          style={{ background: `radial-gradient(ellipse at 50% 28%, ${a.halo} 0%, ${a.soft} 42%, rgba(255,255,255,0) 74%)` }}
+          className="pointer-events-none absolute inset-x-0 top-0 h-[220px]"
+          style={{ background: `radial-gradient(ellipse at 50% 22%, ${a.halo} 0%, ${a.soft} 38%, rgba(255,255,255,0) 72%)`, opacity: 0.75 }}
         />
         {confetti && <ConfettiBurst />}
 
@@ -61,46 +70,78 @@ export default function CelebrationDialog({
           type="button"
           onClick={onClose}
           aria-label={tr('Đóng')}
-          className="rp-focus absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#F3EFEA] text-[#5B5550] transition-colors hover:bg-[#ECE5DD]"
+          className="rp-focus absolute right-3.5 top-3.5 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-rp-muted/80 text-rp-text-2 transition-colors hover:bg-rp-muted hover:text-rp-text"
         >
           <X aria-hidden="true" className="h-5 w-5" />
         </button>
 
-        <div className="rp-no-scrollbar relative min-h-0 overflow-y-auto px-6 pb-5 pt-6 text-center sm:px-8">
-          <CelebrationVisual visual={visual} accent={a} animation={animation} size="lg" className="mt-2" />
+        <div className="rp-no-scrollbar relative min-h-0 overflow-y-auto px-5 pb-5 pt-6 text-center sm:px-7">
+          {hero || <CelebrationVisual visual={visual} accent={a} animation={animation} size="lg" className="mt-2" />}
 
           {eyebrow && (
-            <p className="mt-4 text-[12.5px] font-extrabold uppercase tracking-[0.16em]" style={{ color: a.text }}>{eyebrow}</p>
+            <p className="rp-mh-rise mt-4 text-[12px] font-extrabold uppercase tracking-[0.16em]" style={{ color: a.text, '--d': `${base}ms` }}>
+              {eyebrow}
+            </p>
           )}
-          <h2 id={titleId} className="mt-1.5 text-[22px] font-black leading-tight text-[#14213D] sm:text-[24px]">{title}</h2>
-          <p id={descId} className="mx-auto mt-2 max-w-[360px] text-[15px] leading-6 text-[#4A5368]">{description}</p>
+          <h2 id={titleId} className="rp-mh-rise mt-1.5 text-[21px] font-black leading-tight text-rp-text sm:text-[23px]" style={{ '--d': `${base + 80}ms` }}>
+            {title}
+          </h2>
+          <p id={descId} className="rp-mh-rise mx-auto mt-2 max-w-[380px] text-[14.5px] leading-6 text-rp-text-2" style={{ '--d': `${base + 160}ms` }}>
+            {description}
+          </p>
 
           {chips.length > 0 && (
-            <div className="mt-3.5 flex flex-wrap justify-center gap-2">
-              {chips.map((c) => (
-                <span key={c} className="rp-jp rp-moment-chip max-w-full truncate rounded-full px-3.5 py-1.5 text-[13.5px] font-bold" style={{ background: a.soft, color: a.text }}>
-                  {c}
-                </span>
-              ))}
-            </div>
+            <ul className="mt-3.5 flex flex-wrap justify-center gap-2" aria-label={tr('Thông tin tóm tắt')}>
+              {chips.map((chip, i) => {
+                const item = typeof chip === 'string' ? { label: chip } : chip;
+                const ChipIcon = item.icon;
+                return (
+                  <li
+                    key={item.label}
+                    className="rp-mh-fact rp-jp inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold"
+                    style={{ background: a.soft, color: a.text, borderColor: `${a.from}33`, '--d': `${base + 260 + i * 90}ms` }}
+                  >
+                    {ChipIcon && <ChipIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+                    <span className="min-w-0 break-words">{item.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
 
-          <button
-            type="button"
-            onClick={onCta}
-            className="rp-focus rp-streak-cta relative mt-5 flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl text-[17px] font-extrabold text-white"
-            style={{ backgroundImage: `linear-gradient(90deg, ${a.from}, ${a.to})`, boxShadow: `0 5px 0 ${a.edge}`, '--rp-cta-edge': a.edge }}
-          >
-            <span aria-hidden="true" className="rp-streak-cta-shine absolute inset-y-0 -left-1/3 w-1/3 skew-x-[-20deg] bg-gradient-to-r from-white/0 via-white/45 to-white/0" />
-            <span className="relative">{ctaLabel}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rp-focus mx-auto mt-2 block rounded-full px-5 py-2 text-[15px] font-bold text-[#6B7590] transition-[background-color,color,transform] duration-200 hover:-translate-y-px hover:bg-[#F3EFEA] hover:text-[#14213D] motion-reduce:transform-none"
-          >
-            {tr('Để sau')}
-          </button>
+          {children}
+
+          <div className="rp-mh-rise" style={{ '--d': `${base + 420 + chips.length * 60}ms` }}>
+            <button
+              type="button"
+              onClick={onCta}
+              className="rp-focus rp-pu-cta mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-[16px] font-extrabold text-white"
+              style={{
+                backgroundImage: `linear-gradient(90deg, ${a.from}, ${a.to})`,
+                boxShadow: `0 4px 0 ${a.edge}, 0 12px 22px -14px ${a.edge}`,
+                '--shine-d': `${base + 900}ms`,
+              }}
+            >
+              <span>{ctaLabel}</span>
+              {CtaIcon && <CtaIcon aria-hidden="true" className="h-4.5 w-4.5" />}
+            </button>
+            {extraAction && (
+              <button
+                type="button"
+                onClick={extraAction.onClick}
+                className="rp-focus mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl border border-rp-line bg-rp-surface px-4 text-[15px] font-bold text-rp-text transition-colors hover:border-rp-brand-border hover:text-rp-brand-strong"
+              >
+                {extraAction.label}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onSecondary || onClose}
+              className="rp-focus mx-auto mt-2 block rounded-full px-5 py-2 text-[14.5px] font-bold text-rp-text-muted transition-[background-color,color] duration-200 hover:bg-rp-muted hover:text-rp-text"
+            >
+              {secondaryLabel || tr('Để sau')}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

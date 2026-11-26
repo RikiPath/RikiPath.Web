@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { CalendarDays } from 'lucide-react';
 
 import SakuraCalendar from '@/features/scheduling/components/SakuraCalendar.jsx';
@@ -20,25 +20,20 @@ import {
   minutesFromClock,
 } from '@/features/scheduling/utils/slotPlannerModel.js';
 import { useMentorScheduleWorkspace } from '@/features/scheduling/hooks/useMentorScheduleWorkspace.js';
-import {
-  TEACHING_SESSION_STATUSES,
-  resolveTeachingSessionStatus,
-} from '@/features/scheduling/utils/teachingLifecycleModel.js';
+import { WORK_SCHEDULE_STATUS_OPTIONS } from '@/features/scheduling/utils/teachingLifecycleModel.js';
 import { useNow } from '@/hooks/useNow.js';
 import { useAuth } from '@/app/auth/authContext.js';
 import { backendUtcDate } from '@/utils/mentorSchedule.js';
 import { Banner, Button, ContextualErrorState, PageContainer, SakuraLoader, StaleDataBar } from '@/components/ui';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { useLocale } from '@/locales/locale.js';
 import { AdminShell, MentorShell } from '@/layouts';
 
 const WORK_STATUS_OPTIONS = Object.freeze(
-  TEACHING_SESSION_STATUSES
-    .filter((f) => f.id !== 'cancelled')
-    .map((f) => ({
-      id: f.id,
-      label: f.id === 'ALL' ? 'Tất cả trạng thái' : f.label,
-      dotClass: f.dot,
-    }))
+  WORK_SCHEDULE_STATUS_OPTIONS.map((f) => ({
+    id: f.id,
+    label: f.label,
+    dotClass: f.dot,
+  }))
 );
 
 const WORK_SORT_OPTIONS = Object.freeze([
@@ -73,18 +68,27 @@ function workStatusOrderRank(id) {
   switch (id) {
     case 'live': return 0;
     case 'upcoming': return 1;
-    case 'rescheduled': return 2;
-    case 'completed': return 3;
-    default: return 4;
+    case 'completed': return 2;
+    default: return 3;
   }
 }
 
+function formatDayKeyDdMmYyyy(dayKey) {
+  const parts = String(dayKey || '').split('-');
+  if (parts.length !== 3) return dayKey || '';
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
 export default function WorkSchedule() {
-  const { tr, trf, fmt } = useLocale();
+  const { tr, trf } = useLocale();
   const { pathname } = useLocation();
   const { id: targetBookingId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetCohortParam = searchParams.get('cohortId');
   const { user } = useAuth();
-  const isAdminViewer = String(user?.role || '').toLowerCase() === 'admin';
+  const normalizedRole = String(user?.role || '').trim().toLowerCase();
+  const isAdminViewer = normalizedRole === 'admin';
+  const isMentorViewer = normalizedRole === 'mentor';
   const nowMs = useNow();
   const todayKey = useMemo(() => toVnDateKey(new Date(nowMs)), [nowMs]);
   const [anchorKey, setAnchorKey] = useState(() => toVnDateKey(new Date()));
@@ -111,47 +115,40 @@ export default function WorkSchedule() {
     }
   }, [dateFilterMode]);
 
-  const workspace = useMentorScheduleWorkspace({ includeCalendarStatus: false });
+  const workspace = useMentorScheduleWorkspace({
+    includeCalendarStatus: false,
+    includeAvailability: false,
+    enabled: isMentorViewer,
+  });
   const {
     cohortsQuery,
     coursesQuery,
-    cohortSessions,
+    workScheduleSessions,
     policy,
   } = workspace;
 
   const scheduleError = cohortsQuery.error || coursesQuery.error;
-  const isInitialLoading = (cohortsQuery.isPending || coursesQuery.isPending)
+  const isInitialLoading = isMentorViewer
+    && (cohortsQuery.isPending || coursesQuery.isPending)
     && !cohortsQuery.data
     && !coursesQuery.data;
-  const isRefreshing = (cohortsQuery.isFetching || coursesQuery.isFetching) && !isInitialLoading;
+  const isRefreshing = isMentorViewer && (cohortsQuery.isFetching || coursesQuery.isFetching) && !isInitialLoading;
 
-  // Build actual scheduled/completed/rescheduled teaching sessions ONLY
-  // (never mix unbooked/pending/rejected registration availability slots or cancelled sessions)
+  // Official teaching sessions only (eligible approved classes after enrollment close with >= 1 confirmed learner)
   const teachingEvents = useMemo(() => {
     const list = [];
-    for (const cs of cohortSessions) {
-      if (!cs) continue;
+    for (const cs of workScheduleSessions) {
+      if (!cs || !cs.workStatus) continue;
       const startDate = backendUtcDate(cs.scheduledAt || cs.startTime);
       if (!startDate) continue;
       const mins = Number(cs.sessionMinutes) || policy?.sessionMinutes || 90;
-      const endDate = backendUtcDate(cs.endsAt || cs.endTime) || new Date(startDate.getTime() + mins * 60000);
+      const endDate = backendUtcDate(cs.endTime || cs.endsAt) || new Date(startDate.getTime() + mins * 60000);
       const dk = toVnDateKey(startDate);
       const startParts = toVnTimeParts(startDate);
       const endParts = toVnTimeParts(endDate);
-      const lifecycle = resolveTeachingSessionStatus({
-        status: cs.status,
-        cohortStatus: cs.cohortStatus,
-        sessionCompleted: Boolean(cs.sessionCompleted),
-        wasRescheduled: Boolean(cs.wasRescheduled || cs.rescheduled),
-        startMs: startDate.getTime(),
-        endMs: endDate.getTime(),
-        nowMs,
-      });
-      if (lifecycle.id === 'cancelled') continue;
-      const isCompleted = lifecycle.isCompleted;
-      const hasEndedWaitingConfirm = lifecycle.awaitingConfirmation;
+      const workStatus = cs.workStatus;
+      const isCompleted = workStatus.isCompleted;
 
-      const roomMatch = cs.meetingUrl?.match(/\/meeting-room\/([0-9a-f-]+)/i);
       const cohortTitle = cs.cohortName || tr('Lớp nhóm');
       const jlptLevelCode = extractJlptLevelCode(cs, cohortTitle);
       const cleanTitle = formatCleanCohortTitle(cohortTitle, cs.sessionNumber);
@@ -159,71 +156,85 @@ export default function WorkSchedule() {
         ? trf('Buổi {0}/{1}', { 0: cs.sessionNumber || 1, 1: cs.totalSessions })
         : trf('Buổi {0}', { 0: cs.sessionNumber || 1 });
       const cap = Number(cs.capacity || 0);
-      const enrolled = Number(cs.enrolledCount ?? cs.learnerNames?.length ?? 0);
-      const headcountLabel = cap > 0 ? trf('{0}/{1} học viên', { 0: enrolled, 1: cap }) : null;
+      const enrolled = Number(cs.confirmedEnrolledCount ?? cs.enrolledCount ?? 0);
+      const headcountLabel = cap > 0
+        ? trf('{0}/{1} học viên', { 0: enrolled, 1: cap })
+        : trf('{0} học viên', { 0: enrolled });
       const learnersLabel = (cs.learnerNames || []).join(', ');
       const att = cs.attendanceSummary;
-      const attendanceLabel = att && att.confirmedCount > 0
+      const attendanceLabel = isCompleted && att && att.confirmedCount > 0
         ? trf('{0}/{1} có mặt', { 0: att.presentCount, 1: att.totalRecords || att.confirmedCount })
         : null;
 
-      const statusText = lifecycle.label;
-      const tone = lifecycle.tone;
-      const cardDetail = [
-        headcountLabel,
-        learnersLabel ? trf('Học viên: {0}', { 0: learnersLabel }) : null,
-      ].filter(Boolean).join(' · ') || tr(statusText);
-
-      const joinStartMs = startDate.getTime() - 15 * 60000;
-      const joinEndMs = endDate.getTime() + 30 * 60000;
-      const canJoinRoom = Boolean(roomMatch) && !isCompleted && nowMs >= joinStartMs && nowMs <= joinEndMs;
+      const timeRange = `${startParts.hhmm}–${endParts.hhmm}`;
+      const statusText = workStatus.label;
       const cohortHref = cs.cohortId ? `/mentor-study-courses/${cs.cohortId}/` : '/mentor-study-courses/';
-      const roomHref = roomMatch ? `/meeting-room/${roomMatch[1]}` : null;
+      const roomHref = cs.roomHref || null;
+
+      let primaryHref = cohortHref;
+      let primaryLabel = 'Xem chi tiết lớp';
+      let secondaryHref;
+      let secondaryLabel;
+
+      if (workStatus.id === 'live' && roomHref) {
+        primaryHref = roomHref;
+        primaryLabel = 'Vào phòng học';
+        secondaryHref = cohortHref;
+        secondaryLabel = 'Xem chi tiết lớp';
+      } else if (workStatus.id === 'upcoming' && cs.canJoin && roomHref) {
+        primaryHref = roomHref;
+        primaryLabel = 'Tham gia phòng học';
+        secondaryHref = cohortHref;
+        secondaryLabel = 'Xem chi tiết lớp';
+      } else if (workStatus.id === 'completed' && attendanceLabel) {
+        secondaryHref = `${cohortHref}?tab=sessions`;
+        secondaryLabel = 'Kết quả điểm danh';
+      }
 
       list.push({
         id: `work-${cs.id}`,
+        availabilityId: cs.availabilityId ?? null,
         cohortId: cs.cohortId,
         jlptLevelCode,
         cohortName: cohortTitle,
         learnersLabel,
         startMs: startDate.getTime(),
-        sessionLifecycleId: lifecycle.id,
+        sessionLifecycleId: workStatus.id,
         sessionCompleted: isCompleted,
-        isUpcoming: lifecycle.id === 'upcoming' || lifecycle.id === 'live',
+        isUpcoming: workStatus.id === 'upcoming' || workStatus.id === 'live',
+        eventType: 'session',
+        minimalDetail: true,
         dayKey: dk,
         startHour: startParts.hour,
         startMinute: startParts.minute,
         endHour: endParts.hour,
         endMinute: endParts.minute,
-        detailTime: `${startParts.hhmm}–${endParts.hhmm}`,
+        detailTime: timeRange,
         title: cleanTitle,
-        fullTitle: `${cohortTitle} · ${sessionLabel}`,
-        detail: cardDetail,
+        fullTitle: cleanTitle,
+        detail: headcountLabel,
+        tooltip: `${cleanTitle} · ${timeRange} · ${headcountLabel} · ${tr(statusText)}`,
         statusLabel: statusText,
-        tone,
-        href: canJoinRoom && roomHref ? roomHref : cohortHref,
-        hrefLabel: canJoinRoom && roomHref ? 'Vào phòng dạy' : 'Mở lớp phụ trách',
-        secondaryHref: canJoinRoom && roomHref ? cohortHref : undefined,
-        secondaryLabel: canJoinRoom && roomHref ? 'Quản lý lớp & điểm danh' : undefined,
+        tone: workStatus.tone,
+        href: primaryHref,
+        hrefLabel: primaryLabel,
+        secondaryHref,
+        secondaryLabel,
         metaRows: [
-          { label: 'Trạng thái', value: tr(statusText) },
-          { label: 'Lớp học', value: cohortTitle },
+          { label: 'Tên lớp', value: cohortTitle },
           jlptLevelCode && { label: 'Cấp độ JLPT', value: jlptLevelCode },
-          { label: 'Thứ tự buổi', value: sessionLabel },
-          {
-            label: 'Thời gian',
-            value: `${startDate.toLocaleDateString(currentIntlTag(), { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })} · ${startParts.hhmm}–${endParts.hhmm} (${fmt.duration(mins)})`,
-          },
-          headcountLabel && { label: 'Sĩ số', value: headcountLabel },
-          learnersLabel && { label: 'Học viên', value: learnersLabel },
-          attendanceLabel && { label: 'Kết quả điểm danh', value: attendanceLabel },
-          hasEndedWaitingConfirm && { label: 'Ghi chú', value: tr('Chờ xác nhận hoàn thành buổi học trong mục điểm danh lớp') },
+          { label: 'Buổi học', value: sessionLabel },
+          { label: 'Ngày học', value: formatDayKeyDdMmYyyy(dk) },
+          { label: 'Khung giờ', value: timeRange },
+          { label: 'Thời lượng', value: trf('{0} phút', { 0: mins }) },
+          { label: 'Sĩ số', value: headcountLabel },
+          attendanceLabel && { label: 'Điểm danh', value: attendanceLabel },
         ].filter(Boolean),
-        z: isCompleted ? 2 : 3,
+        z: isCompleted ? 2 : workStatus.id === 'live' ? 4 : 3,
       });
     }
     return list;
-  }, [cohortSessions, policy?.sessionMinutes, nowMs, tr, trf, fmt]);
+  }, [workScheduleSessions, policy?.sessionMinutes, tr, trf]);
 
   const effectiveDateRange = useMemo(() => {
     if (dateFilterMode === 'upcoming') {
@@ -261,7 +272,7 @@ export default function WorkSchedule() {
     }
     const dayparts = policy?.dayparts || [
       { code: 'Morning', label: 'Buổi sáng', localStart: '07:00', localEnd: '11:00', startMin: 420, endMin: 660 },
-      { code: 'Noon', label: 'Buổi trưa', localStart: '11:00', localEnd: '14:00', startMin: 660, endMin: 840 },
+      { code: 'Noon', label: 'Buổi trưa', localStart: '11:00', localEnd: '13:00', startMin: 660, endMin: 780 },
       { code: 'Afternoon', label: 'Buổi chiều', localStart: '13:00', localEnd: '18:00', startMin: 780, endMin: 1080 },
       { code: 'Evening', label: 'Buổi tối', localStart: '18:00', localEnd: '22:00', startMin: 1080, endMin: 1320 },
     ];
@@ -287,7 +298,7 @@ export default function WorkSchedule() {
       const fEnd = effectiveTimeRange.endMin ?? 24 * 60;
       const evStart = (ev.startHour || 0) * 60 + (ev.startMinute || 0);
       let evEnd = (ev.endHour || 0) * 60 + (ev.endMinute || 0);
-      if (evEnd <= evStart) evEnd = Math.min(24 * 60, evStart + 90);
+      if (evEnd <= evStart) evEnd = Math.min(24 * 60, evStart + Number(policy?.sessionMinutes || 90));
       if (!(evStart < fEnd && evEnd > fStart)) return false;
     }
     const q = String(searchQuery || '').trim().toLowerCase();
@@ -303,13 +314,25 @@ export default function WorkSchedule() {
     [teachingEvents, matchesNonStatusFilters]
   );
 
+  const activeViewRange = useMemo(
+    () => (dateFilterMode === 'view' && !isListView ? getViewDateRange(anchorKey, calendarView) : null),
+    [dateFilterMode, isListView, anchorKey, calendarView],
+  );
+
+  const countSourceEvents = useMemo(
+    () => (activeViewRange
+      ? nonStatusFilteredEvents.filter((ev) => ev.dayKey >= activeViewRange.startKey && ev.dayKey <= activeViewRange.endKey)
+      : nonStatusFilteredEvents),
+    [activeViewRange, nonStatusFilteredEvents],
+  );
+
   const counts = useMemo(() => {
-    const out = { ALL: nonStatusFilteredEvents.length, upcoming: 0, live: 0, completed: 0, rescheduled: 0 };
-    for (const ev of nonStatusFilteredEvents) {
+    const out = { ALL: countSourceEvents.length, upcoming: 0, live: 0, completed: 0 };
+    for (const ev of countSourceEvents) {
       if (out[ev.sessionLifecycleId] != null) out[ev.sessionLifecycleId] += 1;
     }
     return out;
-  }, [nonStatusFilteredEvents]);
+  }, [countSourceEvents]);
 
   const visibleEvents = useMemo(() => {
     const filtered = sessionFilter === 'ALL'
@@ -353,14 +376,21 @@ export default function WorkSchedule() {
         return String(a.id).localeCompare(String(b.id));
       }
 
-      // Default 'smart': live/upcoming nearest first, then completed/past most recent first
-      const rankA = a.sessionLifecycleId === 'live' ? 0 : a.sessionLifecycleId === 'upcoming' ? 1 : a.sessionLifecycleId === 'rescheduled' ? 2 : 3;
-      const rankB = b.sessionLifecycleId === 'live' ? 0 : b.sessionLifecycleId === 'upcoming' ? 1 : b.sessionLifecycleId === 'rescheduled' ? 2 : 3;
+      // Default 'smart': live first, then upcoming nearest first, then completed most recent first
+      const rankA = a.sessionLifecycleId === 'live' ? 0 : a.sessionLifecycleId === 'upcoming' ? 1 : 2;
+      const rankB = b.sessionLifecycleId === 'live' ? 0 : b.sessionLifecycleId === 'upcoming' ? 1 : 2;
       if (rankA !== rankB) return rankA - rankB;
-      if (rankA <= 2) return ta - tb;
+      if (rankA <= 1) return ta - tb;
       return tb - ta;
     });
   }, [nonStatusFilteredEvents, sessionFilter, sortBy, sortDirection]);
+
+  const activeFilterCount = useMemo(
+    () => (sessionFilter === 'ALL'
+      ? countSourceEvents.length
+      : countSourceEvents.filter((ev) => ev.sessionLifecycleId === sessionFilter).length),
+    [countSourceEvents, sessionFilter],
+  );
 
   const activeExtraFilterCount = useMemo(() => {
     let c = 0;
@@ -453,20 +483,29 @@ export default function WorkSchedule() {
       timeFilterLabel={effectiveTimeRange?.label || ''}
       onClearTime={() => setTimeFilterCode('ALL')}
       onResetAll={resetAllFilters}
-      totalFilteredCount={visibleEvents.length}
+      totalFilteredCount={activeFilterCount}
     />
   );
 
+  const requestedTargetId = targetBookingId || targetCohortParam || null;
+  const matchingTargetEvent = useMemo(() => {
+    if (!requestedTargetId) return null;
+    return teachingEvents.find(
+      (ev) => String(ev.id) === `work-${requestedTargetId}`
+        || String(ev.availabilityId) === String(requestedTargetId)
+        || String(ev.cohortId) === String(requestedTargetId),
+    ) || null;
+  }, [requestedTargetId, teachingEvents]);
+
   const [resolvedTargetId, setResolvedTargetId] = useState(null);
-  if (targetBookingId && resolvedTargetId !== targetBookingId) {
-    const match = teachingEvents.find(
-      (ev) => String(ev.id) === `work-${targetBookingId}` || String(ev.cohortId) === String(targetBookingId),
-    );
-    if (match?.dayKey) {
-      setAnchorKey(match.dayKey);
-      setResolvedTargetId(targetBookingId);
-    }
+  if (requestedTargetId && matchingTargetEvent?.dayKey && resolvedTargetId !== requestedTargetId) {
+    setAnchorKey(matchingTargetEvent.dayKey);
+    setResolvedTargetId(requestedTargetId);
   }
+
+  const unauthorizedTarget = Boolean(
+    isMentorViewer && requestedTargetId && !isInitialLoading && !scheduleError && !matchingTargetEvent,
+  );
 
   const Shell = isAdminViewer ? AdminShell : MentorShell;
   if (isAdminViewer) {
@@ -489,6 +528,26 @@ export default function WorkSchedule() {
     );
   }
 
+  if (!isMentorViewer) {
+    return (
+      <MentorShell pathname={pathname} breadcrumb={tr('Lịch làm việc')}>
+        <div className="rp-container py-6">
+          <Banner
+            tone="warning"
+            title={tr('Không có quyền truy cập Lịch làm việc')}
+            actions={(
+              <Button as={Link} to="/" variant="primary" size="sm">
+                {tr('Về trang chủ')}
+              </Button>
+            )}
+          >
+            {tr('Trang Lịch làm việc chỉ dành cho Giáo viên xem và quản lý các buổi giảng dạy thuộc quyền phụ trách.')}
+          </Banner>
+        </div>
+      </MentorShell>
+    );
+  }
+
   const hasActiveFilters = sessionFilter !== 'ALL' || activeExtraFilterCount > 0;
 
   return (
@@ -501,6 +560,26 @@ export default function WorkSchedule() {
         className="pt-2.5 pb-1.5 text-rp-text space-y-2"
       >
         <h1 className="sr-only">{tr('Lịch làm việc')}</h1>
+
+        {unauthorizedTarget && (
+          <Banner
+            tone="warning"
+            title={tr('Không tìm thấy buổi giảng dạy thuộc quyền phụ trách')}
+            actions={(
+              <Button
+                as={Link}
+                to="/work-schedule/"
+                onClick={() => setSearchParams({}, { replace: true })}
+                size="sm"
+                variant="outline"
+              >
+                {tr('Xem toàn bộ lịch làm việc')}
+              </Button>
+            )}
+          >
+            {tr('Lớp học không thuộc quyền phụ trách của bạn, chưa kết thúc tuyển sinh hoặc không còn buổi giảng dạy hợp lệ.')}
+          </Banner>
+        )}
 
         {isInitialLoading ? (
           <SakuraLoader variant="section" context="calendar" label={tr('Đang tải lịch làm việc')} delay={160} />
@@ -552,14 +631,10 @@ export default function WorkSchedule() {
               belowToolbar={activeFilterBar}
               emptyTitle={
                 hasActiveFilters
-                  ? 'Không có buổi dạy nào khớp bộ lọc hiện tại.'
-                  : 'Bạn chưa có buổi dạy nào được xếp lớp.'
+                  ? 'Không có lịch giảng dạy phù hợp với bộ lọc.'
+                  : 'Chưa có lịch giảng dạy.'
               }
-              emptyDescription={
-                hasActiveFilters
-                  ? 'Hãy điều chỉnh hoặc xóa bộ lọc để xem toàn bộ lịch giảng dạy của bạn.'
-                  : 'Bạn có thể đăng ký thêm khung giờ trống trong mục Đăng ký lịch dạy.'
-              }
+              emptyDescription=""
             />
           </>
         )}

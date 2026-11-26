@@ -77,7 +77,7 @@ export default function MentorDirectory() {
           tone="sakura"
           eyebrow={tr('Học cùng Giáo viên')}
           title={tr('Chọn Giáo viên đồng hành')}
-          description={tr('Xem hồ sơ Giáo viên, các lớp nhóm đang mở đăng ký và chọn cường độ phù hợp với lịch của bạn. Mỗi lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.')}
+          description={tr('Xem hồ sơ Giáo viên, các lớp nhóm đang mở tuyển sinh và chọn lịch học phù hợp với kế hoạch của bạn.')}
         />
 
         {showDirectoryToolbar && (

@@ -99,6 +99,26 @@ export function pushToast({
 
   if (!trTitle && !trMessage) return null;
 
+  // Prune finite-duration toasts whose display window has already elapsed so stale
+  // auto-dismissed entries never permanently block future toasts with the same key.
+  if (
+    toasts.some(
+      (t) =>
+        Number.isFinite(t.expiresAt)
+        && now >= t.createdAt
+        && (now - t.createdAt) < 10_000_000_000
+        && t.expiresAt <= now,
+    )
+  ) {
+    toasts = toasts.filter(
+      (t) =>
+        !Number.isFinite(t.expiresAt)
+        || now < t.createdAt
+        || (now - t.createdAt) >= 10_000_000_000
+        || t.expiresAt > now,
+    );
+  }
+
   const dedupeKey = key || `${tone}|${trTitle}|${trMessage}`;
   const existingIndex = id
     ? toasts.findIndex((t) => t.id === id)
@@ -129,6 +149,8 @@ export function pushToast({
     message: trMessage,
     action: trAction,
     duration: resolvedDuration,
+    createdAt: now,
+    expiresAt: Number.isFinite(resolvedDuration) && resolvedDuration > 0 ? now + resolvedDuration : Infinity,
   };
 
   if (existingIndex >= 0) {
@@ -169,6 +191,18 @@ export function dismissToast(idOrKey) {
   toasts = toasts.filter((t) => t.id !== target.id);
   emit();
   toastEngine?.dismiss?.(target.id);
+}
+
+/**
+ * Sync store state when react-hot-toast auto-dismisses a toast after its duration elapses
+ * (does not call toastEngine.dismiss so the exit animation plays cleanly).
+ */
+export function releaseToast(id) {
+  if (!id) return;
+  if (!toasts.some((t) => t.id === id)) return;
+  clearLoadingSafetyTimer(id);
+  toasts = toasts.filter((t) => t.id !== id);
+  emit();
 }
 
 export function clearToasts() {

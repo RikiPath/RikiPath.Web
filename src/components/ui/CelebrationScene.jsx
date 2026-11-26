@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Flame, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, Flame, Sparkles, Trophy, X } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
 import { cx } from './cx.js';
 import { Badge, Card, ProgressBar } from './core.jsx';
-import { HaruMascot } from './states.jsx';
 import {
   markCelebratedOnce,
   prefersReducedMotion,
@@ -31,14 +30,6 @@ const CARD_PETALS = [
   HERO_PETALS[8],
   HERO_PETALS[9],
 ];
-
-const POSE_FOR_TIER = {
-  goal: 'celebrating',
-  assessment: 'celebrating',
-  lesson: 'greeting',
-  stage: 'achievement',
-  milestone: 'achievement',
-};
 
 export function SakuraPetalEffect({ active = true, side = 'both', density = 'card', className }) {
   if (!active || prefersReducedMotion()) return null;
@@ -82,20 +73,22 @@ export function SakuraPetalEffect({ active = true, side = 'both', density = 'car
 }
 
 export function HaruAchievement({
-  tier = 'goal',
-  pose,
   size = 120,
   showCheck = true,
   className,
 }) {
-  const resolvedPose = pose || POSE_FOR_TIER[tier] || 'celebrating';
   return (
-    <div className={cx('relative inline-flex shrink-0 items-center justify-center', className)}>
+    <div
+      className={cx('relative inline-flex shrink-0 items-center justify-center', className)}
+      style={{ width: size, height: size }}
+    >
       <div
         aria-hidden="true"
         className="rp-celebrate-halo absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(255,220,232,0.88)_0%,rgba(250,212,222,0.42)_54%,transparent_78%)] ring-1 ring-rp-brand-border/50"
       />
-      <HaruMascot pose={resolvedPose} size={size} halo={false} className="relative" />
+      <div className="relative flex h-3/4 w-3/4 items-center justify-center rounded-full border border-rp-brand-border bg-white text-rp-brand shadow-rp-md">
+        <Trophy aria-hidden="true" className="h-1/2 w-1/2" />
+      </div>
       {showCheck && (
         <span
           aria-hidden="true"
@@ -385,15 +378,16 @@ export function CelebrationScene({
             )}
           </div>
 
-          <HaruAchievement
-            tier={tier}
-            size={isFullscreen ? 132 : 108}
-            showCheck={tier !== 'assessment'}
+          <div
             className={cx(
+              'flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-2 border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong shadow-rp-sm',
               (isFullscreen || isOverlay) && 'order-first',
               playMotion && 'rp-celebrate-stagger',
             )}
-          />
+            aria-hidden="true"
+          >
+            {tier === 'assessment' ? <Sparkles className="h-10 w-10" /> : <Trophy className="h-10 w-10" />}
+          </div>
         </div>
 
         {children && (

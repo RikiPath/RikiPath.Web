@@ -10,7 +10,7 @@ export default function ContentLibrary() {
       page="ContentLibrary"
       breadcrumb="Ngữ pháp"
       title="Ngữ pháp"
-      hint="Các mẫu ngữ pháp đã được Admin duyệt và gắn theo từng cấp độ."
+      hint="Các mẫu ngữ pháp đã được Quản trị viên duyệt và gắn theo từng cấp độ."
       feature="grammar"
       manualType="Grammar"
       endpoint="/SharedBank/grammar/search"

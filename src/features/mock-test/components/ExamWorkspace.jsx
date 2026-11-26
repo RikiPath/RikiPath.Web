@@ -18,6 +18,7 @@ import {
   Card,
   Drawer,
   ProgressBar,
+  RichQuestionText,
   Tabs,
   cx,
 } from '@/components/ui';
@@ -121,6 +122,10 @@ export default function ExamWorkspace({
   expiredSubmitLabel,
   onRequestSubmit,
   onExpiredSubmit,
+  onRequestExit,
+  exitLabel,
+  timerMode = 'strict',
+  extraBanner = null,
   initialMode = 'scroll',
 }) {
   const { tr, trf } = useLocale();
@@ -218,11 +223,9 @@ export default function ExamWorkspace({
               <span>{question.passageTitle || tr('Đoạn đọc hiểu')}</span>
             </summary>
             {question.passageInstructions && (
-              <p className="mt-2 text-xs italic text-rp-text-muted">{question.passageInstructions}</p>
+              <RichQuestionText as="p" text={question.passageInstructions} className="mt-2 block text-xs italic text-rp-text-muted" />
             )}
-            <div className="rp-jp mt-2 whitespace-pre-wrap text-[14.5px] leading-7 text-rp-text">
-              {resolvedPassageText}
-            </div>
+            <RichQuestionText as="div" text={resolvedPassageText} className="rp-jp mt-2 whitespace-pre-wrap text-[14.5px] leading-7 text-rp-text" />
             {question.passageImageUrl && (
               <img
                 src={question.passageImageUrl}
@@ -233,9 +236,7 @@ export default function ExamWorkspace({
           </details>
         )}
 
-        <p className="whitespace-pre-wrap text-[15px] font-medium leading-7 text-rp-text">
-          {question.content}
-        </p>
+        <RichQuestionText as="p" text={question.content} className="whitespace-pre-wrap text-[15px] font-medium leading-7 text-rp-text" />
 
         {question.imageUrl && (
           <img
@@ -378,26 +379,46 @@ export default function ExamWorkspace({
           </div>
         </div>
 
-        {/* Sliding Mode Toggle: Danh sách cuộn vs Từng câu một */}
-        <Tabs
-          variant="pill"
-          tone="segmented"
-          size="md"
-          label={tr('Chế độ làm bài')}
-          value={mode}
-          onChange={setMode}
-          tabs={[
-            { value: 'scroll', label: 'Danh sách cuộn', icon: ListChecks },
-            { value: 'single', label: 'Từng câu một', icon: Layers },
-          ]}
-        />
+        {/* Sliding Mode Toggle + Exit button */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs
+            variant="pill"
+            tone="segmented"
+            size="md"
+            label={tr('Chế độ làm bài')}
+            value={mode}
+            onChange={setMode}
+            tabs={[
+              { value: 'scroll', label: 'Danh sách cuộn', icon: ListChecks },
+              { value: 'single', label: 'Từng câu một', icon: Layers },
+            ]}
+          />
+          {typeof onRequestExit === 'function' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={pending}
+              onClick={onRequestExit}
+            >
+              {exitLabel || tr('Thoát bài')}
+            </Button>
+          )}
+        </div>
       </Card>
+
+      {extraBanner}
 
       {/* Mobile Compact Sticky Bar (< lg) */}
       <div className="sticky top-[calc(var(--rp-sticky-top-offset)+6px)] z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-surface/95 px-3 py-2 shadow-rp-card backdrop-blur lg:hidden">
         <div className="flex items-center gap-2.5 text-xs font-semibold tabular-nums">
           {clockLabel != null && (
-            <Badge tone={isUrgent ? 'danger' : 'brand'} icon={Clock} size="sm" className="tabular-nums">
+            <Badge
+              tone={timerMode === 'advisory' ? 'neutral' : isUrgent ? 'danger' : 'brand'}
+              icon={Clock}
+              size="sm"
+              className="tabular-nums"
+            >
               {clockLabel}
             </Badge>
           )}
@@ -512,13 +533,13 @@ export default function ExamWorkspace({
             <div className="flex items-center justify-between gap-2 border-b border-rp-line pb-3">
               <span className="flex items-center gap-1.5 text-sm font-semibold text-rp-text">
                 <Clock aria-hidden="true" className="h-4 w-4 text-rp-brand-strong" />
-                {tr('Thời gian còn lại')}
+                {timerMode === 'advisory' ? tr('Thời gian đã làm') : tr('Thời gian còn lại')}
               </span>
               <Badge
-                tone={isUrgent ? 'danger' : 'brand'}
+                tone={timerMode === 'advisory' ? 'neutral' : isUrgent ? 'danger' : 'brand'}
                 icon={false}
                 size="md"
-                aria-label={tr('Thời gian còn lại')}
+                aria-label={timerMode === 'advisory' ? tr('Thời gian đã làm') : tr('Thời gian còn lại')}
                 className="tabular-nums font-bold"
               >
                 {clockLabel}

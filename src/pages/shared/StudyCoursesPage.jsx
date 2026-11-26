@@ -6,19 +6,15 @@ import { IllustratedPageHeader } from '@/features/learner-ui';
 import { recordDiagnostic } from '@/api/diagnostics.js';
 import HoldCountdown from '@/features/checkout/components/HoldCountdown.jsx';
 import {
-  cancelCohortEnrollment,
   courseGet,
   coursePost,
-  getAdminAvailabilitySlots,
   getCohortHomework,
   getCohorts,
   getCourseCompletionSummary,
   getMentorLearnerSkillProfile,
   getMyEntitlements,
-  INTENSITY_OPTIONS,
   openRetakeEvidence,
   reconcileCoursePayment,
-  saveCoursePlan,
   saveRetakeSupportPlan,
   uploadRetakeEvidence,
 } from '@/features/cohorts/api/cohortApi';
@@ -33,14 +29,14 @@ import AdminMentorReplacementPanel from '@/features/cohorts/components/AdminMent
 import LearnerCohortTransferPanel from '@/features/cohorts/components/LearnerCohortTransferPanel';
 import CohortHomeworkPanel from '@/features/homework/components/CohortHomeworkPanel';
 import CohortCompletionSummary from '@/features/cohorts/components/CohortCompletionSummary';
+import CohortMentorReviewSection from '@/features/cohorts/components/CohortMentorReviewSection.jsx';
 import CohortComplaintPanel from '@/features/complaints/components/CohortComplaintPanel';
 import CohortScheduleRequestPanel from '@/features/scheduling/components/CohortScheduleRequestPanel';
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
 import LearnerCohortDiscoveryPanel from '@/features/cohorts/components/LearnerCohortDiscoveryPanel';
-import { courseHasStarted } from '@/features/cohorts/utils/completionHelpers';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import './studyCourses.css';
-import { useLocale, currentIntlTag, translateText } from '@/locales/locale.js';
+import { useLocale, translateText } from '@/locales/locale.js';
 
 const labels = {
   PendingPayment: 'Chờ thanh toán',
@@ -50,7 +46,7 @@ const labels = {
   Cancelled: 'Đã hủy',
   PaymentFailed: 'Thanh toán không thành công',
   PaymentExpired: 'Thanh toán hết hạn',
-  PaymentReview: 'Đã nhận thanh toán – chờ Admin xử lý',
+  PaymentReview: 'Đã nhận thanh toán – chờ Quản trị viên xử lý',
   Scheduled: 'Chờ học',
   Present: 'Có mặt',
   Absent: 'Vắng',
@@ -66,25 +62,7 @@ const labels = {
 const show = (value) => translateText(labels[value] || value);
 const date = (value) => (value ? formatVnDateTime(value, '—') : '—');
 const utc = (value) => new Date(value).toISOString();
-const money = (value) => `${Number(value || 0).toLocaleString(currentIntlTag())} ₫`;
-const DEFAULT_COURSE_WEEKS = 10;
-const DEFAULT_SESSION_MINUTES = 90;
 const errText = (e) => describeApiError(e).message;
-const blankPlan = {
-  name: '',
-  certificateLevelId: '',
-  durationMonths: 3,
-  intensity: 'Standard',
-  sessionsPerWeek: 3,
-  sessionMinutes: DEFAULT_SESSION_MINUTES,
-  totalSessions: DEFAULT_COURSE_WEEKS * 3,
-  retakeClaimDays: '',
-  price: '',
-  isPublished: false,
-  revision: 1,
-  sessionType: 'Group',
-  capacity: 4,
-};
 
 function Field({ title, children }) {
   const { tr } = useLocale();
@@ -151,12 +129,9 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
 
   const [tab, setTab] = useState(learner ? (initialPayOsReturn.hasCallback ? 'my-courses' : 'cohorts') : 'manage');
   const [courses, setCourses] = useState([]);
-  const [plans, setPlans] = useState([]);
-  const [levels, setLevels] = useState([]);
   const [mentors, setMentors] = useState([]);
   const [cohorts, setCohorts] = useState([]);
   const [myEntitlements, setMyEntitlements] = useState([]);
-  const [adminSlots, setAdminSlots] = useState([]);
   const [cohortHomework, setCohortHomework] = useState([]);
   const [homeworkLoading, setHomeworkLoading] = useState(false);
   const [homeworkError, setHomeworkError] = useState(null);
@@ -164,8 +139,6 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
   const [skillProfile, setSkillProfile] = useState(null);
   const [skillProfileError, setSkillProfileError] = useState(null);
   const [selected, setSelected] = useState(() => (initialPayOsReturn.courseId > 0 ? initialPayOsReturn.courseId : null));
-  const [plan, setPlan] = useState(blankPlan);
-  const [cancelReason, setCancelReason] = useState('');
   const [supportDrafts, setSupportDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -215,30 +188,6 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
     };
   }, [admin]);
 
-  const courseWeeks = Number(groupPolicy?.courseDurationWeeks) || DEFAULT_COURSE_WEEKS;
-  const policySessionMinutes = Number(groupPolicy?.sessionMinutes) || DEFAULT_SESSION_MINUTES;
-  const allowedSpw = useMemo(() => {
-    const parsed = String(groupPolicy?.allowedSessionsPerWeekCsv || '')
-      .split(',')
-      .map((x) => Number(x.trim()))
-      .filter((n) => Number.isInteger(n) && n > 0);
-    return parsed.length ? parsed : [2, 3, 4];
-  }, [groupPolicy]);
-  const intensityOptions = INTENSITY_OPTIONS.filter((o) => allowedSpw.includes(o.sessionsPerWeek));
-  const recommendedSpw = Number(groupPolicy?.defaultSessionsPerWeek) || 3;
-  const applyIntensity = (intensity) =>
-    setPlan((p) => {
-      const opt = INTENSITY_OPTIONS.find((o) => o.value === intensity);
-      if (!opt) return { ...p, intensity };
-      return {
-        ...p,
-        intensity,
-        sessionsPerWeek: opt.sessionsPerWeek,
-        totalSessions: courseWeeks * opt.sessionsPerWeek,
-        sessionMinutes: policySessionMinutes,
-      };
-    });
-
   const current = courses.find((c) => c.id === selected) || courses[0] || null;
   const currentCohort = useMemo(
     () => (current?.cohortId ? cohorts.find((g) => g.id === current.cohortId) || null : null),
@@ -250,26 +199,20 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
   );
 
   async function fetchSnapshot() {
-    const [c, p, l, ch, m, ent, slots] = await Promise.all([
+    const [c, ch, m, ent] = await Promise.all([
       courseGet(),
-      courseGet('/plans'),
-      courseGet('/catalog'),
       getCohorts(),
       admin ? courseGet('/mentors') : Promise.resolve([]),
       learner ? getMyEntitlements() : Promise.resolve([]),
-      admin ? getAdminAvailabilitySlots() : Promise.resolve([]),
     ]);
-    return { c, p, l, ch, m, ent, slots };
+    return { c, ch, m, ent };
   }
 
-  function applySnapshot({ c, p, l, ch, m, ent, slots }) {
+  function applySnapshot({ c, ch, m, ent }) {
     setCourses(c);
-    setPlans(p);
-    setLevels(l);
     setCohorts(ch);
     setMentors(m);
     setMyEntitlements(ent);
-    setAdminSlots(slots);
     setSelected((cur) => (cur && c.some((x) => x.id === cur) ? cur : c[0]?.id || null));
   }
 
@@ -282,23 +225,17 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
     let alive = true;
     Promise.all([
       courseGet(),
-      courseGet('/plans'),
-      courseGet('/catalog'),
       getCohorts(),
       admin ? courseGet('/mentors') : Promise.resolve([]),
       learner ? getMyEntitlements() : Promise.resolve([]),
-      admin ? getAdminAvailabilitySlots() : Promise.resolve([]),
     ])
-      .then(([c, p, l, ch, m, ent, slots]) => {
+      .then(([c, ch, m, ent]) => {
         if (!alive) return;
         setLoadError(null);
         setCourses(c);
-        setPlans(p);
-        setLevels(l);
         setCohorts(ch);
         setMentors(m);
         setMyEntitlements(ent);
-        setAdminSlots(slots);
         setSelected((cur) => (cur && c.some((x) => x.id === cur) ? cur : c[0]?.id || null));
       })
       .catch((e) => {
@@ -370,7 +307,6 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
 
   const activeCompletion = completion && current && completion.courseId === current.id ? completion : null;
   const completionMentors = activeCompletion?.data?.mentors || (current?.mentorId ? [{ mentorId: current.mentorId, mentorName: current.mentorName }] : []);
-  const currentStarted = courseHasStarted(current, nowMs);
   const mentorCohorts = useMemo(() => {
     if (!mentor) return [];
     const ids = new Set(courses.map((c) => c.cohortId).filter(Boolean));
@@ -521,12 +457,6 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
   }
 
   const post = (path, body, message) => action(() => coursePost(`/${current.id}${path}`, body), message);
-  const changePlan = (key, value) =>
-    setPlan((p) => {
-      if (key !== 'sessionsPerWeek') return { ...p, [key]: value };
-      const match = INTENSITY_OPTIONS.find((o) => o.sessionsPerWeek === Number(value));
-      return { ...p, sessionsPerWeek: value, intensity: match ? match.value : 'Custom' };
-    });
 
   return (
     <Shell breadcrumb={learner ? tr('Lớp học nhóm') : mentor ? tr('Quản lý lớp nhóm') : tr('Gói học, lớp & ghi danh')}>
@@ -536,7 +466,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
             icon="group"
             tone="sky"
             className="mb-3"
-            eyebrow={tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}
+            eyebrow={tr('Lớp học nhóm cố định theo chính sách hiện hành')}
             title={tr('Lớp ôn JLPT & Khóa học của tôi')}
             description={tr('Học theo lớp nhóm cố định · Điểm danh, bài tập chung và bài tập cá nhân, hỗ trợ ôn lại JLPT minh bạch.')}
             actions={
@@ -556,7 +486,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
             <div className="flex items-start gap-3">
               <FeatureIcon feature="mentor" size="lg" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand">{tr('Học nhóm · 10 tuần · 90 phút/buổi · 1–4 học viên')}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-rp-brand">{tr('Lớp học nhóm cố định theo chính sách hiện hành')}</p>
                 <h1>{admin ? tr('Quản lý Lớp nhóm, Quyền & Khóa JLPT') : tr('Lớp phụ trách & bài tập về nhà')}</h1>
                 <p className="course-meta">{tr('Học theo lớp nhóm cố định · Điểm danh, bài tập chung và bài tập cá nhân, hỗ trợ ôn lại JLPT minh bạch.')}</p>
               </div>
@@ -636,131 +566,16 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
             {admin && (
               <>
                 <AdminCohortConsolePanel
-                  plans={plans}
                   cohorts={cohorts}
-                  mentors={mentors}
-                  adminSlots={adminSlots}
+                  courses={courses}
+                  groupPolicy={groupPolicy}
                   busy={busy}
-                  onRun={action}
                 />
                 <AdminCohortScheduleRequestsPanel busy={busy} onRun={action} />
                 <AdminCohortTransferQueuePanel busy={busy} onRun={action} />
                 <AdminCohortComplaintsPanel busy={busy} onRun={action} />
                 <AdminMentorReplacementPanel cohorts={cohorts} mentors={mentors} busy={busy} onRun={action} />
-                <section className="course-box">
-                  <h2>{tr('Cấu hình gói khóa học')}</h2>
-                  <Form
-                    title={plan.id ? trf('Sửa gói #{0}', { 0: plan.id }) : tr('Tạo gói mới')}
-                    busy={busy}
-                    submit={() =>
-                      action(async () => {
-                        await saveCoursePlan({
-                          ...plan,
-                          intensity: plan.intensity || 'Custom',
-                          certificateLevelId: Number(plan.certificateLevelId),
-                          durationMonths: Number(plan.durationMonths),
-                          sessionsPerWeek: Number(plan.sessionsPerWeek),
-                          sessionMinutes: plan.sessionMinutes === '' ? null : Number(plan.sessionMinutes),
-                          totalSessions: plan.totalSessions === '' ? null : Number(plan.totalSessions),
-                          retakeClaimDays: plan.retakeClaimDays === '' ? null : Number(plan.retakeClaimDays),
-                          price: Number(plan.price || 0),
-                          capacity: Number(plan.capacity || 1),
-                        });
-                        setPlan({ ...blankPlan });
-                      })
-                    }
-                  >
-                    <Field title={tr('Tên gói')}><input required maxLength={200} value={plan.name} onChange={(e) => changePlan('name', e.target.value)} /></Field>
-                    <Field title={tr('Loại lớp')}>
-                      <select value="Group" onChange={() => changePlan('sessionType', 'Group')}>
-                        <option value="Group">{tr('Lớp nhóm')}</option>
-                      </select>
-                    </Field>
-                    <Field title={tr('Cường độ học')}>
-                      <select value={plan.intensity || 'Custom'} onChange={(e) => applyIntensity(e.target.value)}>
-                        {intensityOptions.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {tr(o.label)} · {o.sessionsPerWeek}{' '}{tr('buổi/tuần')}{o.sessionsPerWeek === recommendedSpw ? tr(' (khuyến nghị)') : ''}
-                          </option>
-                        ))}
-                        <option value="Custom">{tr('Tùy chỉnh')}</option>
-                      </select>
-                    </Field>
-                    <p className="course-meta" style={{ flexBasis: '100%' }}>
-                      {tr('Khóa')}{' '}{courseWeeks}{' '}{tr('tuần ·')}{' '}{plan.sessionsPerWeek || '—'}{' '}{tr('buổi/tuần ·')}{' '}{plan.totalSessions || '—'}{' '}{tr('buổi ·')}{' '}
-                      {plan.sessionMinutes || '—'}{' '}{tr('phút/buổi')}
-                      {plan.totalSessions && plan.sessionMinutes ? trf(' · tổng {0} giờ', { 0: Math.round((Number(plan.totalSessions) * Number(plan.sessionMinutes)) / 6) / 10 }) : ''}
-                      {' '}{tr('(máy chủ kiểm tra lại theo chính sách hiện hành)')}
-                    </p>
-                    <Field title={tr('Sĩ số tối đa')}>
-                      <input type="number" min={1} max={20} value={plan.capacity ?? 1} onChange={(e) => changePlan('capacity', e.target.value)} />
-                    </Field>
-                    <Field title={tr('Cấp độ JLPT')}>
-                      <select required value={plan.certificateLevelId} onChange={(e) => changePlan('certificateLevelId', e.target.value)}>
-                        <option value="">{tr('Chọn cấp độ')}</option>
-                        {levels.map((l) => <option key={l.id} value={l.id}>{l.certificateType} · {l.code}</option>)}
-                      </select>
-                    </Field>
-                    {[
-                      ['durationMonths', 'Số tháng', 1, 36],
-                      ['sessionsPerWeek', 'Buổi/tuần', 1, 7],
-                      ['sessionMinutes', 'Phút/buổi', 15, 240],
-                      ['totalSessions', 'Tổng buổi', 1, 500],
-                      ['retakeClaimDays', 'Hạn yêu cầu JLPT (ngày)', 1, 730],
-                      ['price', 'Học phí (VND)', 0, 2147483647],
-                    ].map(([key, title, min, max]) => (
-                      <Field key={key} title={title}>
-                        <input
-                          type="number"
-                          min={min}
-                          max={max}
-                          required={key === 'durationMonths' || key === 'sessionsPerWeek'}
-                          value={plan[key] ?? ''}
-                          onChange={(e) => changePlan(key, e.target.value)}
-                        />
-                      </Field>
-                    ))}
-                    <label><input type="checkbox" checked={plan.isPublished} onChange={(e) => changePlan('isPublished', e.target.checked)} />{' '}{tr('Mở bán')}</label>
-                  </Form>
-                </section>
               </>
-            )}
-
-            {admin && (
-              <section className="course-box">
-                <h2>{tr('Danh sách gói đã cấu hình')}</h2>
-                <div className="course-grid">
-                  {plans.map((p) => (
-                    <article className="course-box" key={p.id}>
-                      <span className="course-badge">{p.sessionType === 'Group' ? tr('Học nhóm') : p.sessionType} · {p.level}</span>{' '}
-                      {p.intensityLabel && <span className="course-badge">{p.intensityLabel}</span>}{' '}
-                      {p.isRecommendedIntensity && <span className="course-badge ok">{tr('Khuyến nghị')}</span>}
-                      <h3 style={{ marginTop: 8 }}>{p.name}</h3>
-                      <p>
-                        {p.durationMonths}{' '}{tr('tháng ·')}{' '}{p.sessionsPerWeek}{' '}{tr('buổi/tuần ·')}{' '}{p.totalSessions ?? '—'}{' '}{tr('buổi')}
-                        {p.totalTeachingHours != null ? trf(' · {0} giờ học', { 0: p.totalTeachingHours }) : ''}{' '}{tr('· sĩ số')}{' '}{p.capacity}
-                      </p>
-                      <strong>{money(p.price)}</strong>
-                      <div style={{ marginTop: 10 }}>
-                        <button
-                          disabled={busy}
-                          onClick={() =>
-                            setPlan({
-                              ...p,
-                              intensity: p.intensity || 'Custom',
-                              sessionMinutes: p.sessionMinutes ?? '',
-                              totalSessions: p.totalSessions ?? '',
-                              retakeClaimDays: p.retakeClaimDays ?? '',
-                            })
-                          }
-                        >
-                          {p.isPublished ? tr('Đang mở') : tr('Nháp')}{' '}{tr('· Sửa')}
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
             )}
 
             {(!learner || tab === 'my-courses') && (
@@ -887,37 +702,6 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                         </p>
                       )}
 
-                      {learner && current.cohortId && current.status === 'Active' && currentStarted && (
-                        <p className="course-meta">
-                          {tr('Khóa học đã bắt đầu nên không thể tự hủy ghi danh. Nếu gặp vấn đề, vui lòng gửi khiếu nại ở mục bên dưới.')}
-                        </p>
-                      )}
-                      {learner && current.cohortId && current.status === 'Active' && nowMs > 0 && !currentStarted && (
-                        <div className="course-form">
-                          <div className="course-buttons">
-                            <input
-                              value={cancelReason}
-                              onChange={(e) => setCancelReason(e.target.value)}
-                              maxLength={1000}
-                              placeholder={tr('Lý do xin rời lớp trước giờ khóa (chỉ hủy cho cá nhân bạn)')}
-                              style={{ maxWidth: 380 }}
-                            />
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() =>
-                                action(
-                                  () => cancelCohortEnrollment(current.id, cancelReason),
-                                  'Đã hủy ghi danh cá nhân và giải phóng 1 chỗ trong lớp.'
-                                )
-                              }
-                            >
-                              {tr('Hủy ghi danh cá nhân')}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
                       {mentor && current.status === 'Transferred' && (
                         <p className="course-notice">{tr('Học viên đã chuyển sang lớp khác; buổi đã học và bài tập cũ vẫn được lưu trong hồ sơ này.')}</p>
                       )}
@@ -928,7 +712,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                       </p>
                       <p className="course-meta">
                         {current.eligibility.canClaim
-                          ? tr('Đủ điều kiện nộp minh chứng trượt JLPT chính thức để Admin xem xét hỗ trợ.')
+                          ? tr('Đủ điều kiện nộp minh chứng trượt JLPT chính thức để Quản trị viên xem xét hỗ trợ.')
                           : current.eligibility.reasons.join(' ')}
                       </p>
 
@@ -948,11 +732,17 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                       <LearnerCohortTransferPanel course={current} cohorts={cohorts} busy={busy} onRun={action} />
                     )}
 
-                    {learner && current.cohortId && (
+                    {learner && current.cohortId && (activeCompletion?.data?.isClassCompleted || current.status === 'Completed') && (
                       <CohortCompletionSummary
-                        courseId={current.id}
                         summary={activeCompletion?.data || null}
                         error={activeCompletion?.error || ''}
+                      />
+                    )}
+
+                    {learner && current.cohortId && (
+                      <CohortMentorReviewSection
+                        courseId={current.id}
+                        summary={activeCompletion?.data || null}
                         busy={busy}
                         onRun={action}
                       />
@@ -983,7 +773,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                         <div className="course-buttons">
                           {(visibleSkillProfile.skills || []).map((sk) => (
                             <span className="course-badge" key={sk.skill}>
-                              {sk.skill}: {sk.averageScorePercent != null ? `${sk.averageScorePercent}%` : tr('Chưa có mẫu')}
+                              {sk.skillLabel || tr(sk.skill)}: {sk.averageScorePercent != null ? `${sk.averageScorePercent}%` : tr('Chưa có mẫu')}
                             </span>
                           ))}
                         </div>
@@ -1070,13 +860,13 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                     <section className="course-box">
                       <h2>{tr('Hỗ trợ ôn lại khi trượt JLPT chính thức')}</h2>
                       <p className="course-meta">
-                        {tr('Admin duyệt minh chứng và điều kiện nộp bài tập. Sau khi Admin duyệt, Giáo viên lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
+                        {tr('Quản trị viên duyệt minh chứng và điều kiện nộp bài tập. Sau khi Quản trị viên duyệt, Giáo viên lập kế hoạch hỗ trợ ôn lại (không tự cấp buổi học miễn phí).')}
                       </p>
                       {learner && current.status === 'Completed' && !current.requests.some((r) => r.status === 'Pending') && (
                         <Form
                           title={tr('Gửi yêu cầu hỗ trợ & minh chứng trượt JLPT chính thức')}
                           busy={busy}
-                          button={tr('Gửi Admin xét duyệt')}
+                          button={tr('Gửi Quản trị viên xét duyệt')}
                           submit={(f, formEl) =>
                             action(async () => {
                               const form = new FormData();
@@ -1087,7 +877,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                               if (file && file.size > 0) form.append('evidence', file);
                               await uploadRetakeEvidence(current.id, form);
                               formEl.reset();
-                            }, 'Đã gửi yêu cầu hỗ trợ JLPT lên Admin.')
+                            }, 'Đã gửi yêu cầu hỗ trợ JLPT lên Quản trị viên.')
                           }
                         >
                           <Field title={tr('Ngày thi JLPT')}><input name="examDate" type="date" required /></Field>
@@ -1118,7 +908,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                               <span className="course-meta">{trf('Thi: {0} · Công bố: {1}', { 0: date(r.examDate), 1: date(r.resultPublishedAt) })}</span>
                             </div>
                             {r.reason && <p className="course-pre"><strong>{tr('Lý do học viên:')}</strong> {tr(r.reason)}</p>}
-                            {r.response && <p className="course-pre"><strong>{tr('Quyết định của Admin:')}</strong> {r.response}</p>}
+                            {r.response && <p className="course-pre"><strong>{tr('Quyết định của Quản trị viên:')}</strong> {r.response}</p>}
                             {r.mentorSupportPlan && (
                               <div className="course-notice" style={{ marginTop: 8 }}>
                                 <strong>{trf('Lộ trình hỗ trợ từ Giáo viên ({0}):', { 0: date(r.mentorSupportPlanAtUtc) })}</strong>
@@ -1136,7 +926,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                             )}
                             {admin && r.status === 'Pending' && (
                               <Form
-                                title={tr('Quyết định của Admin')}
+                                title={tr('Quyết định của Quản trị viên')}
                                 busy={busy}
                                 button={tr('Xác nhận')}
                                 submit={(f) =>
@@ -1180,7 +970,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                               >
                                 <h3>{tr('Lộ trình hỗ trợ ôn lại JLPT của Giáo viên')}</h3>
                                 <fieldset disabled={busy}>
-                                  <Field title={tr('Kế hoạch ôn luyện (chỉ mở sau khi Admin đã duyệt)')}>
+                                  <Field title={tr('Kế hoạch ôn luyện (chỉ mở sau khi Quản trị viên đã duyệt)')}>
                                     <textarea
                                       required
                                       maxLength={2000}

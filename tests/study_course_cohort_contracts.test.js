@@ -3,19 +3,17 @@ import assert from 'node:assert/strict';
 
 import { api } from '@/api/client.js';
 import * as scheduleManageApi from '@/features/scheduling/api/mentorScheduleManageApi.js';
+import * as cohortApi from '@/features/cohorts/api/cohortApi.js';
 import {
   cancelCohortEnrollment,
   createCohortHomework,
   enrollCohort,
   generateHomeworkAiDraft,
-  getCohortEntitlements,
   getCohortHomework,
   getCohorts,
   getMentorLearnerSkillProfile,
   getMyEntitlements,
   gradeHomeworkAssignment,
-  grantCohortEntitlement,
-  revokeCohortEntitlement,
   saveRetakeSupportPlan,
   submitHomeworkScan,
 } from '@/features/cohorts/api/cohortApi.js';
@@ -64,22 +62,16 @@ describe('Web Cohort Group Learning & Schedule Contract Tests', () => {
     assert.deepEqual(lastRequest.body, { ids: [41], reason: 'Bận công tác' });
   });
 
-  it('calls canonical cohort discovery, entitlement ledger, enrollment and cancellation endpoints', async () => {
+  it('calls canonical cohort discovery, learner entitlement ledger, enrollment and cancellation endpoints', async () => {
     await getCohorts();
     assert.equal(lastRequest.url, '/study-courses/cohorts');
 
     await getMyEntitlements();
     assert.equal(lastRequest.url, '/study-courses/my-entitlements');
 
-    await getCohortEntitlements(12);
-    assert.equal(lastRequest.url, '/study-courses/cohorts/12/entitlements');
-
-    await grantCohortEntitlement(12, { learnerId: 9, sourceType: 'AdminManualGrant', note: 'OK' });
-    assert.equal(lastRequest.url, '/study-courses/cohorts/12/entitlements');
-    assert.equal(lastRequest.body.learnerId, 9);
-
-    await revokeCohortEntitlement(77, 'Sai thông tin');
-    assert.equal(lastRequest.url, '/study-courses/entitlements/77/revoke');
+    assert.equal('grantCohortEntitlement' in cohortApi, false, 'Legacy manual grantCohortEntitlement must be removed');
+    assert.equal('revokeCohortEntitlement' in cohortApi, false, 'Legacy revokeCohortEntitlement must be removed');
+    assert.equal('getCohortEntitlements' in cohortApi, false, 'Legacy getCohortEntitlements must be removed');
 
     await enrollCohort(12, { idempotencyKey: 'abc', entitlementReference: 'ENT-1' });
     assert.equal(lastRequest.url, '/study-courses/cohorts/12/enroll');

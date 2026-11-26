@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Rocket,
   SlidersHorizontal,
-  Sparkles,
   Sprout,
   Target,
   Zap,
@@ -224,6 +223,7 @@ export function Step1CertificatePanel({
 
 export function Step2LevelPanel({
   profile,
+  placementStatus = null,
   selectedCert,
   levels,
   activeLevelId,
@@ -243,16 +243,40 @@ export function Step2LevelPanel({
 }) {
   const { tr, trf } = useLocale();
   const groupRef = useRef(null);
+  const setupState = profile?.setupState;
+  const hasCompletedAssessment = Boolean(
+    placementStatus?.hasCompletedPlacementTest || setupState?.hasValidCompletedPlacement,
+  );
+  const hasActiveAssessment = Boolean(
+    placementStatus?.hasActiveAttempt || setupState?.hasActivePlacementAttempt,
+  );
+  const assessedLevel = placementStatus?.assessedJlptLevelName || setupState?.assessedJlptLevelName || null;
+  const recommendedLevel = placementStatus?.recommendedTargetJlptLevelName || null;
 
   return (
     <div className="space-y-4">
-      {profile?.targetJlptLevelId && (
+      {hasCompletedAssessment && (
+        <div className="rounded-2xl border border-rp-success-line bg-rp-success-bg/60 px-4 py-3 text-[13px] text-rp-text">
+          <p className="font-semibold text-rp-success">
+            {assessedLevel
+              ? trf('Bạn đã hoàn thành đánh giá năng lực (trình độ hiện tại ước tính: JLPT {0}).', { 0: assessedLevel })
+              : tr('Bạn đã hoàn thành bài đánh giá năng lực.')}
+          </p>
+          <p className="mt-1 text-[12px] leading-5 text-rp-text-2">
+            {recommendedLevel
+              ? trf('Gợi ý tham khảo: JLPT {0}. Bạn có thể tự do chọn mục tiêu bên dưới — hệ thống sẽ tự động giữ lại kết quả đánh giá hợp lệ mà không yêu cầu làm lại.', { 0: recommendedLevel })
+              : tr('Bạn có thể tự do chọn mục tiêu bên dưới — hệ thống sẽ tự động tái sử dụng kết quả đánh giá hợp lệ nếu phù hợp.')}
+          </p>
+        </div>
+      )}
+
+      {!hasCompletedAssessment && hasActiveAssessment && (
         <div className="rounded-2xl border border-rp-brand-border/70 bg-white px-4 py-3 text-[13px] text-rp-brand-strong">
           <Link to="/app/placement-test" className="rp-underline inline-block font-semibold text-rp-brand-strong">
             {tr('Tiếp tục bài đánh giá hiện tại')}
           </Link>
           <p className="mt-1 text-[12px] leading-5 text-rp-text-2">
-            {tr('Bạn cũng có thể cập nhật mục tiêu bên dưới. Đổi cấp độ sẽ mở đề tương ứng; khi bắt đầu đề mới, lượt cũ sẽ kết thúc và được giữ trong lịch sử.')}
+            {tr('Bạn đang có một lượt đánh giá chưa hoàn tất; bạn vẫn có thể đặt hoặc cập nhật mục tiêu bên dưới.')}
           </p>
         </div>
       )}
@@ -827,7 +851,6 @@ export function Step5ReviewPanel({
   minutes,
   maxMinutes,
   examDate,
-  goalSavedPendingPlacementSync,
   error,
   profileError,
   busy,
@@ -890,7 +913,7 @@ export function Step5ReviewPanel({
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-rp-brand-strong">
-                {tr('Lộ trình cá nhân hóa của bạn')}
+                {tr('Mục tiêu học tập của bạn')}
               </p>
               <h3 className="mt-0.5 text-[19px] font-bold tracking-tight text-rp-text sm:text-[21px]">
                 {selectedLevel
@@ -898,7 +921,7 @@ export function Step5ReviewPanel({
                   : certName}
               </h3>
               <p className="mt-0.5 text-[12px] text-rp-text-muted">
-                {tr('Kiểm tra lại thông tin đã chọn trước khi khởi tạo kế hoạch học tập.')}
+                {tr('Kiểm tra lại thông tin đã chọn trước khi xác nhận mục tiêu.')}
               </p>
             </div>
             <div
@@ -950,32 +973,25 @@ export function Step5ReviewPanel({
         </div>
       </div>
 
-      {/* Placement guidance callout */}
-      {!examDate ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-rp-bg-2 px-4 py-3 text-[12px] text-rp-text-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <SakuraBloom size={20} animated={false} />
-            <p className="leading-5">
-              {tr('Chưa chọn ngày thi — bạn có thể tạo kế hoạch và vào trang chủ ngay, hoặc chọn ngày thi để mở bài đánh giá năng lực.')}
-            </p>
-          </div>
+      {/* Ready-to-confirm callout (exam date stays optional) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rp-line bg-rp-bg-2 px-4 py-3 text-[12.5px] text-rp-text-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <SakuraBloom size={20} animated={false} />
+          <p className="leading-5">
+            {tr('Mọi thứ đã sẵn sàng! Hãy xác nhận mục tiêu để bắt đầu hành trình chinh phục tiếng Nhật cùng RikiPath.')}
+          </p>
+        </div>
+        {!examDate && (
           <button
             type="button"
             disabled={busy}
             onClick={() => onJumpToStep(3)}
             className="rp-underline rp-focus text-[12px] font-semibold text-rp-brand-strong"
           >
-            {tr('Chọn ngày thi')}
+            {tr('Thêm ngày thi')}
           </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-rp-line bg-white px-4 py-3 text-[12px] text-rp-text-2">
-          <Sparkles className="h-4 w-4 shrink-0 text-rp-brand-pressed" aria-hidden="true" />
-          <p className="leading-5">
-            {tr('Bạn đã sẵn sàng lưu mục tiêu và bắt đầu bài đánh giá năng lực để hệ thống đề xuất lộ trình tối ưu.')}
-          </p>
-        </div>
-      )}
+        )}
+      </div>
 
       {profileError && (
         <Banner
@@ -990,10 +1006,7 @@ export function Step5ReviewPanel({
       )}
 
       {error && (
-        <Banner
-          tone={goalSavedPendingPlacementSync ? 'warning' : 'danger'}
-          role="alert"
-        >
+        <Banner tone="danger" role="alert">
           {error}
         </Banner>
       )}

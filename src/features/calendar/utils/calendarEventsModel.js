@@ -1,4 +1,5 @@
-import { toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
+import { formatCleanCohortTitle, toVnDateKey, toVnTimeParts } from '@/features/scheduling/utils/calendarGeometry.js';
+import { buildMentorWorkScheduleSessions } from '@/features/scheduling/utils/teachingLifecycleModel.js';
 import { formatVnDateTime, parseUtcDate, sessionStatusLabel } from '@/utils/vnDateTime.js';
 
 export const JOIN_EARLY_MINUTES = 15;
@@ -41,21 +42,30 @@ export function extractRoomHref(meetingUrl) {
  * Evaluates whether a scheduled session room can currently be joined based on Backend timing & status rules
  * (opens 15 min before start, stays accessible until 30 min after planned end).
  */
-export function getSessionJoinState(session, course, nowMs = Date.now()) {
+export function getSessionJoinState(session, course, nowMs = Date.now(), options = {}) {
   const startDate = parseUtcDate(session?.scheduledAt);
   const durationMinutes = Number(course?.sessionMinutes) || 90;
   const endDate = startDate ? new Date(startDate.getTime() + durationMinutes * 60_000) : null;
   const roomHref = extractRoomHref(session?.meetingUrl);
   const status = session?.status || 'Scheduled';
-  const cancelled = CANCELLED_STATUSES.has(status) || course?.status === 'Cancelled';
+  const lifecycleId = options?.lifecycleId || course?.cohortStatus || '';
+  const cancelled = CANCELLED_STATUSES.has(status) || course?.status === 'Cancelled' || lifecycleId === 'Cancelled';
+  const classCompleted = lifecycleId === 'Completed' || course?.status === 'Completed';
+  const recruiting = lifecycleId === 'Recruiting';
   const completed = COMPLETED_STATUSES.has(status);
-  const paymentBlocked = Boolean(course?.paymentStatus && course.paymentStatus !== 'Paid');
+  const paymentBlocked = Boolean(course?.paymentStatus && course.paymentStatus !== 'Paid' && course.paymentStatus !== 'PartiallyRefunded');
 
   if (cancelled) {
     return { canJoin: false, isLive: false, roomHref, durationMinutes, reason: 'Buổi học đã bị hủy.' };
   }
+  if (classCompleted) {
+    return { canJoin: false, isLive: false, roomHref, durationMinutes, reason: 'Lớp học đã hoàn thành.' };
+  }
   if (paymentBlocked) {
     return { canJoin: false, isLive: false, roomHref, durationMinutes, reason: 'Hoàn tất thanh toán để mở phòng học.' };
+  }
+  if (recruiting) {
+    return { canJoin: false, isLive: false, roomHref, durationMinutes, reason: 'Lớp đang tuyển sinh; phòng học sẽ mở khi lớp chính thức diễn ra.' };
   }
   if (!roomHref) {
     return { canJoin: false, isLive: false, roomHref: null, durationMinutes, reason: 'Phòng học sẽ cập nhật trước giờ học.' };
@@ -487,7 +497,7 @@ export function buildLearnerCalendarEvents({
       metaRows: [
         { label: 'Lớp học', value: courseTitle },
         { label: tr('Giáo viên giao'), value: hw.mentorName || matchedCourse?.mentorName || tr('Giáo viên') },
-        { label: 'Hạn nộp (GMT+7)', value: formatVnDateTime(hw.dueAt) },
+        { label: 'Hạn nộp', value: formatVnDateTime(hw.dueAt) },
         { label: 'Trạng thái', value: tr(status.label) },
         gradeLabel ? { label: 'Điểm số', value: gradeLabel } : null,
       ].filter(Boolean),
@@ -721,116 +731,77 @@ export function buildLearnerCalendarEvents({
 export function buildMentorCalendarEvents({
   courses = [],
   cohorts = [],
-  availabilities = [],
+  mentorId = null,
   nowMs = Date.now(),
   tr = defaultTr,
   trf = defaultTrf,
 } = {}) {
-  const events = [];
-  const cohortNameById = new Map();
-  (Array.isArray(cohorts) ? cohorts : []).forEach((c) => {
-    if (c?.id && c?.name) cohortNameById.set(c.id, c.name);
+  const workSessions = buildMentorWorkScheduleSessions({
+    cohorts,
+    courses,
+    mentorId,
+    nowMs,
   });
 
-  const mergedSessions = new Map();
-  (Array.isArray(courses) ? courses : [])
-    .filter((c) => c && c.status !== 'Cancelled')
-    .forEach((course) => {
-      (course.sessions || []).forEach((s) => {
-        if (!s?.scheduledAt) return;
-        const key = course.cohortId ? `cohort-${course.cohortId}-s${s.number}` : `${course.id}-${s.id}`;
-        const existing = mergedSessions.get(key) || {
-          id: key,
-          course,
-          session: s,
-          cohortId: course.cohortId,
-          cohortTitle: (course.cohortId && cohortNameById.get(course.cohortId)) || displayCourseTitle(course, tr('Lớp nhóm')),
-          learnerNames: [],
-          meetingUrl: s.meetingUrl,
+  return workSessions.map((ws) => {
+    const startDate = parseUtcDate(ws.scheduledAt);
+    const dayKey = toVnDateKey(startDate || ws.scheduledAt);
+    const startParts = toVnTimeParts(startDate || ws.scheduledAt);
+    const endDate = parseUtcDate(ws.endTime)
+      || (startDate ? new Date(startDate.getTime() + (ws.sessionMinutes || 90) * 60_000) : null);
+    const endParts = endDate
+      ? toVnTimeParts(endDate)
+      : {
+          hour: startParts.hour + 1,
+          minute: startParts.minute,
+          hhmm: `${String(startParts.hour + 1).padStart(2, '0')}:${String(startParts.minute).padStart(2, '0')}`,
         };
-        if (course.learnerName && !existing.learnerNames.includes(course.learnerName)) {
-          existing.learnerNames.push(course.learnerName);
-        }
-        if (!existing.meetingUrl && s.meetingUrl) existing.meetingUrl = s.meetingUrl;
-        mergedSessions.set(key, existing);
-      });
-    });
+    const { startHour, startMinute, endHour, endMinute } = clampEventWindow(startParts, ws.sessionMinutes || 90);
+    const timeRange = `${startParts.hhmm}–${endParts.hhmm}`;
+    const cohortTitle = ws.cohortName || tr('Lớp nhóm');
+    const cleanTitle = formatCleanCohortTitle(cohortTitle, ws.sessionNumber);
+    const headcountLabel = ws.capacity > 0
+      ? trf('{0}/{1} học viên', { 0: ws.confirmedEnrolledCount, 1: ws.capacity })
+      : trf('{0} học viên', { 0: ws.confirmedEnrolledCount });
+    const cohortHref = ws.cohortId ? `/mentor-study-courses/${ws.cohortId}/` : '/mentor-study-courses/';
+    const statusLabel = tr(ws.workStatus.label);
 
-  mergedSessions.forEach((entry) => {
-    const { course, session, cohortTitle, learnerNames, meetingUrl } = entry;
-    const dayKey = toVnDateKey(session.scheduledAt);
-    const startParts = toVnTimeParts(session.scheduledAt);
-    const joinState = getSessionJoinState({ ...session, meetingUrl }, course, nowMs);
-    const { startHour, startMinute, endHour, endMinute } = clampEventWindow(startParts, joinState.durationMinutes);
+    let primaryHref = cohortHref;
+    let primaryLabel = 'Xem chi tiết lớp';
+    if (ws.workStatus.id === 'live' && ws.roomHref) {
+      primaryHref = ws.roomHref;
+      primaryLabel = 'Vào phòng học';
+    } else if (ws.workStatus.id === 'upcoming' && ws.canJoin && ws.roomHref) {
+      primaryHref = ws.roomHref;
+      primaryLabel = 'Tham gia phòng học';
+    }
 
-    let tone = 'session';
-    if (CANCELLED_STATUSES.has(session.status)) tone = 'cancelled';
-    else if (joinState.isLive) tone = 'live';
-    else if (session.status === 'Present') tone = 'present';
-
-    const statusLabel = joinState.isLive ? tr('Phòng đang mở') : sessionStatusLabel(session);
-    const cohortHref = course.cohortId ? `/mentor-study-courses/?cohortId=${course.cohortId}` : '/mentor-study-courses/';
-    events.push({
-      id: `mentor-${entry.id}`,
+    return {
+      id: `mentor-${ws.id}`,
       eventType: 'session',
-      cohortId: course.cohortId,
-      scheduledAt: session.scheduledAt,
+      cohortId: ws.cohortId,
+      scheduledAt: ws.scheduledAt,
       dayKey,
       startHour,
       startMinute,
       endHour,
       endMinute,
-      title: trf('{0} · Buổi {1}', { 0: cohortTitle, 1: session.number }),
+      detailTime: timeRange,
+      title: cleanTitle,
       courseTitle: cohortTitle,
-      detail: learnerNames.length ? trf('Học viên: {0}', { 0: learnerNames.join(', ') }) : undefined,
+      detail: `${timeRange} · ${headcountLabel}`,
       statusLabel,
-      tone,
-      canJoin: joinState.canJoin,
-      joinReason: joinState.reason,
-      roomHref: joinState.roomHref,
-      href: joinState.canJoin ? joinState.roomHref : cohortHref,
-      hrefLabel: joinState.canJoin ? 'Vào phòng dạy' : 'Mở lớp phụ trách',
-      secondaryHref: '/work-schedule',
-      secondaryLabel: 'Lịch giảng dạy',
-      metaRows: [
-        { label: 'Lớp nhóm', value: cohortTitle },
-        learnerNames.length ? { label: 'Học viên', value: learnerNames.join(', ') } : null,
-        { label: 'Trạng thái', value: statusLabel },
-        { label: 'Phòng học', value: tr(joinState.reason) },
-      ].filter(Boolean),
-      z: joinState.isLive ? 4 : 3,
-    });
-  });
-
-  (Array.isArray(availabilities) ? availabilities : [])
-    .filter((slot) => slot && !slot.isInCohort && slot.startTime)
-    .forEach((slot) => {
-      const dayKey = toVnDateKey(slot.startTime);
-      const startParts = toVnTimeParts(slot.startTime);
-      const endParts = slot.endTime ? toVnTimeParts(slot.endTime) : { hour: startParts.hour + 1, minute: startParts.minute };
-      const pending = !slot.isApproved || slot.cancelRequestedAt || slot.changeRequestedAt;
-      const tone = slot.rejectedAt ? 'rejected' : pending ? 'pending' : 'approved';
-      events.push({
-        id: `slot-${slot.id}`,
-        eventType: 'availability',
-        scheduledAt: slot.startTime,
-        dayKey,
-        startHour: startParts.hour,
-        startMinute: startParts.minute,
-        endHour: endParts.hour,
-        endMinute: endParts.minute,
-        title: slot.rejectedAt ? tr('Khung giờ bị từ chối') : pending ? tr('Khung giờ chờ duyệt') : tr('Khung giờ đã duyệt'),
-        statusLabel: slot.rejectedAt ? tr('Bị từ chối') : pending ? tr('Chờ duyệt') : tr('Đã duyệt'),
-        tone,
-        href: '/mentor-shift-schedule',
-        hrefLabel: 'Đăng ký lịch dạy',
-        z: 1,
-      });
-    });
-
-  return events.sort((a, b) => {
-    if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
-    return (a.startHour * 60 + a.startMinute) - (b.startHour * 60 + b.startMinute);
+      tone: ws.workStatus.tone,
+      isCompleted: ws.workStatus.isCompleted,
+      isLive: ws.workStatus.isLive,
+      canJoin: ws.canJoin,
+      roomHref: ws.roomHref,
+      href: primaryHref,
+      hrefLabel: primaryLabel,
+      secondaryHref: cohortHref,
+      secondaryLabel: 'Xem chi tiết lớp',
+      z: ws.workStatus.isLive ? 4 : ws.workStatus.isCompleted ? 2 : 3,
+    };
   });
 }
 
@@ -997,12 +968,19 @@ export function buildUpcomingHeaderSummary({
   });
 
   const sessions = events.filter((ev) => ev.eventType === 'session');
-  const liveSessions = sessions.filter((ev) => ev.canJoin);
-  const upcomingSessions = sessions.filter((ev) => {
-    const start = parseUtcDate(ev.scheduledAt)?.getTime() || 0;
-    const end = start + 90 * 60_000;
-    return end >= nowMs - 30 * 60_000 && ev.tone !== 'cancelled';
-  });
+  const liveSessions = sessions
+    .filter((ev) => ev.tone === 'workLive' || (ev.canJoin && ev.tone !== 'workCompleted' && ev.tone !== 'present' && ev.tone !== 'cancelled' && !ev.isCompleted))
+    .sort((a, b) => (a.tone === 'workLive' ? -1 : 0) - (b.tone === 'workLive' ? -1 : 0));
+  const upcomingSessions = sessions
+    .filter((ev) => {
+      if (ev.tone === 'cancelled' || ev.tone === 'workCompleted' || ev.tone === 'present' || ev.isCompleted) {
+        return false;
+      }
+      const start = parseUtcDate(ev.scheduledAt)?.getTime() || 0;
+      const end = start + 90 * 60_000;
+      return end >= nowMs - 30 * 60_000;
+    })
+    .sort((a, b) => (parseUtcDate(a.scheduledAt)?.getTime() || 0) - (parseUtcDate(b.scheduledAt)?.getTime() || 0));
   const upcoming7DaysSessions = upcomingSessions.filter((ev) => ev.dayKey <= sevenDaysEnd);
 
   const pendingHomeworks = (Array.isArray(homeworks) ? homeworks : [])
@@ -1018,7 +996,7 @@ export function buildUpcomingHeaderSummary({
 
   const todayEvents = events.filter((ev) => ev.dayKey === todayKey);
   const todayActionCount = todayEvents.filter((ev) => {
-    if (ev.tone === 'cancelled') return false;
+    if (ev.tone === 'cancelled' || ev.tone === 'workCompleted' || ev.isCompleted) return false;
     if (ev.eventType === 'srs') return ev.canReviewNow || ev.srsState === 'due_later_today';
     if (ev.eventType === 'homework') return ev.homeworkStatusKind !== 'submitted' && ev.homeworkStatusKind !== 'graded';
     return true;

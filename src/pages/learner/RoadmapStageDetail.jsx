@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
 import {
-  Badge, Banner, Button, Card, ContextualErrorState, EmptyState, ProgressBar, SakuraLoader,
+  BackButton, Badge, Banner, Button, Card, ContextualErrorState, EmptyState, ProgressBar, SakuraLoader,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import RoadmapCheckpointModal from '@/features/learning-path/components/RoadmapCheckpointModal.jsx';
+import { RoadmapSetupState } from '@/features/learning-path/components/RoadmapSetupState.jsx';
+import { useLearningPathAccess } from '@/features/learning-path/useLearningPathAccess.js';
 import { useJourneyRoadmap } from '@/features/learning-journey/useJourneyRoadmap.js';
 import {
   STAGE_STATE_META,
@@ -21,6 +23,7 @@ import {
 } from '@/features/learning-journey/journeyModel.js';
 import { lessonPlayerPath, stageDetailPath } from '@/features/learning-journey/lessonNavigation.js';
 import LessonTimeline from '@/features/learning-journey/components/LessonTimeline.jsx';
+import RoadmapMilestoneDialog from '@/features/learning-journey/components/RoadmapMilestoneDialog.jsx';
 import { ToriiGlyph } from '@/features/learning-journey/components/JourneyArt.jsx';
 
 /** Tier 2 — one stage of the Standard roadmap: lessons in Backend order, then its checkpoint. */
@@ -30,9 +33,11 @@ export default function RoadmapStageDetail() {
   const stageId = decodeURIComponent(rawStageId ?? '');
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const journey = useJourneyRoadmap();
+  const roadmapAccess = useLearningPathAccess();
+  const journey = useJourneyRoadmap({ enabled: !roadmapAccess.isPending && roadmapAccess.standardRoadmapEligible });
   const { roadmapQuery, roadmap, overview, requiresPlan, subscriptionQuery, refresh, errorCode, isPreview } = journey;
   const [activeCheckpoint, setActiveCheckpoint] = useState(null);
+  const [milestone, setMilestone] = useState(null);
 
   const stages = overview.stages;
   const stage = findStageByKey(stages, stageId);
@@ -60,26 +65,35 @@ export default function RoadmapStageDetail() {
 
   const breadcrumb = tr('Chi tiết chặng');
   const backLink = (
-    <Link to="/roadmap/" className="rp-link inline-flex items-center gap-1 text-[13px] font-medium">
-      <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-      {tr('Về lộ trình của tôi')}
-    </Link>
+    <BackButton fallbackTo="/roadmap/" label="Về lộ trình của tôi" restoreListKey="/roadmap" variant="ghost" />
   );
 
   let body;
   if (isPreview) {
     body = <Card><p className="text-sm text-rp-text-muted">{tr('Lộ trình thích ứng theo năng lực hiển thị khi đăng nhập bằng tài khoản học viên.')}</p></Card>;
-  } else if (roadmapQuery.isPending && journey.enabled) {
+  } else if ((roadmapAccess.isPending && roadmapAccess.enabled) || (roadmapQuery.isPending && journey.enabled)) {
     body = <Card><SakuraLoader variant="section" context="roadmap" label={tr('Đang tải chặng học')} delay={160} /></Card>;
+  } else if (
+    !roadmapAccess.standardRoadmapEligible ||
+    errorCode === 'STANDARD_ROADMAP_PLACEMENT_REQUIRED' ||
+    errorCode === 'PLACEMENT_IN_PROGRESS' ||
+    errorCode === 'PLACEMENT_PENDING_SUBMISSION' ||
+    errorCode === 'STUDY_LEVEL_REQUIRED'
+  ) {
+    body = (
+      <RoadmapSetupState
+        variant="page"
+        flow={roadmapAccess}
+        targetLevelName={roadmapAccess.profile?.targetJlptLevelName}
+      />
+    );
   } else if (roadmapQuery.isError) {
     body = (
       <Card>
         <ContextualErrorState
           compact
           error={roadmapQuery.error}
-          title={errorCode === 'STANDARD_ROADMAP_PLACEMENT_REQUIRED' || errorCode === 'STUDY_LEVEL_REQUIRED'
-            ? tr('Lộ trình chưa sẵn sàng')
-            : tr('Chưa tải được chặng học')}
+          title={tr('Chưa tải được chặng học')}
           onRetry={() => roadmapQuery.refetch()}
           retrying={roadmapQuery.isFetching}
         />
@@ -252,10 +266,17 @@ export default function RoadmapStageDetail() {
         open={Boolean(shownCheckpoint)}
         checkpoint={shownCheckpoint}
         onClose={closeCheckpoint}
-        onCompleted={async () => {
+        onCompleted={async (data) => {
           await refresh();
+          const progression = data?.progression;
+          // Stage / roadmap completion: close the attempt dialog first so two modals never stack.
+          if (progression && ['STAGE_COMPLETED', 'ROADMAP_COMPLETED', 'STAGE_CHECKPOINT_UNLOCKED'].includes(progression.milestone)) {
+            closeCheckpoint();
+            setMilestone({ progression, scorePercent: data.scorePercent, passingScorePercent: data.minimumPassingScorePercent });
+          }
         }}
       />
+      <RoadmapMilestoneDialog milestone={milestone} onClose={() => setMilestone(null)} />
     </LearnerShell>
   );
 }

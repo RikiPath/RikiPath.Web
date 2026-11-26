@@ -30,7 +30,7 @@ const ROLE_BADGE_MAP = {
     dot: 'bg-[#E05A7A]',
   },
   ContentAuthor: {
-    label: 'Biên soạn nội dung',
+    label: 'Quản lý nội dung',
     cls: 'border-[#FDE047] bg-[#FEF9C3] text-[#9A5B04]',
     dot: 'bg-[#CA8A04]',
   },
@@ -137,6 +137,7 @@ export function AdminIconAction({
   disabled = false,
   onClick,
   className,
+  ...rest
 }) {
   const { tr } = useLocale();
   const Icon = icon || ACTION_ICONS[kind] || Eye;
@@ -157,6 +158,7 @@ export function AdminIconAction({
         toneCls,
         className,
       )}
+      {...rest}
     >
       <Icon aria-hidden="true" className="h-[15px] w-[15px]" strokeWidth={2} />
     </button>

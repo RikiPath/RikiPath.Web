@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { getTransferRequests, requestCohortTransfer, withdrawTransfer } from '@/features/cohorts/api/cohortApi';
 import {
   Badge,
@@ -9,6 +10,7 @@ import {
   CustomSelect,
   Field,
   FileUpload,
+  Modal,
   SmartDataBoundary,
   Textarea,
   confirmAction,
@@ -18,15 +20,15 @@ import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
 const STATUS = {
-  Pending: { label: 'Chờ Admin xem xét', tone: 'warning' },
+  Pending: { label: 'Chờ Quản trị viên xem xét', tone: 'warning' },
   Approved: { label: 'Đã duyệt chuyển lớp', tone: 'success' },
   Rejected: { label: 'Bị từ chối', tone: 'danger' },
   Withdrawn: { label: 'Đã rút yêu cầu', tone: 'neutral' },
 };
 const ACTION = {
   Requested: 'Gửi yêu cầu',
-  Approved: 'Admin duyệt',
-  Rejected: 'Admin từ chối',
+  Approved: 'Quản trị viên duyệt',
+  Rejected: 'Quản trị viên từ chối',
   Withdrawn: 'Học viên rút yêu cầu',
 };
 const formatDate = (v) => (v ? formatVnDateTime(v, '—') : '—');
@@ -36,6 +38,7 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
   const [target, setTarget] = useState('');
   const [reason, setReason] = useState('');
   const [evidenceFile, setEvidenceFile] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
   const keyRef = useRef(null);
 
   const query = useAsyncResource(
@@ -55,11 +58,11 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
   const candidates = cohorts.filter((c) => c.id !== course.cohortId && c.level === course.level);
 
   const targetOptions = [
-    { value: '', label: tr('Nhờ Admin chọn lớp phù hợp') },
+    { value: '', label: tr('Nhờ Quản trị viên chọn lớp phù hợp') },
     ...candidates.map((c) => ({
       value: String(c.id),
       disabled: c.seatsAvailable <= 0,
-      label: trf('{0} · {1} · khai giảng {2} · còn {3}/{4} chỗ', {
+      label: trf('{0} · {1} · bắt đầu {2} · còn {3}/{4} chỗ', {
         0: c.name,
         1: c.mentorName,
         2: formatDate(c.startsAt),
@@ -71,21 +74,47 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
 
   return (
     <Card className="space-y-4 p-5" aria-labelledby={`transfer-${course.id}`}>
-      <div>
+      <div className="flex items-center gap-2">
         <h2 id={`transfer-${course.id}`} className="text-base font-bold text-rp-text">
           {tr('Yêu cầu chuyển lớp')}
         </h2>
-        <p className="mt-1 text-xs leading-5 text-rp-text-2">
-          {tr('Giáo viên chính hiện tại:')}{' '}
-          <strong>{course.mentorName || tr('Chưa phân công')}</strong>{' '}
-          {tr('· Lớp hiện tại:')}{' '}
-          <strong>{course.cohortName || tr('Lớp đang học')}</strong>
-          {tr('. Việc chuyển lớp cần Admin xem xét sức chứa, lịch học, cấp độ và chính sách; lịch sử điểm danh, bài tập về nhà và nhận xét của bạn được giữ nguyên.')}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-rp-text-muted">
-          {tr('Muốn góp ý hoặc đánh giá Giáo viên? Hãy dùng mục phản hồi/khiếu nại riêng — đánh giá Giáo viên không tự động tạo yêu cầu chuyển lớp.')}
-        </p>
+        <button
+          type="button"
+          onClick={() => setInfoOpen(true)}
+          aria-label={tr('Xem thông tin chuyển lớp')}
+          title={tr('Xem thông tin chuyển lớp')}
+          className="rp-focus inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-rp-line bg-rp-bg-2 text-rp-text-muted transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+        >
+          <Info aria-hidden="true" className="h-3.5 w-3.5" />
+        </button>
       </div>
+
+      <Modal
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        title={tr('Thông tin chuyển lớp')}
+        size="md"
+        footer={
+          <div className="flex justify-end">
+            <Button type="button" variant="primary" size="sm" onClick={() => setInfoOpen(false)}>
+              {tr('Đã hiểu')}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-2.5 text-[13px] leading-relaxed text-rp-text-2">
+          <p className="m-0">
+            {tr('Giáo viên chính hiện tại:')}{' '}
+            <strong className="text-rp-text">{course.mentorName || tr('Chưa phân công')}</strong>{' '}
+            {tr('· Lớp hiện tại:')}{' '}
+            <strong className="text-rp-text">{course.cohortName || tr('Lớp đang học')}</strong>
+            {tr('. Việc chuyển lớp cần Quản trị viên xem xét sức chứa, lịch học, cấp độ và chính sách; lịch sử điểm danh, bài tập về nhà và nhận xét của bạn được giữ nguyên.')}
+          </p>
+          <p className="m-0 text-xs leading-5 text-rp-text-muted">
+            {tr('Muốn góp ý hoặc đánh giá Giáo viên? Hãy dùng mục phản hồi/khiếu nại riêng — đánh giá Giáo viên không tự động tạo yêu cầu chuyển lớp.')}
+          </p>
+        </div>
+      </Modal>
 
       {course.status === 'Transferred' && (
         <Banner tone="info">
@@ -111,7 +140,7 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
               setTarget('');
               setEvidenceFile(null);
               query.refetch();
-            }, 'Đã gửi yêu cầu chuyển lớp. Admin sẽ xem xét và thông báo kết quả.');
+            }, 'Đã gửi yêu cầu chuyển lớp. Quản trị viên sẽ xem xét và thông báo kết quả.');
           }}
         >
           <h3 className="text-sm font-semibold text-rp-text">{tr('Gửi yêu cầu chuyển lớp')}</h3>
@@ -193,7 +222,7 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
 
                   <p className="text-rp-text-2">
                     {tr('Từ lớp:')}{' '}{r.sourceCohortName || tr('Lớp hiện tại')} →{' '}
-                    {r.targetCohortName || r.requestedTargetCohortName || tr('Admin chọn lớp')}
+                    {r.targetCohortName || r.requestedTargetCohortName || tr('Quản trị viên chọn lớp')}
                   </p>
                   <p className="whitespace-pre-wrap text-rp-text">
                     <strong>{tr('Lý do:')}</strong>{' '}{r.reason}
@@ -233,7 +262,7 @@ export default function LearnerCohortTransferPanel({ course, cohorts, busy, onRu
                         onClick={async () => {
                           const ok = await confirmAction({
                             title: tr('Rút yêu cầu chuyển lớp?'),
-                            description: tr('Yêu cầu đang chờ Admin xử lý sẽ bị hủy.'),
+                            description: tr('Yêu cầu đang chờ Quản trị viên xử lý sẽ bị hủy.'),
                             confirmLabel: tr('Rút yêu cầu'),
                             tone: 'warning',
                           });

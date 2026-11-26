@@ -1,5 +1,5 @@
-/*
- * RikiPath design tokens — single source of truth for the Web app.
+﻿/*
+ * RikiPath design tokens â€” single source of truth for the Web app.
  * Mirrors RikiPath.Mobile `lib/app/theme/*` (AppColors, AppFeatureTones,
  * AppSpacing, AppRadius, AppMotion). Sakura is an ACCENT on white / neutral
  * surfaces: large areas stay neutral, Sakura marks primary actions,
@@ -10,7 +10,7 @@
  */
 
 @theme {
-  /* Brand — Harmonized with Login Soft Sakura Rose Design Reference */
+  /* Brand â€” Harmonized with Login Soft Sakura Rose Design Reference */
   --color-rp-brand: #E05A7A;
   --color-rp-brand-pressed: #CC4B6B;
   --color-rp-brand-strong: #B53D5C;
@@ -20,12 +20,12 @@
   --color-rp-brand-border: #F2CCD7;
   --color-rp-mentor: #C84666;
 
-  /* Neutral foundations — Warm Ivory & Crisp White */
+  /* Neutral foundations â€” Warm Ivory & Crisp White */
   --color-rp-bg: #FAF8F6;
   --color-rp-bg-2: #FCFBFA;
   --color-rp-admin-bg: #F5F3EF;
-  --color-rp-table-head: #FAF7F8;
-  --color-rp-row-hover: #FFF9FA;
+  --color-rp-table-head: #FFF5F8;
+  --color-rp-row-hover: #FCFAFB;
   --color-rp-tab-active-bg: #FFF0F4;
   --color-rp-surface: #FFFFFF;
   --color-rp-muted: #F5F2F3;
@@ -33,13 +33,13 @@
   --color-rp-line: #EAE3E4;
   --color-rp-line-strong: #DEC9CE;
 
-  /* Text — muted is darkened from Mobile #9E9397 to reach WCAG AA (4.5:1) on white */
+  /* Text â€” muted is darkened from Mobile #9E9397 to reach WCAG AA (4.5:1) on white */
   --color-rp-text: #2D282A;
   --color-rp-text-2: #5F5559;
   --color-rp-text-muted: #776C70;
   --color-rp-text-disabled: #9E9397;
 
-  /* Status (fg / bg / border) — Harmonized soft surfaces with crisp AA contrast */
+  /* Status (fg / bg / border) â€” Harmonized soft surfaces with crisp AA contrast */
   --color-rp-success: #0D7A42;
   --color-rp-success-bg: #ECF8F0;
   --color-rp-success-line: #BBE5C8;
@@ -55,7 +55,7 @@
   --color-rp-streak: #E05324;
   --color-rp-streak-bg: #FFF2ED;
 
-  /* Learner Visual System V2 — Pastel Semantic Surface Family */
+  /* Learner Visual System V2 â€” Pastel Semantic Surface Family */
   --color-rp-navy: #25304D;
   --color-rp-navy-bg: #F1F4FA;
   --color-rp-navy-line: #D4DCF0;
@@ -173,9 +173,9 @@
   --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 1rem);
 
   /* Semantic Component Sizing */
-  --rp-control-h-sm: 2rem;      /* 32px — compact actions in tables / dense toolbars */
-  --rp-control-h-md: 2.5rem;    /* 40px — default control height (Input, Search, Select, Date/Time, Button, SegmentedControl) */
-  --rp-control-h-lg: 3rem;      /* 48px — deliberate primary CTAs & large forms */
+  --rp-control-h-sm: 2rem;      /* 32px â€” compact actions in tables / dense toolbars */
+  --rp-control-h-md: 2.5rem;    /* 40px â€” default control height (Input, Search, Select, Date/Time, Button, SegmentedControl) */
+  --rp-control-h-lg: 3rem;      /* 48px â€” deliberate primary CTAs & large forms */
   --rp-tap-min: 40px;
   --rp-icon-badge: clamp(2rem, 1.9rem + 0.28vw, 2.375rem);
   --rp-table-cell-x: clamp(0.75rem, 0.7rem + 0.35vw, 1rem);
@@ -237,7 +237,7 @@
   }
 }
 
-/* Sakura loader — 5-petal breathing sway + staggered petal pulse + bouncing Sakura Pink dots. */
+/* Sakura loader â€” 5-petal breathing sway + staggered petal pulse + bouncing Sakura Pink dots. */
 .rp-bloom {
   animation: rp-bloom-sway 2.2s ease-in-out infinite;
   transform-origin: 50% 50%;
@@ -288,7 +288,7 @@
 @keyframes rp-toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .rp-anim-fade { animation: rp-fade-in var(--rp-medium) var(--rp-ease); }
 .rp-anim-pop { animation: rp-pop-in var(--rp-medium) var(--rp-ease); }
-/* Floating mini panels (Sổ tay nhanh): 0.96 → 1 with a 6px rise; exit mirrors it. Durations collapse under reduced motion. */
+/* Floating mini panels (Sá»• tay nhanh): 0.96 â†’ 1 with a 6px rise; exit mirrors it. Durations collapse under reduced motion. */
 @keyframes rp-mini-panel-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes rp-mini-panel-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(0.96); } }
 .rp-anim-mini-panel-in { animation: rp-mini-panel-in var(--rp-medium) var(--rp-ease) both; transform-origin: bottom right; }
@@ -302,7 +302,7 @@
 /* Modal: bottom sheet on phones, centred pop from sm up. */
 .rp-anim-modal { animation: rp-sheet-in var(--rp-medium) var(--rp-ease); }
 @media (min-width: 640px) { .rp-anim-modal { animation-name: rp-pop-in; } }
-/* Shared Switch: OFF neutral gray, ON Sakura; thumb slides 200ms on transform only (reduced motion → instant). */
+/* Shared Switch: OFF neutral gray, ON Sakura; thumb slides 200ms on transform only (reduced motion â†’ instant). */
 .rp-switch-track { transition: background-color var(--rp-switch-dur, 200ms) var(--rp-ease), border-color var(--rp-switch-dur, 200ms) var(--rp-ease); }
 .rp-switch-thumb { transition: transform var(--rp-switch-dur, 200ms) cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
 .rp-switch:checked + .rp-switch-track { background-color: var(--color-rp-brand-pressed, #CC4B6B); border-color: var(--color-rp-brand-pressed, #CC4B6B); }
@@ -318,12 +318,12 @@
 
 /* Japanese text gets slightly more line-height and no faux-bold. */
 /* Only explicitly marked Japanese text gets the reading line-height; the UI locale (html[lang=ja]) must not
-   override layout utilities, otherwise switching VI ↔ JA shifts every component (see styles/i18n.css). */
+   override layout utilities, otherwise switching VI â†” JA shifts every component (see styles/i18n.css). */
 .rp-jp, :not(html)[lang='ja'] { font-family: var(--font-rp-jp); line-height: 1.7; font-synthesis: none; }
 .rp-kanji { font-family: var(--font-rp-kanji); font-synthesis: none; }
 
 /* ------------------------------------------------------------------ Web art direction */
-/* Seigaiha (青海波) wave pattern — subtle decorative background for hero/auth panels. */
+/* Seigaiha (é’æµ·æ³¢) wave pattern â€” subtle decorative background for hero/auth panels. */
 .rp-pattern-seigaiha {
   background-color: transparent;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='24' viewBox='0 0 48 24'%3E%3Cg fill='none' stroke='%23E05A7A' stroke-opacity='0.09' stroke-width='1.2'%3E%3Cpath d='M0 24a24 24 0 0 1 48 0M8 24a16 16 0 0 1 32 0M16 24a8 8 0 0 1 16 0'/%3E%3Cpath d='M-24 12a24 24 0 0 1 48 0M24 12a24 24 0 0 1 48 0'/%3E%3C/g%3E%3C/svg%3E");
@@ -345,7 +345,7 @@
 .rp-float { animation: rp-float 6s ease-in-out infinite; }
 @keyframes rp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
-/* Language popover — mirrors Mobile RikiLanguageSwitcher (fade + scale 0.96 → 1 + slight drop, ease-out 220ms). */
+/* Language popover â€” mirrors Mobile RikiLanguageSwitcher (fade + scale 0.96 â†’ 1 + slight drop, ease-out 220ms). */
 .rp-lang-pop { animation: rp-lang-pop 220ms cubic-bezier(0.33, 1, 0.68, 1); }
 @keyframes rp-lang-pop {
   from { opacity: 0; transform: translateY(-4px) scale(0.96); }
@@ -353,7 +353,7 @@
 }
 
 /* ------------------------------------------------------------------ Auth experience (Web editorial) */
-/* Crossfade — incoming layer fades over the outgoing one (opacity only, no white flash). */
+/* Crossfade â€” incoming layer fades over the outgoing one (opacity only, no white flash). */
 .rp-crossfade-in { animation: rp-crossfade 1150ms cubic-bezier(0.33, 1, 0.68, 1) both; }
 @keyframes rp-crossfade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -468,11 +468,11 @@
 .rp-branch-sway { animation: rp-branch-sway 9s ease-in-out infinite; transform-origin: 0 0; }
 @keyframes rp-branch-sway { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(1.2deg); } }
 
-/* Card entrance — once on mount. */
+/* Card entrance â€” once on mount. */
 .rp-card-enter { animation: rp-card-enter 480ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes rp-card-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-/* Onboarding multi-step wizard transitions (200–320ms, compositor transform/opacity only). */
+/* Onboarding multi-step wizard transitions (200â€“320ms, compositor transform/opacity only). */
 .rp-onboarding-step-forward { animation: rp-onboarding-slide-forward 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .rp-onboarding-step-backward { animation: rp-onboarding-slide-backward 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .rp-onboarding-reveal { animation: rp-onboarding-reveal 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -666,7 +666,7 @@ input[type='search']::-webkit-search-results-decoration {
   color: var(--rp-learner-banner-accent);
 }
 
-/* Horizontal table/strip scroll containment — prevents table min-width from widening parent flex/grid tracks. */
+/* Horizontal table/strip scroll containment â€” prevents table min-width from widening parent flex/grid tracks. */
 .rp-scroll-x {
   width: 100%;
   max-width: 100%;
@@ -684,7 +684,49 @@ input[type='search']::-webkit-search-results-decoration {
   overflow-x: auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  background: linear-gradient(
+    to bottom,
+    var(--rp-table-head-bg, var(--color-rp-table-head)) 0,
+    var(--rp-table-head-bg, var(--color-rp-table-head)) var(--rp-table-head-h, 41px),
+    var(--color-rp-line) var(--rp-table-head-h, 41px),
+    var(--color-rp-line) calc(var(--rp-table-head-h, 41px) + 1px),
+    transparent calc(var(--rp-table-head-h, 41px) + 1px)
+  );
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .rp-table-scroll {
+    scrollbar-width: thin;
+  }
+}
+
+.rp-table-scroll::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.rp-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rp-table-scroll::-webkit-scrollbar-track:vertical {
+  margin-top: calc(var(--rp-table-head-h, 41px) + 3px);
+  margin-bottom: 4px;
+}
+
+.rp-table-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 108, 118, 0.28);
+  border-radius: 9999px;
+  border: 1.5px solid transparent;
+  background-clip: content-box;
+}
+
+.rp-table-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(196, 61, 100, 0.48);
+}
+
+.rp-table-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 @layer components {
@@ -789,7 +831,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 .rp-cal-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 .rp-cal-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
-/* Text link (auth + inline actions): Sakura Primary with an underline that sweeps in left→right on hover/focus. */
+/* Text link (auth + inline actions): Sakura Primary with an underline that sweeps in leftâ†’right on hover/focus. */
 .rp-link {
   color: #CC4D6B;
   font-weight: 600;
@@ -813,11 +855,12 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 .relative:has(> input[aria-invalid="true"]) > svg { color: var(--color-rp-danger, #D93F4C); }
 .relative:has(> input:disabled) > svg { color: var(--color-rp-text-disabled, #B8AEB2); }
 
-/* Checkbox (ui/core Checkbox): box fills with a soft pop, then the tick draws itself left→right (like Mobile). */
+/* Checkbox (ui/core Checkbox): box fills with a soft pop, then the tick draws itself leftâ†’right (like Mobile). */
 .rp-check-box { transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease; }
 .rp-check-tick { stroke-dasharray: 1; stroke-dashoffset: 1; }
 .rp-check:hover + .rp-check-box { border-color: #E05A7A; }
-.rp-check:checked + .rp-check-box { background-color: #E05A7A; border-color: #E05A7A; animation: rp-check-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.rp-check:checked + .rp-check-box,
+.rp-check:indeterminate + .rp-check-box { background-color: #E05A7A; border-color: #E05A7A; animation: rp-check-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
 .rp-check:checked + .rp-check-box .rp-check-tick { stroke-dashoffset: 0; animation: rp-check-draw 280ms cubic-bezier(0.65, 0, 0.35, 1) 70ms both; }
 @keyframes rp-check-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .rp-check:focus-visible + .rp-check-box { box-shadow: 0 0 0 3px rgba(224, 90, 122, 0.28); }
@@ -825,7 +868,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 @keyframes rp-check-pop { 0% { transform: scale(0.82); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
   .rp-check-box { transition: none; }
-  .rp-check:checked + .rp-check-box, .rp-check:checked + .rp-check-box .rp-check-tick { animation: none; }
+  .rp-check:checked + .rp-check-box, .rp-check:indeterminate + .rp-check-box, .rp-check:checked + .rp-check-box .rp-check-tick { animation: none; }
 }
 
 /* Radio (ui/core Radio): circular Sakura fill with spring pop & left-to-right checkmark draw (matching Checkbox). */
@@ -982,7 +1025,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   line-height: 1.25rem;
 }
 :is([data-shell="admin"], [data-shell="mentor"], [data-shell="contentauthor"]) [role="tablist"][data-rp-tab-size="md"][data-rp-tab-variant="pill"] > [role="tab"] {
-  /* 40px frame − 2px border − 6px inset */
+  /* 40px frame âˆ’ 2px border âˆ’ 6px inset */
   height: calc(var(--rp-control-h-md) - 8px);
   min-height: calc(var(--rp-control-h-md) - 8px);
   border-radius: 9px;
@@ -1437,7 +1480,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 .rp-streak-activity { transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease; }
 .rp-streak-activity:hover { transform: translateY(-2px); border-color: #FFD59A; box-shadow: 0 4px 0 #F3E3C9; }
 .rp-streak-cta-shine { animation: rp-streak-cta-shine 2600ms ease-in-out 900ms 3; }
-/* Dialog buttons: CTA lifts with a warm glow on hover and presses into its 3D edge; "Để sau" gets a soft pill. */
+/* Dialog buttons: CTA lifts with a warm glow on hover and presses into its 3D edge; "Äá»ƒ sau" gets a soft pill. */
 .rp-streak-cta {
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease, filter 180ms ease;
 }
@@ -1470,7 +1513,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   .rp-moment-mascot, .rp-moment-chip { animation: none !important; }
   .rp-moment-petal { display: none; }
 }
-/* Scrollable only when the screen is really short — never shows a scrollbar track. */
+/* Scrollable only when the screen is really short â€” never shows a scrollbar track. */
 .rp-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .rp-no-scrollbar::-webkit-scrollbar { display: none; }
 @keyframes rp-streak-cta-shine { 0% { transform: translateX(0) skewX(-20deg); } 45%, 100% { transform: translateX(420%) skewX(-20deg); } }
@@ -1481,7 +1524,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   .rp-sparkle { opacity: 0; }
   .rp-streak-activity, .rp-streak-activity:hover { transition: none; transform: none; }
 }
-/* Floating Sổ tay bubble: the 3D notebook springs up with a playful wiggle while a Sakura glow blooms behind it.
+/* Floating Sá»• tay bubble: the 3D notebook springs up with a playful wiggle while a Sakura glow blooms behind it.
    Transform/opacity only; one-shot per hover (no infinite loop); disabled under reduced motion. */
 .rp-notebook-bubble-icon { transform-origin: 50% 80%; transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
 .group:hover .rp-notebook-bubble-icon,
@@ -1563,7 +1606,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 }
 
 /* ------------------------------------------------------------------ Learning Moments V2: context visuals & presets */
-/* success-reveal (purchase check draws in) · badge-pop · subtle ring pulse · subtle-confetti. Play once; no loops. */
+/* success-reveal (purchase check draws in) Â· badge-pop Â· subtle ring pulse Â· subtle-confetti. Play once; no loops. */
 @media (prefers-reduced-motion: no-preference) {
   .rp-cel-ring { animation: rp-cel-ring 2.2s ease-out 0.35s 2 both; }
   .rp-cel-pop { animation: rp-cel-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }

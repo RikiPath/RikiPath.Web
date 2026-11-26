@@ -114,6 +114,11 @@ export function getStandardRoadmap() {
   return api.get('/StandardRoadmap').then((data) => data?.result);
 }
 
+export async function activateStandardRoadmap() {
+  const response = await api.post('/StandardRoadmap/activate');
+  return response?.result ?? response;
+}
+
 export function getActiveLearningPath() {
   return api.get('/LearningPath/active').then((data) => data?.result ?? null);
 }

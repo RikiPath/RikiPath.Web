@@ -51,8 +51,7 @@ import { useLocale } from '@/locales/locale.js';
 const ROLE_OPTIONS = [
   { value: 'Learner', label: 'Học viên', dotClass: 'bg-[#E05A7A]' },
   { value: 'Mentor', label: 'Giáo viên', dotClass: 'bg-[#2563EB]' },
-  { value: 'ContentAuthor', label: 'Biên soạn nội dung', dotClass: 'bg-[#EAB308]' },
-  { value: 'Admin', label: 'Quản trị viên', dotClass: 'bg-[#DC2626]' },
+  { value: 'ContentAuthor', label: 'Quản lý nội dung', dotClass: 'bg-[#EAB308]' },
 ];
 
 const CREATABLE_ROLES = ['Learner', 'ContentAuthor', 'Mentor'];
@@ -149,12 +148,12 @@ export default function AdminUsers() {
   const createMutation = useMutation({
     mutationFn: (payload) => createAdminUser(payload),
     onSuccess: async (_, vars) => {
-      await invalidateAdminDomains(queryClient, ['users']);
       setCreateOpen(false);
       setForm(EMPTY_CREATE_FORM);
       setFormErrors({});
       setFormSubmitError('');
       notify.success(trf('Đã tạo tài khoản cho {0}.', { 0: vars.email }), '', { key: 'admin-user-create', replace: true });
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['users'])]);
     },
     onError: (err) => {
       const msg = describeApiError(err)?.message || tr('Không tạo được tài khoản.');
@@ -179,10 +178,10 @@ export default function AdminUsers() {
           ? prev.map((u) => (Number(u.id) === Number(id) ? { ...u, ...(updatedNormalized || {}), role: nextRole } : u))
           : prev,
       );
-      await invalidateAdminDomains(queryClient, ['users']);
       setEditTarget(null);
       setEditSubmitError('');
       notify.success(trf('Đã cập nhật vai trò tài khoản {0}.', { 0: target.name }), '', { key: 'admin-user-edit', replace: true });
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['users'])]);
     },
     onError: (err) => {
       const msg = describeApiError(err)?.message || tr('Chưa cập nhật được vai trò tài khoản.');
@@ -202,7 +201,6 @@ export default function AdminUsers() {
       });
     },
     onSuccess: async (_, target) => {
-      await invalidateAdminDomains(queryClient, ['users']);
       setToggleTarget(null);
       notify.success(
         target.isActive
@@ -211,14 +209,19 @@ export default function AdminUsers() {
         '',
         { key: 'admin-user-status', replace: true },
       );
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['users'])]);
     },
     onError: (err) => {
       notify.apiError(err, tr('Không thể cập nhật trạng thái tài khoản'), { key: 'admin-user-status-err', replace: true });
     },
   });
 
-  const allUsers = useMemo(() => usersQuery.data || [], [usersQuery.data]);
   const selfId = Number(currentUser?.userId || currentUser?.id || 0);
+  // Hide the single system Admin / currently signed-in account from the manageable users table.
+  const allUsers = useMemo(
+    () => (usersQuery.data || []).filter((u) => u.role !== 'Admin' && !(selfId && Number(u.id) === selfId)),
+    [usersQuery.data, selfId],
+  );
 
   const filteredUsers = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();

@@ -681,7 +681,7 @@ export default function ContentPlanStudio() {
           <div>
             <p className="text-sm font-semibold text-rp-text">{tr('Kiểm tra độ chính xác bản nháp')}</p>
             <p className="mt-0.5 text-xs text-rp-text-muted">
-              {tr('Quét các bản nháp vừa tạo và chỉ ra điểm cần rà soát trước khi gửi Admin duyệt.')}
+              {tr('Quét các bản nháp vừa tạo và chỉ ra điểm cần rà soát trước khi gửi Quản trị viên duyệt.')}
             </p>
           </div>
           <Button

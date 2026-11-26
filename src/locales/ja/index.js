@@ -24,5 +24,7 @@ import { jaGrammarBank } from './grammarBank.js';
 import { jaSrsV5 } from './srsV5.js';
 import { jaLearningJourney } from './learningJourney.js';
 import { jaSidebarCounters } from './sidebarCounters.js';
+import { jaTerminology } from './terminology.js';
+import { jaLearnerSetup } from './learnerSetup.js';
 
-export const JA_DICTIONARIES = [jaAppCore, jaErrors, jaLanding, jaWorkspace, jaGroupLearning, jaCourses, jaMentor, jaAdmin, jaAuthor, jaPublicPages, jaLearnerScreens, jaTemplates, jaAccountProfile, jaWorkspaceV7, jaTeachingProposals, jaSrsV41, jaNotebookV3, jaSrsV5, jaLearningMoments, jaPaymentFlow, jaPlanManagement, jaGrammarBank, jaLearningJourney, jaSidebarCounters];
+export const JA_DICTIONARIES = [jaAppCore, jaErrors, jaLanding, jaWorkspace, jaGroupLearning, jaCourses, jaMentor, jaAdmin, jaAuthor, jaPublicPages, jaLearnerScreens, jaTemplates, jaAccountProfile, jaWorkspaceV7, jaTeachingProposals, jaSrsV41, jaNotebookV3, jaSrsV5, jaLearningMoments, jaPaymentFlow, jaPlanManagement, jaGrammarBank, jaLearningJourney, jaSidebarCounters, jaTerminology, jaLearnerSetup];

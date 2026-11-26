@@ -94,7 +94,7 @@ function CohortRequestForm({ cohort, busy, onRun }) {
     <div className="space-y-4">
       <div className="rounded-xl border border-rp-line bg-rp-bg-2 px-3.5 py-2.5">
         <p className="text-sm font-semibold text-rp-text">{cohort.name}</p>
-        <p className="mt-0.5 text-xs text-rp-text-muted">{trf('(khai giảng {0})', { 0: date(cohort.startsAt) })}</p>
+        <p className="mt-0.5 text-xs text-rp-text-muted">{trf('(bắt đầu {0})', { 0: date(cohort.startsAt) })}</p>
       </div>
 
       {hasPending ? (
@@ -147,7 +147,7 @@ function CohortRequestForm({ cohort, busy, onRun }) {
                 setReason(e.target.value);
                 idempotencyKey.current = null;
               }}
-              placeholder={kind === 'ShiftWeeks' ? tr('VD: Chưa đủ học viên, đề nghị lùi khai giảng 1 tuần…') : tr('VD: Lớp chưa có học viên ghi danh…')}
+              placeholder={kind === 'ShiftWeeks' ? tr('VD: Chưa đủ học viên, đề nghị lùi ngày bắt đầu 1 tuần…') : tr('VD: Lớp chưa có học viên ghi danh…')}
             />
           </Field>
 
@@ -237,7 +237,7 @@ export default function CohortScheduleRequestPanel({ cohorts = [], initialCohort
   return (
     <div className="space-y-4">
       <p className="text-xs leading-relaxed text-rp-text-muted">
-        {tr('Yêu cầu cần Quản trị viên duyệt; không thể dời hoặc hủy lớp đã khai giảng.')}
+        {tr('Yêu cầu cần Quản trị viên duyệt; không thể dời hoặc hủy lớp đang diễn ra.')}
       </p>
       {cohorts.length > 1 && (
         <Field label="Lớp phụ trách">

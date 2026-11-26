@@ -161,7 +161,6 @@ describe('V6 Multi-Role Workspace contracts', () => {
   it('passes valid props to Tabs / UnifiedToolbar and schedulePatternText in V6 workspaces', () => {
     for (const rel of [
       'src/pages/mentor/MentorClassWorkspace.jsx',
-      'src/pages/admin/AdminGroupWorkspace.jsx',
       'src/pages/admin/AdminMentorCases.jsx',
     ]) {
       const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -171,6 +170,9 @@ describe('V6 Multi-Role Workspace contracts', () => {
       );
       assert.equal(/<Tabs[\s\S]{0,160}items=/.test(code), false, `${rel} must not pass items= to <Tabs>`);
     }
+    const adminGroupWs = fs.readFileSync(path.join(ROOT, 'src/pages/admin/AdminGroupWorkspace.jsx'), 'utf8');
+    assert.ok(adminGroupWs.includes('<AdminCohortConsolePanel'), 'AdminGroupWorkspace renders streamlined AdminCohortConsolePanel');
+    assert.equal(/<Tabs/.test(adminGroupWs), false, 'AdminGroupWorkspace must not render legacy stacked Tabs');
     const mentorWs = fs.readFileSync(path.join(ROOT, 'src/pages/mentor/MentorClassWorkspace.jsx'), 'utf8');
     assert.match(mentorWs, /schedulePatternText\(\s*entry\.cohortObj\.schedulePattern\s*,\s*entry\.cohortObj\.sessions\s*\)/);
   });

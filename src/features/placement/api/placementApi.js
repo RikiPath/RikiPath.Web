@@ -5,12 +5,17 @@ const endpoint = '/PlacementTest';
 export const placementAssessmentKey = (session, attemptId) =>
   ['placement-assessment', session?.userId ?? session?.email, attemptId];
 
-async function get(path) {
-  const response = await api.get(endpoint + path);
+async function get(path, params) {
+  const response = await api.get(endpoint + path, params ? { params } : undefined);
   return response.result;
 }
 
-export const getPlacementStatus = () => get('/status');
+export const getPlacementStatus = (params) => {
+  const query = {};
+  if (params?.assessmentLevelId) query.assessmentLevelId = params.assessmentLevelId;
+  if (params?.assessmentMode) query.assessmentMode = params.assessmentMode;
+  return get('/status', Object.keys(query).length ? query : undefined);
+};
 function withLocalDeadline(attempt) {
   if (!attempt) return attempt;
   const remaining = Date.parse(attempt.expiresAt) - Date.parse(attempt.serverNow);
@@ -21,8 +26,18 @@ function withLocalDeadline(attempt) {
 export const getActivePlacementAttempt = async () => withLocalDeadline(await get('/attempts/active'));
 export const getPlacementResult = (attemptId) => get(`/attempts/${attemptId}`);
 
-export async function startPlacementAttempt({ retakeTargetAssessment = false } = {}) {
-  const response = await api.post(`${endpoint}/start`, retakeTargetAssessment ? { retakeTargetAssessment: true } : {});
+export async function startPlacementAttempt({
+  retakeTargetAssessment = false,
+  restartExisting = false,
+  assessmentLevelId = null,
+  assessmentMode = null,
+} = {}) {
+  const body = {};
+  if (retakeTargetAssessment) body.retakeTargetAssessment = true;
+  if (restartExisting) body.restartExisting = true;
+  if (assessmentLevelId) body.assessmentLevelId = assessmentLevelId;
+  if (assessmentMode) body.assessmentMode = assessmentMode;
+  const response = await api.post(`${endpoint}/start`, body);
   return withLocalDeadline(response.result);
 }
 
@@ -36,8 +51,8 @@ export async function submitPlacementAttempt(attemptId, answers) {
   return response.result;
 }
 
-export async function loadAssessment(requestedId) {
-  const [status, active] = await Promise.all([getPlacementStatus(), getActivePlacementAttempt()]);
+export async function loadAssessment(requestedId, statusParams) {
+  const [status, active] = await Promise.all([getPlacementStatus(statusParams), getActivePlacementAttempt()]);
   if (active && (!requestedId || requestedId === active.attemptId)) {
     return { status, attempt: active };
   }
@@ -47,15 +62,11 @@ export async function loadAssessment(requestedId) {
   if (!resultId) return { status };
   try {
     const result = await getPlacementResult(resultId);
-    if (!requestedId && (result.followUpUnavailableReason === 'CURRENT_TARGET_MISMATCH'
-      || (result.assessmentTargetLevelId && result.assessmentTargetLevelId !== status.targetJlptLevelId))) {
-      return { status };
-    }
     return { status, result, active };
   } catch (error) {
     if (error.data?.errorCode === 'PLACEMENT_ATTEMPT_EXPIRED') {
       const result = await submitPlacementAttempt(resultId, []);
-      const updatedStatus = await getPlacementStatus().catch(() => status);
+      const updatedStatus = await getPlacementStatus(statusParams).catch(() => status);
       return { status: updatedStatus, result, active, notice: 'Bài đánh giá đã được tự động nộp khi hết giờ.' };
     }
     if (error.status !== 404 && error.status !== 409) throw error;
@@ -74,18 +85,36 @@ export async function loadAssessment(requestedId) {
 export function getPlacementResultActions(status, result) {
   const latestCompletedId = status?.latestCompletedAttemptId ?? status?.latestAttemptId;
   const isLatest = Boolean(result && latestCompletedId && result.attemptId === latestCompletedId);
-  const matchesTarget = !result?.assessmentTargetLevelId
-    || result.assessmentTargetLevelId === status?.targetJlptLevelId;
-  const isDifferentGoal = Boolean(status?.targetJlptLevelId && !matchesTarget)
-    || result?.followUpUnavailableReason === 'CURRENT_TARGET_MISMATCH';
-  const isCurrentResult = isLatest && !isDifferentGoal && !result.isMiniAssessment;
-  const canRetake = isCurrentResult && status?.canStartNewAttempt !== false
-    && result.nextActions?.includes('RETAKE_TARGET_ASSESSMENT') === true;
-  const canPlan = isCurrentResult && status?.isReadyForLearningPath === true;
-  const canStartUpdatedAssessment = isCurrentResult && !status.attemptAllowance && ['N1', 'N2', 'N3', 'N4', 'N5'].includes(status.targetJlptLevelName)
-    && (result.isComprehensiveAssessment || !result.assessmentTargetLevelId
-      || (status.targetJlptLevelName !== 'N5' && result.levelBreakdowns?.length === 1));
-  return { isLatest, matchesTarget, isDifferentGoal, canPlan, canStartUpdatedAssessment, canRetake };
+  const hasGoal = Boolean(status?.isGoalConfirmed && status?.targetJlptLevelId);
+  const compatibility = String(status?.placementCompatibilityStatus || '').toUpperCase();
+  const matchesTarget = !hasGoal
+    || compatibility === 'COMPATIBLE'
+    || (!result?.assessmentTargetLevelId && compatibility !== 'INSUFFICIENT_FOR_TARGET')
+    || result?.assessmentTargetLevelId === status?.targetJlptLevelId;
+  const isInsufficientForTarget = Boolean(hasGoal && compatibility === 'INSUFFICIENT_FOR_TARGET');
+  const isDifferentGoal = Boolean(hasGoal && !matchesTarget) || isInsufficientForTarget;
+  const isCurrentResult = isLatest && !result?.isMiniAssessment;
+  const canRetake = Boolean(
+    isCurrentResult &&
+    status?.canStartNewAttempt === true &&
+    result?.nextActions?.includes('RETAKE_TARGET_ASSESSMENT'),
+  );
+  const canPlan = Boolean(isCurrentResult && hasGoal && compatibility === 'COMPATIBLE');
+  const canSetGoal = Boolean(isCurrentResult && !hasGoal);
+  const canSupplement = Boolean(isCurrentResult && isInsufficientForTarget && status?.canStartNewAttempt === true);
+  const canStartUpdatedAssessment = false;
+  return {
+    isLatest,
+    hasGoal,
+    matchesTarget,
+    isDifferentGoal,
+    isInsufficientForTarget,
+    canPlan,
+    canSetGoal,
+    canSupplement,
+    canStartUpdatedAssessment,
+    canRetake,
+  };
 }
 
 const result = (data) => data?.result;

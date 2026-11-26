@@ -69,11 +69,16 @@ export function homePathForRole(role) {
   return homeForRole(role);
 }
 
-export function learnerHomePath(profile, role) {
+export function learnerHomePath(profile, role, session = null) {
   if ((role || '').toLowerCase() !== 'learner') {
     return homePathForRole(role);
   }
-  if (!profile?.targetJlptLevelId) {
+  const ss = profile?.setupState;
+  const hasGoal = Boolean(ss?.hasConfirmedGoal ?? profile?.targetJlptLevelId);
+  const hasPlacementStartedOrDone = Boolean(
+    ss?.hasValidCompletedPlacement || ss?.hasActivePlacementAttempt || session?.skipOnboarding,
+  );
+  if (!hasGoal && !hasPlacementStartedOrDone) {
     return '/onboarding';
   }
   return '/app';

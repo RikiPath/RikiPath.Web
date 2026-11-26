@@ -159,13 +159,13 @@ describe('active state and breadcrumbs', () => {
 
   it('builds ContentAuthor Studio VNext labels and breadcrumbs', () => {
     const manualTrail = buildBreadcrumbs('ContentAuthor', '/content-manual/', '', 'Biên soạn nội dung');
-    assert.deepEqual(manualTrail.map((c) => c.label), ['Tác giả nội dung', 'Biên soạn học liệu', 'Biên soạn nội dung']);
+    assert.deepEqual(manualTrail.map((c) => c.label), ['Quản lý nội dung', 'Biên soạn học liệu', 'Biên soạn nội dung']);
 
     const planTrail = buildBreadcrumbs('ContentAuthor', '/content-plan/', '', 'Trợ lý biên soạn');
-    assert.deepEqual(planTrail.map((c) => c.label), ['Tác giả nội dung', 'Biên soạn học liệu', 'Trợ lý biên soạn']);
+    assert.deepEqual(planTrail.map((c) => c.label), ['Quản lý nội dung', 'Biên soạn học liệu', 'Trợ lý biên soạn']);
 
     const historyTrail = buildBreadcrumbs('ContentAuthor', '/bulk-import/', '?view=history', 'Lịch sử nhập liệu');
-    assert.deepEqual(historyTrail.map((c) => c.label), ['Tác giả nội dung', 'Nhập liệu', 'Lịch sử nhập liệu']);
+    assert.deepEqual(historyTrail.map((c) => c.label), ['Quản lý nội dung', 'Nhập liệu', 'Lịch sử nhập liệu']);
   });
 
   it('restructures Learner Luyện tập & Thi thử with Luyện đề & Thi thử accordion and exact active/breadcrumb states', () => {

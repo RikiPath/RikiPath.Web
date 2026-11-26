@@ -47,8 +47,9 @@ describe('UnifiedToolbar & Compact Workspace Layout Contracts', () => {
     assert.ok(catalog.includes('<CustomSelect'), 'AdminStudyCatalog must preserve CustomSelect filter');
 
     const groups = readSrc('src/pages/admin/AdminGroupWorkspace.jsx');
-    assert.ok(groups.includes('primaryToolbarTabs'), 'AdminGroupWorkspace must integrate section tabs with UnifiedToolbar');
+    assert.ok(groups.includes('<AdminCohortConsolePanel'), 'AdminGroupWorkspace must delegate primary cohorts monitoring view to AdminCohortConsolePanel');
     assert.equal(groups.includes('<Tabs'), false, 'AdminGroupWorkspace must not render separate stacked Tabs row');
+    assert.equal(groups.includes('Gói khóa học'), false, 'AdminGroupWorkspace must not render legacy Gói khóa học tab');
 
     const cases = readSrc('src/pages/admin/AdminMentorCases.jsx');
     assert.ok(cases.includes('caseToolbarTabs'), 'AdminMentorCases must pass tabs into panel AdminToolbar');

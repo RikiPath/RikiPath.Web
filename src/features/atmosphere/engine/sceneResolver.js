@@ -5,6 +5,7 @@ import { ZONE_ANCHORS, deviceTimeZone, isValidTimeZone, periodForTime, zonedPart
 import { classifyWeather } from './weatherCondition.js';
 import { seasonalContext } from './season.js';
 import { skyPalette } from './palette.js';
+import { DENSITY_MOOD, cloudDensity } from './clouds.js';
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const round = (v, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
@@ -102,6 +103,10 @@ export function resolveScene({ mode, location, weather, seasonal = 'auto', now, 
   const moonVisible = moon.illumination > 0.04;
   // Clearly visible whenever the sky allows it; thick cloud hides it (never a moon "through" an overcast deck).
   const moonOpacity = moonVisible ? clamp01((-2 - elevation) / 5) * clamp01(1 - Math.max(0, cover - 55) / 35) * (precip || condition === 'fog' ? 0.35 : 1) : 0;
+  // Diffused light: when clouds hide the disc the glow still bleeds around them (softer, wider), except in storms.
+  const daylight = clamp01((elevation + 1) / 4);
+  const sunGlow = condition === 'thunder' ? 0 : daylight * (condition === 'fog' ? 0.45 : 1) * (1 - overcast * 0.45);
+  const density = cloudDensity(cover, condition);
   const starsOpacity = clamp01((-4 - elevation) / 8) * (1 - clamp01((cover - 15) / 55)) * (condition === 'fog' ? 0.2 : 1);
 
   const wind = useWeather ? useWeather.wind : { speed: null, direction: null, x: 0.35, level: 'calm' };
@@ -140,6 +145,9 @@ export function resolveScene({ mode, location, weather, seasonal = 'auto', now, 
     // Day arc sunrise → sunset and night arc sunset → sunrise, each mapped onto the open band (0..1).
     sun: { p: round(clamp01((progress - 0.25) * 2)), y: Math.round(70 - 56 * clamp01(elevation / 35)), opacity: round(sunOpacity) },
     moonView: { p: round(clamp01(((progress + 0.25) % 1) * 2)), y: 24, opacity: round(moonOpacity), southern: (place.latitude ?? 1) < 0 },
+    sunGlow: round(sunGlow),
+    cloudDensity: density,
+    mood: DENSITY_MOOD[density],
     starsOpacity: round(starsOpacity),
     fog: condition === 'fog' ? 1 : precip?.level === 'heavy' ? 0.3 : 0,
     lightning: condition === 'thunder',

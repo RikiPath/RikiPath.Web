@@ -5,6 +5,11 @@ export async function getMyProfile() {
   return data.result;
 }
 
+export async function getMySetupState() {
+  const data = await api.get('/UserProfile/me/setup-state');
+  return data.result;
+}
+
 export async function setJlptGoal(payload) {
   const data = await api.post('/UserProfile/me/jlpt-goal', payload);
   return data.result;

@@ -58,7 +58,7 @@ export function buildActionQueueItems(stats = {}, extras = {}) {
     + Number(stats.pendingSlotChangeRequests || 0)
     + Number(stats.pendingCohortScheduleRequests || 0);
   const pendingVerifs = Number(stats.pendingVerifications || 0);
-  const scheduleApprovals = Number(stats.pendingMentorSchedules || 0);
+  const scheduleApprovals = Number(stats.pendingTeachingProposals ?? stats.pendingMentorSchedules ?? 0);
   const pendingTransfers = Number(stats.pendingTransferRequests || 0);
   const pendingRetakes = Number(extras.pendingRetakes || 0);
   const pendingContent = Number(stats.pendingContent || 0);
@@ -104,8 +104,8 @@ export function buildActionQueueItems(stats = {}, extras = {}) {
       id: 'schedules',
       priority: 5,
       severity: 'medium',
-      label: 'Khung giờ dạy chờ duyệt',
-      hint: 'Xem và phê duyệt khung giờ Giáo viên đăng ký',
+      label: 'Đề xuất mở lớp chờ duyệt',
+      hint: 'Xem và phê duyệt đề xuất mở lớp nhóm JLPT',
       count: scheduleApprovals,
       to: '/admin/mentor-schedules/',
     },
@@ -189,6 +189,40 @@ export function buildRevenueSeries(paymentItems = [], days = 30) {
       orders: hit.orders,
     };
   });
+}
+
+export function normalizeServerDailyRevenueSeries(dailySeries = [], days = 30) {
+  if (!Array.isArray(dailySeries) || dailySeries.length === 0) return [];
+  const byDay = new Map();
+  for (const row of dailySeries) {
+    const key = String(row?.date || '').slice(0, 10);
+    if (!key) continue;
+    const value = Number(
+      row.netAmount
+      ?? row.totalPaidAmount
+      ?? (Number(row.subscriptionAmount || 0) + Number(row.courseTuitionAmount || 0) + Number(row.aiTopUpAmount || 0))
+    );
+    byDay.set(key, {
+      key,
+      label: shortDayLabel(key),
+      value: Number.isFinite(value) ? value : 0,
+      orders: Number(row.paidOrders || 0),
+    });
+  }
+
+  const keys = [...byDay.keys()].sort();
+  if (!keys.length) return [];
+  if (days && days <= 30 && keys.length < days) {
+    const now = new Date();
+    const out = [];
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const key = vnDayKey(new Date(now.getTime() - i * 86400_000));
+      const hit = byDay.get(key);
+      out.push(hit || { key, label: shortDayLabel(key), value: 0, orders: 0 });
+    }
+    return out;
+  }
+  return keys.map((k) => byDay.get(k));
 }
 
 export function buildUserRoleDistribution(users = []) {

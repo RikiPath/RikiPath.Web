@@ -87,11 +87,10 @@ export default function AdminCohortComplaintsPanel({
   const decidable = item && (item.status === 'Open' || item.status === 'UnderReview');
 
   const columns = [
-    { key: 'id', header: '#', compact: true, render: (r) => <span className="font-mono text-xs text-rp-text-muted">#{r.id}</span> },
     {
       key: 'cohortName',
       header: tr('Lớp / Khóa'),
-      render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || (r.cohortId ? `#${r.cohortId}` : trf('Khóa #{0}', { 0: r.courseId }))}</span>,
+      render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || tr('Lớp học nhóm')}</span>,
     },
     {
       key: 'category',
@@ -192,7 +191,7 @@ export default function AdminCohortComplaintsPanel({
       <Drawer
         open={Boolean(selectedId)}
         onClose={() => setSelectedId(null)}
-        title={item ? `${tr('Khiếu nại')} #${item.id} · ${tr(categoryLabel(item.category))}` : tr('Chi tiết khiếu nại')}
+        title={item ? `${tr('Khiếu nại')} · ${tr(categoryLabel(item.category))}` : tr('Chi tiết khiếu nại')}
         width="w-[min(560px,100vw)]"
       >
         {item && (
@@ -221,7 +220,7 @@ export default function AdminCohortComplaintsPanel({
             )}
 
             <Card className="space-y-2.5 bg-rp-bg-2/40 p-4 text-sm">
-              <p><strong>{tr('Nội dung khiếu nại')}:</strong> {tr(item.message)}</p>
+              <p><strong>{tr('Nội dung khiếu nại')}:</strong> {item.message}</p>
               {item.mentorResponse && (
                 <p><strong>{tr('Phản hồi của Giáo viên')}:</strong> {item.mentorResponse}</p>
               )}
@@ -232,7 +231,7 @@ export default function AdminCohortComplaintsPanel({
 
             {decidable && (
               <Card className="space-y-3 p-4">
-                <h3 className="text-sm font-bold text-rp-text">{tr('Quyết định của Admin')}</h3>
+                <h3 className="text-sm font-bold text-rp-text">{tr('Quyết định của Quản trị viên')}</h3>
                 <Field label={tr('Kết quả xử lý')}>
                   <CustomSelect
                     value={decisionStatus}

@@ -1,5 +1,6 @@
 export const PROFILE_TABS = [
   { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'UserRound' },
+  { id: 'professional', label: 'Hồ sơ chuyên môn', icon: 'GraduationCap', roles: ['Mentor'] },
   { id: 'security', label: 'Bảo mật & đăng nhập', icon: 'ShieldCheck' },
   { id: 'notifications', label: 'Thông báo', icon: 'Bell' },
   { id: 'preferences', label: 'Ngôn ngữ & giao diện', icon: 'SlidersHorizontal' },
@@ -18,7 +19,7 @@ export const ROLE_META = {
     summary: 'Giáo viên giảng dạy và đồng hành cùng các lớp học nhóm trên RikiPath.',
   },
   ContentAuthor: {
-    label: 'Tác giả nội dung',
+    label: 'Quản lý nội dung',
     badgeClass: 'border-[#E6DFC8] bg-[#FAF6EB] text-[#7D5B12]',
     summary: 'Biên soạn giáo trình, từ vựng, ngữ pháp, Hán tự và bộ đề thi chuẩn JLPT.',
   },
@@ -51,7 +52,7 @@ export const NOTIFICATION_CATEGORIES_BY_ROLE = {
     {
       key: 'scheduleReview',
       title: 'Xét duyệt lịch dạy',
-      description: 'Cập nhật khi Admin duyệt hoặc yêu cầu điều chỉnh khung giờ giảng dạy.',
+      description: 'Cập nhật khi Quản trị viên duyệt hoặc yêu cầu bổ sung khung giờ giảng dạy.',
     },
     {
       key: 'teachingSchedule',

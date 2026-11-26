@@ -38,8 +38,10 @@ const ROOM_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 const ROLE_LABELS = {
   mentor: 'Giáo viên',
+  consultant: 'Giáo viên',
   learner: 'Học viên',
   admin: 'Quản trị viên',
+  contentauthor: 'Quản lý nội dung',
 };
 
 function roleLabel(role, tr) {

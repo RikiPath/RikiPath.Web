@@ -114,7 +114,7 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
   const tableColumns = [
     {
       key: 'date',
-      header: tr('Ngày (GMT+7)'),
+      header: tr('Ngày'),
       render: (row) => <span className="font-medium">{toVnTimeParts(row.startTime).dateKey}</span>,
     },
     {

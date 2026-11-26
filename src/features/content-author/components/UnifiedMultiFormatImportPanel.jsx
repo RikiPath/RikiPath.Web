@@ -29,6 +29,11 @@ import {
   notify,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import {
+  formatExamKindLabel,
+  formatImportRowStatusLabel,
+  formatSkillNameLabel,
+} from '@/utils/terminology.js';
 
 const TEMPLATE_ITEMS = [
   { key: 'vocabulary', label: 'Từ vựng (Vocabulary)', hint: 'Word, Reading, Meaning, Câu hỏi' },
@@ -151,7 +156,7 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
           const tone = r.status === 'Error' ? 'danger' : r.status === 'Warning' || r.status === 'Duplicate' ? 'warning' : 'success';
           return (
             <div className="flex flex-wrap gap-1">
-              <Badge tone={tone} size="sm" icon={false}>{r.status}</Badge>
+              <Badge tone={tone} size="sm" icon={false}>{formatImportRowStatusLabel(r.status, tr)}</Badge>
               {r.incompleteMedia && <Badge tone="warning" size="sm" icon={AlertTriangle}>{tr('Thiếu audio')}</Badge>}
             </div>
           );
@@ -247,7 +252,7 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <Badge tone="neutral" icon={preview.detectedFormat === 'ZIP' ? FileArchive : preview.detectedFormat === 'PDF' ? FileText : preview.detectedFormat === 'JSON' ? FileJson : FileSpreadsheet}>
-                  {`${preview.detectedFormat} · ${preview.detectedKind}`}
+                  {`${preview.detectedFormat} · ${formatSkillNameLabel(preview.detectedKind, tr)}`}
                 </Badge>
                 <Badge tone="success" icon={CheckCircle2}>{trf('{0} hợp lệ', { 0: preview.validCount })}</Badge>
                 {preview.warningCount > 0 && <Badge tone="warning" icon={AlertTriangle}>{trf('{0} cảnh báo', { 0: preview.warningCount })}</Badge>}
@@ -299,7 +304,7 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
             {preview.examBlueprint && (
               <div className="rounded-xl border border-rp-brand-border bg-rp-brand-tint/25 p-3 text-xs">
                 <div className="font-bold text-rp-text">
-                  {`${preview.examBlueprint.examKind}: ${preview.examBlueprint.title} (${preview.examBlueprint.certificateLevelCode} · ${preview.examBlueprint.timeLimitMinutes} phút)`}
+                  {`${formatExamKindLabel(preview.examBlueprint.examKind, tr)}: ${preview.examBlueprint.title} (${preview.examBlueprint.certificateLevelCode} · ${preview.examBlueprint.timeLimitMinutes} phút)`}
                 </div>
                 <div className="mt-1 text-rp-text-2">
                   {trf('{0} phần thi cấu trúc sẵn sàng tạo bản nháp.', { 0: preview.examBlueprint.sections?.length || 0 })}

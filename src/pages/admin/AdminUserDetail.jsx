@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Lock, ShieldCheck, Unlock, UserRound } from 'lucide-react';
+import { Lock, ShieldCheck, Unlock, UserRound } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import {
   AlertDialog,
+  BackButton,
   Badge,
   Banner,
   Button,
@@ -25,7 +26,7 @@ import { useLocale } from '@/locales/locale.js';
 
 const ROLES = [
   { value: 'Learner', label: 'Học viên' },
-  { value: 'ContentAuthor', label: 'Biên soạn nội dung' },
+  { value: 'ContentAuthor', label: 'Quản lý nội dung' },
   { value: 'Mentor', label: 'Giáo viên' },
   { value: 'Admin', label: 'Quản trị viên' },
 ];
@@ -63,10 +64,10 @@ export default function AdminUserDetail() {
     onSuccess: async (response) => {
       const updated = response?.result ?? response;
       queryClient.setQueryData(ADMIN_KEYS.userDetail(id), updated);
-      await invalidateAdminDomains(queryClient, ['users']);
       setPendingChange(null);
       setSaveError('');
       notify.success(tr('Đã cập nhật tài khoản.'), '', { key: `admin-user-update-${id}`, replace: true });
+      await Promise.allSettled([invalidateAdminDomains(queryClient, ['users'])]);
     },
     onError: (err) => {
       setPendingChange(null);
@@ -86,13 +87,7 @@ export default function AdminUserDetail() {
     <AdminShell pathname={pathname} breadcrumb={tr('Chi tiết người dùng')}>
       <main data-page="AdminUserDetail" className="rp-container py-[var(--rp-space-page-y)] space-y-5 text-rp-text">
         <div>
-          <Link
-            to="/admin/users/"
-            className="rp-link inline-flex items-center gap-1.5 text-sm font-medium text-rp-text-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>{tr('Quay lại danh sách người dùng')}</span>
-          </Link>
+          <BackButton fallbackTo="/admin/users/" label="Quay lại danh sách người dùng" restoreListKey="/admin/users" />
         </div>
 
         {!id ? (
@@ -167,12 +162,12 @@ export default function AdminUserDetail() {
 
                 {isAdminAccount ? (
                   <Banner tone="info" title={tr('Tài khoản Quản trị hệ thống')}>
-                    {tr('Tài khoản Admin duy nhất được bảo vệ khỏi thao tác hạ quyền hoặc tự vô hiệu hóa.')}
+                    {tr('Tài khoản Quản trị viên duy nhất được bảo vệ khỏi thao tác hạ quyền hoặc tự vô hiệu hóa.')}
                   </Banner>
                 ) : (
                   <Field
                     label={tr('Vai trò hệ thống')}
-                    hint={tr('Mọi thay đổi vai trò đều yêu cầu xác nhận và được ghi vào nhật ký kiểm toán Admin.')}
+                    hint={tr('Mọi thay đổi vai trò đều yêu cầu xác nhận và được ghi vào nhật ký kiểm toán Quản trị viên.')}
                   >
                     <CustomSelect
                       value={role}

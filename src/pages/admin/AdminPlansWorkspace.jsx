@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { History, Package, Plus, ShieldCheck } from 'lucide-react';
+import { GraduationCap, History, Package, Plus, ShieldCheck } from 'lucide-react';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh.js';
 import { AdminShell } from '@/layouts';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui';
 import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
 import { AdminWorkspace } from '@/features/admin/components/AdminPrimitives.jsx';
+import AdminMentorGroupPolicy from '@/pages/admin/AdminMentorGroupPolicy.jsx';
 import {
   createAdminSubscriptionPlan,
   getAdminAuditLogs,
@@ -287,9 +288,9 @@ export default function AdminPlansWorkspace() {
   const hasPlans = subQuery.isSuccess && plans.length > 0;
 
   return (
-    <AdminShell breadcrumb={tr('Gói học & bảng giá')}>
+    <AdminShell breadcrumb={tr('Gói học & học phí')}>
       <AdminWorkspace viewportLocked page="AdminPlansWorkspace">
-        <AdminPageHeader icon={Package} title="Gói học & bảng giá" className="mb-0 shrink-0" />
+        <AdminPageHeader icon={Package} title="Gói học & học phí" className="mb-0 shrink-0" />
 
         <UnifiedToolbar
           divider={false}
@@ -302,6 +303,7 @@ export default function AdminPlansWorkspace() {
             onChange: setActiveTab,
             tabs: [
               { value: 'subscription', label: tr('Gói học & Lượt AI'), icon: Package, count: allGroups.length },
+              { value: 'tuition', label: tr('Học phí lớp học nhóm'), icon: GraduationCap },
               { value: 'features', label: tr('Chính sách tính năng'), icon: ShieldCheck, count: features.length },
               { value: 'audit', label: tr('Lịch sử thay đổi'), icon: History },
             ],
@@ -347,7 +349,7 @@ export default function AdminPlansWorkspace() {
             ) : undefined
           }
           refresh={{
-            when: activeTab === 'audit' ? (auditQuery.data || []).length > 0 : plans.length > 0,
+            when: activeTab === 'tuition' ? false : (activeTab === 'audit' ? (auditQuery.data || []).length > 0 : plans.length > 0),
             onRefresh: refreshPlans,
             refreshing: plansRefreshing,
           }}
@@ -390,6 +392,12 @@ export default function AdminPlansWorkspace() {
               />
             )}
           </DataRefreshBoundary>
+        )}
+
+        {activeTab === 'tuition' && (
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-2">
+            <AdminMentorGroupPolicy section="tuition" />
+          </div>
         )}
 
         {activeTab === 'features' && (

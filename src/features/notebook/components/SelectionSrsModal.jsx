@@ -81,7 +81,6 @@ export default function SelectionSrsModal({ request, onClose }) {
     },
     onSuccess: async (outcome) => {
       setOverrideCard({ key: reqKey, card: outcome?.card || null });
-      await invalidate();
       notify.success(
         outcome?.action === 'Reactivated'
           ? tr('Đã kích hoạt lại thẻ vào Thẻ của tôi')
@@ -89,8 +88,9 @@ export default function SelectionSrsModal({ request, onClose }) {
             ? tr('Thẻ đã có trong Thẻ của tôi')
             : tr('Đã thêm vào Thẻ của tôi'),
         '',
-        { key: 'sel-srs-enroll' },
+        { key: 'sel-srs-enroll', replace: true },
       );
+      await Promise.allSettled([invalidate()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa lưu được thẻ')),
   });
@@ -99,9 +99,9 @@ export default function SelectionSrsModal({ request, onClose }) {
     mutationFn: () => deleteSrsCard(existingCard.reviewCardId),
     onSuccess: async () => {
       setOverrideCard({ key: reqKey, card: null });
-      await invalidate();
-      notify.success(tr('Đã xóa thẻ khỏi Thẻ của tôi'), '');
+      notify.success(tr('Đã xóa thẻ khỏi Thẻ của tôi'), '', { key: 'sel-srs-delete', replace: true });
       onClose?.();
+      await Promise.allSettled([invalidate()]);
     },
     onError: (err) => notify.apiError(err, tr('Chưa xóa được thẻ')),
   });

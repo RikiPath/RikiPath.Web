@@ -16,6 +16,13 @@ import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
 const date = (v) => (v ? formatVnDateTime(v, '—') : '—');
+const CONFLICT_KIND_LABELS = {
+  CohortSession: 'Lịch lớp học nhóm',
+  LegacyBooking: 'Lịch đặt trước',
+  IndividualCourseSession: 'Lịch học cá nhân',
+  ProposedSession: 'Buổi dự kiến',
+  TeachingProposal: 'Đề xuất mở lớp',
+};
 
 export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, onRun }) {
   const { tr, trf } = useLocale();
@@ -110,7 +117,7 @@ export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, on
         <div className="space-y-4 border-t border-rp-line pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-rp-text">
-              {preview.name}: {preview.currentMentorName} → {preview.replacementMentorName || `#${preview.replacementMentorId}`}
+              {preview.name}: {preview.currentMentorName} → {preview.replacementMentorName || tr('Giáo viên thay thế')}
             </h3>
             <Badge tone={preview.eligible ? 'success' : 'danger'} size="sm" icon={false}>
               {preview.eligible ? tr('Có thể thay') : tr('Chưa thể thay')}
@@ -138,7 +145,7 @@ export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, on
             <Banner tone="danger" title={tr('Lịch trùng của Giáo viên thay thế')}>
               <ul className="space-y-0.5 text-xs">
                 {preview.conflicts.map((c, i) => (
-                  <li key={i}>{trf('Buổi {0}: {1} #{2} ({3})', { 0: c.sessionNumber, 1: c.kind, 2: c.conflictId, 3: date(c.startTime) })}</li>
+                  <li key={i}>{trf('Buổi {0}: {1} ({2})', { 0: c.sessionNumber, 1: tr(CONFLICT_KIND_LABELS[c.kind] || 'Lịch giảng dạy khác'), 2: date(c.startTime) })}</li>
                 ))}
               </ul>
             </Banner>

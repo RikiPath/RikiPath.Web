@@ -11,6 +11,7 @@ import {
 } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
+import { formatDateTime } from '@/utils/dateTimeFormat.js';
 import { notify } from '@/components/ui/feedbackStore.js';
 import {
   Badge,
@@ -22,6 +23,7 @@ import {
   ContextualErrorState,
   CustomSelect,
   Modal,
+  RichQuestionText,
   Pagination,
   RefreshingIndicator,
   SakuraLoader,
@@ -35,7 +37,7 @@ import AdminSrsTemplatesPanel from '@/features/admin/components/AdminSrsTemplate
 import AdminPublishManagerPanel from '@/features/admin/components/AdminPublishManagerPanel.jsx';
 import AdminModerationV2Panel from '@/features/admin/components/AdminModerationV2Panel.jsx';
 import Icon from '@/components/ui/Icon.jsx';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { useLocale } from '@/locales/locale.js';
 
 const approvalKeys = {
   all: ADMIN_KEYS.contentApprovals,
@@ -79,7 +81,7 @@ const ACTION_META = {
   Modified: { label: 'Chỉnh sửa', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   Unchanged: { label: 'Không thay đổi', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
   Error: { label: 'Đã có', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-  Pending: { label: 'Chờ duyệt', bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
+  Pending: { label: 'Chờ duyệt', bg: 'bg-rp-warning-bg', text: 'text-rp-warning', border: 'border-rp-warning-line' },
 };
 
 function ActionBadge({ action }) {
@@ -160,7 +162,7 @@ function QuestionBlock({ q, index }) {
         <span className="shrink-0 rounded bg-rp-brand/10 px-1.5 py-0.5 text-[11px] font-bold text-rp-brand">
           {tr('Câu')}{' '}{pick(q, 'SortOrder', 'sortOrder') ?? index + 1}
         </span>
-        <p className="flex-1 text-[13px] font-medium break-words">{pick(q, 'QuestionText', 'questionText')}</p>
+        <RichQuestionText as="p" text={pick(q, 'QuestionText', 'questionText')} className="flex-1 text-[13px] font-medium break-words" />
         <span className="shrink-0 text-[10px] text-rp-text-muted">
           {jlptItemType || pick(q, 'QuestionType', 'questionType')}
         </span>
@@ -169,7 +171,7 @@ function QuestionBlock({ q, index }) {
       {passageText && (
         <div className="mt-2 rounded-lg border border-rp-line bg-slate-50 p-2.5 text-xs">
           <p className="font-semibold text-rp-text">{tr('Đoạn đọc')}</p>
-          <p className="rp-jp mt-1 whitespace-pre-wrap text-rp-text-2">{passageText}</p>
+          <RichQuestionText as="p" text={passageText} className="rp-jp mt-1 whitespace-pre-wrap text-rp-text-2" />
         </div>
       )}
       {starPosition && <p className="mt-2 text-[12px] text-rp-text-2">{tr('Vị trí dấu ★')} · {starPosition}</p>}
@@ -335,12 +337,12 @@ function LessonRelatedContent({ items = [] }) {
                         <ol className="mt-2 list-decimal space-y-2 pl-5">
                           {questions.map((question, questionIndex) => (
                             <li key={question.sortOrder ?? question.SortOrder ?? questionIndex}>
-                              <p className="whitespace-pre-wrap">{question.questionText ?? question.QuestionText}</p>
+                              <RichQuestionText as="p" text={question.questionText ?? question.QuestionText} className="whitespace-pre-wrap" />
                               {(question.imageUrl ?? question.ImageUrl) && <img src={question.imageUrl ?? question.ImageUrl} alt="Ảnh câu hỏi" loading="lazy" className="mt-2 max-h-64 max-w-full object-contain" />}
                               <ul className="mt-1 list-disc pl-4">
                                 {(question.options ?? question.Options ?? []).map((option, optionIndex) => (
                                   <li key={option.sortOrder ?? option.SortOrder ?? optionIndex} className={option.isCorrect ?? option.IsCorrect ? 'font-semibold text-emerald-700' : ''}>
-                                    {option.optionText ?? option.OptionText}
+                                    <RichQuestionText text={option.optionText ?? option.OptionText} />
                                     {(option.imageUrl ?? option.ImageUrl) && <img src={option.imageUrl ?? option.ImageUrl} alt="Ảnh đáp án" loading="lazy" className="mt-1 max-h-40 max-w-full object-contain" />}
                                   </li>
                                 ))}
@@ -348,7 +350,7 @@ function LessonRelatedContent({ items = [] }) {
                               {(question.explanation ?? question.Explanation) && (
                                 <p className="mt-1 rounded bg-slate-50 px-2 py-1 text-[11.5px] text-rp-text-2">
                                   <span className="font-semibold text-rp-text">{tr('Giải thích')}: </span>
-                                  {question.explanation ?? question.Explanation}
+                                  <RichQuestionText text={question.explanation ?? question.Explanation} />
                                 </p>
                               )}
                             </li>
@@ -394,7 +396,7 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
           <p className="mt-1 text-[12px] text-rp-text-muted">
             <span className="font-semibold text-rp-text-2">{item.entityType}</span>
             {' · '}{tr('Người gửi:')}{' '}{item.submittedByName ?? '—'}
-            {item.submittedAt ? ' · ' + new Date(item.submittedAt).toLocaleString(currentIntlTag()) : ''}
+            {item.submittedAt ? ' · ' + formatDateTime(item.submittedAt) : ''}
           </p>
           {changedCount > 0 && <p className="mt-1 text-[12px] font-semibold text-amber-600">{trf('{0} trường thay đổi', { 0: changedCount })}</p>}
         </div>

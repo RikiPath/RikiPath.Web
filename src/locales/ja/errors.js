@@ -44,7 +44,7 @@ export const jaErrors = {
   'Thời lượng khóa học không hợp lệ theo chính sách (số tuần, tổng số buổi hoặc phút/buổi).': 'コースの期間が規定に合っていません（週数、総授業数、または1回の時間）。',
 
   // Enrollment & payment
-  'Lớp đã đủ 4 học viên. Vui lòng chọn lớp khác.': 'このクラスは定員（4名）に達しました。別のクラスを選んでください。',
+  'Lớp học đã đủ sĩ số. Vui lòng chọn lớp khác.': 'このクラスは定員に達しました。別のクラスを選んでください。',
   'Lớp đã đóng ghi danh. Vui lòng chọn lớp khác.': 'このクラスの申込受付は終了しました。別のクラスを選んでください。',
   'Bạn đã ghi danh lớp này. Vui lòng xem mục "Lớp đang học của tôi".': 'このクラスにはすでに申し込み済みです。「受講中のクラス」をご確認ください。',
   'Lịch lớp này trùng với lịch học khác của bạn. Vui lòng chọn lớp khác.': 'このクラスの日程はほかの授業と重なっています。別のクラスを選んでください。',
@@ -90,4 +90,29 @@ export const jaErrors = {
   'Chưa tạo được liên kết thanh toán. Vui lòng thử lại.': '支払いリンクを作成できませんでした。もう一度お試しください。',
   // Shared states (SmartDataBoundary presets & offline)
   'Bạn đang ngoại tuyến. Một số dữ liệu có thể chưa được cập nhật.': 'オフラインです。一部のデータが最新でない可能性があります。',
+
+  // Learner onboarding, placement & roadmap validation
+  'Vui lòng chọn chứng chỉ và mục tiêu JLPT (N5–N2) trước khi xem lộ trình học.': '学習ロードマップを表示する前に、資格とJLPT目標（N5〜N2）を設定してください。',
+  'Lộ trình hiện hỗ trợ các cấp độ JLPT từ N5 đến N2.': '現在の学習ロードマップはJLPT N5〜N2に対応しています。',
+  'Vui lòng thiết lập mục tiêu JLPT (N5–N2) trước khi thực hiện bước tiếp theo.': '次のステップに進む前に、JLPT目標（N5〜N2）を設定してください。',
+  'Vui lòng hoàn thành bài đánh giá năng lực hoặc chủ động chọn bỏ qua để mở lộ trình tiêu chuẩn.': '標準ロードマップを開くには、レベル診断を完了するかスキップを選択してください。',
+  'Bạn đang có bài đánh giá năng lực chưa hoàn tất. Hãy tiếp tục làm bài để hoàn thiện thiết lập.': '未完了のレベル診断があります。受験を続けて設定を完了してください。',
+  'Bạn có lượt đánh giá năng lực đã hết giờ cần nộp để nhận kết quả.': '時間切れのレベル診断があります。提出して結果を受け取ってください。',
+  'Vui lòng lưu mục tiêu JLPT hợp lệ trước khi bắt đầu bài đánh giá năng lực.': 'レベル診断を始める前に、有効なJLPT目標を保存してください。',
+  'Vui lòng thiết lập mục tiêu JLPT (N5–N2) trước khi tạo lộ trình học AI.': 'AI学習ロードマップを作成する前に、JLPT目標（N5〜N2）を設定してください。',
+  'Cần hoàn thành bài đánh giá năng lực hợp lệ trước khi mở khóa lộ trình cá nhân hóa AI.': 'AIパーソナライズロードマップを利用するには、有効なレベル診断の完了が必要です。',
+  'Bạn đã có lộ trình AI đang hoạt động. Hãy xem trước và xác nhận để cập nhật.': '有効なAIロードマップがすでにあります。プレビューを確認してから更新してください。',
+  'Chế độ lộ trình không hợp lệ. Vui lòng chọn Lộ trình tiêu chuẩn hoặc Lộ trình cá nhân hóa AI.': 'ロードマップのモードが無効です。標準ロードマップまたはAIパーソナライズロードマップを選んでください。',
+  'Kết quả đánh giá hiện tại chưa bao phủ đủ cấp độ mục tiêu. Hãy làm bài đánh giá bổ sung hoặc chọn Lộ trình tiêu chuẩn.': '現在のレベル診断結果では目標レベルの範囲を十分にカバーできていません。追加の診断を受けるか、標準ロードマップをお選びください。',
+  'Bạn đã sử dụng hết số lượt đánh giá cho phạm vi này theo chính sách hiện hành.': '現行ポリシーにより、この範囲の診断受験回数の上限に達しました。',
+  'Hãy mở kết quả đánh giá hiện tại hoặc chọn Đánh giá lại để làm lượt mới.': '現在の診断結果を開くか、「再受験」を選択して新しい受験を開始してください。',
+  'Bạn đã dùng hết lượt tạo lộ trình cá nhân hóa AI. Vui lòng mua thêm lượt hoặc sử dụng Lộ trình tiêu chuẩn.': 'AIパーソナライズロードマップの作成回数が上限に達しました。追加回数を購入するか、標準ロードマップをご利用ください。',
+  // Practice Sets, Mock Tests & Attempt Lifecycle
+  'Đề thi thử JLPT không cho phép xem trước danh sách câu hỏi.': 'JLPT模擬試験では問題一覧の事前プレビューはできません。',
+  'Bộ đề luyện tập hiện chưa khả dụng hoặc đang được cập nhật.': 'この練習セットは現在利用できないか、更新中です。',
+  'Bạn đang có một lượt thi thử JLPT chưa hoàn thành. Vui lòng tiếp tục hoặc nộp lượt hiện tại.': '未完了のJLPT模擬試験があります。現在の受験を再開するか提出してください。',
+  'Lượt làm bài này đã kết thúc do bạn chọn bắt đầu lượt mới.': '新しい受験を開始したため、この受験セッションは終了しました。',
+  'Bạn cần hoàn thành ít nhất một lượt thi thử trước khi tải bản PDF của đề thi này.': 'PDFをダウンロードするには、この模擬試験を少なくとも1回完了する必要があります。',
+  'Lượt làm bài đã hết thời gian theo đồng hồ máy chủ.': 'サーバー時計の制限時間に達しました。',
+  'Lượt làm bài này đã được nộp và chấm điểm.': 'この受験はすでに提出・採点されています。',
 };

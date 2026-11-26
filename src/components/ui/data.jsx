@@ -192,6 +192,9 @@ export function DataTable({
   // Changes whenever the caller's filters/search change (e.g. `${status}|${query}`): client-paged tables return to
   // page 1 instead of staying on a page that no longer exists or now shows unrelated rows.
   resetPageKey,
+  onViewChange,
+  beforeTable,
+  rowClassName,
   className,
 }) {
   const resolveRowKey = (row, idx) => (keyField && row?.[keyField] != null ? row[keyField] : rowKey(row) ?? idx);
@@ -202,6 +205,7 @@ export function DataTable({
   const [sizeCustomized, setSizeCustomized] = useState(false);
   const [adaptiveSize, setAdaptiveSize] = useState(0);
   const rootRef = useRef(null);
+  const scrollRef = useRef(null);
   const tableRef = useRef(null);
   const [lastResetKey, setLastResetKey] = useState(resetPageKey);
   if (resetPageKey !== lastResetKey) {
@@ -269,7 +273,11 @@ export function DataTable({
   const visible = serverPaged ? sorted : sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   function toggleSort(key) {
-    setSort((cur) => (cur?.key !== key ? { key, dir: 'asc' } : cur.dir === 'asc' ? { key, dir: 'desc' } : null));
+    setSort((cur) => {
+      const next = cur?.key !== key ? { key, dir: 'asc' } : cur.dir === 'asc' ? { key, dir: 'desc' } : null;
+      onViewChange?.({ reason: 'sort', sort: next, page: safePage, pageSize });
+      return next;
+    });
   }
 
   const resolvedDensity = normalizeDensity(density);
@@ -287,7 +295,7 @@ export function DataTable({
     col.width,
   );
   const allColumns = rowActions
-    ? [...columns, { key: '__actions', header: actionsHeaderLabel, align: 'right', headerAlign: 'center', compact: actionsCompact, render: rowActions }]
+    ? [...columns, { key: '__actions', header: actionsHeaderLabel, align: 'center', headerAlign: 'center', compact: actionsCompact, render: rowActions }]
     : columns;
   const resolveColumnAlign = (col, index) => resolveAlignClass(
     col.align || (index === 0 ? 'left' : index === allColumns.length - 1 ? 'right' : align),
@@ -297,9 +305,28 @@ export function DataTable({
     : index === allColumns.length - 1
       ? 'pl-[var(--rp-table-cell-x)] pr-[var(--rp-table-cell-x)] sm:pr-3'
       : '';
-  const isAdminTable = paginationVariant === 'admin';
+  const usesTableScroll = Boolean(stickyHeader || scrollClassName || fillHeight);
 
-  return (
+  // Sync measured thead height into --rp-table-head-h so the vertical scrollbar track always starts below the sticky header.
+  useEffect(() => {
+    if (!usesTableScroll) return undefined;
+    const scroller = scrollRef.current;
+    const thead = tableRef.current?.tHead;
+    if (!scroller || !thead) return undefined;
+
+    const syncHeadHeight = () => {
+      const h = Math.round(thead.getBoundingClientRect().height);
+      if (h > 0) scroller.style.setProperty('--rp-table-head-h', `${h}px`);
+    };
+    syncHeadHeight();
+
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(syncHeadHeight);
+    ro.observe(thead);
+    return () => ro.disconnect();
+  }, [usesTableScroll, columns.length, resolvedDensity]);
+
+  const tableElement = (
     <div
       ref={rootRef}
       data-rp-surface="true"
@@ -312,6 +339,8 @@ export function DataTable({
       )}
     >
       <div
+        ref={scrollRef}
+        style={usesTableScroll ? { '--rp-table-head-bg': 'var(--color-rp-table-head)' } : undefined}
         className={cx(
           stickyHeader || scrollClassName || fillHeight ? 'rp-table-scroll' : 'rp-scroll-x',
           fillHeight && 'min-h-0',
@@ -333,10 +362,8 @@ export function DataTable({
                     scope="col"
                     aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : undefined}
                     className={cx(
-                      'border-b border-rp-line px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] text-xs uppercase tracking-[0.04em]',
-                      stickyHeader && 'sticky top-0 z-10 shadow-[0_1px_0_var(--color-rp-line)]',
-                      stickyHeader && !isAdminTable && 'bg-rp-table-head',
-                      isAdminTable ? 'bg-[#FAF7F8] font-bold text-rp-text-2' : 'font-semibold text-rp-text-muted',
+                      'border-b border-rp-brand-border/80 bg-rp-table-head px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] text-xs font-bold text-rp-brand-strong',
+                      stickyHeader && 'sticky top-0 z-10 shadow-[0_1px_0_var(--color-rp-brand-border)]',
                       col.headerAlign ? resolveAlignClass(col.headerAlign) : resolveColumnAlign(col, index),
                       edgeCellPadding(index),
                       getColumnPriorityClass(col.priority),
@@ -344,14 +371,19 @@ export function DataTable({
                       col.headerClassName,
                     )}
                   >
-                    {sortable ? (
-                      <button type="button" onClick={() => toggleSort(col.key)} className={cx('rp-focus inline-flex items-center gap-1 rounded hover:text-rp-text', col.headerButtonClassName)}>
-                        {col.header}
-                        {dir === 'asc' ? <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" /> : dir === 'desc' ? <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" /> : <ArrowUpDown aria-hidden="true" className="h-3.5 w-3.5 opacity-50" />}
-                      </button>
-                    ) : (
-                      col.header
-                    )}
+                    {(() => {
+                      const headerContent = typeof col.header === 'function'
+                        ? col.header({ visibleRows: visible, safePage, pageSize })
+                        : col.header;
+                      return sortable ? (
+                        <button type="button" onClick={() => toggleSort(col.key)} className={cx('rp-focus inline-flex items-center gap-1 rounded hover:text-rp-brand-deep', col.headerButtonClassName)}>
+                          {headerContent}
+                          {dir === 'asc' ? <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" /> : dir === 'desc' ? <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" /> : <ArrowUpDown aria-hidden="true" className="h-3.5 w-3.5 opacity-50" />}
+                        </button>
+                      ) : (
+                        headerContent
+                      );
+                    })()}
                   </th>
                 );
               })}
@@ -423,6 +455,7 @@ export function DataTable({
                 className={cx(
                   'border-b border-rp-line transition-colors duration-150 last:border-0 hover:bg-rp-row-hover',
                   onRowClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rp-brand/35',
+                  typeof rowClassName === 'function' ? rowClassName(row) : rowClassName,
                 )}
               >
                 {allColumns.map((col, index) => (
@@ -454,7 +487,11 @@ export function DataTable({
           itemLabel={itemLabel}
           variant={paginationVariant}
           className="shrink-0"
-          onPageChange={(p) => (serverPaged ? onPageChange(p) : setLocalPage(p))}
+          onPageChange={(p) => {
+            if (serverPaged) onPageChange(p);
+            else setLocalPage(p);
+            onViewChange?.({ reason: 'page', page: p, pageSize });
+          }}
           onPageSizeChange={(size) => {
             if (onPageSizeChange) onPageSizeChange(size);
             else {
@@ -462,9 +499,21 @@ export function DataTable({
               setLocalSize(size);
               setLocalPage(1);
             }
+            onViewChange?.({ reason: 'pageSize', page: 1, pageSize: size });
           }}
         />
       )}
+    </div>
+  );
+
+  if (!beforeTable) return tableElement;
+  const headerBand = typeof beforeTable === 'function'
+    ? beforeTable({ visibleRows: visible, safePage, pageSize, totalItems })
+    : beforeTable;
+  return (
+    <div className={cx('flex w-full min-w-0 flex-col gap-3', fillHeight && 'min-h-0 flex-1')}>
+      {headerBand}
+      {tableElement}
     </div>
   );
 }

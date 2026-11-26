@@ -1,4 +1,5 @@
-import { translateTemplate, currentIntlTag } from '@/locales/locale.js';
+import { translateTemplate } from '@/locales/locale.js';
+import { formatDateTime } from './dateTimeFormat.js';
 export const PERIODS = [
   { id: 'Morning',   name: 'Sáng',  hour: 8,  timeRange: '08:00 – 12:00' },
   { id: 'Afternoon', name: 'Chiều', hour: 13, timeRange: '13:00 – 17:00' },
@@ -18,8 +19,7 @@ export function monday(offset = 0) {
   return shiftDate(today, -((day + 6) % 7) + offset * 7);
 }
 export function localTime(iso) {
-  if (!iso) return '';
-  return new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`).toLocaleString(currentIntlTag(), { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(iso, '');
 }
 
 // Older PostgreSQL timestamps represent UTC but arrive without a timezone suffix.
