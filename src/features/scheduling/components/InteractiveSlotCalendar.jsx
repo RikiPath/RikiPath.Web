@@ -483,11 +483,13 @@ export default function InteractiveSlotCalendar({
   const proposalCapacityMessage = proposalConfig?.capacityLockedMessage || tr('Bạn đã đăng ký đủ các cấp độ giảng dạy.');
   const proposalSelectionBlocked = proposalReadOnly || proposalCapacityLocked;
 
-  useEffect(() => {
+  const [prevProposalSelectionBlocked, setPrevProposalSelectionBlocked] = useState(proposalSelectionBlocked);
+  if (proposalSelectionBlocked !== prevProposalSelectionBlocked) {
+    setPrevProposalSelectionBlocked(proposalSelectionBlocked);
     if (proposalSelectionBlocked) {
       setTouchPickerDay(null);
     }
-  }, [proposalSelectionBlocked]);
+  }
 
   useEffect(() => {
     if (!invalidFlash) return undefined;
@@ -1971,7 +1973,7 @@ export default function InteractiveSlotCalendar({
     tr,
   ]);
 
-  const startEmptyColumnPointerDown = (dayKey, e) => {
+  const startEmptyColumnPointerDown = useCallback((dayKey, e) => {
     if (e.button !== 0 || busy || submittingBatch || proposalSelectionBlocked) return;
     const colEl = dayColsRef.current[dayKey];
     if (!colEl) return;
@@ -2008,7 +2010,20 @@ export default function InteractiveSlotCalendar({
       cachedExtraProposed: buildProposedFromSelection(null),
       active: false,
     };
-  };
+  }, [
+    buildProposedFromSelection,
+    busy,
+    durationMinutes,
+    effectiveStep,
+    firstHour,
+    hours.length,
+    isPastSlotOccurrence,
+    measureColumnsSnapshot,
+    nowMs,
+    occupiedItems,
+    proposalSelectionBlocked,
+    submittingBatch,
+  ]);
 
   // Status-based interaction lock: ONLY unsent Draft cards (ev.isSelectedDraft) can be dragged on the Calendar grid!
   const startCardPointerDown = (ev, e) => {

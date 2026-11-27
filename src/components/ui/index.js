@@ -2,6 +2,7 @@
 // buttons, dialogs, toasts or loaders in pages.
 export * from './core.jsx';
 export * from './FloatingField.jsx';
+export * from './floatingFieldLogic.js';
 export { default as CountBadge } from './CountBadge.jsx';
 export * from './CountBadge.jsx';
 export { default as SidebarBadge } from './SidebarBadge.jsx';
@@ -31,5 +32,6 @@ export * from './hooks.js';
 export * from './logic.js';
 export * from './navigation.jsx';
 export { default as RichQuestionText } from '../RichQuestionText.jsx';
-export { AttachmentItemRow, AttachmentPreviewModal, useAttachmentPreview } from './AttachmentPreviewModal.jsx';
+export { AttachmentItemRow, AttachmentPreviewModal } from './AttachmentPreviewModal.jsx';
+export { useAttachmentPreview } from './useAttachmentPreview.js';
 export { cx } from './cx.js';

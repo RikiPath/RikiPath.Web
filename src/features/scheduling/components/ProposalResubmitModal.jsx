@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Paperclip, Send, Trash2, Upload } from 'lucide-react';
 import {
   AttachmentItemRow,
@@ -42,13 +42,15 @@ export default function ProposalResubmitModal({
   const [submitting, setSubmitting] = useState(false);
   const { previewState, openPreview, closePreview } = useAttachmentPreview();
 
-  useEffect(() => {
-    if (!open || !proposal) return;
+  const syncKey = open && proposal ? `${proposal.id ?? ''}:${proposal.updatedAt ?? ''}:${proposal.courseTitle ?? ''}` : null;
+  const [prevSyncKey, setPrevSyncKey] = useState(null);
+  if (syncKey && syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
     setCourseTitle(proposal.courseTitle || '');
     setCourseObjective(proposal.courseObjective || '');
     setOptionalNotes(proposal.optionalNotes || '');
     setAttachments(Array.isArray(proposal.optionalAttachments) ? proposal.optionalAttachments : []);
-  }, [open, proposal]);
+  }
 
   const trimmedTitle = courseTitle.trim();
   const canSubmit = Boolean(proposal && trimmedTitle.length > 0 && !uploading && !submitting);

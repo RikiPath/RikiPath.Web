@@ -47,7 +47,6 @@ import {
   Textarea,
   notify,
 } from '@/components/ui';
-import { parseUtcDate } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 import { formatDateTime } from '@/utils/dateTimeFormat.js';
 

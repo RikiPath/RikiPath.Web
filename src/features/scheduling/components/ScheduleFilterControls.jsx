@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowDownUp,
   Calendar as CalendarIcon,
   Clock,
   GraduationCap,
@@ -78,7 +77,6 @@ export function ScheduleMoreFiltersPopover({
   displayMode = 'calendar',
   statusFilter = 'ALL',
   statusOptions = null,
-  countsByStatus = null,
   onStatusChange = null,
   eventTypeOptions = null,
   jlptLevelFilter = 'ALL',
@@ -109,10 +107,6 @@ export function ScheduleMoreFiltersPopover({
   const resolvedTypeOptions = useMemo(
     () => eventTypeOptions || SCHEDULE_EVENT_TYPE_OPTIONS,
     [eventTypeOptions],
-  );
-  const resolvedStatusOptions = useMemo(
-    () => statusOptions || (displayMode === 'list' ? LIST_REGISTRATION_STATUS_OPTIONS : SCHEDULE_STATUS_OPTIONS),
-    [displayMode, statusOptions],
   );
   const useSyncedStatusSection = Boolean(onStatusChange && (proposalMode || statusOptions));
   const hasAnyResettable = activeFilterCount > 0 || (useSyncedStatusSection && statusFilter !== 'ALL');

@@ -14,9 +14,9 @@ import {
 import { SakuraSpinner } from './SakuraLoader.jsx';
 import { cx } from './cx.js';
 import UserAvatar from './UserAvatar.jsx';
+import { OutlinedField } from './FloatingField.jsx';
 import {
   FieldFloatingContext,
-  OutlinedField,
   hasFloatingValue,
   isFakePlaceholderOption,
   isFloatingControlElement,
@@ -26,7 +26,7 @@ import {
   stripTrailingEllipsis,
   useFieldFloatingContext,
   useFloatingLabelEnabled,
-} from './FloatingField.jsx';
+} from './floatingFieldLogic.js';
 import { useLocale } from '@/locales/locale.js';
 
 

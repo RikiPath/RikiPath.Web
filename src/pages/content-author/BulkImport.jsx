@@ -9,8 +9,6 @@ import { useLocale, translateTemplate } from '@/locales/locale.js';
 
 const SKILLS = ['Vocabulary', 'Kanji', 'Grammar', 'Listening', 'Reading'];
 
-const inputClass = 'h-10 w-full rounded-lg border border-rp-line bg-white px-3 text-[13px] text-rp-text outline-none focus:border-rp-brand-border';
-
 function blankLesson() {
   return {
     id: Date.now(),

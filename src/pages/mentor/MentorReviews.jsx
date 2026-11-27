@@ -22,7 +22,7 @@ import { useAuth } from '@/app/auth/authContext.js';
 import { getMentorCohortReviewSummary } from '@/features/cohorts/api/cohortApi.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 import { formatJlptLevel } from '@/utils/jlptLevel.js';
-import { useLocale, currentIntlTag } from '@/locales/locale.js';
+import { useLocale } from '@/locales/locale.js';
 
 import { formatDateTime } from '@/utils/dateTimeFormat.js';
 

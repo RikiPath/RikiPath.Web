@@ -329,7 +329,7 @@ export default function WorkSchedule() {
       if (!hay.includes(q)) return false;
     }
     return true;
-  }, [jlptLevelFilter, effectiveDateRange, effectiveTimeRange, searchQuery]);
+  }, [jlptLevelFilter, effectiveDateRange, effectiveTimeRange, searchQuery, policy?.sessionMinutes]);
 
   const nonStatusFilteredEvents = useMemo(
     () => teachingEvents.filter(matchesNonStatusFilters),

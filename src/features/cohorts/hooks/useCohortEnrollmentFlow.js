@@ -14,12 +14,14 @@ export function useCohortEnrollmentFlow({
   baseRows = null,
   enrolledCourses = [],
   initialDetailCohortId = null,
-  nowMs = Date.now(),
+  nowMs = null,
   onRefresh,
   onRun,
   onEnrolled,
 }) {
   const { tr } = useLocale();
+  const [fallbackNowMs] = useState(() => Date.now());
+  const effectiveNowMs = nowMs ?? fallbackNowMs;
   const effectiveRows = baseRows ?? cohorts;
 
   const [detailCohortId, setDetailCohortId] = useState(
@@ -87,12 +89,12 @@ export function useCohortEnrollmentFlow({
         Number(cohort.id),
         cohortDiscoveryStatusOf(cohort, {
           conflictCourseName: scheduleConflictByCohortId.get(cohort.id) || '',
-          nowMs,
+          nowMs: effectiveNowMs,
         }),
       );
     }
     return map;
-  }, [cohorts, effectiveRows, scheduleConflictByCohortId, nowMs]);
+  }, [cohorts, effectiveRows, scheduleConflictByCohortId, effectiveNowMs]);
 
   const detailCohort = useMemo(() => {
     if (!detailCohortId) return null;
@@ -113,7 +115,7 @@ export function useCohortEnrollmentFlow({
     ? (statusByCohortId.get(Number(detailCohort.id))
       || cohortDiscoveryStatusOf(detailCohort, {
         conflictCourseName: scheduleConflictByCohortId.get(detailCohort.id) || '',
-        nowMs,
+        nowMs: effectiveNowMs,
       }))
     : null;
 

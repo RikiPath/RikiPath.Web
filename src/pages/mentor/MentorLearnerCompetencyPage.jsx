@@ -144,7 +144,13 @@ export default function MentorLearnerCompetencyPage() {
   }, [validParams, numericLearnerId, numericCohortId, tr]);
 
   useEffect(() => {
-    loadData(false);
+    let alive = true;
+    Promise.resolve().then(() => {
+      if (alive) void loadData(false);
+    });
+    return () => {
+      alive = false;
+    };
   }, [loadData]);
 
   function handleTabChange(nextTab) {

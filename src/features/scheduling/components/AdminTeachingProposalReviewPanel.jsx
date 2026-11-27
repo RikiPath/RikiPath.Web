@@ -827,13 +827,11 @@ export default function AdminTeachingProposalReviewPanel({
   const columns = selectionMode ? [selectionColumn, ...baseColumns] : baseColumns;
 
   const detail = detailQuery.data;
-  const rawDetailOccurrences = detail?.status === 'OpenedClass'
-    ? detail?.occurrencesPreview
-    : [];
   const detailOccurrences = useMemo(() => {
-    if (!Array.isArray(rawDetailOccurrences) || rawDetailOccurrences.length === 0) return [];
-    return [...rawDetailOccurrences].sort((a, b) => Number(a.sessionNumber || 0) - Number(b.sessionNumber || 0));
-  }, [rawDetailOccurrences]);
+    const raw = detail?.status === 'OpenedClass' ? detail?.occurrencesPreview : null;
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return [...raw].sort((a, b) => Number(a.sessionNumber || 0) - Number(b.sessionNumber || 0));
+  }, [detail?.occurrencesPreview, detail?.status]);
 
   const detailTitleInfo = detail ? resolveProposalTableTitle(detail, trf) : null;
   const drawerStatusMeta = detail

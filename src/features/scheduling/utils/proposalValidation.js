@@ -745,7 +745,7 @@ export function resolveCandidateOccurrenceDateKeys({
   const wd = Number(weekday);
   const startMin = Number(startMinute);
 
-  let firstDate = null;
+  let firstDate;
   if (dayKey) {
     firstDate = dayKey;
   } else if (referenceStartDate) {

@@ -81,7 +81,6 @@ export default function TeachingProposalReviewModal({
   onEditCourseInfo,
   onChangeAttachments = null,
   onBackToCalendar,
-  onEditSchedule = null,
   onSubmit,
   onStartRevision = null,
   onWithdraw = null,

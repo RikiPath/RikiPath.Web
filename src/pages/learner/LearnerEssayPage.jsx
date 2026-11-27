@@ -36,8 +36,7 @@ import {
 } from '@/features/writing/api/learnerEssayApi.js';
 import RomajiJapaneseInput from '@/features/writing/components/RomajiJapaneseInput.jsx';
 import { LearnerShell } from '@/layouts';
-import { currentIntlTag, useLocale } from '@/locales/locale.js';
-import { parseUtcDate } from '@/utils/vnDateTime.js';
+import { useLocale } from '@/locales/locale.js';
 
 import { writingLessons } from './productionPracticeLessons.js';
 

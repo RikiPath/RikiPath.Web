@@ -152,19 +152,7 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
   const [groupPolicy, setGroupPolicy] = useState(null);
   const [policyError, setPolicyError] = useState(null);
   const [completion, setCompletion] = useState(null); // { courseId, data, error }
-  const [nowMs, setNowMs] = useState(0);
   const [sessionUserId] = useState(() => getSession()?.userId ?? null);
-
-  // Đồng hồ cập nhật ngoài render (tránh Date.now() trong render).
-  useEffect(() => {
-    const tick = () => setNowMs(Date.now());
-    const first = setTimeout(tick, 0);
-    const timer = setInterval(tick, 60000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(timer);
-    };
-  }, []);
 
   useEffect(() => {
     if (!admin) return undefined;

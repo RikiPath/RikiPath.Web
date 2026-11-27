@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
-  CalendarDays,
   CheckCircle2,
   Loader2,
   MessageSquareText,
@@ -64,9 +63,6 @@ export default function TeachingProposalCourseInfoDrawer({
   mentorVerifiedJlptLevel = null,
   showAllErrors = false,
   serverValidating = false,
-  onOpenProposalList = null,
-  onEditSchedule = null,
-  scheduleChanged = false,
   onProceedToReview,
 }) {
   const { tr, trf } = useLocale();

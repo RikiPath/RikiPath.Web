@@ -4,7 +4,6 @@ import {
   Banner,
   Button,
   Modal,
-  formatIsoDateDisplay,
 } from '@/components/ui';
 import { formatTuitionVnd } from '@/features/scheduling/utils/proposalValidation.js';
 import { formatJlptLevel } from '@/utils/jlptLevel.js';

@@ -150,30 +150,44 @@ export default function MentorProposalHistory() {
   }, [tr]);
 
   useEffect(() => {
-    void loadData();
+    let alive = true;
+    Promise.resolve().then(() => {
+      if (alive) void loadData();
+    });
+    return () => {
+      alive = false;
+    };
   }, [loadData]);
 
   // Exclude unsubmitted Draft items from Proposal History (Draft lives exclusively on template calendar)
+  const rawProposals = contextData?.proposals;
   const historyRows = useMemo(() => {
-    const raw = Array.isArray(contextData?.proposals) ? contextData.proposals : [];
+    const raw = Array.isArray(rawProposals) ? rawProposals : [];
     return raw.filter((p) => p && p.status && p.status !== 'Draft' && p.status !== 'Withdrawn');
-  }, [contextData?.proposals]);
+  }, [rawProposals]);
 
   // Deep-link via notification `?proposalId=...`
   const deepLinkProposalId = Number(searchParams.get('proposalId') || 0);
   useEffect(() => {
-    if (!deepLinkProposalId || loading) return;
+    if (!deepLinkProposalId || loading) return undefined;
     const matched = historyRows.find((p) => Number(p.id) === deepLinkProposalId);
-    if (!matched) return;
-    setDetailProposal(matched);
+    if (!matched) return undefined;
+    let alive = true;
+    Promise.resolve().then(() => {
+      if (!alive) return;
+      setDetailProposal(matched);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('proposalId');
+      setSearchParams(nextParams, { replace: true });
+    });
     void getMyTeachingProposal(matched.id)
       .then((full) => {
-        if (full) setDetailProposal(full);
+        if (alive && full) setDetailProposal(full);
       })
       .catch(() => {});
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('proposalId');
-    setSearchParams(nextParams, { replace: true });
+    return () => {
+      alive = false;
+    };
   }, [deepLinkProposalId, loading, historyRows, searchParams, setSearchParams]);
 
   const statusCounts = useMemo(() => {

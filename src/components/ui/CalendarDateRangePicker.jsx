@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Popover } from './overlay.jsx';
-import { OutlinedField, useFieldFloatingContext, useFloatingLabelEnabled } from './FloatingField.jsx';
+import { OutlinedField } from './FloatingField.jsx';
+import { useFieldFloatingContext, useFloatingLabelEnabled } from './floatingFieldLogic.js';
 import { cx } from './cx.js';
 import { formatIsoDateDisplay } from './dateFormat.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';

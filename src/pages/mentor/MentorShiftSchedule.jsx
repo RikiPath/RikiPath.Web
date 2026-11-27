@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
-  CheckCircle2,
   ClipboardList,
   CloudOff,
   RotateCcw,
@@ -15,7 +14,6 @@ import {
   Button,
   ContextualErrorState,
   CountBadge,
-  Modal,
   PageContainer,
   SakuraLoader,
   notify,
@@ -32,8 +30,6 @@ import {
   withdrawTeachingProposal,
 } from '@/features/scheduling/api/teachingProposalApi.js';
 import {
-  buildPendingProposalCalendarSlots,
-  buildProposalCommitments,
   buildProposalPreviewCalendarSlots,
   calendarSlotToWeeklySlot,
   computeMentorRegistrationCapacity,
@@ -42,7 +38,6 @@ import {
   findNextFutureDayKeyForWeeklyPattern,
   isFutureWeeklySlotOccurrence,
   normalizeProposalPolicy,
-  PROPOSAL_STATUS_META,
   resolveJlptLevelAvailability,
   resolveStableReferenceWeek,
   sortWeeklySessions,
@@ -50,8 +45,6 @@ import {
   validateWeeklySlotAddition,
   weeklySlotKey,
 } from '@/features/scheduling/utils/proposalValidation.js';
-import { buildRegistrationRows } from '@/features/scheduling/utils/registrationTableModel.js';
-import WeeklyScheduleDisplay from '@/features/scheduling/components/WeeklyScheduleDisplay.jsx';
 import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import {
   buildSubmitIdempotencyKey,
@@ -60,10 +53,7 @@ import {
 } from '@/features/scheduling/utils/proposalDraftStorage.js';
 import { useProposalDraftPersistence } from '@/features/scheduling/hooks/useProposalDraftPersistence.js';
 import {
-  buildOccupiedItems,
-  buildPresetCandidateSlots,
   clockFromMinutes,
-  DEFAULT_DAYPARTS,
   vnLocalToUtcIso,
 } from '@/features/scheduling/utils/slotPlannerModel.js';
 import { getViewDateRange, mondayOfDateKey, toVnDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
@@ -72,21 +62,6 @@ import TeachingProposalCourseInfoDrawer from '@/features/scheduling/components/T
 import TeachingProposalReviewModal from '@/features/scheduling/components/TeachingProposalReviewModal.jsx';
 import { describeApiError } from '@/api/apiErrors.js';
 import { useLocale } from '@/locales/locale.js';
-
-const PROPOSAL_STATUS_FILTERS = [
-  { value: 'ALL', label: 'Tất cả', dotClass: 'bg-[#CE476D]' },
-  { value: 'Draft', label: 'Đang chọn', dotClass: 'bg-emerald-500' },
-  { value: 'PendingReview', label: 'Chờ duyệt', dotClass: 'bg-amber-500' },
-  { value: 'ChangesRequested', label: 'Cần bổ sung', dotClass: 'bg-[#EA580C]' },
-  { value: 'Approved', label: 'Đã duyệt', dotClass: 'bg-emerald-600' },
-  { value: 'Rejected', label: 'Bị từ chối', dotClass: 'bg-red-500' },
-];
-
-function matchesHistoryFilter(item, filterValue) {
-  if (!item) return false;
-  if (filterValue === 'ALL') return true;
-  return item.status === filterValue;
-}
 
 function hasEnteredClassMetadata(d) {
   return Boolean(
@@ -204,8 +179,6 @@ export default function MentorShiftSchedule() {
     uid,
     slots,
     cohorts,
-    cohortSessions,
-    externalBusyEvents,
     policy: availabilityPolicy,
     scheduleQuery,
     availabilityQuery,
@@ -306,28 +279,6 @@ export default function MentorShiftSchedule() {
   const [draft, setDraft] = useState(() => createEmptyDraft(DEFAULT_PROPOSAL_POLICY));
   const [initialized, setInitialized] = useState(false);
 
-  // Registration History list (strict Zero Selection Invariant: 0-slot Draft & Withdrawn excluded)
-  const visibleProposals = useMemo(() => {
-    const result = [];
-    if (draft.status === 'Draft' && (draft.weeklySessions || []).length > 0) {
-      const lvlObj = availableLevels.find(
-        (l) => Number(l.certificateLevelId ?? l.id) === Number(draft.certificateLevelId)
-      );
-      result.push({
-        ...draft,
-        id: draft.id || 'active-selection',
-        jlptLevelCode: lvlObj?.code || draft.jlptLevelCode || null,
-        weeklySessionCount: draft.weeklySessions.length,
-        courseDurationWeeks: Math.max(1, Number(draft.courseDurationWeeks || 1)),
-      });
-    }
-    for (const p of proposals) {
-      if (!p || p.status === 'Draft' || p.status === 'Withdrawn') continue;
-      result.push(p);
-    }
-    return result;
-  }, [availableLevels, draft, proposals]);
-
   // Step 2 & Step 3 Overlays + Isolated Revision Editing Flow + Read-Only Detail Modal + Registration History Drawer
   const [courseDrawerOpen, setCourseDrawerOpen] = useState(false);
   const [showCourseErrors, setShowCourseErrors] = useState(false);
@@ -341,7 +292,6 @@ export default function MentorShiftSchedule() {
   const [revisionScheduleSessions, setRevisionScheduleSessions] = useState([]);
   const [inspectedProposal, setInspectedProposal] = useState(null);
   const [listDrawerOpen, setListDrawerOpen] = useState(false);
-  const [listFilter, setListFilter] = useState('ALL');
   const [highlightedProposalId, setHighlightedProposalId] = useState(null);
 
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
@@ -353,18 +303,19 @@ export default function MentorShiftSchedule() {
 
   const submitKeyRef = useRef(null);
   const resubmitKeyRef = useRef(null);
-  const handledUrlProposalIdRef = useRef(null);
   // Active working draft on the Calendar is strictly for unsent 'Draft' selections.
   // Official 'ChangesRequested' proposals are NEVER loaded into `draft`; they stay official orange cards
   // and edit exclusively inside the isolated `revisionDraft` flow.
   const isEditable = draft.status === 'Draft';
 
-  useEffect(() => {
+  const [prevCapacityExhausted, setPrevCapacityExhausted] = useState(isCapacityExhausted);
+  if (isCapacityExhausted !== prevCapacityExhausted) {
+    setPrevCapacityExhausted(isCapacityExhausted);
     if (isCapacityExhausted) {
       setCourseDrawerOpen(false);
       setReviewModalOpen(false);
     }
-  }, [isCapacityExhausted]);
+  }
 
   const invalidateProposals = useCallback(async () => {
     await Promise.all([
@@ -596,36 +547,6 @@ export default function MentorShiftSchedule() {
     [revisionScheduleValidation?.errors]
   );
 
-  // Unified Registration Table rows for Expandable List View (replaces both flat occurrence list & duplicate History drawer)
-  const registrationRows = useMemo(
-    () => buildRegistrationRows({
-      draft,
-      proposals,
-      proposalPreview,
-      invalidWeeklyMap,
-      slots,
-      cohorts,
-      availableLevels,
-      policy: proposalPolicy,
-      nowMs: liveNowMs,
-      canProceedSelection: isEditable && !isCapacityExhausted && clientValidation.step1Valid,
-    }),
-    [
-      availableLevels,
-      clientValidation.step1Valid,
-      cohorts,
-      draft,
-      invalidWeeklyMap,
-      isCapacityExhausted,
-      isEditable,
-      liveNowMs,
-      proposalPolicy,
-      proposalPreview,
-      proposals,
-      slots,
-    ]
-  );
-
   // Live debounced backend validation for whichever editable flow is active (new selection OR isolated revision)
   const isRevisionActive = Boolean(revisionDraft && (revisionDrawerOpen || revisionReviewOpen));
   const [validateNonce, setValidateNonce] = useState(0);
@@ -662,6 +583,7 @@ export default function MentorShiftSchedule() {
     isEditable,
     isRevisionActive,
     proposalPolicy.sessionDurationMinutes,
+    referenceWeekKey,
     revisionDraft,
   ]);
 
@@ -988,6 +910,7 @@ export default function MentorShiftSchedule() {
     isCapacityExhausted,
     mentorVerified,
     mentorVerifiedJlptLevel,
+    proposals,
     qualifiedLevels,
     tr,
   ]);
@@ -1049,36 +972,6 @@ export default function MentorShiftSchedule() {
     }
     void executeClearSelection();
   }, [draft, executeClearSelection, revisionScheduleEditing]);
-
-  const hiddenRevisionProposalId = revisionScheduleEditing && revisionDraft?.id ? Number(revisionDraft.id) : null;
-
-  // V4 Template Mode: Calendar renders ONLY active green dashed "Đang chọn" cards.
-  // PendingReview / ChangesRequested / Approved / Rejected live in dedicated /mentor-proposal-history/.
-  const pendingProposalEvents = useMemo(() => [], []);
-
-  // Đề xuất Bị từ chối chỉ hiển thị trong panel Lịch sử đăng ký, tuyệt đối không render card đỏ trên Calendar.
-  const rejectedProposalEvents = useMemo(() => [], []);
-
-  // Map approved proposal generatedAvailabilityIds -> JLPT level & session metadata for clean green "Đã duyệt" cards
-  const slotProposalMetaById = useMemo(() => {
-    const map = new Map();
-    for (const prop of proposals) {
-      if (!prop || prop.status !== 'Approved') continue;
-      const ids = Array.isArray(prop.generatedAvailabilityIds) ? prop.generatedAvailabilityIds : [];
-      const total = ids.length || null;
-      ids.forEach((avId, idx) => {
-        if (!avId) return;
-        map.set(Number(avId), {
-          proposalId: prop.id,
-          jlptLevelCode: prop.jlptLevelCode || null,
-          courseTitle: prop.courseTitle?.trim() || null,
-          sessionNumber: idx + 1,
-          totalSessions: total,
-        });
-      });
-    }
-    return map;
-  }, [proposals]);
 
   const normalizeSessionList = useCallback((items = []) => (
     items
@@ -1146,7 +1039,7 @@ export default function MentorShiftSchedule() {
       endUtcIso: vnLocalToUtcIso(dayKey, endClock),
       slot: check.slot,
     };
-  }, [capacityMessage, commitments, draft.courseDurationWeeks, draft.weeklySessions, isCapacityExhausted, liveNowMs, normalizeSessionList, proposalPolicy, revisionCommitments, revisionDraft?.courseDurationWeeks, revisionScheduleEditing, revisionScheduleSessions, tr]);
+  }, [capacityMessage, commitments, draft.courseDurationWeeks, draft.weeklySessions, isCapacityExhausted, liveNowMs, normalizeSessionList, proposalPolicy, revisionCommitments, revisionDraft?.courseDurationWeeks, revisionScheduleEditing, revisionScheduleSessions]);
 
   const handleProposalCalendarSelectionChange = useCallback((nextOrUpdater) => {
     if (revisionScheduleEditing) {
@@ -1506,25 +1399,6 @@ export default function MentorShiftSchedule() {
     }
   };
 
-  const filteredProposalList = useMemo(() => {
-    const rank = {
-      Draft: 0,
-      ChangesRequested: 1,
-      PendingReview: 2,
-      Approved: 3,
-      Rejected: 4,
-    };
-    return visibleProposals
-      .filter((p) => matchesHistoryFilter(p, listFilter))
-      .slice()
-      .sort((a, b) => {
-        const ra = rank[a.status] ?? 9;
-        const rb = rank[b.status] ?? 9;
-        if (ra !== rb) return ra - rb;
-        return Number(b.id || 0) - Number(a.id || 0);
-      });
-  }, [listFilter, visibleProposals]);
-
   const selectedLevelObj = useMemo(
     () => availableLevels.find((l) => Number(l.certificateLevelId ?? l.id) === Number(draft.certificateLevelId)) || null,
     [availableLevels, draft.certificateLevelId]
@@ -1582,7 +1456,6 @@ export default function MentorShiftSchedule() {
     restMinutes: proposalPolicy.restMinutes,
   }), [availabilityPolicy, proposalPolicy.restMinutes, proposalPolicy.sessionDurationMinutes]);
 
-  const effectiveBusy = scheduleQuery.isLoading || availabilityQuery.isLoading || cohortsQuery.isLoading;
   const pageRefreshing = (contextQuery.isFetching && !contextQuery.isPending)
     || (availabilityQuery.isFetching && !availabilityQuery.isPending)
     || (cohortsQuery.isFetching && !cohortsQuery.isPending);

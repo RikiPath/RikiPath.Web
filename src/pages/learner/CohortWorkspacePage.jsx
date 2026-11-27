@@ -252,9 +252,10 @@ export default function CohortWorkspacePage() {
     };
   }, [classHomeworks, completionQuery.data?.homework]);
 
+  const rawMentorFeedback = completionQuery.data?.mentorFeedback;
   const publishedFeedbackList = useMemo(
-    () => (Array.isArray(completionQuery.data?.mentorFeedback) ? completionQuery.data.mentorFeedback : []),
-    [completionQuery.data?.mentorFeedback],
+    () => (Array.isArray(rawMentorFeedback) ? rawMentorFeedback : []),
+    [rawMentorFeedback],
   );
 
   const attendanceColumns = useMemo(

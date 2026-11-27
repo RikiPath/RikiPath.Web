@@ -157,14 +157,6 @@ export function useWorkspaceCalendar({
     retry: shouldRetry,
   });
 
-  const availabilityQuery = useQuery({
-    queryKey: ['workspace-calendar', 'mentor-availability', uid],
-    queryFn: async () => (await api.get('/mentor/availability')).result || [],
-    enabled: false,
-    staleTime: 60_000,
-    retry: shouldRetry,
-  });
-
   const mentorCalendarQuery = useQuery({
     queryKey: ['workspace-calendar', 'mentor-google-calendar', uid],
     queryFn: async () => {
