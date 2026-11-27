@@ -29,4 +29,3 @@ rikipath-project.cusor/mcp.json
 
 .env
 .env.*
-!.env.example
