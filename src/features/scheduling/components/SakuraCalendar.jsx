@@ -9,6 +9,7 @@ import {
   List,
   X,
 } from 'lucide-react';
+import CountBadge from '@/components/ui/CountBadge.jsx';
 import { Modal, Popover, Tabs } from '@/components/ui/overlay.jsx';
 import { RefreshButton } from '@/components/ui/RefreshButton.jsx';
 import { RefreshingIndicator } from '@/components/ui/SakuraLoader.jsx';
@@ -392,7 +393,7 @@ export default function SakuraCalendar({
           <button
             type="button"
             onClick={() => setAnchor(todayKey)}
-            className="inline-flex h-8.5 shrink-0 items-center whitespace-nowrap rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+            className="inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
           >
             {tr('Hôm nay')}
           </button>
@@ -427,7 +428,7 @@ export default function SakuraCalendar({
                 type="button"
                 onClick={toggle}
                 aria-label={tr('Mở lịch chọn ngày nhanh')}
-                className="inline-flex min-h-8.5 shrink-0 flex-col items-start justify-center whitespace-nowrap rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
+                className="inline-flex min-h-9 shrink-0 flex-col items-start justify-center whitespace-nowrap rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rp-brand-strong/35"
               >
                 <span className="flex items-center gap-1.5 text-[14.5px] font-bold tracking-tight text-rp-text">
                   {L.rangeTitle(range, anchorKey, view)}
@@ -455,7 +456,7 @@ export default function SakuraCalendar({
             variant="pill"
             tone="segmented"
             size="sm"
-            className="shrink-0"
+            className="shrink-0 !h-9 [&>button]:!h-7 [&>button]:!rounded-[9px]"
             label={tr('Chế độ hiển thị')}
             value={view === 'agenda' ? 'agenda' : 'calendar'}
             onChange={(next) => {
@@ -469,30 +470,19 @@ export default function SakuraCalendar({
           />
 
           {view !== 'agenda' && (
-            <div
-              role="group"
-              aria-label={tr('Khung thời gian lịch')}
-              className="inline-flex shrink-0 items-center rounded-xl border border-rp-line bg-rp-bg-2 p-0.5"
-            >
-              {VIEWS.filter((v) => v.id !== 'agenda').map((v) => {
-                const active = view === v.id;
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setView(v.id)}
-                    className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                      active
-                        ? 'bg-white text-rp-brand-strong shadow-2xs'
-                        : 'text-rp-text-muted hover:text-rp-text'
-                    }`}
-                  >
-                    {tr(v.label)}
-                  </button>
-                );
-              })}
-            </div>
+            <Tabs
+              variant="pill"
+              tone="segmented"
+              size="sm"
+              className="shrink-0 !h-9 [&>button]:!h-7 [&>button]:!rounded-[9px]"
+              label={tr('Khung thời gian lịch')}
+              value={view}
+              onChange={setView}
+              tabs={VIEWS.filter((v) => v.id !== 'agenda').map((v) => ({
+                value: v.id,
+                label: v.label,
+              }))}
+            />
           )}
 
           {toolbarExtra}
@@ -504,7 +494,7 @@ export default function SakuraCalendar({
               value={activeToneFilter}
               onChange={(nextTone) => setActiveToneFilter(nextTone)}
               options={[
-                { id: 'ALL', label: 'Tất cả trạng thái', dotClass: 'bg-[#CE476D]' },
+                { id: 'ALL', label: 'Tất cả', dotClass: 'bg-[#CE476D]' },
                 ...availableTones.map((tone) => ({
                   id: tone,
                   label: getToneMeta(tone).label,
@@ -522,7 +512,7 @@ export default function SakuraCalendar({
               refreshing={refreshing}
               tooltip={tr('Làm mới lịch')}
               aria-label={tr('Làm mới dữ liệu lịch')}
-              className="!h-8.5 !w-8.5 rounded-xl"
+              className="!h-9 !w-9 rounded-xl"
             />
           )}
         </div>
@@ -757,9 +747,7 @@ export default function SakuraCalendar({
                         {cell.dateNum}
                       </button>
                       {items.length > 0 && (
-                        <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10px] font-semibold tabular-nums text-rp-text-muted">
-                          {items.length}
-                        </span>
+                        <CountBadge count={items.length} size="xs" />
                       )}
                     </div>
 
@@ -892,13 +880,13 @@ export default function SakuraCalendar({
 
             {/* Desktop Table */}
             <table className="hidden w-full border-collapse text-left text-[13px] md:table">
-              <thead className="sticky top-0 z-10 border-b border-rp-line bg-rp-table-head text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
+              <thead className="sticky top-0 z-10 border-b border-rp-brand-border/80 bg-rp-table-head text-[12.5px] font-semibold text-rp-brand-strong">
                 <tr>
-                  <th className="px-4 py-2.5">{tr('Ngày')}</th>
-                  <th className="px-4 py-2.5">{tr(audience === 'learner' ? 'Giờ học' : 'Giờ dạy')}</th>
-                  <th className="px-4 py-2.5">{tr('Loại lịch')}</th>
-                  <th className="px-4 py-2.5">{tr('Trạng thái')}</th>
-                  <th className="px-4 py-2.5 text-right">{tr('Thao tác')}</th>
+                  <th className="px-4 py-2.5 text-left align-middle whitespace-nowrap">{tr('Ngày')}</th>
+                  <th className="px-4 py-2.5 text-left align-middle">{tr(audience === 'learner' ? 'Giờ học' : 'Giờ dạy')}</th>
+                  <th className="px-4 py-2.5 text-center align-middle whitespace-nowrap">{tr('Loại lịch')}</th>
+                  <th className="px-4 py-2.5 text-center align-middle whitespace-nowrap">{tr('Trạng thái')}</th>
+                  <th className="px-4 py-2.5 text-center align-middle whitespace-nowrap">{tr('Thao tác')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rp-line/70">
@@ -922,10 +910,10 @@ export default function SakuraCalendar({
                   const typeDotClass = isAvailabilityOnly ? 'bg-[#0D9488]' : catMeta.dot;
                   return (
                     <tr key={ev.id} className="transition-colors hover:bg-rp-bg-2/40">
-                      <td className="px-4 py-2.5 font-medium text-rp-text whitespace-nowrap">
+                      <td className="px-4 py-2.5 align-middle font-medium text-rp-text whitespace-nowrap">
                         {L.fullDay(group.dayKey, todayKey)}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5 align-middle">
                         <div className="font-bold tabular-nums text-rp-text">
                           {timeRangeText(ev)}
                           <span className="ml-1.5 text-[11.5px] font-normal text-rp-text-muted">
@@ -937,20 +925,20 @@ export default function SakuraCalendar({
                           {ev.detail && ev.detail !== timeRangeText(ev) ? ` · ${ev.detail}` : ''}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${typeBadgeClass}`}>
                           <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${typeDotClass}`} />
                           {tr(typeLabel)}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${meta.pill}`}>
                           <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
                           {tr(ev.statusLabel || meta.label)}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center justify-end gap-1.5">
+                      <td className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
+                        <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => {

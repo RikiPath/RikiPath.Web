@@ -214,7 +214,7 @@ export default function PlacementExam() {
           size="sm"
           footer={(
             <>
-              <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={submit.isPending}>
+              <Button variant="neutral" onClick={() => setConfirmOpen(false)} disabled={submit.isPending}>
                 {tr('Làm tiếp')}
               </Button>
               <Button variant="primary" loading={submit.isPending} onClick={() => submit.mutate()}>

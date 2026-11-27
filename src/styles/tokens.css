@@ -153,24 +153,24 @@
 
   /* Fluid Typography Scale (rem + clamp for browser zoom & font-scaling compliance) */
   --rp-text-display: clamp(2rem, 1.3rem + 2.4vw, 3.25rem);
-  --rp-text-page-title: clamp(1.375rem, 1.15rem + 0.85vw, 1.875rem);
-  --rp-text-section: clamp(1.0625rem, 0.98rem + 0.35vw, 1.25rem);
-  --rp-text-card-title: clamp(0.9375rem, 0.9rem + 0.16vw, 1.0625rem);
+  --rp-text-page-title: clamp(1.125rem, 1.04rem + 0.45vw, 1.375rem);
+  --rp-text-section: clamp(0.9375rem, 0.9rem + 0.16vw, 1rem);
+  --rp-text-card-title: clamp(0.875rem, 0.855rem + 0.12vw, 0.9375rem);
   --rp-text-body: clamp(0.875rem, 0.855rem + 0.12vw, 0.9375rem);
   --rp-text-secondary: clamp(0.8125rem, 0.795rem + 0.1vw, 0.875rem);
   --rp-text-caption: clamp(0.75rem, 0.73rem + 0.08vw, 0.8125rem);
   --rp-text-label: clamp(0.8125rem, 0.795rem + 0.08vw, 0.875rem);
   --rp-text-button: clamp(0.8125rem, 0.8rem + 0.08vw, 0.875rem);
-  --rp-text-kpi: clamp(1.375rem, 1.12rem + 1vw, 1.875rem);
+  --rp-text-kpi: clamp(1.125rem, 1.04rem + 0.45vw, 1.375rem);
   --rp-text-nav: clamp(0.8125rem, 0.795rem + 0.08vw, 0.875rem);
 
   /* Fluid Spacing & Adaptive Content Density defaults (comfortable) */
   --rp-space-page-x: clamp(0.875rem, 1.2vw + 0.25rem, 1.75rem); /* tighter gutters, closer to IeltsWithHarry */
   --rp-space-page-y: clamp(0.75rem, 0.8vw + 0.25rem, 1.25rem);
-  --rp-space-section: clamp(1.125rem, 1.5vw + 0.45rem, 1.875rem);
+  --rp-space-section: clamp(1rem, 1.25vw + 0.35rem, 1.5rem);
   --rp-space-grid: clamp(0.75rem, 1.15vw + 0.25rem, 1.25rem);
-  --rp-space-card-pad: clamp(0.9375rem, 0.95rem + 0.4vw, 1.375rem);
-  --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 1rem);
+  --rp-space-card-pad: clamp(0.875rem, 0.9rem + 0.3vw, 1.25rem);
+  --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 0.9375rem);
 
   /* Semantic Component Sizing */
   --rp-control-h-sm: 2rem;      /* 32px â€” compact actions in tables / dense toolbars */
@@ -198,10 +198,10 @@
 }
 
 [data-density='comfortable'] {
-  --rp-space-section: clamp(1.125rem, 1.5vw + 0.45rem, 1.875rem);
+  --rp-space-section: clamp(1rem, 1.25vw + 0.35rem, 1.5rem);
   --rp-space-grid: clamp(0.75rem, 1.15vw + 0.25rem, 1.25rem);
-  --rp-space-card-pad: clamp(0.9375rem, 0.95rem + 0.4vw, 1.375rem);
-  --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 1rem);
+  --rp-space-card-pad: clamp(0.875rem, 0.9rem + 0.3vw, 1.25rem);
+  --rp-space-stack: clamp(0.625rem, 0.75vw + 0.2rem, 0.9375rem);
 }
 
 [data-density='spacious'] {
@@ -521,7 +521,7 @@
 .rp-type-caption { font-size: var(--rp-text-caption); line-height: 1.45; }
 .rp-type-label { font-size: var(--rp-text-label); line-height: 1.4; font-weight: 600; }
 .rp-type-button { font-size: var(--rp-text-button); line-height: 1.2; font-weight: 600; }
-.rp-type-kpi { font-size: var(--rp-text-kpi); line-height: 1.15; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.rp-type-kpi { font-size: var(--rp-text-kpi); line-height: 1.2; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .rp-type-nav { font-size: var(--rp-text-nav); line-height: 1.35; }
 
 /* ------------------------------------------------------------------ RikiPath App Shell, Adaptive Widths & Container Queries */
@@ -887,7 +887,7 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 
 /* Global react-hot-toast viewport & motion (compact default look; offsets + z-index set on <Toaster>). */
 .rp-toaster-root { pointer-events: none; }
-.rp-toast { box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1), 0 3px 3px rgba(0, 0, 0, 0.05); }
+.rp-toast { box-shadow: 0 14px 32px -12px rgba(95, 45, 65, 0.22), 0 3px 8px rgba(45, 40, 42, 0.06); }
 @keyframes rp-toast-in {
   from { opacity: 0; transform: translate3d(0, -12px, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
@@ -1041,7 +1041,43 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 
 /* ------------------------------------------------------------------ Overlay backdrop (shared by Modal / Drawer / dialogs) */
 /* Neutral ink scrim: Sakura pink stays an accent inside the dialog, never a tint over the whole app. */
-:root { --rp-backdrop: rgba(20, 24, 35, 0.5); }
+:root {
+  --rp-backdrop: rgba(20, 24, 35, 0.5);
+  --rp-popup-bg: #FFFFFF;
+  --rp-popup-header-bg: #FFF7FA;
+  --rp-popup-footer-bg: #FCFBFA;
+  --rp-popup-border: #F5CBD7;
+  --rp-popup-divider: #EFE5E8;
+  --rp-popup-hover: #FCE5ED;
+  --rp-popup-shadow: 0 24px 56px -22px rgba(95, 45, 65, 0.24), 0 4px 14px -4px rgba(45, 40, 42, 0.08);
+  --rp-tooltip-bg: #2D282A;
+  --rp-tooltip-fg: #FFFFFF;
+}
+[data-theme='dark'] {
+  --rp-backdrop: rgba(10, 8, 12, 0.72);
+  --rp-popup-bg: #201A1E;
+  --rp-popup-header-bg: #281F25;
+  --rp-popup-footer-bg: #1B161A;
+  --rp-popup-border: rgba(245, 203, 215, 0.22);
+  --rp-popup-divider: rgba(255, 255, 255, 0.09);
+  --rp-popup-hover: rgba(207, 74, 112, 0.18);
+  --rp-popup-shadow: 0 28px 64px -20px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(245, 203, 215, 0.14);
+  --rp-tooltip-bg: #32282E;
+  --rp-tooltip-fg: #F5EEF0;
+  --color-rp-surface: #201A1E;
+  --color-rp-bg: #161215;
+  --color-rp-bg-2: #1B1619;
+  --color-rp-muted: #2B2228;
+  --color-rp-muted-strong: #382C33;
+  --color-rp-line: rgba(255, 255, 255, 0.11);
+  --color-rp-line-strong: rgba(245, 203, 215, 0.28);
+  --color-rp-text: #F5EEF0;
+  --color-rp-text-2: #D4C8CD;
+  --color-rp-text-muted: #A99BA1;
+  --color-rp-brand-tint: rgba(207, 74, 112, 0.16);
+  --color-rp-brand-soft: rgba(207, 74, 112, 0.24);
+  --color-rp-brand-border: rgba(245, 203, 215, 0.30);
+}
 .rp-backdrop { background-color: var(--rp-backdrop); }
 @supports ((-webkit-backdrop-filter: blur(4px)) or (backdrop-filter: blur(4px))) {
   .rp-backdrop { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
@@ -1640,12 +1676,16 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   100% { opacity: 0; transform: translate3d(0, 230px, 0) rotate(320deg); }
 }
 
-/* ------------------------------------------------------------------ Header Visual Tokens (Badges, Globe, Brand Path) */
+/* ------------------------------------------------------------------ Shared Count Badge & Header Tokens */
 :root {
-  /* Modern coral-rose header badge: #D6404E / #FFFFFF = 4.52:1 (WCAG AA), seamless without white border */
-  --rp-header-badge-bg: #D6404E;
+  /* Unified WCAG AA red count badge (#D63F30 / #FFFFFF = 4.55:1), zero shadow/gradient */
+  --rp-count-badge-bg: #D63F30;
+  --rp-count-badge-fg: #FFFFFF;
+  --rp-count-badge-neutral-bg: #EBE6E8;
+  --rp-count-badge-neutral-fg: #5F5559;
+
+  --rp-header-badge-bg: #D63F30;
   --rp-header-badge-fg: #FFFFFF;
-  --rp-header-badge-shadow: 0 1px 3px rgba(182, 52, 70, 0.22);
 
   /* Soft pastel sky-blue language globe: #5798D1 on #FFFFFF = 3.08:1 (WCAG UI AA), gentle with Sakura palette */
   --rp-header-globe-color: #5798D1;
@@ -1668,17 +1708,31 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
 }
 
 [data-theme='dark'] {
-  --rp-header-badge-bg: #D6404E;
+  --rp-count-badge-bg: #D63F30;
+  --rp-count-badge-fg: #FFFFFF;
+  --rp-count-badge-neutral-bg: #2E272B;
+  --rp-count-badge-neutral-fg: #B8ACB2;
+  --rp-header-badge-bg: #D63F30;
   --rp-header-badge-fg: #FFFFFF;
-  --rp-header-badge-shadow: 0 1px 3px rgba(0, 0, 0, 0.32);
   --rp-header-globe-color: #8BC0EC;
   --rp-brand-path-accent: #F07B98;
+}
+
+.rp-count-badge {
+  font-variant-numeric: tabular-nums;
+}
+.rp-count-badge--danger {
+  background-color: var(--rp-count-badge-bg);
+  color: var(--rp-count-badge-fg);
+}
+.rp-count-badge--neutral {
+  background-color: var(--rp-count-badge-neutral-bg);
+  color: var(--rp-count-badge-neutral-fg);
 }
 
 .rp-header-badge {
   background-color: var(--rp-header-badge-bg);
   color: var(--rp-header-badge-fg);
-  box-shadow: var(--rp-header-badge-shadow);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1686,57 +1740,90 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   color: var(--rp-brand-path-accent);
 }
 
+/* Subtle thin Sakura scrollbar for bounded list regions (modals, schedules). */
+.rp-sakura-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 61, 100, 0.32) transparent;
+}
+.rp-sakura-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.rp-sakura-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rp-sakura-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(196, 61, 100, 0.28);
+  border-radius: 9999px;
+}
+.rp-sakura-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(196, 61, 100, 0.52);
+}
+
+/* Neutral thin modern scrollbar for modal columns & schedule lists (no pink tint). */
+.rp-neutral-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.62) rgba(241, 245, 249, 0.9);
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+.rp-neutral-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.rp-neutral-scroll::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.9);
+  border-radius: 9999px;
+}
+.rp-neutral-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.6);
+  border-radius: 9999px;
+  border: 1px solid rgba(241, 245, 249, 0.9);
+}
+.rp-neutral-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.82);
+}
+
+/* Adaptive CountBadge on solid filled buttons/surfaces: switch red badge to crisp white with matching high-contrast text. */
+[data-solid-surface] .rp-count-badge--auto {
+  background-color: #ffffff;
+  color: var(--color-rp-brand-strong, #b53d5c);
+}
+[data-solid-surface="danger"] .rp-count-badge--auto {
+  color: var(--color-rp-danger, #c22a2a);
+}
+[data-solid-surface="success"] .rp-count-badge--auto,
+[data-solid-surface="confirm"] .rp-count-badge--auto {
+  color: var(--color-rp-success, #0d7a42);
+}
+[data-solid-surface="warning"] .rp-count-badge--auto {
+  color: var(--color-rp-warning, #8c4d0c);
+}
+
 /* ------------------------------------------------------------------ Global Smart Sidebar Badges */
 :root {
-  /* WCAG AA verified: #D63F30 / #FFFFFF = 4.55:1, #EADCE2 / #91405B = 5.13:1 */
+  /* WCAG AA verified: #D63F30 / #FFFFFF = 4.55:1 */
   --rp-sidebar-badge-bg: #D63F30;
   --rp-sidebar-badge-fg: #FFFFFF;
-  --rp-sidebar-badge-active-bg: #EADCE2;
-  --rp-sidebar-badge-active-fg: #91405B;
-  --rp-sidebar-badge-glow: rgba(214, 63, 48, 0.34);
-  --rp-sidebar-badge-shadow: 0 1px 2px rgba(182, 52, 70, 0.2);
 }
 
 [data-theme='dark'] {
-  /* Dark theme AA/AAA: #D63F30 / #FFFFFF = 4.55:1, #3D2530 / #F7B7CB = 8.36:1 */
+  /* Dark theme AA/AAA: #D63F30 / #FFFFFF = 4.55:1 */
   --rp-sidebar-badge-bg: #D63F30;
   --rp-sidebar-badge-fg: #FFFFFF;
-  --rp-sidebar-badge-active-bg: #3D2530;
-  --rp-sidebar-badge-active-fg: #F7B7CB;
-  --rp-sidebar-badge-glow: rgba(224, 90, 122, 0.38);
-  --rp-sidebar-badge-shadow: 0 1px 3px rgba(0, 0, 0, 0.32);
 }
 
 .rp-sidebar-badge {
   position: relative;
   background-color: var(--rp-sidebar-badge-bg);
   color: var(--rp-sidebar-badge-fg);
-  box-shadow: var(--rp-sidebar-badge-shadow);
   font-variant-numeric: tabular-nums;
-  transition:
-    background-color 180ms var(--rp-ease, ease),
-    color 180ms var(--rp-ease, ease),
-    opacity 180ms var(--rp-ease, ease),
-    transform 180ms var(--rp-ease, ease);
 }
 .rp-sidebar-badge[data-collapsed="true"] {
   position: absolute;
 }
-.rp-sidebar-badge[data-active="true"] {
-  background-color: var(--rp-sidebar-badge-active-bg);
-  color: var(--rp-sidebar-badge-active-fg);
-  box-shadow: none;
-}
 .rp-sidebar-badge[data-stale="true"] {
   opacity: 0.82;
-}
-.rp-sidebar-badge::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  pointer-events: none;
-  opacity: 0;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1748,35 +1835,14 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
     animation: rp-sidebar-badge-bump 200ms var(--rp-ease, ease) both;
   }
 
-  /* Scoped Soft Notification Pulse: ONLY for learner.srs_due when due > 0, menu inactive, and tab visible */
-  .rp-sidebar-badge[data-attention="soft-pulse"] {
-    animation: rp-sidebar-badge-soft-pulse 3s ease-in-out infinite;
-  }
-  .rp-sidebar-badge[data-attention="soft-pulse"]::after {
-    background-color: var(--rp-sidebar-badge-glow);
-    animation: rp-sidebar-badge-glow-ring 3s ease-in-out infinite;
-  }
-  .rp-sidebar-badge[data-attention="soft-pulse"][data-collapsed="true"]::after {
-    animation-name: rp-sidebar-badge-glow-ring-compact;
-  }
-
-  /* Attention Pop (2 iterations then stops): ONLY for genuine realtime increases on ActionRequired counters */
+  /* Finite 2-beat Attention Pop on genuine realtime count increases (never loops infinitely) */
   .rp-sidebar-badge[data-attention="pop"][data-pop-phase="odd"] {
-    animation: rp-sidebar-badge-pop-odd 900ms var(--rp-ease, ease-out) 2 both;
+    animation: rp-sidebar-badge-pop-odd 480ms var(--rp-ease, ease-out) 2 both;
   }
   .rp-sidebar-badge[data-attention="pop"][data-pop-phase="even"] {
-    animation: rp-sidebar-badge-pop-even 900ms var(--rp-ease, ease-out) 2 both;
+    animation: rp-sidebar-badge-pop-even 480ms var(--rp-ease, ease-out) 2 both;
   }
-  .rp-sidebar-badge[data-attention="pop"][data-pop-phase="odd"]::after {
-    background-color: var(--rp-sidebar-badge-glow);
-    animation: rp-sidebar-badge-pop-ring-odd 900ms var(--rp-ease, ease-out) 2 both;
-  }
-  .rp-sidebar-badge[data-attention="pop"][data-pop-phase="even"]::after {
-    background-color: var(--rp-sidebar-badge-glow);
-    animation: rp-sidebar-badge-pop-ring-even 900ms var(--rp-ease, ease-out) 2 both;
-  }
-  .rp-sidebar-badge[data-tab-hidden="true"],
-  .rp-sidebar-badge[data-tab-hidden="true"]::after {
+  .rp-sidebar-badge[data-tab-hidden="true"] {
     animation-play-state: paused !important;
   }
 }
@@ -1789,43 +1855,19 @@ aside[data-collapsed='true'] .rp-sidebar-scroll::-webkit-scrollbar { display: no
   0% { transform: scale(1.1); }
   100% { transform: scale(1); }
 }
-@keyframes rp-sidebar-badge-soft-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
-}
-@keyframes rp-sidebar-badge-glow-ring {
-  0% { transform: scale(1); opacity: 0.4; }
-  65% { transform: scale(1.38); opacity: 0; }
-  100% { transform: scale(1.38); opacity: 0; }
-}
-@keyframes rp-sidebar-badge-glow-ring-compact {
-  0% { transform: scale(1); opacity: 0.36; }
-  65% { transform: scale(1.28); opacity: 0; }
-  100% { transform: scale(1.28); opacity: 0; }
-}
 @keyframes rp-sidebar-badge-pop-odd {
   0%, 100% { transform: scale(1); }
-  45% { transform: scale(1.05); }
+  45% { transform: scale(1.08); }
 }
 @keyframes rp-sidebar-badge-pop-even {
   0%, 100% { transform: scale(1); }
-  45% { transform: scale(1.05); }
-}
-@keyframes rp-sidebar-badge-pop-ring-odd {
-  0% { transform: scale(1); opacity: 0.44; }
-  100% { transform: scale(1.34); opacity: 0; }
-}
-@keyframes rp-sidebar-badge-pop-ring-even {
-  0% { transform: scale(1); opacity: 0.44; }
-  100% { transform: scale(1.34); opacity: 0; }
+  45% { transform: scale(1.08); }
 }
 @media (prefers-reduced-motion: reduce) {
   .rp-sidebar-badge,
-  .rp-sidebar-badge::after,
   .rp-sidebar-badge-enter,
   .rp-sidebar-badge-num-bump {
     animation: none !important;
-    transition: background-color 0ms, color 0ms, opacity 0ms !important;
     transform: none !important;
   }
 }

@@ -435,32 +435,32 @@ export function AllSavedItemsView({
               placeholder={tr('Tìm từ, cách đọc, nghĩa hoặc ghi chú…')}
             />
           </div>
-          <div className="w-[155px]">
-            <CustomSelect
-              size="sm"
-              value={kind}
-              onChange={(val) => {
-                setKind(val);
-                setPage(1);
-              }}
-              options={NOTEBOOK_CONTENT_KINDS.map((k) => ({ value: k.id, label: tr(k.label) }))}
-            />
-          </div>
-          <div className="w-[165px]">
-            <CustomSelect
-              size="sm"
-              value={sortBy}
-              onChange={(val) => {
-                setSortBy(val);
-                setPage(1);
-              }}
-              options={[
-                { value: 'recent', label: tr('Mới cập nhật') },
-                { value: 'alpha', label: tr('Theo bảng chữ cái') },
-                { value: 'srs', label: tr('Ưu tiên có thẻ SRS') },
-              ]}
-            />
-          </div>
+          <CustomSelect
+            fitContent
+            size="sm"
+            label="Phân loại"
+            value={kind}
+            onChange={(val) => {
+              setKind(val);
+              setPage(1);
+            }}
+            options={NOTEBOOK_CONTENT_KINDS.map((k) => ({ value: k.id, label: tr(k.label) }))}
+          />
+          <CustomSelect
+            fitContent
+            size="sm"
+            label="Sắp xếp"
+            value={sortBy}
+            onChange={(val) => {
+              setSortBy(val);
+              setPage(1);
+            }}
+            options={[
+              { value: 'recent', label: tr('Mới cập nhật') },
+              { value: 'alpha', label: tr('Theo bảng chữ cái') },
+              { value: 'srs', label: tr('Ưu tiên có thẻ SRS') },
+            ]}
+          />
         </div>
       )}
 

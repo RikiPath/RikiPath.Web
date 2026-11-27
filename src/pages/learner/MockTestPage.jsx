@@ -67,7 +67,7 @@ import { ControlGroup, filterSupportedJlptLevels, IllustratedPageHeader } from '
 import { useLocale } from '@/locales/locale.js';
 
 const MOCK_STATUS_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Tất cả trạng thái' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'IN_PROGRESS', label: 'Đang làm dở' },
   { value: 'NOT_STARTED', label: 'Chưa làm' },
   { value: 'COMPLETED', label: 'Đã hoàn thành' },
@@ -162,13 +162,10 @@ function MockAnswer({ question, value, onChange }) {
     if (!left.length || !right.length) {
       return <p className="mt-3 text-sm text-rp-text-muted">{tr('Câu ghép cặp chưa có dữ liệu lựa chọn để hiển thị.')}</p>;
     }
-    const rightOptions = [
-      { value: '', label: tr('Chọn vế tương ứng') },
-      ...right.map((option) => ({
-        value: String(option.id ?? option),
-        label: String(option.text ?? option.label ?? option.id ?? option),
-      })),
-    ];
+    const rightOptions = right.map((option) => ({
+      value: String(option.id ?? option),
+      label: String(option.text ?? option.label ?? option.id ?? option),
+    }));
     return (
       <div className="mt-3 grid gap-2.5">
         {left.map((item) => {
@@ -179,6 +176,8 @@ function MockAnswer({ question, value, onChange }) {
               <div className="w-60 max-w-full">
                 <CustomSelect
                   size="sm"
+                  clearable
+                  label={tr('Đáp án ghép')}
                   value={value?.[key] != null ? String(value[key]) : ''}
                   onChange={(selected) => {
                     const next = { ...value };
@@ -218,10 +217,13 @@ function MockAnswer({ question, value, onChange }) {
   }
 
   return (
-    <label className="mt-3 block space-y-1.5 text-sm">
-      <span className="text-xs font-semibold text-rp-text-muted">{tr('Câu trả lời')}</span>
-      <Input value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} />
-    </label>
+    <div className="mt-3">
+      <Input
+        label={tr('Câu trả lời')}
+        value={typeof value === 'string' ? value : ''}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
   );
 }
 
@@ -599,7 +601,7 @@ function MockAttempt({ attempt, onComplete }) {
         description={tr('Hãy kiểm tra lại tổng quan số câu đã hoàn thành trước khi gửi chấm điểm.')}
         footer={
           <>
-            <Button type="button" variant="secondary" size="md" disabled={pending} onClick={() => setSubmitModalMeta(null)}>
+            <Button type="button" variant="neutral" size="md" disabled={pending} onClick={() => setSubmitModalMeta(null)}>
               {tr('Tiếp tục làm bài')}
             </Button>
             <Button type="button" variant="primary" size="md" icon={Send} loading={pending} onClick={() => void submit()}>
@@ -827,6 +829,21 @@ export default function MockTestPage({ routeMode = null, resultOnly = false }) {
   }
 
   const allMockTests = useMemo(() => mockExamsQuery.data || [], [mockExamsQuery.data]);
+  const hasServerFilter = levelCode !== 'ALL' || statusFilter !== 'ALL';
+
+  const unfilteredMockQuery = useQuery({
+    queryKey: ['mock-exams-catalog', user?.userId, 'unfiltered-check'],
+    enabled: Boolean(!attemptId && hasServerFilter && mockExamsQuery.isSuccess && allMockTests.length === 0),
+    queryFn: () => getFullMockTests({}),
+    staleTime: 60_000,
+  });
+
+  const hasUnderlyingMockCatalog = mockExamsQuery.isSuccess && (
+    allMockTests.length > 0 || (hasServerFilter && (unfilteredMockQuery.data?.length ?? 0) > 0)
+  );
+  const showMockFilterToolbar = mockExamsQuery.isSuccess && !levelsQuery.isError && (
+    allMockTests.length > 0 || (hasServerFilter && (unfilteredMockQuery.isPending || (unfilteredMockQuery.data?.length ?? 0) > 0))
+  );
   const visibleMockTests = useMemo(() => {
     const q = keyword.trim().toLowerCase();
     if (!q) return allMockTests;
@@ -907,6 +924,7 @@ export default function MockTestPage({ routeMode = null, resultOnly = false }) {
 
         {!attemptId && (
           <>
+            {showMockFilterToolbar && (
             <ExamFilterToolbar
               searchValue={keyword}
               onSearchChange={setKeyword}
@@ -925,6 +943,7 @@ export default function MockTestPage({ routeMode = null, resultOnly = false }) {
               hasActiveFilters={hasActiveFilters}
               onReset={handleResetFilters}
             />
+            )}
 
             {inProgressMockTests.length > 0 && (
               <Card className="rp-resume-strip border-amber-200/80 bg-amber-50/55 p-4">
@@ -1034,14 +1053,18 @@ export default function MockTestPage({ routeMode = null, resultOnly = false }) {
             {mockExamsQuery.isSuccess && visibleMockTests.length === 0 && (
               <Card>
                 <EmptyState
-                  variant="compact"
-                  illustration="certificate"
-                  title={tr('Chưa có đề thi thử JLPT phù hợp.')}
-                  description={tr('Hãy chọn cấp độ JLPT khác hoặc làm bài trong mục Bộ đề luyện tập.')}
+                  variant={hasActiveFilters && hasUnderlyingMockCatalog ? 'search' : 'compact'}
+                  illustration={hasActiveFilters && hasUnderlyingMockCatalog ? 'search' : 'certificate'}
+                  title={hasActiveFilters && hasUnderlyingMockCatalog ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có đề thi thử JLPT nào.')}
+                  description={
+                    hasActiveFilters && hasUnderlyingMockCatalog
+                      ? tr('Hãy thử đổi cấp độ JLPT, trạng thái hoặc xóa bộ lọc.')
+                      : tr('Các đề thi thử JLPT sẽ hiển thị tại đây khi được phát hành.')
+                  }
                   action={
-                    hasActiveFilters ? (
+                    hasActiveFilters && hasUnderlyingMockCatalog ? (
                       <Button type="button" variant="outline" size="sm" icon={RotateCcw} onClick={handleResetFilters}>
-                        {tr('Đặt lại bộ lọc')}
+                        {tr('Xóa bộ lọc')}
                       </Button>
                     ) : null
                   }

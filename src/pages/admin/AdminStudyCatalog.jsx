@@ -529,12 +529,12 @@ export default function AdminStudyCatalog() {
             kind === 'levels' && types.length > 1 ? (
               <CustomSelect
                 fitContent
-                aria-label={tr('Lọc theo chứng chỉ')}
-                label={tr('Lọc theo chứng chỉ')}
+                aria-label={tr('Chứng chỉ')}
+                label={tr('Chứng chỉ')}
                 value={certFilterId}
                 onChange={(nextId) => setCertFilterId(nextId)}
                 options={[
-                  { value: 'ALL', label: tr('Tất cả chứng chỉ') },
+                  { value: 'ALL', label: tr('Tất cả') },
                   ...types.map((t) => ({ value: String(t.id), label: t.name })),
                 ]}
                 size="md"
@@ -607,8 +607,8 @@ export default function AdminStudyCatalog() {
                           key: 'name',
                           header: tr('Tên chứng chỉ'),
                           align: 'left',
-                          width: 'w-[18%]',
-                          render: (cert) => <span className="font-semibold text-rp-text">{cert.name}</span>,
+                          compact: true,
+                          render: (cert) => <span className="font-semibold text-rp-text whitespace-nowrap">{cert.name}</span>,
                         },
                         {
                           key: 'description',
@@ -792,7 +792,7 @@ export default function AdminStudyCatalog() {
                         {
                           key: 'code',
                           header: tr('Cấp độ'),
-                          align: 'left',
+                          align: 'center',
                           compact: true,
                           render: (lv) => (
                             <span className="inline-flex min-w-[44px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2.5 py-0.5 text-[13px] font-bold text-rp-brand-strong">

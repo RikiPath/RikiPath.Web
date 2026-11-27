@@ -297,10 +297,10 @@ export default function AdminUsers() {
     {
       key: 'name',
       header: tr('Người dùng'),
-      headerButtonClassName: 'w-[240px] max-w-full justify-center sm:w-[270px]',
+      align: 'left',
       sortValue: (row) => row.name,
       render: (row) => (
-        <div className="flex w-[240px] max-w-full min-w-0 items-center gap-2.5 text-left sm:w-[270px]">
+        <div className="flex min-w-0 items-center gap-2.5 text-left">
           <Avatar src={row.avatarUrl} name={row.name} size={32} className="ring-1 ring-rp-line" />
           <div className="min-w-0 flex-1">
             <button
@@ -319,12 +319,16 @@ export default function AdminUsers() {
     {
       key: 'role',
       header: tr('Vai trò'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => row.role,
       render: (row) => <AdminRoleBadge role={row.role} />,
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => (row.isActive ? 1 : 0),
       render: (row) => (
         <AdminStatusBadge
@@ -336,6 +340,8 @@ export default function AdminUsers() {
     {
       key: 'isEmailVerified',
       header: tr('Xác thực Email'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => (row.isEmailVerified ? 1 : 0),
       render: (row) => (
         <AdminStatusBadge
@@ -347,6 +353,8 @@ export default function AdminUsers() {
     {
       key: 'lastActivityAt',
       header: tr('Cập nhật / tạo'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => (row.lastActivityAt ? new Date(row.lastActivityAt).getTime() : 0),
       render: (row) => (
         <span className="whitespace-nowrap text-xs tabular-nums text-rp-text-2">
@@ -405,10 +413,10 @@ export default function AdminUsers() {
           <CustomSelect
             fitContent
             value={roleFilter}
-            aria-label={tr('Lọc theo vai trò')}
+            aria-label={tr('Vai trò')}
             onChange={setRoleFilter}
             options={[
-              { value: 'all', label: tr('Tất cả vai trò') },
+              { value: 'all', label: tr('Tất cả') },
               ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: tr(r.label), dotClass: r.dotClass })),
             ]}
           />
@@ -416,10 +424,10 @@ export default function AdminUsers() {
           <CustomSelect
             fitContent
             value={statusFilter}
-            aria-label={tr('Lọc theo trạng thái tài khoản')}
+            aria-label={tr('Trạng thái')}
             onChange={setStatusFilter}
             options={[
-              { value: 'all', label: tr('Tất cả trạng thái') },
+              { value: 'all', label: tr('Tất cả') },
               { value: 'Active', label: tr('Hoạt động'), dotClass: 'bg-[#16A34A]' },
               { value: 'Suspended', label: tr('Đã khóa'), dotClass: 'bg-[#DC2626]' },
               { value: 'Verified', label: tr('Đã xác thực'), dotClass: 'bg-[#16A34A]' },
@@ -430,7 +438,7 @@ export default function AdminUsers() {
           <CustomSelect
             fitContent
             value={sortBy}
-            aria-label={tr('Sắp xếp danh sách')}
+            aria-label={tr('Sắp xếp')}
             onChange={setSortBy}
             options={[
               { value: 'newest', label: tr('Mới nhất') },
@@ -705,7 +713,6 @@ export default function AdminUsers() {
               <Field label={tr('Vai trò hệ thống')} required error={formErrors.role}>
                 <CustomSelect
                   value={form.role}
-                  placeholder={tr('Chọn vai trò')}
                   invalid={Boolean(formErrors.role)}
                   aria-label={tr('Vai trò hệ thống')}
                   onChange={(value) => setForm((f) => ({ ...f, role: value }))}
@@ -730,7 +737,7 @@ export default function AdminUsers() {
           onClose={() => setToggleTarget(null)}
           onConfirm={() => toggleTarget && toggleStatusMutation.mutate(toggleTarget)}
           loading={toggleStatusMutation.isPending}
-          tone={toggleTarget?.isActive ? 'danger' : 'info'}
+          tone={toggleTarget?.isActive ? 'danger' : 'success'}
           title={toggleTarget?.isActive ? tr('Khóa tài khoản này?') : tr('Kích hoạt lại tài khoản?')}
           description={
             toggleTarget?.isActive
@@ -743,6 +750,7 @@ export default function AdminUsers() {
                 })
           }
           confirmLabel={toggleTarget?.isActive ? tr('Khóa tài khoản') : tr('Mở khóa')}
+          cancelLabel={tr('Quay lại')}
         />
       </AdminWorkspace>
     </AdminShell>

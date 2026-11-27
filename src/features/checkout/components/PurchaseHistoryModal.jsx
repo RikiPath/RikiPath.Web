@@ -140,7 +140,7 @@ export default function PurchaseHistoryModal({ open, onClose }) {
       key: 'purchasedAt',
       header: tr('Thời gian tạo đơn'),
       align: 'left',
-      width: 'w-[17%]',
+      compact: true,
       render: (order) => {
         const createdRaw = order.purchasedAt || order.startDate;
         const dateText = formatPlanDate(createdRaw);
@@ -165,7 +165,6 @@ export default function PurchaseHistoryModal({ open, onClose }) {
       key: 'validity',
       header: tr('Hiệu lực sử dụng'),
       align: 'left',
-      width: 'w-[21%]',
       render: (order) => {
         const validity = purchaseValidityLines(order, { tr, trf });
         return (
@@ -184,7 +183,7 @@ export default function PurchaseHistoryModal({ open, onClose }) {
       key: 'payment',
       header: tr('Thanh toán'),
       align: 'right',
-      width: 'w-[16%]',
+      compact: true,
       render: (order) => (
         <div className="whitespace-nowrap text-right">
           <p className="text-[13.5px] font-bold leading-5 tabular-nums text-rp-text">
@@ -200,7 +199,7 @@ export default function PurchaseHistoryModal({ open, onClose }) {
       key: 'status',
       header: tr('Trạng thái'),
       align: 'center',
-      width: 'w-[14%]',
+      compact: true,
       render: (order) => {
         const meta = paymentStatusMeta(order, { tr });
         return (

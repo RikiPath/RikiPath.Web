@@ -167,11 +167,14 @@
    Borderless fields (chat composers, inline editors) opt out by having no border class. */
 :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea)[class*="border"]:not([class*="border-0"], [class*="border-none"], [class*="border-transparent"]):focus {
   outline: none;
-  border-color: var(--rp-accent);
-  box-shadow: var(--rp-focus-ring);
+  border-color: var(--color-rp-brand, #E05A7A);
+  box-shadow: inset 0 0 0 0.5px var(--color-rp-brand, #E05A7A);
 }
 :is(input, select, textarea)[aria-invalid="true"][class*="border"]:not([class*="border-0"]) { border-color: var(--color-rp-danger, #C62828); }
-:is(input, select, textarea)[aria-invalid="true"][class*="border"]:not([class*="border-0"]):focus { box-shadow: var(--rp-focus-ring-danger); }
+:is(input, select, textarea)[aria-invalid="true"][class*="border"]:not([class*="border-0"]):focus {
+  border-color: var(--color-rp-danger, #C62828);
+  box-shadow: inset 0 0 0 0.5px var(--color-rp-danger, #C62828);
+}
 /* Suppress Chrome 135+ customizable-select native picker triangle whenever custom SVG chevron is used. */
 :is(select).appearance-none {
   appearance: none;
@@ -192,6 +195,24 @@
 }
 :is(input[type="date"], input[type="time"], input[type="datetime-local"]).rp-control::-webkit-datetime-edit {
   padding: 0;
+}
+
+/* Outlined Floating Label & true <fieldset>/<legend> Notched Outline */
+.rp-outlined-fieldset {
+  top: -5.5px;
+}
+.rp-outlined-legend {
+  max-width: 0.01px;
+  transition: max-width var(--rp-dur-fast, 140ms) var(--rp-ease-standard);
+}
+.rp-outlined-legend[data-floated="true"] {
+  max-width: calc(100% - 28px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-outlined-label,
+  .rp-outlined-legend {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------------ Links */

@@ -108,6 +108,7 @@ export const ROUTES = [
   { path: '/mentor-homework', page: 'HomeworkPage', props: { mentor: true }, roles: M },
   { path: '/mentor-grading', page: 'MentorGrading', roles: M },
   { path: '/mentor-shift-schedule', page: 'MentorShiftSchedule', roles: M },
+  { path: '/mentor-proposal-history', page: 'MentorProposalHistory', roles: M },
   { path: '/mentor-availability', page: 'MentorAvailability', roles: M },
   { path: '/work-schedule', page: 'WorkSchedule', roles: MA },
   { path: '/mentor-attendance-kpi', page: 'MentorAttendanceKpi', roles: MA },

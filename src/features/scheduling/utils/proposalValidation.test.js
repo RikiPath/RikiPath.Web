@@ -425,9 +425,19 @@ test('9.7 JLPT N5-N2 class-opening scope (N1 profile allowed, N1 class opening b
   assert.equal(missingMeta.step1Valid, false);
   assert.equal(missingMeta.step2Valid, false);
   assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'certificateLevelId'));
-  assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'expectedStartDate'));
-  assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'courseObjective'));
+  assert.ok(missingMeta.errors.some((e) => e.step === 2 && e.field === 'courseTitle'));
+  assert.ok(!missingMeta.errors.some((e) => e.field === 'courseObjective'));
   assert.ok(missingMeta.errors.some((e) => e.step === 1 && e.field === 'weeklySessions'));
+
+  // Blank courseObjective must still allow submission when all required fields are valid
+  const noObjectiveRes = validateProposalState({
+    proposal: { ...proposalN2, courseObjective: '   ' },
+    availableLevels: allLevels,
+    qualifiedLevels: [{ certificateLevelId: 4, code: 'N2', name: 'JLPT N2' }],
+    nowMs: NOW_MS,
+  });
+  assert.equal(noObjectiveRes.step2Valid, true);
+  assert.equal(noObjectiveRes.canSubmit, true);
 
   // Weekly <-> Calendar projection round-trip on an arbitrary week
   const projected = weeklySessionsToCalendarSlots({

@@ -30,6 +30,7 @@ import {
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 
 export default function AdminMentorQualifications({ fillHeight = false } = {}) {
@@ -80,7 +81,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
       setRevokeTarget(null);
       setRevokeReason('');
       setRevokeError('');
-      notify.success(tr('Đã thu hồi quyền giảng dạy (dữ liệu lớp lịch sử được giữ nguyên).'), '', {
+      notify.success(tr('Đã thu hồi quyền giảng dạy.'), '', {
         key: 'admin-qual-revoke',
         replace: true,
       });
@@ -151,6 +152,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
     {
       key: 'fullName',
       header: tr('Giáo viên'),
+      align: 'left',
       render: (row) => (
         <div className="min-w-0">
           <p className="font-semibold text-rp-text">{row.fullName}</p>
@@ -161,6 +163,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
     {
       key: 'verificationStatus',
       header: tr('Hồ sơ & Chứng chỉ'),
+      align: 'center',
       render: (row) => (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           <Badge tone={row.verificationStatus === 'Approved' ? 'success' : 'warning'} size="sm" icon={false}>
@@ -177,6 +180,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
     {
       key: 'activeQualifications',
       header: tr('Quyền giảng dạy hiện tại'),
+      align: 'center',
       render: (row) => (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {row.activeQualifications?.length ? (
@@ -235,14 +239,14 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
         <CustomSelect
           fitContent
           value={levelFilter}
-          aria-label={tr('Lọc theo quyền giảng dạy')}
+          aria-label={tr('Quyền giảng dạy')}
           onChange={setLevelFilter}
           options={[
-            { value: 'ALL', label: tr('Mọi cấp độ phân quyền') },
+            { value: 'ALL', label: tr('Tất cả') },
             { value: 'NONE', label: tr('Chưa cấp quyền nào') },
             ...levels.map((lvl) => ({
               value: String(lvl.id),
-              label: `${lvl.certificateCode} · ${lvl.code}`,
+              label: formatJlptLevel(lvl.code || lvl.name),
             })),
           ]}
         />
@@ -349,7 +353,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
                 onChange={setGrantLevelId}
                 options={availableGrantLevels.map((l) => ({
                   value: String(l.id),
-                  label: `${l.certificateCode} · ${l.code}`,
+                  label: formatJlptLevel(l.code || l.name),
                 }))}
               />
             </Field>
@@ -377,7 +381,7 @@ export default function AdminMentorQualifications({ fillHeight = false } = {}) {
         size="md"
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" disabled={revokeMutation.isPending} onClick={() => setRevokeTarget(null)}>
+            <Button variant="neutral" disabled={revokeMutation.isPending} onClick={() => setRevokeTarget(null)}>
               {tr('Hủy')}
             </Button>
             <Button variant="danger" icon={ShieldOff} loading={revokeMutation.isPending} onClick={submitRevoke}>

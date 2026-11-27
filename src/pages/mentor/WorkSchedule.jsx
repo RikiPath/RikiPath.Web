@@ -68,8 +68,10 @@ function workStatusOrderRank(id) {
   switch (id) {
     case 'live': return 0;
     case 'upcoming': return 1;
-    case 'completed': return 2;
-    default: return 3;
+    case 'rescheduled': return 2;
+    case 'completed': return 3;
+    case 'cancelled': return 4;
+    default: return 5;
   }
 }
 
@@ -118,6 +120,7 @@ export default function WorkSchedule() {
   const workspace = useMentorScheduleWorkspace({
     includeCalendarStatus: false,
     includeAvailability: false,
+    includeHistoricalWorkStatuses: true,
     enabled: isMentorViewer,
   });
   const {
@@ -151,10 +154,14 @@ export default function WorkSchedule() {
 
       const cohortTitle = cs.cohortName || tr('Lớp nhóm');
       const jlptLevelCode = extractJlptLevelCode(cs, cohortTitle);
-      const cleanTitle = formatCleanCohortTitle(cohortTitle, cs.sessionNumber);
-      const sessionLabel = cs.totalSessions
-        ? trf('Buổi {0}/{1}', { 0: cs.sessionNumber || 1, 1: cs.totalSessions })
-        : trf('Buổi {0}', { 0: cs.sessionNumber || 1 });
+      const cleanTitle = cs.isHistoricalRescheduled
+        ? formatCleanCohortTitle(cohortTitle, null)
+        : formatCleanCohortTitle(cohortTitle, cs.sessionNumber);
+      const sessionLabel = cs.sessionNumber
+        ? (cs.totalSessions
+          ? trf('Buổi {0}/{1}', { 0: cs.sessionNumber, 1: cs.totalSessions })
+          : trf('Buổi {0}', { 0: cs.sessionNumber }))
+        : tr('Lịch sử đã đổi lịch');
       const cap = Number(cs.capacity || 0);
       const enrolled = Number(cs.confirmedEnrolledCount ?? cs.enrolledCount ?? 0);
       const headcountLabel = cap > 0
@@ -191,6 +198,12 @@ export default function WorkSchedule() {
         secondaryLabel = 'Kết quả điểm danh';
       }
 
+      const detailSummaryText = workStatus.id === 'rescheduled'
+        ? tr('Khung giờ cũ đã giải phóng')
+        : workStatus.id === 'cancelled'
+          ? tr('Buổi học đã hủy · đã giải phóng lịch')
+          : headcountLabel;
+
       list.push({
         id: `work-${cs.id}`,
         availabilityId: cs.availabilityId ?? null,
@@ -212,8 +225,8 @@ export default function WorkSchedule() {
         detailTime: timeRange,
         title: cleanTitle,
         fullTitle: cleanTitle,
-        detail: headcountLabel,
-        tooltip: `${cleanTitle} · ${timeRange} · ${headcountLabel} · ${tr(statusText)}`,
+        detail: detailSummaryText,
+        tooltip: `${cleanTitle} · ${timeRange} · ${detailSummaryText} · ${tr(statusText)}`,
         statusLabel: statusText,
         tone: workStatus.tone,
         href: primaryHref,
@@ -229,8 +242,17 @@ export default function WorkSchedule() {
           { label: 'Thời lượng', value: trf('{0} phút', { 0: mins }) },
           { label: 'Sĩ số', value: headcountLabel },
           attendanceLabel && { label: 'Điểm danh', value: attendanceLabel },
+          cs.changeResolution && { label: 'Điều chỉnh lịch', value: cs.changeResolution },
+          (workStatus.id === 'rescheduled' || workStatus.id === 'cancelled')
+            && { label: 'Khung giờ', value: tr('Đã giải phóng khỏi lịch bận') },
         ].filter(Boolean),
-        z: isCompleted ? 2 : workStatus.id === 'live' ? 4 : 3,
+        z: (workStatus.id === 'rescheduled' || workStatus.id === 'cancelled')
+          ? 1
+          : isCompleted
+            ? 2
+            : workStatus.id === 'live'
+              ? 4
+              : 3,
       });
     }
     return list;
@@ -327,7 +349,14 @@ export default function WorkSchedule() {
   );
 
   const counts = useMemo(() => {
-    const out = { ALL: countSourceEvents.length, upcoming: 0, live: 0, completed: 0 };
+    const out = {
+      ALL: countSourceEvents.length,
+      upcoming: 0,
+      live: 0,
+      completed: 0,
+      cancelled: 0,
+      rescheduled: 0,
+    };
     for (const ev of countSourceEvents) {
       if (out[ev.sessionLifecycleId] != null) out[ev.sessionLifecycleId] += 1;
     }
@@ -376,9 +405,9 @@ export default function WorkSchedule() {
         return String(a.id).localeCompare(String(b.id));
       }
 
-      // Default 'smart': live first, then upcoming nearest first, then completed most recent first
-      const rankA = a.sessionLifecycleId === 'live' ? 0 : a.sessionLifecycleId === 'upcoming' ? 1 : 2;
-      const rankB = b.sessionLifecycleId === 'live' ? 0 : b.sessionLifecycleId === 'upcoming' ? 1 : 2;
+      // Default 'smart': live -> upcoming (nearest first) -> rescheduled -> completed -> cancelled (most recent first)
+      const rankA = workStatusOrderRank(a.sessionLifecycleId);
+      const rankB = workStatusOrderRank(b.sessionLifecycleId);
       if (rankA !== rankB) return rankA - rankB;
       if (rankA <= 1) return ta - tb;
       return tb - ta;
@@ -623,8 +652,15 @@ export default function WorkSchedule() {
               agendaPreserveOrder
               agendaShowAllDates
               headerTopRight={(
-                <Button as={Link} to="/mentor-shift-schedule/" variant="primary" size="sm" icon={CalendarDays}>
-                  {tr('Đăng ký lịch dạy')}
+                <Button
+                  as={Link}
+                  to="/mentor-shift-schedule/"
+                  variant="primary"
+                  size="sm"
+                  icon={CalendarDays}
+                  className="!h-9 rounded-xl px-3.5 text-[12.5px]"
+                >
+                  {tr('Đăng ký khung giờ')}
                 </Button>
               )}
               toolbarExtra={toolbarFilterControls}

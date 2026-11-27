@@ -56,21 +56,21 @@ function SetupStepper({ currentIndex }) {
             {index > 0 && (
               <span
                 aria-hidden="true"
-                className={cx('absolute left-0 right-1/2 top-[17px] mr-5 h-[3px] rounded-full', index <= currentIndex ? 'bg-rp-success/70' : 'bg-rp-line')}
+                className={cx('absolute left-0 right-1/2 top-[17px] mr-5 h-[3px] rounded-full', index <= currentIndex ? 'bg-[#259D63]/55' : 'bg-rp-line')}
                 style={{ left: 'calc(-50% + 1.25rem)' }}
               />
             )}
             <span
               className={cx(
                 'relative z-[1] flex h-9 w-9 items-center justify-center rounded-full border-2',
-                done && 'border-rp-success bg-rp-success text-white',
+                done && 'border-[#259D63] bg-[#259D63] text-white',
                 current && 'border-rp-brand bg-rp-brand-tint text-rp-brand-strong',
                 !done && !current && 'border-rp-line bg-rp-bg-2 text-rp-text-muted',
               )}
             >
               <Icon aria-hidden="true" className="h-4 w-4" strokeWidth={done ? 3 : 2.2} />
             </span>
-            <span className={cx('text-[12px] font-bold leading-4', done ? 'text-rp-success' : current ? 'text-rp-brand-strong' : 'text-rp-text-muted')}>
+            <span className={cx('text-[12px] font-bold leading-4', done ? 'text-[#1F8453]' : current ? 'text-rp-brand-strong' : 'text-rp-text-muted')}>
               {tr(step.label)}
             </span>
             <span className="sr-only">{done ? tr('Đã hoàn thành') : current ? tr('Bước hiện tại') : tr('Chưa mở')}</span>

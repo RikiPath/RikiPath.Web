@@ -28,6 +28,7 @@ import {
   Button,
   Card,
   CardHeader,
+  CountBadge,
   CustomSelect,
   DataRefreshBoundary,
   RefreshButton,
@@ -326,13 +327,7 @@ export default function AdminDashboard() {
                         <p className="mt-0.5 truncate pl-3.5 text-[11px] text-rp-text-muted">{tr(item.hint)}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
-                        <span
-                          className={`inline-flex min-w-[26px] items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
-                            hasWork ? sev.badge : 'bg-rp-muted text-rp-text-muted'
-                          }`}
-                        >
-                          {item.count}
-                        </span>
+                        <CountBadge count={item.count} size="md" showZero />
                         <ArrowRight className="h-3.5 w-3.5 text-rp-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-rp-brand-strong" />
                       </div>
                     </Link>

@@ -138,7 +138,7 @@ export default function AdminUserDetail() {
                                 ? trf('Tài khoản "{0}" sẽ tạm ngừng đăng nhập vào hệ thống.', { 0: name })
                                 : trf('Tài khoản "{0}" sẽ được mở khóa trở lại.', { 0: name }),
                               confirmLabel: isActive ? tr('Khóa tài khoản') : tr('Mở khóa'),
-                              tone: isActive ? 'danger' : 'info',
+                              tone: isActive ? 'danger' : 'success',
                             })
                           }
                         >
@@ -182,7 +182,7 @@ export default function AdminUserDetail() {
                           title: tr('Thay đổi vai trò tài khoản?'),
                           description: trf('Chuyển tài khoản "{0}" sang vai trò "{1}"?', { 0: name, 1: label }),
                           confirmLabel: tr('Xác nhận đổi vai trò'),
-                          tone: 'info',
+                          tone: 'warning',
                         });
                       }}
                       options={ROLES.filter((r) => r.value !== 'Admin').map((r) => ({
@@ -248,10 +248,11 @@ export default function AdminUserDetail() {
           onClose={() => setPendingChange(null)}
           onConfirm={() => pendingChange && updateMutation.mutate(pendingChange.changes)}
           loading={updateMutation.isPending}
-          tone={pendingChange?.tone || 'info'}
+          tone={pendingChange?.tone || 'success'}
           title={pendingChange?.title || ''}
           description={pendingChange?.description || ''}
           confirmLabel={pendingChange?.confirmLabel}
+          cancelLabel={tr('Quay lại')}
         />
       </main>
     </AdminShell>

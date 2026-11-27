@@ -125,7 +125,7 @@ export default function RoadmapJLPT() {
       setSelectedMode('STANDARD');
       notify.success(
         tr('Lộ trình tiêu chuẩn đã sẵn sàng!'),
-        tr('Bạn có thể bắt đầu các chặng học JLPT ngay bây giờ.'),
+        '',
         { key: 'roadmap-activate-standard' },
       );
     } catch (err) {

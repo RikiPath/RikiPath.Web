@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Award, Check, Clock, Flag, Lock, MapPin, RotateCcw } from 'lucide-react';
 import { Badge, ProgressBar, cx } from '@/components/ui';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import { STAGE_STATE, STAGE_STATE_META } from '../journeyModel.js';
 import { FujiGlyph, SakuraPetal, ToriiGlyph } from './JourneyArt.jsx';
@@ -51,7 +52,7 @@ function StageCardBody({ stage, current }) {
       <div className="flex flex-wrap items-center gap-1.5">
         {stage.levelCode && (
           <Badge tone={stage.isBridge ? 'warning' : 'brand'} size="sm" icon={false}>
-            {stage.isBridge ? trf('Bổ trợ {0}', { 0: stage.levelCode }) : `JLPT ${stage.levelCode}`}
+            {stage.isBridge ? trf('Bổ trợ {0}', { 0: formatJlptLevel(stage.levelCode) }) : formatJlptLevel(stage.levelCode)}
           </Badge>
         )}
         <Badge

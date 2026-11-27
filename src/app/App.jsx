@@ -77,6 +77,7 @@ const PAGES = {
   ConsultantOverview: page(() => import('@/pages/mentor/ConsultantOverview.jsx')),
   MentorGrading: page(() => import('@/pages/mentor/MentorGrading.jsx')),
   MentorShiftSchedule: page(() => import('@/pages/mentor/MentorShiftSchedule.jsx')),
+  MentorProposalHistory: page(() => import('@/pages/mentor/MentorProposalHistory.jsx')),
   MentorAvailability: page(() => import('@/pages/mentor/MentorAvailability.jsx')),
   WorkSchedule: page(() => import('@/pages/mentor/WorkSchedule.jsx')),
   MentorAttendanceKpi: page(() => import('@/pages/mentor/MentorAttendanceKpi.jsx')),

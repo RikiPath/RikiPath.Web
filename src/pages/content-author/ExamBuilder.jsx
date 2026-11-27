@@ -214,7 +214,7 @@ export default function ExamBuilder() {
       setValidationResult(null);
       setRoundTripReport(null);
       refreshExams();
-      notify.success(trf('Đã tạo phiên bản nháp v{0} (không làm ảnh hưởng lịch sử học viên).', { 0: created?.version ?? 2 }), '', {
+      notify.success(trf('Đã tạo phiên bản nháp v{0}.', { 0: created?.version ?? 2 }), '', {
         key: 'exam-ver-ok',
       });
     },
@@ -338,7 +338,7 @@ export default function ExamBuilder() {
         };
       }),
     }));
-    notify.success(tr('Đã gắn câu hỏi từ Ngân hàng vào phần thi (không nhân bản).'), '', { key: 'pick-ok' });
+    notify.success(tr('Đã thêm câu hỏi vào phần thi.'), '', { key: 'pick-ok' });
   };
 
   const removeQuestionSlot = (sectionIdx, slotIdx) =>
@@ -356,11 +356,26 @@ export default function ExamBuilder() {
 
   const isLocked = editingExam && ['Published', 'Approved', 'PendingReview'].includes(editingExam.publishStatus);
   const rows = examsQuery.data?.items || [];
+  const hasFilters = filterKind !== 'ALL' || filterStatus !== 'ALL' || keyword.trim() !== '';
+
+  const unfilteredExamsQuery = useQuery({
+    queryKey: ['author-exams-v2', 'unfiltered-check'],
+    queryFn: () => listAuthorExamsV2({ page: 1, pageSize: 1 }),
+    enabled: Boolean(modeTab === 'builder-v2' && hasFilters && examsQuery.isSuccess && rows.length === 0),
+    staleTime: 60_000,
+  });
+
+  const unfilteredExamTotal = unfilteredExamsQuery.data?.totalCount ?? unfilteredExamsQuery.data?.items?.length ?? 0;
+  const hasUnderlyingExams = examsQuery.isSuccess && (
+    rows.length > 0 || (hasFilters && (unfilteredExamsQuery.isPending || unfilteredExamTotal > 0))
+  );
+  const isFilterZero = hasFilters && examsQuery.isSuccess && unfilteredExamTotal > 0;
 
   const examColumns = [
     {
       key: 'title',
       header: tr('Tên đề / Bộ luyện'),
+      align: 'left',
       render: (row) => (
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -375,6 +390,7 @@ export default function ExamBuilder() {
     {
       key: 'certificateLevelCode',
       header: tr('Cấp độ & Thời lượng'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <div className="space-y-1 text-xs">
@@ -386,6 +402,7 @@ export default function ExamBuilder() {
     {
       key: 'publishStatus',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (row) => {
         const meta = PUBLISH_BADGES[row.publishStatus] || { label: row.publishStatus, tone: 'neutral' };
@@ -793,6 +810,7 @@ export default function ExamBuilder() {
           </div>
         ) : (
           <>
+            {hasUnderlyingExams && (
             <UnifiedToolbar
               search={{
                 value: keyword,
@@ -806,20 +824,22 @@ export default function ExamBuilder() {
                   <CustomSelect
                     fitContent
                     size="sm"
+                    label="Loại đề"
                     value={filterKind}
                     onChange={setFilterKind}
                     options={[
-                      { value: 'ALL', label: tr('Mọi loại đề') },
+                      { value: 'ALL', label: tr('Tất cả') },
                       ...Object.entries(EXAM_KIND_LABELS).map(([k, label]) => ({ value: k, label: tr(label) })),
                     ]}
                   />
                   <CustomSelect
                     fitContent
                     size="sm"
+                    label="Trạng thái"
                     value={filterStatus}
                     onChange={setFilterStatus}
                     options={[
-                      { value: 'ALL', label: tr('Mọi trạng thái') },
+                      { value: 'ALL', label: tr('Tất cả') },
                       ...Object.entries(PUBLISH_BADGES).map(([k, meta]) => ({ value: k, label: tr(meta.label) })),
                     ]}
                   />
@@ -830,6 +850,7 @@ export default function ExamBuilder() {
                 refreshing: examsQuery.isFetching && !examsQuery.isPending,
               }}
             />
+            )}
 
             <DataRefreshBoundary
               query={examsQuery}
@@ -840,13 +861,32 @@ export default function ExamBuilder() {
             >
               {rows.length === 0 ? (
                 <ContextualEmptyState
-                  illustration="certificate"
-                  title={tr('Chưa có đề thi hoặc bộ luyện tập nào')}
-                  description={tr('Hãy tạo Bộ đề luyện tập, Đề hỗn hợp Mixed Practice hoặc Full Mock Test JLPT mới.')}
+                  variant={isFilterZero ? 'search' : 'compact'}
+                  illustration={isFilterZero ? 'search' : 'certificate'}
+                  title={isFilterZero ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có đề thi hoặc bộ luyện tập nào')}
+                  description={
+                    isFilterZero
+                      ? tr('Thử đổi loại đề, trạng thái hoặc từ khóa tìm kiếm khác.')
+                      : tr('Hãy tạo Bộ đề luyện tập, Đề hỗn hợp Mixed Practice hoặc Full Mock Test JLPT mới.')
+                  }
                   action={
-                    <Button variant="primary" icon={Plus} onClick={() => startNewExam('FullMockTest')}>
-                      {tr('Tạo đề thi thử JLPT')}
-                    </Button>
+                    isFilterZero ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setKeyword('');
+                          setFilterKind('ALL');
+                          setFilterStatus('ALL');
+                        }}
+                      >
+                        {tr('Xóa bộ lọc')}
+                      </Button>
+                    ) : (
+                      <Button variant="primary" icon={Plus} onClick={() => startNewExam('FullMockTest')}>
+                        {tr('Tạo đề thi thử JLPT')}
+                      </Button>
+                    )
                   }
                 />
               ) : (
@@ -856,7 +896,7 @@ export default function ExamBuilder() {
                   keyField="id"
                   onRowClick={(row) => openExamDetail(row.id)}
                   rowActions={(row) => (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <Button size="xs" variant="outline" onClick={() => openExamDetail(row.id)}>
                         {tr('Mở')}
                       </Button>
@@ -877,7 +917,9 @@ export default function ExamBuilder() {
                             onClick={async () => {
                               const ok = await confirmAction({
                                 title: tr('Xóa bản nháp đề thi?'),
+                                description: tr('Bản nháp đề thi sẽ bị xóa khỏi danh sách và không thể khôi phục.'),
                                 confirmLabel: tr('Xóa bản nháp'),
+                                cancelLabel: tr('Giữ lại'),
                                 tone: 'danger',
                               });
                               if (ok) deleteMutation.mutate(row.id);

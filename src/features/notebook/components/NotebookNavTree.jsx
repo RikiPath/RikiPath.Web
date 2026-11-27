@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useLocale } from '@/locales/locale.js';
-import { Collapsible, IconButton, Popover, SearchInput, cx } from '@/components/ui';
+import { Collapsible, CountBadge, IconButton, Popover, SearchInput, cx } from '@/components/ui';
 
 /**
  * Row actions stay visible on touch / coarse pointers; on fine-pointer desktops they reveal on
@@ -333,13 +333,8 @@ export default function NotebookNavTree({
   );
 }
 
-const COUNT_BADGE_TONES = {
-  sakura: { idle: 'bg-rp-brand-tint text-rp-brand-strong', active: 'bg-white text-rp-brand-strong ring-1 ring-inset ring-rp-brand-border' },
-  amber: { idle: 'bg-amber-50 text-amber-700', active: 'bg-white text-amber-700 ring-1 ring-inset ring-amber-200' },
-};
-
 function SmartViewButton({ active, icon, label, count, tone, onClick }) {
-  const toneClass = COUNT_BADGE_TONES[tone] || COUNT_BADGE_TONES.sakura;
+  void tone;
   return (
     <button
       type="button"
@@ -354,16 +349,7 @@ function SmartViewButton({ active, icon, label, count, tone, onClick }) {
         {icon}
         <span className="truncate">{label}</span>
       </span>
-      <span
-        className={cx(
-          'inline-flex h-5.5 min-w-7 shrink-0 items-center justify-center rounded-full px-1.5 text-[11.5px] font-semibold tabular-nums leading-none',
-          count === 0
-            ? 'bg-rp-bg-2 text-rp-text-muted'
-            : active ? toneClass.active : toneClass.idle,
-        )}
-      >
-        {count > 999 ? '999+' : count}
-      </span>
+      <CountBadge count={count} size="sm" showZero max={999} />
     </button>
   );
 }

@@ -80,7 +80,7 @@ export default function SentenceStudio() {
       });
     },
     onSuccess: (data) => {
-      notify.success(tr('Đã gửi bài luyện viết'), tr('Hệ thống đang mở trang kết quả chấm điểm.'), {
+      notify.success(tr('Đã gửi bài luyện viết.'), '', {
         key: 'sentence-submit',
         replace: true,
       });

@@ -26,7 +26,7 @@ import { useLocale } from '@/locales/locale.js';
 import NotificationCenter from '@/features/notifications/components/NotificationCenter.jsx';
 import HeaderCalendarPopover from '@/features/calendar/components/HeaderCalendarPopover.jsx';
 import BackHomeLink from '@/components/brand/BackHomeLink.jsx';
-import { Breadcrumb, Drawer, FEATURE_TONES, IconButton, Modal, OfflineBanner, Popover, SidebarBadge, Tooltip, UserAvatar, cx } from '@/components/ui';
+import { Breadcrumb, Drawer, FEATURE_TONES, FloatingLabelScopeProvider, IconButton, Modal, OfflineBanner, Popover, SidebarBadge, Tooltip, UserAvatar, cx } from '@/components/ui';
 import { confirmActiveNavigationGuards, consumePendingScrollRestore, hasActiveNavigationGuards } from '@/utils/navigationContext.js';
 import { ROLE_NAV, buildBreadcrumbs, flattenNavItems, isNavItemActive } from './appNav.js';
 import { useSidebarCounters } from '@/features/sidebar-counters/hooks/useSidebarCounters.js';
@@ -1657,7 +1657,7 @@ function QuickJumpModal({ open, onClose, groups, tr, onSetupGuide }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={tr('Nhập tên trang (ví dụ: Lộ trình, Từ vựng, Lớp nhóm...)')}
-            className="h-11 w-full rounded-rp-input border border-rp-line bg-rp-bg-2 pl-10 pr-4 text-sm text-rp-text placeholder:text-rp-text-muted focus:border-rp-brand focus:bg-rp-surface focus:outline-none focus:shadow-[0_0_0_3px_rgba(224,90,122,0.16)]"
+            className="h-11 w-full rounded-rp-input border border-rp-line bg-rp-bg-2 pl-10 pr-4 text-sm text-rp-text placeholder:text-rp-text-muted focus:border-rp-brand focus:bg-rp-surface focus:outline-none focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]"
           />
         </label>
       </form>
@@ -1816,6 +1816,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         {tr('Bỏ qua điều hướng')}
       </a>
 
+      <FloatingLabelScopeProvider enabled={false}>
       {/* Desktop sidebar */}
       <aside
         aria-label={area}
@@ -1973,7 +1974,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
                 value={searchValue ?? ''}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={tr(searchPlaceholder)}
-                className="rp-hc h-9 w-full rounded-full border border-rp-line bg-rp-surface/90 pl-9 pr-3 text-[13px] text-rp-text placeholder:text-rp-text-muted transition-[border-color,box-shadow,background-color] focus:border-rp-brand focus:bg-rp-surface focus:outline-none focus:shadow-[0_0_0_3px_rgba(224,90,122,0.16)]"
+                className="rp-hc h-9 w-full rounded-full border border-rp-line bg-rp-surface/90 pl-9 pr-3 text-[13px] text-rp-text placeholder:text-rp-text-muted transition-[border-color,box-shadow,background-color] focus:border-rp-brand focus:bg-rp-surface focus:outline-none focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]"
               />
             </label>
           </>
@@ -2015,6 +2016,7 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         </div>
         <ProfileMenu roleKey={roleKey} />
       </header>
+      </FloatingLabelScopeProvider>
 
       <div
         ref={mainScrollRef}
@@ -2024,8 +2026,10 @@ export default function AppShell({ roleKey = 'Learner', breadcrumb, searchValue,
         )}
       >
         <div id="rp-main" tabIndex={-1} className="flex min-h-full min-w-0 flex-col outline-none">
-          <OfflineBanner className="mx-4 mt-4 sm:mx-[var(--rp-space-page-x)]" />
-          {children}
+          <FloatingLabelScopeProvider enabled>
+            <OfflineBanner className="mx-4 mt-4 sm:mx-[var(--rp-space-page-x)]" />
+            {children}
+          </FloatingLabelScopeProvider>
         </div>
       </div>
 

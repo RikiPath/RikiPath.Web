@@ -119,7 +119,7 @@ export default function InlineAiAssistantDrawer({
       return;
     }
     onApplySuggestions?.(picked, effectiveAction);
-    notify.success(trf('Đã chèn {0} gợi ý vào trình soạn (chưa lưu nháp).', { 0: picked.length }), '', { key: 'ai-applied' });
+    notify.success(trf('Đã chèn {0} gợi ý.', { 0: picked.length }), '', { key: 'ai-applied' });
   };
 
   return (
@@ -139,61 +139,51 @@ export default function InlineAiAssistantDrawer({
         <Button type="button" variant="ghost" size="sm" icon={X} onClick={onClose} aria-label={tr('Đóng trợ lý AI')} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Thao tác AI')}</span>
-          <CustomSelect
-            size="sm"
-            value={effectiveAction}
-            onChange={setAction}
-            options={availableActions.map((a) => ({ value: a.value, label: tr(a.label) }))}
-          />
-        </label>
+      <div className="grid gap-3 pt-1 sm:grid-cols-2">
+        <CustomSelect
+          size="sm"
+          label={tr('Thao tác AI')}
+          value={effectiveAction}
+          onChange={setAction}
+          options={availableActions.map((a) => ({ value: a.value, label: tr(a.label) }))}
+        />
 
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Độ khó')}</span>
-          <CustomSelect
-            size="sm"
-            value={difficulty}
-            onChange={setDifficulty}
-            options={[
-              { value: 'Easy', label: tr('Dễ') },
-              { value: 'Medium', label: tr('Trung bình') },
-              { value: 'Hard', label: tr('Nâng cao') },
-            ]}
-          />
-        </label>
+        <CustomSelect
+          size="sm"
+          label={tr('Độ khó')}
+          value={difficulty}
+          onChange={setDifficulty}
+          options={[
+            { value: 'Easy', label: tr('Dễ') },
+            { value: 'Medium', label: tr('Trung bình') },
+            { value: 'Hard', label: tr('Nâng cao') },
+          ]}
+        />
 
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Chủ đề')}</span>
-          <Input
-            size="sm"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder={tr('VD: Gia đình, Công sở, Giao thông…')}
-          />
-        </label>
+        <Input
+          size="sm"
+          label={tr('Chủ đề')}
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          placeholder={tr('VD: Gia đình, Công sở, Giao thông…')}
+        />
 
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Số câu gợi ý')}</span>
-          <CustomSelect
-            size="sm"
-            value={String(desiredCount)}
-            onChange={(v) => setDesiredCount(Number(v))}
-            options={['1', '2', '3', '5', '8'].map((n) => ({ value: n, label: `${n} ${tr('câu')}` }))}
-          />
-        </label>
+        <CustomSelect
+          size="sm"
+          label={tr('Số câu gợi ý')}
+          value={String(desiredCount)}
+          onChange={(v) => setDesiredCount(Number(v))}
+          options={['1', '2', '3', '5', '8'].map((n) => ({ value: n, label: `${n} ${tr('câu')}` }))}
+        />
       </div>
 
-      <label className="block space-y-1 text-xs font-medium text-rp-text-2">
-        <span>{tr('Hướng dẫn thêm cho AI')}</span>
-        <Textarea
-          rows={2}
-          value={authorPrompt}
-          onChange={(e) => setAuthorPrompt(e.target.value)}
-          placeholder={tr('VD: Tập trung vào cách dùng phó từ N4 hoặc bẫy đồng âm dễ nhầm…')}
-        />
-      </label>
+      <Textarea
+        rows={2}
+        label={tr('Hướng dẫn thêm cho AI')}
+        value={authorPrompt}
+        onChange={(e) => setAuthorPrompt(e.target.value)}
+        placeholder={tr('VD: Tập trung vào cách dùng phó từ N4 hoặc bẫy đồng âm dễ nhầm…')}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-rp-text-muted">

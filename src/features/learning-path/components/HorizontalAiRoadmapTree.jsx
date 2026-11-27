@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Badge, Button, Collapsible, ProgressBar, cx } from '@/components/ui';
 import { WebClayIcon } from '@/features/learner-ui';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   buildAiRoadmapTree,
@@ -433,7 +434,7 @@ export default function HorizontalAiRoadmapTree({
                     {tr('Xuất phát')}
                   </p>
                   <p className="text-sm font-bold text-rp-text">
-                    {model.root.levelCode ? `JLPT ${model.root.levelCode}` : tr('Điểm bắt đầu')}
+                    {model.root.levelCode ? formatJlptLevel(model.root.levelCode) : tr('Điểm bắt đầu')}
                   </p>
                 </div>
               </div>
@@ -644,7 +645,7 @@ export default function HorizontalAiRoadmapTree({
                 {model.goal.isCompleted ? tr('Hoàn thành tất cả chặng') : tr('Đích mục tiêu')}
               </Badge>
               <p className="mt-2 text-sm font-bold text-rp-text">
-                {model.goal.levelCode ? `JLPT ${model.goal.levelCode}` : tr('Về đích lộ trình')}
+                {model.goal.levelCode ? formatJlptLevel(model.goal.levelCode) : tr('Về đích lộ trình')}
               </p>
               <p className="mt-1 text-xs leading-5 text-rp-text-2">
                 {trf('{0}/{1} ngày', { 0: model.goal.completedDays, 1: model.goal.totalDays })} · {model.goal.progressPercent}%

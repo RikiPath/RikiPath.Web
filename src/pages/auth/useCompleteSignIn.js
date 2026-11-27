@@ -44,7 +44,7 @@ export function useCompleteSignIn() {
     };
     login(nextSession, remember);
     saveRememberedLogin({ email: result.email, remember });
-    notify.success('Đăng nhập thành công! Chào mừng bạn trở lại RikiPath.', '', { key: 'auth-login-success' });
+    notify.success('Đăng nhập thành công!', '', { key: 'auth-login-success' });
 
     const claims = extractUserFromToken(result.accessToken);
     const roles = claims?.roles?.length ? claims.roles : [normalizeRole(result.role)];

@@ -42,6 +42,7 @@ import {
   sortSkillsCanonical,
 } from '@/features/cohorts/utils/skillLabels.js';
 import { formatDate } from '@/utils/dateTimeFormat.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 
 const fmtDateOnly = (v) => (v ? formatDate(v, '—') : '—');
@@ -85,11 +86,11 @@ function deltaPresentation(delta) {
 function StatTile({ label, value, subtext, valueClassName }) {
   return (
     <div className="flex h-full min-w-0 flex-col justify-between rounded-xl border border-rp-line bg-rp-surface px-3.5 py-3 shadow-rp-xs">
-      <dt className="text-[11.5px] font-medium text-rp-text-muted">{label}</dt>
-      <dd className={cx('mt-1.5 text-lg font-bold tracking-tight text-rp-text tabular-nums', valueClassName)}>
+      <dt className="text-[12.5px] font-medium text-rp-text-muted">{label}</dt>
+      <dd className={cx('mt-1.5 text-[19px] font-bold leading-7 tracking-[-0.015em] text-rp-text tabular-nums', valueClassName)}>
         {value}
       </dd>
-      {subtext && <p className="mt-1 text-[11px] leading-snug text-rp-text-muted tabular-nums">{subtext}</p>}
+      {subtext && <p className="mt-1 text-[12px] leading-snug text-rp-text-muted tabular-nums">{subtext}</p>}
     </div>
   );
 }
@@ -414,7 +415,7 @@ export default function MentorLearnerCompetencyPage() {
   const baselineAssessedLevelDisplay = useMemo(() => {
     if (!baseline) return tr('Chưa có dữ liệu');
     if (baseline.assessedLevelStatus === 'Assessed' && baseline.assessedJlptLevel) {
-      return `JLPT ${baseline.assessedJlptLevel}`;
+      return formatJlptLevel(baseline.assessedJlptLevel);
     }
     if (baseline.assessedLevelStatus === 'BelowTestedLevel') {
       return baseline.testedLevelScope
@@ -424,7 +425,7 @@ export default function MentorLearnerCompetencyPage() {
     if (baseline.assessedLevelStatus === 'InsufficientData') {
       return tr('Chưa đủ dữ liệu');
     }
-    return baseline.assessedJlptLevel ? `JLPT ${baseline.assessedJlptLevel}` : tr('Chưa đủ dữ liệu');
+    return baseline.assessedJlptLevel ? formatJlptLevel(baseline.assessedJlptLevel) : tr('Chưa đủ dữ liệu');
   }, [baseline, tr, trf]);
 
   return (
@@ -472,15 +473,18 @@ export default function MentorLearnerCompetencyPage() {
                   <UserAvatar src={cohortCtx?.learnerAvatarUrl} name={learnerName} size={48} />
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="truncate text-lg font-bold text-rp-text sm:text-xl">{learnerName}</h1>
+                      <h1 className="truncate text-[19px] font-bold leading-7 tracking-[-0.015em] text-rp-text sm:text-[21px]">{learnerName}</h1>
                       <AdminStatusBadge tone={learnerStatus.tone} label={tr(learnerStatus.label)} />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-rp-text-muted">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-rp-text-muted">
                       <span className="font-semibold text-rp-text-2">{cohortName}</span>
                       {targetLevelCode && (
-                        <Badge tone="brand" size="sm" icon={false}>
-                          JLPT {targetLevelCode}
-                        </Badge>
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-semibold text-rp-text">
+                            {formatJlptLevel(targetLevelCode)}
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
@@ -543,7 +547,7 @@ export default function MentorLearnerCompetencyPage() {
                       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                         <StatTile
                           label={tr('Cấp độ mục tiêu')}
-                          value={baseline.targetLevelCode ? `JLPT ${baseline.targetLevelCode}` : tr('Chưa xác định')}
+                          value={baseline.targetLevelCode ? formatJlptLevel(baseline.targetLevelCode) : tr('Chưa xác định')}
                           subtext={baseline.testedLevelScope ? trf('Phạm vi kiểm tra: {0}', { 0: baseline.testedLevelScope }) : undefined}
                         />
                         <StatTile

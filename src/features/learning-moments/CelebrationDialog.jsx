@@ -57,11 +57,11 @@ export default function CelebrationDialog({
         aria-labelledby={titleId}
         aria-describedby={descId}
         tabIndex={-1}
-        className="rp-mh-dialog-in rp-pu-panel-body relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] bg-rp-surface shadow-[0_30px_80px_-24px_rgba(40,30,60,0.4)] outline-none sm:rounded-[28px]"
+        className="rp-mh-dialog-in rp-pu-panel-body relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)] outline-none sm:rounded-[28px]"
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-[220px]"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[220px] dark:opacity-25"
           style={{ background: `radial-gradient(ellipse at 50% 22%, ${a.halo} 0%, ${a.soft} 38%, rgba(255,255,255,0) 72%)`, opacity: 0.75 }}
         />
         {confetti && <ConfettiBurst />}

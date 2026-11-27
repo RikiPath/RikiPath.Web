@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, ClipboardCheck, Compass, PlayCircle, Target } from 'lucide-react';
 import { getSession } from '@/app/auth/session.js';
 import { LearnerShell } from '@/layouts';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   getPlacementStatus,
@@ -131,8 +132,8 @@ export default function PlacementTest() {
     onSuccess: async () => {
       await invalidateLearnerSetupQueries(queryClient);
       notify.info(
-        tr('Đã kích hoạt lộ trình tiêu chuẩn'),
-        tr('Lộ trình tiêu chuẩn đã sẵn sàng.'),
+        tr('Đã kích hoạt lộ trình tiêu chuẩn.'),
+        '',
         { key: 'placement-skip' },
       );
       navigate('/roadmap');
@@ -345,7 +346,7 @@ export default function PlacementTest() {
                       }`}
                     >
                       <JlptThumb level={code} className="block h-16 w-full" />
-                      <span className="block px-3 py-2 text-sm font-bold text-rp-text">JLPT {code}</span>
+                      <span className="block px-3 py-2 text-sm font-bold text-rp-text">{formatJlptLevel(code)}</span>
                     </button>
                   );
                 })}

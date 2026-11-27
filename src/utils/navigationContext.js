@@ -122,10 +122,17 @@ function writeStorageMap(key, map) {
   }
 }
 
+function normalizeListKey(listKey) {
+  const raw = String(listKey || '').trim().split(/[?#]/)[0];
+  if (!raw || raw === '/') return '/';
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
 export function saveListViewState(listKey, state) {
   if (typeof window === 'undefined' || !listKey) return;
   const map = readStorageMap(LIST_STATE_KEY);
-  map[listKey] = {
+  const key = normalizeListKey(listKey);
+  map[key] = {
     ...(state || {}),
     savedAt: Date.now(),
   };
@@ -135,7 +142,15 @@ export function saveListViewState(listKey, state) {
 export function readListViewState(listKey) {
   if (typeof window === 'undefined' || !listKey) return null;
   const map = readStorageMap(LIST_STATE_KEY);
-  return map[listKey] ?? null;
+  const key = normalizeListKey(listKey);
+  return map[key] ?? map[listKey] ?? null;
+}
+
+export function patchListViewState(listKey, patch) {
+  if (typeof window === 'undefined' || !listKey) return;
+  const existing = readListViewState(listKey);
+  if (!existing) return;
+  saveListViewState(listKey, { ...existing, ...(patch || {}) });
 }
 
 export function markPendingScrollRestore(routeTo, scrollTop) {

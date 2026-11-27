@@ -236,15 +236,33 @@ function ExpandedRegistrationDetail({
       )}
 
       {row.linkedCohortName && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/75 px-3 py-2 text-xs text-emerald-900">
-          <span className="inline-flex items-center gap-1.5 font-semibold">
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden="true" />
-            <span>{tr('Đã gắn lớp nhóm')}: {row.linkedCohortName}</span>
+        <div
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs ${
+            row.linkedCohortStatus === 'Cancelled'
+              ? 'border-red-200 bg-red-50/75 text-red-900'
+              : 'border-emerald-200 bg-emerald-50/75 text-emerald-900'
+          }`}
+        >
+          <span className="inline-flex flex-wrap items-center gap-1.5 font-semibold">
+            <CheckCircle2
+              className={`h-3.5 w-3.5 shrink-0 ${row.linkedCohortStatus === 'Cancelled' ? 'text-red-700' : 'text-emerald-700'}`}
+              aria-hidden="true"
+            />
+            <span>
+              {row.linkedCohortStatus === 'Cancelled'
+                ? `${tr('Lớp đã mở')}: ${row.linkedCohortName} (${tr('Đã hủy')})`
+                : `${tr('Đã gắn lớp nhóm')}: ${row.linkedCohortName}`}
+            </span>
+            {row.linkedCohortStatus === 'Cancelled' && row.linkedCohortCancellationReason && (
+              <span className="font-normal text-red-800">· {row.linkedCohortCancellationReason}</span>
+            )}
           </span>
           {row.linkedCohortHref && (
             <Link
               to={row.linkedCohortHref}
-              className="inline-flex items-center gap-1 font-semibold text-emerald-800 hover:text-emerald-950"
+              className={`inline-flex items-center gap-1 font-semibold ${
+                row.linkedCohortStatus === 'Cancelled' ? 'text-red-800 hover:text-red-950' : 'text-emerald-800 hover:text-emerald-950'
+              }`}
             >
               <span>{tr('Mở lớp phụ trách')}</span>
               <ExternalLink className="h-3 w-3" />
@@ -253,18 +271,18 @@ function ExpandedRegistrationDetail({
         </div>
       )}
 
-      {/* Level 2 — Weekly Schedule Patterns (2–4 recurring patterns) */}
+      {/* Level 2 — Weekly Schedule Patterns */}
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11.5px] font-bold uppercase tracking-wide text-rp-text-muted">
+          <span className="text-[12.5px] font-semibold text-rp-text-2">
             {trf('Khung giờ hằng tuần ({0} buổi/tuần · {1} phút/buổi)', {
               0: row.weeklyPatterns.length,
               1: row.sessionDurationMinutes,
             })}
           </span>
-          {row.isSelectedDraft && !row.hasValidStartDate && (
-            <span className="text-[11.5px] text-rp-text-muted">
-              {tr('Mẫu lịch lặp hằng tuần · chưa chọn ngày bắt đầu')}
+          {row.status !== 'Approved' && (
+            <span className="text-[12px] text-rp-text-muted">
+              {tr('Lịch học sẽ được xác lập khi đề xuất được duyệt.')}
             </span>
           )}
         </div>
@@ -361,11 +379,11 @@ function ExpandedRegistrationDetail({
             ) : (
               <ChevronRight className="h-3.5 w-3.5" />
             )}
-            <span>
-              {detailOpen
-                ? tr('Thu gọn lịch chi tiết')
-                : trf('Xem toàn bộ {0} buổi học', { 0: row.occurrences.length })}
-            </span>
+              <span>
+                {detailOpen
+                  ? tr('Thu gọn lịch chi tiết')
+                  : trf('Lịch giảng dạy chi tiết ({0} buổi)', { 0: row.occurrences.length })}
+              </span>
             {singleYearHeader && !detailOpen && (
               <span className="text-[11px] font-normal text-rp-text-muted">
                 ({trf('Năm {0}', { 0: singleYearHeader })})
@@ -442,8 +460,8 @@ function ExpandedRegistrationDetail({
 /**
  * Three-Level Expandable Grouped Registration Table for `/mentor-shift-schedule/` List View:
  * - Level 1: 1 row per registration (active selection or official proposal)
- * - Level 2: 2–4 weekly recurring schedule patterns
- * - Level 3: Detailed 10-week schedule (20–40 occurrences), collapsed by default
+ * - Level 2: weekly recurring schedule patterns
+ * - Level 3: Detailed official class schedule (collapsed by default)
  */
 export default function ExpandableRegistrationTable({
   rows = [],
@@ -454,8 +472,6 @@ export default function ExpandableRegistrationTable({
   pageSize = 10,
   onPageChange,
   onPageSizeChange,
-  minSessionsPerWeek = 2,
-  maxSessionsPerWeek = 4,
   busy = false,
   capacityLocked = false,
   capacityLockedMessage = '',
@@ -477,12 +493,8 @@ export default function ExpandableRegistrationTable({
   const { tr, trf } = useLocale();
   // Map of rowKey -> explicit boolean override; default: 'active-selection' = true, others = false
   const [expandedOverrides, setExpandedOverrides] = useState({});
-  // Set of rowKeys whose Level 3 detailed 10-week schedule is expanded (always collapsed by default)
+  // Set of rowKeys whose Level 3 detailed official schedule is expanded (always collapsed by default)
   const [detailExpandedMap, setDetailExpandedMap] = useState({});
-
-  const sessionRangeLabel = minSessionsPerWeek === maxSessionsPerWeek
-    ? String(minSessionsPerWeek)
-    : `${minSessionsPerWeek}–${maxSessionsPerWeek}`;
 
   const visibleRowKeySet = useMemo(() => new Set(rows.map((r) => r.rowKey)), [rows]);
 
@@ -547,10 +559,10 @@ export default function ExpandableRegistrationTable({
         variant: 'primary',
         disabled: busy || capacityLocked || !row.canProceed,
         title: capacityLocked
-          ? tr(capacityLockedMessage || 'Bạn đã đăng ký đủ các cấp độ giảng dạy.')
+          ? tr(capacityLockedMessage || 'Bạn chưa đủ điều kiện mở lớp.')
           : row.canProceed
             ? tr('Bước tiếp theo: Thông tin lớp dự kiến')
-            : trf('Cần chọn đủ {0} buổi hợp lệ để tiếp tục', { 0: sessionRangeLabel }),
+            : tr('Vui lòng chọn ít nhất một khung giờ.'),
         onClick: () => {
           if (!capacityLocked) onContinueSelection?.();
         },
@@ -741,7 +753,7 @@ export default function ExpandableRegistrationTable({
             : tr('Chưa có đăng ký mở lớp nào')}
           description={totalUnfilteredCount > 0
             ? tr('Hãy điều chỉnh hoặc xóa bộ lọc để xem toàn bộ danh sách đăng ký của bạn.')
-            : trf('Chọn trực tiếp {0} buổi/tuần trên chế độ Lịch hoặc nhấn "Đăng ký nhanh" để bắt đầu tạo đề xuất mở lớp.', { 0: sessionRangeLabel })}
+            : tr('Chọn trực tiếp ít nhất một khung giờ trên Lịch để bắt đầu tạo đề xuất mở lớp.')}
         />
       </div>
     );
@@ -774,9 +786,12 @@ export default function ExpandableRegistrationTable({
                     </span>
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       {row.showLevelBadge && row.jlptLevelCode && (
-                        <span className="inline-flex shrink-0 items-center rounded-md border border-[#F2CCD7] bg-[#FFF2F6] px-1.5 py-0.5 text-[10.5px] font-bold text-[#B53D5C]">
-                          {row.jlptLevelCode}
-                        </span>
+                        <>
+                          <span className="shrink-0 text-[13px] font-semibold text-rp-text">
+                            {row.jlptLevelCode}
+                          </span>
+                          <span aria-hidden="true" className="text-rp-text-muted">·</span>
+                        </>
                       )}
                       <span className="truncate font-bold text-rp-text">{tr(row.displayTitle)}</span>
                     </div>
@@ -802,7 +817,7 @@ export default function ExpandableRegistrationTable({
                   <span>
                     {tr('Ngày bắt đầu')}:{' '}
                     <span className={row.expectedStartDate ? 'font-semibold text-rp-text' : 'text-rp-text-muted'}>
-                      {row.expectedStartDate ? formatIsoDateDisplay(row.expectedStartDate) : tr('Chưa chọn')}
+                      {row.expectedStartDate ? formatIsoDateDisplay(row.expectedStartDate) : tr('Chờ xác lập')}
                     </span>
                   </span>
                 </div>
@@ -855,7 +870,7 @@ export default function ExpandableRegistrationTable({
       {/* Desktop 6-Column Expandable Table (zero excess height when few rows) */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
-          <thead className="border-b border-rp-line bg-[#FAF7F9] text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
+          <thead className="border-b border-rp-brand-border/80 bg-rp-table-head text-[12.5px] font-semibold text-rp-brand-strong">
             <tr>
               <th className="px-4 py-2.5">
                 <button
@@ -949,11 +964,14 @@ export default function ExpandableRegistrationTable({
                           }`}
                         />
                       </button>
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         {row.showLevelBadge && row.jlptLevelCode && (
-                          <span className="inline-flex shrink-0 items-center rounded-md border border-[#F2CCD7] bg-[#FFF2F6] px-1.5 py-0.5 text-[10.5px] font-bold text-[#B53D5C]">
-                            {row.jlptLevelCode}
-                          </span>
+                          <>
+                            <span className="shrink-0 text-[13px] font-semibold text-rp-text">
+                              {row.jlptLevelCode}
+                            </span>
+                            <span aria-hidden="true" className="text-rp-text-muted">·</span>
+                          </>
                         )}
                         <span className="truncate font-bold text-rp-text">
                           {tr(row.displayTitle)}
@@ -987,7 +1005,12 @@ export default function ExpandableRegistrationTable({
                         {formatIsoDateDisplay(row.expectedStartDate)}
                       </span>
                     ) : (
-                      <span className="text-rp-text-muted">{tr('Chưa chọn')}</span>
+                      <span
+                        title={tr('Lịch học sẽ được xác lập khi đề xuất được duyệt.')}
+                        className="text-rp-text-muted"
+                      >
+                        {tr('Chờ xác lập')}
+                      </span>
                     )}
                   </td>
 
@@ -1005,7 +1028,7 @@ export default function ExpandableRegistrationTable({
                     className="px-4 py-3 text-center align-middle whitespace-nowrap"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="inline-flex items-center justify-center gap-1.5">
+                    <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
                       {primaryAction && (
                         <button
                           type="button"

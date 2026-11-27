@@ -31,17 +31,22 @@ export const jaErrors = {
   'Học viên vừa cập nhật bài nộp. Vui lòng tải lại trước khi chấm.': '受講生が提出物を更新しました。採点の前に再読み込みしてください。',
   'Khung giờ này trùng với lịch dạy đã có. Vui lòng chọn khung giờ khác.': 'この時間帯は既存の授業と重なっています。別の時間帯を選んでください。',
   'Khung giờ không đảm bảo thời gian nghỉ tối thiểu giữa hai buổi dạy. Vui lòng chọn khung giờ khác.': '授業間の最低休憩時間を確保できません。別の時間帯を選んでください。',
-  'Vượt quá số buổi dạy tối đa trong một ngày theo chính sách. Vui lòng chọn ngày khác.': '1日の授業数の上限を超えています。別の日を選んでください。',
-  'Vượt quá số buổi dạy tối đa trong một tuần theo chính sách. Vui lòng chọn tuần khác.': '1週間の授業数の上限を超えています。別の週を選んでください。',
+  'Khung giờ đăng ký trong ngày đã đạt giới hạn xếp lịch. Vui lòng chọn ngày khác.': '1日のスケジュール配置上限に達しました。別の日を選んでください。',
+  'Lịch đăng ký trong tuần đã đạt giới hạn xếp lịch. Vui lòng điều chỉnh lại khung giờ.': '1週間のスケジュール配置上限に達しました。時間帯を調整してください。',
   'Lịch lớp có các buổi trùng thời gian. Vui lòng kiểm tra lại khung giờ đã chọn.': 'クラスの授業日程に重複があります。選んだ時間帯を確認してください。',
   'Lịch lớp vừa được cập nhật ở nơi khác. Vui lòng tải lại và thử lại.': 'クラスのスケジュールが別の場所で更新されました。再読み込みしてからもう一度お試しください。',
   'Lịch lớp đã được công bố nên không thể sửa trực tiếp. Vui lòng gửi yêu cầu dời/hủy lớp.': '公開済みのスケジュールは直接編集できません。日程変更または中止の申請を送ってください。',
-  'Lịch lớp chưa đủ số buổi theo gói học. Vui lòng chọn thêm khung giờ.': 'プランの授業回数に足りていません。時間帯を追加で選んでください。',
+  'Lịch lớp chưa đủ số buổi theo khóa học. Vui lòng chọn thêm khung giờ.': 'コースの授業回数に足りていません。時間帯を追加で選してください。',
+  'Lịch học lặp theo tuần không hợp lệ. Vui lòng kiểm tra lại các khung giờ đã chọn.': '週間繰り返しスケジュールが無効です。選択した時間帯を確認してください。',
+  'Số tuần giảng dạy phải là số nguyên dương từ 1 đến 104 tuần.': '指導週数は1〜104の正の整数で指定してください。',
+  'Tổng số buổi của một lớp không vượt quá 1.000 buổi. Vui lòng điều chỉnh số buổi mỗi tuần hoặc số tuần giảng dạy.': '1クラスの総授業数は1,000回を超えることはできません。週回数または指導週数を調整してください。',
+  'Không tìm thấy khung thời gian phù hợp để mở lớp trong phạm vi công bố lịch hiện tại.': '現在のスケジュール公開期間内に開講可能な時間帯が見つかりませんでした。',
+  'Lịch dự kiến đã thay đổi do có lịch mới hoặc chính sách vừa cập nhật. Vui lòng kiểm tra lại lịch mới nhất trước khi phê duyệt.': '新しい予定や規定の更新により見込みスケジュールが変更されました。承認前に最新スケジュールを確認してください。',
 
   // Course plans
   'Sĩ số lớp không hợp lệ theo chính sách lớp nhóm hiện hành.': '現在のグループレッスン規定では、この定員は設定できません。',
-  'Cường độ học không hợp lệ. Vui lòng chọn số buổi/tuần được chính sách cho phép.': '受講ペースが無効です。規定で認められている週あたりの回数を選んでください。',
-  'Thời lượng khóa học không hợp lệ theo chính sách (số tuần, tổng số buổi hoặc phút/buổi).': 'コースの期間が規定に合っていません（週数、総授業数、または1回の時間）。',
+  'Số buổi học mỗi tuần không hợp lệ. Vui lòng chọn ít nhất 1 buổi mỗi tuần.': '週あたりの授業回数が無効です。週1回以上選択してください。',
+  'Thời lượng khóa học chưa hợp lệ (số tuần, tổng số buổi hoặc phút mỗi buổi).': 'コース期間（週数・総授業数・1回の時間）が無効です。',
 
   // Enrollment & payment
   'Lớp học đã đủ sĩ số. Vui lòng chọn lớp khác.': 'このクラスは定員に達しました。別のクラスを選んでください。',
@@ -64,6 +69,7 @@ export const jaErrors = {
   'Lớp đang có giao dịch thanh toán chờ xác minh. Vui lòng thử lại sau.': '確認待ちのお支払いがあります。しばらくしてからもう一度お試しください。',
   'Lớp đang có giao dịch cần Admin xem xét. Vui lòng xử lý giao dịch đó trước.': '管理者の確認が必要な取引があります。先にその取引を処理してください。',
   'Lớp đã khai giảng nên không thể dời hoặc hủy.': '開講済みのため、日程変更や中止はできません。',
+  'Lớp học đã được hủy vì không có học viên ghi danh khi đóng tuyển sinh.': '募集締切時点で受講登録者がいなかったため、このクラスは中止されました。',
   'Vui lòng nhập lý do cho yêu cầu.': '申請の理由を入力してください。',
 
   // Mentor reviews

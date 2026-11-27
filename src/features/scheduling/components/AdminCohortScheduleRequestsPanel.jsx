@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   approveCohortScheduleRequest,
   getAdminCohortScheduleRequests,
@@ -29,6 +30,7 @@ import {
   AdminToolbar,
 } from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { formatDate, formatTimeRange } from '@/utils/dateTimeFormat.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { formatAuditActionLabel, formatRoleLabel } from '@/utils/terminology.js';
@@ -117,6 +119,7 @@ export default function AdminCohortScheduleRequestsPanel({
   onRun,
 }) {
   const { trf, tr } = useLocale();
+  const queryClient = useQueryClient();
   const initialIdNum = initialRequestId ? Number(initialRequestId) : null;
   const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
   const [selectedId, setSelectedId] = useState(initialIdNum);
@@ -158,10 +161,11 @@ export default function AdminCohortScheduleRequestsPanel({
   const blocked = selected?.kind === 'ShiftWeeks' && preview && !preview.eligible;
 
   const columns = [
-    { key: 'cohortName', header: tr('Lớp'), render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || tr('Lớp học nhóm')}</span> },
+    { key: 'cohortName', header: tr('Lớp'), align: 'left', render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || tr('Lớp học nhóm')}</span> },
     {
       key: 'kind',
       header: tr('Loại yêu cầu'),
+      align: 'left',
       render: (r) => (
         <span className="text-sm text-rp-text-2">
           {tr(SCHEDULE_REQUEST_KIND[r.kind] || r.kind)}
@@ -169,11 +173,12 @@ export default function AdminCohortScheduleRequestsPanel({
         </span>
       ),
     },
-    { key: 'requestedByRole', header: tr('Người gửi'), compact: true, render: (r) => <span className="text-xs text-rp-text-muted">{formatRoleLabel(r.requestedByRole, tr)}</span> },
-    { key: 'createdAtUtc', header: tr('Gửi lúc'), compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
+    { key: 'requestedByRole', header: tr('Người gửi'), align: 'center', compact: true, render: (r) => <span className="text-xs text-rp-text-muted">{formatRoleLabel(r.requestedByRole, tr)}</span> },
+    { key: 'createdAtUtc', header: tr('Gửi lúc'), align: 'center', compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (r) => (
         <AdminStatusBadge
@@ -199,11 +204,11 @@ export default function AdminCohortScheduleRequestsPanel({
             <CustomSelect
               fitContent
               value={status}
-              aria-label={tr('Lọc trạng thái yêu cầu dời/hủy')}
+              aria-label={tr('Trạng thái')}
               onChange={setStatus}
               options={[
                 ...Object.entries(SCHEDULE_REQUEST_STATUS).map(([v, l]) => ({ value: v, label: tr(l) })),
-                { value: '', label: tr('Tất cả trạng thái') },
+                { value: '', label: tr('Tất cả') },
               ]}
             />
           )}
@@ -286,6 +291,7 @@ export default function AdminCohortScheduleRequestsPanel({
                     onClick={() =>
                       onRun(async () => {
                         await approveCohortScheduleRequest(selected.id, { note, expectedRevision: selected.revision });
+                        await invalidateSidebarCounters(queryClient);
                         query.refetch();
                       }, selected.kind === 'ShiftWeeks' ? 'Đã duyệt dời lịch lớp; học viên sẽ được thông báo.' : 'Đã duyệt hủy lớp chưa có học viên.')
                     }
@@ -304,6 +310,7 @@ export default function AdminCohortScheduleRequestsPanel({
                     onClick={() =>
                       onRun(async () => {
                         await rejectCohortScheduleRequest(selected.id, rejectReason);
+                        await invalidateSidebarCounters(queryClient);
                         query.refetch();
                       }, 'Đã từ chối yêu cầu và gửi lý do cho người gửi.')
                     }

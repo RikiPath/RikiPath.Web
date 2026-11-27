@@ -1,4 +1,5 @@
 import { CalendarDays, Clock, GraduationCap, Layers, ListChecks, Route, Sparkles, TicketCheck, Timer } from 'lucide-react';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { currentIntlTag } from '@/locales/locale.js';
 
 /**
@@ -40,7 +41,7 @@ function positive(value) {
 /** Goal facts — only what the learner actually confirmed (server data), never placeholders. */
 function goalChips(data, trf) {
   const chips = [];
-  if (data.targetLevel) chips.push({ label: `JLPT ${data.targetLevel}`, icon: GraduationCap });
+  if (data.targetLevel) chips.push({ label: formatJlptLevel(data.targetLevel), icon: GraduationCap });
   const min = positive(data.dailyMinutesMin);
   const max = positive(data.dailyMinutesMax);
   const daily = positive(data.dailyMinutes);
@@ -146,7 +147,7 @@ export function describeMoment(moment, tr, trf) {
     }
     case 'PLACEMENT_COMPLETED': {
       const chips = [
-        data.targetLevel ? { label: `JLPT ${data.targetLevel}`, icon: GraduationCap } : null,
+        data.targetLevel ? { label: formatJlptLevel(data.targetLevel), icon: GraduationCap } : null,
         // An internal reference level, never an official JLPT result.
         data.assessedLevel ? trf('Trình độ tham khảo: JLPT {0}', { 0: data.assessedLevel }) : null,
       ].filter(Boolean);
@@ -194,7 +195,7 @@ export function describeMoment(moment, tr, trf) {
     case 'LEARNING_PATH_CREATED': {
       const ai = data.kind === 'ai' || data.kind === 'personalized';
       const chips = [
-        data.targetLevel ? { label: `JLPT ${data.targetLevel}`, icon: GraduationCap } : null,
+        data.targetLevel ? { label: formatJlptLevel(data.targetLevel), icon: GraduationCap } : null,
         { label: ai ? tr('Lộ trình cá nhân hóa AI') : tr('Lộ trình tiêu chuẩn'), icon: ai ? Sparkles : Route },
         positive(data.stages) ? { label: trf('{0} chặng học', { 0: positive(data.stages) }), icon: Layers } : null,
         positive(data.lessons) ? { label: trf('{0} bài học', { 0: positive(data.lessons) }), icon: ListChecks } : null,
@@ -205,7 +206,7 @@ export function describeMoment(moment, tr, trf) {
       return {
         variant: 'journey',
         ai,
-        accent: ai ? 'lavender' : 'sakura',
+        accent: 'sakura',
         visual: 'unlock',
         eyebrow: tr('Hành trình mới'),
         title: tr('Lộ trình học của bạn đã sẵn sàng!'),
@@ -218,7 +219,7 @@ export function describeMoment(moment, tr, trf) {
     }
     case 'MOCK_TEST_COMPLETED':
       return {
-        accent: 'blue',
+        accent: 'sakura',
         visual: 'result',
         animation: 'badge-pop',
         eyebrow: tr('Thi thử'),
@@ -262,7 +263,7 @@ export function describeMoment(moment, tr, trf) {
         title: tr('Chúc mừng bạn đã vượt qua cột mốc JLPT!'),
         description: tr('Bạn đã hoàn thành đánh giá tổng kết và củng cố toàn diện kỹ năng ở cấp độ này.'),
         chips: [
-          data.levelCode ? `JLPT ${data.levelCode}` : null,
+          data.levelCode ? formatJlptLevel(data.levelCode) : null,
           data.score ? trf('Điểm: {0}%', { 0: data.score }) : null,
         ].filter(Boolean),
         cta: tr('Xem bước tiếp theo'),
@@ -276,13 +277,13 @@ export function describeMoment(moment, tr, trf) {
 export function describeAchievement(a, tr, trf) {
   switch (a?.code) {
     case 'ONBOARDING_COMPLETED': return { visual: 'compass', accent: 'sakura', title: tr('Bắt đầu hành trình'), detail: tr('Đặt mục tiêu học tập đầu tiên') };
-    case 'PLACEMENT_COMPLETED': return { visual: 'target', accent: 'blue', title: tr('Đánh giá năng lực'), detail: tr('Hoàn thành bài đánh giá đầu tiên') };
-    case 'LEARNING_PATH_CREATED': return { visual: 'unlock', accent: 'teal', title: tr('Lộ trình học'), detail: tr('Lộ trình học đầu tiên sẵn sàng') };
+    case 'PLACEMENT_COMPLETED': return { visual: 'target', accent: 'sakura', title: tr('Đánh giá năng lực'), detail: tr('Hoàn thành bài đánh giá đầu tiên') };
+    case 'LEARNING_PATH_CREATED': return { visual: 'unlock', accent: 'sakura', title: tr('Lộ trình học'), detail: tr('Lộ trình học đầu tiên sẵn sàng') };
     case 'FIRST_LESSON_COMPLETED': return { visual: 'book', accent: 'emerald', title: tr('Bài học đầu tiên'), detail: tr('Hoàn thành bài học đầu tiên') };
     case 'LESSONS_COMPLETED': return { visual: 'book', accent: 'emerald', title: trf('{0} bài học', { 0: a.value }), detail: trf('Hoàn thành {0} bài học', { 0: a.value }) };
     case 'GROUP_QUIZ_PASSED': return { visual: 'medal', accent: 'gold', title: tr('Kiểm tra cuối chặng'), detail: tr('Vượt qua bài kiểm tra tổng hợp chặng học') };
     case 'STAGE_ASSESSMENT_PASSED': return { visual: 'trophy', accent: 'gold', title: tr('Tổng kết cấp độ'), detail: tr('Đạt bài đánh giá tổng kết cấp độ JLPT') };
-    case 'MOCK_TEST_COMPLETED': return { visual: 'result', accent: 'blue', title: tr('Bài thi thử đầu tiên'), detail: tr('Hoàn thành bài thi thử đầu tiên') };
+    case 'MOCK_TEST_COMPLETED': return { visual: 'result', accent: 'sakura', title: tr('Bài thi thử đầu tiên'), detail: tr('Hoàn thành bài thi thử đầu tiên') };
     case 'STREAK_MILESTONE': return { visual: 'medal', accent: 'peach', title: trf('Chuỗi {0} ngày', { 0: a.value }), detail: trf('Học {0} ngày liên tiếp', { 0: a.value }) };
     default: return null;
   }

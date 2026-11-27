@@ -69,7 +69,7 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
       setPreview(res);
       setConfirmResult(null);
       if (res?.canConfirm) {
-        notify.success(tr('Đã phân tích tệp xem trước (chưa ghi vào DB).'), '', { key: 'uni-prev-ok' });
+        notify.success(tr('Đã phân tích tệp xem trước.'), '', { key: 'uni-prev-ok' });
       } else {
         notify.info(tr('Tệp có dòng cần sửa hoặc kiểm tra lại.'), '', { key: 'uni-prev-warn' });
       }
@@ -115,18 +115,24 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
       {
         key: 'rowNumber',
         header: tr('Dòng'),
+        align: 'center',
+        compact: true,
         render: (r) => <span className="font-mono text-xs">{r.rowNumber}</span>,
       },
       {
         key: 'recordType',
         header: tr('Loại'),
+        align: 'center',
+        compact: true,
         render: (r) => <Badge tone="neutral" size="sm" icon={false}>{r.recordType}</Badge>,
       },
       {
         key: 'levelCode',
         header: tr('Cấp / Kỹ năng'),
+        align: 'center',
+        compact: true,
         render: (r) => (
-          <span className="text-xs font-medium text-rp-text">
+          <span className="text-xs font-medium text-rp-text whitespace-nowrap">
             {[r.levelCode, r.skillName].filter(Boolean).join(' · ')}
           </span>
         ),
@@ -134,6 +140,7 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
       {
         key: 'summaryText',
         header: tr('Nội dung'),
+        align: 'left',
         render: (r) => (
           <div className="max-w-md space-y-1">
             <div className="line-clamp-2 text-xs font-medium text-rp-text">{r.summaryText || r.rowKey}</div>
@@ -152,10 +159,12 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
       {
         key: 'status',
         header: tr('Trạng thái'),
+        align: 'center',
+        compact: true,
         render: (r) => {
           const tone = r.status === 'Error' ? 'danger' : r.status === 'Warning' || r.status === 'Duplicate' ? 'warning' : 'success';
           return (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap justify-center gap-1">
               <Badge tone={tone} size="sm" icon={false}>{formatImportRowStatusLabel(r.status, tr)}</Badge>
               {r.incompleteMedia && <Badge tone="warning" size="sm" icon={AlertTriangle}>{tr('Thiếu audio')}</Badge>}
             </div>
@@ -210,6 +219,7 @@ export default function UnifiedMultiFormatImportPanel({ onConfirmed }) {
           <div className="w-64">
             <CustomSelect
               size="sm"
+              label={tr('Loại dữ liệu')}
               value={expectedKind}
               onChange={setExpectedKind}
               options={KIND_OPTIONS.map((o) => ({ value: o.value, label: tr(o.label) }))}

@@ -285,7 +285,7 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
     const items = [...map.entries()]
       .sort((a, b) => a[1].localeCompare(b[1], 'vi'))
       .map(([value, label]) => ({ value, label }));
-    return [{ value: 'ALL', label: tr('Tất cả Giáo viên') }, ...items];
+    return [{ value: 'ALL', label: tr('Tất cả') }, ...items];
   }, [slots, tr]);
 
   const filteredSlots = useMemo(() => (
@@ -400,7 +400,7 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
                   fitContent
                   size="sm"
                   searchable
-                  label={tr('Lọc theo Giáo viên')}
+                  label={tr('Giáo viên')}
                   value={mentorFilter}
                   onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
                   options={mentorOptions}
@@ -424,7 +424,7 @@ function AdminAvailabilityWorkspace({ embedded = false }) {
               fitContent
               size="sm"
               searchable
-              label={tr('Lọc theo Giáo viên')}
+              label={tr('Giáo viên')}
               value={mentorFilter}
               onChange={(val) => { setMentorFilter(val || 'ALL'); setSelected([]); }}
               options={mentorOptions}

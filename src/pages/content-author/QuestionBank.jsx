@@ -355,6 +355,7 @@ export default function QuestionBank() {
     {
       key: 'certificateLevelCode',
       header: tr('Cấp độ & Kỹ năng'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <div className="space-y-1">
@@ -366,6 +367,7 @@ export default function QuestionBank() {
     {
       key: 'templateKind',
       header: tr('Mẫu & Dạng câu'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <div className="space-y-1">
@@ -379,6 +381,7 @@ export default function QuestionBank() {
     {
       key: 'publishStatus',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (row) => {
         const meta = PUBLISH_STATUS_BADGES[row.publishStatus] || { label: row.publishStatus, tone: 'neutral' };
@@ -412,6 +415,7 @@ export default function QuestionBank() {
     {
       key: 'publishStatus',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (row) => {
         const meta = PUBLISH_STATUS_BADGES[row.publishStatus] || { label: row.publishStatus, tone: 'neutral' };
@@ -424,8 +428,9 @@ export default function QuestionBank() {
     {
       key: 'questionText',
       header: tr('Nội dung câu hỏi'),
+      align: 'left',
       render: (row) => (
-        <div className="mx-auto max-w-[440px] space-y-1">
+        <div className="max-w-[440px] space-y-1">
           <p title={row.questionText || ''} className="rp-jp line-clamp-2 font-medium text-rp-text">{row.questionText}</p>
           <p className="truncate text-xs text-rp-text-muted">
             {[row.mockTestTitle, row.sectionTitle].filter(Boolean).join(' · ') || '—'}
@@ -436,6 +441,7 @@ export default function QuestionBank() {
     {
       key: 'jlptLevelName',
       header: tr('Cấp độ'),
+      align: 'center',
       compact: true,
       render: (row) => (
         row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'
@@ -444,6 +450,7 @@ export default function QuestionBank() {
     {
       key: 'skillName',
       header: tr('Kỹ năng'),
+      align: 'center',
       compact: true,
       render: (row) => (
         row.skillName ? <Badge tone="info" size="sm" icon={false}>{row.skillName}</Badge> : '—'
@@ -452,6 +459,7 @@ export default function QuestionBank() {
     {
       key: 'questionType',
       header: tr('Dạng câu hỏi'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <Badge tone="brand" size="sm" icon={false}>
@@ -477,6 +485,7 @@ export default function QuestionBank() {
     {
       key: 'entityType',
       header: tr('Loại'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <Badge tone="brand" size="sm" icon={false}>
@@ -487,6 +496,7 @@ export default function QuestionBank() {
     {
       key: 'level',
       header: tr('Cấp độ'),
+      align: 'center',
       compact: true,
       render: (row) => {
         const code = row.certificateLevelCode || levelById.get(Number(row.certificateLevelId))?.code;
@@ -496,6 +506,7 @@ export default function QuestionBank() {
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <Badge tone={STATUS_BADGE_TONES[row.status] || 'neutral'} size="sm" icon={false}>
@@ -506,6 +517,7 @@ export default function QuestionBank() {
     {
       key: 'updatedAt',
       header: tr('Cập nhật'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <span className="whitespace-nowrap text-xs text-rp-text-2">{formatVnDateTime(row.updatedAt || row.submittedAt)}</span>
@@ -605,10 +617,10 @@ export default function QuestionBank() {
                     setPage(1);
                   }}
                   options={[
-                    { value: 'ALL', label: tr('Mọi cấp độ') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     ...levels.map((lvl) => ({
                       value: String(lvl.id),
-                      label: `${lvl.certificate} · ${lvl.code}`,
+                      label: lvl.code,
                     })),
                   ]}
                 />
@@ -623,7 +635,7 @@ export default function QuestionBank() {
                     setPage(1);
                   }}
                   options={[
-                    { value: 'ALL', label: tr('Tất cả kỹ năng') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     ...skills.map((s) => ({ value: String(s.id), label: s.name })),
                   ]}
                 />
@@ -639,7 +651,7 @@ export default function QuestionBank() {
                       setPage(1);
                     }}
                     options={[
-                      { value: 'ALL', label: tr('Mọi dạng câu') },
+                      { value: 'ALL', label: tr('Tất cả') },
                       ...Object.entries(QUESTION_TYPE_LABELS).map(([k, label]) => ({
                         value: k,
                         label: tr(label),
@@ -659,7 +671,7 @@ export default function QuestionBank() {
                       setPage(1);
                     }}
                     options={[
-                      { value: 'ALL', label: tr('Mọi trạng thái') },
+                      { value: 'ALL', label: tr('Tất cả') },
                       ...Object.entries(PUBLISH_STATUS_BADGES).map(([k, meta]) => ({
                         value: k,
                         label: tr(meta.label),
@@ -680,7 +692,7 @@ export default function QuestionBank() {
                         setPage(1);
                       }}
                       options={[
-                        { value: 'ALL', label: tr('Mọi nguồn') },
+                        { value: 'ALL', label: tr('Tất cả') },
                         { value: 'Manual', label: 'Manual' },
                         { value: 'AiAssisted', label: 'AiAssisted' },
                         { value: 'Excel', label: 'Excel' },
@@ -788,7 +800,7 @@ export default function QuestionBank() {
                 }}
                 onRowClick={(row) => setSelectedV2Question(row)}
                 rowActions={(row) => (
-                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <IconButton
                       icon={Eye}
                       size="sm"
@@ -820,8 +832,9 @@ export default function QuestionBank() {
                           onClick={async () => {
                             const ok = await confirmAction({
                               title: tr('Xóa bản nháp câu hỏi?'),
-                              description: tr('Thao tác này chỉ áp dụng với câu hỏi chưa gửi duyệt hoặc bị từ chối.'),
+                              description: tr('Bản nháp câu hỏi sẽ bị xóa khỏi ngân hàng và không thể khôi phục.'),
                               confirmLabel: tr('Xóa bản nháp'),
+                              cancelLabel: tr('Giữ lại'),
                               tone: 'danger',
                             });
                             if (ok) deleteMutation.mutate(row.id);

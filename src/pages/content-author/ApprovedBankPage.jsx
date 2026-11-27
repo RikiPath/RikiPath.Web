@@ -256,16 +256,16 @@ export default function ApprovedBankPage({
                 fitContent
                 size="sm"
                 value={levelId}
-                aria-label={tr('Lọc theo cấp độ')}
+                aria-label={tr('Cấp độ')}
                 onChange={(val) => {
                   setLevelId(val);
                   setPage(1);
                 }}
                 options={[
-                  { value: 'ALL', label: tr('Mọi cấp độ') },
+                  { value: 'ALL', label: tr('Tất cả') },
                   ...levels.map((lvl) => ({
                     value: String(lvl.id),
-                    label: `${lvl.certificate} · ${lvl.code}`,
+                    label: lvl.code,
                   })),
                 ]}
               />

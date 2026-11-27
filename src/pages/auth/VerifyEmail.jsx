@@ -68,8 +68,8 @@ function CodeBoxes({ value, onChange, disabled, invalid }) {
           onKeyDown={(event) => onKeyDown(index, event)}
           className={`h-12 w-full rounded-xl border bg-white text-center text-[18px] font-bold tracking-tight tabular-nums text-rp-text outline-none transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:border-[#DEC9CE] disabled:bg-rp-muted/70 disabled:text-rp-text-muted sm:h-[54px] sm:text-[20px] ${
             invalid
-              ? 'border-rp-danger focus:border-rp-danger focus:ring-2 focus:ring-rp-danger/15'
-              : 'border-rp-line-strong focus:border-rp-brand-strong focus:ring-2 focus:ring-rp-brand-strong/15'
+              ? 'border-rp-danger focus:border-rp-danger focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+              : 'border-rp-line-strong focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]'
           }`}
         />
       ))}
@@ -156,7 +156,7 @@ export default function VerifyEmail() {
       onError: (err) => {
         const message = err?.message || 'Chưa gửi lại được mã.';
         if (/đã được xác thực/i.test(message)) {
-          notify.info(tr('Email này đã được xác thực'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-already' });
+          notify.info(tr('Email này đã được xác thực.'), '', { key: 'auth-verify-already' });
           goToLogin(true);
           return;
         }
@@ -175,13 +175,13 @@ export default function VerifyEmail() {
 
     verifyLinkMutation.mutate(verificationToken, {
       onSuccess: () => {
-        notify.success(tr('Xác thực email thành công!'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-success' });
+        notify.success(tr('Xác thực email thành công!'), '', { key: 'auth-verify-success' });
         goToLogin();
       },
       onError: (err) => {
         const message = err?.message || tr('Liên kết xác thực không hợp lệ hoặc đã hết hạn.');
         if (/đã được xác thực/i.test(message)) {
-          notify.info(tr('Email này đã được xác thực'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-already' });
+          notify.info(tr('Email này đã được xác thực.'), '', { key: 'auth-verify-already' });
           goToLogin(true);
           return;
         }
@@ -209,13 +209,13 @@ export default function VerifyEmail() {
       { userId: userId || undefined, email: email.trim() || undefined, verificationCode: code },
       {
         onSuccess: () => {
-          notify.success(tr('Xác thực email thành công!'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-success' });
+          notify.success(tr('Xác thực email thành công!'), '', { key: 'auth-verify-success' });
           goToLogin();
         },
         onError: (err) => {
           const message = err?.message || tr('Chưa xác thực được. Vui lòng kiểm tra lại mã.');
           if (/đã được xác thực/i.test(message)) {
-            notify.info(tr('Email này đã được xác thực'), tr('Bạn có thể đăng nhập ngay để tiếp tục.'), { key: 'auth-verify-already' });
+            notify.info(tr('Email này đã được xác thực.'), '', { key: 'auth-verify-already' });
             goToLogin(true);
             return;
           }

@@ -118,11 +118,11 @@ export default function StudyPaymentReceipt() {
       // The verified purchase becomes a server-side Learning Moment (PURCHASE_COMPLETED); refresh the queue so the
       // celebration shows now instead of on the next navigation. Claiming keeps it to one popup across tabs/devices.
       void queryClient.invalidateQueries({ queryKey: ['learning-moments'] });
-      notify.success(tr('Thanh toán thành công'), tr('Gói học của bạn đã được kích hoạt.'), {
+      notify.success(tr('Thanh toán thành công!'), '', {
         key: `study-receipt-${purchaseId}-paid`,
       });
     } else if (status === 'Pending') {
-      notify.info(tr('Đang xác nhận thanh toán'), tr('Hệ thống đang đối chiếu kết quả thanh toán…'), {
+      notify.info(tr('Đang xác nhận thanh toán…'), '', {
         key: `study-receipt-${purchaseId}-pending`,
       });
     } else {

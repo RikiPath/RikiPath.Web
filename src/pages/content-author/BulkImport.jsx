@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 import { uploadBulkImportFile } from '@/features/content-author/api/cmsBulkImportApi.js';
 import { ContentAuthorShell } from '@/layouts';
-import { EmptyState } from '@/components/ui';
+import { CustomSelect, EmptyState, Input } from '@/components/ui';
 import { AUTHOR_LEVELS } from '@/features/content-author/constants/authorLevels.js';
 import { useLocale, translateTemplate } from '@/locales/locale.js';
 
@@ -198,17 +198,17 @@ function ItemList({ title, items, columns, onChange, onAdd }) {
       )}
       <div className="space-y-2">
         {items.map((item) => (
-          <div key={item.id} className="grid gap-2 rounded-lg bg-rp-bg-2 p-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+          <div key={item.id} className="grid gap-2.5 rounded-lg bg-rp-bg-2 p-2.5 sm:grid-cols-[1fr_1fr_1fr_auto]">
             {columns.map(([key, label]) => (
-              <input
+              <Input
                 key={key}
+                size="sm"
+                label={tr(label)}
                 value={item[key] || ''}
-                placeholder={label}
                 onChange={(event) => onChange(item.id, key, event.target.value)}
-                className={inputClass}
               />
             ))}
-            <button type="button" onClick={() => onChange(item.id, null)} className="h-10 text-[12px] text-rp-text-muted">{tr('Xóa')}</button>
+            <button type="button" onClick={() => onChange(item.id, null)} className="h-9 text-[12px] text-rp-text-muted">{tr('Xóa')}</button>
           </div>
         ))}
       </div>
@@ -384,23 +384,24 @@ export default function BulkImport() {
               {lesson.issues.length > 0 && <p className="mt-2 text-[12px] text-rp-brand-strong">{lesson.issues.join('. ')}</p>}
               {editing?.id === lesson.id && (
                 <div className="mt-4 border-t border-rp-line pt-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label><span className="mb-1 block text-[12px] text-rp-text-muted">{tr('Tên bài')}</span><input value={lesson.title} onChange={(event) => updateLesson(lesson.id, { title: event.target.value })} className={inputClass} /></label>
-                    <label><span className="mb-1 block text-[12px] text-rp-text-muted">{tr('Cấp')}</span>
-                      <select
-                        value={AUTHOR_LEVELS.includes(lesson.level) ? lesson.level : ''}
-                        onChange={(event) => updateLesson(lesson.id, { level: event.target.value })}
-                        className={inputClass}
-                      >
-                        <option value="" disabled>{tr('Chọn cấp độ')}</option>
-                        {AUTHOR_LEVELS.map((level) => <option key={level}>{level}</option>)}
-                      </select>
-                    </label>
-                    <label><span className="mb-1 block text-[12px] text-rp-text-muted">{tr('Kỹ năng của bài')}</span>
-                      <select value={lesson.skill} onChange={(event) => updateLesson(lesson.id, { skill: event.target.value })} className={inputClass}>{SKILLS.map((skill) => <option key={skill}>{skill}</option>)}</select>
-                    </label>
-                    <label><span className="mb-1 block text-[12px] text-rp-text-muted">{tr('Thứ tự')}</span><input value={lesson.sortOrder} onChange={(event) => updateLesson(lesson.id, { sortOrder: event.target.value })} className={inputClass} /></label>
-                    <label className="sm:col-span-2"><span className="mb-1 block text-[12px] text-rp-text-muted">{tr('Mô tả')}</span><input value={lesson.description} onChange={(event) => updateLesson(lesson.id, { description: event.target.value })} className={inputClass} /></label>
+                  <div className="grid gap-3 pt-1 sm:grid-cols-2">
+                    <Input size="sm" label={tr('Tên bài')} value={lesson.title} onChange={(event) => updateLesson(lesson.id, { title: event.target.value })} />
+                    <CustomSelect
+                      size="sm"
+                      label={tr('Cấp')}
+                      value={AUTHOR_LEVELS.includes(lesson.level) ? lesson.level : ''}
+                      onChange={(val) => updateLesson(lesson.id, { level: val })}
+                      options={AUTHOR_LEVELS.map((level) => ({ value: level, label: level }))}
+                    />
+                    <CustomSelect
+                      size="sm"
+                      label={tr('Kỹ năng của bài')}
+                      value={lesson.skill}
+                      onChange={(val) => updateLesson(lesson.id, { skill: val })}
+                      options={SKILLS.map((skill) => ({ value: skill, label: skill }))}
+                    />
+                    <Input size="sm" label={tr('Thứ tự')} value={lesson.sortOrder} onChange={(event) => updateLesson(lesson.id, { sortOrder: event.target.value })} />
+                    <Input size="sm" label={tr('Mô tả')} className="sm:col-span-2" value={lesson.description} onChange={(event) => updateLesson(lesson.id, { description: event.target.value })} />
                   </div>
                   <ItemList title={tr('Từ vựng')} items={lesson.vocabulary} columns={[['word', 'Từ'], ['reading', 'Cách đọc'], ['meaning', 'Nghĩa']]} onAdd={() => addItem(lesson.id, 'vocabulary', { word: '', reading: '', meaning: '', exampleSentence: '', exampleSentenceMeaning: '' })} onChange={(itemId, field, value) => updateItem(lesson.id, 'vocabulary', itemId, field, value)} />
                   <ItemList title={tr('Hán tự')} items={lesson.kanji} columns={[['character', 'Chữ'], ['meaning', 'Nghĩa'], ['strokeCount', 'Số nét']]} onAdd={() => addItem(lesson.id, 'kanji', { character: '', meaning: '', strokeCount: '', sinoVietnamese: '', onYomi: '', kunYomi: '' })} onChange={(itemId, field, value) => updateItem(lesson.id, 'kanji', itemId, field, value)} />

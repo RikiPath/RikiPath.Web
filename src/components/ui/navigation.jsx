@@ -58,35 +58,43 @@ export function BackButton({
     if (!guardsOk) return;
 
     let destination = resolved.to;
-    if (restoreListKey) {
+    if (resolved.fromOrigin) {
+      const originBase = destination.split('?')[0];
+      const saved = readListViewState(originBase) || (restoreListKey ? readListViewState(restoreListKey) : null);
+      if (saved?.scrollTop != null) {
+        markPendingScrollRestore(destination, saved.scrollTop);
+      }
+    } else if (restoreListKey) {
       const saved = readListViewState(restoreListKey);
       if (saved?.scrollTop != null) {
         markPendingScrollRestore(destination, saved.scrollTop);
       }
-      if (!resolved.fromOrigin && !to && saved?.search && !destination.includes('?')) {
+      if (!to && saved?.search && !destination.includes('?')) {
         destination = `${destination}${saved.search}`;
-      }
-    } else if (resolved.fromOrigin) {
-      const saved = readListViewState(destination.split('?')[0]);
-      if (saved?.scrollTop != null) {
-        markPendingScrollRestore(destination, saved.scrollTop);
       }
     }
 
-    navigate(destination);
+    navigate(destination, { state: { restoredFromDetail: true } });
   }
 
-  const sizeClass = size === 'md' ? 'h-10 px-3.5 text-sm gap-2' : 'h-9 px-3 text-[13px] gap-1.5';
-  const toneClass = variant === 'ghost'
-    ? 'border border-transparent bg-transparent text-rp-text-2 hover:bg-rp-muted hover:text-rp-text'
-    : 'border border-rp-line bg-rp-surface text-rp-text-2 shadow-rp-xs hover:border-rp-brand-border hover:bg-rp-brand-tint/40 hover:text-rp-brand-strong';
+  const sizeClass = variant === 'link'
+    ? 'gap-1.5 text-[13.5px] pb-0.5'
+    : size === 'md'
+      ? 'h-10 px-3.5 text-sm gap-2'
+      : 'h-9 px-3 text-[13px] gap-1.5';
+  const toneClass = variant === 'link'
+    ? 'rp-link text-rp-brand-strong hover:text-rp-brand-deep'
+    : variant === 'ghost'
+      ? 'border border-transparent bg-transparent text-rp-text-2 hover:bg-rp-muted hover:text-rp-text'
+      : 'border border-rp-line bg-rp-surface text-rp-text-2 shadow-rp-xs hover:border-rp-brand-border hover:bg-rp-brand-tint/40 hover:text-rp-brand-strong';
 
   return (
     <a
       href={resolved.to}
       onClick={handleClick}
       className={cx(
-        'rp-focus rp-press inline-flex shrink-0 items-center rounded-rp-input font-semibold transition-colors duration-150',
+        'rp-focus inline-flex shrink-0 items-center font-semibold',
+        variant === 'link' ? 'rounded-md' : 'rp-press rounded-rp-input transition-colors duration-150',
         sizeClass,
         toneClass,
         className,

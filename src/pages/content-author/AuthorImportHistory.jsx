@@ -134,6 +134,7 @@ function BatchContents({ batchId, batch, userId }) {
     {
       key: 'rowKey',
       header: tr('Mục nội dung'),
+      align: 'left',
       render: (item) => (
         <div className="space-y-1">
           <p className="rp-jp font-semibold text-rp-text">{item.rowKey}</p>
@@ -147,6 +148,8 @@ function BatchContents({ batchId, batch, userId }) {
     {
       key: 'entityType',
       header: tr('Loại'),
+      align: 'center',
+      compact: true,
       render: (item) => (
         <Badge tone="brand" size="sm" icon={false}>
           {tr(labels[item.entityType] ?? item.entityType)}
@@ -156,6 +159,8 @@ function BatchContents({ batchId, batch, userId }) {
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
+      compact: true,
       render: (item) => (
         <Badge tone={STATUS_BADGE_TONES[item.status] || 'neutral'} size="sm" icon={false}>
           {tr(statuses[item.status]?.label ?? item.status)}
@@ -211,7 +216,7 @@ function BatchContents({ batchId, batch, userId }) {
               aria-label={tr('Loại nội dung')}
               onChange={setType}
               options={[
-                { value: 'ALL', label: tr('Tất cả loại') },
+                { value: 'ALL', label: tr('Tất cả') },
                 ...typesPresent.map((opt) => ({
                   value: opt.value,
                   label: tr(opt.label.split(' (')[0]),
@@ -312,9 +317,11 @@ function BatchContents({ batchId, batch, userId }) {
         onClose={() => setConfirmSubmit(false)}
         onConfirm={() => submit.mutate()}
         loading={submit.isPending}
+        tone="success"
         title={tr('Gửi toàn bộ lô Excel cho Quản trị viên duyệt?')}
         description={trf('{0} bản nháp trong lô này sẽ được chuyển sang trạng thái Chờ duyệt.', { 0: draftCount })}
         confirmLabel={tr('Xác nhận gửi')}
+        cancelLabel={tr('Quay lại')}
       />
     </div>
   );
@@ -337,6 +344,7 @@ export default function AuthorImportHistory() {
     {
       key: 'sourceFileName',
       header: tr('Tệp Excel nguồn'),
+      align: 'left',
       render: (batch) => (
         <div className="space-y-0.5">
           <p className="font-semibold text-rp-text">{batch.sourceFileName}</p>
@@ -347,11 +355,14 @@ export default function AuthorImportHistory() {
     {
       key: 'itemCount',
       header: tr('Tổng mục'),
+      align: 'center',
+      compact: true,
       render: (batch) => <Badge tone="neutral" size="sm" icon={false}>{batch.itemCount}</Badge>,
     },
     {
       key: 'breakdown',
       header: tr('Tiến độ duyệt'),
+      align: 'left',
       render: (batch) => (
         <div className="flex flex-wrap gap-1.5 text-xs">
           {batch.draftCount > 0 && <Badge tone="neutral" size="sm" icon={false}>{tr('Nháp')}: {batch.draftCount}</Badge>}

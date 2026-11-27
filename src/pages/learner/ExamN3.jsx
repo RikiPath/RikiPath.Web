@@ -29,6 +29,7 @@ import {
   submitPlacementAttempt,
 } from '@/features/placement/api/placementApi.js';
 import { useLocale } from '@/locales/locale.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { IllustratedPageHeader } from '@/features/learner-ui';
 import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
 import { resolveFeatureLock } from '@/features/learning-path/learningPathFlow.js';
@@ -199,7 +200,7 @@ function AttemptForm({ attempt, pending, onSubmit, reportError }) {
         size="sm"
         footer={(
           <>
-            <Button variant="secondary" onClick={() => setConfirmSubmit(false)} disabled={pending}>
+            <Button variant="neutral" onClick={() => setConfirmSubmit(false)} disabled={pending}>
               {tr('Quay lại')}
             </Button>
             <Button variant="primary" loading={pending} disabled={pending} onClick={submit}>
@@ -579,7 +580,7 @@ export default function ExamN3() {
               {hasGoal && (
                 <div className="rounded-xl border border-rp-line bg-rp-bg-2/60 px-3 py-2.5">
                   <dt className="text-[12px] font-semibold text-rp-text-muted">{tr('Mục tiêu JLPT')}</dt>
-                  <dd className="mt-0.5 text-sm font-extrabold text-rp-navy">JLPT {target}</dd>
+                  <dd className="mt-0.5 text-sm font-extrabold text-rp-navy">{formatJlptLevel(target)}</dd>
                 </div>
               )}
               {allowance && quotaInitialized && hasGoal && (
@@ -591,7 +592,7 @@ export default function ExamN3() {
               {plannedLevels.length > 0 && (
                 <div className="rounded-xl border border-rp-line bg-rp-bg-2/60 px-3 py-2.5">
                   <dt className="text-[12px] font-semibold text-rp-text-muted">{tr('Phạm vi đánh giá')}</dt>
-                  <dd className="mt-0.5 text-sm font-extrabold text-rp-navy">{plannedLevels.map((code) => `JLPT ${code}`).join(' · ')}</dd>
+                  <dd className="mt-0.5 text-sm font-extrabold text-rp-navy">{plannedLevels.map((code) => formatJlptLevel(code)).join(' · ')}</dd>
                 </div>
               )}
               {plannedSkills.length > 0 && (

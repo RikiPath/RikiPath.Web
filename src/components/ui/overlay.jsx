@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Toaster as HotToaster, toast as hotToast } from 'react-hot-toast';
 import { CircleAlert, CircleCheck, Info, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import { Button } from './core.jsx';
+import CountBadge from './CountBadge.jsx';
 import { cx } from './cx.js';
 import { useFocusTrap } from './hooks.js';
 import SakuraToast from './SakuraToast.jsx';
@@ -54,7 +55,7 @@ const MODAL_SIZES = { sm: 'max-w-[420px]', md: 'max-w-lg', lg: 'max-w-2xl', wiza
 
 export function Modal(props) {
   // `bare`: no header bar — a floating close button and the body owns its own heading (guides, illustrations).
-  const { open, onClose, size = 'md', dismissible = true, initialFocusRef, className, describedBy, bare = false, labelledBy } = props;
+  const { open, onClose, size = 'md', dismissible = true, initialFocusRef, className, bodyClassName, describedBy, bare = false, labelledBy } = props;
   const { tr } = useLocale();
   // While the exit animation plays, keep showing what was on screen: parents often clear the data that fed
   // the dialog (selected item, unlock target) in the same tick they close it.
@@ -84,22 +85,22 @@ export function Modal(props) {
           tabIndex={-1}
           className={cx(
             closing ? 'rp-anim-modal-out' : 'rp-anim-modal',
-            'relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-rp-card-lg bg-rp-surface shadow-[0_30px_70px_-28px_rgba(20,24,35,0.45),0_2px_8px_rgba(20,24,35,0.06)] ring-1 ring-black/[0.06] outline-none sm:rounded-rp-card-lg',
+            'relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-rp-card-lg bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)] ring-1 ring-[var(--rp-popup-border)] outline-none sm:rounded-rp-card-lg',
             MODAL_SIZES[size] || MODAL_SIZES.md,
             className,
           )}
         >
           {bare && dismissible && (
-            <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-rp-text-muted transition-colors hover:bg-rp-muted hover:text-rp-text">
+            <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-rp-text-muted transition-colors hover:bg-[var(--rp-popup-hover)] hover:text-rp-brand-strong">
               <X aria-hidden="true" className="h-[18px] w-[18px]" />
             </button>
           )}
           {!bare && (title || dismissible) && (
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-rp-line px-5 py-3.5">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--rp-popup-divider)] bg-[var(--rp-popup-header-bg)] px-5 py-3.5">
               <div className="min-w-0">
                 {title && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 id={titleId} className="text-base font-bold leading-6 text-rp-text">
+                    <h2 id={titleId} className="text-base font-bold leading-6 tracking-[-0.01em] text-rp-text sm:text-[17px]">
                       {typeof title === 'string' ? tr(title) : title}
                     </h2>
                     {titleBadge}
@@ -108,16 +109,16 @@ export function Modal(props) {
                 {description && <p id={descId} className="mt-0.5 text-[13px] leading-5 text-rp-text-muted">{tr(description)}</p>}
               </div>
               {dismissible && (
-                <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus -mr-1 rounded-full p-1.5 text-rp-text-muted hover:bg-rp-muted hover:text-rp-text">
+                <button type="button" onClick={onClose} aria-label={tr('Đóng')} className="rp-focus -mr-1 rounded-full p-1.5 text-rp-text-muted transition-colors hover:bg-[var(--rp-popup-hover)] hover:text-rp-brand-strong">
                   <X aria-hidden="true" className="h-[18px] w-[18px]" />
                 </button>
               )}
             </div>
           )}
           {/* Non-scrolling band under the header (wizard steppers, filters): the body scrolls below it, never under it. */}
-          {subheader && <div className="shrink-0 border-b border-rp-line bg-rp-surface px-5 py-3">{subheader}</div>}
-          <div className={cx('min-h-0 flex-1 overflow-y-auto', bare ? 'px-6 pb-6 pt-7' : 'px-5 py-4')}>{children}</div>
-          {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-rp-line bg-rp-bg-2 px-5 py-3">{footer}</div>}
+          {subheader && <div className="shrink-0 border-b border-[var(--rp-popup-divider)] bg-[var(--rp-popup-bg)] px-5 py-3">{subheader}</div>}
+          <div className={cx('min-h-0 flex-1 overflow-y-auto', bare ? 'px-6 pb-6 pt-7' : 'px-5 py-4', bodyClassName)}>{children}</div>
+          {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--rp-popup-divider)] bg-[var(--rp-popup-footer-bg)] px-5 py-3">{footer}</div>}
         </div>
       </div>
     </Portal>
@@ -138,12 +139,12 @@ export function DrawerHeader({ title, titleBadge, subtitle, description, onClose
   const { tr } = useLocale();
   const sub = subtitle ?? description;
   return (
-    <div className={cx('flex shrink-0 items-center justify-between gap-3 border-b border-rp-line bg-rp-surface px-5 py-3.5', className)}>
+    <div className={cx('flex shrink-0 items-center justify-between gap-3 border-b border-[var(--rp-popup-divider)] bg-[var(--rp-popup-header-bg)] px-5 py-3.5', className)}>
       <div className="min-w-0 flex-1">
         {(title || titleBadge) && (
           <div className="flex flex-wrap items-center gap-2">
             {title && (
-              <h2 id={titleId} className="truncate text-base font-bold text-rp-text">
+              <h2 id={titleId} className="truncate text-base font-bold leading-6 tracking-[-0.01em] text-rp-text sm:text-[17px]">
                 {typeof title === 'string' ? tr(title) : title}
               </h2>
             )}
@@ -161,7 +162,7 @@ export function DrawerHeader({ title, titleBadge, subtitle, description, onClose
           type="button"
           onClick={onClose}
           aria-label={tr(closeLabel)}
-          className="rp-focus -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-rp-text-muted transition-colors hover:bg-rp-muted hover:text-rp-text"
+          className="rp-focus -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-rp-text-muted transition-colors hover:bg-[var(--rp-popup-hover)] hover:text-rp-brand-strong"
         >
           <X aria-hidden="true" className="h-[18px] w-[18px]" />
         </button>
@@ -180,7 +181,7 @@ export function DrawerBody({ padded = true, className, children }) {
 
 export function DrawerFooter({ className, children }) {
   return (
-    <div className={cx('shrink-0 border-t border-rp-line bg-rp-bg-2 px-5 py-3', className)}>
+    <div className={cx('shrink-0 border-t border-[var(--rp-popup-divider)] bg-[var(--rp-popup-footer-bg)] px-5 py-3', className)}>
       {children}
     </div>
   );
@@ -247,7 +248,7 @@ export function SideDrawer(props) {
           aria-describedby={sub ? descId : undefined}
           tabIndex={-1}
           className={cx(
-            'absolute flex flex-col bg-rp-surface shadow-rp-pop outline-none',
+            'absolute flex flex-col bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)] ring-1 ring-[var(--rp-popup-border)] outline-none',
             sidePos,
             motionCls,
             resolvedWidth,
@@ -333,13 +334,15 @@ export function AlertDialog({
   open,
   title,
   description,
+  message,
   confirmLabel = 'Xác nhận',
   cancelLabel = 'Hủy',
   tone = 'danger',
-  cancelVariant = 'secondary',
+  cancelVariant = 'neutral',
   onConfirm,
   onCancel,
   onClose,
+  dismissible = true,
   busy = false,
   loading = false,
   children,
@@ -350,51 +353,74 @@ export function AlertDialog({
   const titleId = useId();
   const descId = useId();
   const resolvedCancel = onCancel || onClose;
+  const resolvedDescription = description ?? message;
   const isBusy = Boolean(busy || loading);
+  const canDismiss = Boolean(dismissible && !isBusy && typeof resolvedCancel === 'function');
   // Destructive dialogs focus "Hủy" first so Enter never confirms by accident.
-  useFocusTrap(ref, { open, onEscape: isBusy ? undefined : resolvedCancel, initialFocusRef: cancelRef });
+  useFocusTrap(ref, { open, onEscape: canDismiss ? resolvedCancel : undefined, initialFocusRef: cancelRef });
   if (!open) return null;
-  const Icon = tone === 'danger'
+  const resolvedTone = tone === 'confirm' ? 'success' : tone;
+  const Icon = resolvedTone === 'danger'
     ? TriangleAlert
-    : tone === 'warning'
+    : resolvedTone === 'warning'
       ? CircleAlert
-      : tone === 'success'
+      : resolvedTone === 'success'
         ? CircleCheck
         : Info;
-  const iconCls = tone === 'danger'
+  const iconCls = resolvedTone === 'danger'
     ? 'bg-rp-danger-bg text-rp-danger'
-    : tone === 'warning'
-      ? 'bg-rp-warning-bg text-rp-warning'
-      : tone === 'success'
-        ? 'bg-rp-success-bg text-rp-success'
-        : 'bg-rp-brand-tint text-rp-brand-strong';
-  const confirmVariant = tone === 'danger' ? 'danger' : tone === 'success' ? 'success' : 'primary';
+    : resolvedTone === 'warning'
+      ? 'bg-amber-50 text-amber-600'
+      : resolvedTone === 'brand'
+        ? 'bg-rp-brand-tint text-rp-brand-strong'
+        : resolvedTone === 'info'
+          ? 'bg-sky-50 text-sky-600'
+          : 'bg-emerald-50 text-emerald-600';
+  const confirmVariant = resolvedTone === 'danger'
+    ? 'danger'
+    : resolvedTone === 'warning'
+      ? 'warning'
+      : resolvedTone === 'brand' || resolvedTone === 'info'
+        ? 'primary'
+        : 'confirm';
   return (
     <Portal>
       <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-        <div aria-hidden="true" className="rp-anim-fade rp-backdrop absolute inset-0" />
+        <div
+          aria-hidden="true"
+          className="rp-anim-fade rp-backdrop absolute inset-0"
+          onClick={canDismiss ? resolvedCancel : undefined}
+        />
         <div
           ref={ref}
           role="alertdialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          aria-describedby={description ? descId : undefined}
+          aria-describedby={resolvedDescription ? descId : undefined}
           tabIndex={-1}
-          className="rp-anim-pop relative w-full max-w-[420px] rounded-rp-card-lg bg-rp-surface p-5 shadow-rp-pop outline-none"
+          className="rp-anim-pop relative w-full max-w-[440px] rounded-2xl border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] p-5 text-rp-text shadow-[var(--rp-popup-shadow)] outline-none sm:p-6"
         >
-          <div className="flex items-start gap-3.5">
+          <div className="flex items-center gap-3">
             <span className={cx('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', iconCls)}>
               <Icon aria-hidden="true" className="h-5 w-5" />
             </span>
-            <div className="min-w-0 flex-1">
-              <h2 id={titleId} className="text-base font-bold leading-6 text-rp-text">{tr(title)}</h2>
-              {description && <p id={descId} className="mt-1 text-sm leading-6 text-rp-text-2">{tr(description)}</p>}
-              {children && <div className="mt-3">{children}</div>}
-            </div>
+            <h2 id={titleId} className="min-w-0 flex-1 text-[16px] font-bold leading-snug tracking-[-0.01em] text-rp-text [overflow-wrap:break-word]">
+              {typeof title === 'string' ? tr(title) : title}
+            </h2>
           </div>
-          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button ref={cancelRef} variant={cancelVariant} onClick={resolvedCancel} disabled={isBusy}>{tr(cancelLabel)}</Button>
-            <Button variant={confirmVariant} onClick={onConfirm} loading={isBusy}>{tr(confirmLabel)}</Button>
+          {resolvedDescription && (
+            <p id={descId} className="mt-3 text-[13.5px] leading-[1.6] text-rp-text-2 [overflow-wrap:break-word]">
+              {typeof resolvedDescription === 'string' ? tr(resolvedDescription) : resolvedDescription}
+            </p>
+          )}
+          {children && <div className="mt-3.5">{children}</div>}
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <Button ref={cancelRef} variant={cancelVariant} onClick={resolvedCancel} disabled={isBusy}>
+              {typeof cancelLabel === 'string' ? tr(cancelLabel) : cancelLabel}
+            </Button>
+            <Button variant={confirmVariant} onClick={onConfirm} loading={isBusy}>
+              {typeof confirmLabel === 'string' ? tr(confirmLabel) : confirmLabel}
+            </Button>
           </div>
         </div>
       </div>
@@ -423,10 +449,11 @@ function ConfirmHost() {
     <AlertDialog
       open={Boolean(state)}
       title={state?.title || tr('Bạn chắc chắn chứ?')}
-      description={state?.description}
-      confirmLabel={state?.confirmLabel}
-      cancelLabel={state?.cancelLabel}
-      tone={state?.tone || 'danger'}
+      description={state?.description ?? state?.message}
+      confirmLabel={state?.confirmLabel ?? state?.confirmText}
+      cancelLabel={state?.cancelLabel ?? state?.cancelText}
+      tone={state?.tone || (state?.danger ? 'danger' : 'danger')}
+      cancelVariant={state?.cancelVariant || 'neutral'}
       onConfirm={() => settle(true)}
       onCancel={() => settle(false)}
     />
@@ -602,7 +629,7 @@ export function Popover({ trigger, children, align = 'end', className, panelClas
             aria-label={label}
             style={panelStyle || { position: 'fixed', left: 12, top: 64, zIndex: 130, visibility: 'hidden' }}
             className={cx(
-              'rp-anim-pop max-w-[calc(100vw-24px)] rounded-rp-card border border-rp-line bg-rp-surface shadow-rp-pop',
+              'rp-anim-pop max-w-[calc(100vw-24px)] rounded-rp-card border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)]',
               panelClassName,
             )}
           >
@@ -641,17 +668,15 @@ export function FilterPopover({
         >
           <span>{tr(label)}</span>
           {activeCount > 0 && (
-            <span className="ml-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rp-brand-pressed px-1.5 text-[11px] font-bold text-white">
-              {activeCount}
-            </span>
+            <CountBadge count={activeCount} size="sm" className="ml-0.5" />
           )}
         </Button>
       )}
     >
       {({ close }) => (
         <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-rp-line pb-2">
-            <p className="text-xs font-bold uppercase tracking-[0.06em] text-rp-text-muted">{tr(label)}</p>
+          <div className="flex items-center justify-between border-b border-[var(--rp-popup-divider)] pb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-rp-brand-strong">{tr(label)}</p>
             {onReset && activeCount > 0 && (
               <button
                 type="button"
@@ -810,7 +835,7 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
             role="tooltip"
             style={{ left: `${coords.left + fit.dx}px`, top: `${coords.top + fit.dy}px` }}
             className={cx(
-              'rp-anim-fade pointer-events-none fixed z-[140] w-max max-w-[240px] rounded-lg bg-rp-text px-2.5 py-1.5 text-xs font-medium leading-4 text-white shadow-rp-pop',
+              'rp-anim-fade pointer-events-none fixed z-[140] w-max max-w-[240px] rounded-lg bg-[var(--rp-tooltip-bg)] px-2.5 py-1.5 text-xs font-medium leading-4 text-[var(--rp-tooltip-fg)] shadow-[var(--rp-popup-shadow)]',
               posClass,
             )}
           >
@@ -819,7 +844,7 @@ export function Tooltip({ content, children, side = 'top', fullWidth = false }) 
               style={fit.dy || (fit.dx && (side === 'top' || side === 'bottom'))
                 ? { marginTop: side === 'left' || side === 'right' ? `${-fit.dy}px` : undefined, marginLeft: side === 'top' || side === 'bottom' ? `${-fit.dx}px` : undefined }
                 : undefined}
-              className={cx('absolute h-2 w-2 rotate-45 rounded-[1px] bg-rp-text', arrowClass)}
+              className={cx('absolute h-2 w-2 rotate-45 rounded-[1px] bg-[var(--rp-tooltip-bg)]', arrowClass)}
             />
             <span className="relative block">{content}</span>
           </span>
@@ -1056,14 +1081,12 @@ export function Tabs({
             {tab.icon && <tab.icon aria-hidden="true" className={isSmall ? 'h-3.5 w-3.5' : 'h-4 w-4'} />}
             {tr(tab.label)}
             {tab.count != null && (
-              <span
-                className={cx(
-                  'inline-flex items-center justify-center rounded-full px-1.5 text-[11px] tabular-nums transition-colors duration-150',
-                  active ? 'bg-rp-surface text-rp-brand-strong shadow-[0_1px_1px_rgba(45,40,42,0.05)]' : 'bg-rp-muted text-rp-text-muted',
-                )}
-              >
-                {tab.count}
-              </span>
+              <CountBadge
+                count={tab.count}
+                size="sm"
+                showZero={tab.showZero ?? true}
+                tone={tab.badgeTone === 'neutral' ? 'neutral' : 'danger'}
+              />
             )}
           </button>
         );

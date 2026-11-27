@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   CheckCircle2,
   ClipboardCheck,
   Download,
   ExternalLink,
+  Eye,
   Plus,
 } from 'lucide-react';
 import { useNow } from '@/hooks/useNow.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import {
   createCohortHomework,
+  fetchHomeworkScanBlob,
   generateHomeworkAiDraft,
   gradeHomeworkAssignment,
   openHomeworkScan,
@@ -24,6 +28,7 @@ import {
   buildGradePayload,
 } from '@/features/homework/utils/homeworkModel';
 import {
+  AttachmentPreviewModal,
   Badge,
   Banner,
   Button,
@@ -42,6 +47,7 @@ import {
   Textarea,
   TimeInput,
   Tooltip,
+  useAttachmentPreview,
 } from '@/components/ui';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
@@ -68,6 +74,8 @@ export default function CohortHomeworkPanel({
   cohortMap = null,
   coursesInCohort = [],
   items = [],
+  isFiltered = false,
+  onClearFilter,
   role = 'Learner',
   canAssign = true,
   hideDisabledAssign = false,
@@ -76,9 +84,23 @@ export default function CohortHomeworkPanel({
   onRun,
 }) {
   const { tr, trf } = useLocale();
+  const queryClient = useQueryClient();
   const nowMs = useNow();
   const isMentor = role === 'Mentor';
   const isLearner = role === 'Learner';
+  const attachmentPreview = useAttachmentPreview();
+
+  const handleViewHomeworkScan = (targetItem) => {
+    if (!targetItem?.id) return;
+    void attachmentPreview.openPreview({
+      key: `hw:${targetItem.id}:view`,
+      attachment: {
+        name: targetItem.title ? `Bài nộp - ${targetItem.title}` : `Bài nộp bài tập #${targetItem.id}`,
+      },
+      fetchBlob: () => fetchHomeworkScanBlob(targetItem.id, { download: false }),
+      fetchDownloadBlob: () => fetchHomeworkScanBlob(targetItem.id, { download: true }),
+    });
+  };
 
   const activeLearners = useMemo(
     () => (coursesInCohort || []).filter(
@@ -155,6 +177,7 @@ export default function CohortHomeworkPanel({
         dueAt: isoDue,
         targetLearnerIds: scopeMode === 'individual' ? selectedLearners : null,
       });
+      await invalidateSidebarCounters(queryClient);
       resetCreateForm();
       setCreateOpen(false);
     }, 'Đã giao bài tập cho lớp.');
@@ -185,6 +208,7 @@ export default function CohortHomeworkPanel({
     setGradeError('');
     await onRun(async () => {
       await gradeHomeworkAssignment(gradingItem.id, gradeCheck.payload);
+      await invalidateSidebarCounters(queryClient);
       setGradingItemId(null);
     }, 'Đã chấm và công bố nhận xét cho học viên.');
   };
@@ -226,6 +250,7 @@ export default function CohortHomeworkPanel({
       } else {
         await submitHomeworkText(targetItem.id, { textContent: trimmedText, fileUrl: null });
       }
+      await invalidateSidebarCounters(queryClient);
       setSubmitModalItem(null);
     }, targetItem.submission ? 'Đã cập nhật bài nộp.' : 'Đã nộp bài thành công.');
   };
@@ -277,14 +302,23 @@ export default function CohortHomeworkPanel({
 
       {items.length === 0 ? (
         <ContextualEmptyState
-          variant="compact"
+          variant={isFiltered ? 'search' : 'compact'}
           context="homework"
-          illustration="homework"
-          title="Chưa có bài tập nào được giao"
+          illustration={isFiltered ? 'search' : 'homework'}
+          title={isFiltered ? 'Không tìm thấy kết quả phù hợp' : 'Chưa có bài tập nào được giao'}
           description={
-            isMentor
-              ? (canAssign ? 'Nhấn "Giao bài tập" để tạo bài mới cho lớp.' : '')
-              : 'Khi Giáo viên giao bài, danh sách sẽ hiển thị tại đây.'
+            isFiltered
+              ? 'Thử chọn trạng thái khác hoặc xóa bộ lọc để xem toàn bộ bài tập.'
+              : isMentor
+                ? (canAssign ? 'Nhấn "Giao bài tập" để tạo bài mới cho lớp.' : '')
+                : 'Khi Giáo viên giao bài, danh sách sẽ hiển thị tại đây.'
+          }
+          action={
+            isFiltered && onClearFilter ? (
+              <Button type="button" variant="outline" size="sm" onClick={onClearFilter}>
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : null
           }
         />
       ) : (
@@ -442,15 +476,27 @@ export default function CohortHomeworkPanel({
                         {item.submission.lastRevisedAtUtc ? trf(' (chỉnh sửa: {0})', { 0: fmtDate(item.submission.lastRevisedAtUtc) }) : ''}
                       </span>
                       {item.submission.hasScan && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          icon={Download}
-                          disabled={busy}
-                          onClick={() => onRun(() => openHomeworkScan(item.id), 'Đã tải tệp bài làm.')}
-                        >
-                          {tr('Tải tệp ảnh/PDF bài làm')}
-                        </Button>
+                        <div className="inline-flex flex-wrap items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            icon={Eye}
+                            loading={attachmentPreview.busyKey === `hw:${item.id}:view`}
+                            disabled={busy || Boolean(attachmentPreview.busyKey)}
+                            onClick={() => handleViewHomeworkScan(item)}
+                          >
+                            {tr('Xem bài nộp')}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={Download}
+                            disabled={busy || Boolean(attachmentPreview.busyKey)}
+                            onClick={() => onRun(() => openHomeworkScan(item.id, { download: true }), 'Đã tải tệp bài làm.')}
+                          >
+                            {tr('Tải tệp')}
+                          </Button>
+                        </div>
                       )}
                     </div>
                     {item.submission.textContent && (
@@ -682,15 +728,27 @@ export default function CohortHomeworkPanel({
                       {tr('Nộp lần')} {gradingItem.submission.revisionCount} {tr('lúc')} {fmtDate(gradingItem.submission.submittedAt)}
                     </span>
                     {gradingItem.submission.hasScan && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon={Download}
-                        disabled={busy}
-                        onClick={() => onRun(() => openHomeworkScan(gradingItem.id), 'Đã tải tệp bài làm.')}
-                      >
-                        {tr('Tải tệp ảnh/PDF bài làm')}
-                      </Button>
+                      <div className="inline-flex flex-wrap items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={Eye}
+                          loading={attachmentPreview.busyKey === `hw:${gradingItem.id}:view`}
+                          disabled={busy || Boolean(attachmentPreview.busyKey)}
+                          onClick={() => handleViewHomeworkScan(gradingItem)}
+                        >
+                          {tr('Xem bài nộp')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={Download}
+                          disabled={busy || Boolean(attachmentPreview.busyKey)}
+                          onClick={() => onRun(() => openHomeworkScan(gradingItem.id, { download: true }), 'Đã tải tệp bài làm.')}
+                        >
+                          {tr('Tải tệp')}
+                        </Button>
+                      </div>
                     )}
                   </div>
                   {gradingItem.submission.textContent && (
@@ -798,6 +856,17 @@ export default function CohortHomeworkPanel({
           </div>
         )}
       </Drawer>
+
+      <AttachmentPreviewModal
+        open={attachmentPreview.modalOpen}
+        onClose={attachmentPreview.closePreview}
+        attachment={attachmentPreview.activeAttachment}
+        loading={attachmentPreview.previewLoading}
+        error={attachmentPreview.previewError}
+        preview={attachmentPreview.previewData}
+        onDownload={attachmentPreview.handleDownloadActive}
+        downloading={Boolean(attachmentPreview.busyKey && attachmentPreview.busyKey.endsWith('-modal-dl'))}
+      />
     </Card>
   );
 }

@@ -179,7 +179,7 @@ export default function PremiumUnlockDialog({
         aria-labelledby={titleId}
         aria-describedby={descId}
         tabIndex={-1}
-        className="rp-pu-panel rp-pu-panel-body relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] bg-rp-surface shadow-[0_40px_90px_-30px_rgba(10,6,18,0.7)] outline-none sm:rounded-[28px]"
+        className="rp-pu-panel rp-pu-panel-body relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)] outline-none sm:rounded-[28px]"
       >
         {/* Hero stage */}
         <div className="rp-pu-hero shrink-0 px-5 pb-5 pt-7" aria-hidden="true">
@@ -297,7 +297,7 @@ export default function PremiumUnlockDialog({
                   >
                     <span
                       className={cx(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-rp-xs',
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rp-surface shadow-rp-xs',
                         fresh ? 'text-rp-success' : 'text-rp-text-2',
                       )}
                     >

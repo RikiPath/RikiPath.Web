@@ -52,8 +52,10 @@ export default function CascadingLocationPicker({
           disabled={disabled}
           aria-invalid={invalid || undefined}
           className={cx(
-            'rp-focus flex h-10 w-full items-center gap-2 rounded-xl border bg-white px-3.5 text-left text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60',
-            invalid ? 'border-rp-danger' : 'border-rp-line hover:border-rp-brand-border aria-expanded:border-rp-brand aria-expanded:shadow-[0_0_0_3px_rgba(224,90,122,0.18)]',
+            'flex h-10 w-full items-center gap-2 rounded-xl border bg-white px-3.5 text-left text-sm font-semibold transition-[border-color,box-shadow] duration-150 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+            invalid
+              ? 'border-rp-danger focus:border-rp-danger focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)] aria-expanded:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+              : 'border-rp-line hover:border-rp-brand-border focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)] aria-expanded:border-rp-brand aria-expanded:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]',
           )}
         >
           <SelectedIcon aria-hidden="true" className={cx('h-4 w-4 shrink-0', selectedEntity ? 'text-rp-brand-pressed' : 'text-rp-text-muted')} />

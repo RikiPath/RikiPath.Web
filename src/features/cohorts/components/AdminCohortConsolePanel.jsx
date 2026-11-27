@@ -25,8 +25,10 @@ import {
 import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
 import OccupancyProgressBar from './OccupancyProgressBar.jsx';
 import ProposalDetailedScheduleCard from '@/features/scheduling/components/ProposalDetailedScheduleCard.jsx';
+import WeeklyScheduleDisplay from '@/features/scheduling/components/WeeklyScheduleDisplay.jsx';
 import { mapCohortSessionsToOccurrences } from '@/features/scheduling/utils/proposalScheduleFormatters.js';
 import { formatTuitionVnd } from '@/features/scheduling/utils/proposalValidation.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import {
   CLASS_LIFECYCLE_STATUSES,
   computeClassProgress,
@@ -142,10 +144,12 @@ function enrichCohortRow(cohort, allCourses = [], nowMs = Date.now()) {
   const lifecycle = resolveClassLifecycleStatus({
     cohortStatus: cohort.status,
     confirmedEnrolledCount: confirmedCount,
+    enrolledCount: cohort.enrolledCount ?? confirmedCount,
     capacity: cohort.capacitySnapshot || cohort.capacity,
-    minLearnersToStart: cohort.minLearnersToStart ?? 1,
+    maxLearners: cohort.capacitySnapshot || cohort.capacity || cohort.maxLearners,
     startsAt: cohort.startsAt,
     enrollmentClosesAtUtc: cohort.enrollmentClosesAtUtc ?? null,
+    enrollmentClosedAtUtc: cohort.enrollmentClosedAtUtc ?? null,
     totalSessions: cohort.totalSessions || mergedSessions.length,
     sessions: mergedSessions,
     enrolledCourses: confirmedCourses,
@@ -279,8 +283,8 @@ export default function AdminCohortConsolePanel({
   const levelOptions = useMemo(() => {
     const levels = [...new Set(cohorts.map((c) => String(c.level || '').trim()).filter(Boolean))].sort();
     return [
-      { value: 'ALL', label: tr('Tất cả cấp độ') },
-      ...levels.map((lvl) => ({ value: lvl, label: lvl })),
+      { value: 'ALL', label: tr('Tất cả') },
+      ...levels.map((lvl) => ({ value: lvl, label: formatJlptLevel(lvl) })),
     ];
   }, [cohorts, tr]);
 
@@ -297,7 +301,7 @@ export default function AdminCohortConsolePanel({
       .sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'vi'))
       .map(([value, label]) => ({ value, label }));
     return [
-      { value: 'ALL', label: tr('Tất cả giáo viên') },
+      { value: 'ALL', label: tr('Tất cả') },
       ...sorted,
     ];
   }, [cohorts, tr]);
@@ -324,19 +328,24 @@ export default function AdminCohortConsolePanel({
       header: tr('Lớp học'),
       sortValue: (row) => row.name || '',
       render: (row) => (
-        <div className="min-w-[180px] space-y-0.5">
+        <div className="min-w-[200px] space-y-0.5">
           <div className="flex flex-wrap items-center gap-1.5">
+            {row.level && (
+              <>
+                <span className="shrink-0 text-[13px] font-semibold text-rp-text">{row.level}</span>
+                <span aria-hidden="true" className="text-rp-text-muted">·</span>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setDetailCohortId(row.id)}
               title={row.name}
-              className="rp-focus block max-w-[240px] truncate rounded text-left text-[13.5px] font-semibold text-rp-text transition-colors hover:text-[#C84666]"
+              className="rp-focus block max-w-[260px] truncate rounded text-left text-[14px] font-semibold text-rp-text transition-colors hover:text-[#C84666]"
             >
               {row.name}
             </button>
-            {row.level && <AdminStatusBadge tone="brand" withDot={false} label={row.level} />}
           </div>
-          <div className="text-[11.5px] tabular-nums text-rp-text-muted">
+          <div className="text-[12.5px] tabular-nums text-rp-text-muted">
             {fmtDateOnly(row.startsAt)} – {fmtDateOnly(row.endsAt)}
             {row.progress.totalSessions > 0 && ` · ${trf('{0} buổi', { 0: row.progress.totalSessions })}`}
           </div>
@@ -346,6 +355,7 @@ export default function AdminCohortConsolePanel({
     {
       key: 'mentorName',
       header: tr('Giáo viên'),
+      align: 'left',
       sortValue: (row) => row.mentorName || '',
       render: (row) => (
         <span className="text-sm font-medium text-rp-text-2">{row.mentorName || tr('Giáo viên')}</span>
@@ -354,27 +364,35 @@ export default function AdminCohortConsolePanel({
     {
       key: 'schedule',
       header: tr('Lịch học hàng tuần'),
+      align: 'center',
       render: (row) => (
-        <span className="block max-w-[230px] text-xs leading-5 text-rp-text-2">
-          {row.scheduleSummary}
-        </span>
+        <div className="mx-auto max-w-[300px]">
+          <WeeklyScheduleDisplay
+            schedulePattern={row.schedulePattern}
+            sessions={row.sessions}
+            sessionDurationMinutes={row.sessionMinutes}
+            variant="compact"
+            align="center"
+          />
+        </div>
       ),
     },
     {
       key: 'capacity',
       header: tr('Sĩ số & giữ chỗ'),
+      align: 'center',
       compact: true,
       sortValue: (row) => Number(row.confirmedCount || 0),
       render: (row) => {
         const cap = Number(row.capacitySnapshot || row.capacity || groupPolicy?.maxLearners || 0);
         return (
           <div className="min-w-[108px] space-y-1">
-            <div className="flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center justify-between gap-2 text-[13px]">
               <span className="tabular-nums font-semibold text-rp-text">
                 {row.confirmedCount}/{cap || '—'}
               </span>
               {row.pendingHolds > 0 && (
-                <span className="rounded-full border border-rp-warning-line bg-rp-warning-bg px-1.5 py-0.5 text-[10.5px] font-semibold text-rp-warning">
+                <span className="rounded-full border border-rp-warning-line bg-rp-warning-bg px-1.5 py-0.5 text-[11.5px] font-semibold text-rp-warning">
                   {trf('+{0} giữ chỗ', { 0: row.pendingHolds })}
                 </span>
               )}
@@ -392,10 +410,11 @@ export default function AdminCohortConsolePanel({
     {
       key: 'progress',
       header: tr('Tiến trình'),
+      align: 'center',
       compact: true,
       sortValue: (row) => Number(row.progress.completedSessions || 0),
       render: (row) => (
-        <span className="whitespace-nowrap tabular-nums text-xs font-medium text-rp-text-2">
+        <span className="whitespace-nowrap tabular-nums text-[13px] font-medium text-rp-text-2">
           {row.progress.completedSessions}/{row.progress.totalSessions || 0} {tr('buổi')}
         </span>
       ),
@@ -403,6 +422,7 @@ export default function AdminCohortConsolePanel({
     {
       key: 'price',
       header: tr('Học phí'),
+      align: 'right',
       compact: true,
       sortValue: (row) => Number(row.price || 0),
       render: (row) => (
@@ -414,6 +434,7 @@ export default function AdminCohortConsolePanel({
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       sortValue: (row) => (row.status === 'Draft' ? 'Chờ mở lớp' : row.lifecycle?.label || ''),
       render: (row) => {
@@ -446,6 +467,7 @@ export default function AdminCohortConsolePanel({
           refresh={
             onRefresh
               ? {
+                  when: hasAnyCohorts,
                   onRefresh,
                   refreshing,
                   disabled: busy,
@@ -467,7 +489,7 @@ export default function AdminCohortConsolePanel({
               <CustomSelect
                 fitContent
                 value={levelFilter}
-                aria-label={tr('Lọc theo cấp độ JLPT')}
+                aria-label={tr('Cấp độ')}
                 onChange={setLevelFilter}
                 options={levelOptions}
               />
@@ -475,7 +497,7 @@ export default function AdminCohortConsolePanel({
               <CustomSelect
                 fitContent
                 value={mentorFilter}
-                aria-label={tr('Lọc theo giáo viên')}
+                aria-label={tr('Giáo viên')}
                 onChange={setMentorFilter}
                 options={mentorOptions}
               />
@@ -483,10 +505,10 @@ export default function AdminCohortConsolePanel({
               <CustomSelect
                 fitContent
                 value={lifecycleFilter}
-                aria-label={tr('Lọc theo trạng thái lớp')}
+                aria-label={tr('Trạng thái')}
                 onChange={setLifecycleFilter}
                 options={[
-                  { value: 'ALL', label: tr('Tất cả trạng thái') },
+                  { value: 'ALL', label: tr('Tất cả') },
                   ...CLASS_LIFECYCLE_STATUSES.map((st) => ({
                     value: st.id,
                     label: tr(st.label),
@@ -528,7 +550,7 @@ export default function AdminCohortConsolePanel({
           description={
             hasAnyCohorts && hasFilters
               ? tr('Thử thay đổi bộ lọc cấp độ, giáo viên, trạng thái hoặc xóa từ khóa tìm kiếm.')
-              : tr('Lớp học và lịch tuyển sinh sẽ được tự động tạo ngay khi Quản trị viên phê duyệt đề xuất mở lớp.')
+              : tr('Lớp học sẽ được tạo khi Giáo viên chọn hạn tuyển sinh để mở lớp từ các đề xuất đã được Quản trị viên phê duyệt.')
           }
           action={
             hasAnyCohorts && hasFilters ? (
@@ -539,11 +561,7 @@ export default function AdminCohortConsolePanel({
               >
                 {tr('Xóa bộ lọc')}
               </Button>
-            ) : (
-              <Button as={Link} to="/admin/mentor-schedules/" variant="outline">
-                {tr('Đi tới Duyệt lịch dạy')}
-              </Button>
-            )
+            ) : null
           }
         />
       ) : (
@@ -591,11 +609,11 @@ export default function AdminCohortConsolePanel({
             {/* 4 Key Monitoring KPIs */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                <div className="flex items-center gap-1.5 text-[12px] font-medium text-rp-text-muted">
                   <Users className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
                   <span>{tr('Đã ghi danh')}</span>
                 </div>
-                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                <div className="mt-1 text-[18px] font-bold tabular-nums text-rp-text">
                   {detailCohort.confirmedCount}/{detailCohort.capacitySnapshot || detailCohort.capacity}
                 </div>
                 <OccupancyProgressBar
@@ -603,54 +621,54 @@ export default function AdminCohortConsolePanel({
                   capacity={detailCohort.capacitySnapshot || detailCohort.capacity || 0}
                   size="sm"
                   className="mt-1.5"
-                  label={trf('Đã ghi danh: {0}/{1} học viên', {
-                    0: detailCohort.confirmedCount,
-                    1: detailCohort.capacitySnapshot || detailCohort.capacity || 0,
+                  label={trf('Sĩ số tối đa: {0} học viên · Đã ghi danh: {1}/{0}', {
+                    0: detailCohort.capacitySnapshot || detailCohort.capacity || 0,
+                    1: detailCohort.confirmedCount,
                   })}
                 />
               </div>
 
               <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                <div className="flex items-center gap-1.5 text-[12px] font-medium text-rp-text-muted">
                   <Clock className="h-3.5 w-3.5 text-rp-warning" aria-hidden="true" />
                   <span>{tr('Đang giữ chỗ')}</span>
                 </div>
-                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                <div className="mt-1 text-[18px] font-bold tabular-nums text-rp-text">
                   {detailCohort.pendingHolds}
                 </div>
-                <div className="mt-0.5 text-[11px] text-rp-text-muted">
+                <div className="mt-0.5 text-[12px] text-rp-text-muted">
                   {tr('Chờ hoàn tất thanh toán')}
                 </div>
               </div>
 
               <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                <div className="flex items-center gap-1.5 text-[12px] font-medium text-rp-text-muted">
                   <CheckCircle2 className="h-3.5 w-3.5 text-rp-success" aria-hidden="true" />
                   <span>{tr('Tiến trình học')}</span>
                 </div>
-                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                <div className="mt-1 text-[18px] font-bold tabular-nums text-rp-text">
                   {detailCohort.progress.completedSessions}/{detailCohort.progress.totalSessions || 0} {tr('buổi')}
                 </div>
-                <div className="mt-0.5 text-[11px] tabular-nums text-rp-text-muted">
+                <div className="mt-0.5 text-[12px] tabular-nums text-rp-text-muted">
                   {detailCohort.progress.percent}% {tr('khóa học')}
                 </div>
               </div>
 
               <div className="rounded-xl border border-rp-line bg-rp-surface p-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rp-text-muted">
+                <div className="flex items-center gap-1.5 text-[12px] font-medium text-rp-text-muted">
                   <GraduationCap className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
                   <span>{tr('Tổng học phí đã thu')}</span>
                 </div>
-                <div className="mt-1 text-base font-bold tabular-nums text-rp-text">
+                <div className="mt-1 text-[18px] font-bold tabular-nums text-rp-text">
                   {fmtCollectedVnd(detailCohort.totalCollectedAmount)}
                 </div>
-                <div className="mt-0.5 text-[11px] tabular-nums text-rp-text-muted">
+                <div className="mt-0.5 text-[12px] tabular-nums text-rp-text-muted">
                   {detailCohort.tuitionPerLearner > 0
                     ? `${formatTuitionVnd(detailCohort.tuitionPerLearner)} / ${tr('học viên')}`
                     : tr('Chưa cấu hình học phí')}
                 </div>
                 {Number(detailCohort.totalRefundedAmount || 0) > 0 && (
-                  <div className="mt-0.5 text-[10.5px] tabular-nums text-rp-text-muted">
+                  <div className="mt-0.5 text-[11.5px] tabular-nums text-rp-text-muted">
                     {trf('Thu {0} · Hoàn {1}', {
                       0: fmtCollectedVnd(detailCohort.grossCollectedAmount),
                       1: fmtCollectedVnd(detailCohort.totalRefundedAmount),
@@ -668,13 +686,19 @@ export default function AdminCohortConsolePanel({
                   <span>{tr('Thông tin khóa học')}</span>
                 </h3>
                 {Number(detailCohort.totalTeachingHours) > 0 && (
-                  <span className="text-xs font-medium tabular-nums text-rp-text-muted">
+                  <span className="text-[12.5px] font-medium tabular-nums text-rp-text-muted">
                     {trf('{0} giờ giảng dạy', { 0: detailCohort.totalTeachingHours })}
                   </span>
                 )}
               </div>
 
-              <dl className="grid grid-cols-1 gap-2.5 text-xs sm:grid-cols-3">
+              <dl className="grid grid-cols-1 gap-2.5 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-rp-muted/50 px-3 py-2">
+                  <dt className="text-rp-text-muted">{tr('Mở tuyển sinh')}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">
+                    {fmtDateTime(detailCohort.enrollmentOpensAtUtc || detailCohort.createdAt)}
+                  </dd>
+                </div>
                 <div className="rounded-lg bg-rp-muted/50 px-3 py-2">
                   <dt className="text-rp-text-muted">{tr('Hạn tuyển sinh')}</dt>
                   <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">
@@ -690,13 +714,20 @@ export default function AdminCohortConsolePanel({
                   <dd className="mt-0.5 font-semibold tabular-nums text-rp-text">{fmtDateOnly(detailCohort.endsAt)}</dd>
                 </div>
               </dl>
+
+              {detailCohort.lifecycle.id === 'Cancelled' && detailCohort.cancellationReason && (
+                <div className="rounded-lg border border-rp-danger/25 bg-rp-danger-bg px-3 py-2 text-xs text-rp-danger">
+                  <span className="font-semibold">{tr('Lý do hủy lớp')}: </span>
+                  <span>{detailCohort.cancellationReason}</span>
+                </div>
+              )}
             </div>
 
-            {/* Unified Detailed Course Schedule (Shared 2-Column Year-Grouped Card) */}
+            {/* Unified Detailed Course Schedule */}
             {detailScheduleOccurrences.length > 0 && (
               <ProposalDetailedScheduleCard
                 occurrences={detailScheduleOccurrences}
-                durationWeeks={detailCohort.courseDurationWeeks || 10}
+                durationWeeks={Math.max(1, Number(detailCohort.courseDurationWeeks || 1))}
                 projected={false}
                 showStatusBadges
                 initialVisibleCount={6}

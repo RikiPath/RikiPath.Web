@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { BadgeCheck, CalendarCheck, GraduationCap, UsersRound } from 'lucide-react';
 import { AdminShell } from '@/layouts';
 import AdminPageHeader from '@/features/admin/components/AdminPageHeader.jsx';
@@ -30,8 +30,8 @@ const ROUTE_META = {
     icon: BadgeCheck,
   },
   '/admin/mentor-schedules': {
-    breadcrumb: 'Duyệt lịch dạy',
-    title: 'Duyệt lịch dạy',
+    breadcrumb: 'Đề xuất mở lớp',
+    title: 'Đề xuất mở lớp',
     icon: CalendarCheck,
   },
   '/admin/mentor-qualifications': {
@@ -43,9 +43,10 @@ const ROUTE_META = {
 
 export default function AdminMentorHub() {
   const { tr } = useLocale();
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
   const current = cleanPath(pathname);
-  const initialProposalId = new URLSearchParams(search).get('proposalId');
+  const initialProposalId = searchParams.get('proposalId');
 
   const meta = ROUTE_META[current] || ROUTE_META['/admin/mentors'];
   const isSchedules = current === '/admin/mentor-schedules';

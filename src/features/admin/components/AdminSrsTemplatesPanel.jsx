@@ -39,7 +39,6 @@ export default function AdminSrsTemplatesPanel() {
   const [previewItem, setPreviewItem] = useState(null);
 
   const trimmedSearch = search.trim();
-  const hasFilters = Boolean(trimmedSearch || cardTypeFilter || statusFilter !== 'PendingReview');
 
   const listQuery = useQuery({
     queryKey: ['admin-srs-templates', { statusFilter, cardTypeFilter, search: trimmedSearch }],
@@ -83,9 +82,23 @@ export default function AdminSrsTemplatesPanel() {
   });
 
   const items = listQuery.data || [];
+  const hasAnySrsFilter = Boolean(trimmedSearch || cardTypeFilter || statusFilter !== '');
+
+  const unfilteredSrsQuery = useQuery({
+    queryKey: ['admin-srs-templates', 'unfiltered-check'],
+    queryFn: () => getAdminSrsTemplates({ status: '', cardType: '', search: '' }),
+    enabled: Boolean(hasAnySrsFilter && listQuery.isSuccess && items.length === 0),
+    staleTime: 30_000,
+  });
+
+  const hasUnderlyingSrsTemplates = !listQuery.isLoading && !listQuery.isError && (
+    items.length > 0 || (hasAnySrsFilter && (unfilteredSrsQuery.isPending || (unfilteredSrsQuery.data?.length ?? 0) > 0))
+  );
+  const isFilterZero = hasAnySrsFilter && !listQuery.isLoading && !listQuery.isError && (unfilteredSrsQuery.data?.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
+      {hasUnderlyingSrsTemplates && (
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#EAE3E4] bg-[#FFFCF8] p-3.5">
         <div className="w-full sm:w-64">
           <SearchInput
@@ -97,20 +110,20 @@ export default function AdminSrsTemplatesPanel() {
         </div>
         <CustomSelect
           fitContent
+          label="Loại thẻ"
           value={cardTypeFilter}
           onChange={setCardTypeFilter}
-          className="min-w-[140px]"
           options={[
-            { value: '', label: tr('Mọi loại thẻ') },
+            { value: '', label: tr('Tất cả') },
             { value: 'Vocabulary', label: tr('Từ vựng') },
             { value: 'Kanji', label: tr('Kanji') },
           ]}
         />
         <CustomSelect
           fitContent
+          label="Trạng thái"
           value={statusFilter}
           onChange={setStatusFilter}
-          className="min-w-[164px]"
           options={[
             { value: 'PendingReview', label: tr('Chờ duyệt') },
             { value: 'Published', label: tr('Đã xuất bản') },
@@ -120,6 +133,7 @@ export default function AdminSrsTemplatesPanel() {
           ]}
         />
       </div>
+      )}
 
       {listQuery.isLoading ? (
         <SakuraLoader variant="section" />
@@ -136,12 +150,16 @@ export default function AdminSrsTemplatesPanel() {
       ) : items.length === 0 ? (
         <Card className="border-[#EAE3E4] bg-white">
           <ContextualEmptyState
-            variant={hasFilters ? 'search' : 'compact'}
+            variant={isFilterZero ? 'search' : 'compact'}
             framed={false}
-            illustration={hasFilters ? 'search' : 'flashcard'}
-            title={tr(hasFilters ? 'Không tìm thấy kết quả phù hợp' : 'Không có thẻ mẫu SRS nào')}
-            description={tr('Thẻ mẫu do Tác giả nội dung gửi duyệt hoặc đã xuất bản sẽ xuất hiện tại đây.')}
-            action={hasFilters ? (
+            illustration={isFilterZero ? 'search' : 'flashcard'}
+            title={tr(isFilterZero ? 'Không tìm thấy kết quả phù hợp' : 'Chưa có thẻ mẫu SRS nào')}
+            description={
+              isFilterZero
+                ? tr('Thử thay đổi từ khóa hoặc chọn trạng thái khác để xem toàn bộ thẻ mẫu.')
+                : tr('Thẻ mẫu do Tác giả nội dung gửi duyệt hoặc đã xuất bản sẽ xuất hiện tại đây.')
+            }
+            action={isFilterZero ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -333,16 +351,16 @@ export default function AdminSrsTemplatesPanel() {
         onClose={reviewMut.isPending || publishMut.isPending ? undefined : () => setReasonModal(null)}
         title={reasonModal?.mode === 'reject' ? tr('Từ chối thẻ mẫu SRS') : tr('Ngừng xuất bản thẻ mẫu SRS')}
         description={
-          reasonModal?.mode === 'unpublish'
-            ? tr('Thẻ mới sẽ không xuất hiện ở danh mục gợi ý, nhưng lịch ôn và thẻ đang học của Học viên vẫn được giữ nguyên.')
-            : undefined
+          reasonModal?.mode === 'reject'
+            ? tr('Thẻ mẫu bị từ chối sẽ được trả về cho Biên soạn viên chỉnh sửa kèm lý do.')
+            : tr('Thẻ mới sẽ không xuất hiện ở danh mục gợi ý, nhưng lịch ôn và thẻ đang học của Học viên vẫn được giữ nguyên.')
         }
         size="sm"
         footer={(
           <>
             <Button
               type="button"
-              variant="secondary"
+              variant="neutral"
               disabled={reviewMut.isPending || publishMut.isPending}
               onClick={() => setReasonModal(null)}
             >

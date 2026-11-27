@@ -182,7 +182,8 @@ export default function AdminCertificateSections() {
     {
       key: 'level',
       header: tr('Cấp độ'),
-      width: 'w-[8%]',
+      align: 'center',
+      compact: true,
       sortable: false,
       render: (row) => (
         <span className="inline-flex min-w-[40px] items-center justify-center rounded-lg border border-rp-brand-border bg-rp-brand-tint px-2 py-0.5 text-[12.5px] font-bold text-rp-brand-strong">
@@ -193,10 +194,10 @@ export default function AdminCertificateSections() {
     {
       key: 'name',
       header: tr('Phần thi'),
-      width: 'w-[34%]',
+      align: 'left',
       sortable: false,
       render: (row) => (
-        <div className="min-w-[220px]">
+        <div className="min-w-0">
           <p className="line-clamp-2 font-semibold text-rp-text" title={row.name}>{row.name}</p>
           <p className="mt-0.5 text-xs text-rp-text-muted">{row.code}</p>
         </div>
@@ -205,24 +206,24 @@ export default function AdminCertificateSections() {
     {
       key: 'score',
       header: tr('Điểm đạt / tối đa'),
-      width: 'w-[19%]',
       align: 'center',
+      compact: true,
       sortable: false,
       render: (row) => <span className="tabular-nums text-rp-text-2">{row.passingScore}/{row.maxScore}</span>,
     },
     {
       key: 'durationMinutes',
       header: tr('Phút'),
-      width: 'w-[12%]',
       align: 'center',
+      compact: true,
       sortable: false,
       render: (row) => <span className="tabular-nums text-rp-text-2">{row.durationMinutes ?? '—'}</span>,
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
-      width: 'w-[17%]',
       align: 'center',
+      compact: true,
       sortable: false,
       render: (row) => (
         <Badge size="sm" tone={row.isArchived ? 'neutral' : 'success'}>

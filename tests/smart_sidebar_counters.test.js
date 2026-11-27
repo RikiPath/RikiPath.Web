@@ -98,19 +98,22 @@ describe('Smart Sidebar — SidebarBadge formatting & state logic', () => {
     assert.equal(collapsedParent.isParent, true);
   });
 
-  it('applies subtle soft-pulse only to learner.srs_due when inactive & visible, and 2-beat pop only on genuine ActionRequired increases', () => {
-    assert.deepEqual(SOFT_PULSE_COUNTER_KEYS, ['learner.srs_due']);
+  it('disables infinite soft-pulse and applies finite 2-beat pop only on genuine fresh increases for eligible kinds', () => {
+    assert.deepEqual(SOFT_PULSE_COUNTER_KEYS, []);
 
-    // SRS due: soft-pulse when inactive & visible, stops when opened or tab hidden or count=0
+    // learner.srs_due: steady initial load -> none; active -> none; hidden tab -> none; count=0 -> none
     assert.equal(
       resolveSidebarBadgeAttention({
-        count: 12,
+        count: 1,
         counterKey: 'learner.srs_due',
         counterKind: 'DueItems',
         active: false,
+        increaseSeq: 0,
+        increasedAtMs: 0,
+        mountTimeMs: 10_000,
         tabVisible: true,
       }).mode,
-      'soft-pulse',
+      'none',
     );
     assert.equal(
       resolveSidebarBadgeAttention({
@@ -118,6 +121,9 @@ describe('Smart Sidebar — SidebarBadge formatting & state logic', () => {
         counterKey: 'learner.srs_due',
         counterKind: 'DueItems',
         active: true,
+        increaseSeq: 1,
+        increasedAtMs: 12_000,
+        mountTimeMs: 10_000,
         tabVisible: true,
       }).mode,
       'none',
@@ -128,6 +134,9 @@ describe('Smart Sidebar — SidebarBadge formatting & state logic', () => {
         counterKey: 'learner.srs_due',
         counterKind: 'DueItems',
         active: false,
+        increaseSeq: 1,
+        increasedAtMs: 12_000,
+        mountTimeMs: 10_000,
         tabVisible: false,
       }).mode,
       'none',
@@ -138,10 +147,38 @@ describe('Smart Sidebar — SidebarBadge formatting & state logic', () => {
         counterKey: 'learner.srs_due',
         counterKind: 'DueItems',
         active: false,
+        increaseSeq: 1,
+        increasedAtMs: 12_000,
+        mountTimeMs: 10_000,
         tabVisible: true,
       }).mode,
       'none',
     );
+
+    // Fresh realtime increases -> finite pop (odd/even phase + bumpNum) for ActionRequired, DueItems, PendingUserAction
+    const duePop = resolveSidebarBadgeAttention({
+      count: 2,
+      counterKey: 'learner.srs_due',
+      counterKind: 'DueItems',
+      increaseSeq: 1,
+      increasedAtMs: 11_000,
+      mountTimeMs: 10_000,
+    });
+    assert.equal(duePop.mode, 'pop');
+    assert.equal(duePop.popPhase, 'odd');
+    assert.equal(duePop.bumpNum, true);
+
+    const pendingPop = resolveSidebarBadgeAttention({
+      count: 2,
+      counterKey: 'mentor.proposals_action_required',
+      counterKind: 'PendingUserAction',
+      increaseSeq: 2,
+      increasedAtMs: 12_000,
+      mountTimeMs: 10_000,
+    });
+    assert.equal(pendingPop.mode, 'pop');
+    assert.equal(pendingPop.popPhase, 'even');
+    assert.equal(pendingPop.bumpNum, true);
 
     // ActionRequired: steady -> none, fresh increase -> pop (odd/even phase), stale remount -> none
     assert.equal(
@@ -186,19 +223,6 @@ describe('Smart Sidebar — SidebarBadge formatting & state logic', () => {
         increaseSeq: 2,
         increasedAtMs: 14_000,
         mountTimeMs: 19_000,
-      }).mode,
-      'none',
-    );
-
-    // PendingUserAction never continuous-pulses or pops
-    assert.equal(
-      resolveSidebarBadgeAttention({
-        count: 2,
-        counterKey: 'mentor.proposals_action_required',
-        counterKind: 'PendingUserAction',
-        increaseSeq: 1,
-        increasedAtMs: 12_000,
-        mountTimeMs: 10_000,
       }).mode,
       'none',
     );
@@ -280,32 +304,70 @@ describe('Smart Sidebar — SidebarBadge formatting & state logic', () => {
 });
 
 describe('Smart Sidebar — Parent/child aggregation & anti-double-counting', () => {
-  it('aggregates distinct child counters when parent is collapsed and distributes when expanded', () => {
-    const mentorClasses = ROLE_NAV.Mentor.groups
+  it('aggregates distinct child counters when parent is collapsed and distributes without duplication when expanded', () => {
+    const mentorScheduleBranch = ROLE_NAV.Mentor.groups
       .flatMap((g) => g.items)
-      .find((i) => i.id === 'mentor-classes');
-    assert.ok(mentorClasses);
+      .find((i) => i.id === 'mentor-teaching-schedule');
+    assert.ok(mentorScheduleBranch, 'Mentor nav must expose mentor-teaching-schedule branch');
 
     const counterMap = {
-      [SIDEBAR_COUNTER_KEYS.MENTOR_COHORT_ATTENDANCE_PENDING]: { count: 2 },
-      [SIDEBAR_COUNTER_KEYS.MENTOR_HOMEWORK_TO_GRADE]: { count: 5 },
+      [SIDEBAR_COUNTER_KEYS.MENTOR_PROPOSALS_ACTION_REQUIRED]: { count: 3, kind: 'PendingUserAction' },
+      [SIDEBAR_COUNTER_KEYS.MENTOR_COHORT_ATTENDANCE_PENDING]: { count: 2, kind: 'PendingUserAction' },
+      [SIDEBAR_COUNTER_KEYS.MENTOR_HOMEWORK_TO_GRADE]: { count: 5, kind: 'ActionRequired' },
     };
 
-    const whenClosed = resolveNavItemBadge(mentorClasses, counterMap, { isBranchOpen: false, collapsed: false });
-    assert.equal(whenClosed.count, 7);
+    const whenClosed = resolveNavItemBadge(mentorScheduleBranch, counterMap, { isBranchOpen: false, collapsed: false });
+    assert.equal(whenClosed.count, 3);
     assert.equal(whenClosed.parent, true);
-    assert.equal(whenClosed.tooltip, '7 công việc cần xử lý');
+    assert.equal(whenClosed.tooltip, '3 đăng ký cần xử lý');
 
-    const whenExpanded = resolveNavItemBadge(mentorClasses, counterMap, { isBranchOpen: true, collapsed: false });
-    assert.equal(whenExpanded.count, 0, 'Expanded parent must hide redundant aggregate when children display counts');
+    const whenExpanded = resolveNavItemBadge(mentorScheduleBranch, counterMap, { isBranchOpen: true, collapsed: false });
+    assert.equal(whenExpanded.count, 0, 'Expanded parent must hide redundant aggregate when child displays count');
 
-    const whenRailCollapsed = resolveNavItemBadge(mentorClasses, counterMap, { isBranchOpen: true, collapsed: true });
-    assert.equal(whenRailCollapsed.count, 7, 'Collapsed icon rail must always show parent aggregate');
+    const whenRailCollapsed = resolveNavItemBadge(mentorScheduleBranch, counterMap, { isBranchOpen: true, collapsed: true });
+    assert.equal(whenRailCollapsed.count, 3, 'Collapsed icon rail must always show parent aggregate');
 
-    const childAttendance = mentorClasses.children.find((c) => c.to === '/mentor-study-courses');
-    const childHomework = mentorClasses.children.find((c) => c.to === '/mentor-homework');
-    assert.equal(resolveNavItemBadge(childAttendance, counterMap).count, 2);
-    assert.equal(resolveNavItemBadge(childHomework, counterMap).count, 5);
+    const proposalChild = mentorScheduleBranch.children.find((c) => c.to === '/mentor-proposal-history');
+    assert.ok(proposalChild);
+    assert.equal(proposalChild.label, 'Danh sách đăng ký');
+    assert.equal(resolveNavItemBadge(proposalChild, counterMap).count, 3);
+
+    const mentorItems = ROLE_NAV.Mentor.groups.flatMap((g) => flattenNavItems(g.items));
+    const leafAttendance = mentorItems.find((c) => c.to === '/mentor-study-courses');
+    const leafHomework = mentorItems.find((c) => c.to === '/mentor-homework');
+    assert.equal(resolveNavItemBadge(leafAttendance, counterMap).count, 2);
+    assert.equal(resolveNavItemBadge(leafHomework, counterMap).count, 5);
+
+    // Learner Group Learning branch aggregation & Sổ tay cá nhân intentional omission
+    const learnerItems = ROLE_NAV.Learner.groups.flatMap((g) => g.items);
+    const groupBranch = learnerItems.find((i) => i.id === 'group-learning');
+    assert.ok(groupBranch);
+    const learnerMap = {
+      [SIDEBAR_COUNTER_KEYS.LEARNER_SRS_DUE]: { count: 1, kind: 'DueItems' },
+      [SIDEBAR_COUNTER_KEYS.LEARNER_HOMEWORK_PENDING]: { count: 4, kind: 'PendingUserAction' },
+    };
+    assert.equal(resolveNavItemBadge(groupBranch, learnerMap, { isBranchOpen: false, collapsed: false }).count, 4);
+    assert.equal(resolveNavItemBadge(groupBranch, learnerMap, { isBranchOpen: true, collapsed: false }).count, 0);
+    assert.equal(resolveNavItemBadge(groupBranch, learnerMap, { isBranchOpen: true, collapsed: true }).count, 4);
+
+    const notebookItem = learnerItems.find((i) => i.to === '/kanji-notebook');
+    assert.ok(notebookItem);
+    assert.equal(notebookItem.counterKey, undefined, 'Sổ tay cá nhân must NOT carry a total-items notification badge');
+    assert.equal(resolveNavItemBadge(notebookItem, learnerMap).count, 0);
+
+    // Multi-child branch aggregate (2 + 5 = 7) with aggregate tooltip
+    const multiChildBranch = {
+      id: 'multi-child-test',
+      children: [
+        { to: '/mentor-study-courses', counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_COHORT_ATTENDANCE_PENDING },
+        { to: '/mentor-homework', counterKey: SIDEBAR_COUNTER_KEYS.MENTOR_HOMEWORK_TO_GRADE },
+      ],
+    };
+    const multiClosed = resolveNavItemBadge(multiChildBranch, counterMap, { isBranchOpen: false, collapsed: false });
+    assert.equal(multiClosed.count, 7);
+    assert.equal(multiClosed.tooltip, '7 công việc cần xử lý');
+    assert.equal(resolveNavItemBadge(multiChildBranch, counterMap, { isBranchOpen: true, collapsed: false }).count, 0);
+    assert.equal(resolveNavItemBadge(multiChildBranch, counterMap, { isBranchOpen: true, collapsed: true }).count, 7);
   });
 
   it('uses single-child semantic tooltip on collapsed Learner SRS parent and deduplicates repeated keys', () => {
@@ -432,33 +494,38 @@ describe('Smart Sidebar — Design tokens, WCAG contrast, i18n & architecture co
     assert.ok(seenPerRole.ContentAuthor.size >= 5);
   });
 
-  it('defines light & dark badge tokens passing WCAG AA >= 4.5:1 with scoped soft-pulse, 2-beat pop, no white border, and reduced-motion guard', () => {
+  it('defines light & dark badge tokens passing WCAG AA >= 4.5:1 with finite 2-beat pop, no white border, no soft-pulse, and reduced-motion guard', () => {
     const tokens = readSrc('src/styles/tokens.css');
     const lightBg = tokens.match(/--rp-sidebar-badge-bg:\s*(#[0-9A-Fa-f]{6})/)[1];
     const lightFg = tokens.match(/--rp-sidebar-badge-fg:\s*(#[0-9A-Fa-f]{6})/)[1];
-    const lightActiveBg = tokens.match(/--rp-sidebar-badge-active-bg:\s*(#[0-9A-Fa-f]{6})/)[1];
-    const lightActiveFg = tokens.match(/--rp-sidebar-badge-active-fg:\s*(#[0-9A-Fa-f]{6})/)[1];
-
     assert.ok(contrastRatio(lightBg, lightFg) >= 4.5, `Coral badge contrast must be >= 4.5:1 (got ${contrastRatio(lightBg, lightFg).toFixed(2)})`);
-    assert.ok(contrastRatio(lightActiveBg, lightActiveFg) >= 4.5, `Sakura active badge contrast must be >= 4.5:1 (got ${contrastRatio(lightActiveBg, lightActiveFg).toFixed(2)})`);
 
     const darkBlock = tokens.slice(tokens.lastIndexOf("[data-theme='dark']"));
-    const darkActiveBg = darkBlock.match(/--rp-sidebar-badge-active-bg:\s*(#[0-9A-Fa-f]{6})/)[1];
-    const darkActiveFg = darkBlock.match(/--rp-sidebar-badge-active-fg:\s*(#[0-9A-Fa-f]{6})/)[1];
-    assert.ok(contrastRatio(darkActiveBg, darkActiveFg) >= 4.5, 'Dark Sakura active badge contrast must be >= 4.5:1');
+    const darkBg = darkBlock.match(/--rp-sidebar-badge-bg:\s*(#[0-9A-Fa-f]{6})/)[1];
+    const darkFg = darkBlock.match(/--rp-sidebar-badge-fg:\s*(#[0-9A-Fa-f]{6})/)[1];
+    assert.ok(contrastRatio(darkBg, darkFg) >= 4.5, 'Dark badge contrast must be >= 4.5:1');
 
     const badgeCss = tokens.slice(tokens.indexOf('.rp-sidebar-badge {'));
     assert.doesNotMatch(badgeCss, /--rp-sidebar-badge-ring/, 'SidebarBadge must not add a white ring/border');
-    assert.match(badgeCss, /\.rp-sidebar-badge\[data-attention="soft-pulse"\]/);
+    assert.doesNotMatch(badgeCss, /soft-pulse/, 'SidebarBadge must not run an infinite soft-pulse animation');
     assert.match(badgeCss, /\.rp-sidebar-badge\[data-attention="pop"\]\[data-pop-phase="odd"\]/);
+    assert.match(badgeCss, /\.rp-sidebar-badge\[data-attention="pop"\]\[data-pop-phase="even"\]/);
+    assert.match(badgeCss, /animation:\s*rp-sidebar-badge-pop-odd\s+480ms[\s\S]*\b2\s+both;/);
     assert.match(badgeCss, /data-tab-hidden="true"[\s\S]*animation-play-state:\s*paused/);
     assert.match(badgeCss, /prefers-reduced-motion:\s*reduce/);
   });
 
-  it('mounts useSidebarCounters once in AppShell, uses shared SidebarBadge, and clears cache on Auth transitions', () => {
+  it('mounts useSidebarCounters once in AppShell (desktop + mobile Drawer), renders pop attrs in SidebarBadge, clears cache on Auth, and reconciles via SignalR/fallback', () => {
     const shell = readSrc('src/layouts/AppShell.jsx');
     assert.equal((shell.match(/useSidebarCounters\(/g) || []).length, 1, 'AppShell must call useSidebarCounters once');
     assert.match(shell, /<SidebarBadge/);
+    assert.ok((shell.match(/counters=\{sidebarCounters\.byKey\}/g) || []).length >= 2, 'AppShell must wire counters into both desktop sidebar and mobile Drawer');
+    assert.match(shell, /<Drawer[\s\S]{0,600}counters=\{sidebarCounters\.byKey\}/);
+
+    const badgeComponent = readSrc('src/components/ui/SidebarBadge.jsx');
+    assert.match(badgeComponent, /data-attention=\{attention\.mode\}/);
+    assert.match(badgeComponent, /data-pop-phase=\{attention\.popPhase \|\| undefined\}/);
+    assert.match(badgeComponent, /rp-sidebar-badge-num-bump/);
 
     const auth = readSrc('src/app/auth/AuthContext.jsx');
     assert.match(auth, /const login = useCallback[\s\S]{0,300}clearSidebarCounterSnapshots\(\);\s*queryClient\.clear\(\);/);
@@ -467,6 +534,6 @@ describe('Smart Sidebar — Design tokens, WCAG contrast, i18n & architecture co
 
     const notif = readSrc('src/features/notifications/hooks/useNotification.js');
     assert.match(notif, /SidebarCountersChanged/);
-    assert.match(notif, /scheduleDebouncedSidebarCounterRefresh/);
+    assert.match(notif, /setInterval\([\s\S]{0,300}scheduleDebouncedSidebarCounterRefresh\(queryClient\)/);
   });
 });

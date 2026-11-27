@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Button,
@@ -10,7 +11,9 @@ import {
   Textarea,
 } from '@/components/ui';
 import { coursePost, openRetakeEvidence } from '@/features/cohorts/api/cohortApi.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale, translateText } from '@/locales/locale.js';
 
@@ -86,16 +89,14 @@ function RetakeDecisionForm({ busy, canClaim, cohorts, excludeCohortId, onSubmit
         </Field>
         <Field label={tr('Lớp nhóm kế tiếp (nếu duyệt)')}>
           <CustomSelect
+            clearable
             value={nextCohortId}
             aria-label={tr('Lớp nhóm kế tiếp')}
             onChange={setNextCohortId}
-            options={[
-              { value: '', label: tr('Chọn lớp kế tiếp') },
-              ...cohorts.filter((x) => x.id !== excludeCohortId).map((x) => ({
-                value: String(x.id),
-                label: `${x.name} (${x.level})`,
-              })),
-            ]}
+            options={cohorts.filter((x) => x.id !== excludeCohortId).map((x) => ({
+              value: String(x.id),
+              label: `${x.name} (${formatJlptLevel(x.level)})`,
+            }))}
           />
         </Field>
       </div>
@@ -132,6 +133,7 @@ export default function AdminRetakeSupportPanel({
   onRun,
 }) {
   const { tr, trf } = useLocale();
+  const queryClient = useQueryClient();
   const [enrollmentSearch, setEnrollmentSearch] = useState('');
   const [retakeOnly, setRetakeOnly] = useState(false);
 
@@ -377,10 +379,14 @@ export default function AdminRetakeSupportPanel({
                         cohorts={cohorts}
                         excludeCohortId={currentCourse.cohortId}
                         onSubmit={(payload) =>
-                          onRun?.(() => coursePost(`/${currentCourse.id}/retake/${r.id}/review`, {
-                            ...payload,
-                            onTimeHomeworkEvidenceVerified: currentCourse.eligibility.homeworkMet,
-                          }))
+                          onRun?.(async () => {
+                            const res = await coursePost(`/${currentCourse.id}/retake/${r.id}/review`, {
+                              ...payload,
+                              onTimeHomeworkEvidenceVerified: currentCourse.eligibility.homeworkMet,
+                            });
+                            await invalidateSidebarCounters(queryClient);
+                            return res;
+                          })
                         }
                       />
                     )}

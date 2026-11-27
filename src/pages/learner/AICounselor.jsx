@@ -100,7 +100,7 @@ const QUICK_LINKS = [
     to: '/mentors',
     icon: 'groups',
     title: 'Học nhóm cùng Giáo viên',
-    description: 'Lớp nhỏ 1–4 học viên, 10 tuần',
+    description: 'Lớp nhỏ trực tuyến theo lịch cố định cùng Giáo viên',
   },
 ];
 

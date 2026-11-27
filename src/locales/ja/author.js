@@ -945,4 +945,5 @@ export const jaAuthor = {
   'Mở Ngân hàng câu hỏi': '問題バンクを開く',
   'Mở Trình tạo đề thi': '試験ビルダーを開く',
   'Câu hỏi gốc: {0} · Đọc lại: {1} · Thiếu: {2}': '元の設問数: {0} · 再解析: {1} · 欠落: {2}',
+  'Loại dữ liệu': 'データ種別',
 };

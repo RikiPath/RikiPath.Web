@@ -33,7 +33,7 @@ export const CONTEXT_EMPTY_COPY = Object.freeze({
   groupLearning: {
     illustration: 'classroom',
     title: 'Bạn chưa có lớp học nào.',
-    description: 'Chọn Giáo viên, xem lịch 10 tuần và cường độ Nhẹ / Tiêu chuẩn / Nâng cao trước khi giữ chỗ.',
+    description: 'Chọn Giáo viên, xem lịch học, thời lượng và sĩ số lớp trước khi đăng ký.',
   },
   srs: {
     illustration: 'flashcard',

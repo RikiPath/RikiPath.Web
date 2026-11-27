@@ -96,6 +96,7 @@ export default function AdminMentorQuality() {
     {
       key: 'mentorName',
       header: tr('Giáo viên'),
+      align: 'left',
       render: (m) => (
         <div>
           <p className="font-semibold text-rp-text">{m.mentorName}</p>
@@ -106,6 +107,8 @@ export default function AdminMentorQuality() {
     {
       key: 'sessions',
       header: tr('Buổi hợp lệ / giao'),
+      align: 'center',
+      compact: true,
       render: (m) => (
         <span className="tabular-nums font-medium">
           {m.completedValidSessions} / {m.totalAssignedSessions}{' '}
@@ -116,13 +119,16 @@ export default function AdminMentorQuality() {
     {
       key: 'confirmedMinutes',
       header: tr('Thời lượng xác nhận'),
-      render: (m) => <span className="text-sm">{formatMinutesVi(m.confirmedTeachingMinutes)}</span>,
+      align: 'center',
+      compact: true,
+      render: (m) => <span className="text-sm tabular-nums">{formatMinutesVi(m.confirmedTeachingMinutes)}</span>,
     },
     {
       key: 'outcomes',
       header: tr('Hủy · Vắng · Chờ'),
+      align: 'center',
       render: (m) => (
-        <span className="text-xs text-rp-text-2">
+        <span className="text-xs tabular-nums text-rp-text-2">
           {trf('{0} hủy · {1} vắng · {2} chờ', {
             0: m.cancelledSessionsCount,
             1: m.missedOrNoShowSessionsCount,
@@ -134,6 +140,8 @@ export default function AdminMentorQuality() {
     {
       key: 'homework',
       header: tr('Bài tập (giao/nộp/chấm)'),
+      align: 'center',
+      compact: true,
       render: (m) => (
         <span className="tabular-nums text-xs">
           {m.homeworkAssignedCount} / {m.homeworkSubmittedCount} / {m.homeworkGradedCount}
@@ -143,6 +151,7 @@ export default function AdminMentorQuality() {
     {
       key: 'rating',
       header: tr('Đánh giá & KN'),
+      align: 'center',
       render: (m) => (
         <div className="space-y-0.5 text-xs">
           <p className="font-medium text-rp-text">
@@ -353,11 +362,11 @@ export default function AdminMentorQuality() {
                   rowKey={(p) => p.periodKey}
                   rows={drawerMentor.monthlyBreakdown || []}
                   columns={[
-                    { key: 'periodKey', header: tr('Tháng'), render: (p) => <span className="font-semibold">{p.periodKey}</span> },
-                    { key: 'sessions', header: tr('Hợp lệ / Giao'), render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}` },
-                    { key: 'minutes', header: tr('Xác nhận'), render: (p) => formatMinutesVi(p.confirmedTeachingMinutes) },
-                    { key: 'hw', header: tr('Bài tập (chấm/nộp)'), render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}` },
-                    { key: 'rating', header: tr('Sao / KN'), render: (p) => `${p.averageRating != null ? `${p.averageRating}★` : '—'} · ${p.disputesCount}` },
+                    { key: 'periodKey', header: tr('Tháng'), align: 'left', render: (p) => <span className="font-semibold">{p.periodKey}</span> },
+                    { key: 'sessions', header: tr('Hợp lệ / Giao'), align: 'center', render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}` },
+                    { key: 'minutes', header: tr('Xác nhận'), align: 'center', render: (p) => formatMinutesVi(p.confirmedTeachingMinutes) },
+                    { key: 'hw', header: tr('Bài tập (chấm/nộp)'), align: 'center', render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}` },
+                    { key: 'rating', header: tr('Sao / KN'), align: 'center', render: (p) => `${p.averageRating != null ? `${p.averageRating}★` : '—'} · ${p.disputesCount}` },
                   ]}
                 />
               </Card>
@@ -369,11 +378,11 @@ export default function AdminMentorQuality() {
                   rowKey={(p) => p.periodKey}
                   rows={(drawerMentor.weeklyBreakdown || []).slice(0, 12)}
                   columns={[
-                    { key: 'periodKey', header: tr('Tuần'), render: (p) => <span className="font-semibold">{p.periodKey}</span> },
-                    { key: 'sessions', header: tr('Hợp lệ / Giao'), render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}` },
-                    { key: 'minutes', header: tr('Xác nhận'), render: (p) => formatMinutesVi(p.confirmedTeachingMinutes) },
-                    { key: 'hw', header: tr('Bài tập (chấm/nộp)'), render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}` },
-                    { key: 'cancel', header: tr('Hủy / Vắng'), render: (p) => `${p.cancelledSessionsCount} / ${p.missedOrNoShowSessionsCount}` },
+                    { key: 'periodKey', header: tr('Tuần'), align: 'left', render: (p) => <span className="font-semibold">{p.periodKey}</span> },
+                    { key: 'sessions', header: tr('Hợp lệ / Giao'), align: 'center', render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}` },
+                    { key: 'minutes', header: tr('Xác nhận'), align: 'center', render: (p) => formatMinutesVi(p.confirmedTeachingMinutes) },
+                    { key: 'hw', header: tr('Bài tập (chấm/nộp)'), align: 'center', render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}` },
+                    { key: 'cancel', header: tr('Hủy / Vắng'), align: 'center', render: (p) => `${p.cancelledSessionsCount} / ${p.missedOrNoShowSessionsCount}` },
                   ]}
                 />
               </Card>

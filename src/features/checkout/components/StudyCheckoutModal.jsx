@@ -108,10 +108,8 @@ export default function StudyCheckoutModal({ open = true, plan, onClose }) {
       // Stay busy while the browser leaves for PayOS, so the button cannot be pressed twice.
       setPhase('redirecting');
       notify.info(
-        tr('Đang chuyển đến trang thanh toán'),
-        result.resumed
-          ? tr('Bạn đang tiếp tục đơn hàng chưa thanh toán của gói này.')
-          : tr('Quyền sử dụng gói chỉ được kích hoạt sau khi máy chủ xác nhận thanh toán.'),
+        tr('Đang chuyển đến trang thanh toán…'),
+        '',
         { key: 'study-payment-create', replace: true },
       );
       window.location.assign(result.checkoutUrl);

@@ -6,6 +6,7 @@ import { AlertDialog, Button, Field, Input, notify } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import { formatApprovalStatusLabel } from '@/utils/terminology.js';
 import { getMyMentorProfile } from '@/features/mentor/api/mentorProfileApi.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { updateProfile } from '../api/profileApi.js';
 import { PHONE_REGEX, ROLE_META } from '../profileConstants.js';
 
@@ -245,7 +246,7 @@ export default function PersonalInformationSection({
                   </span>
                   {mentorProfileQuery.data.jlptLevel && (
                     <span className="inline-flex items-center rounded-full border border-[#F2D5DF] bg-[#FFF0F4] px-2.5 py-0.5 font-semibold text-rp-brand-strong">
-                      JLPT {mentorProfileQuery.data.jlptLevel}
+                      {formatJlptLevel(mentorProfileQuery.data.jlptLevel)}
                     </span>
                   )}
                 </div>

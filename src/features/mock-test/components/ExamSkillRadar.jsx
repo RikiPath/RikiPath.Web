@@ -332,21 +332,21 @@ export default function ExamSkillRadar({ series, compare = false, unevaluatedNot
           <table aria-label={tr('Tỷ lệ câu đúng theo kỹ năng')} className="w-full min-w-[26rem] text-center text-xs sm:text-sm">
             <thead className="bg-rp-bg-2 text-rp-text-2">
               <tr className="border-b border-rp-line">
-                <th scope="col" className="min-w-[6.75rem] whitespace-nowrap px-4 py-3 text-left font-semibold">
+                <th scope="col" className="whitespace-nowrap px-4 py-3 text-left align-middle font-semibold">
                   {tr('Kỹ năng')}
                 </th>
                 {series.map((item) => (
-                  <th scope="col" key={item.label} className="whitespace-nowrap px-3 py-3 font-semibold">
+                  <th scope="col" key={item.label} className="whitespace-nowrap px-3 py-3 align-middle font-semibold">
                     {tr(item.label)}
                   </th>
                 ))}
                 {!compare && (
-                  <th scope="col" className="whitespace-nowrap px-3 py-3 font-semibold">
+                  <th scope="col" className="whitespace-nowrap px-3 py-3 align-middle font-semibold">
                     {tr('Trạng thái')}
                   </th>
                 )}
                 {compare && (
-                  <th scope="col" className="whitespace-nowrap px-3 py-3 font-semibold">
+                  <th scope="col" className="whitespace-nowrap px-3 py-3 align-middle font-semibold">
                     {tr('Chênh lệch')}
                   </th>
                 )}
@@ -355,11 +355,11 @@ export default function ExamSkillRadar({ series, compare = false, unevaluatedNot
             <tbody className="divide-y divide-rp-line">
               {rows.map(({ skill, scores, status, difference, unevaluatedReason }) => (
                 <tr key={skill.code} className="transition-colors hover:bg-rp-bg-2/60">
-                  <th scope="row" className="min-w-[6.75rem] whitespace-nowrap px-4 py-3.5 text-left font-semibold text-rp-text">
+                  <th scope="row" className="whitespace-nowrap px-4 py-3.5 text-left align-middle font-semibold text-rp-text">
                     {tr(skill.label)}
                   </th>
                   {scores.map((value, index) => (
-                    <td key={series[index].label} className="px-3 py-3.5">
+                    <td key={series[index].label} className="px-3 py-3.5 align-middle">
                       <Score
                         value={value}
                         unevaluatedReason={!isValidSkillScore(value) ? unevaluatedReason : null}
@@ -367,7 +367,7 @@ export default function ExamSkillRadar({ series, compare = false, unevaluatedNot
                     </td>
                   ))}
                   {!compare && status && (
-                    <td className="px-3 py-3.5">
+                    <td className="px-3 py-3.5 align-middle">
                       <Badge tone={status.tone} size="sm" icon={false} className="whitespace-nowrap">
                         {tr(status.label)}
                       </Badge>

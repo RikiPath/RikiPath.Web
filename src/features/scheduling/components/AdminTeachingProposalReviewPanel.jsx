@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -7,16 +7,18 @@ import {
   Award,
   BookOpen,
   Check,
-  Download,
   Eye,
   FileText,
+  GraduationCap,
+  Info,
   ListChecks,
-  Loader2,
   MessageSquareWarning,
   RotateCcw,
   X,
 } from 'lucide-react';
 import {
+  AttachmentItemRow,
+  AttachmentPreviewModal,
   Badge,
   Banner,
   Button,
@@ -35,8 +37,8 @@ import {
   Textarea,
   Tooltip,
   formatIsoDateDisplay,
-  formatTimeRange,
   notify,
+  useAttachmentPreview,
 } from '@/components/ui';
 import {
   AdminDataTable,
@@ -48,22 +50,16 @@ import { getAdminMentorVerificationDocument } from '@/features/admin/api/adminAp
 import {
   bulkApproveTeachingProposals,
   fetchAdminProposalAttachmentBlob,
+  fetchAdminProposalAttachmentPreview,
   getAdminTeachingProposal,
   getAdminTeachingProposals,
   prevalidateBulkApproveProposals,
   reviewAdminTeachingProposal,
 } from '@/features/scheduling/api/teachingProposalApi.js';
 import {
-  formatAttachmentSize,
-  getAttachmentIconComponent,
-  isAttachmentInlinePreviewable,
-  openOrDownloadBlob,
-} from '@/features/scheduling/utils/attachmentHelpers.js';
-import {
   formatTuitionVnd,
   PROPOSAL_STATUS_META,
   sortWeeklySessions,
-  weekdayLabelVn,
 } from '@/features/scheduling/utils/proposalValidation.js';
 import {
   buildBulkApproveItems,
@@ -77,6 +73,7 @@ import {
 import BulkApproveConfirmationModal from './BulkApproveConfirmationModal.jsx';
 import ProposalDetailedScheduleCard from './ProposalDetailedScheduleCard.jsx';
 import { formatProposalCourseDuration } from '@/features/scheduling/utils/proposalScheduleFormatters.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
 import { useAuth } from '@/app/auth/authContext.js';
@@ -85,19 +82,20 @@ import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
 const STATUS_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Tất cả trạng thái' },
-  { value: 'PendingReview', label: 'Chờ duyệt' },
-  { value: 'ChangesRequested', label: 'Cần bổ sung' },
-  { value: 'Approved', label: 'Đã duyệt' },
-  { value: 'Rejected', label: 'Bị từ chối' },
+  { value: 'ALL', label: 'Tất cả', dotClass: 'bg-[#CE476D]' },
+  { value: 'PendingReview', label: 'Chờ duyệt', dotClass: 'bg-amber-500' },
+  { value: 'ChangesRequested', label: 'Cần bổ sung', dotClass: 'bg-[#EA580C]' },
+  { value: 'Approved', label: 'Đã duyệt', dotClass: 'bg-emerald-600' },
+  { value: 'OpenedClass', label: 'Đã mở lớp', dotClass: 'bg-sky-600' },
+  { value: 'Rejected', label: 'Bị từ chối', dotClass: 'bg-red-500' },
 ];
 
 const JLPT_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Tất cả cấp độ' },
-  { value: 'N5', label: 'JLPT N5' },
-  { value: 'N4', label: 'JLPT N4' },
-  { value: 'N3', label: 'JLPT N3' },
-  { value: 'N2', label: 'JLPT N2' },
+  { value: 'ALL', label: 'Tất cả' },
+  { value: 'N5', label: 'N5' },
+  { value: 'N4', label: 'N4' },
+  { value: 'N3', label: 'N3' },
+  { value: 'N2', label: 'N2' },
 ];
 
 function stripRedundantFrequency(title = '') {
@@ -138,9 +136,11 @@ export default function AdminTeachingProposalReviewPanel({
   fillHeight = false,
 }) {
   const { tr, trf } = useLocale();
+  const [, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const authOwnerKey = user?.id ?? 'anon';
+  const lastHandledUrlProposalIdRef = useRef(null);
 
   const [statusFilter, setStatusFilter] = useState(() => (initialProposalId ? 'ALL' : 'PendingReview'));
   const [jlptFilter, setJlptFilter] = useState('ALL');
@@ -160,7 +160,6 @@ export default function AdminTeachingProposalReviewPanel({
   }));
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [returnToBulkConfirm, setReturnToBulkConfirm] = useState(false);
-  const [bulkReason, setBulkReason] = useState('');
   const [bulkServerConflict, setBulkServerConflict] = useState(null);
   const bulkSubmitLockRef = useRef(false);
 
@@ -171,13 +170,23 @@ export default function AdminTeachingProposalReviewPanel({
     setSelectedId(proposalId);
   }, []);
 
+  const clearProposalUrlParam = useCallback(() => {
+    setSearchParams((prev) => {
+      if (!prev.has('proposalId')) return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('proposalId');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const closeDetailDrawer = useCallback(() => {
     setSelectedId(null);
+    clearProposalUrlParam();
     if (returnToBulkConfirm) {
       setReturnToBulkConfirm(false);
       setBulkConfirmOpen(true);
     }
-  }, [returnToBulkConfirm]);
+  }, [returnToBulkConfirm, clearProposalUrlParam]);
 
   useEffect(() => () => {
     if (docPreview?.url) URL.revokeObjectURL(docPreview.url);
@@ -200,26 +209,36 @@ export default function AdminTeachingProposalReviewPanel({
     },
   });
 
-  const [loadingAttKey, setLoadingAttKey] = useState(null);
-  const handleProposalAttachmentAction = useCallback(async (proposalId, att, idx, download = false) => {
-    if (!proposalId || loadingAttKey) return;
-    const key = `${proposalId}:${idx}:${download ? 'dl' : 'view'}`;
-    setLoadingAttKey(key);
-    try {
-      const blob = await fetchAdminProposalAttachmentBlob(proposalId, idx, { download });
-      openOrDownloadBlob(blob, att.name || 'tai-lieu-dinh-kem', {
-        forceDownload: download,
-        contentType: att.contentType,
-      });
-    } catch (err) {
-      notify.error(describeApiError(err).message || tr('Không thể mở tài liệu đính kèm lúc này.'));
-    } finally {
-      setLoadingAttKey(null);
-    }
-  }, [loadingAttKey, tr]);
+  const attachmentPreview = useAttachmentPreview();
+
+  const handleViewProposalAttachment = useCallback((proposalId, att, idx) => {
+    if (!proposalId) return;
+    void attachmentPreview.openPreview({
+      key: `${proposalId}:${idx}:view`,
+      attachment: att,
+      fetchBlob: () => fetchAdminProposalAttachmentBlob(proposalId, idx, { download: false }),
+      fetchDownloadBlob: () => fetchAdminProposalAttachmentBlob(proposalId, idx, { download: true }),
+      fetchPreview: () => fetchAdminProposalAttachmentPreview(proposalId, idx),
+    });
+  }, [attachmentPreview]);
+
+  const handleDownloadProposalAttachment = useCallback((proposalId, att, idx) => {
+    if (!proposalId) return;
+    void attachmentPreview.downloadAttachment({
+      key: `${proposalId}:${idx}:dl`,
+      attachment: att,
+      fetchBlob: () => fetchAdminProposalAttachmentBlob(proposalId, idx, { download: true }),
+    });
+  }, [attachmentPreview]);
 
   useEffect(() => {
-    if (!initialProposalId) return undefined;
+    if (!initialProposalId) {
+      lastHandledUrlProposalIdRef.current = null;
+      return undefined;
+    }
+    const targetId = String(initialProposalId);
+    if (lastHandledUrlProposalIdRef.current === targetId) return undefined;
+    lastHandledUrlProposalIdRef.current = targetId;
     let alive = true;
     Promise.resolve().then(() => {
       if (!alive) return;
@@ -261,6 +280,23 @@ export default function AdminTeachingProposalReviewPanel({
       : []),
     [proposalsQuery.data]
   );
+
+  const statusCounts = useMemo(() => {
+    const counts = {
+      ALL: allProposals.length,
+      PendingReview: 0,
+      ChangesRequested: 0,
+      Approved: 0,
+      OpenedClass: 0,
+      Rejected: 0,
+    };
+    for (const row of allProposals) {
+      if (row?.status && counts[row.status] != null) {
+        counts[row.status] += 1;
+      }
+    }
+    return counts;
+  }, [allProposals]);
 
   const hasAnyProposals = proposalsQuery.isSuccess && allProposals.length > 0;
 
@@ -342,7 +378,6 @@ export default function AdminTeachingProposalReviewPanel({
   const exitSelectionMode = useCallback(() => {
     setSelectionState({ ownerKey: authOwnerKey, enabled: false, ids: [] });
     setBulkConfirmOpen(false);
-    setBulkReason('');
     setBulkServerConflict(null);
   }, [authOwnerKey]);
 
@@ -431,13 +466,11 @@ export default function AdminTeachingProposalReviewPanel({
   });
 
   const bulkApproveMutation = useMutation({
-    mutationFn: ({ items, reasonText }) =>
-      bulkApproveTeachingProposals({ items, reason: reasonText || null }),
+    mutationFn: ({ items }) => bulkApproveTeachingProposals({ items }),
     onSuccess: async (res) => {
       const approvedIds = res?.approvedProposalIds || [];
       const approvedCount = res?.approvedCount ?? approvedIds.length;
       setBulkConfirmOpen(false);
-      setBulkReason('');
       setBulkServerConflict(null);
       setSelectionState((prev) => {
         const approvedSet = new Set(approvedIds);
@@ -448,10 +481,15 @@ export default function AdminTeachingProposalReviewPanel({
           ids: remaining,
         };
       });
+      if (selectedId && approvedIds.some((id) => Number(id) === Number(selectedId))) {
+        setSelectedId(null);
+        setReturnToBulkConfirm(false);
+        clearProposalUrlParam();
+      }
       notify.success(
-        trf('Đã phê duyệt {0} đề xuất mở lớp', { 0: approvedCount }),
-        tr('Các lớp học đã được tự động tạo, mở tuyển sinh ngay và gửi thông báo tới giáo viên.'),
-        { key: 'admin-proposal-bulk-approve', replace: true, duration: 5000 },
+        trf('Đã phê duyệt {0} đề xuất mở lớp.', { 0: approvedCount }),
+        '',
+        { key: 'admin-proposal-bulk-approve', replace: true },
       );
       await syncAfterReviewMutation(approvedIds);
     },
@@ -460,12 +498,19 @@ export default function AdminTeachingProposalReviewPanel({
       if (conflictPayload && Array.isArray(conflictPayload.results)) {
         setBulkServerConflict(conflictPayload);
       }
+      const status = err?.response?.status ?? err?.status;
+      const errMsg = status === 409
+        ? tr('Một số đề xuất vừa được cập nhật từ thao tác khác. Vui lòng kiểm tra lại.')
+        : describeApiError(err).message;
       notify.error(
         tr('Chưa thể phê duyệt hàng loạt đề xuất mở lớp'),
-        describeApiError(err).message,
+        errMsg,
         { key: 'admin-proposal-bulk-approve-err', replace: true },
       );
       await syncAfterReviewMutation(selectedIds);
+      if (status === 409) {
+        bulkPrevalidateQuery.refetch();
+      }
     },
     onSettled: () => {
       bulkSubmitLockRef.current = false;
@@ -482,13 +527,18 @@ export default function AdminTeachingProposalReviewPanel({
         .filter((r) => r.currentRevision != null)
         .map((r) => [r.proposalId, r.currentRevision]),
     );
-    const items = buildBulkApproveItems(filteredRows, selectedIds, liveRevMap);
+    const previewTokenMap = new Map(
+      (prevalidated.results || [])
+        .filter((r) => r.schedulePreviewToken)
+        .map((r) => [r.proposalId, r.schedulePreviewToken]),
+    );
+    const items = buildBulkApproveItems(filteredRows, selectedIds, liveRevMap, previewTokenMap);
     if (items.length === 0) return;
 
     bulkSubmitLockRef.current = true;
     setBulkServerConflict(null);
-    bulkApproveMutation.mutate({ items, reasonText: bulkReason.trim() });
-  }, [bulkApproveMutation, bulkPrevalidateQuery.data, bulkReason, filteredRows, selectedIds]);
+    bulkApproveMutation.mutate({ items });
+  }, [bulkApproveMutation, bulkPrevalidateQuery.data, filteredRows, selectedIds]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);
@@ -515,40 +565,44 @@ export default function AdminTeachingProposalReviewPanel({
   };
 
   const reviewMutation = useMutation({
-    mutationFn: ({ id, decision, reasonText, expectedRevision }) =>
+    mutationFn: ({ id, decision, reasonText, expectedRevision, expectedSchedulePreviewToken }) =>
       reviewAdminTeachingProposal(id, {
         decision,
         reason: reasonText || null,
         expectedRevision,
+        expectedSchedulePreviewToken: expectedSchedulePreviewToken || null,
       }),
     onSuccess: async (updated, vars) => {
       setDecisionModal(null);
       setReason('');
       setReasonError('');
       const toastTitle = vars.decision === 'Approve'
-        ? tr('Đã phê duyệt đề xuất mở lớp')
+        ? tr('Đã phê duyệt đề xuất mở lớp.')
         : vars.decision === 'RequestChanges'
-          ? tr('Đã gửi yêu cầu bổ sung')
-          : tr('Đã từ chối đề xuất mở lớp');
-      const toastDetail = vars.decision === 'Approve'
-        ? tr('Lớp học đã được tự động tạo, mở tuyển sinh ngay và gửi thông báo tới giáo viên.')
-        : vars.decision === 'RequestChanges'
-          ? tr('Yêu cầu bổ sung kèm ghi chú đã được gửi tới Giáo viên.')
-          : tr('Kết quả xét duyệt và lý do từ chối đã được gửi tới giáo viên.');
-      notify.success(toastTitle, toastDetail, {
+          ? tr('Đã gửi yêu cầu bổ sung.')
+          : tr('Đã từ chối đề xuất mở lớp.');
+      notify.success(toastTitle, '', {
         key: `admin-proposal-review-${vars.id}-${vars.decision}`,
         replace: true,
-        duration: 5000,
       });
-      if (selectedId && updated?.id) {
-        setSelectedId(updated.id);
-      }
+      setSelectedId(null);
+      setReturnToBulkConfirm(false);
+      setDocPreview((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+      clearProposalUrlParam();
       await syncAfterReviewMutation(vars.id);
     },
     onError: async (err, vars) => {
+      const errCode = err?.response?.data?.code || err?.data?.code || err?.code;
+      const status = err?.response?.status ?? err?.status;
+      const errMsg = (status === 409 || errCode === 'SCHEDULE_PREVIEW_STALE')
+        ? tr('Lịch dự kiến đã thay đổi do có lịch mới hoặc chính sách vừa cập nhật. Đang tải lại lịch dự kiến mới nhất.')
+        : describeApiError(err).message;
       notify.error(
         tr('Chưa xử lý được đề xuất mở lớp'),
-        describeApiError(err).message,
+        errMsg,
         { key: `admin-proposal-review-err-${vars?.id || 'x'}`, replace: true },
       );
       // Refresh authoritative state on conflict/stale revision so UI never stays out of sync
@@ -584,11 +638,6 @@ export default function AdminTeachingProposalReviewPanel({
       const serverIssues = (liveApproveProposal.validationIssues || []).filter((i) => !i.severity || i.severity === 'Error');
       if (serverIssues.length > 0) {
         issues.push(...serverIssues);
-      } else {
-        issues.push({
-          code: 'PROPOSAL_APPROVAL_CONFLICT',
-          message: tr('Phát hiện xung đột hoặc điều kiện không còn hợp lệ tại thời điểm duyệt.'),
-        });
       }
     }
     return issues;
@@ -615,8 +664,8 @@ export default function AdminTeachingProposalReviewPanel({
       reviewMutation.mutate({
         id: liveApproveProposal.id,
         decision: 'Approve',
-        reasonText: trimmed,
         expectedRevision: liveApproveProposal.revision,
+        expectedSchedulePreviewToken: liveApproveProposal?.approvalSchedulePreview?.schedulePreviewToken || null,
       });
       return;
     }
@@ -649,9 +698,6 @@ export default function AdminTeachingProposalReviewPanel({
     headerAlign: 'center',
     compact: true,
     sortable: false,
-    width: 'w-11',
-    headerClassName: 'w-11',
-    className: 'w-11',
     header: ({ visibleRows }) => {
       const headerState = computeHeaderCheckboxState(visibleRows, selectedIds);
       return (
@@ -670,9 +716,7 @@ export default function AdminTeachingProposalReviewPanel({
     render: (row) => {
       const selectable = isProposalSelectableForBulkApprove(row);
       const checked = selectable && selectedIdSet.has(row.id);
-      const disabledReason = row.status !== 'PendingReview'
-        ? tr('Đề xuất này không còn ở trạng thái Chờ duyệt')
-        : tr('Đề xuất đang có xung đột hoặc chưa đủ điều kiện phê duyệt');
+      const disabledReason = tr('Đề xuất này không còn ở trạng thái Chờ duyệt');
 
       const checkboxNode = (
         <div
@@ -701,7 +745,6 @@ export default function AdminTeachingProposalReviewPanel({
       key: 'mentor',
       header: tr('Giáo viên'),
       align: 'left',
-      width: 'min-w-[160px]',
       sortValue: (row) => row.mentorName || '',
       render: (row) => (
         <span className="font-semibold text-rp-text">
@@ -713,24 +756,28 @@ export default function AdminTeachingProposalReviewPanel({
       key: 'course',
       header: tr('Đề xuất mở lớp'),
       align: 'left',
-      width: 'min-w-[220px]',
-      sortValue: (row) => row.expectedStartDate || '',
+      sortValue: (row) => resolveProposalTableTitle(row, trf).courseTitle || '',
       render: (row) => {
         const { courseTitle, showLevelBadge, levelCode } = resolveProposalTableTitle(row, trf);
-        const startDisplay = row.expectedStartDate ? formatIsoDateDisplay(row.expectedStartDate) : '—';
+        const approvedStart = (row.status === 'OpenedClass' || row.status === 'Approved') && row.expectedStartDate
+          ? formatIsoDateDisplay(row.expectedStartDate)
+          : null;
         return (
-          <div className="max-w-[340px] space-y-0.5">
+          <div className="max-w-[360px] space-y-0.5">
             <div className="flex items-center gap-1.5">
               {showLevelBadge && (
-                <Badge tone="brand" size="sm" icon={false}>{levelCode}</Badge>
+                <span className="shrink-0 text-[13px] font-semibold text-rp-text">{levelCode}</span>
               )}
+              {showLevelBadge && <span aria-hidden="true" className="text-rp-text-muted">·</span>}
               <span title={courseTitle} className="truncate font-semibold text-rp-text">
                 {courseTitle}
               </span>
             </div>
-            <div className="text-[11.5px] tabular-nums text-rp-text-muted">
-              {tr('Bắt đầu')}: {startDisplay}
-            </div>
+            {approvedStart && (
+              <div className="text-[12.5px] tabular-nums text-rp-text-muted">
+                {tr('Lịch học')}: {approvedStart}
+              </div>
+            )}
           </div>
         );
       },
@@ -739,28 +786,18 @@ export default function AdminTeachingProposalReviewPanel({
       key: 'schedule',
       header: tr('Lịch giảng dạy'),
       align: 'left',
-      width: 'min-w-[290px]',
       sortValue: (row) => Number(row.weeklySessionCount || 0),
       render: (row) => {
         const patterns = sortWeeklySessions(row.weeklySessions || [], row.sessionDurationMinutes);
-        const total = row.totalSessions || (patterns.length * (row.courseDurationWeeks || 10));
+        const weeks = Math.max(1, Number(row.courseDurationWeeks || 1));
+        const total = row.totalSessions || (patterns.length * weeks);
         return (
-          <div className="space-y-1.5">
-            <div className="text-xs font-semibold tabular-nums text-rp-text">
-              {trf('{0} buổi/tuần ({1} buổi)', { 0: row.weeklySessionCount || patterns.length, 1: total })}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {patterns.slice(0, 4).map((s) => (
-                <span
-                  key={s.key}
-                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-rp-line bg-rp-bg-2/60 px-2 py-0.5 text-[11px] font-medium tabular-nums text-rp-text-2 whitespace-nowrap"
-                >
-                  <span>{tr(weekdayLabelVn(s.weekday))}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{formatTimeRange(s.startClock, s.endClock)}</span>
-                </span>
-              ))}
-            </div>
+          <div className="text-[13px] font-semibold tabular-nums text-rp-text">
+            {trf('{0} buổi/tuần · {1} tuần ({2} buổi)', {
+              0: row.weeklySessionCount || patterns.length,
+              1: weeks,
+              2: total,
+            })}
           </div>
         );
       },
@@ -768,6 +805,7 @@ export default function AdminTeachingProposalReviewPanel({
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       sortValue: (row) => row.status || '',
       render: (row) => {
@@ -789,7 +827,9 @@ export default function AdminTeachingProposalReviewPanel({
   const columns = selectionMode ? [selectionColumn, ...baseColumns] : baseColumns;
 
   const detail = detailQuery.data;
-  const rawDetailOccurrences = detail?.occurrencesPreview;
+  const rawDetailOccurrences = detail?.status === 'OpenedClass'
+    ? detail?.occurrencesPreview
+    : [];
   const detailOccurrences = useMemo(() => {
     if (!Array.isArray(rawDetailOccurrences) || rawDetailOccurrences.length === 0) return [];
     return [...rawDetailOccurrences].sort((a, b) => Number(a.sessionNumber || 0) - Number(b.sessionNumber || 0));
@@ -802,27 +842,31 @@ export default function AdminTeachingProposalReviewPanel({
   const drawerDescription = detail
     ? [
       detail.mentorName,
-      detail.jlptLevelCode ? `JLPT ${detail.jlptLevelCode}` : null,
+      detail.jlptLevelCode ? formatJlptLevel(detail.jlptLevelCode) : null,
       detail.submittedAtUtc ? `${tr('Gửi lúc')}: ${formatVnDateTime(detail.submittedAtUtc, '—')}` : null,
     ].filter(Boolean).join(' · ')
     : '';
   const drawerCanApprove = Boolean(
     detail
     && detail.status === 'PendingReview'
-    && !detail.hasConflicts
     && !detailQuery.isFetching
     && !detailQuery.isError
     && !reviewMutation.isPending
   );
 
   const detailDurationSummary = detail
-    ? formatProposalCourseDuration({
-      expectedStartDate: detail.expectedStartDate,
-      projectedEndDate: detail.projectedEndDate,
-      occurrences: detailOccurrences,
-      totalSessions: detail.totalSessions,
-      trf,
-    })
+    ? (detail.status === 'OpenedClass' && detail.expectedStartDate)
+      ? formatProposalCourseDuration({
+        expectedStartDate: detail.expectedStartDate,
+        projectedEndDate: detail.projectedEndDate,
+        occurrences: detailOccurrences,
+        totalSessions: detail.totalSessions,
+        trf,
+      })
+      : trf('{0} tuần · {1} buổi (mở tuyển sinh do giáo viên quyết định)', {
+        0: Math.max(1, Number(detail.courseDurationWeeks || 1)),
+        1: detail.totalSessions || 0,
+      })
     : '—';
 
   return (
@@ -869,15 +913,20 @@ export default function AdminTeachingProposalReviewPanel({
               <CustomSelect
                 fitContent
                 value={statusFilter}
-                aria-label={tr('Lọc theo trạng thái đề xuất')}
+                aria-label={tr('Trạng thái')}
                 onChange={handleStatusFilterChange}
-                options={STATUS_FILTER_OPTIONS.map((o) => ({ value: o.value, label: tr(o.label) }))}
+                options={STATUS_FILTER_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: tr(o.label),
+                  dotClass: o.dotClass,
+                  count: statusCounts[o.value] ?? 0,
+                }))}
               />
 
               <CustomSelect
                 fitContent
                 value={jlptFilter}
-                aria-label={tr('Lọc theo cấp độ JLPT')}
+                aria-label={tr('Cấp độ')}
                 onChange={handleJlptFilterChange}
                 options={JLPT_FILTER_OPTIONS.map((o) => ({ value: o.value, label: tr(o.label) }))}
               />
@@ -885,9 +934,9 @@ export default function AdminTeachingProposalReviewPanel({
               <CustomSelect
                 fitContent
                 value={mentorFilter}
-                aria-label={tr('Lọc theo giáo viên')}
+                aria-label={tr('Giáo viên')}
                 onChange={handleMentorFilterChange}
-                options={[{ value: 'ALL', label: tr('Tất cả giáo viên') }, ...mentorOptions]}
+                options={[{ value: 'ALL', label: tr('Tất cả') }, ...mentorOptions]}
               />
 
               {hasFilters && (
@@ -928,7 +977,7 @@ export default function AdminTeachingProposalReviewPanel({
           title={tr('Không có đề xuất nào khớp bộ lọc')}
           description={
             statusFilter === 'PendingReview' && !search.trim() && mentorFilter === 'ALL' && jlptFilter === 'ALL'
-              ? tr('Hiện không có đề xuất đang chờ duyệt. Chọn Tất cả trạng thái để xem lịch sử đã xử lý.')
+              ? tr('Hiện không có đề xuất đang chờ duyệt. Chọn Tất cả để xem lịch sử đã xử lý.')
               : tr('Thử thay đổi trạng thái, cấp độ JLPT, giáo viên hoặc xóa từ khóa tìm kiếm.')
           }
           action={
@@ -978,7 +1027,7 @@ export default function AdminTeachingProposalReviewPanel({
                   {selectionMode && (
                     <div
                       data-testid="bulk-action-bar"
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-rp-card border border-rp-brand-soft bg-[#FFF6F8] px-4 py-2.5 shadow-rp-xs"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-rp-card border border-rp-brand-border/75 bg-rp-surface px-4 py-2.5 shadow-rp-xs"
                     >
                       <div className="flex flex-wrap items-center gap-3">
                         <span
@@ -1010,7 +1059,6 @@ export default function AdminTeachingProposalReviewPanel({
                           onClick={() => {
                             if (!canOpenBulkApprove) return;
                             setBulkServerConflict(null);
-                            setBulkReason('');
                             setBulkConfirmOpen(true);
                           }}
                         >
@@ -1079,7 +1127,7 @@ export default function AdminTeachingProposalReviewPanel({
                 <span className="inline-flex flex-wrap items-center gap-1.5">
                   <span
                     data-testid="proposal-drawer-status-badge"
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-semibold ${
                       drawerStatusMeta.pillClass || 'border-rp-line bg-rp-bg-2 text-rp-text-2'
                     }`}
                   >
@@ -1090,7 +1138,7 @@ export default function AdminTeachingProposalReviewPanel({
                     {tr(drawerStatusMeta.label)}
                   </span>
                   {detail?.status === 'PendingReview' && (detail?.history || []).some((h) => h.action === 'Resubmitted') && (
-                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10.5px] font-bold text-emerald-700">
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11.5px] font-semibold text-emerald-700">
                       {tr('Đã bổ sung')}
                     </span>
                   )}
@@ -1146,7 +1194,7 @@ export default function AdminTeachingProposalReviewPanel({
                   </>
                 )}
 
-                {detail.status === 'Approved' && detail.linkedCohortId && (
+                {(detail.status === 'OpenedClass' || detail.status === 'Approved') && detail.linkedCohortId && (
                   <Link
                     to={`/admin/study-courses/?cohortId=${detail.linkedCohortId}`}
                     className="inline-flex h-8.5 items-center gap-1 rounded-xl bg-rp-brand-pressed px-3 text-xs font-semibold text-white transition-colors hover:bg-rp-brand-strong"
@@ -1190,8 +1238,8 @@ export default function AdminTeachingProposalReviewPanel({
                       .reverse()
                       .find((h) => h.action === 'ChangesRequested' && h.reason);
                     return (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-2.5 text-xs text-emerald-950">
-                        <p className="m-0 font-bold text-emerald-900">
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-2.5 text-[13px] leading-5 text-emerald-950">
+                        <p className="m-0 font-semibold text-emerald-900">
                           {tr('Giáo viên đã bổ sung và gửi lại xét duyệt')}
                         </p>
                         {lastRequest?.reason && (
@@ -1216,7 +1264,7 @@ export default function AdminTeachingProposalReviewPanel({
                   {/* Mentor Professional Profile — Compact Form Layout (all info preserved) */}
                   <Card className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-0.5">
-                      <h3 className="m-0 flex items-center gap-1.5 text-[13.5px] font-bold text-rp-text">
+                      <h3 className="m-0 flex items-center gap-1.5 text-[14px] font-semibold leading-5 text-rp-text">
                         <Award className="h-4 w-4 shrink-0 text-rp-brand" aria-hidden="true" />
                         <span>{tr('Hồ sơ chuyên môn giáo viên')}</span>
                       </h3>
@@ -1227,7 +1275,7 @@ export default function AdminTeachingProposalReviewPanel({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-[12.5px] leading-5 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-2 text-[14px] leading-[22px] sm:grid-cols-2">
                       <div>
                         <span className="font-semibold text-rp-text">{tr('Giáo viên')}:</span>{' '}
                         <span className="text-rp-text-2">{detail.mentorName || tr('Không có')}</span>
@@ -1262,7 +1310,7 @@ export default function AdminTeachingProposalReviewPanel({
                       </div>
                     </div>
 
-                    <div className="border-t border-rp-line/70 pt-2 text-[12.5px] leading-5">
+                    <div className="border-t border-rp-line/70 pt-2.5 text-[14px] leading-[22px]">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-rp-text">{tr('Chứng chỉ & tài liệu hồ sơ')}:</span>
                         {detail.mentorHasVerificationDocument ? (
@@ -1286,7 +1334,7 @@ export default function AdminTeachingProposalReviewPanel({
                             href={docPreview.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="rp-link text-xs font-semibold text-rp-brand"
+                            className="rp-link text-[13px] font-medium text-rp-brand"
                           >
                             {tr('Mở chứng chỉ ở tab mới')}
                           </a>
@@ -1315,11 +1363,11 @@ export default function AdminTeachingProposalReviewPanel({
 
                   {/* Proposed Course Information — Compact Inline Form Layout (all info preserved) */}
                   <Card className="space-y-3 p-4">
-                    <h3 className="m-0 flex items-center gap-1.5 pb-0.5 text-[13.5px] font-bold text-rp-text">
+                    <h3 className="m-0 flex items-center gap-1.5 pb-0.5 text-[14px] font-semibold leading-5 text-rp-text">
                       <BookOpen className="h-4 w-4 shrink-0 text-rp-brand" aria-hidden="true" />
                       <span>{tr('Thông tin khóa học đề xuất')}</span>
                     </h3>
-                    <div className="space-y-2 text-[12.5px] leading-5">
+                    <div className="space-y-2 text-[14px] leading-[22px]">
                       <div>
                         <span className="font-semibold text-rp-text">{tr('Trình độ JLPT')}:</span>{' '}
                         <span className="font-medium text-rp-text">{detail.jlptLevelCode || '—'}</span>
@@ -1358,64 +1406,39 @@ export default function AdminTeachingProposalReviewPanel({
                           <span className="ml-1.5 text-rp-text-muted">{tr('Không có')}</span>
                         ) : (
                           <div className="flex flex-col gap-1.5">
-                            {detail.optionalAttachments.map((a, idx) => {
-                              const IconComp = getAttachmentIconComponent(a.name, a.contentType);
-                              const sizeText = formatAttachmentSize(a.sizeBytes);
-                              const previewable = isAttachmentInlinePreviewable(a.name, a.contentType);
-                              const isBusyView = loadingAttKey === `${detail.id}:${idx}:view`;
-                              const isBusyDl = loadingAttKey === `${detail.id}:${idx}:dl`;
-                              return (
-                                <div
-                                  key={`${a.storedFileName || a.name}-${idx}`}
-                                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rp-line bg-white px-2.5 py-1.5 text-xs"
-                                >
-                                  <span title={a.name} className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-rp-text">
-                                    <IconComp className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" aria-hidden="true" />
-                                    <span className="truncate">{a.name}</span>
-                                    {sizeText && (
-                                      <span className="shrink-0 text-[11px] font-normal tabular-nums text-rp-text-muted">
-                                        ({sizeText})
-                                      </span>
-                                    )}
-                                  </span>
-                                  <span className="inline-flex shrink-0 items-center gap-1">
-                                    {previewable && (
-                                      <button
-                                        type="button"
-                                        disabled={Boolean(loadingAttKey)}
-                                        onClick={() => void handleProposalAttachmentAction(detail.id, a, idx, false)}
-                                        className="rp-focus inline-flex items-center gap-1 rounded-md border border-rp-line bg-rp-bg-2/70 px-2 py-0.5 text-[11px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong disabled:opacity-50"
-                                      >
-                                        {isBusyView ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
-                                        <span>{tr('Xem')}</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      disabled={Boolean(loadingAttKey)}
-                                      onClick={() => void handleProposalAttachmentAction(detail.id, a, idx, true)}
-                                      aria-label={trf('Tải xuống {0}', { 0: a.name })}
-                                      className="rp-focus inline-flex items-center gap-1 rounded-md border border-rp-line bg-rp-bg-2/70 px-2 py-0.5 text-[11px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong disabled:opacity-50"
-                                    >
-                                      {isBusyDl ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                                      <span>{tr('Tải')}</span>
-                                    </button>
-                                  </span>
-                                </div>
-                              );
-                            })}
+                            {detail.optionalAttachments.map((a, idx) => (
+                              <AttachmentItemRow
+                                key={`${a.storedFileName || a.name}-${idx}`}
+                                name={a.name}
+                                contentType={a.contentType}
+                                storedFileName={a.storedFileName}
+                                sizeBytes={a.sizeBytes}
+                                viewing={attachmentPreview.busyKey === `${detail.id}:${idx}:view`}
+                                downloading={attachmentPreview.busyKey === `${detail.id}:${idx}:dl`}
+                                disabled={Boolean(attachmentPreview.busyKey)}
+                                onView={() => handleViewProposalAttachment(detail.id, a, idx)}
+                                onDownload={() => handleDownloadProposalAttachment(detail.id, a, idx)}
+                              />
+                            ))}
                           </div>
                         )}
                       </div>
                     </div>
                   </Card>
 
-                  {/* Unified Weekly + 10-Week Detailed Schedule (Shared with Mentor Flow) */}
+                  {detail.status === 'Approved' && !detail.linkedCohortId && (
+                    <Banner tone="info">
+                      {tr('Đề xuất đã được duyệt và đang chờ Giáo viên chọn hạn tuyển sinh để mở lớp chính thức.')}
+                    </Banner>
+                  )}
+
+                  {/* Unified Weekly + Detailed Schedule */}
                   <ProposalDetailedScheduleCard
                     weeklySessions={detail.weeklySessions || []}
                     showWeeklyPatterns
                     occurrences={detailOccurrences}
-                    durationWeeks={detail.courseDurationWeeks || 10}
+                    projected={detail.status !== 'OpenedClass'}
+                    durationWeeks={Math.max(1, Number(detail.courseDurationWeeks || 1))}
                     initialVisibleCount={6}
                     columns="responsive-2"
                     resetKey={`admin-proposal-${detail.id}-${detail.revision ?? 0}`}
@@ -1432,51 +1455,81 @@ export default function AdminTeachingProposalReviewPanel({
         open={Boolean(decisionModal)}
         onClose={() => !reviewMutation.isPending && setDecisionModal(null)}
         title={
-          decisionModal?.decision === 'Approve'
-            ? tr('Xác nhận phê duyệt đề xuất mở lớp')
-            : decisionModal?.decision === 'RequestChanges'
-              ? tr('Yêu cầu bổ sung thông tin đề xuất')
-              : tr('Từ chối đề xuất mở lớp')
+          decisionModal?.decision === 'Approve' ? (
+            <span className="text-[17.5px] font-bold leading-6 text-rp-text">
+              {tr('Xác nhận phê duyệt đề xuất mở lớp')}
+            </span>
+          ) : decisionModal?.decision === 'RequestChanges' ? (
+            tr('Yêu cầu bổ sung thông tin đề xuất')
+          ) : (
+            tr('Từ chối đề xuất mở lớp')
+          )
         }
-        size="md"
+        description={
+          decisionModal?.decision === 'Approve'
+            ? tr('Sau khi phê duyệt, Giáo viên có thể chủ động chọn hạn tuyển sinh để mở lớp.')
+            : decisionModal?.decision === 'RequestChanges'
+              ? tr('Đề xuất sẽ trả về trạng thái Cần bổ sung kèm góp ý để Giáo viên cập nhật.')
+              : tr('Đề xuất sẽ bị từ chối và không thể mở lớp từ bản đăng ký này.')
+        }
+        size={decisionModal?.decision === 'Approve' ? 'lg' : 'md'}
+        className={decisionModal?.decision === 'Approve' ? 'sm:max-w-[560px]' : undefined}
         footer={
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={reviewMutation.isPending}
-              onClick={() => setDecisionModal(null)}
-            >
-              {tr('Hủy')}
-            </Button>
             {decisionModal?.decision === 'Approve' ? (
-              <Button
-                type="button"
-                variant="primary"
-                icon={Check}
-                data-testid="confirm-approve-proposal-btn"
-                loading={reviewMutation.isPending}
-                disabled={!canConfirmDecision}
-                onClick={submitDecision}
-              >
-                {reviewMutation.isPending ? tr('Đang phê duyệt…') : tr('Xác nhận phê duyệt')}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="neutral"
+                  className="h-9 rounded-xl px-3.5 text-[13px]"
+                  disabled={reviewMutation.isPending}
+                  onClick={() => setDecisionModal(null)}
+                >
+                  {tr('Hủy')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="confirm"
+                  icon={Check}
+                  className="h-9 rounded-xl px-3.5 text-[13px]"
+                  data-testid="confirm-approve-proposal-btn"
+                  loading={reviewMutation.isPending}
+                  disabled={!canConfirmDecision}
+                  onClick={submitDecision}
+                >
+                  {reviewMutation.isPending ? tr('Đang phê duyệt…') : tr('Xác nhận phê duyệt')}
+                </Button>
+              </>
             ) : (
-              <Button
-                type="button"
-                data-testid="confirm-decision-submit-btn"
-                variant={decisionModal?.decision === 'Reject' ? 'danger' : 'primary'}
-                loading={reviewMutation.isPending}
-                onClick={submitDecision}
-              >
-                {decisionModal?.decision === 'Reject' ? tr('Xác nhận từ chối') : tr('Gửi yêu cầu bổ sung')}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="neutral"
+                  disabled={reviewMutation.isPending}
+                  onClick={() => setDecisionModal(null)}
+                >
+                  {tr('Hủy')}
+                </Button>
+                <Button
+                  type="button"
+                  size="md"
+                  data-testid="confirm-decision-submit-btn"
+                  variant={decisionModal?.decision === 'Reject' ? 'danger' : 'warning'}
+                  loading={reviewMutation.isPending}
+                  onClick={submitDecision}
+                >
+                  {decisionModal?.decision === 'Reject' ? tr('Xác nhận từ chối') : tr('Gửi yêu cầu bổ sung')}
+                </Button>
+              </>
             )}
           </div>
         }
       >
-        <form onSubmit={submitDecision} className="space-y-3">
-          {decisionModal?.decision === 'Approve' && (
+        <form onSubmit={submitDecision} className="space-y-4">
+          {decisionModal?.decision === 'Approve' ? (
             <>
               {!approveChecking && approveCheckFailed ? (
                 <Banner
@@ -1503,7 +1556,7 @@ export default function AdminTeachingProposalReviewPanel({
                   icon={AlertTriangle}
                   title={tr('Đề xuất không đủ điều kiện phê duyệt')}
                 >
-                  <ul className="m-0 list-disc space-y-1 pl-4 text-xs">
+                  <ul className="m-0 list-disc space-y-1 pl-4 text-sm">
                     {approveBlockingIssues.map((iss, idx) => (
                       <li key={`${iss.code}-${idx}`}>{iss.message}</li>
                     ))}
@@ -1511,64 +1564,114 @@ export default function AdminTeachingProposalReviewPanel({
                 </Banner>
               ) : (() => {
                 const previewProposal = liveApproveProposal || decisionModal?.proposal;
-                return previewProposal ? (
-                  <div className="rounded-xl border border-rp-line bg-rp-bg-2/40 px-3.5 py-2.5 text-xs text-rp-text-2 space-y-1">
-                    <div className="font-semibold text-rp-text">
-                      {[
-                        previewProposal.mentorName,
-                        previewProposal.jlptLevelCode ? `JLPT ${previewProposal.jlptLevelCode}` : null,
-                      ].filter(Boolean).join(' · ')}
+                const schedulePreview = previewProposal?.approvalSchedulePreview || null;
+                if (!previewProposal) return null;
+
+                const { courseTitle, showLevelBadge, levelCode } = resolveProposalTableTitle(previewProposal, trf);
+                const weeksCount = Number(schedulePreview?.courseDurationWeeks ?? previewProposal?.courseDurationWeeks ?? 0);
+                const sessionsCount = Number(schedulePreview?.totalSessions ?? previewProposal?.totalSessions ?? 0);
+                const maxLearnersCount = Number(schedulePreview?.maxLearners ?? previewProposal?.maxLearners ?? 0);
+                const tuitionAmount = schedulePreview?.totalCourseTuition ?? previewProposal?.totalCourseTuition ?? null;
+
+                return (
+                  <div className="flex flex-col gap-3.5">
+                    {/* Header: Class Icon + Class Name + Mentor Name */}
+                    <div className="flex items-start gap-3">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rp-brand-border/80 bg-rp-brand-tint text-rp-brand-strong"
+                      >
+                        <GraduationCap className="h-[18px] w-[18px]" />
+                      </span>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="m-0 text-[15.5px] font-semibold leading-5 text-rp-text">
+                            {courseTitle}
+                          </h3>
+                          {showLevelBadge && (
+                            <span className="text-[13.5px] font-semibold text-rp-text-2">
+                              · {levelCode}
+                            </span>
+                          )}
+                        </div>
+                        <p className="m-0 text-[13px] leading-[18px] text-rp-text-2">
+                          {tr('Giáo viên')}:{' '}
+                          <span className="font-medium text-rp-text">
+                            {previewProposal.mentorName || tr('Giáo viên')}
+                          </span>
+                        </p>
+                      </div>
                     </div>
-                    <div className="tabular-nums">
-                      {formatProposalCourseDuration({
-                        expectedStartDate: previewProposal.expectedStartDate,
-                        projectedEndDate: previewProposal.projectedEndDate,
-                        occurrences: previewProposal.occurrencesPreview || [],
-                        totalSessions: previewProposal.totalSessions,
-                        trf,
-                      })}
+
+                    {/* Three Metric Boxes on One Row */}
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 px-3 py-2">
+                        <p className="m-0 text-[13px] leading-[18px] text-rp-text-muted">{tr('Số tuần')}</p>
+                        <p className="m-0 mt-0.5 text-[14px] font-semibold leading-5 tabular-nums text-rp-text">
+                          {weeksCount > 0 ? trf('{0} tuần', { 0: weeksCount }) : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 px-3 py-2">
+                        <p className="m-0 text-[13px] leading-[18px] text-rp-text-muted">{tr('Tổng số buổi')}</p>
+                        <p className="m-0 mt-0.5 text-[14px] font-semibold leading-5 tabular-nums text-rp-text">
+                          {sessionsCount > 0 ? trf('{0} buổi', { 0: sessionsCount }) : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-rp-line bg-rp-bg-2/50 px-3 py-2">
+                        <p className="m-0 text-[13px] leading-[18px] text-rp-text-muted">{tr('Sĩ số tối đa')}</p>
+                        <p className="m-0 mt-0.5 text-[14px] font-semibold leading-5 tabular-nums text-rp-text">
+                          {maxLearnersCount > 0 ? trf('{0} học viên', { 0: maxLearnersCount }) : '—'}
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Dedicated Prominent Tuition Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rp-brand-border/75 bg-rp-brand-tint/45 px-3.5 py-2.5">
+                      <div className="space-y-0.5">
+                        <p className="m-0 text-[13.5px] font-semibold leading-5 text-rp-text">
+                          {tr('Học phí trọn khóa')}
+                        </p>
+                        <p className="m-0 text-[13px] leading-[18px] text-rp-text-muted">
+                          {tr('Tính trên mỗi học viên')}
+                        </p>
+                      </div>
+                      <p className="m-0 text-[20px] font-semibold leading-6 tabular-nums text-rp-brand-strong">
+                        {Number(tuitionAmount) > 0 ? formatTuitionVnd(tuitionAmount) : '—'}
+                      </p>
+                    </div>
+
+                    {/* Single Concise Guidance Line */}
+                    <p className="m-0 flex items-start gap-2 text-[13px] leading-[18px] text-rp-text-2">
+                      <Info aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rp-brand-strong" />
+                      <span>{tr('Phê duyệt chỉ xác nhận năng lực & mẫu lịch tuần. Giáo viên sẽ chủ động chọn hạn tuyển sinh để mở lớp sau khi được duyệt.')}</span>
+                    </p>
                   </div>
-                ) : null;
+                );
               })()}
-
-              <Banner tone="info">
-                {(liveApproveProposal?.courseDurationWeeks || decisionModal?.proposal?.courseDurationWeeks)
-                  ? trf('Phê duyệt sẽ xác nhận toàn bộ lịch giảng dạy ({0} tuần) và tự động khởi tạo lớp học nhóm mở tuyển sinh tại trang Lớp học & ghi danh.', {
-                      0: liveApproveProposal?.courseDurationWeeks || decisionModal?.proposal?.courseDurationWeeks,
-                    })
-                  : tr('Phê duyệt sẽ xác nhận toàn bộ lịch giảng dạy và tự động khởi tạo lớp học nhóm mở tuyển sinh tại trang Lớp học & ghi danh.')}
-              </Banner>
             </>
-          )}
-
-          <Field
-            label={
-              decisionModal?.decision === 'Approve'
-                ? tr('Ghi chú phê duyệt (nếu có)')
-                : decisionModal?.decision === 'RequestChanges'
+          ) : (
+            <Field
+              label={
+                decisionModal?.decision === 'RequestChanges'
                   ? tr('Nội dung yêu cầu bổ sung')
                   : tr('Lý do từ chối')
-            }
-            required={decisionModal?.decision !== 'Approve'}
-            error={reasonError}
-          >
-            <Textarea
-              rows={4}
-              maxLength={1500}
-              value={reason}
-              onChange={(e) => {
-                setReason(e.target.value);
-                if (reasonError) setReasonError('');
-              }}
-              placeholder={
-                decisionModal?.decision === 'Approve'
-                  ? tr('Ghi chú thêm cho giáo viên (nếu có)…')
-                  : tr('Nêu rõ nhận xét về hồ sơ chuyên môn, nội dung khóa học hoặc khung lịch để giáo viên điều chỉnh…')
               }
-              invalid={Boolean(reasonError)}
-            />
-          </Field>
+              required
+              error={reasonError}
+            >
+              <Textarea
+                rows={4}
+                maxLength={1500}
+                value={reason}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  if (reasonError) setReasonError('');
+                }}
+                placeholder={tr('Nêu rõ nhận xét về hồ sơ chuyên môn, nội dung khóa học hoặc khung lịch để giáo viên điều chỉnh…')}
+                invalid={Boolean(reasonError)}
+              />
+            </Field>
+          )}
         </form>
       </Modal>
 
@@ -1590,12 +1693,21 @@ export default function AdminTeachingProposalReviewPanel({
         }}
         serverConflictResult={bulkServerConflict}
         submitting={bulkApproveMutation.isPending}
-        reason={bulkReason}
-        onReasonChange={setBulkReason}
         onRemoveProposal={handleRemoveFromBulkConfirm}
         onRemoveInvalidProposals={handleRemoveInvalidFromBulkConfirm}
         onViewProposal={handleViewProposalFromBulk}
         onConfirm={handleConfirmBulkApprove}
+      />
+
+      <AttachmentPreviewModal
+        open={attachmentPreview.modalOpen}
+        onClose={attachmentPreview.closePreview}
+        attachment={attachmentPreview.activeAttachment}
+        loading={attachmentPreview.previewLoading}
+        error={attachmentPreview.previewError}
+        preview={attachmentPreview.previewData}
+        onDownload={attachmentPreview.handleDownloadActive}
+        downloading={Boolean(attachmentPreview.busyKey && attachmentPreview.busyKey.endsWith('-modal-dl'))}
       />
     </div>
   );

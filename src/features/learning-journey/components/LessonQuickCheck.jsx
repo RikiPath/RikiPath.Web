@@ -94,7 +94,7 @@ export default function LessonQuickCheck({
     },
     onSuccess: async (value) => {
       if (value?.passed === false) {
-        notify.info(tr('Đã chấm bài kiểm tra'), tr('Bạn có thể xem giải thích và làm lại để đạt điểm yêu cầu.'), { key: 'lesson-quickcheck-submit', replace: true });
+        notify.info(tr('Đã chấm bài kiểm tra.'), '', { key: 'lesson-quickcheck-submit', replace: true });
       } else {
         notify.success(tr('Đã hoàn thành bài kiểm tra nhanh!'), '', { key: 'lesson-quickcheck-submit', replace: true });
       }

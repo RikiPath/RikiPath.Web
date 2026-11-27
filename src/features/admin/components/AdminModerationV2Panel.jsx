@@ -54,7 +54,7 @@ const APPROVAL_BADGES = {
 };
 
 const ENTITY_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Mọi loại nội dung' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'QuestionBank', label: 'Câu hỏi ngân hàng' },
   { value: 'Passage', label: 'Đoạn đọc / Nhóm nghe' },
   { value: 'PracticeSet', label: 'Bộ đề luyện tập / Hỗn hợp' },
@@ -62,7 +62,7 @@ const ENTITY_FILTER_OPTIONS = [
 ];
 
 const STATUS_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Tất cả trạng thái' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'PendingReview', label: 'Chờ duyệt' },
   { value: 'ChangesRequested', label: 'Cần bổ sung' },
   { value: 'Approved', label: 'Đã duyệt' },
@@ -306,7 +306,7 @@ export default function AdminModerationV2Panel() {
       }
       refreshAll();
       setReviewNote('');
-      notify.success(tr('Đã ngừng xuất bản học liệu an toàn (giữ nguyên lịch sử học viên).'), '', { key: 'mod-unpub-ok' });
+      notify.success(tr('Đã ngừng xuất bản học liệu.'), '', { key: 'mod-unpub-ok' });
     },
     onError: (err) => notify.apiError(err, tr('Không thể ngừng xuất bản'), { key: 'mod-unpub-err' }),
   });
@@ -316,8 +316,23 @@ export default function AdminModerationV2Panel() {
   const detail = detailQuery.data;
   const summary = detail?.summary;
 
+  const hasAnyModFilter = statusFilter !== 'ALL' || entityFilter !== 'ALL' || keyword.trim() !== '';
+  const unfilteredModQuery = useQuery({
+    queryKey: ['admin-mod-v2-queue', 'unfiltered-check'],
+    queryFn: () => getModerationQueueV2({ page: 1, pageSize: 1 }),
+    enabled: Boolean(hasAnyModFilter && queueQuery.isSuccess && items.length === 0),
+    staleTime: 30_000,
+  });
+
+  const unfilteredModTotal = unfilteredModQuery.data?.totalCount ?? unfilteredModQuery.data?.items?.length ?? 0;
+  const hasUnderlyingModItems = !queueQuery.isPending && (!queueQuery.isError || items.length > 0) && (
+    items.length > 0 || (hasAnyModFilter && (unfilteredModQuery.isPending || unfilteredModTotal > 0))
+  );
+  const isFilterZero = hasAnyModFilter && queueQuery.isSuccess && unfilteredModTotal > 0;
+
   return (
     <div className="space-y-4">
+      {hasUnderlyingModItems && (
       <UnifiedToolbar
         search={{
           value: keyword,
@@ -337,6 +352,7 @@ export default function AdminModerationV2Panel() {
             <CustomSelect
               fitContent
               size="sm"
+              label="Trạng thái"
               value={statusFilter}
               onChange={(v) => {
                 setStatusFilter(v);
@@ -348,6 +364,7 @@ export default function AdminModerationV2Panel() {
             <CustomSelect
               fitContent
               size="sm"
+              label="Loại nội dung"
               value={entityFilter}
               onChange={(v) => {
                 setEntityFilter(v);
@@ -364,6 +381,7 @@ export default function AdminModerationV2Panel() {
           refreshing: queueQuery.isFetching && !queueQuery.isPending,
         }}
       />
+      )}
 
       {queueQuery.isPending && !items.length ? (
         <SakuraLoader variant="section" context="data" label={tr('Đang tải hàng đợi kiểm duyệt V2…')} delay={160} />
@@ -374,10 +392,28 @@ export default function AdminModerationV2Panel() {
       ) : items.length === 0 ? (
         <Card className="p-6">
           <ContextualEmptyState
-            variant="compact"
-            illustration="book"
-            title={tr('Không có mục nào trong bộ lọc kiểm duyệt V2.')}
-            description={tr('Thử chuyển trạng thái sang "Tất cả trạng thái" để xem lịch sử kiểm duyệt hoặc chờ Biên soạn viên gửi bài.')}
+            variant={isFilterZero ? 'search' : 'compact'}
+            illustration={isFilterZero ? 'search' : 'book'}
+            title={isFilterZero ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có mục kiểm duyệt V2 nào')}
+            description={
+              isFilterZero
+                ? tr('Thử chuyển trạng thái sang "Tất cả" hoặc thay đổi từ khóa để xem các mục kiểm duyệt.')
+                : tr('Các đề xuất và nội dung mới từ Tác giả nội dung sẽ hiển thị tại đây.')
+            }
+            action={isFilterZero ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setStatusFilter('ALL');
+                  setEntityFilter('ALL');
+                  setKeyword('');
+                  setPage(1);
+                }}
+              >
+                {tr('Xóa bộ lọc')}
+              </Button>
+            ) : null}
           />
         </Card>
       ) : (

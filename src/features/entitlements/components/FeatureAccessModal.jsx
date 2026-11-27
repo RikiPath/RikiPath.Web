@@ -80,7 +80,7 @@ export function FeatureAccessContent({
         {benefits.length > 0 && (
           <ul className="mt-3.5 grid gap-2 sm:grid-cols-2">
             {benefits.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-start gap-2 rounded-xl border border-rp-line bg-white px-3 py-2 text-[13px] leading-5 text-rp-text-2">
+              <li key={text} className="flex items-start gap-2 rounded-xl border border-rp-line bg-rp-surface px-3 py-2 text-[13px] leading-5 text-rp-text-2">
                 <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-rp-brand-strong" />
                 {tr(text)}
               </li>
@@ -99,10 +99,10 @@ export function FeatureAccessContent({
   );
 }
 
-/** Tones per setup feature: assessment = pastel blue + Sakura, roadmap = Sakura. */
+/** Tones per setup feature: unified Sakura Pink glow + border ring. */
 const SETUP_ART = {
-  placement: { icon: 'placement', glow: 'rgba(150, 190, 245, 0.55)', ring: '#CFE2F8' },
-  roadmap: { icon: 'roadmap', glow: 'rgba(247, 182, 200, 0.6)', ring: '#F2CCD7' },
+  placement: { icon: 'placement', glow: 'rgba(247, 182, 200, 0.58)', ring: '#F5CBD7' },
+  roadmap: { icon: 'roadmap', glow: 'rgba(247, 182, 200, 0.6)', ring: '#F5CBD7' },
 };
 
 /** Large clay illustration for a setup lock: soft glow, gentle float, small lock that sways, a few sparkles. */
@@ -149,7 +149,7 @@ export function SetupGuideSteps({ steps = [] }) {
             <span
               className={cx(
                 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-extrabold',
-                done && 'bg-rp-success text-white',
+                done && 'bg-[#259D63] text-white',
                 current && 'rp-guide-step-current bg-rp-brand-pressed text-white',
                 !done && !current && 'bg-rp-muted text-rp-text-muted',
               )}
@@ -157,11 +157,11 @@ export function SetupGuideSteps({ steps = [] }) {
               {done ? <Check aria-hidden="true" className="h-4 w-4" strokeWidth={3} /> : !current ? <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5" /> : index + 1}
             </span>
             <span className="min-w-0 flex-1">
-              <span className={cx('block text-[14px] font-bold leading-5', done ? 'text-rp-success' : current ? 'text-rp-text' : 'text-rp-text-muted')}>
+              <span className={cx('block text-[14px] font-bold leading-5', done ? 'text-[#1F8453]' : current ? 'text-rp-text' : 'text-rp-text-muted')}>
                 {trf('Bước {0} — {1}', { 0: index + 1, 1: tr(step.label) })}
               </span>
             </span>
-            <span className={cx('shrink-0 text-[12px] font-semibold', done ? 'text-rp-success' : current ? 'text-rp-brand-strong' : 'text-rp-text-muted')}>
+            <span className={cx('shrink-0 text-[12px] font-semibold', done ? 'text-[#1F8453]' : current ? 'text-rp-brand-strong' : 'text-rp-text-muted')}>
               {done ? tr('Đã hoàn thành') : current ? tr('Bước hiện tại') : tr('Chưa mở khóa')}
             </span>
           </li>

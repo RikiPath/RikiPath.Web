@@ -202,7 +202,7 @@ export default function AdminMentorVerifications() {
         <CustomSelect
           fitContent
           value={status}
-          aria-label={tr('Lọc theo trạng thái hồ sơ')}
+          aria-label={tr('Trạng thái')}
           onChange={(val) => {
             setStatus(val);
             const next = new URLSearchParams(params);
@@ -210,7 +210,7 @@ export default function AdminMentorVerifications() {
             setParams(next, { replace: true });
           }}
           options={[
-            { value: 'All', label: 'Tất cả trạng thái' },
+            { value: 'All', label: 'Tất cả' },
             ...Object.entries(STATUS_META).map(([value, meta]) => ({
               value,
               label: meta.label,
@@ -467,9 +467,11 @@ export default function AdminMentorVerifications() {
           onClose={() => setActionModal(null)}
           onConfirm={() => reviewMutation.mutate({ decision: 'Approve', note: reason.trim() })}
           loading={reviewMutation.isPending}
+          tone="success"
           title={tr('Phê duyệt hồ sơ Giáo viên?')}
           description={tr('Giáo viên sau khi duyệt sẽ được mở khóa quyền giảng dạy và đăng ký lịch dạy lớp nhóm.')}
           confirmLabel={tr('Xác nhận phê duyệt')}
+          cancelLabel={tr('Quay lại')}
         />
       ) : (
         <Modal
@@ -480,14 +482,19 @@ export default function AdminMentorVerifications() {
               ? tr('Từ chối hồ sơ Giáo viên')
               : tr('Yêu cầu Giáo viên bổ sung hồ sơ')
           }
+          description={
+            actionModal?.decision === 'Reject'
+              ? tr('Hồ sơ sẽ bị từ chối và Giáo viên sẽ nhận được lý do phản hồi.')
+              : tr('Giáo viên sẽ nhận được yêu cầu bổ sung tài liệu trước khi xét duyệt lại.')
+          }
           size="md"
           footer={
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" disabled={reviewMutation.isPending} onClick={() => setActionModal(null)}>
+              <Button variant="neutral" disabled={reviewMutation.isPending} onClick={() => setActionModal(null)}>
                 {tr('Hủy')}
               </Button>
               <Button
-                variant={actionModal?.decision === 'Reject' ? 'danger' : 'primary'}
+                variant={actionModal?.decision === 'Reject' ? 'danger' : 'warning'}
                 loading={reviewMutation.isPending}
                 onClick={submitDecision}
               >

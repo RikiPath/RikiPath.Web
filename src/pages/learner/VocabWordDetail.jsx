@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bookmark, Repeat, Search, Volume2 } from 'lucide-react';
+import { BookOpen, Bookmark, Repeat, Search, Volume2 } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import {
-  BackButton,
   Badge,
   Banner,
   Button,
   Card,
   CustomSelect,
+  DetailPageHeader,
   EmptyState,
   ErrorState,
   Field,
@@ -20,7 +21,6 @@ import {
   notify,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
-import { IllustratedPageHeader } from '@/features/learner-ui';
 import { getSession } from '@/app/auth/session.js';
 import { bookmarkVocabulary, createNotebookList, getNotebookLists } from '@/features/notebook/api/notebookApi.js';
 import { getVocabulary, searchVocabulary } from '@/features/content-author/api/sharedBankApi.js';
@@ -67,7 +67,7 @@ export default function VocabWordDetail() {
       if (res?.alreadyExists || res?.isExisting) {
         notify.info(tr('Từ này đã có trong Sổ tay'), '', { key: 'vocab-bm-dup' });
       } else {
-        notify.success(tr('Đã lưu từ vựng vào Sổ tay'), tr('Từ này đã được lưu vào Sổ tay cá nhân của bạn.'), {
+        notify.success(tr('Đã lưu từ vựng vào Sổ tay.'), '', {
           key: 'vocab-bm-ok',
           action: { label: tr('Mở sổ tay'), onClick: () => navigate('/kanji-notebook/') },
         });
@@ -124,13 +124,12 @@ export default function VocabWordDetail() {
   return (
     <LearnerShell breadcrumb={word?.word || tr('Chi tiết từ')}>
       <PageContainer width="reading" density="comfortable" className="space-y-4 text-rp-text">
-        <div>
-          <BackButton fallbackTo="/kanji-notebook/" label="Về Sổ tay cá nhân" restoreListKey="/kanji-notebook" />
-        </div>
-        <IllustratedPageHeader
-          icon="vocabulary"
-          tone="mint"
+        <DetailPageHeader
           compact
+          backFallbackTo="/kanji-notebook/"
+          backLabel="Về Sổ tay cá nhân"
+          restoreListKey="/kanji-notebook"
+          icon={BookOpen}
           title={word?.word ? word.word : tr('Tra từ vựng tiếng Nhật')}
           description={tr('Xem cách đọc, nghĩa, ví dụ và lưu nhanh vào Sổ tay cá nhân.')}
         />
@@ -144,11 +143,15 @@ export default function VocabWordDetail() {
             setSubmitted(keyword.trim());
           }}
         >
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">{tr('Tìm từ đã duyệt')}</span>
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rp-text-muted" />
-            <Input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder={tr('Tìm từ: chữ, cách đọc hoặc nghĩa')} className="pl-10" />
-          </label>
+          <div className="min-w-0 flex-1">
+            <Input
+              icon={Search}
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              label={tr('Tìm từ đã duyệt')}
+              placeholder={tr('Tìm từ: chữ, cách đọc hoặc nghĩa')}
+            />
+          </div>
           <Button type="submit" disabled={!keyword.trim()}>{tr('Tìm')}</Button>
         </form>
 
@@ -162,7 +165,7 @@ export default function VocabWordDetail() {
                 <div className="min-w-0">
                   <p lang="ja" className="rp-jp text-sm font-medium text-tone-vocab">{word.reading}</p>
                   <h1 id="word-title" lang="ja" className="rp-kanji mt-1 text-[44px] font-semibold leading-tight text-rp-text">{word.word}</h1>
-                  {word.jlptLevelName && <Badge tone="brand" icon={false} className="mt-2">JLPT {word.jlptLevelName}</Badge>}
+                  {word.jlptLevelName && <Badge tone="brand" icon={false} className="mt-2">{formatJlptLevel(word.jlptLevelName)}</Badge>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {!word.audioUrl && (

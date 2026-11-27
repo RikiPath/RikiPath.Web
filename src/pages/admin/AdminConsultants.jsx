@@ -187,10 +187,11 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
     {
       key: 'fullName',
       header: tr('Giáo viên'),
+      align: 'left',
       render: (row) => {
         const name = getName(row);
         return (
-          <div className="mx-auto flex w-[250px] max-w-full items-center gap-3 text-left">
+          <div className="flex min-w-0 items-center gap-3 text-left">
             <Avatar src={row.avatarUrl} name={name} size={32} className="ring-1 ring-rp-line" />
             <div className="min-w-0">
               <p title={name} className="truncate font-semibold text-rp-text">{name}</p>
@@ -203,12 +204,14 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
     {
       key: 'phoneNumber',
       header: tr('Liên hệ'),
+      align: 'center',
       compact: true,
       render: (row) => <span className="text-sm text-rp-text-2">{row.phoneNumber || '—'}</span>,
     },
     {
       key: 'verificationStatus',
       header: tr('Hồ sơ'),
+      align: 'center',
       compact: true,
       render: (row) => {
         const meta = VERIFY_META[row.verificationStatus] || VERIFY_META.Unverified;
@@ -218,6 +221,7 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
     {
       key: 'teachingLevels',
       header: tr('Quyền dạy JLPT'),
+      align: 'center',
       render: (row) => (
         row.teachingLevels?.length ? (
           <div className="flex flex-wrap justify-center gap-1">
@@ -233,6 +237,7 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
     {
       key: 'isActive',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <AdminStatusBadge
@@ -273,19 +278,19 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
         <CustomSelect
           fitContent
           value={statusFilter}
-          aria-label={tr('Lọc theo trạng thái')}
+          aria-label={tr('Trạng thái')}
           onChange={setStatusFilter}
           options={[
             { value: 'active', label: tr('Đang hoạt động'), dotClass: 'bg-rp-success' },
             { value: 'inactive', label: tr('Tạm khóa'), dotClass: 'bg-rp-danger' },
-            { value: 'all', label: tr('Tất cả trạng thái') },
+            { value: 'all', label: tr('Tất cả') },
           ]}
         />
 
         <CustomSelect
           fitContent
           value={sortBy}
-          aria-label={tr('Sắp xếp danh sách')}
+          aria-label={tr('Sắp xếp')}
           onChange={setSortBy}
           options={[
             { value: 'name', label: tr('Tên A–Z') },
@@ -540,7 +545,7 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
         onClose={() => setToggleTarget(null)}
         onConfirm={() => toggleTarget && toggleMutation.mutate(toggleTarget)}
         loading={toggleMutation.isPending}
-        tone={toggleTarget?.nextActive ? 'info' : 'danger'}
+        tone={toggleTarget?.nextActive ? 'success' : 'danger'}
         title={toggleTarget?.nextActive ? tr('Kích hoạt lại Giáo viên?') : tr('Tạm khóa tài khoản Giáo viên?')}
         description={
           toggleTarget?.nextActive
@@ -550,6 +555,7 @@ export default function AdminConsultants({ fillHeight = false } = {}) {
               })
         }
         confirmLabel={toggleTarget?.nextActive ? tr('Kích hoạt') : tr('Tạm khóa')}
+        cancelLabel={tr('Quay lại')}
       />
     </div>
   );

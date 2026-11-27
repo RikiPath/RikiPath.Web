@@ -20,6 +20,7 @@ import {
 } from '@/components/ui';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { getMockTestReview } from '../api/mockTestApi.js';
 import QuestionReviewWorkspace from './QuestionReviewWorkspace.jsx';
 import ResultScoreSummaryCard from './ResultScoreSummaryCard.jsx';
@@ -86,7 +87,7 @@ export default function AttemptResultDashboard({
 
   const headerBadges = (
     <>
-      {result.jlptLevelName && <Badge tone="brand" size="sm" icon={false}>JLPT {result.jlptLevelName}</Badge>}
+      {result.jlptLevelName && <Badge tone="brand" size="sm" icon={false}>{formatJlptLevel(result.jlptLevelName)}</Badge>}
       <Badge tone={isPractice ? 'info' : 'neutral'} size="sm" icon={false}>
         {isPractice ? tr('Bộ đề luyện tập') : tr('Thi thử JLPT')}
       </Badge>

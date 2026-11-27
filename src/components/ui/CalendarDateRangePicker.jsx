@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Popover } from './overlay.jsx';
+import { OutlinedField, useFieldFloatingContext, useFloatingLabelEnabled } from './FloatingField.jsx';
 import { cx } from './cx.js';
 import { formatIsoDateDisplay } from './dateFormat.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
@@ -41,7 +42,7 @@ function monthDays(monthKey) {
 }
 
 const SIZE_CLASSES = {
-  sm: 'h-8 px-3 text-xs rounded-[10px]',
+  sm: 'h-9 px-3 text-xs rounded-[10px]',
   md: 'h-10 px-3.5 text-xs sm:text-sm rounded-rp-input',
   lg: 'h-12 px-4 text-sm rounded-xl',
 };
@@ -58,6 +59,8 @@ function CalendarDateField({
   disabledDate,
   getDisabledReason,
   disabled = false,
+  required = false,
+  floatingLabel,
   invalid = false,
   placeholder,
   size = 'md',
@@ -67,16 +70,26 @@ function CalendarDateField({
   showToday = true,
   className,
   triggerClassName,
-  'aria-describedby': ariaDescribedBy,
+  'aria-describedby': ariaDescribedByProp,
 }) {
   const { locale, tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
   const [cursorMonth, setCursorMonth] = useState(() => (value || min || todayKey()).slice(0, 7));
   const [focusedDayKey, setFocusedDayKey] = useState(() => value || min || todayKey());
   const [inspectedDisabledDay, setInspectedDisabledDay] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const wasOpenRef = useRef(false);
   const dayButtonRefs = useRef(new Map());
   const gridId = useId();
   const today = todayKey();
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && label !== false;
+  const effectiveLabel = fieldCtx?.label ?? (label && label !== false ? tr(label) : null);
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const fieldId = id || fieldCtx?.htmlFor;
+  const isInvalid = invalid || Boolean(fieldCtx?.invalid);
+  const isRequired = Boolean(required || fieldCtx?.required);
+  const resolvedDescribedBy = ariaDescribedByProp ?? fieldCtx?.describedBy;
   const days = useMemo(() => monthDays(cursorMonth), [cursorMonth]);
   const [year, month] = cursorMonth.split('-').map(Number);
   const monthLabel = new Intl.DateTimeFormat(currentIntlTag(), {
@@ -102,6 +115,7 @@ function CalendarDateField({
   }, [getDisabledReason, min, max, tr]);
 
   const handleOpenChange = useCallback((open) => {
+    setIsOpen(Boolean(open));
     if (open) {
       wasOpenRef.current = true;
       const seed = value || (min && min > today ? min : today);
@@ -134,40 +148,77 @@ function CalendarDateField({
   };
 
   const placeholderText = placeholder || (locale === 'ja' ? 'YYYY/MM/DD' : 'DD/MM/YYYY');
+  const hasValue = Boolean(value);
+  const isFloated = Boolean(isOpen || focused || hasValue);
 
   return (
     <Popover
       align="start"
-      label={tr(label)}
+      label={typeof effectiveLabel === 'string' ? effectiveLabel : tr(label)}
       className={cx(fullWidth ? 'w-full' : undefined, className)}
       panelClassName="w-[292px] max-w-[calc(100vw-24px)] overflow-hidden"
       onOpenChange={handleOpenChange}
-      trigger={({ props, toggle }) => (
-        <button
-          id={id}
-          name={name}
-          type="button"
-          {...props}
-          disabled={disabled}
-          onClick={toggle}
-          aria-label={tr(label)}
-          aria-invalid={invalid || undefined}
-          aria-describedby={ariaDescribedBy}
-          className={cx(
-            'rp-focus inline-flex items-center justify-between gap-2 border bg-rp-surface text-left tabular-nums transition-colors hover:border-rp-brand-border',
-            SIZE_CLASSES[size] || SIZE_CLASSES.md,
-            invalid ? 'border-rp-danger' : 'border-rp-line',
-            disabled && 'cursor-not-allowed opacity-50',
-            fullWidth ? 'w-full' : compact ? 'w-[148px]' : 'min-w-[148px]',
-            triggerClassName,
-          )}
-        >
-          <span className={cx('truncate', value ? 'font-medium text-rp-text' : 'text-rp-text-muted')}>
-            {value ? formatIsoDateDisplay(value) : placeholderText}
-          </span>
-          <CalendarDays className="h-4 w-4 shrink-0 text-rp-text-muted" aria-hidden="true" />
-        </button>
-      )}
+      trigger={({ props, toggle }) => {
+        const triggerBtn = (
+          <button
+            id={fieldId}
+            name={name}
+            type="button"
+            {...props}
+            disabled={disabled}
+            onClick={toggle}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            aria-label={typeof effectiveLabel === 'string' ? effectiveLabel : tr(label)}
+            aria-invalid={isInvalid || undefined}
+            aria-describedby={resolvedDescribedBy}
+            className={cx(
+              'inline-flex items-center justify-between gap-2 text-left tabular-nums transition-[border-color,box-shadow,background-color] duration-150 focus:outline-none',
+              hasFloating
+                ? 'w-full rounded-[inherit] border-0 border-transparent bg-transparent focus-visible:shadow-none focus-visible:ring-0'
+                : cx(
+                    'border bg-rp-surface',
+                    isInvalid
+                      ? 'border-rp-danger focus:border-rp-danger focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+                      : 'border-rp-line hover:border-rp-brand-border focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]',
+                    isOpen && (isInvalid
+                      ? 'border-rp-danger shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+                      : 'border-rp-brand shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]'),
+                    fullWidth ? 'w-full' : compact ? 'w-[148px]' : 'min-w-[148px]',
+                  ),
+              SIZE_CLASSES[size] || SIZE_CLASSES.md,
+              disabled && 'cursor-not-allowed opacity-50',
+              triggerClassName,
+            )}
+          >
+            <span className={cx('truncate', value ? 'font-medium text-rp-text' : 'text-rp-text-muted')}>
+              {value
+                ? formatIsoDateDisplay(value)
+                : hasFloating
+                  ? (isFloated ? placeholderText : '\u00A0')
+                  : placeholderText}
+            </span>
+            <CalendarDays className={cx('h-4 w-4 shrink-0', isOpen || focused ? 'text-rp-brand-strong' : 'text-rp-text-muted')} aria-hidden="true" />
+          </button>
+        );
+        if (!hasFloating) return triggerBtn;
+        return (
+          <OutlinedField
+            label={effectiveLabel}
+            htmlFor={fieldId}
+            required={isRequired}
+            focused={focused}
+            open={isOpen}
+            hasValue={hasValue}
+            invalid={isInvalid}
+            disabled={disabled}
+            size={size}
+            className={fullWidth ? 'w-full' : compact ? 'w-[148px]' : 'min-w-[164px]'}
+          >
+            {triggerBtn}
+          </OutlinedField>
+        );
+      }}
     >
       {({ close }) => (
         <div className="select-none p-3">
@@ -337,6 +388,8 @@ export function DatePicker({
   disabledDate,
   getDisabledReason,
   disabled = false,
+  required = false,
+  floatingLabel,
   invalid = false,
   placeholder,
   size = 'md',
@@ -361,6 +414,8 @@ export function DatePicker({
       disabledDate={disabledDate}
       getDisabledReason={getDisabledReason}
       disabled={disabled}
+      required={required}
+      floatingLabel={floatingLabel}
       invalid={invalid}
       placeholder={placeholder}
       size={size}
@@ -374,26 +429,28 @@ export function DatePicker({
     />
   );
 }
+DatePicker.rpFloatingLabel = true;
 
 /** Shared Sakura date range filter; values remain ISO date keys for API queries. */
 export function DateRangePicker({
   from = '', to = '', onFromChange, onToChange,
   fromLabel = 'Từ ngày', toLabel = 'Đến ngày',
-  min, max, disabled = false, compact = false, separator = '–', className,
+  min, max, disabled = false, compact = false, separator = '–', className, floatingLabel,
 }) {
   const { tr } = useLocale();
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel);
   const invalidRange = Boolean(from && to && from > to);
   return (
     <div className={cx(compact ? 'space-y-1' : 'space-y-1.5', className)}>
       <div className={cx('flex flex-wrap items-center', compact ? 'gap-1.5 sm:flex-nowrap' : 'gap-2')}>
-        <div className={cx(!compact && 'flex items-center gap-1.5')}>
-          {!compact && <span className="text-xs font-medium text-rp-text-muted">{tr(fromLabel)}</span>}
-          <CalendarDateField label={fromLabel} value={from} onChange={onFromChange} min={min} max={to || max} disabled={disabled} invalid={invalidRange} compact={compact} />
+        <div className={cx(!compact && !floatingEnabled && 'flex items-center gap-1.5')}>
+          {!compact && !floatingEnabled && <span className="text-xs font-medium text-rp-text-muted">{tr(fromLabel)}</span>}
+          <CalendarDateField label={fromLabel} floatingLabel={floatingLabel} value={from} onChange={onFromChange} min={min} max={to || max} disabled={disabled} invalid={invalidRange} compact={compact} />
         </div>
         <span aria-hidden="true" className="shrink-0 select-none text-xs font-medium text-rp-text-muted">{separator}</span>
-        <div className={cx(!compact && 'flex items-center gap-1.5')}>
-          {!compact && <span className="text-xs font-medium text-rp-text-muted">{tr(toLabel)}</span>}
-          <CalendarDateField label={toLabel} value={to} onChange={onToChange} min={from || min} max={max} disabled={disabled} invalid={invalidRange} compact={compact} />
+        <div className={cx(!compact && !floatingEnabled && 'flex items-center gap-1.5')}>
+          {!compact && !floatingEnabled && <span className="text-xs font-medium text-rp-text-muted">{tr(toLabel)}</span>}
+          <CalendarDateField label={toLabel} floatingLabel={floatingLabel} value={to} onChange={onToChange} min={from || min} max={max} disabled={disabled} invalid={invalidRange} compact={compact} />
         </div>
       </div>
       {invalidRange && <p role="alert" className="text-xs font-medium text-rp-danger">{tr('Ngày bắt đầu không thể lớn hơn ngày kết thúc.')}</p>}

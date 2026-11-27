@@ -115,13 +115,17 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
     {
       key: 'date',
       header: tr('Ngày'),
-      render: (row) => <span className="font-medium">{toVnTimeParts(row.startTime).dateKey}</span>,
+      align: 'center',
+      compact: true,
+      render: (row) => <span className="font-medium whitespace-nowrap">{toVnTimeParts(row.startTime).dateKey}</span>,
     },
     {
       key: 'time',
       header: tr('Khung giờ'),
+      align: 'center',
+      compact: true,
       render: (row) => (
-        <span className="tabular-nums text-xs font-semibold">
+        <span className="tabular-nums text-xs font-semibold whitespace-nowrap">
           {clock(row.startTime)} – {clock(row.endTime)}
         </span>
       ),
@@ -129,6 +133,8 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
     {
       key: 'state',
       header: tr('Trạng thái'),
+      align: 'center',
+      compact: true,
       render: (row) => {
         const st = STATES[row.state] || STATES.Available;
         return <Badge tone={st.tone} size="sm" icon={false}>{tr(st.label)}</Badge>;
@@ -137,6 +143,7 @@ export default function AdminMentorScheduleCalendar({ mentorId, email }) {
     {
       key: 'learners',
       header: tr('Học viên / lớp'),
+      align: 'left',
       render: (row) => (
         <span className="text-xs text-rp-text-2">
           {activeBookings(row).map((b) => b.learnerName).filter(Boolean).join(', ') || '—'}

@@ -1,40 +1,47 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
+  ArrowRight,
   BookOpen,
   CalendarDays,
   ChevronDown,
   ChevronUp,
   Clock,
-  ExternalLink,
-  FileText,
   Lock,
   Star,
 } from 'lucide-react';
-import { Badge, Banner, Button, Modal, UserAvatar } from '@/components/ui';
+import { captureNavigationOrigin } from '@/utils/navigationContext.js';
+import {
+  AttachmentItemRow,
+  AttachmentPreviewModal,
+  Banner,
+  Button,
+  Modal,
+  UserAvatar,
+  useAttachmentPreview,
+} from '@/components/ui';
+import {
+  fetchCohortAttachmentBlob,
+  fetchCohortAttachmentPreview,
+} from '@/features/cohorts/api/cohortApi';
 import { StatusBadge } from '@/features/admin/components/AdminPrimitives.jsx';
 import OccupancyProgressBar from './OccupancyProgressBar.jsx';
+import WeeklyScheduleDisplay from '@/features/scheduling/components/WeeklyScheduleDisplay.jsx';
 import {
   fmtDate,
   fmtDateOnly,
   frequencyLabelOf,
   groupCohortSessionsByYearMonth,
   money,
-  weeklyScheduleLinesOf,
   cohortWeeksOf,
 } from '@/features/cohorts/utils/cohortCardModel';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
-
-function isSafeAttachmentUrl(url) {
-  if (!url) return false;
-  const trimmed = String(url).trim();
-  return /^https?:\/\//i.test(trimmed) || trimmed.startsWith('/');
-}
 
 function OverviewFact({ label, value }) {
   return (
     <div className="rounded-xl border border-rp-line/80 bg-rp-bg-2/50 px-3 py-2">
-      <dt className="text-[11.5px] font-medium text-rp-text-muted">{label}</dt>
+      <dt className="text-[12.5px] font-medium text-rp-text-muted">{label}</dt>
       <dd className="mt-0.5 text-[13.5px] font-semibold tabular-nums text-rp-text">{value}</dd>
     </div>
   );
@@ -45,14 +52,28 @@ export default function CohortDetailModal({
   statusInfo,
   busy = false,
   checkingEligibility = false,
+  hideMentorProfileLink = false,
+  mentorLinkState,
+  onBeforeMentorNavigate,
   onClose,
   onEnroll,
   onViewCourse,
 }) {
   const { tr, trf } = useLocale();
+  const location = useLocation();
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
+  const attachmentPreview = useAttachmentPreview();
 
   if (!cohort) return null;
+
+  const resolvedMentorLinkState = mentorLinkState || {
+    navigationOrigin: captureNavigationOrigin(location, { backLabel: 'Quay lại chi tiết lớp' }),
+  };
+
+  const handleMentorNavClick = () => {
+    onBeforeMentorNavigate?.(cohort);
+    onClose?.();
+  };
 
   const weeks = cohortWeeksOf(cohort);
   const totalSessions = Number(cohort.totalSessions ?? cohort.sessions?.length ?? 0);
@@ -62,7 +83,6 @@ export default function CohortDetailModal({
     : (totalSessions > 0 && sessionMinutes > 0
         ? Math.round(((totalSessions * sessionMinutes) / 60) * 10) / 10
         : null);
-  const weeklyLines = weeklyScheduleLinesOf(cohort);
   const sessionGroups = groupCohortSessionsByYearMonth(cohort.sessions || []);
   const objective = String(cohort.courseObjective || '').trim();
   const attachments = (cohort.attachments || []).filter((a) => a && a.name);
@@ -122,17 +142,18 @@ export default function CohortDetailModal({
   };
 
   return (
+    <>
     <Modal
       open={Boolean(cohort)}
       onClose={onClose}
       size="xl"
       title={cohort.name}
       titleBadge={
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {cohort.level && (
-            <Badge tone="brand" size="sm" icon={false}>
-              {cohort.level}
-            </Badge>
+            <span className="text-[13px] font-semibold text-rp-text-2">
+              {formatJlptLevel(cohort.level)}
+            </span>
           )}
           {statusInfo && (
             <StatusBadge tone={statusInfo.tone} label={tr(statusInfo.label)} />
@@ -205,13 +226,20 @@ export default function CohortDetailModal({
             <div className="min-w-0">
               <p className="text-xs font-medium text-rp-text-muted">{tr('Giáo viên phụ trách')}</p>
               <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  to={`/mentors/${cohort.mentorId}`}
-                  onClick={onClose}
-                  className="truncate text-[14.5px] font-bold text-rp-text hover:text-rp-brand-strong hover:underline"
-                >
-                  {cohort.mentorName || tr('Giáo viên lớp nhóm')}
-                </Link>
+                {hideMentorProfileLink || !cohort.mentorId ? (
+                  <span className="truncate text-[14.5px] font-bold text-rp-text">
+                    {cohort.mentorName || tr('Giáo viên lớp nhóm')}
+                  </span>
+                ) : (
+                  <Link
+                    to={`/mentors/${cohort.mentorId}/`}
+                    state={resolvedMentorLinkState}
+                    onClick={handleMentorNavClick}
+                    className="truncate text-[14.5px] font-bold text-rp-text hover:text-rp-brand-strong hover:underline"
+                  >
+                    {cohort.mentorName || tr('Giáo viên lớp nhóm')}
+                  </Link>
+                )}
                 {hasRealRating && (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 tabular-nums">
                     <Star aria-hidden="true" className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
@@ -224,14 +252,15 @@ export default function CohortDetailModal({
               </div>
             </div>
           </div>
-          {cohort.mentorId && (
+          {cohort.mentorId && !hideMentorProfileLink && (
             <Button
               as={Link}
-              to={`/mentors/${cohort.mentorId}`}
-              onClick={onClose}
+              to={`/mentors/${cohort.mentorId}/`}
+              state={resolvedMentorLinkState}
+              onClick={handleMentorNavClick}
               variant="outline"
               size="sm"
-              iconRight={ExternalLink}
+              iconRight={ArrowRight}
             >
               {tr('Xem hồ sơ Giáo viên')}
             </Button>
@@ -314,29 +343,35 @@ export default function CohortDetailModal({
             {attachments.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <p className="text-xs font-semibold text-rp-text">{tr('Tài liệu giới thiệu khóa học')}</p>
-                <ul className="flex flex-col gap-1.5 list-none p-0">
-                  {attachments.map((att) => (
-                    <li key={`${att.index}-${att.name}`}>
-                      {isSafeAttachmentUrl(att.url) ? (
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 rounded-lg border border-rp-line bg-rp-surface px-3 py-1.5 text-[13px] font-medium text-rp-brand-strong hover:border-rp-brand-border hover:bg-rp-brand-tint/40"
-                        >
-                          <FileText aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                          <span>{att.name}</span>
-                          <ExternalLink aria-hidden="true" className="h-3 w-3 shrink-0 opacity-70" />
-                        </a>
-                      ) : (
-                        <span className="inline-flex items-center gap-2 rounded-lg border border-rp-line bg-rp-surface px-3 py-1.5 text-[13px] text-rp-text-2">
-                          <FileText aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" />
-                          <span>{att.name}</span>
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <div className="flex flex-col gap-1.5">
+                  {attachments.map((att, idx) => {
+                    const attIdx = att.index ?? idx;
+                    const canAccess = Number.isFinite(Number(cohort.id));
+                    return (
+                      <AttachmentItemRow
+                        key={`${attIdx}-${att.name}`}
+                        name={att.name}
+                        contentType={att.contentType}
+                        sizeBytes={att.sizeBytes}
+                        viewing={attachmentPreview.busyKey === `cohort:${cohort.id}:${attIdx}:view`}
+                        downloading={attachmentPreview.busyKey === `cohort:${cohort.id}:${attIdx}:dl`}
+                        disabled={!canAccess || Boolean(attachmentPreview.busyKey)}
+                        onView={canAccess ? () => void attachmentPreview.openPreview({
+                          key: `cohort:${cohort.id}:${attIdx}:view`,
+                          attachment: att,
+                          fetchBlob: () => fetchCohortAttachmentBlob(cohort.id, attIdx, { download: false }),
+                          fetchDownloadBlob: () => fetchCohortAttachmentBlob(cohort.id, attIdx, { download: true }),
+                          fetchPreview: () => fetchCohortAttachmentPreview(cohort.id, attIdx),
+                        }) : null}
+                        onDownload={canAccess ? () => void attachmentPreview.downloadAttachment({
+                          key: `cohort:${cohort.id}:${attIdx}:dl`,
+                          attachment: att,
+                          fetchBlob: () => fetchCohortAttachmentBlob(cohort.id, attIdx, { download: true }),
+                        }) : null}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
@@ -348,21 +383,12 @@ export default function CohortDetailModal({
             <Clock aria-hidden="true" className="h-4 w-4 text-rp-brand" />
             {tr('Lịch học hằng tuần')}
           </h3>
-          {weeklyLines.length === 0 ? (
-            <p className="text-[13px] text-rp-text-muted">{tr('Chưa có lịch học hằng tuần.')}</p>
-          ) : (
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,205px),1fr))] gap-2.5">
-              {weeklyLines.map((line) => (
-                <div
-                  key={line.key}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-rp-line/80 bg-rp-bg-2/40 px-3 py-2 text-[13px]"
-                >
-                  <span className="truncate font-medium text-rp-text-2">{line.weekdayLabel}</span>
-                  <span className="shrink-0 font-semibold tabular-nums text-rp-text">{line.timeRange}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <WeeklyScheduleDisplay
+            schedulePattern={cohort.schedulePattern}
+            sessions={cohort.sessions}
+            sessionDurationMinutes={sessionMinutes || 90}
+            variant="detailed"
+          />
         </section>
 
         {/* E. Lịch học chi tiết toàn khóa (mặc định thu gọn) */}
@@ -415,5 +441,17 @@ export default function CohortDetailModal({
         )}
       </div>
     </Modal>
+
+    <AttachmentPreviewModal
+      open={attachmentPreview.modalOpen}
+      onClose={attachmentPreview.closePreview}
+      attachment={attachmentPreview.activeAttachment}
+      loading={attachmentPreview.previewLoading}
+      error={attachmentPreview.previewError}
+      preview={attachmentPreview.previewData}
+      onDownload={attachmentPreview.handleDownloadActive}
+      downloading={Boolean(attachmentPreview.busyKey && attachmentPreview.busyKey.endsWith('-modal-dl'))}
+    />
+    </>
   );
 }

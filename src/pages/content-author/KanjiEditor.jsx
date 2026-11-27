@@ -20,6 +20,7 @@ export default function KanjiEditor() {
         {
           key: 'character',
           label: 'Chữ Hán',
+          align: 'center',
           compact: true,
           render: (row) => (
             <span className="rp-jp inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rp-brand-tint text-lg font-bold text-rp-brand-strong">
@@ -30,11 +31,13 @@ export default function KanjiEditor() {
         {
           key: 'meaning',
           label: 'Nghĩa',
+          align: 'left',
           render: (row) => <span className="font-medium text-rp-text">{row.meaning}</span>,
         },
         {
           key: 'readings',
           label: 'Âm đọc',
+          align: 'left',
           render: (row) => (
             <span className="rp-jp text-xs text-rp-text-2">
               {[row.onYomi && `On: ${row.onYomi}`, row.kunYomi && `Kun: ${row.kunYomi}`].filter(Boolean).join(' · ') || '—'}
@@ -44,12 +47,14 @@ export default function KanjiEditor() {
         {
           key: 'strokeCount',
           label: 'Số nét',
+          align: 'center',
           compact: true,
           render: (row) => <span className="tabular-nums text-xs">{row.strokeCount}</span>,
         },
         {
           key: 'jlptLevelName',
           label: 'Cấp độ',
+          align: 'center',
           compact: true,
           render: (row) => (
             row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'

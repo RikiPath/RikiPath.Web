@@ -294,11 +294,26 @@ export function DataTable({
     col.compact && 'w-[1%] whitespace-nowrap',
     col.width,
   );
+  const isActionColumn = (col) => col?.key === '__actions' || col?.key === 'actions' || col?.key === 'action';
   const allColumns = rowActions
-    ? [...columns, { key: '__actions', header: actionsHeaderLabel, align: 'center', headerAlign: 'center', compact: actionsCompact, render: rowActions }]
+    ? [
+        ...columns,
+        {
+          key: '__actions',
+          header: actionsHeaderLabel,
+          align: 'center',
+          headerAlign: 'center',
+          compact: actionsCompact,
+          render: (row) => (
+            <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
+              {rowActions(row)}
+            </div>
+          ),
+        },
+      ]
     : columns;
   const resolveColumnAlign = (col, index) => resolveAlignClass(
-    col.align || (index === 0 ? 'left' : index === allColumns.length - 1 ? 'right' : align),
+    col.align || (isActionColumn(col) ? 'center' : index === 0 ? 'left' : align),
   );
   const edgeCellPadding = (index) => index === 0
     ? 'pl-[var(--rp-table-cell-x)] pr-[var(--rp-table-cell-x)] sm:pl-3'
@@ -362,7 +377,8 @@ export function DataTable({
                     scope="col"
                     aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : undefined}
                     className={cx(
-                      'border-b border-rp-brand-border/80 bg-rp-table-head px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] text-xs font-bold text-rp-brand-strong',
+                      'border-b border-rp-brand-border/80 bg-rp-table-head px-[var(--rp-table-cell-x)] py-[var(--rp-table-cell-y)] align-middle text-[13px] font-semibold text-rp-brand-strong',
+                      (col.compact || isActionColumn(col)) && 'whitespace-nowrap',
                       stickyHeader && 'sticky top-0 z-10 shadow-[0_1px_0_var(--color-rp-brand-border)]',
                       col.headerAlign ? resolveAlignClass(col.headerAlign) : resolveColumnAlign(col, index),
                       edgeCellPadding(index),

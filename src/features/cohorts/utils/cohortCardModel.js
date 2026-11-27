@@ -7,6 +7,7 @@ import {
   parseBusinessDate,
 } from '@/utils/dateTimeFormat.js';
 import { translateTemplate, translateText, currentIntlTag } from '@/locales/locale.js';
+import { groupWeeklyScheduleByTimeRange } from '@/features/scheduling/utils/weeklyScheduleGrouping.js';
 
 const WEEKDAY_LABELS = {
   0: 'Chủ nhật',
@@ -123,13 +124,13 @@ export function weeklyScheduleLinesOf(cohort) {
 
 /** "Thứ 2, Thứ 4 · 19:00–20:30" (nhóm theo khung giờ). */
 export function schedulePatternText(pattern = [], sessions = []) {
-  const lines = weeklyScheduleLinesOf({ schedulePattern: pattern, sessions });
-  if (lines.length === 0) return translateText('Chưa có lịch cụ thể');
-  const groups = new Map();
-  for (const line of lines) {
-    groups.set(line.timeRange, [...(groups.get(line.timeRange) || []), line.weekdayLabel]);
-  }
-  return [...groups.entries()].map(([time, days]) => `${days.join(', ')} · ${time}`).join('; ');
+  const groups = groupWeeklyScheduleByTimeRange({
+    schedulePattern: pattern,
+    sessions,
+    translateFn: translateText,
+  });
+  if (groups.length === 0) return translateText('Chưa có lịch học hằng tuần');
+  return groups.map((g) => `${g.compactDaysText} · ${g.timeRange}`).join('; ');
 }
 
 /**
@@ -179,7 +180,7 @@ export function enrollmentStatusOf(cohort) {
   if (cohort?.status === 'Cancelled') return { key: 'Cancelled', label: 'Đã hủy', tone: 'danger' };
   if (capacity > 0 && confirmedCount >= capacity) return { key: 'Full', label: 'Đã đủ sĩ số', tone: 'warning' };
   if (cohort?.enrollmentOpen === true || (cohort?.isEnrollmentWindowOpen !== false && pendingHoldCount > 0)) {
-    return { key: 'Available', label: 'Đang tuyển sinh', tone: 'info' };
+    return { key: 'Available', label: 'Lớp đang tuyển sinh', tone: 'info' };
   }
   return { key: 'Closed', label: 'Đã đóng tuyển sinh', tone: 'neutral' };
 }
@@ -303,7 +304,7 @@ export function cohortDiscoveryStatusOf(cohort, { conflictCourseName = '', nowMs
   if (isOfficiallyFull) {
     return {
       key: 'Full',
-      label: 'Đã đủ sĩ số',
+      label: 'Lớp đã đủ sĩ số',
       tone: 'warning',
       actionKind: 'full',
       actionLabel: 'Đã đủ sĩ số',
@@ -323,8 +324,8 @@ export function cohortDiscoveryStatusOf(cohort, { conflictCourseName = '', nowMs
   if (isAllHeld) {
     return {
       key: 'Held',
-      label: 'Đang tuyển sinh',
-      tone: 'info',
+      label: 'Lớp đang tuyển sinh',
+      tone: 'success',
       actionKind: 'held',
       actionLabel: 'Đang giữ chỗ',
       canEnroll: false,
@@ -343,8 +344,8 @@ export function cohortDiscoveryStatusOf(cohort, { conflictCourseName = '', nowMs
   if (conflictCourseName) {
     return {
       key: 'Conflict',
-      label: 'Đang tuyển sinh',
-      tone: 'info',
+      label: 'Lớp đang tuyển sinh',
+      tone: 'success',
       actionKind: 'conflict',
       actionLabel: 'Đăng ký lớp',
       canEnroll: false,
@@ -363,8 +364,8 @@ export function cohortDiscoveryStatusOf(cohort, { conflictCourseName = '', nowMs
   if (cohort?.enrollmentOpen === true || seatsAvailable > 0) {
     return {
       key: 'Open',
-      label: 'Đang tuyển sinh',
-      tone: 'info',
+      label: 'Lớp đang tuyển sinh',
+      tone: 'success',
       actionKind: 'enroll',
       actionLabel: cohort?.hasApprovedEntitlement ? 'Ghi danh bằng quyền học' : 'Đăng ký lớp',
       canEnroll: true,

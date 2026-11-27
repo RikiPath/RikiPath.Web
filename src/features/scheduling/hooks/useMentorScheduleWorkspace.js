@@ -25,6 +25,7 @@ import { useNow } from '@/hooks/useNow.js';
 export function useMentorScheduleWorkspace({
   includeCalendarStatus = false,
   includeAvailability = true,
+  includeHistoricalWorkStatuses = false,
   enabled = true,
   refetchSlotsMs = 15000,
 } = {}) {
@@ -258,8 +259,9 @@ export function useMentorScheduleWorkspace({
       defaultSessionMinutes: policy.sessionMinutes,
       mentorId: uid,
       nowMs: currentTimeMs,
+      includeHistoricalStatuses: includeHistoricalWorkStatuses,
     }),
-    [cohorts, coursesQuery.data, policy.sessionMinutes, uid, currentTimeMs],
+    [cohorts, coursesQuery.data, policy.sessionMinutes, uid, currentTimeMs, includeHistoricalWorkStatuses],
   );
 
   useEffect(() => {

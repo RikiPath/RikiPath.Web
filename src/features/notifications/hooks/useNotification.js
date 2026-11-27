@@ -377,6 +377,7 @@ function acquireConnection(ownerKey) {
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
         if (connection.state !== signalR.HubConnectionState.Connected) {
             refreshLists();
+            scheduleDebouncedSidebarCounterRefresh(queryClient);
         }
     }, 60000);
 

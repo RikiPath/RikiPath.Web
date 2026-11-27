@@ -330,7 +330,7 @@ export function buildProductCatalogSections(groups, { search = '', sortBy = 'def
 }
 
 export const DURATION_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Mọi thời hạn' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'WEEKLY', label: 'Theo tuần (7–21 ngày)' },
   { value: 'MONTHLY', label: '1 tháng (30 ngày)' },
   { value: 'LONG', label: 'Dài hạn (Từ 3 tháng)' },

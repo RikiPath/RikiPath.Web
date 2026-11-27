@@ -114,7 +114,7 @@ const NEXT = [
   {
     to: '/#group-learning',
     t: 'Học nhóm cùng Giáo viên',
-    d: 'Lớp nhỏ 1–4 học viên cùng Giáo viên theo lộ trình 10 tuần.',
+    d: 'Lớp nhỏ tương tác trực tiếp cùng Giáo viên với thời lượng linh hoạt.',
     cta: 'Tìm hiểu lớp nhóm',
   },
 ];

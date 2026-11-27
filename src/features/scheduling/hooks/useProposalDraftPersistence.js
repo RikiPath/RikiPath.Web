@@ -6,6 +6,7 @@ import {
 import {
   clearAllLocalDraftsForOtherUsers,
   clearAllLocalDraftsForUser,
+  clearLegacyProposalDrafts,
   clearLocalDraft,
   DRAFT_SAVE_STATUS,
   hasActiveWeeklySelection,
@@ -25,8 +26,8 @@ function toDraftApiPayload(draft, expectedRevision) {
     coursePlanId: draft.coursePlanId ? Number(draft.coursePlanId) : null,
     courseTitle: (draft.courseTitle || '').trim() || null,
     courseObjective: (draft.courseObjective || '').trim() || null,
-    expectedStartDate: draft.expectedStartDate || null,
-    courseDurationWeeks: Number(draft.courseDurationWeeks || 10),
+    expectedStartDate: null,
+    courseDurationWeeks: Math.max(1, Number(draft.courseDurationWeeks || 1)),
     sessionDurationMinutes: Number(draft.sessionDurationMinutes || 90),
     weeklySessions: (draft.weeklySessions || []).map((s) => ({
       weekday: Number(s.weekday),
@@ -80,8 +81,9 @@ export function useProposalDraftPersistence({
     onReconnectRevalidateRef.current = onReconnectRevalidate;
   });
 
-  // Purge stale drafts belonging to other accounts on mount/account switch
+  // Purge stale drafts belonging to other accounts and legacy schema versions on mount/account switch
   useEffect(() => {
+    clearLegacyProposalDrafts();
     if (userId) clearAllLocalDraftsForOtherUsers(userId);
   }, [userId]);
 
@@ -201,7 +203,7 @@ export function useProposalDraftPersistence({
     const handleStorage = (event) => {
       const current = draftRef.current;
       if (!current || current.status !== 'Draft' || !isEditable || !userId || !event?.key || !event?.newValue) return;
-      const prefix = `rikipath:v4:proposal-draft:${String(userId)}:`;
+      const prefix = `rikipath:v6:proposal-draft:${String(userId)}:`;
       if (!event.key.startsWith(prefix)) return;
       const watchedKey = `${prefix}${current.id || 'new'}`;
       if (event.key !== watchedKey) return;

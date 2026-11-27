@@ -187,7 +187,7 @@ export default function MentorProfile({ embedded = false } = {}) {
       client.setQueryData(profileKey, nextProfile);
       setSyncedProfile(nextProfile);
       setCertFiles([]);
-      notify.success('Đã tải chứng chỉ xác minh lên hệ thống.', 'Bạn có thể gửi hồ sơ để xét duyệt.', {
+      notify.success('Đã tải chứng chỉ xác minh lên.', '', {
         key: 'mentor-cert-upload',
         replace: true,
       });
@@ -206,8 +206,7 @@ export default function MentorProfile({ embedded = false } = {}) {
       client.setQueryData(profileKey, nextProfile);
       setSyncedProfile(nextProfile);
       invalidateSidebarCounters(client);
-      const desc = nextProfile.verificationStatusDescription || 'Đã gửi hồ sơ xét duyệt.';
-      notify.success('Đã gửi hồ sơ xét duyệt lên Quản trị viên.', tr(desc), { key: 'mentor-verify-submit' });
+      notify.success('Đã gửi hồ sơ xét duyệt.', '', { key: 'mentor-verify-submit' });
     },
     onError: (err) => {
       notify.apiError(err, 'Chưa gửi được hồ sơ xét duyệt', { key: 'mentor-verify-submit-err' });
@@ -413,7 +412,7 @@ export default function MentorProfile({ embedded = false } = {}) {
                       disabled={lockedVerified || save.isPending}
                       value={form.jlptLevel}
                       onChange={setField('jlptLevel')}
-                      options={JLPT.map((level) => ({ value: level, label: `JLPT ${level}` }))}
+                      options={JLPT.map((level) => ({ value: level, label: level }))}
                     />
                   </Field>
 

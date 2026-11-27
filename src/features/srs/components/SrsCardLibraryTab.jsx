@@ -89,6 +89,10 @@ export default function SrsCardLibraryTab({
   const totalActiveCards = totalCountQuery.data?.totalCount ?? totalCount;
   const totalPages = Math.max(1, Math.ceil(totalCount / LIBRARY_PAGE_SIZE));
   const hasActiveFilters = Boolean(search.trim() || cardTypeFilter);
+  const hasUnderlyingCards = libraryQuery.isSuccess && (
+    items.length > 0 || (hasActiveFilters && (totalCountQuery.isPending || (totalCountQuery.data?.totalCount ?? 0) > 0))
+  );
+  const isFilterZero = hasActiveFilters && hasUnderlyingCards;
 
   const removeMut = useMutation({
     mutationFn: (id) => deleteSrsCard(id),
@@ -116,6 +120,7 @@ export default function SrsCardLibraryTab({
 
   return (
     <div className="space-y-4">
+      {hasUnderlyingCards && (
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-rp-line bg-rp-surface p-3">
         <div className="flex min-w-[260px] flex-1 flex-wrap items-center gap-2">
           <div className="w-full sm:w-64">
@@ -132,21 +137,21 @@ export default function SrsCardLibraryTab({
               placeholder={tr('Tìm thẻ...')}
             />
           </div>
-          <div className="w-[140px]">
-            <CustomSelect
-              size="md"
-              value={cardTypeFilter}
-              onChange={(val) => {
-                setCardTypeFilter(val);
-                setPage(1);
-              }}
-              options={[
-                { value: '', label: tr('Mọi loại thẻ') },
-                { value: 'Vocabulary', label: tr('Từ vựng') },
-                { value: 'Kanji', label: tr('Kanji') },
-              ]}
-            />
-          </div>
+          <CustomSelect
+            fitContent
+            size="md"
+            label="Loại thẻ"
+            value={cardTypeFilter}
+            onChange={(val) => {
+              setCardTypeFilter(val);
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: tr('Tất cả') },
+              { value: 'Vocabulary', label: tr('Từ vựng') },
+              { value: 'Kanji', label: tr('Kanji') },
+            ]}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -172,6 +177,7 @@ export default function SrsCardLibraryTab({
           )}
         </div>
       </div>
+      )}
 
       {libraryQuery.isPending ? (
         <SakuraLoader variant="section" context="srs" label={tr('Đang tải thẻ của bạn…')} />
@@ -186,12 +192,12 @@ export default function SrsCardLibraryTab({
         </Card>
       ) : items.length === 0 ? (
         <Card className="border-[#EAE3E4] bg-white">
-          {hasActiveFilters ? (
+          {isFilterZero ? (
             <ContextualEmptyState
               variant="compact"
               framed={false}
               illustration="search"
-              title={tr('Không tìm thấy thẻ phù hợp')}
+              title={tr('Không tìm thấy kết quả phù hợp')}
               description={tr('Thử từ khóa khác, đổi loại thẻ hoặc tạo thẻ mới.')}
               action={(
                 <div className="flex flex-wrap justify-center gap-2">

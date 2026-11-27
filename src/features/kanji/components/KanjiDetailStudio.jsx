@@ -549,7 +549,7 @@ export default function KanjiDetailStudio({
       if (res?.alreadyExists || res?.isExisting) {
         notify.info(tr('Chữ này đã có trong sổ tay'), '', { key: 'kanji-bm-dup' });
       } else {
-        notify.success(tr('Đã lưu vào sổ tay'), tr('Chữ Hán tự đã được thêm vào Sổ tay của bạn.'), {
+        notify.success(tr('Đã lưu vào sổ tay.'), '', {
           key: 'kanji-bm-ok',
           action: { label: tr('Mở sổ tay'), onClick: () => navigate('/kanji-notebook/') },
         });

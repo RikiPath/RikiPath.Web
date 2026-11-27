@@ -15,10 +15,10 @@ import { computeClassProgress, resolveCourseLifecycle } from '@/features/schedul
 import { formatTuitionVnd } from '@/features/scheduling/utils/proposalValidation.js';
 import { formatDate } from '@/utils/dateTimeFormat.js';
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useNow } from '@/hooks/useNow.js';
 import { useLocale } from '@/locales/locale.js';
 import {
-  Badge,
   Banner,
   Button,
   Card,
@@ -419,12 +419,12 @@ export default function LearnerMyCoursesPage() {
                   <div className="space-y-3.5">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge tone={lifecycle.tone} label={lifecycle.label} />
                           {course.level && (
-                            <Badge tone="brand" size="sm" icon={false}>
-                              JLPT {course.level}
-                            </Badge>
+                            <span className="text-[13px] font-semibold text-rp-text-2">
+                              {formatJlptLevel(course.level)}
+                            </span>
                           )}
                           {confirmed && lifecycle.id === 'Teaching' && joinState?.isLive && (
                             <StatusBadge tone="success" label="Phòng đang mở" />
@@ -558,7 +558,7 @@ export default function LearnerMyCoursesPage() {
                                 </span>
                               </div>
                               {lifecycle.id === 'Recruiting' && (
-                                <p className="m-0 text-[11.5px] text-rp-text-muted">
+                                <p className="m-0 text-[12.5px] text-rp-text-muted">
                                   {tr('Lớp đang tuyển sinh; lịch học dự kiến đã được thiết lập.')}
                                 </p>
                               )}
@@ -693,7 +693,7 @@ export default function LearnerMyCoursesPage() {
                 <dt className="text-xs text-rp-text-muted">{tr('Lớp học')}</dt>
                 <dd className="mt-0.5 font-bold text-rp-text">
                   {confirmedEnrollment.name}
-                  {confirmedEnrollment.level ? ` (JLPT ${confirmedEnrollment.level})` : ''}
+                  {confirmedEnrollment.level ? ` (${formatJlptLevel(confirmedEnrollment.level)})` : ''}
                 </dd>
               </div>
               <div>

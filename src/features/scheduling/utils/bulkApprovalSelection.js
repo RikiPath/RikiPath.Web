@@ -4,11 +4,11 @@
  */
 
 /**
- * A proposal row is eligible for bulk approval selection only when it is PendingReview
- * and has no blocking server-reported conflicts.
+ * A proposal row is eligible for bulk approval selection whenever it is PendingReview.
+ * (V4 decouples Admin approval from slot/cohort conflict checks.)
  */
 export function isProposalSelectableForBulkApprove(row) {
-  return Boolean(row && row.status === 'PendingReview' && !row.hasConflicts);
+  return Boolean(row && row.status === 'PendingReview');
 }
 
 export function getEligibleProposals(rows = []) {
@@ -83,7 +83,12 @@ export function reconcileSelectionWithRows(selectedIds = [], currentRows = []) {
 /**
  * Builds the authoritative API payload for pre-validation and transactional bulk approval.
  */
-export function buildBulkApproveItems(proposals = [], selectedIds = [], liveRevisionsById = null) {
+export function buildBulkApproveItems(
+  proposals = [],
+  selectedIds = [],
+  liveRevisionsById = null,
+  previewTokensById = null,
+) {
   const byId = new Map((Array.isArray(proposals) ? proposals : []).map((p) => [p.id, p]));
   const items = [];
   const seen = new Set();
@@ -94,9 +99,14 @@ export function buildBulkApproveItems(proposals = [], selectedIds = [], liveRevi
     seen.add(id);
     const row = byId.get(id);
     const revision = liveRevisionsById?.get?.(id) ?? row?.revision ?? null;
+    const previewToken = previewTokensById?.get?.(id)
+      ?? row?.approvalSchedulePreview?.schedulePreviewToken
+      ?? row?.expectedSchedulePreviewToken
+      ?? null;
     items.push({
       proposalId: id,
       expectedRevision: revision != null ? Number(revision) : null,
+      expectedSchedulePreviewToken: previewToken || null,
     });
   }
 

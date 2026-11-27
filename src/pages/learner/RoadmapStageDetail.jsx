@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { LearnerShell } from '@/layouts';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import {
   BackButton, Badge, Banner, Button, Card, ContextualErrorState, EmptyState, ProgressBar, SakuraLoader,
 } from '@/components/ui';
@@ -128,7 +129,7 @@ export default function RoadmapStageDetail() {
           <header className="rounded-rp-card border border-rp-line bg-white p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge tone={stage.isBridgeStage ? 'warning' : 'brand'} size="sm" icon={false}>
-                {stage.isBridgeStage ? trf('Chặng bổ trợ nền tảng {0}', { 0: stage.levelCode }) : `JLPT ${stage.levelCode}`}
+                {stage.isBridgeStage ? trf('Chặng bổ trợ nền tảng {0}', { 0: formatJlptLevel(stage.levelCode) }) : formatJlptLevel(stage.levelCode)}
               </Badge>
               <Badge tone={meta.tone} size="sm" icon={false}>{tr(meta.label)}</Badge>
             </div>

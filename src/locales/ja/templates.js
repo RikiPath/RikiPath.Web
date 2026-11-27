@@ -140,7 +140,6 @@ export const jaTemplates = {
   'Đã chia khung #{0} thành các buổi {1} phút.': '時間枠#{0}を{1}分ずつに分割しました。',
   'Cấp {0}': 'レベル{0}',
   'Đã ban hành chính sách phiên bản v{0}. Lớp và buổi đã công bố vẫn giữ cấu hình cũ.': '規定バージョンv{0}を公開しました。公開済みのクラスと授業は以前の設定を維持します。',
-  'Đã ban hành chính sách phiên bản v{0}. Lớp và buổi đã công bố vẫn giữ snapshot cũ.': '規定バージョンv{0}を公開しました。公開済みのクラスと授業は以前の設定を維持します。',
   '{0} năm': '{0}年',
   'Cấp độ {0}': 'レベル{0}',
   'Từ vựng {0} thiếu từ, cách đọc hoặc nghĩa': '単語{0}：語・読み・意味のいずれかがありません',

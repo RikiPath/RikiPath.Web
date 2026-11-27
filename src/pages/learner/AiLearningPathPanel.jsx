@@ -15,6 +15,7 @@ import {
 import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
 import HorizontalAiRoadmapTree from '@/features/learning-path/components/HorizontalAiRoadmapTree.jsx';
 import { getStudyStreak } from '@/features/progress/api/analyticsApi.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { WebClayIcon } from '@/features/learner-ui';
 import {
   AchievementCard,
@@ -84,7 +85,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
     onSuccess: (res) => {
       if (res?.preview) {
         setPreviewPath(res.preview);
-        notify.info(tr('Đã tạo bản xem trước lộ trình AI mới.'), tr('Bạn có thể xem chi tiết trước khi áp dụng.'), {
+        notify.info(tr('Đã tạo bản xem trước lộ trình AI.'), '', {
           key: 'ai-path-propose',
         });
       } else if (res?.active) {
@@ -306,7 +307,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
                 </Badge>
                 {targetLevelLabel && (
                   <Badge tone="neutral" size="sm" icon={false}>
-                    JLPT {targetLevelLabel}
+                    {formatJlptLevel(targetLevelLabel)}
                   </Badge>
                 )}
                 {displayedPath.dailyStudyMinutes > 0 && (
@@ -388,7 +389,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
               completedCount={completedDays}
               totalCount={totalDays}
               streakDays={Number(streakQuery.data?.currentStreakDays) || 0}
-              levelLabel={targetLevelLabel ? `JLPT ${targetLevelLabel}` : undefined}
+              levelLabel={targetLevelLabel ? formatJlptLevel(targetLevelLabel) : undefined}
               summaryText={displayedPath.feasibility}
               className="bg-white"
             />
@@ -466,7 +467,7 @@ export default function AiLearningPathPanel({ targetLevelLabel }) {
             completedCount={dayCelebration.completedCount}
             totalCount={dayCelebration.totalCount}
             streakDays={Number(streakQuery.data?.currentStreakDays) || 0}
-            levelLabel={targetLevelLabel ? `JLPT ${targetLevelLabel}` : undefined}
+            levelLabel={targetLevelLabel ? formatJlptLevel(targetLevelLabel) : undefined}
           />
         )}
       </CelebrationScene>

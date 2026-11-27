@@ -26,8 +26,8 @@ import {
   X,
 } from 'lucide-react';
 import { AlertDialog, Modal, Popover, Tabs } from '@/components/ui/overlay.jsx';
-import { TimeInput } from '@/components/ui/core.jsx';
-import { DatePicker, formatIsoDateDisplay } from '@/components/ui';
+import { TimeInput, Input } from '@/components/ui/core.jsx';
+import { CountBadge, DatePicker, formatIsoDateDisplay } from '@/components/ui';
 import { RefreshButton } from '@/components/ui/RefreshButton.jsx';
 import { RefreshingIndicator } from '@/components/ui/SakuraLoader.jsx';
 import { ContextualEmptyState } from '@/components/ui/SmartDataBoundary.jsx';
@@ -315,6 +315,7 @@ function MiniDateJump({ anchorKey, todayKey, eventsByDay, onPickDay }) {
  */
 export default function InteractiveSlotCalendar({
   slots = [],
+  cohorts = [],
   cohortSessions = [],
   externalBusyEvents = [],
   previewGeneratedSlots = [],
@@ -337,18 +338,32 @@ export default function InteractiveSlotCalendar({
   renderCustomHeaderActions,
   headerTopRight = null,
   proposalMode = false,
+  templateMode = false,
   proposalConfig = null,
   customValidateCandidate = null,
   focusRequest = null,
   onVisibleRangeChange = null,
+  nowMs: controlledNowMs = null,
 }) {
   const { locale, tr, trf, fmt } = useLocale();
   const dayLabels = locale === 'ja' ? DAY_SHORT_JA : DAY_SHORT_VI;
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [internalNowMs, setInternalNowMs] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 30000);
-    return () => clearInterval(id);
-  }, []);
+    if (controlledNowMs != null) return undefined;
+    const refreshNow = () => setInternalNowMs(Date.now());
+    const id = setInterval(refreshNow, 15000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshNow();
+    };
+    window.addEventListener('focus', refreshNow);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', refreshNow);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [controlledNowMs]);
+  const nowMs = controlledNowMs ?? internalNowMs;
   const todayKey = useMemo(() => toVnDateKey(new Date(nowMs)), [nowMs]);
   const [invalidFlash, setInvalidFlash] = useState(null);
   const [feedbackBanner, setFeedbackBanner] = useState(null);
@@ -365,16 +380,17 @@ export default function InteractiveSlotCalendar({
 
   // Primary display mode: 'calendar' vs 'list' (Lịch | Danh sách)
   const [uncontrolledDisplayMode, setUncontrolledDisplayMode] = useState('calendar');
-  const displayMode = controlledDisplayMode ?? uncontrolledDisplayMode;
+  const displayMode = templateMode ? 'calendar' : (controlledDisplayMode ?? uncontrolledDisplayMode);
   const setDisplayModeState = useCallback((nextMode) => {
+    if (templateMode) return;
     if (onDisplayModeChange) onDisplayModeChange(nextMode);
     else setUncontrolledDisplayMode(nextMode);
-  }, [onDisplayModeChange]);
+  }, [onDisplayModeChange, templateMode]);
   // Calendar sub-view defaults to 'day' on mobile viewports (<768px) per Rule 11, 'week' on tablet/desktop
   const [calendarSubView, setCalendarSubView] = useState(() => (
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
   ));
-  const view = displayMode === 'list' ? 'week' : calendarSubView;
+  const view = templateMode ? 'week' : (displayMode === 'list' ? 'week' : calendarSubView);
 
   // Unified Advanced Filtering & Smart Sorting state (persisted across Calendar <-> List switches)
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -550,9 +566,10 @@ export default function InteractiveSlotCalendar({
       slots,
       cohortSessions,
       externalBusyEvents,
+      cohorts,
       ignoreSlotId: activeIgnoreId,
     }),
-    [slots, cohortSessions, externalBusyEvents, activeIgnoreId]
+    [slots, cohortSessions, externalBusyEvents, cohorts, activeIgnoreId]
   );
 
   // Convert currently selected multi-slots into proposed items for validation (excluding an actively dragged selectedKey)
@@ -729,13 +746,11 @@ export default function InteractiveSlotCalendar({
   const serverConflicts = activeServerCheck?.conflicts || [];
   const hasServerConflict = serverConflicts.length > 0 || activeServerCheck?.isValid === false;
 
-  // Quota & pending summary for anti-spam protection (overridden cleanly in Course Proposal mode: 2–4 sessions/week)
+  // Summary metrics for slot limits in 1-1 / standalone modes
   const maxSlotsPerSubmission = proposalMode
-    ? Number(proposalConfig?.maxPerWeek ?? 4)
+    ? 9999
     : (policy?.maxSlotsPerSubmission || 14);
   const maxPendingSlots = proposalMode ? 0 : (policy?.maxPendingSlots || 24);
-  const dailySessionCap = policy?.dailySessionCap || 4;
-  const weeklySessionCap = policy?.weeklySessionCap || 0;
 
   const currentPendingCount = useMemo(
     () => slots.filter((s) => s && !s.isDeleted && !s.isApproved && !s.rejectedAt && (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs).length,
@@ -753,25 +768,22 @@ export default function InteractiveSlotCalendar({
     }).length;
     const weekSelected = selectedSlots.filter((s) => s.dayKey >= weekMon && s.dayKey < weekEnd).length;
     const totalRegistered = weekOccupied.length;
-    const remainingWeekQuota = weeklySessionCap > 0
-      ? Math.max(0, weeklySessionCap - totalRegistered - weekSelected)
-      : null;
     return {
       totalRegistered,
       weekPending,
       weekSelected,
-      remainingWeekQuota,
     };
-  }, [anchorKey, occupiedItems, slots, selectedSlots, weeklySessionCap]);
+  }, [anchorKey, occupiedItems, slots, selectedSlots]);
 
-  const isPastSlotOccurrence = useCallback((dayKey, startMin, refNowMs = Date.now()) => {
+  const isPastSlotOccurrence = useCallback((dayKey, startMin, refNowMs = nowMs) => {
+    if (templateMode) return false;
     if (!dayKey) return false;
     const currentTodayKey = toVnDateKey(new Date(refNowMs));
     if (dayKey < currentTodayKey) return true;
     if (dayKey > currentTodayKey) return false;
     const startMs = new Date(`${dayKey}T${clockFromMinutes(startMin)}:00+07:00`).getTime();
     return Number.isFinite(startMs) && startMs <= refNowMs;
-  }, []);
+  }, [nowMs, templateMode]);
 
   // Toggle or add a 90-minute slot in multi-select
   const toggleOrSelectSlot = useCallback((dayKey, startMin, replaceKey = null) => {
@@ -1000,7 +1012,7 @@ export default function InteractiveSlotCalendar({
     for (const s of slots) {
       if (!s) continue;
       if (pendingMove?.slot?.id === s.id) continue;
-      if (proposalMode && (s.isDeleted || s.status === 'Cancelled')) continue;
+      if (proposalMode && (s.isDeleted || s.status === 'Cancelled' || s.rejectedAt || s.status === 'Rejected')) continue;
       const startParts = toVnTimeParts(s.startTime);
       const endParts = toVnTimeParts(s.endTime);
       const endDate = backendUtcDate(s.endTime);
@@ -1008,6 +1020,12 @@ export default function InteractiveSlotCalendar({
       const mins = slotDurationMinutes(s.startTime, s.endTime);
       const cohortMeta = cohortByAvailabilityId.get(s.id);
       const st = slotStatusMeta(s, overlapIds, restIds, cohortMeta);
+      if (proposalMode && (st.kind === 'cancelled' || st.kind === 'rejected' || st.kind === 'rescheduled')) {
+        continue;
+      }
+      if (proposalMode && st.kind === 'pending' && isPastSlotOccurrence(dk, startParts.hour * 60 + startParts.minute, nowMs)) {
+        continue;
+      }
       if (s.id) coveredAvailabilityIds.add(s.id);
 
       const propMeta = slotProposalMetaById?.get(Number(s.id)) || null;
@@ -1121,7 +1139,7 @@ export default function InteractiveSlotCalendar({
     }
 
     for (const cs of cohortSessions) {
-      if (!cs || cs.status === 'Cancelled' || cs.status === 'CancelledByMentor') continue;
+      if (!cs || cs.status === 'Cancelled' || cs.status === 'CancelledByMentor' || cs.status === 'CancelledByLearner' || cs.status === 'TransferredOut') continue;
       if (cs.availabilityId && coveredAvailabilityIds.has(cs.availabilityId)) continue;
       const startIso = cs.scheduledAt || cs.startTime;
       const startDate = backendUtcDate(startIso);
@@ -1202,14 +1220,11 @@ export default function InteractiveSlotCalendar({
     if (Array.isArray(proposalConfig?.pendingProposalEvents)) {
       for (const pev of proposalConfig.pendingProposalEvents) {
         if (!pev) continue;
+        const pevStartMin = Number.isFinite(Number(pev.startMin))
+          ? Number(pev.startMin)
+          : (Number(pev.startHour || 0) * 60 + Number(pev.startMinute || 0));
+        if (isPastSlotOccurrence(pev.dayKey, pevStartMin, nowMs)) continue;
         events.push(pev);
-      }
-    }
-
-    if (Array.isArray(proposalConfig?.rejectedProposalEvents)) {
-      for (const rev of proposalConfig.rejectedProposalEvents) {
-        if (!rev) continue;
-        events.push(rev);
       }
     }
 
@@ -1265,6 +1280,7 @@ export default function InteractiveSlotCalendar({
 
     // Multi-selected unsent 90-minute slots (Green valid cards / Red conflict cards)
     for (const sel of validatedSelections) {
+      if (isPastSlotOccurrence(sel.dayKey, sel.startMin, nowMs)) continue;
       const startH = Math.floor(sel.startMin / 60);
       const startM = sel.startMin % 60;
       const endH = Math.floor(sel.endMin / 60);
@@ -1322,7 +1338,7 @@ export default function InteractiveSlotCalendar({
     }
 
     return events;
-  }, [slots, pendingMove, overlapIds, restIds, cohortByAvailabilityId, durationMinutes, restMinutes, tr, trf, fmt, cohortSessions, externalBusyEvents, previewGeneratedSlots, validatedSelections, proposalConfig, proposalMode, proposalSelectionBlocked, nowMs]);
+  }, [slots, pendingMove, overlapIds, restIds, cohortByAvailabilityId, durationMinutes, restMinutes, tr, trf, fmt, cohortSessions, externalBusyEvents, previewGeneratedSlots, validatedSelections, proposalConfig, proposalMode, proposalSelectionBlocked, nowMs, isPastSlotOccurrence]);
 
   const rawRegistrationRows = proposalConfig?.registrationRows;
   const registrationRows = useMemo(
@@ -1399,6 +1415,7 @@ export default function InteractiveSlotCalendar({
         customToDate,
         searchQuery,
         todayKey,
+        nowMs,
       });
     }
     const counts = { ALL: 0 };
@@ -1429,12 +1446,13 @@ export default function InteractiveSlotCalendar({
       customToDate,
       searchQuery,
       todayKey,
+      nowMs,
     });
     return sortRegistrationRows(filtered, {
       sortBy: regSortBy,
       sortDirection: regSortDirection,
     });
-  }, [proposalMode, registrationRows, statusFilter, jlptLevelFilter, dateFilterMode, customFromDate, customToDate, searchQuery, todayKey, regSortBy, regSortDirection]);
+  }, [proposalMode, registrationRows, statusFilter, jlptLevelFilter, dateFilterMode, customFromDate, customToDate, searchQuery, todayKey, nowMs, regSortBy, regSortDirection]);
 
   const filteredEvents = useMemo(
     () => (proposalMode
@@ -1886,6 +1904,73 @@ export default function InteractiveSlotCalendar({
     };
   }, [pendingMove]);
 
+  const [hoveredSlotState, setHoveredSlotState] = useState(null);
+
+  const handleEmptyColumnPointerMove = useCallback((dayKey, e) => {
+    if (dragSessionRef.current || busy || submittingBatch || proposalSelectionBlocked) {
+      if (hoveredSlotState) setHoveredSlotState(null);
+      return;
+    }
+    if (e.target?.closest?.('[data-slot-tone], [data-past-time-overlay], [data-capacity-locked-overlay]')) {
+      if (hoveredSlotState) setHoveredSlotState(null);
+      return;
+    }
+    const colEl = dayColsRef.current[dayKey];
+    if (!colEl) return;
+    const rect = colEl.getBoundingClientRect();
+    const relY = Math.max(0, e.clientY - rect.top);
+    const rawMin = firstHour * 60 + (relY / HOUR_HEIGHT) * 60;
+    const snappedFloor = snapMinutesToGrid({
+      rawMinutes: rawMin,
+      stepMinutes: effectiveStep,
+      mode: 'floor',
+      minMinutes: firstHour * 60,
+      maxEndMinutes: (firstHour + hours.length) * 60,
+      durationMinutes,
+    });
+    if (hoveredSlotState && hoveredSlotState.dayKey === dayKey && hoveredSlotState.startMin === snappedFloor) {
+      return;
+    }
+    const now = Math.max(nowMs, Date.now());
+    if (isPastSlotOccurrence(dayKey, snappedFloor, now)) {
+      setHoveredSlotState({ dayKey, startMin: snappedFloor, valid: false, reason: tr('Đã quá thời gian này.') });
+      return;
+    }
+    const check = customValidateCandidate
+      ? customValidateCandidate({ dayKey, startMin: snappedFloor })
+      : validateCandidateSlot({
+        dayKey,
+        startMin: snappedFloor,
+        policy,
+        occupiedItems,
+        extraProposedItems: buildProposedFromSelection(null),
+        nowMs: now,
+        stepMinutes: effectiveStep,
+      });
+    setHoveredSlotState({
+      dayKey,
+      startMin: snappedFloor,
+      valid: Boolean(check?.valid),
+      reason: check?.valid ? '' : (check?.reason || ''),
+    });
+  }, [
+    buildProposedFromSelection,
+    busy,
+    customValidateCandidate,
+    durationMinutes,
+    effectiveStep,
+    firstHour,
+    hours.length,
+    hoveredSlotState,
+    isPastSlotOccurrence,
+    nowMs,
+    occupiedItems,
+    policy,
+    proposalSelectionBlocked,
+    submittingBatch,
+    tr,
+  ]);
+
   const startEmptyColumnPointerDown = (dayKey, e) => {
     if (e.button !== 0 || busy || submittingBatch || proposalSelectionBlocked) return;
     const colEl = dayColsRef.current[dayKey];
@@ -1903,7 +1988,7 @@ export default function InteractiveSlotCalendar({
       durationMinutes,
     });
     // Chặn tuyệt đối click/drag tại ngày quá khứ hoặc khung giờ đã bắt đầu / đã trôi qua
-    if (isPastSlotOccurrence(dayKey, snappedFloor)) {
+    if (isPastSlotOccurrence(dayKey, snappedFloor, Math.max(nowMs, Date.now()))) {
       return;
     }
     setInvalidFlash(null);
@@ -2265,24 +2350,20 @@ export default function InteractiveSlotCalendar({
   const nowMinutes = nowParts.hour * 60 + nowParts.minute;
   const showNowLine = nowMinutes >= firstHour * 60 && nowMinutes <= (firstHour + hours.length) * 60;
 
-  const proposalMinPerWeek = Number(proposalConfig?.minPerWeek ?? 2);
-  const proposalMaxPerWeek = Number(proposalConfig?.maxPerWeek ?? 4);
-  const proposalDurationWeeks = Number(proposalConfig?.durationWeeks ?? 10);
+  const proposalDurationWeeks = Math.max(1, Number(proposalConfig?.durationWeeks ?? 1));
   const proposalWeeklyCount = proposalMode
     ? Number(proposalConfig?.weeklyPatternCount ?? selectedSlots.length)
     : selectedSlots.length;
+  const proposalWeeklyHours = Math.round(((proposalWeeklyCount * durationMinutes) / 60) * 10) / 10;
   const proposalInvalidPatternCount = proposalMode
     ? Number(proposalConfig?.invalidPatternCount ?? 0)
     : invalidSelectedSlots.length;
-  const proposalOverLimit = proposalWeeklyCount > proposalMaxPerWeek;
   const proposalHasConflict = proposalMode
     ? Boolean(proposalInvalidPatternCount > 0 || proposalConfig?.hasScheduleErrors)
     : Boolean(invalidSelectedSlots.length > 0);
-  const proposalHasErrors = proposalOverLimit || proposalHasConflict;
+  const proposalHasErrors = proposalHasConflict;
   const proposalScheduleReady = Boolean(
-    !proposalHasErrors
-    && proposalWeeklyCount >= proposalMinPerWeek
-    && proposalWeeklyCount <= proposalMaxPerWeek
+    !proposalHasErrors && proposalWeeklyCount >= 1
   );
   const showSelectionActionBar = proposalMode
     ? (isRevisionScheduleEditing || proposalCapacityLocked || proposalWeeklyCount > 0)
@@ -2296,24 +2377,20 @@ export default function InteractiveSlotCalendar({
         : 'flex flex-wrap items-center justify-between gap-2.5 border-b border-amber-200/90 bg-amber-50/90 px-4 py-2.5';
   const proposalNextDisabled = !proposalReadOnly && (proposalCapacityLocked || !proposalScheduleReady || submittingBatch || busy);
   const proposalNextTooltip = isRevisionScheduleEditing
-    ? (proposalOverLimit
-      ? trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })
-      : proposalHasConflict
-        ? tr('Cần điều chỉnh khung giờ không hợp lệ trước khi áp dụng')
-        : proposalWeeklyCount < proposalMinPerWeek
-          ? trf('Cần chọn thêm {0} buổi để áp dụng lịch', { 0: proposalMinPerWeek - proposalWeeklyCount })
-          : tr('Áp dụng lịch này cho đề xuất đang chỉnh sửa'))
+    ? (proposalHasConflict
+      ? tr('Cần điều chỉnh khung giờ không hợp lệ trước khi áp dụng')
+      : proposalWeeklyCount < 1
+        ? tr('Vui lòng chọn ít nhất một khung giờ.')
+        : tr('Áp dụng lịch này cho đề xuất đang chỉnh sửa'))
     : proposalCapacityLocked
       ? proposalCapacityMessage
       : proposalReadOnly
         ? tr('Xem chi tiết đề xuất')
-        : proposalOverLimit
-          ? trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })
-          : proposalHasConflict
-            ? tr('Cần điều chỉnh khung giờ không hợp lệ trước khi tiếp tục')
-            : proposalWeeklyCount < proposalMinPerWeek
-              ? trf('Cần chọn thêm {0} buổi để tiếp tục', { 0: proposalMinPerWeek - proposalWeeklyCount })
-              : tr('Bước tiếp theo: Thông tin lớp dự kiến');
+        : proposalHasConflict
+          ? tr('Cần điều chỉnh khung giờ không hợp lệ trước khi tiếp tục')
+          : proposalWeeklyCount < 1
+            ? tr('Vui lòng chọn ít nhất một khung giờ.')
+            : tr('Bước tiếp theo: Thông tin lớp dự kiến');
 
   return (
     <div className="space-y-2.5" data-interactive-slot-calendar="true">
@@ -2321,14 +2398,20 @@ export default function InteractiveSlotCalendar({
       <div className="min-w-0 overflow-hidden rounded-2xl border border-rp-line bg-white shadow-2xs">
         {/* Container-Aware Responsive Unified Toolbar: 1 row when wide, auto-wraps to 2+ rows when narrow */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-rp-line bg-white px-4 py-2.5">
-          {/* Left Group: Calendar Time Navigation OR List View Title/Scope */}
+          {/* Left Group: Calendar Time Navigation OR Template Heading OR List View Title/Scope */}
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {displayMode === 'calendar' ? (
+            {templateMode ? (
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5" data-testid="template-calendar-header-title">
+                <h2 className="m-0 text-[15px] font-bold tracking-tight text-rp-text">
+                  {tr('Mẫu lịch giảng dạy hằng tuần (Thứ 2 – Chủ nhật)')}
+                </h2>
+              </div>
+            ) : displayMode === 'calendar' ? (
               <>
                 <button
                   type="button"
                   onClick={() => setAnchor(todayKey)}
-                  className="inline-flex h-8.5 shrink-0 items-center whitespace-nowrap rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
+                  className="inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-xl border border-rp-line bg-white px-3 text-[12.5px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong"
                 >
                   {tr('Hôm nay')}
                 </button>
@@ -2360,7 +2443,7 @@ export default function InteractiveSlotCalendar({
                       {...props}
                       type="button"
                       onClick={toggle}
-                      className="inline-flex h-8.5 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint"
+                      className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-1 text-left hover:bg-rp-brand-tint"
                     >
                       <span className="text-[14.5px] font-bold tracking-tight text-rp-text">
                         {rangeTitle}
@@ -2397,62 +2480,67 @@ export default function InteractiveSlotCalendar({
 
           {/* Right Group: Mode Switcher, Sub-view, Status Filter, More Filters & Primary Actions */}
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
-            {/* Primary Mode Toggle: Lịch | Danh sách — shared Tabs (sliding active pill) */}
-            <Tabs
-              variant="pill"
-              tone="segmented"
-              size="sm"
-              className="shrink-0"
-              label={tr('Chế độ hiển thị')}
-              value={displayMode}
-              onChange={handleDisplayModeChange}
-              tabs={[
-                { value: 'calendar', label: 'Lịch', icon: CalendarIcon, testId: 'view-mode-calendar' },
-                { value: 'list', label: 'Danh sách', icon: List, testId: 'view-mode-list' },
-              ]}
-            />
+            {!templateMode && (
+              <>
+                {/* Primary Mode Toggle: Lịch | Danh sách — shared Tabs (sliding active pill) */}
+                <Tabs
+                  variant="pill"
+                  tone="segmented"
+                  size="sm"
+                  className="shrink-0 !h-9 [&>button]:!h-7 [&>button]:!rounded-[9px]"
+                  label={tr('Chế độ hiển thị')}
+                  value={displayMode}
+                  onChange={handleDisplayModeChange}
+                  tabs={[
+                    { value: 'calendar', label: 'Lịch', icon: CalendarIcon, testId: 'view-mode-calendar' },
+                    { value: 'list', label: 'Danh sách', icon: List, testId: 'view-mode-list' },
+                  ]}
+                />
 
-            {/* Sub-view pills (Ngày | Tuần | Tháng) when in Calendar mode */}
-            {displayMode === 'calendar' && (
-              <Tabs
-                variant="pill"
-                tone="segmented"
-                size="sm"
-                className="shrink-0"
-                label={tr('Khung thời gian lịch')}
-                value={calendarSubView}
-                onChange={setCalendarSubView}
-                tabs={CALENDAR_SUBVIEWS.map((v) => ({
-                  value: v.id,
-                  label: v.label,
-                  testId: `calendar-subview-${v.id}`,
-                }))}
-              />
+                {/* Sub-view pills (Ngày | Tuần | Tháng) when in Calendar mode */}
+                {displayMode === 'calendar' && (
+                  <Tabs
+                    variant="pill"
+                    tone="segmented"
+                    size="sm"
+                    className="shrink-0 !h-9 [&>button]:!h-7 [&>button]:!rounded-[9px]"
+                    label={tr('Khung thời gian lịch')}
+                    value={calendarSubView}
+                    onChange={setCalendarSubView}
+                    tabs={CALENDAR_SUBVIEWS.map((v) => ({
+                      value: v.id,
+                      label: v.label,
+                      testId: `calendar-subview-${v.id}`,
+                    }))}
+                  />
+                )}
+
+                {/* Custom Status Filter Listbox with Semantic Color Dots */}
+                <div
+                  className="shrink-0"
+                  title={proposalMode
+                    ? tr('Đếm số đề xuất mở lớp theo từng trạng thái (không phụ thuộc tuần/tháng đang xem).')
+                    : undefined}
+                >
+                  <StatusDotListbox
+                    value={statusFilter}
+                    options={statusOptions}
+                    onChange={(nextStatus) => {
+                      setStatusFilter(nextStatus);
+                      setTablePage(1);
+                    }}
+                    countsByStatus={countsByStatus}
+                  />
+                </div>
+              </>
             )}
 
-            {/* Custom Status Filter Listbox with Semantic Color Dots */}
-            <div
-              className="shrink-0"
-              title={proposalMode
-                ? tr('Đếm số đề xuất mở lớp theo từng trạng thái (không phụ thuộc tuần/tháng đang xem).')
-                : undefined}
-            >
-              <StatusDotListbox
-                value={statusFilter}
-                options={statusOptions}
-                onChange={(nextStatus) => {
-                  setStatusFilter(nextStatus);
-                  setTablePage(1);
-                }}
-                countsByStatus={countsByStatus}
-              />
-            </div>
-
             {/* Filters Popover:
+                - In templateMode: hidden (only drafting 1-week pattern).
                 - In proposalMode: shown ONLY in List View (registration-level filters: Status, JLPT, Date, Search, Registration Sort)
                   so Calendar View stays clean and uncluttered.
                 - In legacy availability mode (!proposalMode): shown in both views with legacy options. */}
-            {(!proposalMode || displayMode === 'list') && (
+            {!templateMode && (!proposalMode || displayMode === 'list') && (
               <ScheduleMoreFiltersPopover
                 policy={policy}
                 proposalMode={proposalMode}
@@ -2518,7 +2606,7 @@ export default function InteractiveSlotCalendar({
               />
             )}
 
-            {/* Custom Toolbar Actions (e.g., "Đăng ký nhanh") */}
+            {/* Custom Toolbar Actions (e.g., "Danh sách đăng ký") */}
             {renderCustomHeaderActions}
 
             {headerTopRight}
@@ -2531,7 +2619,7 @@ export default function InteractiveSlotCalendar({
                 refreshing={refreshing}
                 tooltip={tr('Làm mới lịch')}
                 aria-label={tr('Làm mới dữ liệu lịch')}
-                className="!h-8.5 !w-8.5 rounded-xl"
+                className="!h-9 !w-9 rounded-xl"
               />
             )}
           </div>
@@ -2547,7 +2635,7 @@ export default function InteractiveSlotCalendar({
           </div>
         )}
 
-        {/* Compact Top Selection Action Bar — hidden when 0 slots selected; semantic yellow (<2) / green (2–4) / red (>4 or conflict) */}
+        {/* Compact Top Selection Action Bar — hidden when 0 slots selected */}
         {showSelectionActionBar && (
           <div
             data-testid={isRevisionScheduleEditing ? 'revision-schedule-toolbar' : 'multi-select-action-bar'}
@@ -2581,36 +2669,23 @@ export default function InteractiveSlotCalendar({
                           : 'bg-amber-700'
                     }`}
                   >
-                    {trf('{0}/{1} buổi mỗi tuần', {
+                    {trf('{0} buổi mỗi tuần · {1} giờ/tuần', {
                       0: proposalWeeklyCount,
-                      1: proposalMaxPerWeek,
+                      1: proposalWeeklyHours,
                     })}
                   </span>
 
-                  {proposalOverLimit ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
-                      {trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })}
-                    </span>
-                  ) : proposalHasConflict ? (
+                  {proposalHasConflict ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
                       <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
                       {trf('{0} khung cần điều chỉnh', { 0: Math.max(1, proposalInvalidPatternCount) })}
                     </span>
-                  ) : proposalWeeklyCount < proposalMinPerWeek ? (
+                  ) : proposalWeeklyCount < 1 ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-600" aria-hidden="true" />
-                      {trf('Cần chọn thêm {0} buổi', { 0: proposalMinPerWeek - proposalWeeklyCount })}
+                      {tr('Vui lòng chọn ít nhất một khung giờ.')}
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
-                      {trf('Hợp lệ · {0} buổi ({1} tuần)', {
-                        0: proposalWeeklyCount * proposalDurationWeeks,
-                        1: proposalDurationWeeks,
-                      })}
-                    </span>
-                  )}
+                  ) : null}
                 </button>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -2690,45 +2765,23 @@ export default function InteractiveSlotCalendar({
                           : 'bg-amber-700'
                     }`}
                   >
-                    {trf('{0}/{1} buổi mỗi tuần', {
+                    {trf('{0} buổi mỗi tuần · {1} giờ/tuần', {
                       0: proposalWeeklyCount,
-                      1: proposalMaxPerWeek,
+                      1: proposalWeeklyHours,
                     })}
                   </span>
 
-                  {proposalOverLimit ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
-                      {trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })}
-                    </span>
-                  ) : proposalHasConflict ? (
+                  {proposalHasConflict ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
                       <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
                       {trf('{0} khung cần điều chỉnh', { 0: Math.max(1, proposalInvalidPatternCount) })}
                     </span>
-                  ) : proposalWeeklyCount < proposalMinPerWeek ? (
+                  ) : proposalWeeklyCount < 1 ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-600" aria-hidden="true" />
-                      {trf('Cần chọn thêm {0} buổi', { 0: proposalMinPerWeek - proposalWeeklyCount })}
+                      {tr('Vui lòng chọn ít nhất một khung giờ.')}
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
-                      {proposalConfig?.hasCourseInfoReady
-                        ? trf('Đủ điều kiện mở lớp · {0} buổi ({1} tuần)', {
-                          0: proposalWeeklyCount * proposalDurationWeeks,
-                          1: proposalDurationWeeks,
-                        })
-                        : proposalConfig?.courseStartDate
-                          ? trf('Lịch tuần hợp lệ · {0} buổi ({1} tuần)', {
-                            0: proposalWeeklyCount * proposalDurationWeeks,
-                            1: proposalDurationWeeks,
-                          })
-                          : trf('Lịch tuần hợp lệ · {0} buổi dự kiến', {
-                            0: proposalWeeklyCount * proposalDurationWeeks,
-                          })}
-                    </span>
-                  )}
+                  ) : null}
 
                   {proposalConfig?.courseSummaryText && (
                     <span className="hidden text-[11.5px] font-normal text-rp-text-2 transition-colors group-hover:text-rp-text sm:inline">
@@ -2776,9 +2829,7 @@ export default function InteractiveSlotCalendar({
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-emerald-950">
-                  <span className="inline-flex h-5.5 min-w-5.5 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11.5px] font-bold text-white shadow-2xs">
-                    {selectedSlots.length}
-                  </span>
+                  <CountBadge count={selectedSlots.length} size="md" />
                   <span>{trf('Đã chọn {0} khung giờ', { 0: selectedSlots.length })}</span>
                   <span className="text-emerald-700/80" aria-hidden="true">·</span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white/90 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
@@ -2786,19 +2837,10 @@ export default function InteractiveSlotCalendar({
                     {tr('Chưa gửi đăng ký')}
                   </span>
                   <span className="hidden text-[11.5px] font-normal text-emerald-900/80 sm:inline">
-                    {weeklySessionCap > 0
-                      ? trf('Tuần này: đã có {0}/{1} khung · chờ duyệt {2} · còn lại {3}', {
-                          0: viewedWeekStats.totalRegistered,
-                          1: weeklySessionCap,
-                          2: currentPendingCount,
-                          3: viewedWeekStats.remainingWeekQuota,
-                        })
-                      : trf('Tối đa {0} khung/ngày · {1}/{2} khung chờ duyệt · tối đa {3} khung/lần gửi', {
-                          0: dailySessionCap,
-                          1: currentPendingCount,
-                          2: maxPendingSlots,
-                          3: maxSlotsPerSubmission,
-                        })}
+                    {trf('{0} buổi trong tuần · {1} khung chờ duyệt', {
+                      0: viewedWeekStats.totalRegistered,
+                      1: currentPendingCount,
+                    })}
                   </span>
                   {invalidSelectedSlots.length > 0 && (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">
@@ -2942,9 +2984,9 @@ export default function InteractiveSlotCalendar({
 
         {/* Main Workspace Stage (One Primary View at a Time: Calendar OR List Table) */}
         <div className="rp-cal-stage bg-white">
-          {displayMode === 'calendar' && (calendarSubView === 'week' || calendarSubView === 'day') && (
+          {displayMode === 'calendar' && (view === 'week' || view === 'day') && (
             <div className="overflow-x-auto bg-white">
-              <div className={calendarSubView === 'week' ? 'min-w-[740px]' : 'min-w-full'}>
+              <div className={view === 'week' ? 'min-w-[740px]' : 'min-w-full'}>
                 {/* Fixed Day Header Row — sits OUTSIDE the vertical scroll container and shares stable scrollbar-gutter */}
                 <div
                   data-testid="calendar-header-grid"
@@ -2957,10 +2999,31 @@ export default function InteractiveSlotCalendar({
                 >
                   <div className="flex items-end justify-end bg-white px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-rp-text-muted" />
                   {weekDays.map((day) => {
-                    const isSelectedDay = day.key === anchorKey;
+                    const isSelectedDay = !templateMode && day.key === anchorKey;
                     const selectedOnDay = selectedSlots.filter((s) => s.dayKey === day.key).length;
                     const dayEventCount = (eventsByDay.get(day.key) || []).length;
-                    const maxPerDay = policy?.dailySessionCap || policy?.maxSlotsPerDay || 4;
+                    const weekdayIdx = new Date(`${day.key}T12:00:00+07:00`).getUTCDay();
+                    if (templateMode) {
+                      return (
+                        <div
+                          key={day.key}
+                          data-day-header={day.key}
+                          className="relative flex items-center justify-center gap-1.5 border-l border-rp-line bg-white px-2 py-2.5 text-center"
+                        >
+                          <span className="text-[12px] font-bold text-rp-text">
+                            {tr(WEEKDAY_LABEL_VI[weekdayIdx])}
+                          </span>
+                          {selectedOnDay > 0 && (
+                            <span
+                              title={trf('Đang chọn {0} khung giờ chưa gửi trong ngày này', { 0: selectedOnDay })}
+                              className="rounded-full bg-emerald-100 px-1.5 py-px text-[10px] font-bold text-emerald-800"
+                            >
+                              +{selectedOnDay}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
                     return (
                       <button
                         key={day.key}
@@ -2968,10 +3031,9 @@ export default function InteractiveSlotCalendar({
                         data-day-header={day.key}
                         data-is-today={day.isToday ? 'true' : 'false'}
                         data-is-selected={isSelectedDay ? 'true' : 'false'}
-                        title={trf('{0} · Đã có {1}/{2} buổi trong ngày (tối đa {2} buổi/ngày)', {
+                        title={trf('{0} · {1} buổi trong ngày', {
                           0: day.fullName,
                           1: dayEventCount,
-                          2: maxPerDay,
                         })}
                         onClick={() => {
                           if (day.key === anchorKey && calendarSubView === 'week') {
@@ -2990,7 +3052,7 @@ export default function InteractiveSlotCalendar({
                           <span className={`text-[11px] font-semibold uppercase ${
                             day.isToday || isSelectedDay ? 'text-rp-brand-strong' : 'text-rp-text-muted'
                           }`}>
-                            {calendarSubView === 'day' ? day.fullName : dayLabels[new Date(`${day.key}T12:00:00+07:00`).getUTCDay()]}
+                            {calendarSubView === 'day' ? day.fullName : dayLabels[weekdayIdx]}
                           </span>
                           {selectedOnDay > 0 && (
                             <span
@@ -3059,6 +3121,11 @@ export default function InteractiveSlotCalendar({
                       policy,
                     });
                     const isDragTargetCol = dragVisual?.dayKey === day.key;
+                    const isHoveredBlocked = Boolean(
+                      hoveredSlotState
+                      && hoveredSlotState.dayKey === day.key
+                      && !hoveredSlotState.valid
+                    );
 
                     return (
                       <div
@@ -3068,12 +3135,21 @@ export default function InteractiveSlotCalendar({
                           else delete dayColsRef.current[day.key];
                         }}
                         data-day-col={day.key}
+                        title={isHoveredBlocked ? hoveredSlotState.reason : undefined}
+                        onPointerMove={(e) => handleEmptyColumnPointerMove(day.key, e)}
+                        onPointerLeave={() => {
+                          if (hoveredSlotState?.dayKey === day.key) setHoveredSlotState(null);
+                        }}
                         onPointerDown={(e) => startEmptyColumnPointerDown(day.key, e)}
-                        className={`relative border-l border-rp-line bg-white ${day.key < todayKey || proposalCapacityLocked ? 'cursor-not-allowed' : 'cursor-cell'}`}
+                        className={`relative border-l border-rp-line bg-white ${
+                          (!templateMode && day.key < todayKey) || proposalCapacityLocked || isHoveredBlocked
+                            ? 'cursor-not-allowed'
+                            : 'cursor-cell'
+                        }`}
                         style={{ height: gridHeight }}
                       >
-                        {/* Disabled Past-Time Overlay: full column for past days, top-to-now for today (below historical events z-10) */}
-                        {(day.key < todayKey || (day.isToday && nowMinutes > firstHour * 60)) && (
+                        {/* Disabled Past-Time Overlay: omitted in weekly templateMode */}
+                        {!templateMode && (day.key < todayKey || (day.isToday && nowMinutes > firstHour * 60)) && (
                           <div
                             data-past-time-overlay="true"
                             title={tr('Đã quá thời gian này.')}
@@ -3088,8 +3164,8 @@ export default function InteractiveSlotCalendar({
                             }}
                           />
                         )}
-                        {proposalCapacityLocked && day.key >= todayKey && (() => {
-                          const pastOverlayHeight = day.isToday && nowMinutes > firstHour * 60
+                        {proposalCapacityLocked && (templateMode || day.key >= todayKey) && (() => {
+                          const pastOverlayHeight = !templateMode && day.isToday && nowMinutes > firstHour * 60
                             ? Math.min(gridHeight, Math.max(0, ((nowMinutes - firstHour * 60) / 60) * HOUR_HEIGHT))
                             : 0;
                           const remainingHeight = Math.max(0, gridHeight - pastOverlayHeight);
@@ -3159,7 +3235,7 @@ export default function InteractiveSlotCalendar({
                         ))}
 
                         {/* Live Now Line */}
-                        {showNowLine && day.isToday && (
+                        {!templateMode && showNowLine && day.isToday && (
                           <div
                             aria-hidden="true"
                             className="pointer-events-none absolute inset-x-0 z-30 h-0.5 bg-rp-brand"
@@ -3248,13 +3324,20 @@ export default function InteractiveSlotCalendar({
                             ? (ev.hasVisibleDateConflict ? 15 : 35)
                             : (ev.z || 1) + 20 + col;
 
+                          const isWeeklyPendingPattern = Boolean(
+                            ev.isWeeklyPattern
+                            && !ev.isSelectedDraft
+                            && (ev.tone === 'pending' || ev.tone === 'needsRevision')
+                          );
                           const cardTitle = ev.tone === 'needsRevision'
                             ? tr('Lịch đã được giữ chỗ. Mở đề xuất để chỉnh sửa.')
-                            : ev.isSelectedDraft && ev.hasVisibleDateConflict
-                              ? (ev.visibleConflictTooltip || tr('Khung giờ này đã có lịch vào ngày đang xem. Hệ thống sẽ kiểm tra lại khi chọn ngày bắt đầu.'))
-                              : ev.isSelectedDraft && ev.isRepresentativeProjection
-                                ? tr('Nhấn để bỏ chọn khung giờ hằng tuần.')
-                                : `${ev.fullTitle || ev.title} · ${ev.timeLabel || ''} · ${tr(ev.statusLabel || meta.label)}`;
+                            : isWeeklyPendingPattern
+                              ? `${ev.fullTitle || ev.title} · ${tr('Lịch hằng tuần đang chờ duyệt — ngày khai giảng sẽ xác lập khi Quản trị viên phê duyệt')}`
+                              : ev.isSelectedDraft && ev.hasVisibleDateConflict
+                                ? (ev.visibleConflictTooltip || tr('Khung giờ này đã có lịch vào ngày đang xem. Hệ thống sẽ kiểm tra lại khi chọn ngày bắt đầu.'))
+                                : ev.isSelectedDraft && ev.isRepresentativeProjection
+                                  ? tr('Nhấn để bỏ chọn khung giờ hằng tuần.')
+                                  : `${ev.fullTitle || ev.title} · ${ev.timeLabel || ''} · ${tr(ev.statusLabel || meta.label)}`;
 
                           return (
                             <div
@@ -3297,7 +3380,7 @@ export default function InteractiveSlotCalendar({
                                 ev.draggable
                                   ? `cursor-pointer active:cursor-grabbing hover:shadow-md ${meta.card}`
                                   : `cursor-pointer hover:shadow-md ${meta.card}`
-                              } ${
+                              } ${isWeeklyPendingPattern ? 'border-dashed' : ''} ${
                                 highlightedKeySet.has(ev.id)
                                 || (ev.isSelectedDraft && (highlightedKeySet.has(ev.selectedKey) || (ev.weeklyKey && highlightedKeySet.has(ev.weeklyKey))))
                                   ? 'ring-2 ring-rp-brand ring-offset-1 shadow-md'
@@ -3391,31 +3474,43 @@ export default function InteractiveSlotCalendar({
                 {monthMatrix.cells.map((cell) => {
                   const isSelectedCell = cell.key === anchorKey;
                   const isPastDay = cell.key < todayKey;
-                  const isCapacityDisabledDay = !isPastDay && proposalCapacityLocked;
-                  const canPickDay = !isPastDay && !proposalSelectionBlocked;
+                  const maxStartToday = (policy?.gridEndHour ?? 22) * 60 - durationMinutes;
+                  const isTodayExhausted = cell.key === todayKey && isPastSlotOccurrence(cell.key, maxStartToday, nowMs);
+                  const isPastOrExhaustedDay = isPastDay || isTodayExhausted;
+                  const isCapacityDisabledDay = !isPastOrExhaustedDay && proposalCapacityLocked;
+                  const canPickDay = !isPastOrExhaustedDay && !proposalSelectionBlocked;
                   const items = (eventsByDay.get(cell.key) || []).slice().sort((a, b) => minutesOfEvent(a).start - minutesOfEvent(b).start);
                   const visible = items.slice(0, 3);
                   const overflow = items.length - visible.length;
+                  const nextTodayStartMin = cell.key === todayKey
+                    ? (() => {
+                        const minM = (policy?.gridStartHour ?? 7) * 60;
+                        for (let m = minM; m <= maxStartToday; m += effectiveStep) {
+                          if (!isPastSlotOccurrence(cell.key, m, nowMs)) return m;
+                        }
+                        return minM;
+                      })()
+                    : 8 * 60;
                   return (
                     <div
                       key={cell.key}
                       title={
-                        isPastDay
+                        isPastOrExhaustedDay
                           ? tr('Đã quá thời gian này.')
                           : isCapacityDisabledDay
                             ? proposalCapacityMessage
                             : undefined
                       }
-                      onClick={canPickDay ? () => setTouchPickerDay({ dayKey: cell.key, rawStartMin: 8 * 60 }) : undefined}
+                      onClick={canPickDay ? () => setTouchPickerDay({ dayKey: cell.key, rawStartMin: nextTodayStartMin }) : undefined}
                       className={`flex min-h-[92px] flex-col p-1.5 transition-colors ${
                         isSelectedCell
                           ? 'bg-rp-brand-tint/30 ring-1 ring-inset ring-rp-brand-border'
-                          : isPastDay
+                          : isPastOrExhaustedDay
                             ? 'bg-gray-100/75 text-rp-text-muted/70'
                             : isCapacityDisabledDay
                               ? 'bg-slate-50/80'
                               : 'bg-white'
-                      } ${canPickDay ? 'cursor-pointer hover:bg-[#FFF9FA]' : isCapacityDisabledDay ? 'cursor-not-allowed' : ''}`}
+                      } ${canPickDay ? 'cursor-pointer hover:bg-[#FFF9FA]' : isPastOrExhaustedDay || isCapacityDisabledDay ? 'cursor-not-allowed' : ''}`}
                     >
                       <div className="flex items-center justify-between gap-1">
                         <button
@@ -3459,13 +3554,20 @@ export default function InteractiveSlotCalendar({
                       <div className="mt-1 space-y-1">
                         {visible.map((ev) => {
                           const meta = getToneMeta(ev.tone);
+                          const isWeeklyPendingPattern = Boolean(
+                            ev.isWeeklyPattern
+                            && !ev.isSelectedDraft
+                            && (ev.tone === 'pending' || ev.tone === 'needsRevision')
+                          );
                           const monthCardTooltip = ev.tone === 'needsRevision'
                             ? tr('Lịch đã được giữ chỗ. Mở đề xuất để chỉnh sửa.')
-                            : ev.isSelectedDraft && ev.hasVisibleDateConflict
-                              ? (ev.visibleConflictTooltip || tr('Khung giờ này đã có lịch vào ngày đang xem. Hệ thống sẽ kiểm tra lại khi chọn ngày bắt đầu.'))
-                              : ev.isSelectedDraft && ev.isRepresentativeProjection
-                                ? tr('Nhấn để bỏ chọn khung giờ hằng tuần.')
-                                : `${ev.fullTitle || ev.title} · ${tr(ev.statusLabel || meta.label)}`;
+                            : isWeeklyPendingPattern
+                              ? `${ev.fullTitle || ev.title} · ${tr('Lịch hằng tuần đang chờ duyệt — ngày khai giảng sẽ xác lập khi Quản trị viên phê duyệt')}`
+                              : ev.isSelectedDraft && ev.hasVisibleDateConflict
+                                ? (ev.visibleConflictTooltip || tr('Khung giờ này đã có lịch vào ngày đang xem. Hệ thống sẽ kiểm tra lại khi chọn ngày bắt đầu.'))
+                                : ev.isSelectedDraft && ev.isRepresentativeProjection
+                                  ? tr('Nhấn để bỏ chọn khung giờ hằng tuần.')
+                                  : `${ev.fullTitle || ev.title} · ${tr(ev.statusLabel || meta.label)}`;
                           return (
                             <button
                               key={ev.id}
@@ -3476,10 +3578,19 @@ export default function InteractiveSlotCalendar({
                                 if (ev.isSelectedDraft && !ev.locked) removeSelectedSlotByKey(ev.selectedKey);
                                 else openEventDetail(ev);
                               }}
-                              className={`flex w-full items-center gap-1 rounded px-1.5 py-0.5 text-left text-[10.5px] font-semibold ${meta.pill}`}
+                              className={`flex w-full items-center gap-1 rounded px-1.5 py-0.5 text-left text-[10.5px] font-semibold ${meta.pill} ${isWeeklyPendingPattern ? 'border border-dashed' : ''}`}
                             >
-                              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} />
-                              <span className="truncate">{tr(ev.title)}</span>
+                              {isWeeklyPendingPattern ? (
+                                <Lock className="h-2.5 w-2.5 shrink-0 opacity-75" aria-hidden="true" />
+                              ) : (
+                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} />
+                              )}
+                              <span className="min-w-0 flex-1 truncate">{tr(ev.title)}</span>
+                              {isWeeklyPendingPattern && ev.jlptLevelCode ? (
+                                <span className="shrink-0 rounded bg-white/80 px-1 text-[9px] font-bold leading-tight">
+                                  {ev.jlptLevelCode}
+                                </span>
+                              ) : null}
                             </button>
                           );
                         })}
@@ -3549,8 +3660,6 @@ export default function InteractiveSlotCalendar({
                     setTablePageSize(nextSize);
                     setTablePage(1);
                   }}
-                  minSessionsPerWeek={proposalMinPerWeek}
-                  maxSessionsPerWeek={proposalMaxPerWeek}
                   busy={busy}
                   onContinueSelection={() => proposalConfig?.onNextStep?.()}
                   onEditSelectionSchedule={(row) => {
@@ -3633,7 +3742,12 @@ export default function InteractiveSlotCalendar({
                   }}
                   onJumpToPatternOnCalendar={(row, pat) => {
                     if (!pat) return;
-                    const matchingOcc = (row?.occurrences || []).find((o) => o.weeklyKey === pat.key);
+                    const isUnapprovedRow = Boolean(
+                      row?.isSelectedDraft || row?.status === 'PendingReview' || row?.status === 'ChangesRequested'
+                    );
+                    const matchingOcc = isUnapprovedRow
+                      ? null
+                      : (row?.occurrences || []).find((o) => o.weeklyKey === pat.key);
                     const matchedEv = matchingOcc
                       ? calendarEvents.find(
                         (e) => e.dayKey === matchingOcc.dayKey
@@ -3642,7 +3756,9 @@ export default function InteractiveSlotCalendar({
                       )
                       : null;
                     jumpToCalendarTarget({
-                      dayKey: matchingOcc?.dayKey || pat.dayKeyHint || row?.expectedStartDate || todayKey,
+                      dayKey: isUnapprovedRow
+                        ? (pat.dayKeyHint || todayKey)
+                        : (matchingOcc?.dayKey || pat.dayKeyHint || row?.expectedStartDate || todayKey),
                       startMin: pat.startMinute,
                       highlightKeys: [matchedEv?.id, pat.key, pat.selectedKey].filter(Boolean),
                       statusGroup: row?.statusGroup,
@@ -3686,10 +3802,10 @@ export default function InteractiveSlotCalendar({
 
                   const canEditDirect = Boolean(ev.isSelectedDraft);
                   const canRequestChange = Boolean(
-                    !ev.isSelectedDraft && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
+                    !proposalMode && !ev.isSelectedDraft && s && s.isApproved && !s.isDeleted && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot
                   );
                   const canRequestApprovedCancel = Boolean(
-                    !ev.isSelectedDraft && s && s.isApproved && !s.isDeleted && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot
+                    !proposalMode && !ev.isSelectedDraft && s && s.isApproved && !s.isDeleted && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot
                   );
                   const canLegacyDeletePending = Boolean(
                     s && !s.isApproved && !s.rejectedAt && !s.isDeleted && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot
@@ -3801,40 +3917,40 @@ export default function InteractiveSlotCalendar({
                     {/* Desktop 5-Column Compact Table (Legacy Single-Slot Mode) */}
                     <div className="hidden max-h-[calc(100dvh-250px)] overflow-auto md:block">
                       <table className="w-full min-w-[680px] border-collapse text-left text-[13px]">
-                        <thead className="sticky top-0 z-10 border-b border-rp-line bg-[#FAF7F9] text-[11.5px] font-semibold uppercase tracking-wide text-rp-text-muted">
+                        <thead className="sticky top-0 z-10 border-b border-rp-brand-border/80 bg-rp-table-head text-[12.5px] font-semibold text-rp-brand-strong">
                           <tr>
-                            <th className="px-4 py-2.5">
+                            <th className="px-4 py-2.5 text-left align-middle">
                               <button
                                 type="button"
                                 onClick={() => toggleTableSort('nearest')}
-                                className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
+                                className="inline-flex items-center gap-1 font-semibold text-rp-brand-strong hover:text-rp-brand-deep"
                               >
                                 <span>{tr('Ngày')}</span>
                                 <ArrowDownUp className="h-3 w-3 opacity-70" />
                               </button>
                             </th>
-                            <th className="px-4 py-2.5">
+                            <th className="px-4 py-2.5 text-left align-middle">
                               <button
                                 type="button"
                                 onClick={() => toggleTableSort('startTime')}
-                                className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
+                                className="inline-flex items-center gap-1 font-semibold text-rp-brand-strong hover:text-rp-brand-deep"
                               >
                                 <span>{tr('Giờ dạy')}</span>
                                 <ArrowDownUp className="h-3 w-3 opacity-70" />
                               </button>
                             </th>
-                            <th className="px-4 py-2.5">{tr('Loại lịch')}</th>
-                            <th className="px-4 py-2.5">
+                            <th className="px-4 py-2.5 text-center align-middle whitespace-nowrap">{tr('Loại lịch')}</th>
+                            <th className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={() => toggleTableSort('status')}
-                                className="inline-flex items-center gap-1 font-semibold uppercase text-rp-text-muted hover:text-rp-brand-strong"
+                                className="inline-flex items-center justify-center gap-1 font-semibold text-rp-brand-strong hover:text-rp-brand-deep"
                               >
                                 <span>{tr('Trạng thái')}</span>
                                 <ArrowDownUp className="h-3 w-3 opacity-70" />
                               </button>
                             </th>
-                            <th className="px-4 py-2.5 text-right">{tr('Thao tác')}</th>
+                            <th className="px-4 py-2.5 text-center align-middle whitespace-nowrap">{tr('Thao tác')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-rp-line/70">
@@ -3856,10 +3972,10 @@ export default function InteractiveSlotCalendar({
 
                             return (
                               <tr key={ev.id} data-testid={`schedule-table-row-${ev.id}`} className="transition-colors hover:bg-rp-bg-2/40">
-                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                <td className="px-4 py-2.5 align-middle whitespace-nowrap">
                                   <div className="font-medium text-rp-text">{row.dayPrimaryText}</div>
                                 </td>
-                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                <td className="px-4 py-2.5 align-middle whitespace-nowrap">
                                   <span className="font-bold tabular-nums text-rp-text">
                                     {clockFromMinutes(row.start)}–{clockFromMinutes(row.end)}
                                   </span>
@@ -3867,13 +3983,13 @@ export default function InteractiveSlotCalendar({
                                     ({trf('{0} phút', { 0: row.mins })})
                                   </span>
                                 </td>
-                                <td className="px-4 py-2.5">
+                                <td className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
                                   <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${typeBadgeClass}`}>
                                     <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${typeDotClass}`} />
                                     {tr(row.eventTypeLabel)}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                <td className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
                                   <span
                                     data-status-key={row.statusKey}
                                     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${row.statusPillClass}`}
@@ -3882,8 +3998,8 @@ export default function InteractiveSlotCalendar({
                                     {row.statusDisplayLabel}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                <td className="px-4 py-2.5 text-center align-middle whitespace-nowrap">
+                                  <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
                                     {row.primaryAction && (
                                       <button
                                         type="button"
@@ -4079,32 +4195,23 @@ export default function InteractiveSlotCalendar({
           size="sm"
         >
           <form onSubmit={handleConfirmAdjustTime} className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                  {tr('Ngày dạy')}
-                </label>
-                <DatePicker
-                  size="sm"
-                  fullWidth
-                  clearable={false}
-                  min={todayKey}
-                  value={adjustDateKey}
-                  onChange={(iso) => { if (iso) { setAdjustDateKey(iso); setAdjustError(''); } }}
-                  triggerClassName="bg-white"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                  {trf('Giờ bắt đầu ({0} phút)', { 0: durationMinutes })}
-                </label>
-                <TimeInput
-                  required
-                  value={adjustTimeClock}
-                  aria-label={trf('Giờ bắt đầu ({0} phút)', { 0: durationMinutes })}
-                  onChange={(e) => { setAdjustTimeClock(e.target.value); setAdjustError(''); }}
-                />
-              </div>
+            <div className="grid gap-3 pt-1 sm:grid-cols-2">
+              <DatePicker
+                size="sm"
+                fullWidth
+                clearable={false}
+                label={tr('Ngày dạy')}
+                min={todayKey}
+                value={adjustDateKey}
+                onChange={(iso) => { if (iso) { setAdjustDateKey(iso); setAdjustError(''); } }}
+              />
+              <TimeInput
+                size="sm"
+                required
+                label={trf('Giờ bắt đầu ({0} phút)', { 0: durationMinutes })}
+                value={adjustTimeClock}
+                onChange={(e) => { setAdjustTimeClock(e.target.value); setAdjustError(''); }}
+              />
             </div>
             {adjustError && (
               <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-800">
@@ -4200,16 +4307,16 @@ export default function InteractiveSlotCalendar({
               </p>
 
               {isApprovedSlot && (
-                <label className="block text-[12.5px] font-semibold text-rp-text-2">
-                  {tr('Lý do xin hủy (gửi quản trị viên)')}
-                  <input
+                <div className="pt-1">
+                  <Input
+                    size="sm"
+                    label={tr('Lý do xin hủy (gửi quản trị viên)')}
                     value={cancelModalReason}
                     onChange={(e) => setCancelModalReason(e.target.value)}
                     maxLength={1000}
                     placeholder={tr('Nhập lý do cần hủy khung giờ này…')}
-                    className="mt-1 h-9 w-full rounded-xl border border-rp-line px-3 text-[13px] font-normal"
                   />
-                </label>
+                </div>
               )}
 
               {isApprovedSlot && !cancelDaysLeadOk && (
@@ -4262,32 +4369,22 @@ export default function InteractiveSlotCalendar({
                           : 'bg-amber-700'
                     }`}
                   >
-                    {trf('{0}/{1} buổi mỗi tuần', {
+                    {trf('{0} buổi mỗi tuần · {1} giờ/tuần', {
                       0: proposalWeeklyCount,
-                      1: proposalMaxPerWeek,
+                      1: proposalWeeklyHours,
                     })}
                   </span>
-                  {proposalOverLimit ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
-                      {trf('Vượt tối đa {0} buổi/tuần', { 0: proposalMaxPerWeek })}
-                    </span>
-                  ) : proposalHasConflict ? (
+                  {proposalHasConflict ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
                       <span className="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true" />
                       {trf('{0} khung cần điều chỉnh', { 0: Math.max(1, proposalInvalidPatternCount) })}
                     </span>
-                  ) : proposalWeeklyCount < proposalMinPerWeek ? (
+                  ) : proposalWeeklyCount < 1 ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-600" aria-hidden="true" />
-                      {trf('Cần chọn thêm {0} buổi', { 0: proposalMinPerWeek - proposalWeeklyCount })}
+                      {tr('Vui lòng chọn ít nhất một khung giờ.')}
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
-                      {tr('Đủ điều kiện mở lớp')}
-                    </span>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -4350,8 +4447,16 @@ export default function InteractiveSlotCalendar({
               <button
                 key={ev.id}
                 type="button"
-                onClick={() => { setMonthDayModal(null); setSelectedEvent(ev); }}
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ${getToneMeta(ev.tone).card}`}
+                onClick={() => {
+                  setMonthDayModal(null);
+                  if (ev.isSelectedDraft && !ev.locked) removeSelectedSlotByKey(ev.selectedKey);
+                  else openEventDetail(ev);
+                }}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ${getToneMeta(ev.tone).card} ${
+                  ev.isWeeklyPattern && !ev.isSelectedDraft && (ev.tone === 'pending' || ev.tone === 'needsRevision')
+                    ? 'border-dashed'
+                    : ''
+                }`}
               >
                 <span className="text-[13px] font-semibold">{tr(ev.title)}</span>
                 <span className="text-[11px]">{tr(ev.statusLabel || '')}</span>
@@ -4373,9 +4478,9 @@ export default function InteractiveSlotCalendar({
             const meta = getToneMeta(selectedEvent.tone);
             const s = selectedEvent.slot;
             const isFuture = s ? (backendUtcDate(s.startTime)?.getTime() || 0) > nowMs : true;
-            const canDeletePending = Boolean(s && !s.isApproved && !s.rejectedAt && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot);
-            const canRequestChange = Boolean(s && s.isApproved && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot);
-            const canRequestCancel = Boolean(s && s.isApproved && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot);
+            const canDeletePending = Boolean(!proposalMode && s && !s.isApproved && !s.rejectedAt && (s.bookedCount ?? 0) === 0 && !s.isInCohort && onDeletePendingSlot);
+            const canRequestChange = Boolean(!proposalMode && s && s.isApproved && !s.isInCohort && !s.changeRequestedAt && !s.cancelRequestedAt && isFuture && onRequestChangeSlot);
+            const canRequestCancel = Boolean(!proposalMode && s && s.isApproved && !s.isInCohort && (s.bookedCount ?? 0) === 0 && !s.cancelRequestedAt && isFuture && onRequestCancelSlot);
             const leadHours = Number(policy?.cancellationLeadHours) || 168;
             const leadDays = Math.max(1, Math.round(leadHours / 24));
             const cancelDaysLeadOk = s ? ((backendUtcDate(s.startTime)?.getTime() || 0) - nowMs) >= leadHours * 3600_000 : false;
@@ -4472,17 +4577,15 @@ export default function InteractiveSlotCalendar({
                 )}
 
                 {(canRequestChange || canRequestCancel) && (
-                  <div className="space-y-2 border-t border-rp-line pt-3">
-                    <label className="block text-[12px] font-medium text-rp-text-2">
-                      {tr('Lý do gửi quản trị viên')}
-                      <input
-                        value={actionReason}
-                        onChange={(e) => setActionReason(e.target.value)}
-                        maxLength={1000}
-                        placeholder={tr('Nhập lý do cần điều chỉnh hoặc hủy khung giờ…')}
-                        className="mt-1 h-9 w-full rounded-lg border border-rp-line px-3 text-[13px]"
-                      />
-                    </label>
+                  <div className="space-y-2.5 border-t border-rp-line pt-3.5">
+                    <Input
+                      size="sm"
+                      label={tr('Lý do gửi quản trị viên')}
+                      value={actionReason}
+                      onChange={(e) => setActionReason(e.target.value)}
+                      maxLength={1000}
+                      placeholder={tr('Nhập lý do cần điều chỉnh hoặc hủy khung giờ…')}
+                    />
                     <div className="flex flex-wrap gap-2">
                       {canRequestChange && (
                         <button

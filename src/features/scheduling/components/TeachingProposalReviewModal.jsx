@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  Download,
-  Eye,
   Loader2,
   MessageSquareText,
   Pencil,
@@ -11,40 +9,44 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  AttachmentItemRow,
+  AttachmentPreviewModal,
   Badge,
   Banner,
   Button,
   Modal,
   formatIsoDateDisplay,
-  formatTimeRange,
   notify,
+  useAttachmentPreview,
 } from '@/components/ui';
 import ProposalDetailedScheduleCard from './ProposalDetailedScheduleCard.jsx';
+import WeeklyScheduleDisplay from './WeeklyScheduleDisplay.jsx';
 import {
-  formatAttachmentSize,
-  getAttachmentIconComponent,
-  isAttachmentInlinePreviewable,
-  openOrDownloadBlob,
+  getAttachmentExtension,
+  isAllowedAttachmentFile,
+  resolveCanonicalMimeForExtension,
 } from '@/features/scheduling/utils/attachmentHelpers.js';
-import { fetchMentorProposalAttachmentBlob } from '@/features/scheduling/api/teachingProposalApi.js';
+import {
+  fetchMentorProposalAttachmentBlob,
+  fetchMentorProposalAttachmentPreview,
+  uploadOptionalProposalAttachment,
+} from '@/features/scheduling/api/teachingProposalApi.js';
 import { describeApiError } from '@/api/apiErrors.js';
+import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import {
   computeProposalTuitionPreview,
   expandProposalOccurrences,
   formatTuitionVnd,
   PROPOSAL_STATUS_META,
   sortWeeklySessions,
-  weekdayLabelVn,
 } from '@/features/scheduling/utils/proposalValidation.js';
 import { useLocale } from '@/locales/locale.js';
 
 function classifyServerIssueStep(code = '') {
   if (
     code.includes('LEVEL')
-    || code.includes('START_DATE')
-    || code.includes('COURSE_START')
-    || code.includes('LEAD_TIME')
-    || code.includes('ALREADY_STARTED')
+    || code.includes('WEEKS')
+    || code.includes('TOTAL_SESSIONS')
     || code.includes('QUALIFICATION')
     || code.includes('OBJECTIVE')
   ) {
@@ -77,37 +79,91 @@ export default function TeachingProposalReviewModal({
   mentorVerified = true,
   submitting = false,
   onEditCourseInfo,
+  onChangeAttachments = null,
   onBackToCalendar,
   onEditSchedule = null,
   onSubmit,
   onStartRevision = null,
   onWithdraw = null,
+  onDeleteRejected = null,
 }) {
   const { tr, trf } = useLocale();
   const isRevision = !readOnly && mode === 'revision';
   const [confirmedReview, setConfirmedReview] = useState(false);
-  const [loadingAttKey, setLoadingAttKey] = useState(null);
+  const [replacingAttIdx, setReplacingAttIdx] = useState(null);
+  const replaceInputRef = useRef(null);
+  const replaceTargetIdxRef = useRef(null);
+  const attachmentPreview = useAttachmentPreview();
 
-  const canOpenServerAttachment = Number.isFinite(Number(draft?.id)) && Number(draft.id) > 0;
-  const handleAttachmentAction = async (att, idx, download = false) => {
-    if (!canOpenServerAttachment || loadingAttKey) return;
-    const key = `${idx}:${download ? 'dl' : 'view'}`;
-    setLoadingAttKey(key);
+  const canReplaceAttachment = !readOnly && typeof onChangeAttachments === 'function';
+  const canOpenServerAttachment = readOnly && Number.isFinite(Number(draft?.id)) && Number(draft.id) > 0;
+  const handleViewAttachment = (att, idx) => {
+    if (!canOpenServerAttachment) return;
+    void attachmentPreview.openPreview({
+      key: `review:${draft.id}:${idx}:view`,
+      attachment: att,
+      fetchBlob: () => fetchMentorProposalAttachmentBlob(Number(draft.id), idx, { download: false }),
+      fetchDownloadBlob: () => fetchMentorProposalAttachmentBlob(Number(draft.id), idx, { download: true }),
+      fetchPreview: () => fetchMentorProposalAttachmentPreview(Number(draft.id), idx),
+    });
+  };
+  const handleDownloadAttachment = (att, idx) => {
+    if (!canOpenServerAttachment) return;
+    void attachmentPreview.downloadAttachment({
+      key: `review:${draft.id}:${idx}:dl`,
+      attachment: att,
+      fetchBlob: () => fetchMentorProposalAttachmentBlob(Number(draft.id), idx, { download: true }),
+    });
+  };
+
+  const triggerReplaceAttachment = (idx) => {
+    if (!canReplaceAttachment || replacingAttIdx !== null) return;
+    replaceTargetIdxRef.current = idx;
+    replaceInputRef.current?.click();
+  };
+
+  const handleReplaceFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const targetIdx = replaceTargetIdxRef.current;
+    replaceTargetIdxRef.current = null;
+    if (!file || targetIdx == null || !canReplaceAttachment) return;
+
+    const check = isAllowedAttachmentFile(file);
+    if (!check.valid) {
+      notify.error(tr(check.reason));
+      return;
+    }
+
+    setReplacingAttIdx(targetIdx);
     try {
-      const blob = await fetchMentorProposalAttachmentBlob(Number(draft.id), idx, { download });
-      openOrDownloadBlob(blob, att.name || 'tai-lieu-dinh-kem', {
-        forceDownload: download,
-        contentType: att.contentType,
-      });
+      const uploaded = await uploadOptionalProposalAttachment(file);
+      const url = uploaded?.url || uploaded?.fileUrl || uploaded?.publicUrl;
+      if (!url) {
+        throw new Error(tr('Không nhận được đường dẫn tệp sau khi tải lên.'));
+      }
+      const resolvedName = uploaded?.originalFileName || file.name;
+      const resolvedExt = getAttachmentExtension(resolvedName, uploaded?.storedFileName);
+      const nextAttachment = {
+        name: resolvedName,
+        url,
+        storedFileName: uploaded?.storedFileName || null,
+        contentType: uploaded?.contentType || resolveCanonicalMimeForExtension(resolvedExt) || file.type || null,
+        sizeBytes: uploaded?.sizeBytes || file.size || null,
+      };
+      const currentList = Array.isArray(draft?.optionalAttachments) ? draft.optionalAttachments : [];
+      const nextList = currentList.map((item, i) => (i === targetIdx ? nextAttachment : item));
+      onChangeAttachments(nextList);
+      notify.success(tr('Đã cập nhật tài liệu đính kèm.'));
     } catch (err) {
-      notify.error(describeApiError(err).message || tr('Không thể mở tài liệu đính kèm lúc này.'));
+      notify.error(describeApiError(err).message || err?.message || tr('Chưa thể tải tệp lên. Vui lòng thử lại.'));
     } finally {
-      setLoadingAttKey(null);
+      setReplacingAttIdx(null);
     }
   };
 
   const confirmResetKey = open
-    ? `${mode}|${draft?.id ?? 'new'}|${draft?.status || ''}|${draft?.expectedStartDate || ''}|${(draft?.weeklySessions || []).map((s) => `${s.weekday}:${s.startMinute}`).join(',')}`
+    ? `${mode}|${draft?.id ?? 'new'}|${draft?.status || ''}|${draft?.courseDurationWeeks || ''}|${(draft?.weeklySessions || []).map((s) => `${s.weekday}:${s.startMinute}`).join(',')}`
     : '';
   const [prevConfirmResetKey, setPrevConfirmResetKey] = useState('');
   if (confirmResetKey !== prevConfirmResetKey) {
@@ -125,54 +181,48 @@ export default function TeachingProposalReviewModal({
     [levelsList, draft?.certificateLevelId]
   );
 
-  const draftWeeklySessions = draft?.weeklySessions;
-  const weeklySessions = useMemo(() => sortWeeklySessions(draftWeeklySessions || []), [draftWeeklySessions]);
-  const durationWeeks = Number(draft?.courseDurationWeeks || policy?.courseDurationWeeks || 10);
+  const isApprovedProposal = draft?.status === 'OpenedClass';
   const sessionMinutes = Number(draft?.sessionDurationMinutes || policy?.sessionDurationMinutes || 90);
+  const draftWeeklySessions = draft?.weeklySessions;
+  const weeklySessions = useMemo(() => sortWeeklySessions(draftWeeklySessions || [], sessionMinutes), [draftWeeklySessions, sessionMinutes]);
+  const durationWeeks = Math.max(1, Number(draft?.courseDurationWeeks || 1));
 
-  const serverOccurrences = serverValidation?.occurrencesPreview;
-  const clientOccurrences = validation?.occurrences;
   const draftOccurrences = draft?.occurrencesPreview;
   const draftExpectedStart = draft?.expectedStartDate;
 
   const occurrences = useMemo(() => {
+    if (!readOnly || !isApprovedProposal) return [];
     let raw = [];
-    if (readOnly) {
-      if (Array.isArray(draftOccurrences) && draftOccurrences.length > 0) {
-        raw = draftOccurrences;
-      } else if (draftExpectedStart && weeklySessions.length > 0) {
-        raw = expandProposalOccurrences({
-          expectedStartDate: draftExpectedStart,
-          weeklySessions,
-          courseDurationWeeks: durationWeeks,
-          sessionDurationMinutes: sessionMinutes,
-        });
-      }
-    } else {
-      raw = serverOccurrences?.length ? serverOccurrences : (clientOccurrences || []);
+    if (Array.isArray(draftOccurrences) && draftOccurrences.length > 0) {
+      raw = draftOccurrences;
+    } else if (draftExpectedStart && weeklySessions.length > 0) {
+      raw = expandProposalOccurrences({
+        expectedStartDate: draftExpectedStart,
+        weeklySessions,
+        courseDurationWeeks: durationWeeks,
+        sessionDurationMinutes: sessionMinutes,
+      });
     }
     return [...raw].sort((a, b) => Number(a.sessionNumber || 0) - Number(b.sessionNumber || 0));
   }, [
     readOnly,
+    isApprovedProposal,
     draftOccurrences,
     draftExpectedStart,
     weeklySessions,
     durationWeeks,
     sessionMinutes,
-    serverOccurrences,
-    clientOccurrences,
   ]);
 
-  const projectedEndDate = (readOnly ? draft?.projectedEndDate : (serverValidation?.projectedEndDate || validation?.projectedEndDate))
-    || (occurrences.length > 0 ? occurrences[occurrences.length - 1].localDate : null);
+  const projectedEndDate = isApprovedProposal
+    ? (draft?.projectedEndDate || (occurrences.length > 0 ? occurrences[occurrences.length - 1].localDate : null))
+    : null;
 
-  const totalSessionsDisplay = readOnly
-    ? (occurrences.length || weeklySessions.length * durationWeeks)
-    : (validation?.totalSessions ?? occurrences.length);
+  const totalSessionsDisplay = isApprovedProposal && occurrences.length > 0
+    ? occurrences.length
+    : (Number(draft?.expectedTotalSessions) || (weeklySessions.length * durationWeeks));
 
-  const totalTeachingHoursDisplay = readOnly
-    ? Math.round(((totalSessionsDisplay * sessionMinutes) / 60) * 10) / 10
-    : (validation?.totalTeachingHours ?? Math.round(((totalSessionsDisplay * sessionMinutes) / 60) * 10) / 10);
+  const totalTeachingHoursDisplay = Math.round(((totalSessionsDisplay * sessionMinutes) / 60) * 10) / 10;
 
   const serverErrors = (serverValidation?.issues || []).filter((i) => i.severity === 'Error');
   const clientErrors = validation?.errors || [];
@@ -193,7 +243,7 @@ export default function TeachingProposalReviewModal({
   const hasStep1Errors = !readOnly && (clientErrors.some((e) => e.step === 1) || allErrors.some((e) => e.step === 1));
   const hasStep2Errors = !readOnly && (clientErrors.some((e) => e.step === 2) || allErrors.some((e) => e.step === 2));
 
-  const needsServerCheck = Boolean(!readOnly && draft?.expectedStartDate && weeklySessions.length > 0);
+  const needsServerCheck = Boolean(!readOnly && weeklySessions.length > 0 && draft?.certificateLevelId && Number.isInteger(Number(draft?.courseDurationWeeks)));
   const serverVerifiedOk = !needsServerCheck || (!serverValidationError && serverValidation?.canSubmit === true);
 
   const showConfirmationCheckbox = !readOnly
@@ -223,10 +273,10 @@ export default function TeachingProposalReviewModal({
       ? tr('Quản trị viên yêu cầu bổ sung thông tin cho đề xuất này. Xem phản hồi bên dưới và chỉnh sửa để gửi lại.')
       : draft?.status === 'PendingReview'
         ? tr('Đề xuất đã được gửi và đang chờ quản trị viên xem xét phê duyệt.')
-        : draft?.status === 'Approved'
-          ? (draft?.linkedCohortId || draft?.linkedCohortName
-            ? tr('Đề xuất đã được quản trị viên phê duyệt, tự động tạo lớp và mở tuyển sinh.')
-            : tr('Đề xuất đã được quản trị viên phê duyệt và sẵn sàng mở lớp học nhóm.'))
+        : draft?.status === 'OpenedClass'
+          ? tr('Đề xuất này đã được bạn chọn hạn tuyển sinh và mở lớp thành công.')
+          : draft?.status === 'Approved'
+            ? tr('Đề xuất đã được quản trị viên phê duyệt. Bạn có thể chọn hạn tuyển sinh để mở lớp tại Danh sách đăng ký.')
           : draft?.status === 'Rejected'
             ? tr('Đề xuất này không được phê duyệt. Xem phản hồi từ quản trị viên bên dưới.')
             : draft?.status === 'Withdrawn'
@@ -282,15 +332,15 @@ export default function TeachingProposalReviewModal({
   };
   const scheduleChanged = useMemo(() => {
     if (!isRevision || !baselineProposal) return false;
-    const baseKey = sortWeeklySessions(baselineProposal.weeklySessions || [])
+    const baseKey = sortWeeklySessions(baselineProposal.weeklySessions || [], sessionMinutes)
       .map((s) => `${s.weekday}:${s.startMinute}:${s.endMinute || s.startMinute + sessionMinutes}`)
       .join(',');
     const curKey = weeklySessions
       .map((s) => `${s.weekday}:${s.startMinute}:${s.endMinute || s.startMinute + sessionMinutes}`)
       .join(',');
     return baseKey !== curKey
-      || String(draft?.expectedStartDate || '') !== String(baselineProposal?.expectedStartDate || '');
-  }, [baselineProposal, draft?.expectedStartDate, isRevision, sessionMinutes, weeklySessions]);
+      || Number(draft?.courseDurationWeeks || 1) !== Number(baselineProposal?.courseDurationWeeks || 1);
+  }, [baselineProposal, draft?.courseDurationWeeks, isRevision, sessionMinutes, weeklySessions]);
 
   const levelCodeForTuition = levelObj?.code || draft?.jlptLevelCode || '';
   const fallbackTuition = computeProposalTuitionPreview(levelCodeForTuition, totalSessionsDisplay, policy);
@@ -304,27 +354,43 @@ export default function TeachingProposalReviewModal({
     { label: tr('Trình độ JLPT'), value: levelObj?.code || draft?.jlptLevelCode || '—' },
     { label: tr('Tên lớp'), value: resolvedTitle, updated: isFieldUpdated('courseTitle') },
     {
-      label: tr('Ngày bắt đầu dự kiến'),
-      value: draft?.expectedStartDate ? formatIsoDateDisplay(draft.expectedStartDate) : '—',
-      updated: isFieldUpdated('expectedStartDate'),
+      label: tr('Số tuần giảng dạy'),
+      value: trf('{0} tuần', { 0: durationWeeks }),
+      updated: isFieldUpdated('courseDurationWeeks'),
     },
+    ...(isApprovedProposal ? [
+      ...(draft?.enrollmentClosesAtUtc ? [{
+        label: tr('Hạn tuyển sinh'),
+        value: formatVnDateTime(draft.enrollmentClosesAtUtc),
+      }] : []),
+      {
+        label: tr('Ngày bắt đầu'),
+        value: draftExpectedStart ? formatIsoDateDisplay(draftExpectedStart) : '—',
+      },
+      {
+        label: tr('Ngày kết thúc'),
+        value: projectedEndDate ? formatIsoDateDisplay(projectedEndDate) : '—',
+      },
+    ] : []),
     {
-      label: tr('Ngày kết thúc dự kiến'),
-      value: projectedEndDate ? formatIsoDateDisplay(projectedEndDate) : '—',
-    },
-    {
-      label: tr('Quy mô lớp'),
+      label: tr('Sĩ số tối đa'),
       value: Number(policy?.maxLearners) > 0
-        ? trf('{0}–{1} học viên', { 0: Number(policy?.minLearners ?? policy?.minLearnersToStart ?? 1), 1: Number(policy.maxLearners) })
+        ? trf('Tối đa {0} học viên', { 0: Number(policy.maxLearners) })
         : tr('Theo chính sách hiện hành'),
     },
     ...(resolvedTotalTuition > 0 ? [{
-      label: tr('Học phí trọn khóa'),
+      label: isApprovedProposal ? tr('Học phí trọn khóa') : tr('Học phí dự kiến'),
       value: `${formatTuitionVnd(resolvedTotalTuition)} / ${tr('học viên')}`,
     }] : []),
     ...(draft?.linkedCohortName ? [{
       label: tr('Lớp đã mở'),
-      value: draft.linkedCohortName,
+      value: draft.linkedCohortStatus === 'Cancelled'
+        ? `${draft.linkedCohortName} (${tr('Lớp đã hủy')})`
+        : draft.linkedCohortName,
+    }] : []),
+    ...(draft?.linkedCohortStatus === 'Cancelled' && draft?.linkedCohortCancellationReason ? [{
+      label: tr('Lý do hủy lớp'),
+      value: draft.linkedCohortCancellationReason,
     }] : []),
     {
       label: tr('Mục tiêu khóa học'),
@@ -342,6 +408,7 @@ export default function TeachingProposalReviewModal({
   const attachmentsUpdated = isFieldUpdated('optionalAttachments');
 
   return (
+    <>
     <Modal
       open={open}
       onClose={() => !submitting && onClose()}
@@ -362,6 +429,17 @@ export default function TeachingProposalReviewModal({
                 onClick={onWithdraw}
               >
                 {tr('Hủy đề xuất')}
+              </Button>
+            )}
+            {draft?.status === 'Rejected' && onDeleteRejected && (
+              <Button
+                type="button"
+                variant="outline"
+                icon={Trash2}
+                className="hover:!border-red-200 hover:!bg-red-50 hover:!text-red-700"
+                onClick={onDeleteRejected}
+              >
+                {tr('Xóa khỏi lịch sử')}
               </Button>
             )}
             {draft?.status === 'ChangesRequested' && onStartRevision ? (
@@ -390,16 +468,6 @@ export default function TeachingProposalReviewModal({
                 onClick={onEditCourseInfo}
               >
                 {isRevision ? tr('Quay lại chỉnh sửa') : tr('Chỉnh sửa thông tin')}
-              </Button>
-            )}
-            {!isRevision && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={submitting}
-                onClick={onBackToCalendar || onClose}
-              >
-                {tr('Chỉnh sửa lịch')}
               </Button>
             )}
             <span className="group relative inline-flex">
@@ -486,52 +554,43 @@ export default function TeachingProposalReviewModal({
                     <span className="text-rp-text-muted">{tr('Không có')}</span>
                   ) : (
                     <div className="flex min-w-0 flex-col gap-1.5">
+                      {canReplaceAttachment && (
+                        <input
+                          ref={replaceInputRef}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.csv,.txt"
+                          className="hidden"
+                          onChange={handleReplaceFileChange}
+                        />
+                      )}
                       {attachments.map((a, idx) => {
-                        const IconComp = getAttachmentIconComponent(a.name, a.contentType);
-                        const sizeText = formatAttachmentSize(a.sizeBytes);
-                        const previewable = isAttachmentInlinePreviewable(a.name, a.contentType);
-                        const isBusyView = loadingAttKey === `${idx}:view`;
-                        const isBusyDl = loadingAttKey === `${idx}:dl`;
+                        const isReplacing = replacingAttIdx === idx;
                         return (
-                          <div
+                          <AttachmentItemRow
                             key={`${a.storedFileName || a.name}-${idx}`}
-                            className="flex min-w-0 max-w-full items-center justify-between gap-2 rounded-lg border border-rp-line bg-white px-2.5 py-1.5 text-xs"
-                          >
-                            <span title={a.name} className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-rp-text">
-                              <IconComp className="h-3.5 w-3.5 shrink-0 text-rp-text-muted" aria-hidden="true" />
-                              <span className="truncate">{a.name}</span>
-                              {sizeText && (
-                                <span className="shrink-0 text-[11px] font-normal tabular-nums text-rp-text-muted">
-                                  ({sizeText})
-                                </span>
-                              )}
-                            </span>
-                            {canOpenServerAttachment && (
-                              <span className="inline-flex shrink-0 items-center gap-1">
-                                {previewable && (
-                                  <button
-                                    type="button"
-                                    disabled={Boolean(loadingAttKey)}
-                                    onClick={() => void handleAttachmentAction(a, idx, false)}
-                                    className="rp-focus inline-flex items-center gap-1 rounded-md border border-rp-line bg-rp-bg-2/70 px-2 py-0.5 text-[11px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong disabled:opacity-50"
-                                  >
-                                    {isBusyView ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
-                                    <span>{tr('Xem')}</span>
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={Boolean(loadingAttKey)}
-                                  onClick={() => void handleAttachmentAction(a, idx, true)}
-                                  aria-label={trf('Tải xuống {0}', { 0: a.name })}
-                                  className="rp-focus inline-flex items-center gap-1 rounded-md border border-rp-line bg-rp-bg-2/70 px-2 py-0.5 text-[11px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong disabled:opacity-50"
-                                >
-                                  {isBusyDl ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                                  <span>{tr('Tải')}</span>
-                                </button>
-                              </span>
-                            )}
-                          </div>
+                            compact
+                            name={a.name}
+                            contentType={a.contentType}
+                            storedFileName={a.storedFileName}
+                            sizeBytes={a.sizeBytes}
+                            viewing={attachmentPreview.busyKey === `review:${draft.id}:${idx}:view`}
+                            downloading={attachmentPreview.busyKey === `review:${draft.id}:${idx}:dl`}
+                            disabled={replacingAttIdx !== null || Boolean(attachmentPreview.busyKey)}
+                            onView={canOpenServerAttachment ? () => handleViewAttachment(a, idx) : null}
+                            onDownload={canOpenServerAttachment ? () => handleDownloadAttachment(a, idx) : null}
+                            trailingExtra={canReplaceAttachment ? (
+                              <button
+                                type="button"
+                                disabled={replacingAttIdx !== null}
+                                onClick={() => triggerReplaceAttachment(idx)}
+                                aria-label={trf('Sửa {0}', { 0: a.name })}
+                                className="rp-focus inline-flex shrink-0 items-center gap-1 rounded-md border border-rp-line bg-rp-bg-2/70 px-2 py-0.5 text-[11px] font-semibold text-rp-text hover:border-rp-brand-border hover:bg-rp-brand-tint/60 hover:text-rp-brand-strong disabled:opacity-50"
+                              >
+                                {isReplacing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pencil className="h-3 w-3" />}
+                                <span>{isReplacing ? tr('Đang tải…') : tr('Sửa')}</span>
+                              </button>
+                            ) : null}
+                          />
                         );
                       })}
                     </div>
@@ -543,33 +602,28 @@ export default function TeachingProposalReviewModal({
 
           <div className="min-w-0 rounded-xl border border-rp-line bg-rp-bg-2/40 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-bold uppercase tracking-wide text-rp-text">
+              <div className="text-[13px] font-bold uppercase tracking-wide text-rp-text">
                 {tr('Lịch giảng dạy')}
               </div>
               {scheduleChanged && (
                 <span
                   data-testid="review-schedule-changed-badge"
-                  className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10.5px] font-bold text-emerald-700"
+                  className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11.5px] font-semibold text-emerald-700"
                 >
                   {tr('Lịch giảng dạy đã thay đổi')}
                 </span>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {weeklySessions.length === 0 ? (
-                <span className="text-xs text-rp-text-muted">{tr('Chưa chọn buổi học nào.')}</span>
-              ) : (
-                weeklySessions.map((s) => (
-                  <span
-                    key={s.key}
-                    className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg border border-[#F2CCD7] bg-white px-2.5 py-1 text-xs font-semibold tabular-nums text-[#7D2941]"
-                  >
-                    {tr(weekdayLabelVn(s.weekday))} · {formatTimeRange(s.startClock, s.endClock)}
-                  </span>
-                ))
-              )}
-            </div>
+            {weeklySessions.length === 0 ? (
+              <span className="text-[13px] text-rp-text-muted">{tr('Chưa chọn buổi học nào.')}</span>
+            ) : (
+              <WeeklyScheduleDisplay
+                weeklySessions={weeklySessions}
+                sessionDurationMinutes={sessionMinutes}
+                variant="detailed"
+              />
+            )}
 
             <div className="grid grid-cols-3 gap-2 pt-1 text-center">
               <div className="rounded-lg border border-rp-line bg-white p-2.5">
@@ -592,14 +646,23 @@ export default function TeachingProposalReviewModal({
           </div>
         </div>
 
-        {/* 10-Week Expanded Schedule Preview (Shared Component) */}
-        <ProposalDetailedScheduleCard
-          occurrences={occurrences}
-          durationWeeks={durationWeeks}
-          initialVisibleCount={6}
-          columns="responsive-3"
-          resetKey={confirmResetKey}
-        />
+        {/* Official Schedule (Approved) OR Pending Schedule Notice (Unapproved) */}
+        {isApprovedProposal && occurrences.length > 0 ? (
+          <ProposalDetailedScheduleCard
+            occurrences={occurrences}
+            durationWeeks={durationWeeks}
+            projected={false}
+            initialVisibleCount={6}
+            columns="responsive-3"
+            resetKey={confirmResetKey}
+          />
+        ) : (
+          <Banner
+            tone="warning"
+            className="py-2.5 text-[13px]"
+            title={tr('Lịch học sẽ được xác lập khi đề xuất được duyệt.')}
+          />
+        )}
 
         {/* Validation Summary (editable submission flow only) */}
         {!readOnly && !serverValidating && serverValidationError && (
@@ -639,15 +702,11 @@ export default function TeachingProposalReviewModal({
                     {tr('Chỉnh sửa thông tin')}
                   </Button>
                 )}
-                {hasStep1Errors && (isRevision && onEditSchedule ? (
-                  <Button type="button" size="sm" variant="outline" onClick={onEditSchedule}>
-                    {tr('Chỉnh sửa lịch')}
-                  </Button>
-                ) : onBackToCalendar ? (
+                {hasStep1Errors && !isRevision && onBackToCalendar ? (
                   <Button type="button" size="sm" variant="outline" onClick={onBackToCalendar}>
                     {tr('Chỉnh sửa lịch')}
                   </Button>
-                ) : null)}
+                ) : null}
               </div>
             </div>
           </Banner>
@@ -671,5 +730,17 @@ export default function TeachingProposalReviewModal({
         )}
       </div>
     </Modal>
+
+    <AttachmentPreviewModal
+      open={attachmentPreview.modalOpen}
+      onClose={attachmentPreview.closePreview}
+      attachment={attachmentPreview.activeAttachment}
+      loading={attachmentPreview.previewLoading}
+      error={attachmentPreview.previewError}
+      preview={attachmentPreview.previewData}
+      onDownload={attachmentPreview.handleDownloadActive}
+      downloading={Boolean(attachmentPreview.busyKey && attachmentPreview.busyKey.endsWith('-modal-dl'))}
+    />
+    </>
   );
 }

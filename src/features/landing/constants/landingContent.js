@@ -1,12 +1,12 @@
 // Landing copy. Descriptive only: no learner counts, ratings, testimonials or scores, because
 // RikiPath has no verified public figures. Business facts mirror current rules:
 //  - JLPT levels supported: N5–N2 (features/mentor/api/mentorGovernanceApi.js SUPPORTED_JLPT_LEVELS)
-//  - Group classes: 10 weeks, 90-minute sessions, 1–4 learners, paid in full via PayOS.
+//  - Group classes: flexible weeks/frequency per class, paid in full via PayOS.
 
 export const HERO_POINTS = [
   { key: 'levels', label: 'Lộ trình JLPT N5–N2' },
   { key: 'srs', label: 'Ôn tập lặp ngắt quãng' },
-  { key: 'group', label: 'Lớp nhóm 1–4 học viên' },
+  { key: 'group', label: 'Lớp nhóm cùng Giáo viên' },
 ];
 
 export const LEVELS = [
@@ -39,14 +39,14 @@ export const PERSONAL = [
 ];
 
 export const INTENSITY = [
-  { name: 'Nhẹ', perWeek: 2, sessions: 20, hours: 30, note: 'Phù hợp người đi làm, cần nhịp đều đặn.', days: [1, 4] },
-  { name: 'Tiêu chuẩn', perWeek: 3, sessions: 30, hours: 45, note: 'Cân bằng giữa học trên lớp và tự ôn.', days: [0, 2, 4] },
-  { name: 'Nâng cao', perWeek: 4, sessions: 40, hours: 60, note: 'Tăng tốc trước kỳ thi.', days: [0, 1, 3, 4] },
+  { name: 'Nhịp vừa', perWeek: 2, sessions: 16, hours: 24, note: 'Phù hợp người đi làm, duy trì nhịp ôn đều đặn.', days: [1, 4] },
+  { name: 'Tiêu chuẩn', perWeek: 3, sessions: 24, hours: 36, note: 'Cân bằng giữa học trên lớp và tự ôn.', days: [0, 2, 4] },
+  { name: 'Cấp tốc', perWeek: 5, sessions: 20, hours: 30, note: 'Linh hoạt nhiều buổi mỗi tuần trước kỳ thi.', days: [0, 1, 2, 3, 4] },
 ];
 
 export const GROUP_STEPS = [
   { title: 'Chọn Giáo viên', text: 'Xem hồ sơ, trình độ giảng dạy và đánh giá từ học viên lớp nhóm.' },
-  { title: 'Chọn lớp', text: 'So sánh lịch học, cường độ, chỗ còn trống và học phí trọn khóa.' },
+  { title: 'Chọn lớp', text: 'So sánh lịch học, thời lượng khóa học, chỗ còn trống và học phí trọn khóa.' },
   { title: 'Giữ chỗ & thanh toán', text: 'Chỗ được giữ trong thời gian thanh toán; ghi danh có hiệu lực khi hệ thống xác minh.' },
   { title: 'Vào lớp', text: 'Lịch học, phòng học trực tuyến, điểm danh, bài tập về nhà và tổng kết khóa.' },
 ];
@@ -61,7 +61,7 @@ export const JOURNEY = [
 
 export const FAQ = [
   ['Nội dung ôn luyện JLPT gồm những gì?', 'Từ vựng, Hán tự, ngữ pháp, đọc hiểu và nghe hiểu theo cấp độ N5–N2. Luyện nói và viết cùng Haru là kỹ năng bổ trợ.'],
-  ['Học nhóm khác gì tự học?', 'Tự học theo lộ trình và thi thử trên nền tảng. Học nhóm là lớp nhỏ cùng Giáo viên trong 10 tuần, có lịch cố định, bài tập về nhà và nhận xét.'],
+  ['Học nhóm khác gì tự học?', 'Tự học theo lộ trình và thi thử trên nền tảng. Học nhóm là lớp nhỏ trực tuyến cùng Giáo viên với lịch cố định hằng tuần, bài tập về nhà và nhận xét.'],
   ['Haru có thay Giáo viên không?', 'Không. Haru góp ý nhanh khi bạn luyện tập; Giáo viên dạy lớp nhóm, chấm bài và theo dõi tiến độ.'],
   ['Thanh toán lớp nhóm thế nào?', 'Thanh toán trọn khóa trực tuyến. Trạng thái ghi danh chỉ được xác nhận sau khi hệ thống xác minh giao dịch.'],
 ];

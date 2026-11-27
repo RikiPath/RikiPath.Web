@@ -267,7 +267,7 @@ export default function FloatingNotebookWidget() {
           tabIndex={-1}
           style={panelStyle}
           className={cx(
-            'pointer-events-auto flex flex-col overflow-hidden border border-rp-brand-border/70 bg-white shadow-[0_24px_64px_-16px_rgba(181,61,92,0.28)] outline-none',
+            'pointer-events-auto flex flex-col overflow-hidden border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)] outline-none',
             isOpen ? 'rp-anim-mini-panel-in' : 'rp-anim-mini-panel-out pointer-events-none',
             panelPlacement
               ? 'rounded-2xl'
@@ -277,7 +277,7 @@ export default function FloatingNotebookWidget() {
           )}
         >
           {/* Header */}
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-rp-line px-3">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--rp-popup-divider)] bg-[var(--rp-popup-header-bg)] px-3">
             {view.name !== 'home' ? (
               <IconButton size="sm" icon={ArrowLeft} label={tr('Quay lại')} onClick={goHome} />
             ) : (

@@ -248,9 +248,10 @@ export default function AuthorDashboard() {
     {
       key: 'rowKey',
       header: tr('Tên học liệu'),
+      align: 'left',
       render: (row) => (
-        <div className="mx-auto min-w-0 max-w-[380px] space-y-1">
-          <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <div className="min-w-0 max-w-[380px] space-y-1">
+          <div className="flex flex-wrap items-center justify-start gap-1.5">
             <span title={row.rowKey || ''} className="rp-jp truncate font-semibold text-rp-text">{row.rowKey || '—'}</span>
           </div>
           {row.status === 'Rejected' && row.reviewNote && (
@@ -267,6 +268,7 @@ export default function AuthorDashboard() {
     {
       key: 'entityType',
       header: tr('Loại'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <Badge tone="brand" size="sm" icon={false}>
@@ -277,6 +279,7 @@ export default function AuthorDashboard() {
     {
       key: 'level',
       header: tr('Cấp độ'),
+      align: 'center',
       compact: true,
       render: (row) => {
         const code = row.certificateLevelCode || levelById.get(Number(row.certificateLevelId))?.code;
@@ -286,6 +289,7 @@ export default function AuthorDashboard() {
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <Badge tone={STATUS_BADGE_TONES[row.status] || 'neutral'} size="sm" icon={false}>
@@ -296,6 +300,7 @@ export default function AuthorDashboard() {
     {
       key: 'updatedAt',
       header: tr('Cập nhật'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <span className="whitespace-nowrap text-xs text-rp-text-2">
@@ -308,7 +313,7 @@ export default function AuthorDashboard() {
   const renderRowActions = (row) => {
     const canModify = Boolean(row.targetEntityId) && (row.status === 'Draft' || row.status === 'Rejected');
     return (
-      <div className="flex items-center justify-center gap-1">
+      <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
         {row.targetEntityId && (
           <IconButton
             icon={Eye}
@@ -425,7 +430,7 @@ export default function AuthorDashboard() {
                   aria-label={tr('Loại học liệu')}
                   onChange={setTypeFilter}
                   options={[
-                    { value: 'ALL', label: tr('Tất cả loại') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     ...(entityTypesPresent.length > 0 ? entityTypesPresent : Object.keys(definitions)).map((key) => ({
                       value: key,
                       label: tr(definitions[key]?.label || key),
@@ -439,10 +444,10 @@ export default function AuthorDashboard() {
                   aria-label={tr('Cấp độ')}
                   onChange={setLevelFilter}
                   options={[
-                    { value: 'ALL', label: tr('Mọi cấp độ') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     ...levels.map((lvl) => ({
                       value: String(lvl.id),
-                      label: `${lvl.certificate} · ${lvl.code}`,
+                      label: lvl.code,
                     })),
                   ]}
                 />
@@ -667,9 +672,11 @@ export default function AuthorDashboard() {
           onClose={() => setSubmitTarget(null)}
           onConfirm={() => submitTarget?.targetEntityId && submitItem.mutate(submitTarget.targetEntityId)}
           loading={submitItem.isPending}
+          tone="success"
           title={tr('Gửi Quản trị viên kiểm duyệt?')}
           description={submitTarget ? trf('Mục "{0}" sẽ chuyển sang trạng thái Chờ duyệt.', { 0: submitTarget.rowKey }) : ''}
           confirmLabel={tr('Gửi duyệt')}
+          cancelLabel={tr('Quay lại')}
         />
 
         {/* Delete Draft Confirm */}
@@ -680,8 +687,9 @@ export default function AuthorDashboard() {
           loading={deleteItem.isPending}
           tone="danger"
           title={tr('Xóa bản nháp này?')}
-          description={deleteTarget ? trf('Bản nháp "{0}" sẽ bị xóa khỏi danh sách của bạn.', { 0: deleteTarget.rowKey }) : ''}
+          description={deleteTarget ? trf('Bản nháp "{0}" sẽ bị xóa khỏi danh sách và không thể khôi phục.', { 0: deleteTarget.rowKey }) : ''}
           confirmLabel={tr('Xóa bản nháp')}
+          cancelLabel={tr('Giữ lại')}
         />
       </PageContainer>
     </ContentAuthorShell>

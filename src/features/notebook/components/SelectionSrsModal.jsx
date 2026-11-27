@@ -171,57 +171,60 @@ export default function SelectionSrsModal({ request, onClose }) {
           }}
           className="space-y-3.5"
         >
+          <CustomSelect
+            size="sm"
+            label={tr('Loại thẻ')}
+            value={activeDraft.cardType}
+            onChange={(val) => setField('cardType', val)}
+            options={[
+              { value: 'Vocabulary', label: tr('Từ vựng') },
+              { value: 'Kanji', label: tr('Kanji') },
+            ]}
+          />
           <div>
-            <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Loại thẻ')}</label>
-            <CustomSelect
-              size="sm"
-              value={activeDraft.cardType}
-              onChange={(val) => setField('cardType', val)}
-              options={[
-                { value: 'Vocabulary', label: tr('Từ vựng') },
-                { value: 'Kanji', label: tr('Kanji') },
-              ]}
+            <Input
+              label={tr('Mặt trước')}
+              required
+              invalid={activeDraft.frontText.length > 500}
+              value={activeDraft.frontText}
+              onChange={(e) => setField('frontText', e.target.value)}
+              maxLength={500}
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-rp-text">
-              {tr('Mặt trước')} <span className="text-rp-danger" aria-hidden="true">*</span>
-            </label>
-            <Input value={activeDraft.frontText} onChange={(e) => setField('frontText', e.target.value)} maxLength={500} required />
             {activeDraft.frontText.length > 500 && <p className="mt-1 text-xs text-rp-danger">{tr('Vui lòng rút ngắn còn tối đa 500 ký tự.')}</p>}
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Cách đọc')}</label>
-            <Input value={activeDraft.reading} onChange={(e) => setField('reading', e.target.value)} maxLength={300} placeholder="がっこう" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-rp-text">
-              {tr('Nghĩa')} <span className="text-rp-danger" aria-hidden="true">*</span>
-            </label>
-            <Input value={activeDraft.meaning} onChange={(e) => setField('meaning', e.target.value)} maxLength={500} required placeholder={tr('Nhập nghĩa tiếng Việt…')} />
-          </div>
+          <Input
+            label={tr('Cách đọc')}
+            value={activeDraft.reading}
+            onChange={(e) => setField('reading', e.target.value)}
+            maxLength={300}
+            placeholder="がっこう"
+          />
+          <Input
+            label={tr('Nghĩa')}
+            required
+            value={activeDraft.meaning}
+            onChange={(e) => setField('meaning', e.target.value)}
+            maxLength={500}
+            placeholder={tr('Nhập nghĩa tiếng Việt…')}
+          />
           <div>
             <Checkbox label={tr('Thêm câu ví dụ')} checked={showExamples} onChange={(e) => setShowExamples(e.target.checked)} aria-controls={examplesId} />
             <Collapsible open={showExamples} id={examplesId} innerClassName="pt-3.5">
               <div className="space-y-3.5">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Câu ví dụ')}</label>
-                  <Input
-                    value={activeDraft.exampleSentence}
-                    onChange={(e) => setField('exampleSentence', e.target.value)}
-                    maxLength={1000}
-                    placeholder="毎日日本語を勉強しています。"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-rp-text">{tr('Dịch câu ví dụ')}</label>
-                  <Input
-                    value={activeDraft.exampleMeaning}
-                    onChange={(e) => setField('exampleMeaning', e.target.value)}
-                    maxLength={1000}
-                    placeholder={tr('Mỗi ngày tôi đều học tiếng Nhật.')}
-                  />
-                </div>
+                <Input
+                  label={tr('Câu ví dụ')}
+                  value={activeDraft.exampleSentence}
+                  onChange={(e) => setField('exampleSentence', e.target.value)}
+                  maxLength={1000}
+                  placeholder="毎日日本語を勉強しています。"
+                />
+                <Input
+                  label={tr('Dịch câu ví dụ')}
+                  value={activeDraft.exampleMeaning}
+                  onChange={(e) => setField('exampleMeaning', e.target.value)}
+                  maxLength={1000}
+                  placeholder={tr('Mỗi ngày tôi đều học tiếng Nhật.')}
+                />
               </div>
             </Collapsible>
           </div>

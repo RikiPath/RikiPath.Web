@@ -6,7 +6,7 @@ import { getSession } from '@/app/auth/session.js';
 import { DraggableFloatingDock, useOptionalFloatingWidgets } from '@/features/floating-widgets';
 import { useOptionalSmartNotebook } from '@/features/notebook/context/smartNotebookState.js';
 import { useLocale } from '@/locales/locale.js';
-import { cx } from '@/components/ui';
+import { CountBadge, cx } from '@/components/ui';
 import {
   buildContextualSpeechCandidates,
   canTriggerProactiveSpeech,
@@ -363,7 +363,7 @@ export default function FloatingSakuraCompanion() {
             onPointerEnter={() => {
               if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
             }}
-            className="riki-bubble-enter pointer-events-auto relative rounded-2xl border border-rp-brand-border bg-white/98 p-3.5 shadow-[0_18px_36px_-18px_rgba(140,42,74,0.28),0_2px_8px_rgba(20,24,35,0.06)] backdrop-blur"
+            className="riki-bubble-enter pointer-events-auto relative rounded-2xl border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] p-3.5 text-rp-text shadow-[var(--rp-popup-shadow)] backdrop-blur"
           >
             <button
               type="button"
@@ -412,7 +412,7 @@ export default function FloatingSakuraCompanion() {
               aria-hidden="true"
               style={bubblePlacement ? { left: `${bubblePlacement.arrowOffsetX - 6}px` } : { right: '26px' }}
               className={cx(
-                'absolute h-3 w-3 rotate-45 border-rp-brand-border bg-white',
+                'absolute h-3 w-3 rotate-45 border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)]',
                 bubblePlacement?.openUpward === false
                   ? '-top-1.5 border-l border-t'
                   : '-bottom-1.5 border-b border-r',
@@ -471,12 +471,12 @@ export default function FloatingSakuraCompanion() {
           >
             <SakuraFox3DActor state={resolvedVisualState} reaction={reaction} size={60} interactive={!dragging} />
             {!effectivePanelOpen && !dragging && stats.dueCards > 0 && !prefs.mutedProactive && (
-              <span
-                aria-hidden="true"
-                className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rp-brand-pressed px-1 text-[9.5px] font-bold text-white ring-2 ring-white tabular-nums"
-              >
-                {stats.dueCards > 99 ? '99+' : stats.dueCards}
-              </span>
+              <CountBadge
+                count={stats.dueCards}
+                size="xs"
+                max={99}
+                className="pointer-events-none absolute right-0.5 top-0.5"
+              />
             )}
           </button>
         )}

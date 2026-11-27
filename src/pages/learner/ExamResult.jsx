@@ -52,21 +52,21 @@ import { parseUtcDate } from '@/utils/vnDateTime.js';
 const PAGE_SIZE = 10;
 
 const RANGES = [
-  { value: '0', label: 'Mọi thời gian' },
+  { value: '0', label: 'Tất cả' },
   { value: '7', label: '7 ngày gần đây' },
   { value: '30', label: '30 ngày gần đây' },
   { value: '90', label: '90 ngày gần đây' },
 ];
 
 const KIND_FILTERS = [
-  { value: 'ALL', label: 'Tất cả loại bài' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'PRACTICE', label: 'Luyện tập' },
   { value: 'MOCK', label: 'Thi thử' },
   { value: 'PLACEMENT', label: 'Đánh giá năng lực' },
 ];
 
 const HISTORY_STATUS_FILTERS = [
-  { value: 'ALL', label: 'Tất cả trạng thái' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'completed', label: 'Đã hoàn thành' },
   { value: 'expired', label: 'Hết thời gian' },
   { value: 'in_progress', label: 'Đang làm dở' },
@@ -74,7 +74,7 @@ const HISTORY_STATUS_FILTERS = [
 ];
 
 const LEVEL_FILTERS = [
-  { value: 'ALL', label: 'Tất cả cấp độ' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'N5', label: 'N5' },
   { value: 'N4', label: 'N4' },
   { value: 'N3', label: 'N3' },
@@ -240,6 +240,33 @@ export default function ExamResult() {
 
   const hasFilters = kindFilter !== 'ALL' || statusFilter !== 'ALL' || levelFilter !== 'ALL' || daysFilter !== '0' || Boolean(keyword.trim());
 
+  // Unfiltered check when filters return 0 (or stats missing/0) to distinguish DB-empty vs filtered-zero cleanly.
+  const hasStats = Boolean(stats && typeof stats.totalAttempts === 'number');
+  const unfilteredCountQuery = useQuery({
+    queryKey: ['mock-test-history', 'unfiltered-count', user?.userId],
+    queryFn: async () => {
+      try {
+        return await getMockTestPagedHistory({ page: 1, pageSize: 1 });
+      } catch (err) {
+        if (err?.status !== 404) throw err;
+        const list = await getMockTestHistory({ status: 'ALL' });
+        return { total: Array.isArray(list) ? list.length : 0 };
+      }
+    },
+    enabled: isAuthenticated && activeTab === 'history' && hasFilters && pagedQuery.isSuccess && (!hasStats || stats.totalAttempts === 0),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const hasSourceAttempts = pagedQuery.isSuccess && (
+    hasStats && stats.totalAttempts > 0
+      ? true
+      : hasFilters
+        ? (unfilteredCountQuery.isSuccess ? Number(unfilteredCountQuery.data?.total ?? 0) > 0 : rows.length > 0 || unfilteredCountQuery.isPending)
+        : totalItems > 0
+  );
+  const showHistoryToolbar = pagedQuery.isSuccess && hasSourceAttempts;
+
   function resetAllFilters() {
     setParams((prev) => {
       const next = new URLSearchParams();
@@ -289,7 +316,8 @@ export default function ExamResult() {
     {
       key: 'kind',
       header: tr('Loại bài'),
-      align: 'left',
+      align: 'center',
+      compact: true,
       render: (attempt) => {
         const meta = resolveKindBadge(resolveKindKey(attempt), tr);
         return <Badge tone={meta.tone} size="sm" icon={false}>{meta.label}</Badge>;
@@ -298,7 +326,8 @@ export default function ExamResult() {
     {
       key: 'submittedAt',
       header: tr('Ngày làm'),
-      align: 'left',
+      align: 'center',
+      compact: true,
       render: (attempt) => (
         <span className="whitespace-nowrap text-xs text-rp-text-2">
           {formatAttemptDate(attempt.submittedAt || attempt.startedAt)}
@@ -314,7 +343,8 @@ export default function ExamResult() {
     {
       key: 'status',
       header: tr('Trạng thái'),
-      align: 'left',
+      align: 'center',
+      compact: true,
       render: (attempt) => {
         const st = resolveStatusMeta(attempt.attemptStatus, tr);
         return <Badge tone={st.tone} size="sm" icon={false}>{st.label}</Badge>;
@@ -323,7 +353,8 @@ export default function ExamResult() {
     {
       key: 'actions',
       header: tr('Thao tác'),
-      align: 'right',
+      align: 'center',
+      compact: true,
       render: (attempt) => {
         const st = String(attempt.attemptStatus || '').toLowerCase();
         if (st === 'abandoned') {
@@ -331,7 +362,7 @@ export default function ExamResult() {
         }
         const canCompare = st === 'completed' || st === 'expired' || !st;
         return (
-          <div className="inline-flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
             {canCompare && (
               <Tooltip content={tr('So sánh kết quả')}>
                 <IconButton
@@ -446,7 +477,8 @@ export default function ExamResult() {
               </div>
             )}
 
-            {/* Single Unified Filter Toolbar */}
+            {/* Single Unified Filter Toolbar (chỉ hiện khi có lịch sử làm bài) */}
+            {showHistoryToolbar && (
             <UnifiedToolbar
               ariaLabel={tr('Bộ lọc lịch sử làm bài')}
               search={{
@@ -463,7 +495,7 @@ export default function ExamResult() {
                     options={levelOptions}
                     size="md"
                     fitContent
-                    aria-label={tr('Cấp độ JLPT')}
+                    aria-label={tr('Cấp độ')}
                   />
                   <CustomSelect
                     value={kindFilter}
@@ -479,7 +511,7 @@ export default function ExamResult() {
                     options={statusOptions}
                     size="md"
                     fitContent
-                    aria-label={tr('Trạng thái bài làm')}
+                    aria-label={tr('Trạng thái')}
                   />
                   <CustomSelect
                     value={daysFilter}
@@ -487,7 +519,7 @@ export default function ExamResult() {
                     options={rangeOptions}
                     size="md"
                     fitContent
-                    aria-label={tr('Khoảng thời gian')}
+                    aria-label={tr('Thời gian')}
                   />
                   {hasFilters && (
                     <Button
@@ -503,6 +535,7 @@ export default function ExamResult() {
                 </div>
               }
             />
+            )}
 
             {/* History Content */}
             {pagedQuery.isPending ? (
@@ -523,17 +556,17 @@ export default function ExamResult() {
             ) : rows.length === 0 ? (
               <Card>
                 <EmptyState
-                  illustration={hasFilters ? 'search' : 'history'}
-                  title={hasFilters ? tr('Không tìm thấy bài làm phù hợp') : tr('Chưa có lượt làm bài nào')}
+                  illustration={hasFilters && hasSourceAttempts ? 'search' : 'history'}
+                  title={hasFilters && hasSourceAttempts ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có lượt làm bài nào')}
                   description={
-                    hasFilters
+                    hasFilters && hasSourceAttempts
                       ? tr('Thử đổi cấp độ, loại bài, trạng thái hoặc từ khóa tìm kiếm.')
                       : tr('Hoàn thành một bộ đề luyện tập, đề thi thử JLPT hoặc đánh giá năng lực để lưu lịch sử tại đây.')
                   }
                   action={
-                    hasFilters ? (
+                    hasFilters && hasSourceAttempts ? (
                       <Button variant="secondary" onClick={resetAllFilters}>
-                        {tr('Đặt lại bộ lọc')}
+                        {tr('Xóa bộ lọc')}
                       </Button>
                     ) : (
                       <div className="flex flex-wrap justify-center gap-2">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, Eye, Lock, Pencil, Trash2, Unlock } from 'lucide-react';
+import { Archive, ArchiveRestore, DoorOpen, Eye, Lock, Pencil, Trash2, Unlock } from 'lucide-react';
 import {
   Avatar,
   Banner,
@@ -109,6 +109,7 @@ export function AdminStatusBadge({ tone = 'neutral', label, className, withDot =
 
 const ACTION_ICONS = {
   view: Eye,
+  openWorkspace: DoorOpen,
   edit: Pencil,
   lock: Lock,
   unlock: Unlock,
@@ -160,7 +161,7 @@ export function AdminIconAction({
       )}
       {...rest}
     >
-      <Icon aria-hidden="true" className="h-[15px] w-[15px]" strokeWidth={2} />
+      <Icon aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
     </button>
   );
 
@@ -174,7 +175,7 @@ export function AdminIconAction({
 
 export function AdminRowActions({ children, className }) {
   return (
-    <div className={cx('inline-flex items-center justify-center gap-1', className)}>
+    <div className={cx('inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap', className)}>
       {children}
     </div>
   );

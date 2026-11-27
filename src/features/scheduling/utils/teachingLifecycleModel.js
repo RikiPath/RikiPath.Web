@@ -1,14 +1,15 @@
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 
 /**
- * Canonical 5-state Class Lifecycle statuses shared across Learner, Mentor, and Admin workspaces.
- * Maps Backend `StudyCohort.Status` + confirmed enrollment + enrollment window + valid session progression
+ * Canonical 6-state Class Lifecycle statuses shared across Learner, Mentor, and Admin workspaces.
+ * Maps Backend `StudyCohort.Status` + confirmed enrollment + capacity + enrollment window + valid session progression
  * without leaking payment/database technical states (`Active`/`Ready`) into UI status pills.
  */
 export const CLASS_LIFECYCLE_STATUSES = Object.freeze([
-  { id: 'Recruiting', label: 'Đang tuyển sinh', tone: 'info' },
+  { id: 'Recruiting', label: 'Đang tuyển sinh', tone: 'success' },
+  { id: 'Full', label: 'Lớp đã đủ sĩ số', tone: 'warning' },
   { id: 'Upcoming', label: 'Sắp diễn ra', tone: 'neutral' },
-  { id: 'Teaching', label: 'Đang học', tone: 'warning' },
+  { id: 'Teaching', label: 'Đang diễn ra', tone: 'warning' },
   { id: 'Completed', label: 'Đã hoàn thành', tone: 'success' },
   { id: 'Cancelled', label: 'Đã hủy', tone: 'danger' },
 ]);
@@ -133,18 +134,19 @@ export function computeLearnerAttendance(sessions = []) {
  * Derives the canonical Class Lifecycle status for a group class (`StudyCohort`):
  * - `Cancelled`: Cohort cancelled per valid cancellation workflow.
  * - `Completed`: Cohort reached official `Completed` status with required official sessions finished.
- * - `Recruiting`: Open/published cohort still within enrollment window or missing minimum learners.
- * - `Upcoming` ("Sắp diễn ra"): Enrollment closed, minimum learners met, awaiting first valid session.
- * - `Teaching` ("Đang học"): Minimum learners met and first valid session started or completed.
+ * - `Recruiting`: Open/published cohort still within enrollment window.
+ * - `Upcoming` ("Sắp diễn ra"): Enrollment closed with >= 1 confirmed learner, awaiting first valid session.
+ * - `Teaching` ("Đang học"): >= 1 confirmed learner and first valid session started or completed.
  */
 export function resolveClassLifecycleStatus({
   cohortStatus = '',
   enrolledCount = 0,
   confirmedEnrolledCount = null,
   capacity = null,
-  minLearnersToStart = 1,
+  maxLearners = null,
   startsAt = null,
   enrollmentClosesAtUtc = null,
+  enrollmentClosedAtUtc = null,
   totalSessions = 0,
   sessions = [],
   enrolledCourses = [],
@@ -165,7 +167,6 @@ export function resolveClassLifecycleStatus({
   const effectiveConfirmedCount = confirmedEnrolledCount != null
     ? Math.max(Number(confirmedEnrolledCount) || 0, confirmedCourses.length)
     : Math.max(Number(enrolledCount) || 0, confirmedCourses.length);
-  const minRequired = Math.max(1, Number(minLearnersToStart) || 1);
 
   if (
     confirmedCourses.length > 0
@@ -176,8 +177,8 @@ export function resolveClassLifecycleStatus({
     return CLASS_META_BY_ID.Completed;
   }
 
-  // Below minimum confirmed paid learners -> still Recruiting (never falsely "Sắp diễn ra" or "Đang học")
-  if (effectiveConfirmedCount < minRequired) {
+  // Zero confirmed paid learners -> still Recruiting (never falsely "Sắp diễn ra" or "Đang học")
+  if (effectiveConfirmedCount < 1) {
     return CLASS_META_BY_ID.Recruiting;
   }
 
@@ -202,7 +203,11 @@ export function resolveClassLifecycleStatus({
 
   const cutoffDate = enrollmentClosesAtUtc ? parseUtcDate(enrollmentClosesAtUtc) : null;
   const cutoffMs = cutoffDate ? cutoffDate.getTime() : NaN;
-  const isEnrollmentStillOpen = Number.isFinite(cutoffMs) && cutoffMs > nowMs;
+  const closedAtDate = enrollmentClosedAtUtc ? parseUtcDate(enrollmentClosedAtUtc) : null;
+  const closedAtMs = closedAtDate ? closedAtDate.getTime() : NaN;
+  const isEnrollmentClosed = Number.isFinite(closedAtMs) && closedAtMs <= nowMs;
+  const isEnrollmentStillOpen = !isEnrollmentClosed && Number.isFinite(cutoffMs) && cutoffMs > nowMs;
+  const effectiveCapacity = Math.max(0, Number(capacity ?? maxLearners ?? 0) || 0);
 
   if (
     progress.completedSessions > 0
@@ -213,11 +218,12 @@ export function resolveClassLifecycleStatus({
   }
 
   if (progress.completedSessions === 0 && isEnrollmentStillOpen) {
+    if (effectiveCapacity > 0 && effectiveConfirmedCount >= effectiveCapacity) {
+      return CLASS_META_BY_ID.Full;
+    }
     return CLASS_META_BY_ID.Recruiting;
   }
 
-  // Unused capacity fallback retained purely for caller compatibility
-  void capacity;
   return CLASS_META_BY_ID.Upcoming;
 }
 
@@ -246,7 +252,6 @@ export function resolveCourseLifecycle(course, nowMs = Date.now(), cohort = null
     cohortStatus: cohort?.status ?? course.cohortStatus ?? (course.status === 'Completed' ? 'Completed' : 'Published'),
     confirmedEnrolledCount: cohort?.confirmedEnrolledCount ?? course.cohortConfirmedEnrolledCount ?? 1,
     capacity: cohort?.capacitySnapshot ?? cohort?.capacity ?? course.cohortCapacity ?? course.capacitySnapshot ?? null,
-    minLearnersToStart: cohort?.minLearnersToStart ?? course.cohortMinLearnersToStart ?? 1,
     startsAt: cohort?.startsAt ?? course.cohortFirstSessionStartUtc ?? course.startsAt,
     enrollmentClosesAtUtc: cohort?.enrollmentClosesAtUtc ?? course.cohortEnrollmentClosesAtUtc ?? null,
     totalSessions: cohort?.totalSessions ?? course.totalSessions ?? 0,
@@ -260,7 +265,7 @@ export function resolveCourseLifecycle(course, nowMs = Date.now(), cohort = null
  * Determines whether a cohort is eligible to project official teaching sessions onto /work-schedule/ and Quick Calendar:
  * - Cohort must not be Cancelled or Draft.
  * - Enrollment must be closed (or cohort already Started/Completed).
- * - At least `minLearnersToStart` (>= 1) confirmed paid learner is enrolled (pending checkout holds never count).
+ * - At least 1 confirmed paid learner is enrolled (pending checkout holds never count).
  */
 export function isCohortEligibleForWorkSchedule(
   cohort,
@@ -281,8 +286,7 @@ export function isCohortEligibleForWorkSchedule(
   const effectiveConfirmedCount = confirmedEnrolledCount != null
     ? Math.max(Number(confirmedEnrolledCount) || 0, confirmedCourses.length)
     : Math.max(Number(cohort.confirmedEnrolledCount ?? 0) || 0, confirmedCourses.length);
-  const minRequired = Math.max(1, Number(cohort.minLearnersToStart) || 1);
-  if (effectiveConfirmedCount < minRequired) {
+  if (effectiveConfirmedCount < 1) {
     return false;
   }
 
@@ -307,19 +311,21 @@ export function isCohortEligibleForWorkSchedule(
 }
 
 /**
- * Canonical 3-status filter for /work-schedule/:
- * Sắp diễn ra (Gray) · Đang diễn ra (Yellow) · Đã hoàn thành (Green).
+ * Canonical 5-status filter for /work-schedule/:
+ * Sắp diễn ra (Xám) · Đang diễn ra (Vàng) · Đã hoàn thành (Xanh lá) · Đã hủy (Đỏ) · Đã đổi lịch (Xanh biển).
  */
 export const WORK_SCHEDULE_STATUS_OPTIONS = Object.freeze([
-  { id: 'ALL', label: 'Tất cả trạng thái', dot: 'bg-[#CE476D]', tone: 'workUpcoming' },
+  { id: 'ALL', label: 'Tất cả', dot: 'bg-[#CE476D]', tone: 'workUpcoming' },
   { id: 'upcoming', label: 'Sắp diễn ra', dot: 'bg-[#6B7280]', tone: 'workUpcoming' },
   { id: 'live', label: 'Đang diễn ra', dot: 'bg-[#D97706]', tone: 'workLive' },
   { id: 'completed', label: 'Đã hoàn thành', dot: 'bg-[#16A34A]', tone: 'workCompleted' },
+  { id: 'cancelled', label: 'Đã hủy', dot: 'bg-[#DC2626]', tone: 'workCancelled' },
+  { id: 'rescheduled', label: 'Đã đổi lịch', dot: 'bg-[#2563EB]', tone: 'workRescheduled' },
 ]);
 
 /**
  * Strict official teaching session classifier for /work-schedule/ and Quick Calendar:
- * - Cancelled or overdue unhandled sessions are excluded (`visibleOnWorkSchedule: false`).
+ * - Includes Cancelled & Rescheduled historical session cards on /work-schedule/ (`includeHistoricalStatuses: true`).
  * - NEVER auto-transitions to `live` solely from wall-clock without real room/session start data.
  * - NEVER auto-transitions to `completed` solely because session end time passed.
  */
@@ -327,14 +333,27 @@ export function resolveWorkScheduleSessionStatus({
   status = 'Scheduled',
   cohortStatus = '',
   sessionCompleted = false,
+  wasRescheduled = false,
   isSessionLive = false,
   sessionStartedAtUtc = null,
   startMs = NaN,
   endMs = NaN,
   nowMs = Date.now(),
+  includeHistoricalStatuses = false,
 } = {}) {
   const normalized = String(status || '').trim();
   const normalizedCohort = String(cohortStatus || '').trim();
+  if (wasRescheduled === true || normalized === 'Rescheduled') {
+    return {
+      id: 'rescheduled',
+      label: 'Đã đổi lịch',
+      tone: 'workRescheduled',
+      visibleOnWorkSchedule: Boolean(includeHistoricalStatuses),
+      isCompleted: false,
+      isLive: false,
+      awaitingConfirmation: false,
+    };
+  }
   if (
     normalized === 'Cancelled'
     || normalized === 'CancelledByMentor'
@@ -345,8 +364,8 @@ export function resolveWorkScheduleSessionStatus({
     return {
       id: 'cancelled',
       label: 'Đã hủy',
-      tone: 'cancelled',
-      visibleOnWorkSchedule: false,
+      tone: 'workCancelled',
+      visibleOnWorkSchedule: Boolean(includeHistoricalStatuses && normalizedCohort !== 'Draft'),
       isCompleted: false,
       isLive: false,
       awaitingConfirmation: false,
@@ -523,6 +542,7 @@ export function buildMentorWorkScheduleSessions({
   defaultSessionMinutes = 90,
   mentorId = null,
   nowMs = Date.now(),
+  includeHistoricalStatuses = false,
 } = {}) {
   const safeCohorts = Array.isArray(cohorts) ? cohorts : [];
   const safeCourses = Array.isArray(courses) ? courses : [];
@@ -652,11 +672,14 @@ export function buildMentorWorkScheduleSessions({
         startMs,
         endMs,
         nowMs,
+        includeHistoricalStatuses,
       });
 
       if (!workStatus.visibleOnWorkSchedule) continue;
 
-      const roomId = extractRoomIdFromSession(cs, matchedSessions);
+      const roomId = workStatus.id === 'cancelled' || workStatus.id === 'rescheduled'
+        ? null
+        : extractRoomIdFromSession(cs, matchedSessions);
       const roomHref = roomId ? `/meeting-room/${roomId}` : null;
       const canJoin = Boolean(roomHref) && (
         workStatus.id === 'live'
@@ -693,6 +716,61 @@ export function buildMentorWorkScheduleSessions({
         attendanceSummary: attendanceSummary.totalRecords > 0 ? attendanceSummary : null,
         workStatus,
       });
+    }
+
+    if (includeHistoricalStatuses && Array.isArray(cohort.rescheduledHistorySessions)) {
+      for (const oldHist of cohort.rescheduledHistorySessions) {
+        if (!oldHist) continue;
+        const histStartIso = oldHist.startTime || oldHist.scheduledAt;
+        const histStartDate = parseUtcDate(histStartIso);
+        if (!histStartDate || Number.isNaN(histStartDate.getTime())) continue;
+        const histStartMs = histStartDate.getTime();
+        const histEndDate = parseUtcDate(oldHist.endTime || oldHist.endsAt) || new Date(histStartMs + mins * 60_000);
+        const histEndMs = histEndDate.getTime();
+        const histWorkStatus = resolveWorkScheduleSessionStatus({
+          status: 'Rescheduled',
+          cohortStatus: cohort.status,
+          wasRescheduled: true,
+          startMs: histStartMs,
+          endMs: histEndMs,
+          nowMs,
+          includeHistoricalStatuses: true,
+        });
+        if (!histWorkStatus.visibleOnWorkSchedule) continue;
+
+        items.push({
+          id: `resched-${cohort.id}-${oldHist.availabilityId || histStartMs}`,
+          availabilityId: oldHist.availabilityId || null,
+          cohortId: cohort.id,
+          mentorId: cohort.mentorId ?? null,
+          cohortName: cohort.name || confirmedCourses[0]?.cohortName || 'Lớp nhóm',
+          cohortStatus: cohort.status,
+          level: cohort.level || confirmedCourses[0]?.level || null,
+          sessionNumber: null,
+          totalSessions,
+          capacity,
+          confirmedEnrolledCount,
+          enrolledCount: confirmedEnrolledCount,
+          learnerNames,
+          scheduledAt: histStartIso,
+          startTime: histStartIso,
+          endTime: histEndDate.toISOString(),
+          startMs: histStartMs,
+          endMs: histEndMs,
+          sessionMinutes: mins,
+          roomId: null,
+          roomHref: null,
+          meetingUrl: null,
+          canJoin: false,
+          isSessionLive: false,
+          sessionStartedAtUtc: null,
+          sessionCompleted: false,
+          isHistoricalRescheduled: true,
+          changeResolution: oldHist.changeResolution || null,
+          attendanceSummary: null,
+          workStatus: histWorkStatus,
+        });
+      }
     }
   }
 

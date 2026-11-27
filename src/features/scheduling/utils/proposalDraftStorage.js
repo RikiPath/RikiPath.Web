@@ -1,4 +1,11 @@
-const STORAGE_PREFIX = 'rikipath:v4:proposal-draft';
+const STORAGE_PREFIX = 'rikipath:v6:proposal-draft';
+const LEGACY_STORAGE_PREFIXES = [
+  'rikipath:v5:proposal-draft:',
+  'rikipath:v4:proposal-draft:',
+  'rikipath:v3:proposal-draft:',
+  'rikipath:v2:proposal-draft:',
+  'rikipath:v1:proposal-draft:',
+];
 
 export const DRAFT_SAVE_STATUS = Object.freeze({
   IDLE: 'idle',
@@ -38,8 +45,7 @@ export function serializeDraftForCompare(draft) {
     coursePlanId: draft.coursePlanId ? Number(draft.coursePlanId) : null,
     courseTitle: (draft.courseTitle || '').trim(),
     courseObjective: (draft.courseObjective || '').trim(),
-    expectedStartDate: draft.expectedStartDate || '',
-    courseDurationWeeks: Number(draft.courseDurationWeeks || 10),
+    courseDurationWeeks: Math.max(1, Number(draft.courseDurationWeeks || 1)),
     sessionDurationMinutes: Number(draft.sessionDurationMinutes || 90),
     sessions,
     optionalNotes: (draft.optionalNotes || '').trim(),
@@ -122,6 +128,24 @@ export function clearAllLocalDraftsForOtherUsers(currentUserId, storage = global
     }
   }
   toDelete.forEach((k) => storage.removeItem(k));
+}
+
+export function clearLegacyProposalDrafts(storage = globalThis.localStorage) {
+  if (!storage || typeof storage.length !== 'number') return;
+  const toDelete = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key && LEGACY_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      toDelete.push(key);
+    }
+  }
+  toDelete.forEach((k) => {
+    try {
+      storage.removeItem(k);
+    } catch {
+      // ignore storage errors
+    }
+  });
 }
 
 /**

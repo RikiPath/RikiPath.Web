@@ -1,26 +1,27 @@
 import {
   DEFAULT_PROPOSAL_POLICY,
   expandProposalOccurrences,
+  findNextFutureDayKeyForWeeklyPattern,
+  hasFutureWeeklyOccurrenceInRange,
+  isFutureWeeklySlotOccurrence,
   normalizeProposalPolicy,
-  resolveStableReferenceWeek,
   sortWeeklySessions,
   weeklySlotKey,
 } from './proposalValidation.js';
 import {
   getViewDateRange,
-  shiftDateKey,
   toVnDateKey,
   weekdayOfDateKey,
 } from './calendarGeometry.js';
 import { clockFromMinutes } from './slotPlannerModel.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 
 export const REGISTRATION_TABLE_STATUS_OPTIONS = Object.freeze([
-  { id: 'ALL', label: 'Tất cả trạng thái', dotClass: 'bg-[#CE476D]' },
+  { id: 'ALL', label: 'Tất cả', dotClass: 'bg-[#CE476D]' },
   { id: 'selected', label: 'Đang chọn', dotClass: 'bg-[#22C55E]' },
   { id: 'pending', label: 'Chờ duyệt', dotClass: 'bg-[#E4A020]' },
   { id: 'needsRevision', label: 'Cần bổ sung', dotClass: 'bg-[#EA580C]' },
   { id: 'approved', label: 'Đã duyệt', dotClass: 'bg-[#16A34A]' },
-  { id: 'rejected', label: 'Bị từ chối', dotClass: 'bg-[#DC3545]' },
 ]);
 
 export const REGISTRATION_TABLE_SORT_OPTIONS = Object.freeze([
@@ -101,7 +102,7 @@ function cleanDisplayTitle({ rawTitle, jlptLevelCode, isSelectedDraft }) {
   }
   if (code) {
     return {
-      displayTitle: `JLPT ${code}`,
+      displayTitle: formatJlptLevel(code),
       showLevelBadge: false,
     };
   }
@@ -141,7 +142,8 @@ function normalizeWeeklyPatterns(rawSessions = [], sessionDurationMinutes = 90) 
 }
 
 function normalizeOfficialOccurrences(proposal, weeklyPatterns, policy) {
-  const durationWeeks = Number(proposal.courseDurationWeeks || policy.courseDurationWeeks || 10);
+  if (proposal?.status !== 'Approved') return [];
+  const durationWeeks = Math.max(1, Number(proposal.courseDurationWeeks || 1));
   const durationMinutes = Number(proposal.sessionDurationMinutes || policy.sessionDurationMinutes || 90);
   const rawOccs = Array.isArray(proposal.occurrencesPreview) && proposal.occurrencesPreview.length > 0
     ? proposal.occurrencesPreview
@@ -222,7 +224,7 @@ export function buildRegistrationRows({
   // 1. Active current selection (0 or 1 row, strictly enforcing Zero Selection Invariant)
   const draftSessions = Array.isArray(draft?.weeklySessions) ? draft.weeklySessions : [];
   if (draft && draft.status === 'Draft' && draftSessions.length > 0) {
-    const durationWeeks = Number(draft.courseDurationWeeks || p.courseDurationWeeks || 10);
+    const durationWeeks = Math.max(1, Number(draft.courseDurationWeeks || 1));
     const durationMinutes = Number(draft.sessionDurationMinutes || p.sessionDurationMinutes || 90);
     const weeklyPatterns = normalizeWeeklyPatterns(draftSessions, durationMinutes);
     const levelObj = (availableLevels || []).find(
@@ -232,46 +234,20 @@ export function buildRegistrationRows({
       ? String(levelObj?.code || draft.jlptLevelCode).trim().toUpperCase()
       : null;
 
-    const previewMode = proposalPreview?.mode || 'empty';
-    const hasValidFinitePreview = previewMode === 'finite_10_weeks' && Array.isArray(proposalPreview?.slots) && proposalPreview.slots.length > 0;
-    const hasInvalidStartDate = previewMode === 'invalid_start_date';
-    const validStartDate = hasValidFinitePreview ? (proposalPreview.courseStartDate || draft.expectedStartDate || null) : null;
-
-    // Build Level 3 occurrences ONLY when expectedStartDate is valid (never fake dates!)
-    const occurrences = hasValidFinitePreview
-      ? proposalPreview.slots.map((sel, idx) => ({
-        id: `sel-${sel.key}`,
-        sessionNumber: sel.sessionNumber || idx + 1,
-        dayKey: sel.dayKey,
-        year: String(sel.dayKey || '').slice(0, 4),
-        weekday: Number.isFinite(Number(sel.weekday)) ? Number(sel.weekday) : weekdayOfDateKey(sel.dayKey),
-        startMinute: Number(sel.startMin),
-        endMinute: Number(sel.endMin),
-        startClock: sel.startClock,
-        endClock: sel.endClock,
-        weeklyKey: sel.weeklyKey || weeklySlotKey(sel.weekday, sel.startMin),
-        selectedKey: sel.key,
-      }))
-      : [];
-
-    const fallbackRefMon = !hasValidFinitePreview
-      ? (proposalPreview?.referenceWeekKey || resolveStableReferenceWeek({ weeklySessions: weeklyPatterns, policy: p, nowMs }))
-      : null;
+    const occurrences = [];
 
     const enrichedPatterns = weeklyPatterns.map((pat) => {
       const matchedPreview = (proposalPreview?.slots || []).find(
         (sl) => (sl.weeklyKey || sl.key) === pat.key
+          && isFutureWeeklySlotOccurrence(sl.dayKey, sl.startMin, nowMs)
       );
       const dayKeyHint = matchedPreview?.dayKey
-        || (fallbackRefMon ? shiftDateKey(fallbackRefMon, (pat.weekday + 6) % 7) : null);
-      const affectedOccurrenceCount = hasValidFinitePreview
-        ? occurrences.filter((o) => o.weeklyKey === pat.key).length
-        : 1;
+        || findNextFutureDayKeyForWeeklyPattern(pat.weekday, pat.startMinute, nowMs);
       return {
         ...pat,
         selectedKey: matchedPreview?.key || pat.key,
         dayKeyHint,
-        affectedOccurrenceCount,
+        affectedOccurrenceCount: durationWeeks,
         invalidReason: invalidWeeklyMap?.get?.(pat.key) || null,
       };
     });
@@ -298,13 +274,13 @@ export function buildRegistrationRows({
       weeklyCount: enrichedPatterns.length,
       durationWeeks,
       sessionDurationMinutes: durationMinutes,
-      expectedTotalSessions: hasValidFinitePreview ? occurrences.length : enrichedPatterns.length * durationWeeks,
-      isEstimatedTotal: !hasValidFinitePreview,
-      expectedStartDate: validStartDate,
-      courseEndDate: hasValidFinitePreview ? (proposalPreview.courseEndDate || occurrences[occurrences.length - 1]?.dayKey || null) : null,
-      hasValidStartDate: hasValidFinitePreview,
-      hasInvalidStartDate,
-      startDateWarningMessage: hasInvalidStartDate ? (proposalPreview?.startDateWarning?.message || null) : null,
+      expectedTotalSessions: enrichedPatterns.length * durationWeeks,
+      isEstimatedTotal: true,
+      expectedStartDate: null,
+      courseEndDate: null,
+      hasValidStartDate: false,
+      hasInvalidStartDate: false,
+      startDateWarningMessage: null,
       canProceed: Boolean(canProceedSelection),
       weeklyPatterns: enrichedPatterns,
       occurrences,
@@ -312,15 +288,18 @@ export function buildRegistrationRows({
       linkedCohortId: null,
       linkedCohortName: null,
       linkedCohortHref: null,
+      linkedCohortStatus: null,
+      linkedCohortCancellationReason: null,
       eligibleApprovedSlot: null,
       createdAtMs: parseIsoTimeMs(draft.updatedAtUtc || draft.createdAtUtc) || nowMs,
       rawProposal: draft,
     });
   }
 
-  // 2. Official registrations (PendingReview, ChangesRequested, Approved, Rejected)
+  // 2. Official registrations shown on Calendar/List view (PendingReview, ChangesRequested, Approved;
+  // Rejected proposals stay exclusively inside the Registration History drawer per rule 2).
   for (const prop of proposals || []) {
-    if (!prop || prop.status === 'Draft' || prop.status === 'Withdrawn') continue;
+    if (!prop || prop.status === 'Draft' || prop.status === 'Withdrawn' || prop.status === 'Rejected') continue;
     const statusGroup = mapProposalStatusGroup(prop.status);
     if (!statusGroup) continue;
 
@@ -328,7 +307,8 @@ export function buildRegistrationRows({
     if (seenRowKeys.has(rowKey)) continue;
     seenRowKeys.add(rowKey);
 
-    const durationWeeks = Number(prop.courseDurationWeeks || p.courseDurationWeeks || 10);
+    const isApproved = statusGroup === 'approved';
+    const durationWeeks = Math.max(1, Number(prop.courseDurationWeeks || 1));
     const durationMinutes = Number(prop.sessionDurationMinutes || p.sessionDurationMinutes || 90);
     const weeklyPatterns = normalizeWeeklyPatterns(prop.weeklySessions || [], durationMinutes);
     const occurrences = normalizeOfficialOccurrences(prop, weeklyPatterns, p);
@@ -345,16 +325,23 @@ export function buildRegistrationRows({
       ? 'Cần bổ sung'
       : statusGroup === 'pending'
         ? 'Chờ duyệt'
-        : statusGroup === 'approved'
+        : isApproved
           ? 'Đã duyệt'
           : 'Bị từ chối';
 
+    const isUnapprovedProposal = prop.status === 'PendingReview' || prop.status === 'ChangesRequested';
     const enrichedPatterns = weeklyPatterns.map((pat) => {
       const firstOcc = occurrences.find((o) => o.weeklyKey === pat.key);
       return {
         ...pat,
-        dayKeyHint: firstOcc?.dayKey || prop.expectedStartDate || null,
-        affectedOccurrenceCount: occurrences.filter((o) => o.weeklyKey === pat.key).length || durationWeeks,
+        dayKeyHint: isApproved
+          ? (firstOcc?.dayKey || prop.expectedStartDate || null)
+          : isUnapprovedProposal
+            ? findNextFutureDayKeyForWeeklyPattern(pat.weekday, pat.startMinute, nowMs)
+            : null,
+        affectedOccurrenceCount: isApproved
+          ? (occurrences.filter((o) => o.weeklyKey === pat.key).length || durationWeeks)
+          : durationWeeks,
         invalidReason: null,
       };
     });
@@ -363,10 +350,12 @@ export function buildRegistrationRows({
     const linkedCohortId = prop.linkedCohortId || null;
     const linkedCohort = linkedCohortId ? cohortById.get(Number(linkedCohortId)) : null;
     const linkedCohortName = prop.linkedCohortName || linkedCohort?.name || null;
+    const linkedCohortStatus = prop.linkedCohortStatus || linkedCohort?.status || null;
+    const linkedCohortCancellationReason = prop.linkedCohortCancellationReason || linkedCohort?.cancellationReason || null;
     const linkedCohortHref = linkedCohortId ? `/mentor-study-courses/${linkedCohortId}/` : null;
 
     let eligibleApprovedSlot = null;
-    if (statusGroup === 'approved' && Array.isArray(prop.generatedAvailabilityIds)) {
+    if (isApproved && Array.isArray(prop.generatedAvailabilityIds)) {
       for (const avId of prop.generatedAvailabilityIds) {
         const s = slotById.get(Number(avId));
         if (!s || !s.isApproved || s.isDeleted || s.isInCohort || (s.bookedCount ?? 0) > 0) continue;
@@ -380,7 +369,11 @@ export function buildRegistrationRows({
 
     const totalSessions = occurrences.length > 0
       ? occurrences.length
-      : (Number(prop.weeklySessionCount || weeklyPatterns.length) * durationWeeks);
+      : (Number(prop.expectedTotalSessions || prop.weeklySessionCount || weeklyPatterns.length)
+        || (weeklyPatterns.length * durationWeeks));
+    const computedTotalSessions = occurrences.length > 0
+      ? occurrences.length
+      : (Number(prop.expectedTotalSessions || 0) || ((Number(prop.weeklySessionCount || weeklyPatterns.length)) * durationWeeks));
 
     rows.push({
       rowKey,
@@ -396,11 +389,11 @@ export function buildRegistrationRows({
       weeklyCount: weeklyPatterns.length || Number(prop.weeklySessionCount || 0),
       durationWeeks,
       sessionDurationMinutes: durationMinutes,
-      expectedTotalSessions: totalSessions,
-      isEstimatedTotal: false,
-      expectedStartDate: prop.expectedStartDate || occurrences[0]?.dayKey || null,
-      courseEndDate: occurrences[occurrences.length - 1]?.dayKey || prop.expectedStartDate || null,
-      hasValidStartDate: Boolean(prop.expectedStartDate),
+      expectedTotalSessions: computedTotalSessions || totalSessions,
+      isEstimatedTotal: !isApproved,
+      expectedStartDate: isApproved ? (prop.expectedStartDate || occurrences[0]?.dayKey || null) : null,
+      courseEndDate: isApproved ? (prop.projectedEndDate || occurrences[occurrences.length - 1]?.dayKey || null) : null,
+      hasValidStartDate: isApproved && Boolean(prop.expectedStartDate || occurrences.length > 0),
       hasInvalidStartDate: false,
       startDateWarningMessage: null,
       canProceed: false,
@@ -410,6 +403,9 @@ export function buildRegistrationRows({
       linkedCohortId,
       linkedCohortName,
       linkedCohortHref,
+      linkedCohortStatus,
+      linkedCohortCancellationReason,
+      enrollmentClosesAtUtc: prop.enrollmentClosesAtUtc || linkedCohort?.enrollmentClosesAtUtc || null,
       eligibleApprovedSlot,
       createdAtMs: parseIsoTimeMs(prop.submittedAtUtc || prop.updatedAtUtc || prop.createdAtUtc),
       rawProposal: prop,
@@ -426,6 +422,7 @@ function matchesRegistrationNonStatus(row, {
   customToDate = '',
   searchQuery = '',
   todayKey = toVnDateKey(new Date()),
+  nowMs = Date.now(),
 } = {}) {
   if (jlptLevelFilter && jlptLevelFilter !== 'ALL') {
     if (String(row.jlptLevelCode || '').toUpperCase() !== String(jlptLevelFilter).toUpperCase()) {
@@ -447,15 +444,18 @@ function matchesRegistrationNonStatus(row, {
   }
 
   if (dateFilterMode && dateFilterMode !== 'view') {
+    const isUnapprovedWeekly = Boolean(
+      row.isSelectedDraft || row.status === 'PendingReview' || row.status === 'ChangesRequested'
+    );
     const rowStart = row.expectedStartDate || '';
     const rowEnd = row.courseEndDate || rowStart;
 
     if (dateFilterMode === 'upcoming') {
-      if (row.isSelectedDraft) return true;
+      if (isUnapprovedWeekly) return (row.weeklyPatterns || []).length > 0;
       return Boolean(rowEnd && rowEnd >= todayKey);
     }
     if (dateFilterMode === 'past') {
-      if (row.isSelectedDraft) return false;
+      if (isUnapprovedWeekly) return false;
       return Boolean(rowEnd && rowEnd < todayKey);
     }
 
@@ -478,6 +478,9 @@ function matchesRegistrationNonStatus(row, {
     }
 
     if (filterStart || filterEnd) {
+      if (isUnapprovedWeekly) {
+        return hasFutureWeeklyOccurrenceInRange(row.weeklyPatterns, filterStart, filterEnd, nowMs);
+      }
       if (!rowStart && !rowEnd) return false;
       if (filterStart && rowEnd && rowEnd < filterStart) return false;
       if (filterEnd && rowStart && rowStart > filterEnd) return false;
@@ -514,6 +517,7 @@ export function filterRegistrationRows(rows = [], {
   customToDate = '',
   searchQuery = '',
   todayKey = toVnDateKey(new Date()),
+  nowMs = Date.now(),
 } = {}) {
   return (rows || []).filter((row) => {
     if (!row) return false;
@@ -527,6 +531,7 @@ export function filterRegistrationRows(rows = [], {
       customToDate,
       searchQuery,
       todayKey,
+      nowMs,
     });
   });
 }

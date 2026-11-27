@@ -7,24 +7,25 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock,
   FolderUp,
   Layers3,
   PenLine,
   RefreshCw,
   Video,
 } from 'lucide-react';
-import { Drawer, HeaderIconBadge, IconButton, Popover, RefreshButton, SakuraLoader, cx } from '@/components/ui';
+import { CountBadge, Drawer, IconButton, Popover, RefreshButton, SakuraLoader, cx } from '@/components/ui';
 import { SpotArt } from '@/assets/illustrations/SpotArt.jsx';
 import {
   CALENDAR_CATEGORIES,
   CALENDAR_CATEGORY_ORDER,
+  CALENDAR_TONES,
   buildMonthMatrix,
   getCalendarCategoryMeta,
   getToneMeta,
   toVnDateKey,
   toVnTimeParts,
 } from '@/features/scheduling/utils/calendarGeometry.js';
+import { classifyNotification } from '@/features/notifications/utils/notificationModel.js';
 import { notificationDestination } from '@/features/notifications/utils/notificationDedupe.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
@@ -198,6 +199,29 @@ const AUTHOR_BATCH_META = {
   Draft: { label: 'Bản nháp', badge: 'bg-rp-muted text-rp-text-2' },
 };
 
+const SNIPPET_TONE_STYLES = {
+  warning: {
+    ...CALENDAR_TONES.workLive,
+    titleClass: 'text-[#92400E]',
+    bodyClass: 'text-[#92400E]/85',
+  },
+  success: {
+    ...CALENDAR_TONES.workCompleted,
+    titleClass: 'text-[#14532D]',
+    bodyClass: 'text-[#14532D]/85',
+  },
+  danger: {
+    ...CALENDAR_TONES.workCancelled,
+    titleClass: 'text-[#7F1D1D]',
+    bodyClass: 'text-[#7F1D1D]/85',
+  },
+  info: {
+    ...CALENDAR_CATEGORIES.reminder,
+    titleClass: 'text-rp-cal-reminder-text',
+    bodyClass: 'text-rp-cal-reminder-text/80',
+  },
+};
+
 function NotificationSnippetList({ title, items, onClose, fallbackHref, tr }) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return (
@@ -208,12 +232,14 @@ function NotificationSnippetList({ title, items, onClose, fallbackHref, tr }) {
       <ul className="space-y-1">
         {items.map((n) => {
           const dest = notificationDestination(n.linkUrl) || fallbackHref || '';
+          const category = classifyNotification(n)?.category || 'info';
+          const tone = SNIPPET_TONE_STYLES[category] || SNIPPET_TONE_STYLES.info;
           const inner = (
             <>
-              <BellRing className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rp-cal-reminder" />
+              <BellRing className={cx('mt-0.5 h-3.5 w-3.5 shrink-0', tone.iconText)} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-rp-cal-reminder-text">{tr(n.title)}</p>
-                {n.message && <p className="line-clamp-2 text-rp-cal-reminder-text/80">{tr(n.message)}</p>}
+                <p className={cx('truncate font-semibold', tone.titleClass)}>{tr(n.title)}</p>
+                {n.message && <p className={cx('line-clamp-2', tone.bodyClass)}>{tr(n.message)}</p>}
               </div>
             </>
           );
@@ -225,17 +251,17 @@ function NotificationSnippetList({ title, items, onClose, fallbackHref, tr }) {
                   onClick={onClose}
                   className={cx(
                     'group rp-focus flex items-center gap-2.5 rounded-xl px-3 py-2 text-[11.5px]',
-                    CALENDAR_CATEGORIES.reminder.card,
-                    CALENDAR_CATEGORIES.reminder.hoverCard,
+                    tone.card,
+                    tone.hoverCard,
                   )}
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-2">{inner}</div>
-                  <span aria-hidden="true" className={CALENDAR_CATEGORIES.reminder.arrowChip}>
+                  <span aria-hidden="true" className={tone.arrowChip}>
                     <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
                   </span>
                 </Link>
               ) : (
-                <div className={cx('flex items-start gap-2 rounded-xl px-3 py-2 text-[11.5px]', CALENDAR_CATEGORIES.reminder.card)}>
+                <div className={cx('flex items-start gap-2 rounded-xl px-3 py-2 text-[11.5px]', tone.card)}>
                   {inner}
                 </div>
               )}
@@ -915,7 +941,7 @@ function CalendarPopoverBody({
             onClick={onClose}
             className="text-xs font-semibold text-rp-text-2 hover:text-rp-brand-strong"
           >
-            {tr('Đăng ký lịch dạy')}
+            {tr('Đăng ký khung giờ')}
           </Link>
         ) : roleKey === 'Admin' ? (
           <Link
@@ -944,7 +970,7 @@ function CalendarPopoverBody({
             : roleKey === 'ContentAuthor'
               ? tr('Bảng điều khiển tác giả')
               : roleKey === 'Admin'
-                ? tr('Duyệt lịch dạy')
+                ? tr('Duyệt đề xuất mở lớp')
                 : tr('Mở lịch làm việc')}
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
@@ -972,9 +998,12 @@ export default function HeaderCalendarPopover({ roleKey }) {
   const triggerAriaLabel = badgeCount > 0 ? `${baseTitle} (${badgeCount})` : baseTitle;
 
   const triggerBadge = badgeCount > 0 ? (
-    <HeaderIconBadge pulse={hasLive}>
-      {badgeCount > 99 ? '99+' : badgeCount}
-    </HeaderIconBadge>
+    <CountBadge
+      count={badgeCount}
+      size="xs"
+      max={99}
+      className="pointer-events-none absolute -right-0.5 -top-0.5"
+    />
   ) : null;
 
   if (narrow) {

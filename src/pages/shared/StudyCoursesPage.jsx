@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AdminShell, MentorShell, LearnerShell } from '@/layouts';
-import { ContextualEmptyState, ContextualErrorState, FeatureIcon, RefreshButton, RefreshingIndicator, SakuraLoader, notify } from '@/components/ui';
+import { ContextualEmptyState, ContextualErrorState, CustomSelect, DateInput, FeatureIcon, Input, RefreshButton, RefreshingIndicator, SakuraLoader, Select, Textarea, notify } from '@/components/ui';
 import { IllustratedPageHeader } from '@/features/learner-ui';
 import { recordDiagnostic } from '@/api/diagnostics.js';
 import HoldCountdown from '@/features/checkout/components/HoldCountdown.jsx';
@@ -34,6 +34,7 @@ import CohortComplaintPanel from '@/features/complaints/components/CohortComplai
 import CohortScheduleRequestPanel from '@/features/scheduling/components/CohortScheduleRequestPanel';
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
 import LearnerCohortDiscoveryPanel from '@/features/cohorts/components/LearnerCohortDiscoveryPanel';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import './studyCourses.css';
 import { useLocale, translateText } from '@/locales/locale.js';
@@ -604,16 +605,17 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                       action={learner && <button type="button" className="course-primary" onClick={() => setTab('cohorts')}>{tr('Xem lớp ôn JLPT')}</button>}
                     />
                   ) : (
-                    <label className="course-field" style={{ maxWidth: 520 }}>
-                      <span>{tr('Chọn hồ sơ khóa / lớp')}</span>
-                      <select value={current?.id ?? ''} onChange={(e) => setSelected(Number(e.target.value) || null)}>
-                        {courses.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} ({c.level}) · {c.learnerName} · {show(c.status)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="max-w-[520px] pt-1">
+                      <CustomSelect
+                        label={tr('Chọn hồ sơ khóa / lớp')}
+                        value={current?.id != null ? String(current.id) : ''}
+                        onChange={(val) => setSelected(Number(val) || null)}
+                        options={courses.map((c) => ({
+                          value: String(c.id),
+                          label: `${c.name} (${c.level}) · ${c.learnerName} · ${show(c.status)}`,
+                        }))}
+                      />
+                    </div>
                   )}
                 </section>
 
@@ -813,14 +815,12 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                                   busy={busy}
                                   submit={(f) => post(`/sessions/${s.id}/attendance`, { status: f.get('status'), note: f.get('note') })}
                                 >
-                                  <Field title={tr('Trạng thái')}>
-                                    <select name="status">
-                                      {['Present', 'Absent', 'ExcusedAbsent', 'CancelledByMentor'].map((x) => (
-                                        <option value={x} key={x}>{show(x)}</option>
-                                      ))}
-                                    </select>
-                                  </Field>
-                                  <Field title={tr('Ghi chú điểm danh')}><input required name="note" maxLength={1000} /></Field>
+                                  <Select native name="status" label={tr('Trạng thái')}>
+                                    {['Present', 'Absent', 'ExcusedAbsent', 'CancelledByMentor'].map((x) => (
+                                      <option value={x} key={x}>{show(x)}</option>
+                                    ))}
+                                  </Select>
+                                  <Input required name="note" maxLength={1000} label={tr('Ghi chú điểm danh')} />
                                 </Form>
                               )}
                             </article>
@@ -880,11 +880,15 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                             }, 'Đã gửi yêu cầu hỗ trợ JLPT lên Quản trị viên.')
                           }
                         >
-                          <Field title={tr('Ngày thi JLPT')}><input name="examDate" type="date" required /></Field>
-                          <Field title={tr('Ngày công bố kết quả')}><input name="resultPublishedAt" type="date" required /></Field>
-                          <Field title={tr('Lý do / Tường trình kết quả thi (bắt buộc với lớp nhóm)')}>
-                            <textarea name="reason" required maxLength={1000} placeholder={tr('Nêu rõ điểm các kỹ năng hoặc phần cần Giáo viên hỗ trợ ôn lại...')} />
-                          </Field>
+                          <DateInput name="examDate" label={tr('Ngày thi JLPT')} required />
+                          <DateInput name="resultPublishedAt" label={tr('Ngày công bố kết quả')} required />
+                          <Textarea
+                            name="reason"
+                            label={tr('Lý do / Tường trình kết quả thi (bắt buộc với lớp nhóm)')}
+                            required
+                            maxLength={1000}
+                            placeholder={tr('Nêu rõ điểm các kỹ năng hoặc phần cần Giáo viên hỗ trợ ôn lại...')}
+                          />
                           <Field title={tr('Minh chứng chính thức (PDF/PNG/JPG ≤ 10 MB)')}>
                             <input name="evidence" type="file" accept="application/pdf,image/png,image/jpeg" />
                           </Field>
@@ -939,24 +943,25 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                                   })
                                 }
                               >
-                                <Field title={tr('Quyết định')}>
-                                  <select name="decision">
-                                    <option value="reject">{tr('Từ chối')}</option>
-                                    <option value="approve" disabled={!current.eligibility.canClaim}>{tr('Duyệt hỗ trợ ôn lại')}</option>
-                                  </select>
-                                </Field>
+                                <Select native name="decision" label={tr('Quyết định')}>
+                                  <option value="reject">{tr('Từ chối')}</option>
+                                  <option value="approve" disabled={!current.eligibility.canClaim}>{tr('Duyệt hỗ trợ ôn lại')}</option>
+                                </Select>
                                 {current.sessionType === 'Group' && (
-                                  <Field title={tr('Lớp nhóm kế tiếp (nếu duyệt)')}>
-                                    <select name="nextCohortId">
-                                      <option value="">{tr('Chọn lớp kế tiếp')}</option>
-                                      {cohorts.filter((x) => x.id !== current.cohortId).map((x) => (
-                                        <option key={x.id} value={x.id}>{x.name} ({x.level})</option>
-                                      ))}
-                                    </select>
-                                  </Field>
+                                  <Select
+                                    name="nextCohortId"
+                                    label={tr('Lớp nhóm kế tiếp (nếu duyệt)')}
+                                    clearable
+                                    options={cohorts
+                                      .filter((x) => x.id !== current.cohortId)
+                                      .map((x) => ({
+                                        value: String(x.id),
+                                        label: `${x.name} (${formatJlptLevel(x.level)})`,
+                                      }))}
+                                  />
                                 )}
                                 <label><input type="checkbox" name="verified" />{' '}{tr('Đã xác minh minh chứng trượt JLPT chính thức')}</label>
-                                <Field title={tr('Lý do quyết định')}><textarea name="response" required maxLength={2000} /></Field>
+                                <Textarea name="response" label={tr('Lý do quyết định')} required maxLength={2000} />
                               </Form>
                             )}
                             {mentor && r.status === 'Approved' && (
@@ -969,15 +974,14 @@ export default function StudyCoursesPage({ role = 'Learner' }) {
                                 }}
                               >
                                 <h3>{tr('Lộ trình hỗ trợ ôn lại JLPT của Giáo viên')}</h3>
-                                <fieldset disabled={busy}>
-                                  <Field title={tr('Kế hoạch ôn luyện (chỉ mở sau khi Quản trị viên đã duyệt)')}>
-                                    <textarea
-                                      required
-                                      maxLength={2000}
-                                      value={supportDrafts[r.id] ?? r.mentorSupportPlan ?? ''}
-                                      onChange={(e) => setSupportDrafts((cur) => ({ ...cur, [r.id]: e.target.value }))}
-                                    />
-                                  </Field>
+                                <fieldset disabled={busy} className="space-y-3">
+                                  <Textarea
+                                    label={tr('Kế hoạch ôn luyện (chỉ mở sau khi Quản trị viên đã duyệt)')}
+                                    required
+                                    maxLength={2000}
+                                    value={supportDrafts[r.id] ?? r.mentorSupportPlan ?? ''}
+                                    onChange={(e) => setSupportDrafts((cur) => ({ ...cur, [r.id]: e.target.value }))}
+                                  />
                                   <button className="course-primary" type="submit" disabled={busy}>
                                     {tr('Lưu lộ trình hỗ trợ')}
                                   </button>

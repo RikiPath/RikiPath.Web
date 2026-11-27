@@ -1,6 +1,7 @@
 import { api } from '@/api/client.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import { isAiDraftUnavailable } from '@/features/homework/utils/homeworkModel.js';
+import { downloadBlobFile } from '@/features/scheduling/utils/attachmentHelpers.js';
 
 const root = '/study-courses';
 
@@ -47,14 +48,22 @@ export const uploadRetakeEvidence = async (id, form) =>
 export const saveRetakeSupportPlan = async (courseId, requestId, supportPlan) =>
   (await api.post(`${root}/${courseId}/retake/${requestId}/support-plan`, { supportPlan })).result;
 
-export async function openRetakeEvidence(courseId, requestId) {
-  const blob = await api.get(`${root}/${courseId}/retake/${requestId}/evidence`, { responseType: 'blob' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `JLPT-${courseId}-${requestId}.${blob.type === 'application/pdf' ? 'pdf' : blob.type === 'image/png' ? 'png' : 'jpg'}`;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+export const fetchCohortAttachmentBlob = async (cohortId, index, { download = false } = {}) =>
+  api.get(`${root}/cohorts/${cohortId}/attachments/${index}`, {
+    params: download ? { download: true } : undefined,
+    responseType: 'blob',
+  });
+
+export const fetchCohortAttachmentPreview = async (cohortId, index) =>
+  (await api.get(`${root}/cohorts/${cohortId}/attachments/${index}/preview`)).result;
+
+export async function openRetakeEvidence(courseId, requestId, { download = true } = {}) {
+  const blob = await api.get(`${root}/${courseId}/retake/${requestId}/evidence`, {
+    params: download ? { download: true } : undefined,
+    responseType: 'blob',
+  });
+  const ext = blob.type === 'application/pdf' ? 'pdf' : blob.type === 'image/png' ? 'png' : 'jpg';
+  downloadBlobFile(blob, `JLPT-${courseId}-${requestId}.${ext}`);
 }
 
 export const getCohortHomework = async (cohortId, learnerId) => {
@@ -78,14 +87,16 @@ export const submitHomeworkScan = async (assignmentId, form) =>
     }],
   })).result;
 
-export async function openHomeworkScan(assignmentId) {
-  const blob = await api.get(`/homework/${assignmentId}/submission-scan`, { responseType: 'blob' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `Homework-${assignmentId}.${blob.type === 'application/pdf' ? 'pdf' : blob.type === 'image/png' ? 'png' : 'jpg'}`;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+export const fetchHomeworkScanBlob = async (assignmentId, { download = false } = {}) =>
+  api.get(`/homework/${assignmentId}/submission-scan`, {
+    params: download ? { download: true } : undefined,
+    responseType: 'blob',
+  });
+
+export async function openHomeworkScan(assignmentId, { download = true } = {}) {
+  const blob = await fetchHomeworkScanBlob(assignmentId, { download });
+  const ext = blob.type === 'application/pdf' ? 'pdf' : blob.type === 'image/png' ? 'png' : 'jpg';
+  downloadBlobFile(blob, `Homework-${assignmentId}.${ext}`);
 }
 
 // PR #70: AI/OCR lỗi trả 502/503 + HOMEWORK_AI_DRAFT_UNAVAILABLE (bài nộp không đổi). Coi đó là kết quả đã xử lý

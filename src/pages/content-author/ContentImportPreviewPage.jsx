@@ -8,7 +8,7 @@ import WorkbookPreview from './WorkbookPreview.jsx';
 import { workbookEditKey } from '@/features/content-author/utils/workbookModel.js';
 
 import { ContentAuthorShell } from '@/layouts';
-import { Button, CustomSelect, EmptyState, FeatureIcon, Modal, PageContainer, PageHeader, RichQuestionText, SakuraLoader, Tabs } from '@/components/ui';
+import { Button, CountBadge, CustomSelect, EmptyState, FeatureIcon, Modal, PageContainer, PageHeader, RichQuestionText, SakuraLoader, Tabs } from '@/components/ui';
 import UnifiedMultiFormatImportPanel from '@/features/content-author/components/UnifiedMultiFormatImportPanel.jsx';
 import { FilePlus2, History } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors.js';
@@ -160,18 +160,18 @@ function DiffModal({ row, entityType, onClose }) {
             </div>
 
             <div className="rp-scroll-x rounded-xl border border-rp-line">
-              <table className="w-full min-w-[540px] text-center text-sm">
+              <table className="w-full min-w-[540px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-rp-line bg-rp-bg-2 text-xs font-semibold uppercase tracking-wider text-rp-text-muted">
-                    <th className="w-36 px-4 py-3">{tr('Trường dữ liệu')}</th>
-                    <th className="border-r border-rp-line bg-rp-bg-2/80 px-4 py-3 text-rp-text-2">
-                      <div className="flex items-center justify-center gap-1.5">
+                  <tr className="border-b border-rp-brand-border/80 bg-rp-table-head text-xs font-semibold text-rp-brand-strong">
+                    <th className="px-4 py-3 text-left align-middle whitespace-nowrap">{tr('Trường dữ liệu')}</th>
+                    <th className="border-r border-rp-line bg-rp-bg-2/80 px-4 py-3 text-left align-middle text-rp-text-2">
+                      <div className="flex items-center justify-start gap-1.5">
                         <span className="inline-block h-2 w-2 rounded-full bg-rp-text-disabled" />
                         {tr('Hiện tại trong DB (Cũ)')}
                       </div>
                     </th>
-                    <th className="bg-amber-50/50 px-4 py-3 text-amber-900">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <th className="bg-amber-50/50 px-4 py-3 text-left align-middle text-amber-900">
+                      <div className="flex items-center justify-start gap-1.5">
                         <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
                         {tr('Trong file Excel (Mới)')}
                       </div>
@@ -183,10 +183,10 @@ function DiffModal({ row, entityType, onClose }) {
                     const { from, to } = splitChange(changeText);
                     return (
                       <tr key={field} className="transition hover:bg-rp-bg-2/40">
-                        <td className="bg-rp-bg-2/40 px-4 py-3 align-top font-semibold text-rp-text-2">
+                        <td className="bg-rp-bg-2/40 px-4 py-3 align-middle font-semibold text-rp-text-2 whitespace-nowrap">
                           {fieldLabel(field)}
                         </td>
-                        <td className="break-words whitespace-pre-wrap border-r border-rp-line bg-rp-bg-2/30 px-4 py-3 align-top font-mono text-xs text-rp-text-2">
+                        <td className="break-words whitespace-pre-wrap border-r border-rp-line bg-rp-bg-2/30 px-4 py-3 align-middle font-mono text-xs text-rp-text-2">
                           {from ? (
                             <span className="line-through decoration-rose-400 text-rp-text-muted">
                               {from}
@@ -195,7 +195,7 @@ function DiffModal({ row, entityType, onClose }) {
                             <span className="font-sans italic text-rp-text-disabled">{tr('(Trống)')}</span>
                           )}
                         </td>
-                        <td className="break-words whitespace-pre-wrap bg-amber-50/20 px-4 py-3 align-top font-mono text-xs font-semibold text-amber-900">
+                        <td className="break-words whitespace-pre-wrap bg-amber-50/20 px-4 py-3 align-middle font-mono text-xs font-semibold text-amber-900">
                           {to ? (
                             <span className="rounded bg-amber-100/80 px-1.5 py-0.5 text-amber-900">
                               {to}
@@ -979,7 +979,7 @@ function ContentImportPreviewPage() {
                                     preview.reset();
                                 }}
                                 options={[
-                                    { value: '', label: 'Tất cả sheet trong file' },
+                                    { value: '', label: tr('Tất cả') },
                                     ...CONTENT_IMPORT_TYPES.map((t) => ({
                                         value: t.value,
                                         label: trf('Chỉ {0}', { 0: t.label }),
@@ -1154,9 +1154,7 @@ function ContentImportPreviewPage() {
                                         }`}
                                 >
                                     <span>{ENTITY_LABELS[s.entityType] ?? s.sheetName}</span>
-                                    <span className={`rounded-full px-2 py-0.5 text-xs ${isSelected ? 'bg-rp-brand-soft text-rp-brand-strong' : 'bg-rp-bg-2 text-rp-text-2'}`}>
-                                        {s.totalRows}
-                                    </span>
+                                    <CountBadge count={s.totalRows} size="sm" showZero />
                                     {s.errorCount > 0 && (
                                         <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700">
                                            {trf('{0} lỗi', { 0: s.errorCount })}
@@ -1204,14 +1202,14 @@ function ContentImportPreviewPage() {
                             {/* Bảng so sánh dữ liệu */}
                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-center text-sm">
-                                        <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="border-b border-rp-brand-border/80 bg-rp-table-head text-[12.5px] font-semibold text-rp-brand-strong">
                                             <tr>
-                                                <th className="w-16 px-4 py-3">{tr('Dòng')}</th>
-                                                <th className="w-44 px-4 py-3">{tr('Mã / Khóa')}</th>
-                                                <th className="w-28 px-4 py-3">{tr('Trạng thái')}</th>
-                                                <th className="px-4 py-3">{tr('So sánh DB ➔ File Excel / Chi tiết')}</th>
-                                                <th className="w-24 px-4 py-3">{tr('Thao tác')}</th>
+                                                <th className="w-[1%] px-4 py-3 text-center align-middle whitespace-nowrap">{tr('Dòng')}</th>
+                                                <th className="px-4 py-3 text-left align-middle whitespace-nowrap">{tr('Mã / Khóa')}</th>
+                                                <th className="w-[1%] px-4 py-3 text-center align-middle whitespace-nowrap">{tr('Trạng thái')}</th>
+                                                <th className="px-4 py-3 text-left align-middle">{tr('So sánh DB ➔ File Excel / Chi tiết')}</th>
+                                                <th className="w-[1%] px-4 py-3 text-center align-middle whitespace-nowrap">{tr('Thao tác')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -1228,10 +1226,10 @@ function ContentImportPreviewPage() {
                                                                 : 'hover:bg-slate-50/60'
                                                             }`}
                                                     >
-                                                        <td className="px-4 py-3.5 align-top text-center tabular-nums text-xs font-mono text-slate-400">
+                                                        <td className="px-4 py-3.5 text-center align-middle tabular-nums text-xs font-mono text-slate-400 whitespace-nowrap">
                                                             {row.sourceRowNumber}
                                                         </td>
-                                                        <td className="px-4 py-3.5 align-top">
+                                                        <td className="px-4 py-3.5 text-left align-middle">
                                                             <div className="font-bold text-slate-900 break-words text-base">
                                                                 {row.rowKey}
                                                             </div>
@@ -1241,16 +1239,16 @@ function ContentImportPreviewPage() {
                                                                 </div>
                                                             )}
                                                         </td>
-                                                        <td className="px-4 py-3.5 align-top">
+                                                        <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
                                                             <ActionBadge action={row.action} />
                                                         </td>
-                                                        <td className="px-4 py-3.5 align-top">
+                                                        <td className="px-4 py-3.5 text-left align-middle">
                                                             <RowDetail
                                                                 row={row}
                                                                 onOpenDiff={() => setSelectedDiffRow(row)}
                                                             />
                                                         </td>
-                                                        <td className="px-4 py-3.5 align-top">
+                                                        <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
                                                             <Button
                                                                 type="button"
                                                                 variant="secondary"

@@ -12,6 +12,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { previewMentorReplacement, replaceCohortMentor } from '@/features/cohorts/api/cohortApi';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { useLocale } from '@/locales/locale.js';
 
@@ -62,37 +63,31 @@ export default function AdminMentorReplacementPanel({ cohorts, mentors, busy, on
         <Field label={tr('Lớp nhóm')} required>
           <CustomSelect
             value={cohortId}
-            aria-label={tr('Chọn lớp')}
+            aria-label={tr('Lớp nhóm')}
             onChange={(val) => {
               setCohortId(val);
               setPreview(null);
             }}
-            options={[
-              { value: '', label: tr('Chọn lớp') },
-              ...cohorts
-                .filter((c) => c.status === 'Published' || c.status === 'Draft')
-                .map((c) => ({
-                  value: String(c.id),
-                  label: `${c.name} · ${c.level} · ${c.mentorName || '—'}`,
-                })),
-            ]}
+            options={cohorts
+              .filter((c) => c.status === 'Published' || c.status === 'Draft')
+              .map((c) => ({
+                value: String(c.id),
+                label: `${c.name} · ${formatJlptLevel(c.level)} · ${c.mentorName || '—'}`,
+              }))}
           />
         </Field>
 
         <Field label={tr('Giáo viên thay thế')} required>
           <CustomSelect
             value={mentorId}
-            aria-label={tr('Chọn Giáo viên thay thế')}
+            aria-label={tr('Giáo viên thay thế')}
             onChange={(val) => {
               setMentorId(val);
               setPreview(null);
             }}
-            options={[
-              { value: '', label: tr('Chọn Giáo viên') },
-              ...mentors
-                .filter((m) => m.id !== cohort?.mentorId)
-                .map((m) => ({ value: String(m.id), label: `${m.name || m.fullName || m.email}` })),
-            ]}
+            options={mentors
+              .filter((m) => m.id !== cohort?.mentorId)
+              .map((m) => ({ value: String(m.id), label: `${m.name || m.fullName || m.email}` }))}
           />
         </Field>
 

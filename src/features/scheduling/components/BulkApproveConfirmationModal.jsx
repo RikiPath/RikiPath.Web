@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { AlertTriangle, Check, CheckCircle2, Eye, RotateCcw, X } from 'lucide-react';
 import {
-  Badge,
   Banner,
   Button,
-  Field,
   Modal,
-  Textarea,
   formatIsoDateDisplay,
 } from '@/components/ui';
+import { formatTuitionVnd } from '@/features/scheduling/utils/proposalValidation.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 
 function resolveTitle(item, trf) {
@@ -34,8 +33,6 @@ export default function BulkApproveConfirmationModal({
   onRetryPrevalidation,
   serverConflictResult = null,
   submitting = false,
-  reason = '',
-  onReasonChange,
   onRemoveProposal,
   onRemoveInvalidProposals,
   onViewProposal,
@@ -59,14 +56,21 @@ export default function BulkApproveConfirmationModal({
       const check = validationById.get(row.id) || null;
       const issues = Array.isArray(check?.issues) ? check.issues.filter((i) => !i.severity || i.severity === 'Error') : [];
       const isEligible = check ? Boolean(check.isEligible && issues.length === 0) : null;
+      const weeklySessionCount = check?.weeklySessionCount || row.weeklySessionCount || (row.weeklySessions?.length ?? 0);
+      const courseDurationWeeks = Number(check?.courseDurationWeeks || row.courseDurationWeeks || 0);
+      const totalSessions = check?.totalSessions || row.totalSessions || 0;
+      const maxLearners = check?.maxLearners ?? row.maxLearners ?? null;
+      const totalCourseTuition = check?.totalCourseTuition ?? row.totalCourseTuition ?? null;
       return {
         id: row.id,
         mentorName: check?.mentorName || row.mentorName || `#${row.mentorId}`,
         jlptLevelCode: check?.jlptLevelCode || row.jlptLevelCode || '—',
         courseTitle: resolveTitle(check || row, trf),
-        expectedStartDate: check?.expectedStartDate || row.expectedStartDate || null,
-        weeklySessionCount: check?.weeklySessionCount || row.weeklySessionCount || (row.weeklySessions?.length ?? 0),
-        totalSessions: check?.totalSessions || row.totalSessions || 0,
+        courseDurationWeeks,
+        weeklySessionCount,
+        totalSessions,
+        maxLearners,
+        totalCourseTuition,
         isEligible,
         issues,
       };
@@ -107,16 +111,18 @@ export default function BulkApproveConfirmationModal({
           <div className="ml-auto flex items-center gap-2">
             <Button
               type="button"
-              variant="ghost"
+              size="md"
+              variant="neutral"
               data-testid="bulk-approve-cancel-btn"
               disabled={submitting}
               onClick={onClose}
             >
-              {tr('Quay lại')}
+              {tr('Hủy')}
             </Button>
             <Button
               type="button"
-              variant="primary"
+              size="md"
+              variant="confirm"
               icon={Check}
               data-testid="bulk-approve-confirm-btn"
               loading={submitting}
@@ -199,11 +205,13 @@ export default function BulkApproveConfirmationModal({
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[13.5px]">
                       <span className="font-bold text-rp-text">{row.mentorName}</span>
-                      <Badge tone="brand" size="sm" icon={false}>
-                        {row.jlptLevelCode ? `JLPT ${row.jlptLevelCode}` : 'JLPT'}
-                      </Badge>
+                      <span aria-hidden="true" className="text-rp-text-muted">·</span>
+                      <span className="shrink-0 font-semibold text-rp-text-2">
+                        {formatJlptLevel(row.jlptLevelCode) || '—'}
+                      </span>
+                      <span aria-hidden="true" className="text-rp-text-muted">·</span>
                       <span className="truncate font-semibold text-rp-text">{row.courseTitle}</span>
                       {isOk && !prevalidating && (
                         <CheckCircle2
@@ -214,13 +222,22 @@ export default function BulkApproveConfirmationModal({
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 tabular-nums text-rp-text-2">
                       <span>
-                        {tr('Bắt đầu')}: <strong className="font-semibold text-rp-text">{row.expectedStartDate ? formatIsoDateDisplay(row.expectedStartDate) : '—'}</strong>
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>
                         <strong className="font-semibold text-rp-text">{trf('{0} buổi/tuần', { 0: row.weeklySessionCount })}</strong>
+                        {row.courseDurationWeeks > 0 ? ` · ${trf('{0} tuần', { 0: row.courseDurationWeeks })}` : ''}
                         {row.totalSessions > 0 ? ` (${trf('{0} buổi', { 0: row.totalSessions })})` : ''}
                       </span>
+                      {row.maxLearners > 0 && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>{trf('Tối đa {0} học viên', { 0: row.maxLearners })}</span>
+                        </>
+                      )}
+                      {Number(row.totalCourseTuition) > 0 && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <strong className="font-semibold text-rp-brand-strong">{formatTuitionVnd(row.totalCourseTuition)}</strong>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -231,7 +248,7 @@ export default function BulkApproveConfirmationModal({
                         data-testid={`bulk-confirm-view-${row.id}`}
                         disabled={submitting}
                         onClick={() => onViewProposal(row.id)}
-                        className="rp-focus inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-rp-line bg-white px-2 text-[11px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
+                        className="rp-focus inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-rp-line bg-white px-2.5 text-[12px] font-semibold text-rp-text-2 transition-colors hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong disabled:opacity-50"
                       >
                         <Eye className="h-3 w-3" aria-hidden="true" />
                         <span>{tr('Xem chi tiết')}</span>
@@ -244,7 +261,7 @@ export default function BulkApproveConfirmationModal({
                         data-testid={`bulk-confirm-remove-${row.id}`}
                         disabled={submitting}
                         onClick={() => onRemoveProposal(row.id)}
-                        className={`rp-focus inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border px-2 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                        className={`rp-focus inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
                           hasErr
                             ? 'border-rp-danger-line bg-white text-rp-danger hover:bg-rp-danger-bg'
                             : 'border-rp-line bg-white text-rp-text-2 hover:border-rp-line-strong hover:text-rp-text'
@@ -268,18 +285,6 @@ export default function BulkApproveConfirmationModal({
             );
           })}
         </div>
-
-        {/* Optional Approval Note */}
-        <Field label={tr('Ghi chú phê duyệt chung (nếu có)')}>
-          <Textarea
-            rows={2}
-            maxLength={1500}
-            value={reason}
-            disabled={submitting}
-            onChange={(e) => onReasonChange?.(e.target.value)}
-            placeholder={tr('Ghi chú thêm cho giáo viên (nếu có)…')}
-          />
-        </Field>
       </div>
     </Modal>
   );

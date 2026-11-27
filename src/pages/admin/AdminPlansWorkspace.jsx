@@ -328,9 +328,9 @@ export default function AdminPlansWorkspace() {
                   fitContent
                   value={categoryFilter}
                   onChange={setCategoryFilter}
-                  aria-label={tr('Lọc theo nhóm gói')}
+                  aria-label={tr('Nhóm gói')}
                   options={[
-                    { value: 'ALL', label: tr('Tất cả nhóm gói') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     ...PLAN_CATEGORY_OPTIONS.map((o) => ({ value: o.value, label: tr(o.label) })),
                   ]}
                 />
@@ -338,9 +338,9 @@ export default function AdminPlansWorkspace() {
                   fitContent
                   value={statusFilter}
                   onChange={setStatusFilter}
-                  aria-label={tr('Lọc theo trạng thái bán')}
+                  aria-label={tr('Trạng thái')}
                   options={[
-                    { value: 'ALL', label: tr('Tất cả trạng thái') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     { value: 'ACTIVE', label: tr('Đang mở bán') },
                     { value: 'INACTIVE', label: tr('Đã ngừng bán') },
                   ]}

@@ -8,7 +8,7 @@ export const jaSidebarCounters = {
 
   '{0} buổi học cần điểm danh': '出席未記録の授業 {0}回',
   '{0} bài tập chờ chấm điểm': '採点待ちの課題 {0}件',
-  '{0} đề xuất cần bổ sung': '修正が必要な開講提案 {0}件',
+  '{0} đăng ký cần xử lý': '対応が必要な開講提案 {0}件',
   '{0} khiếu nại cần phản hồi': '回答待ちの申し立て {0}件',
   '{0} phản hồi hồ sơ cần xử lý': '対応が必要なプロフィール審査フィードバック {0}件',
 

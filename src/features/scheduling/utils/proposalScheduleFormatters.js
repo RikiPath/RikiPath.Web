@@ -1,4 +1,5 @@
 import { formatIsoDateDisplay } from '@/components/ui/dateFormat.js';
+import { mondayOfDateKey } from '@/features/scheduling/utils/calendarGeometry.js';
 import { BUSINESS_TIMEZONE, formatHourMinute24, parseBusinessDate } from '@/utils/dateTimeFormat.js';
 
 const VN_WEEKDAY_TO_INDEX = Object.freeze({
@@ -135,4 +136,61 @@ export function formatProposalCourseDuration({
     ? trf('{0} buổi', { 0: actualCount })
     : `${actualCount} buổi`;
   return `${rangeText} (${countLabel})`;
+}
+
+/**
+ * Formats a concise week date range label (`21–25/12/2026`, `28/11 – 02/12/2026`, `28/12/2026 – 01/01/2027`).
+ */
+export function formatWeekRangeLabel(startIsoDate, endIsoDate) {
+  if (!startIsoDate) return '';
+  if (!endIsoDate || startIsoDate === endIsoDate) return formatIsoDateDisplay(startIsoDate);
+  const startMatch = String(startIsoDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const endMatch = String(endIsoDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!startMatch || !endMatch) {
+    return `${formatIsoDateDisplay(startIsoDate)} – ${formatIsoDateDisplay(endIsoDate)}`;
+  }
+  const [, sy, sm, sd] = startMatch;
+  const [, ey, em, ed] = endMatch;
+  if (sy === ey && sm === em) {
+    return `${sd}–${ed}/${em}/${ey}`;
+  }
+  if (sy === ey) {
+    return `${sd}/${sm} – ${ed}/${em}/${ey}`;
+  }
+  return `${sd}/${sm}/${sy} – ${ed}/${em}/${ey}`;
+}
+
+/**
+ * Groups sorted occurrences by teaching week (Mon–Sun via `mondayOfDateKey`), keeping month/year crossovers intact.
+ */
+export function groupOccurrencesByTeachingWeek(occurrences = []) {
+  if (!Array.isArray(occurrences) || occurrences.length === 0) return [];
+  const sorted = [...occurrences].sort(compareScheduleOccurrences);
+  const byWeek = new Map();
+
+  for (const occ of sorted) {
+    const iso = occ?.localDate || '';
+    const weekKey = /^\d{4}-\d{2}-\d{2}/.test(iso)
+      ? mondayOfDateKey(iso.slice(0, 10))
+      : `week-${byWeek.size + 1}`;
+    if (!byWeek.has(weekKey)) {
+      byWeek.set(weekKey, []);
+    }
+    byWeek.get(weekKey).push(occ);
+  }
+
+  return [...byWeek.entries()]
+    .sort(([aKey], [bKey]) => String(aKey).localeCompare(String(bKey)))
+    .map(([weekKey, sessions], idx) => {
+      const firstDate = sessions[0]?.localDate || '';
+      const lastDate = sessions[sessions.length - 1]?.localDate || '';
+      return {
+        weekKey,
+        weekNumber: idx + 1,
+        startDate: firstDate,
+        endDate: lastDate,
+        rangeLabel: formatWeekRangeLabel(firstDate, lastDate),
+        sessions,
+      };
+    });
 }

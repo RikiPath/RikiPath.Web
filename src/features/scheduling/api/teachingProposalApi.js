@@ -32,20 +32,46 @@ export const submitTeachingProposal = async (id, { idempotencyKey, expectedRevis
 export const resubmitTeachingProposal = async (id, body) =>
   (await api.post(`/mentor/teaching-proposals/${id}/resubmit`, body)).result;
 
-export const withdrawTeachingProposal = async (id, { reason = null, expectedRevision = null } = {}) =>
+export const withdrawTeachingProposal = async (id, { expectedRevision = null } = {}) =>
   (await api.post(`/mentor/teaching-proposals/${id}/withdraw`, {
-    reason: reason || null,
     expectedRevision,
   })).result;
 
+export const hideRejectedTeachingProposal = async (id) =>
+  (await api.delete(`/mentor/teaching-proposals/${id}/history`)).result;
+
 export const cloneTeachingProposalDraft = async (id) =>
   (await api.post(`/mentor/teaching-proposals/${id}/clone-draft`)).result;
+
+export const previewOpenEnrollment = async (id, { enrollmentDeadlineLocalDate = null } = {}) =>
+  (await api.post(`/mentor/teaching-proposals/${id}/open-enrollment/preview`, {
+    ...(enrollmentDeadlineLocalDate ? { enrollmentDeadlineLocalDate } : {}),
+  })).result;
+
+export const confirmOpenEnrollment = async (
+  id,
+  { enrollmentDeadlineLocalDate, expectedRevision, expectedSchedulePreviewToken = null, idempotencyKey = null }
+) =>
+  (await api.post(`/mentor/teaching-proposals/${id}/open-enrollment`, {
+    enrollmentDeadlineLocalDate,
+    expectedRevision,
+    expectedSchedulePreviewToken: expectedSchedulePreviewToken || null,
+    idempotencyKey: idempotencyKey || null,
+  })).result;
+
+export const mentorCancelRecruitingCohort = async (cohortId, { reason = null } = {}) =>
+  (await api.post(`/study-courses/cohorts/${cohortId}/cancel-recruiting`, {
+    ...(reason ? { reason } : {}),
+  })).result;
 
 export const fetchMentorProposalAttachmentBlob = async (proposalId, index, { download = false } = {}) =>
   api.get(`/mentor/teaching-proposals/${proposalId}/attachments/${index}`, {
     params: download ? { download: true } : undefined,
     responseType: 'blob',
   });
+
+export const fetchMentorProposalAttachmentPreview = async (proposalId, index) =>
+  (await api.get(`/mentor/teaching-proposals/${proposalId}/attachments/${index}/preview`)).result;
 
 /**
  * Upload an OPTIONAL reference attachment (syllabus/notes PDF/image).
@@ -83,21 +109,26 @@ export const fetchAdminProposalAttachmentBlob = async (proposalId, index, { down
     responseType: 'blob',
   });
 
-export const reviewAdminTeachingProposal = async (id, { decision, reason = null, expectedRevision }) =>
+export const fetchAdminProposalAttachmentPreview = async (proposalId, index) =>
+  (await api.get(`/admin/teaching-proposals/${proposalId}/attachments/${index}/preview`)).result;
+
+export const reviewAdminTeachingProposal = async (
+  id,
+  { decision, reason = null, expectedRevision, expectedSchedulePreviewToken = null }
+) =>
   (await api.post(`/admin/teaching-proposals/${id}/review`, {
     decision,
-    reason: reason || null,
+    ...(reason ? { reason } : {}),
     expectedRevision,
+    expectedSchedulePreviewToken: expectedSchedulePreviewToken || null,
   })).result;
 
-export const prevalidateBulkApproveProposals = async ({ items, reason = null }) =>
+export const prevalidateBulkApproveProposals = async ({ items }) =>
   (await api.post('/admin/teaching-proposals/bulk-approve/validate', {
     items,
-    reason: reason || null,
   })).result;
 
-export const bulkApproveTeachingProposals = async ({ items, reason = null }) =>
+export const bulkApproveTeachingProposals = async ({ items }) =>
   (await api.post('/admin/teaching-proposals/bulk-approve', {
     items,
-    reason: reason || null,
   })).result;

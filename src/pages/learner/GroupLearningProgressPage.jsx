@@ -16,6 +16,7 @@ import { classifyHomeworkItem, displayCourseTitle } from '@/features/calendar/ut
 import { StatusBadge } from '@/features/admin/components/AdminPrimitives.jsx';
 import { useNow } from '@/hooks/useNow.js';
 import { formatVnDateTime, parseUtcDate } from '@/utils/vnDateTime.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   Badge,
@@ -351,7 +352,7 @@ export default function GroupLearningProgressPage() {
                         <StatusBadge tone={lifecycle.tone} label={tr(lifecycle.label)} />
                         {course.level && (
                           <Badge tone="brand" icon={false} size="sm">
-                            JLPT {course.level}
+                            {formatJlptLevel(course.level)}
                           </Badge>
                         )}
                       </div>

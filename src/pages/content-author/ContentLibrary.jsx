@@ -20,6 +20,7 @@ export default function ContentLibrary() {
         {
           key: 'structure',
           label: 'Mẫu ngữ pháp',
+          align: 'left',
           render: (row) => (
             <div className="space-y-0.5">
               <p className="rp-jp font-semibold text-rp-text">{row.structure || row.title}</p>
@@ -32,11 +33,13 @@ export default function ContentLibrary() {
         {
           key: 'explanation',
           label: 'Giải thích',
-          render: (row) => <span title={row.explanation || ''} className="mx-auto line-clamp-2 max-w-[440px] text-sm text-rp-text-2">{row.explanation || '—'}</span>,
+          align: 'left',
+          render: (row) => <span title={row.explanation || ''} className="line-clamp-2 max-w-[440px] text-sm text-rp-text-2">{row.explanation || '—'}</span>,
         },
         {
           key: 'jlptLevelName',
           label: 'Cấp độ',
+          align: 'center',
           compact: true,
           render: (row) => (
             row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'

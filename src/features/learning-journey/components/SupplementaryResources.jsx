@@ -4,6 +4,7 @@ import { LockKeyhole } from 'lucide-react';
 import { translateTemplate, useLocale } from '@/locales/locale.js';
 import { FeatureLink } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { useStudyUnlock } from '@/features/entitlements/studyUnlock.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import Icon from '@/components/ui/Icon.jsx';
 
 // Supplementary self-review resources per JLPT level (static navigation to existing study areas).
@@ -402,7 +403,7 @@ export default function SupplementaryResources({ preferredLevel }) {
                 </span>
                 <div className="min-w-0">
                   <p className="text-[13px] font-semibold text-rp-text">
-                    JLPT {level} · {tr(LEVELS[level].label)}
+                    {formatJlptLevel(level)} · {tr(LEVELS[level].label)}
                   </p>
                   <p className="mt-0.5 truncate text-[11.5px] text-rp-text-muted">
                     {currentIndex >= 0

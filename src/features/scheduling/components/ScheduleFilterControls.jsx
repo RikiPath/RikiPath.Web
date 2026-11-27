@@ -9,8 +9,8 @@ import {
   X,
 } from 'lucide-react';
 import { Popover } from '@/components/ui/overlay.jsx';
-import { CustomSelect, TimeInput } from '@/components/ui/core.jsx';
-import { DatePicker } from '@/components/ui';
+import { CustomSelect, SearchInput, TimeInput } from '@/components/ui/core.jsx';
+import { CountBadge, DatePicker } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
 import {
   LIST_REGISTRATION_STATUS_OPTIONS,
@@ -22,6 +22,7 @@ import {
   clockFromMinutes,
 } from '@/features/scheduling/utils/slotPlannerModel.js';
 import { formatShortDateVn } from '@/features/scheduling/utils/calendarGeometry.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 
 /**
  * Accessible Custom Listbox for Status Filter with semantic color dots, checkmark,
@@ -53,7 +54,7 @@ export function StatusDotListbox({
       value={value}
       onChange={(nextVal) => onChange?.(nextVal)}
       options={formattedOptions}
-      label={tr('Lọc theo trạng thái')}
+      label={tr('Trạng thái')}
       size="sm"
       align="end"
       dataTestId="status-filter-listbox-trigger"
@@ -138,7 +139,7 @@ export function ScheduleMoreFiltersPopover({
           type="button"
           data-testid="more-filters-trigger"
           onClick={toggle}
-          className={`inline-flex h-8.5 items-center gap-1.5 rounded-xl border px-3 text-[12px] font-semibold transition-colors ${
+          className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[12px] font-semibold transition-colors ${
             activeFilterCount > 0
               ? 'border-rp-brand-border bg-rp-brand-tint text-rp-brand-strong'
               : 'border-rp-line bg-white text-rp-text-2 hover:border-rp-brand-border hover:bg-rp-brand-tint/45 hover:text-rp-brand-strong'
@@ -146,11 +147,7 @@ export function ScheduleMoreFiltersPopover({
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           <span>{tr('Bộ lọc')}</span>
-          {activeFilterCount > 0 && (
-            <span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-rp-brand-pressed px-1 text-[10px] font-bold text-white">
-              {activeFilterCount}
-            </span>
-          )}
+          <CountBadge count={activeFilterCount} size="sm" />
         </button>
       )}
     >
@@ -175,30 +172,15 @@ export function ScheduleMoreFiltersPopover({
         {/* 0. Tìm kiếm tên lớp (List / Proposal mode) */}
         {onSearchChange && (
           <div>
-            <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
-              <Search className="h-3 w-3" />
-              <span>{tr('Tìm kiếm lớp học')}</span>
-            </label>
-            <div className="relative">
-              <input
-                type="search"
-                data-testid="schedule-search-input"
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder={tr('Nhập tên lớp, cấp độ JLPT (VD: N4)…')}
-                className="rp-focus h-8.5 w-full rounded-xl border border-rp-line bg-white pr-7 pl-3 text-[12px] text-rp-text placeholder:text-rp-text-muted"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  aria-label={tr('Xóa từ khóa tìm kiếm')}
-                  onClick={() => onSearchChange('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-rp-text-muted hover:text-rp-brand-strong"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+            <SearchInput
+              size="sm"
+              data-testid="schedule-search-input"
+              label={tr('Tìm kiếm lớp học')}
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onClear={() => onSearchChange('')}
+              placeholder={tr('Nhập tên lớp, cấp độ JLPT (VD: N4)…')}
+            />
           </div>
         )}
 
@@ -394,27 +376,21 @@ export function ScheduleMoreFiltersPopover({
               </button>
             </div>
             {timeFilterCode === 'CUSTOM' && (
-              <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2">
-                <label className="block text-[11px] font-medium text-rp-text-2">
-                  {tr('Từ giờ')}
-                  <TimeInput
-                    data-testid="custom-time-start"
-                    size="sm"
-                    value={customStartTime}
-                    onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: e.target.value, end: customEndTime })}
-                    className="mt-0.5"
-                  />
-                </label>
-                <label className="block text-[11px] font-medium text-rp-text-2">
-                  {tr('Đến giờ')}
-                  <TimeInput
-                    data-testid="custom-time-end"
-                    size="sm"
-                    value={customEndTime}
-                    onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: e.target.value })}
-                    className="mt-0.5"
-                  />
-                </label>
+              <div className="mt-2.5 grid grid-cols-2 gap-2.5 rounded-xl border border-rp-line bg-rp-bg-2/60 p-2.5">
+                <TimeInput
+                  data-testid="custom-time-start"
+                  size="sm"
+                  label={tr('Từ giờ')}
+                  value={customStartTime}
+                  onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: e.target.value, end: customEndTime })}
+                />
+                <TimeInput
+                  data-testid="custom-time-end"
+                  size="sm"
+                  label={tr('Đến giờ')}
+                  value={customEndTime}
+                  onChange={(e) => onTimeFilterChange?.({ code: 'CUSTOM', start: customStartTime, end: e.target.value })}
+                />
               </div>
             )}
           </div>
@@ -422,11 +398,7 @@ export function ScheduleMoreFiltersPopover({
 
         {/* 4. Sắp xếp thông minh (Smart Sorting) */}
         {onSortChange && (
-          <div>
-            <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-rp-text-muted">
-              <ArrowDownUp className="h-3 w-3" />
-              <span>{tr('Thứ tự sắp xếp (Danh sách)')}</span>
-            </label>
+          <div className="pt-0.5">
             <div className="flex items-center gap-1.5">
               <CustomSelect
                 size="sm"
@@ -442,7 +414,7 @@ export function ScheduleMoreFiltersPopover({
                   type="button"
                   data-testid="schedule-sort-dir-btn"
                   onClick={() => onSortChange({ sortBy, sortDirection: sortDirection === 'asc' ? 'desc' : 'asc' })}
-                  className="inline-flex h-8.5 items-center rounded-xl border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 hover:bg-rp-bg-2"
+                  className="inline-flex h-9 items-center rounded-xl border border-rp-line bg-white px-2.5 text-[11.5px] font-semibold text-rp-text-2 hover:bg-rp-bg-2"
                 >
                   {sortDirection === 'asc' ? tr('Tăng dần ↑') : tr('Giảm dần ↓')}
                 </button>
@@ -551,7 +523,7 @@ export function ActiveScheduleFilterBar({
         )}
         {jlptLevelFilter !== 'ALL' && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-rp-brand-border bg-white px-2.5 py-0.5 font-semibold text-rp-text">
-            <span>JLPT {jlptLevelFilter}</span>
+            <span>{formatJlptLevel(jlptLevelFilter)}</span>
             <button type="button" onClick={onClearJlptLevel} aria-label={tr('Bỏ lọc cấp độ JLPT')} className="text-rp-text-muted hover:text-rp-brand-strong">
               <X className="h-3 w-3" />
             </button>

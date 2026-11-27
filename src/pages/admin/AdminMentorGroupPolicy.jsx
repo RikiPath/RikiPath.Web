@@ -16,6 +16,7 @@ import {
   updateMentorGroupPolicyVersion,
 } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS, invalidateAdminDomains } from '@/features/admin/api/adminQueryKeys.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { describeApiError } from '@/api/apiErrors.js';
 import {
   AlertDialog,
@@ -48,51 +49,6 @@ import { notify } from '@/components/ui/feedbackStore.js';
 import { useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 
-const OPERATING_MINUTES_PER_DAY = 15 * 60;
-
-function parseSessionsCsv(csv) {
-  const parts = String(csv || '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
-  const values = parts.map(Number);
-  if (!values.length || values.some((n) => !Number.isInteger(n) || n < 1)) return [];
-  return [...new Set(values)].sort((a, b) => a - b);
-}
-
-function isContiguousRange(list) {
-  if (!Array.isArray(list) || list.length === 0) return false;
-  for (let i = 1; i < list.length; i += 1) {
-    if (list[i] !== list[i - 1] + 1) return false;
-  }
-  return true;
-}
-
-function buildRangeList(min, max) {
-  if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || min > max || max - min > 100) return [];
-  const out = [];
-  for (let i = min; i <= max; i += 1) out.push(i);
-  return out;
-}
-
-function formatAllowedSessionsDisplay(allowedList, trf) {
-  if (!Array.isArray(allowedList) || allowedList.length === 0) return '—';
-  if (allowedList.length === 1) return trf('{0} buổi', { 0: allowedList[0] });
-  if (isContiguousRange(allowedList)) {
-    return trf('{0}–{1} buổi', { 0: allowedList[0], 1: allowedList[allowedList.length - 1] });
-  }
-  return trf('{0} buổi', { 0: allowedList.join(', ') });
-}
-
-function parsePatterns(jsonText) {
-  try {
-    const parsed = JSON.parse(jsonText || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 const TUITION_FIELD_BY_CODE = {
   N5: 'tuitionPerSessionN5',
   N4: 'tuitionPerSessionN4',
@@ -100,36 +56,22 @@ const TUITION_FIELD_BY_CODE = {
   N2: 'tuitionPerSessionN2',
 };
 
+const TUITION_EXAMPLE_SESSION_COUNTS = [10, 20, 30];
+
 const POLICY_SECTION_META = {
-  limits: { code: 'A', title: 'Giới hạn lớp của giáo viên' },
-  structure: { code: 'B', title: 'Cấu trúc lớp học' },
-  schedule: { code: 'C', title: 'Lịch và tải giảng dạy' },
-  admission: { code: 'D', title: 'Tuyển sinh & ghi danh' },
-  coordination: { code: 'E', title: 'Điều phối lớp học' },
-  training: { code: 'F', title: 'Đào tạo & đánh giá' },
+  structure: { code: 'A', title: 'Cấu trúc lớp học' },
+  schedule: { code: 'B', title: 'Lịch giảng dạy' },
+  admission: { code: 'C', title: 'Tuyển sinh & ghi danh' },
+  coordination: { code: 'D', title: 'Điều phối lớp học' },
+  training: { code: 'E', title: 'Đào tạo & đánh giá' },
 };
 
-const POLICY_SECTION_ORDER = ['limits', 'structure', 'schedule', 'admission', 'coordination', 'training'];
+const POLICY_SECTION_ORDER = ['structure', 'schedule', 'admission', 'coordination', 'training'];
 
 function formatVnd(amount, intlTag = 'vi-VN') {
   const n = Number(amount);
   if (!Number.isFinite(n) || n < 0) return '—';
   return `${Math.trunc(n).toLocaleString(intlTag)} đ`;
-}
-
-function extractLevelLimits(policy, supportedCodes = []) {
-  const raw = policy?.maxActiveClassesByLevel && typeof policy.maxActiveClassesByLevel === 'object'
-    ? policy.maxActiveClassesByLevel
-    : {};
-  const result = {};
-  const keys = supportedCodes.length > 0 ? supportedCodes : Object.keys(raw);
-  for (const rawCode of keys) {
-    const code = String(rawCode || '').trim().toUpperCase();
-    if (!code) continue;
-    const val = raw[code] ?? raw[code.toLowerCase()];
-    result[code] = Number.isFinite(Number(val)) ? Number(val) : 0;
-  }
-  return result;
 }
 
 function isStrictIntInRange(raw, min, max) {
@@ -138,72 +80,15 @@ function isStrictIntInRange(raw, min, max) {
   return Number.isInteger(num) && num >= min && num <= max;
 }
 
-function computeSchedulableWeeklyLimit(draft) {
-  const sessionMin = Number(draft?.sessionMinutes);
-  const restMin = Number(draft?.restMinutes);
-  const dailyCap = Number(draft?.dailySessionCap);
-  const weeklyCap = Number(draft?.weeklySessionCap);
-  const validSession = Number.isInteger(sessionMin) && sessionMin > 0;
-  const validRest = Number.isInteger(restMin) && restMin >= 0;
-  const maxPhysicalSlotsPerDay = validSession && validRest
-    ? Math.max(1, Math.floor((OPERATING_MINUTES_PER_DAY + restMin) / (sessionMin + restMin)))
-    : 12;
-  const effectiveMaxPerDay = Number.isInteger(dailyCap) && dailyCap >= 1
-    ? Math.min(dailyCap, maxPhysicalSlotsPerDay)
-    : maxPhysicalSlotsPerDay;
-  const maxFromDaily = effectiveMaxPerDay * 7;
-  const hasWeeklyCap = Number.isInteger(weeklyCap) && weeklyCap > 0;
-  const maxAchievable = hasWeeklyCap ? Math.min(maxFromDaily, weeklyCap) : maxFromDaily;
-  return {
-    maxPhysicalSlotsPerDay,
-    effectiveMaxPerDay,
-    maxFromDaily,
-    hasWeeklyCap,
-    weeklyCap: hasWeeklyCap ? weeklyCap : 0,
-    maxAchievable,
-  };
-}
-
-function resolveDraftAllowedSessions(draft) {
-  if (!draft) return [];
-  if (!draft.sessionsRangeTouched && Array.isArray(draft.legacyNonContiguousSessions)) {
-    return draft.legacyNonContiguousSessions;
-  }
-  const min = Number(draft.minSessionsPerWeek);
-  const max = Number(draft.maxSessionsPerWeek);
-  if (!isStrictIntInRange(draft.minSessionsPerWeek, 1, 84) || !isStrictIntInRange(draft.maxSessionsPerWeek, 1, 84) || min > max) {
-    return [];
-  }
-  return buildRangeList(min, max);
-}
-
-function buildDraftFromPolicy(policy, supportedCodes = []) {
+function buildDraftFromPolicy(policy) {
   if (!policy) return null;
-  const allowed = parseSessionsCsv(policy.allowedSessionsPerWeekCsv);
-  const fallbackAllowed = allowed.length > 0 ? allowed : [2, 3, 4];
-  const legacyNonContiguous = !isContiguousRange(fallbackAllowed) ? fallbackAllowed : null;
-  const defaultNum = Number(policy.defaultSessionsPerWeek);
-  const defaultSpw = fallbackAllowed.includes(defaultNum) ? defaultNum : '';
 
   return {
     maxLearners: policy.maxLearners,
-    minLearnersToStart: policy.minLearnersToStart,
-    maxTotalActiveClassesPerMentor: policy.maxTotalActiveClassesPerMentor,
-    maxActiveClassesByLevel: extractLevelLimits(policy, supportedCodes),
-    courseDurationWeeks: policy.courseDurationWeeks,
-    minSessionsPerWeek: fallbackAllowed[0],
-    maxSessionsPerWeek: fallbackAllowed[fallbackAllowed.length - 1],
-    legacyNonContiguousSessions: legacyNonContiguous,
-    sessionsRangeTouched: false,
-    defaultSessionsPerWeek: defaultSpw,
     sessionMinutes: policy.sessionMinutes,
     restMinutes: policy.restMinutes,
-    dailySessionCap: policy.dailySessionCap,
-    weeklySessionCap: policy.weeklySessionCap,
-    publicationHorizonDays: policy.publicationHorizonDays,
-    minimumProposalLeadDays: policy.minimumProposalLeadDays,
     minimumPublishedEnrollmentDays: policy.minimumPublishedEnrollmentDays,
-    enrollmentCutoffMinutesBeforeFirstSession: policy.enrollmentCutoffMinutesBeforeFirstSession,
+    minimumPreparationDays: policy.minimumPreparationDays ?? 1,
     checkoutHoldMinutes: policy.checkoutHoldMinutes,
     cancellationLeadHours: policy.cancellationLeadHours,
     reschedulingLeadHours: policy.reschedulingLeadHours,
@@ -222,89 +107,16 @@ function buildDraftFromPolicy(policy, supportedCodes = []) {
   };
 }
 
-function validatePolicyDraft(draft, supportedCodes, supportedLevels, tr, trf) {
-  if (!draft) return { hasErrors: true, bySection: {}, levelErrors: {}, tuitionErrors: {}, allowedSessions: [] };
+function validatePolicyDraft(draft, supportedLevels, tr) {
+  if (!draft) return { hasErrors: true, bySection: {}, tuitionErrors: {} };
 
-  const maxLearnersValid = isStrictIntInRange(draft.maxLearners, 1, 50);
-  const maxLearnersNum = maxLearnersValid ? Number(draft.maxLearners) : 50;
-  const minLearnersInvalid = !isStrictIntInRange(draft.minLearnersToStart, 1, maxLearnersNum);
-  const maxLearnersInvalid = !maxLearnersValid
-    || (isStrictIntInRange(draft.minLearnersToStart, 1, 50) && Number(draft.maxLearners) < Number(draft.minLearnersToStart));
-
-  const schedLimit = computeSchedulableWeeklyLimit(draft);
-  const allowedList = resolveDraftAllowedSessions(draft);
-  const minSpwRawValid = isStrictIntInRange(draft.minSessionsPerWeek, 1, 84);
-  const maxSpwRawValid = isStrictIntInRange(draft.maxSessionsPerWeek, 1, 84);
-  const minSpwNum = Number(draft.minSessionsPerWeek);
-  const maxSpwNum = Number(draft.maxSessionsPerWeek);
-
-  let minSpwError = '';
-  if (!minSpwRawValid) {
-    minSpwError = tr('Nhập số nguyên dương (>= 1).');
-  } else if (maxSpwRawValid && minSpwNum > maxSpwNum) {
-    minSpwError = tr('Không được lớn hơn số buổi tối đa.');
-  } else if (minSpwNum > schedLimit.maxAchievable) {
-    minSpwError = trf('Vượt khả năng tổ chức tối đa ({0} buổi mỗi tuần).', { 0: schedLimit.maxAchievable });
-  }
-
-  let maxSpwError = '';
-  if (!maxSpwRawValid) {
-    maxSpwError = tr('Nhập số nguyên dương (>= 1).');
-  } else if (minSpwRawValid && maxSpwNum < minSpwNum) {
-    maxSpwError = tr('Không được nhỏ hơn số buổi tối thiểu.');
-  } else if (schedLimit.hasWeeklyCap && maxSpwNum > schedLimit.weeklyCap) {
-    maxSpwError = trf('Không vượt quá tải dạy tối đa ({0} buổi mỗi tuần).', { 0: schedLimit.weeklyCap });
-  } else if (maxSpwNum > schedLimit.maxFromDaily) {
-    maxSpwError = trf('Vượt khả năng xếp lịch ({0} buổi mỗi ngày × 7 = {1} buổi).', {
-      0: schedLimit.effectiveMaxPerDay,
-      1: schedLimit.maxFromDaily,
-    });
-  }
-
-  const allowedSessionsInvalid = allowedList.length === 0;
-  let defaultSpwError = '';
-  if (allowedSessionsInvalid) {
-    defaultSpwError = tr('Cần nhập khoảng số buổi hợp lệ.');
-  } else if (
-    draft.defaultSessionsPerWeek === ''
-    || draft.defaultSessionsPerWeek === null
-    || draft.defaultSessionsPerWeek === undefined
-    || !allowedList.includes(Number(draft.defaultSessionsPerWeek))
-  ) {
-    defaultSpwError = tr('Giá trị mặc định không còn hợp lệ. Vui lòng chọn lại.');
-  }
-
-  const configuredMaxSpw = allowedList.length > 0
-    ? allowedList[allowedList.length - 1]
-    : (maxSpwRawValid ? maxSpwNum : 0);
-  let scheduleSessionConflictMessage = '';
-  if (configuredMaxSpw > 0 && configuredMaxSpw > schedLimit.maxAchievable) {
-    scheduleSessionConflictMessage = schedLimit.hasWeeklyCap && configuredMaxSpw > schedLimit.weeklyCap
-      ? trf('Số buổi dạy tối đa mỗi tuần ({0}) đang thấp hơn số buổi học tối đa mỗi tuần ({1} buổi).', {
-        0: schedLimit.weeklyCap,
-        1: configuredMaxSpw,
-      })
-      : trf('Khả năng xếp lịch ({0} buổi mỗi ngày × 7 = {1} buổi) không đủ cho cấu hình {2} buổi mỗi tuần.', {
-        0: schedLimit.effectiveMaxPerDay,
-        1: schedLimit.maxFromDaily,
-        2: configuredMaxSpw,
-      });
-  }
-
-  const durationWeeksInvalid = !isStrictIntInRange(draft.courseDurationWeeks, 1, 52);
+  const maxLearnersInvalid = !isStrictIntInRange(draft.maxLearners, 1, 50);
   const sessionMinutesInvalid = !isStrictIntInRange(draft.sessionMinutes, 30, 240);
+
   const restMinutesInvalid = !isStrictIntInRange(draft.restMinutes, 0, 120);
-  const dailyCapInvalid = !isStrictIntInRange(draft.dailySessionCap, 1, 12);
-  const weeklyCapInvalid = !isStrictIntInRange(draft.weeklySessionCap, 0, 84);
-  const horizonInvalid = !isStrictIntInRange(draft.publicationHorizonDays, 1, 365);
 
-  const proposalLeadValid = isStrictIntInRange(draft.minimumProposalLeadDays, 1, 180);
-  const publishEnrollValid = isStrictIntInRange(draft.minimumPublishedEnrollmentDays, 1, 180);
-  const proposalLeadInvalid = !proposalLeadValid;
-  const publishEnrollInvalid = !publishEnrollValid
-    || (proposalLeadValid && Number(draft.minimumPublishedEnrollmentDays) > Number(draft.minimumProposalLeadDays));
-
-  const cutoffInvalid = !isStrictIntInRange(draft.enrollmentCutoffMinutesBeforeFirstSession, 0, 10080);
+  const publishEnrollInvalid = !isStrictIntInRange(draft.minimumPublishedEnrollmentDays, 1, 180);
+  const preparationDaysInvalid = !isStrictIntInRange(draft.minimumPreparationDays, 1, 30);
   const holdMinutesInvalid = !isStrictIntInRange(draft.checkoutHoldMinutes, 1, 60);
 
   const cancelLeadInvalid = !isStrictIntInRange(draft.cancellationLeadHours, 0, 720);
@@ -320,20 +132,6 @@ function validatePolicyDraft(draft, supportedCodes, supportedLevels, tr, trf) {
     || remPct > 100;
   const kpiDaysInvalid = !isStrictIntInRange(draft.kpiReportingPeriodDays, 1, 366);
 
-  const maxTotalClassesInvalid = !isStrictIntInRange(draft.maxTotalActiveClassesPerMentor, 1, 50);
-
-  const levelErrors = {};
-  for (const code of supportedCodes) {
-    const raw = draft.maxActiveClassesByLevel?.[code];
-    if (!isStrictIntInRange(raw, 0, 50)) {
-      levelErrors[code] = tr('Nhập số nguyên 0–50.');
-    }
-  }
-  const allPerLevelZero = supportedCodes.length > 0
-    && Object.keys(levelErrors).length === 0
-    && supportedCodes.every((code) => Number(draft.maxActiveClassesByLevel?.[code] || 0) <= 0);
-  const levelLimitsInvalid = Object.keys(levelErrors).length > 0 || allPerLevelZero;
-
   const tuitionErrors = {};
   for (const lvl of supportedLevels) {
     const fieldKey = TUITION_FIELD_BY_CODE[lvl.code];
@@ -345,44 +143,19 @@ function validatePolicyDraft(draft, supportedCodes, supportedLevels, tr, trf) {
   }
 
   const bySection = {
-    limits: maxTotalClassesInvalid || levelLimitsInvalid,
-    structure: minLearnersInvalid
-      || maxLearnersInvalid
-      || Boolean(minSpwError)
-      || Boolean(maxSpwError)
-      || allowedSessionsInvalid
-      || Boolean(defaultSpwError)
-      || durationWeeksInvalid
-      || sessionMinutesInvalid,
-    schedule: restMinutesInvalid
-      || dailyCapInvalid
-      || weeklyCapInvalid
-      || horizonInvalid
-      || Boolean(scheduleSessionConflictMessage),
-    admission: proposalLeadInvalid || publishEnrollInvalid || cutoffInvalid || holdMinutesInvalid,
+    structure: maxLearnersInvalid || sessionMinutesInvalid || Object.keys(tuitionErrors).length > 0,
+    schedule: restMinutesInvalid,
+    admission: publishEnrollInvalid || preparationDaysInvalid || holdMinutesInvalid,
     coordination: cancelLeadInvalid || rescheduleLeadInvalid || replacementLeadInvalid,
     training: homeworkDaysInvalid || placementLimitInvalid || remediationPctInvalid || kpiDaysInvalid,
   };
 
   return {
-    minLearnersInvalid,
     maxLearnersInvalid,
-    minSpwError,
-    maxSpwError,
-    allowedSessionsInvalid,
-    defaultSpwError,
-    allowedSessions: allowedList,
-    schedLimit,
-    scheduleSessionConflictMessage,
-    durationWeeksInvalid,
     sessionMinutesInvalid,
     restMinutesInvalid,
-    dailyCapInvalid,
-    weeklyCapInvalid,
-    horizonInvalid,
-    proposalLeadInvalid,
     publishEnrollInvalid,
-    cutoffInvalid,
+    preparationDaysInvalid,
     holdMinutesInvalid,
     cancelLeadInvalid,
     rescheduleLeadInvalid,
@@ -391,13 +164,9 @@ function validatePolicyDraft(draft, supportedCodes, supportedLevels, tr, trf) {
     placementLimitInvalid,
     remediationPctInvalid,
     kpiDaysInvalid,
-    maxTotalClassesInvalid,
-    levelErrors,
-    allPerLevelZero,
-    levelLimitsInvalid,
     tuitionErrors,
     bySection,
-    hasErrors: Object.values(bySection).some(Boolean) || Object.keys(tuitionErrors).length > 0,
+    hasErrors: Object.values(bySection).some(Boolean),
   };
 }
 
@@ -429,8 +198,6 @@ function SectionFields({
   validation,
   supportedLevels,
   onFieldChange,
-  onLevelLimitChange,
-  onSessionRangeChange,
   compactCols = false,
   tr,
   trf,
@@ -439,74 +206,11 @@ function SectionFields({
   const gridCls = compactCols
     ? 'grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2'
     : 'grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3';
-  const allowedList = validation.allowedSessions || [];
-  const defaultValueStr = allowedList.includes(Number(draft.defaultSessionsPerWeek))
-    ? String(draft.defaultSessionsPerWeek)
-    : '';
-
-  if (sectionKey === 'limits') {
-    return (
-      <div className="space-y-4">
-        <div className={gridCls}>
-          {supportedLevels.map((lvl) => (
-            <Field
-              key={lvl.code}
-              label={trf('Số lớp {0} được đăng ký', { 0: lvl.code })}
-              error={validation.levelErrors[lvl.code]}
-            >
-              <NumberInput
-                min={0}
-                max={50}
-                unit="lớp"
-                className="w-[132px]"
-                invalid={Boolean(validation.levelErrors[lvl.code]) || validation.allPerLevelZero}
-                value={draft.maxActiveClassesByLevel?.[lvl.code] ?? ''}
-                onChange={(val) => onLevelLimitChange(lvl.code, val)}
-              />
-            </Field>
-          ))}
-          <Field
-            label={tr('Tổng số lớp mỗi giáo viên')}
-            error={validation.maxTotalClassesInvalid ? tr('Nhập số nguyên 1–50.') : undefined}
-          >
-            <NumberInput
-              min={1}
-              max={50}
-              unit="lớp"
-              className="w-[132px]"
-              invalid={validation.maxTotalClassesInvalid}
-              value={draft.maxTotalActiveClassesPerMentor}
-              onChange={(val) => onFieldChange('maxTotalActiveClassesPerMentor', val)}
-            />
-          </Field>
-        </div>
-        {validation.allPerLevelZero && (
-          <Banner tone="warning" title={tr('Cần cho phép ít nhất 1 cấp độ')}>
-            {tr('Ít nhất một cấp độ JLPT phải có số lớp được đăng ký lớn hơn hoặc bằng 1.')}
-          </Banner>
-        )}
-      </div>
-    );
-  }
 
   if (sectionKey === 'structure') {
     return (
       <div className="space-y-4">
         <div className={gridCls}>
-          <Field
-            label={tr('Sĩ số tối thiểu')}
-            error={validation.minLearnersInvalid ? tr('Từ 1 đến sĩ số tối đa.') : undefined}
-          >
-            <NumberInput
-              min={1}
-              max={Number(draft.maxLearners) >= 1 ? Number(draft.maxLearners) : 50}
-              unit="học viên"
-              className="w-[144px]"
-              invalid={validation.minLearnersInvalid}
-              value={draft.minLearnersToStart}
-              onChange={(val) => onFieldChange('minLearnersToStart', val)}
-            />
-          </Field>
           <Field
             label={tr('Sĩ số tối đa')}
             error={validation.maxLearnersInvalid ? tr('Số nguyên từ 1 đến 50.') : undefined}
@@ -519,20 +223,6 @@ function SectionFields({
               invalid={validation.maxLearnersInvalid}
               value={draft.maxLearners}
               onChange={(val) => onFieldChange('maxLearners', val)}
-            />
-          </Field>
-          <Field
-            label={tr('Thời lượng khóa học')}
-            error={validation.durationWeeksInvalid ? tr('Từ 1 đến 52 tuần.') : undefined}
-          >
-            <NumberInput
-              min={1}
-              max={52}
-              unit="tuần"
-              className="w-[132px]"
-              invalid={validation.durationWeeksInvalid}
-              value={draft.courseDurationWeeks}
-              onChange={(val) => onFieldChange('courseDurationWeeks', val)}
             />
           </Field>
           <Field
@@ -550,61 +240,29 @@ function SectionFields({
               onChange={(val) => onFieldChange('sessionMinutes', val)}
             />
           </Field>
-          <Field
-            label={tr('Số buổi tối thiểu mỗi tuần')}
-            error={validation.minSpwError || undefined}
-          >
-            <NumberInput
-              min={1}
-              max={84}
-              unit="buổi"
-              className="w-[132px]"
-              invalid={Boolean(validation.minSpwError)}
-              value={draft.minSessionsPerWeek}
-              onChange={(val) => onSessionRangeChange('minSessionsPerWeek', val)}
-            />
-          </Field>
-          <Field
-            label={tr('Số buổi tối đa mỗi tuần')}
-            error={validation.maxSpwError || undefined}
-          >
-            <NumberInput
-              min={1}
-              max={84}
-              unit="buổi"
-              className="w-[132px]"
-              invalid={Boolean(validation.maxSpwError)}
-              value={draft.maxSessionsPerWeek}
-              onChange={(val) => onSessionRangeChange('maxSessionsPerWeek', val)}
-            />
-          </Field>
-          <Field
-            label={tr('Số buổi mặc định mỗi tuần')}
-            error={validation.defaultSpwError || undefined}
-          >
-            <CustomSelect
-              fitContent
-              className="min-w-[180px]"
-              invalid={Boolean(validation.defaultSpwError)}
-              disabled={allowedList.length === 0}
-              value={defaultValueStr}
-              onChange={(val) => onFieldChange('defaultSessionsPerWeek', val === '' ? '' : Number(val))}
-              placeholder={tr('Chọn số buổi mặc định')}
-              options={allowedList.map((w) => ({
-                value: String(w),
-                label: trf('{0} buổi', { 0: w }),
-              }))}
-            />
-          </Field>
+          {supportedLevels.map((lvl) => {
+            const fieldKey = TUITION_FIELD_BY_CODE[lvl.code];
+            if (!fieldKey) return null;
+            return (
+              <Field
+                key={lvl.code}
+                label={trf('Đơn giá buổi {0}', { 0: lvl.code })}
+                error={validation.tuitionErrors[fieldKey] || undefined}
+              >
+                <NumberInput
+                  min={1000}
+                  max={50000000}
+                  step={1000}
+                  unit="đ"
+                  className="w-[164px]"
+                  invalid={Boolean(validation.tuitionErrors[fieldKey])}
+                  value={draft[fieldKey]}
+                  onChange={(val) => onFieldChange(fieldKey, val)}
+                />
+              </Field>
+            );
+          })}
         </div>
-
-        {!draft.sessionsRangeTouched && Array.isArray(draft.legacyNonContiguousSessions) && (
-          <Banner tone="info">
-            {trf('Phiên bản này đang giữ danh sách lịch sử không liên tục ({0} buổi mỗi tuần). Chỉnh sửa tối thiểu hoặc tối đa sẽ chuyển sang dải liên tục.', {
-              0: draft.legacyNonContiguousSessions.join(', '),
-            })}
-          </Banner>
-        )}
       </div>
     );
   }
@@ -628,55 +286,7 @@ function SectionFields({
               onChange={(val) => onFieldChange('restMinutes', val)}
             />
           </Field>
-          <Field
-            label={tr('Số buổi dạy tối đa mỗi ngày')}
-            error={validation.dailyCapInvalid ? tr('Từ 1 đến 12 buổi.') : undefined}
-          >
-            <NumberInput
-              min={1}
-              max={12}
-              unit="buổi"
-              className="w-[132px]"
-              invalid={validation.dailyCapInvalid}
-              value={draft.dailySessionCap}
-              onChange={(val) => onFieldChange('dailySessionCap', val)}
-            />
-          </Field>
-          <Field
-            label={tr('Số buổi dạy tối đa mỗi tuần')}
-            hint={tr('0 = không giới hạn tuần')}
-            error={validation.weeklyCapInvalid ? tr('Từ 0 đến 84 buổi.') : undefined}
-          >
-            <NumberInput
-              min={0}
-              max={84}
-              unit="buổi"
-              className="w-[132px]"
-              invalid={validation.weeklyCapInvalid}
-              value={draft.weeklySessionCap}
-              onChange={(val) => onFieldChange('weeklySessionCap', val)}
-            />
-          </Field>
-          <Field
-            label={tr('Phạm vi công bố lịch')}
-            error={validation.horizonInvalid ? tr('Từ 1 đến 365 ngày.') : undefined}
-          >
-            <NumberInput
-              min={1}
-              max={365}
-              unit="ngày"
-              className="w-[132px]"
-              invalid={validation.horizonInvalid}
-              value={draft.publicationHorizonDays}
-              onChange={(val) => onFieldChange('publicationHorizonDays', val)}
-            />
-          </Field>
         </div>
-        {validation.scheduleSessionConflictMessage && (
-          <Banner tone="warning" title={tr('Mâu thuẫn với cấu trúc lớp học')}>
-            {validation.scheduleSessionConflictMessage}
-          </Banner>
-        )}
       </div>
     );
   }
@@ -685,26 +295,12 @@ function SectionFields({
     return (
       <div className={gridCls}>
         <Field
-          label={tr('Thời hạn gửi đề xuất trước ngày bắt đầu')}
-          error={validation.proposalLeadInvalid ? tr('Từ 1 đến 180 ngày.') : undefined}
+          label={tr('Thời gian tuyển sinh tối thiểu')}
+          error={validation.publishEnrollInvalid ? tr('Từ 1 đến 180 ngày.') : undefined}
         >
           <NumberInput
             min={1}
             max={180}
-            unit="ngày"
-            className="w-[132px]"
-            invalid={validation.proposalLeadInvalid}
-            value={draft.minimumProposalLeadDays}
-            onChange={(val) => onFieldChange('minimumProposalLeadDays', val)}
-          />
-        </Field>
-        <Field
-          label={tr('Thời gian tuyển sinh tối thiểu')}
-          error={validation.publishEnrollInvalid ? tr('Không vượt quá thời hạn gửi đề xuất.') : undefined}
-        >
-          <NumberInput
-            min={1}
-            max={Number(draft.minimumProposalLeadDays) >= 1 ? Number(draft.minimumProposalLeadDays) : 180}
             unit="ngày"
             className="w-[132px]"
             invalid={validation.publishEnrollInvalid}
@@ -713,18 +309,17 @@ function SectionFields({
           />
         </Field>
         <Field
-          label={tr('Đóng tuyển sinh trước buổi đầu')}
-          error={validation.cutoffInvalid ? tr('Từ 0 đến 10.080 phút.') : undefined}
+          label={tr('Thời gian chuẩn bị tối thiểu')}
+          error={validation.preparationDaysInvalid ? tr('Từ 1 đến 30 ngày.') : undefined}
         >
           <NumberInput
-            min={0}
-            max={10080}
-            step={5}
-            unit="phút"
-            className="w-[140px]"
-            invalid={validation.cutoffInvalid}
-            value={draft.enrollmentCutoffMinutesBeforeFirstSession}
-            onChange={(val) => onFieldChange('enrollmentCutoffMinutesBeforeFirstSession', val)}
+            min={1}
+            max={30}
+            unit="ngày"
+            className="w-[132px]"
+            invalid={validation.preparationDaysInvalid}
+            value={draft.minimumPreparationDays}
+            onChange={(val) => onFieldChange('minimumPreparationDays', val)}
           />
         </Field>
         <Field
@@ -898,7 +493,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
-  // Which version is currently viewed in the 6 direct cards (null -> active policy)
+  // Which version is currently viewed in the 5 direct cards (null -> active policy)
   const [viewedVersion, setViewedVersion] = useState(null);
 
   // Single-card section modal editor
@@ -954,21 +549,15 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
       return apiLevels.map((lvl) => ({
         id: lvl.id,
         code: String(lvl.code || '').trim().toUpperCase(),
-        name: lvl.name || lvl.code,
+        name: formatJlptLevel(lvl.code || lvl.name),
       }));
     }
-    const keys = Object.keys((viewedPolicy || current)?.maxActiveClassesByLevel || {});
-    return keys.map((code, idx) => ({
+    return ['N5', 'N4', 'N3', 'N2'].map((code, idx) => ({
       id: idx + 1,
-      code: code.toUpperCase(),
-      name: `JLPT ${code.toUpperCase()}`,
+      code,
+      name: code,
     }));
-  }, [levelsQuery.data, viewedPolicy, current]);
-
-  const supportedLevelCodes = useMemo(
-    () => supportedLevels.map((l) => l.code),
-    [supportedLevels],
-  );
+  }, [levelsQuery.data]);
 
   const latestLiveVersion = useMemo(() => {
     if (history.length > 0) {
@@ -978,120 +567,85 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
   }, [history, current?.version]);
 
   const activeDraft = useMemo(
-    () => drawerForm || buildDraftFromPolicy(drawerState?.basePolicy || viewedPolicy || current, supportedLevelCodes),
-    [drawerForm, drawerState?.basePolicy, viewedPolicy, current, supportedLevelCodes],
+    () => drawerForm || buildDraftFromPolicy(drawerState?.basePolicy || viewedPolicy || current),
+    [drawerForm, drawerState?.basePolicy, viewedPolicy, current],
   );
 
   const activeSectionDraft = useMemo(
-    () => sectionForm || buildDraftFromPolicy(sectionEditor?.basePolicy || viewedPolicy, supportedLevelCodes),
-    [sectionForm, sectionEditor?.basePolicy, viewedPolicy, supportedLevelCodes],
+    () => sectionForm || buildDraftFromPolicy(sectionEditor?.basePolicy || viewedPolicy),
+    [sectionForm, sectionEditor?.basePolicy, viewedPolicy],
   );
 
   const tuitionDraft = useMemo(
-    () => tuitionForm || buildDraftFromPolicy(current, supportedLevelCodes),
-    [tuitionForm, current, supportedLevelCodes],
+    () => tuitionForm || buildDraftFromPolicy(current),
+    [tuitionForm, current],
   );
 
   const drawerValidation = useMemo(
-    () => validatePolicyDraft(activeDraft, supportedLevelCodes, supportedLevels, tr, trf),
-    [activeDraft, supportedLevelCodes, supportedLevels, tr, trf],
+    () => validatePolicyDraft(activeDraft, supportedLevels, tr),
+    [activeDraft, supportedLevels, tr],
   );
 
   const sectionValidation = useMemo(
-    () => validatePolicyDraft(activeSectionDraft, supportedLevelCodes, supportedLevels, tr, trf),
-    [activeSectionDraft, supportedLevelCodes, supportedLevels, tr, trf],
+    () => validatePolicyDraft(activeSectionDraft, supportedLevels, tr),
+    [activeSectionDraft, supportedLevels, tr],
   );
 
   const tuitionValidation = useMemo(
-    () => validatePolicyDraft(tuitionDraft, supportedLevelCodes, supportedLevels, tr, trf),
-    [tuitionDraft, supportedLevelCodes, supportedLevels, tr, trf],
+    () => validatePolicyDraft(tuitionDraft, supportedLevels, tr),
+    [tuitionDraft, supportedLevels, tr],
   );
 
-  const buildPayloadFromDraft = (sourceDraft, basePolicy) => {
-    const limitsPayload = {};
-    for (const code of supportedLevelCodes) {
-      limitsPayload[code] = Number(sourceDraft.maxActiveClassesByLevel?.[code] ?? 0);
-    }
-    const patterns = parsePatterns((basePolicy || current)?.recurringWeekdayPatternsJson);
-    const allowedPayload = resolveDraftAllowedSessions(sourceDraft);
-    return {
-      maxLearners: Number(sourceDraft.maxLearners),
-      minLearnersToStart: Number(sourceDraft.minLearnersToStart),
-      maxTotalActiveClassesPerMentor: Number(sourceDraft.maxTotalActiveClassesPerMentor),
-      maxActiveClassesByLevel: limitsPayload,
-      courseDurationWeeks: Number(sourceDraft.courseDurationWeeks),
-      allowedSessionsPerWeekCsv: allowedPayload.join(','),
-      defaultSessionsPerWeek: Number(sourceDraft.defaultSessionsPerWeek),
-      sessionMinutes: Number(sourceDraft.sessionMinutes),
-      restMinutes: Number(sourceDraft.restMinutes),
-      dailySessionCap: Number(sourceDraft.dailySessionCap),
-      weeklySessionCap: Number(sourceDraft.weeklySessionCap || 0),
-      publicationHorizonDays: Number(sourceDraft.publicationHorizonDays),
-      minimumProposalLeadDays: Number(sourceDraft.minimumProposalLeadDays),
-      minimumPublishedEnrollmentDays: Number(sourceDraft.minimumPublishedEnrollmentDays),
-      enrollmentCutoffMinutesBeforeFirstSession: Number(sourceDraft.enrollmentCutoffMinutesBeforeFirstSession),
-      checkoutHoldMinutes: Number(sourceDraft.checkoutHoldMinutes),
-      cancellationLeadHours: Number(sourceDraft.cancellationLeadHours),
-      reschedulingLeadHours: Number(sourceDraft.reschedulingLeadHours),
-      learnerTransferEnabled: Boolean(sourceDraft.learnerTransferEnabled),
-      transferAllowedAfterSourceStart: false,
-      mentorReplacementEnabled: Boolean(sourceDraft.mentorReplacementEnabled),
-      mentorReplacementLeadHours: Number(sourceDraft.mentorReplacementLeadHours),
-      homeworkDeadlineDays: Number(sourceDraft.homeworkDeadlineDays),
-      placementAttemptLimit: Number(sourceDraft.placementAttemptLimit),
-      remediationCompletionThresholdPercent: Number(sourceDraft.remediationCompletionThresholdPercent),
-      remediationThresholdComparison: sourceDraft.remediationThresholdComparison,
-      requireOfficialExamEvidence: true,
-      requireAdminRemediationReview: true,
-      kpiReportingPeriodDays: Number(sourceDraft.kpiReportingPeriodDays),
-      tuitionPerSessionN5: Number(sourceDraft.tuitionPerSessionN5),
-      tuitionPerSessionN4: Number(sourceDraft.tuitionPerSessionN4),
-      tuitionPerSessionN3: Number(sourceDraft.tuitionPerSessionN3),
-      tuitionPerSessionN2: Number(sourceDraft.tuitionPerSessionN2),
-      recurringWeekdayPatterns: patterns.length > 0 ? patterns : [[1, 3, 5], [2, 4, 6]],
-    };
-  };
+  const buildPayloadFromDraft = (sourceDraft) => ({
+    maxLearners: Number(sourceDraft.maxLearners),
+    sessionMinutes: Number(sourceDraft.sessionMinutes),
+    restMinutes: Number(sourceDraft.restMinutes),
+    minimumPublishedEnrollmentDays: Number(sourceDraft.minimumPublishedEnrollmentDays),
+    minimumPreparationDays: Number(sourceDraft.minimumPreparationDays),
+    checkoutHoldMinutes: Number(sourceDraft.checkoutHoldMinutes),
+    cancellationLeadHours: Number(sourceDraft.cancellationLeadHours),
+    reschedulingLeadHours: Number(sourceDraft.reschedulingLeadHours),
+    learnerTransferEnabled: Boolean(sourceDraft.learnerTransferEnabled),
+    transferAllowedAfterSourceStart: false,
+    mentorReplacementEnabled: Boolean(sourceDraft.mentorReplacementEnabled),
+    mentorReplacementLeadHours: Number(sourceDraft.mentorReplacementLeadHours),
+    homeworkDeadlineDays: Number(sourceDraft.homeworkDeadlineDays),
+    placementAttemptLimit: Number(sourceDraft.placementAttemptLimit),
+    remediationCompletionThresholdPercent: Number(sourceDraft.remediationCompletionThresholdPercent),
+    remediationThresholdComparison: sourceDraft.remediationThresholdComparison,
+    requireOfficialExamEvidence: true,
+    requireAdminRemediationReview: true,
+    kpiReportingPeriodDays: Number(sourceDraft.kpiReportingPeriodDays),
+    tuitionPerSessionN5: Number(sourceDraft.tuitionPerSessionN5),
+    tuitionPerSessionN4: Number(sourceDraft.tuitionPerSessionN4),
+    tuitionPerSessionN3: Number(sourceDraft.tuitionPerSessionN3),
+    tuitionPerSessionN2: Number(sourceDraft.tuitionPerSessionN2),
+  });
 
   const buildSectionPayload = (sectionKey, sourceDraft) => {
     const base = { expectedRevision: Number(sectionEditor?.basePolicy?.revision ?? 1) };
-    if (sectionKey === 'limits') {
-      const limitsPayload = {};
-      for (const code of supportedLevelCodes) {
-        limitsPayload[code] = Number(sourceDraft.maxActiveClassesByLevel?.[code] ?? 0);
-      }
-      return {
-        ...base,
-        maxTotalActiveClassesPerMentor: Number(sourceDraft.maxTotalActiveClassesPerMentor),
-        maxActiveClassesByLevel: limitsPayload,
-      };
-    }
     if (sectionKey === 'structure') {
-      const allowedPayload = resolveDraftAllowedSessions(sourceDraft);
       return {
         ...base,
-        minLearnersToStart: Number(sourceDraft.minLearnersToStart),
         maxLearners: Number(sourceDraft.maxLearners),
-        courseDurationWeeks: Number(sourceDraft.courseDurationWeeks),
-        allowedSessionsPerWeekCsv: allowedPayload.join(','),
-        defaultSessionsPerWeek: Number(sourceDraft.defaultSessionsPerWeek),
         sessionMinutes: Number(sourceDraft.sessionMinutes),
+        tuitionPerSessionN5: Number(sourceDraft.tuitionPerSessionN5),
+        tuitionPerSessionN4: Number(sourceDraft.tuitionPerSessionN4),
+        tuitionPerSessionN3: Number(sourceDraft.tuitionPerSessionN3),
+        tuitionPerSessionN2: Number(sourceDraft.tuitionPerSessionN2),
       };
     }
     if (sectionKey === 'schedule') {
       return {
         ...base,
         restMinutes: Number(sourceDraft.restMinutes),
-        dailySessionCap: Number(sourceDraft.dailySessionCap),
-        weeklySessionCap: Number(sourceDraft.weeklySessionCap || 0),
-        publicationHorizonDays: Number(sourceDraft.publicationHorizonDays),
       };
     }
     if (sectionKey === 'admission') {
       return {
         ...base,
-        minimumProposalLeadDays: Number(sourceDraft.minimumProposalLeadDays),
         minimumPublishedEnrollmentDays: Number(sourceDraft.minimumPublishedEnrollmentDays),
-        enrollmentCutoffMinutesBeforeFirstSession: Number(sourceDraft.enrollmentCutoffMinutesBeforeFirstSession),
+        minimumPreparationDays: Number(sourceDraft.minimumPreparationDays),
         checkoutHoldMinutes: Number(sourceDraft.checkoutHoldMinutes),
       };
     }
@@ -1140,15 +694,12 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
       if (saved?.version != null) {
         setViewedVersion(saved.version);
       }
+      const versionLabel = saved?.version ?? latestLiveVersion + 1;
       const msg = vars.applyNow
-        ? trf('Đã ban hành và áp dụng ngay phiên bản v{0}.', { 0: saved?.version ?? latestLiveVersion + 1 })
-        : trf('Đã ban hành phiên bản v{0}.', { 0: saved?.version ?? latestLiveVersion + 1 });
+        ? trf('Đã ban hành và áp dụng phiên bản v{0}.', { 0: versionLabel })
+        : trf('Đã ban hành phiên bản v{0}.', { 0: versionLabel });
       if (isTuitionMode) setNotice(msg);
-      notify.success(
-        vars.applyNow ? tr('Đã ban hành và áp dụng chính sách mới') : tr('Đã ban hành phiên bản mới'),
-        msg,
-        { key: 'admin-group-policy-save', replace: true },
-      );
+      notify.success(msg, '', { key: 'admin-group-policy-save', replace: true });
       await invalidateAdminDomains(client, ['policy']);
     },
     onError: (err) => {
@@ -1178,8 +729,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
       setDrawerState(null);
       setDrawerForm(null);
       notify.success(
-        tr('Đã lưu cập nhật'),
-        trf('Đã cập nhật cấu hình phiên bản v{0}.', { 0: updated?.version ?? '' }),
+        trf('Đã cập nhật phiên bản v{0}.', { 0: updated?.version ?? '' }),
+        '',
         { key: 'admin-group-policy-update', replace: true },
       );
       await invalidateAdminDomains(client, ['policy']);
@@ -1203,8 +754,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
       setSectionEditor(null);
       setSectionForm(null);
       notify.success(
-        tr('Đã lưu thay đổi'),
-        trf('Nhóm cấu hình của phiên bản v{0} đã được cập nhật.', { 0: updated?.version ?? '' }),
+        trf('Đã lưu cấu hình phiên bản v{0}.', { 0: updated?.version ?? '' }),
+        '',
         { key: 'admin-group-policy-section', replace: true },
       );
       await invalidateAdminDomains(client, ['policy']);
@@ -1229,8 +780,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
         setViewedVersion(activated.version);
       }
       notify.success(
-        tr('Đã áp dụng phiên bản chính sách'),
-        trf('Phiên bản v{0} đã được áp dụng cho toàn hệ thống.', { 0: activated?.version ?? '' }),
+        trf('Đã áp dụng phiên bản v{0}.', { 0: activated?.version ?? '' }),
+        '',
         { key: 'admin-group-policy-activate', replace: true },
       );
       await invalidateAdminDomains(client, ['policy']);
@@ -1256,8 +807,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
         setViewedVersion(null);
       }
       notify.success(
-        tr('Đã xóa phiên bản'),
-        trf('Phiên bản v{0} đã được xóa khỏi danh sách quản lý.', { 0: deletedPolicy.version }),
+        trf('Đã xóa phiên bản v{0}.', { 0: deletedPolicy.version }),
+        '',
         { key: 'admin-group-policy-delete', replace: true },
       );
       await invalidateAdminDomains(client, ['policy']);
@@ -1284,13 +835,13 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
   const openPublishDrawer = () => {
     const base = viewedPolicy || current || history[0];
     if (!base) return;
-    setDrawerForm(buildDraftFromPolicy(base, supportedLevelCodes));
+    setDrawerForm(buildDraftFromPolicy(base));
     setApplyImmediately(true);
     setDrawerState({ mode: 'publish', basePolicy: base });
   };
 
   const openEditDrawer = (policy) => {
-    setDrawerForm(buildDraftFromPolicy(policy, supportedLevelCodes));
+    setDrawerForm(buildDraftFromPolicy(policy));
     setDrawerState({ mode: 'edit', basePolicy: policy });
   };
 
@@ -1301,7 +852,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
   };
 
   const openSectionModal = (sectionKey, policy) => {
-    setSectionForm(buildDraftFromPolicy(policy, supportedLevelCodes));
+    setSectionForm(buildDraftFromPolicy(policy));
     setSectionEditor({ sectionKey, basePolicy: policy });
   };
 
@@ -1313,29 +864,6 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
 
   const updateFormState = (setter, currentDraft) => ({
     onFieldChange: (key, value) => currentDraft && setter({ ...currentDraft, [key]: value }),
-    onLevelLimitChange: (code, value) => currentDraft && setter({
-      ...currentDraft,
-      maxActiveClassesByLevel: {
-        ...(currentDraft.maxActiveClassesByLevel || {}),
-        [code]: value,
-      },
-    }),
-    onSessionRangeChange: (fieldKey, value) => {
-      if (!currentDraft) return;
-      const nextDraft = {
-        ...currentDraft,
-        [fieldKey]: value,
-        sessionsRangeTouched: true,
-        legacyNonContiguousSessions: null,
-      };
-      const nextAllowed = resolveDraftAllowedSessions(nextDraft);
-      const currentDefault = Number(currentDraft.defaultSessionsPerWeek);
-      const keepDefault = nextAllowed.length > 0 && nextAllowed.includes(currentDefault);
-      setter({
-        ...nextDraft,
-        defaultSessionsPerWeek: keepDefault ? currentDefault : '',
-      });
-    },
   });
 
   const drawerHandlers = updateFormState(setDrawerForm, activeDraft);
@@ -1345,6 +873,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     {
       key: 'version',
       header: tr('Phiên bản'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => Number(row.version) || 0,
       render: (row) => (
         <span className="font-bold tabular-nums text-rp-text">
@@ -1355,6 +885,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     {
       key: 'createdAtUtc',
       header: tr('Ngày ban hành'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => row.createdAtUtc || '',
       render: (row) => (
         <span className="whitespace-nowrap text-[13px] font-medium text-rp-text-2">
@@ -1365,6 +897,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     {
       key: 'createdByAdminName',
       header: tr('Người ban hành'),
+      align: 'left',
       render: (row) => (
         <span className="text-[13px] font-medium text-rp-text">
           {row.createdByAdminName || tr('Hệ thống')}
@@ -1374,6 +907,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     {
       key: 'lastAppliedAtUtc',
       header: tr('Ngày áp dụng gần nhất'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => row.lastAppliedAtUtc || '',
       render: (row) => (
         <span className="whitespace-nowrap text-[13px] text-rp-text-2">
@@ -1384,6 +919,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     {
       key: 'isActive',
       header: tr('Trạng thái'),
+      align: 'center',
+      compact: true,
       sortValue: (row) => (row.isActive ? 1 : 0),
       render: (row) => (
         row.isActive ? (
@@ -1404,8 +941,6 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
       const k = TUITION_FIELD_BY_CODE[lvl.code];
       return k && Number(tuitionDraft?.[k]) !== Number(current?.[k]);
     });
-    const previewWeeks = Math.max(1, Number(current?.courseDurationWeeks) || 10);
-    const previewSessionsList = parseSessionsCsv(current?.allowedSessionsPerWeekCsv);
     const tuitionHasErrors = Object.keys(tuitionValidation.tuitionErrors).length > 0;
 
     return (
@@ -1484,24 +1019,23 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
                 {tr('Đơn giá học phí lớp học nhóm theo cấp độ JLPT')}
               </h3>
               <span className="text-xs text-rp-text-muted">
-                {trf('Tính theo buổi {0} phút · khóa {1} tuần', {
+                {trf('Tính theo mỗi buổi {0} phút · Học phí trọn khóa theo tổng số buổi thực tế của lớp', {
                   0: current.sessionMinutes,
-                  1: previewWeeks,
                 })}
               </span>
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-rp-line">
               <table className="w-full border-collapse text-left text-[13px]">
-                <thead className="bg-rp-table-head text-xs uppercase text-rp-text-muted">
+                <thead className="bg-rp-table-head text-[13px] font-semibold text-rp-brand-strong">
                   <tr>
-                    <th className="border-b border-rp-line px-4 py-2.5 font-semibold">{tr('Cấp độ')}</th>
-                    <th className="border-b border-rp-line px-4 py-2.5 font-semibold">
+                    <th className="border-b border-rp-brand-border/80 px-4 py-2.5 text-center align-middle font-semibold whitespace-nowrap">{tr('Cấp độ')}</th>
+                    <th className="border-b border-rp-brand-border/80 px-4 py-2.5 text-left align-middle font-semibold">
                       {trf('Đơn giá mỗi buổi ({0} phút)', { 0: current.sessionMinutes })}
                     </th>
-                    {previewSessionsList.map((w) => (
-                      <th key={w} className="border-b border-rp-line px-4 py-2.5 text-right font-semibold">
-                        {trf('Khóa {0} buổi ({1} buổi mỗi tuần)', { 0: w * previewWeeks, 1: w })}
+                    {TUITION_EXAMPLE_SESSION_COUNTS.map((sessions) => (
+                      <th key={sessions} className="border-b border-rp-brand-border/80 px-4 py-2.5 text-right align-middle font-semibold whitespace-nowrap">
+                        {trf('Ví dụ {0} buổi', { 0: sessions })}
                       </th>
                     ))}
                   </tr>
@@ -1516,13 +1050,13 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
                     const errText = tuitionValidation.tuitionErrors[key];
                     return (
                       <tr key={lvl.code} className="transition-colors hover:bg-rp-row-hover">
-                        <td className="px-4 py-2.5 font-bold text-rp-text">
+                        <td className="px-4 py-2.5 text-center align-middle font-bold text-rp-text whitespace-nowrap">
                           <span className="inline-flex h-6 items-center rounded-lg border border-[#F2CCD7] bg-[#FFF5F7] px-2 text-xs font-extrabold text-[#B53D5C]">
                             {lvl.code}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex max-w-[200px] items-center gap-2">
+                        <td className="px-4 py-2.5 align-middle">
+                          <div className="flex items-center gap-2">
                             <Input
                               type="number"
                               min={1000}
@@ -1535,15 +1069,15 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
                                 ...tuitionDraft,
                                 [key]: e.target.value === '' ? '' : Number(e.target.value),
                               })}
-                              className="h-9 w-[150px] tabular-nums"
+                              className="h-9 tabular-nums"
                             />
                             <span className="shrink-0 text-xs font-semibold text-rp-text-muted">đ</span>
                           </div>
                           {errText && <p className="m-0 mt-1 text-[11px] font-medium text-red-600">{errText}</p>}
                         </td>
-                        {previewSessionsList.map((w) => (
-                          <td key={w} className="px-4 py-2.5 text-right font-semibold tabular-nums text-rp-text">
-                            {valid ? formatVnd(num * w * previewWeeks, fmt.tag) : '—'}
+                        {TUITION_EXAMPLE_SESSION_COUNTS.map((sessions) => (
+                          <td key={sessions} className="px-4 py-2.5 text-right align-middle font-semibold tabular-nums text-rp-text whitespace-nowrap">
+                            {valid ? formatVnd(num * sessions, fmt.tag) : '—'}
                           </td>
                         ))}
                       </tr>
@@ -1569,7 +1103,6 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
           })}
           loading={createVersion.isPending}
           tone="success"
-          cancelVariant="danger"
           title={tr('Xác nhận cập nhật học phí lớp học nhóm?')}
           description={trf('Sẽ ban hành phiên bản mới v{0} với đơn giá học phí vừa chỉnh sửa và áp dụng ngay cho các lớp phê duyệt từ thời điểm lưu.', { 0: latestLiveVersion + 1 })}
           confirmLabel={tr('Lưu & áp dụng ngay')}
@@ -1580,93 +1113,51 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
   }
 
   // ── MAIN CLASS POLICY PAGE (/admin/policies/) ─────────────────────────────
-  const limitsMap = viewedPolicy ? extractLevelLimits(viewedPolicy, supportedLevelCodes) : {};
-  const allowedList = viewedPolicy ? parseSessionsCsv(viewedPolicy.allowedSessionsPerWeekCsv) : [];
-
   const cards = viewedPolicy ? [
     {
-      sectionKey: 'limits',
-      code: 'A',
-      title: tr('Giới hạn lớp của giáo viên'),
-      rows: [
-        ...supportedLevelCodes.map((code) => ({
-          label: trf('Số lớp {0} được đăng ký', { 0: code }),
-          value: trf('{0} lớp', { 0: limitsMap[code] ?? 0 }),
-        })),
-        {
-          label: tr('Tổng số lớp mỗi giáo viên'),
-          value: trf('{0} lớp', { 0: viewedPolicy.maxTotalActiveClassesPerMentor }),
-        },
-      ],
-    },
-    {
       sectionKey: 'structure',
-      code: 'B',
+      code: 'A',
       title: tr('Cấu trúc lớp học'),
       rows: [
         {
-          label: tr('Sĩ số lớp'),
-          value: viewedPolicy.minLearnersToStart === viewedPolicy.maxLearners
-            ? trf('{0} học viên', { 0: viewedPolicy.maxLearners })
-            : trf('{0}–{1} học viên', { 0: viewedPolicy.minLearnersToStart, 1: viewedPolicy.maxLearners }),
-        },
-        {
-          label: tr('Thời lượng khóa học'),
-          value: trf('{0} tuần', { 0: viewedPolicy.courseDurationWeeks }),
+          label: tr('Sĩ số tối đa'),
+          value: trf('{0} học viên', { 0: viewedPolicy.maxLearners }),
         },
         {
           label: tr('Thời lượng mỗi buổi'),
           value: trf('{0} phút', { 0: viewedPolicy.sessionMinutes }),
         },
-        {
-          label: tr('Số buổi học mỗi tuần'),
-          value: formatAllowedSessionsDisplay(allowedList, trf),
-        },
-        {
-          label: tr('Số buổi mặc định'),
-          value: trf('{0} buổi', { 0: viewedPolicy.defaultSessionsPerWeek }),
-        },
+        ...supportedLevels
+          .filter((lvl) => TUITION_FIELD_BY_CODE[lvl.code])
+          .map((lvl) => ({
+            label: trf('Đơn giá buổi {0}', { 0: lvl.code }),
+            value: formatVnd(viewedPolicy[TUITION_FIELD_BY_CODE[lvl.code]], fmt.tag),
+          })),
       ],
     },
     {
       sectionKey: 'schedule',
-      code: 'C',
-      title: tr('Lịch và tải giảng dạy'),
+      code: 'B',
+      title: tr('Lịch giảng dạy'),
       rows: [
         {
           label: tr('Khoảng nghỉ giữa hai buổi'),
           value: trf('{0} phút', { 0: viewedPolicy.restMinutes }),
         },
-        {
-          label: tr('Số buổi dạy tối đa mỗi ngày'),
-          value: trf('{0} buổi', { 0: viewedPolicy.dailySessionCap }),
-        },
-        {
-          label: tr('Số buổi dạy tối đa mỗi tuần'),
-          value: viewedPolicy.weeklySessionCap > 0 ? trf('{0} buổi', { 0: viewedPolicy.weeklySessionCap }) : tr('Không giới hạn'),
-        },
-        {
-          label: tr('Phạm vi công bố lịch'),
-          value: trf('{0} ngày', { 0: viewedPolicy.publicationHorizonDays }),
-        },
       ],
     },
     {
       sectionKey: 'admission',
-      code: 'D',
+      code: 'C',
       title: tr('Tuyển sinh & ghi danh'),
       rows: [
-        {
-          label: tr('Thời hạn gửi đề xuất trước ngày bắt đầu'),
-          value: trf('{0} ngày', { 0: viewedPolicy.minimumProposalLeadDays }),
-        },
         {
           label: tr('Thời gian tuyển sinh tối thiểu'),
           value: trf('{0} ngày', { 0: viewedPolicy.minimumPublishedEnrollmentDays }),
         },
         {
-          label: tr('Đóng tuyển sinh trước buổi đầu'),
-          value: trf('{0} phút', { 0: viewedPolicy.enrollmentCutoffMinutesBeforeFirstSession }),
+          label: tr('Thời gian chuẩn bị tối thiểu'),
+          value: trf('{0} ngày', { 0: viewedPolicy.minimumPreparationDays ?? 1 }),
         },
         {
           label: tr('Thời gian giữ chỗ thanh toán'),
@@ -1676,7 +1167,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     },
     {
       sectionKey: 'coordination',
-      code: 'E',
+      code: 'D',
       title: tr('Điều phối lớp học'),
       rows: [
         {
@@ -1703,7 +1194,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
     },
     {
       sectionKey: 'training',
-      code: 'F',
+      code: 'E',
       title: tr('Đào tạo & đánh giá'),
       rows: [
         {
@@ -1793,27 +1284,40 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
         </div>
       )}
 
-      {/* 6 Direct Configuration Cards (3x2 on desktop) */}
+      {/* 5 Direct Configuration Cards (2+2+1 on desktop) */}
       {viewedPolicy && (
-        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {cards.map((card) => (
-            <Card key={card.sectionKey} padded={false} className="flex h-full flex-col overflow-hidden">
-              <div className="flex items-center justify-between gap-2 border-b border-rp-brand-border/80 bg-rp-table-head px-3.5 py-2">
-                <SectionHeading code={card.code} title={card.title} />
-                <AdminIconAction
-                  kind="edit"
-                  tone="brand"
-                  tooltip={trf('Chỉnh sửa {0}', { 0: card.title })}
-                  onClick={() => openSectionModal(card.sectionKey, viewedPolicy)}
-                />
-              </div>
-              <dl className="m-0 flex-1 divide-y divide-rp-line/50 px-3.5 py-1.5">
-                {card.rows.map((r) => (
-                  <CardRow key={r.label} label={r.label} value={r.value} />
-                ))}
-              </dl>
-            </Card>
-          ))}
+        <div className="grid grid-cols-1 items-stretch gap-3.5 md:grid-cols-2">
+          {cards.map((card) => {
+            const isFullSpan = card.sectionKey === 'training';
+            return (
+              <Card
+                key={card.sectionKey}
+                padded={false}
+                className={`flex h-full flex-col overflow-hidden ${isFullSpan ? 'md:col-span-2' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-rp-brand-border/80 bg-rp-table-head px-3.5 py-2">
+                  <SectionHeading code={card.code} title={card.title} />
+                  <AdminIconAction
+                    kind="edit"
+                    tone="brand"
+                    tooltip={trf('Chỉnh sửa {0}', { 0: card.title })}
+                    onClick={() => openSectionModal(card.sectionKey, viewedPolicy)}
+                  />
+                </div>
+                <dl
+                  className={
+                    isFullSpan
+                      ? 'm-0 flex-1 divide-y divide-rp-line/50 px-3.5 py-1.5 md:grid md:grid-cols-2 md:gap-x-6 md:divide-y-0'
+                      : 'm-0 flex-1 divide-y divide-rp-line/50 px-3.5 py-1.5'
+                  }
+                >
+                  {card.rows.map((r) => (
+                    <CardRow key={r.label} label={r.label} value={r.value} />
+                  ))}
+                </dl>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -1886,7 +1390,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
               <Button
                 type="button"
                 size="md"
-                variant="danger"
+                variant="sakura-outline"
                 disabled={updateSection.isPending}
                 onClick={closeSectionModal}
               >
@@ -1916,8 +1420,6 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
             validation={sectionValidation}
             supportedLevels={supportedLevels}
             onFieldChange={sectionHandlers.onFieldChange}
-            onLevelLimitChange={sectionHandlers.onLevelLimitChange}
-            onSessionRangeChange={sectionHandlers.onSessionRangeChange}
             compactCols={sectionEditor.sectionKey !== 'structure'}
             tr={tr}
             trf={trf}
@@ -1981,8 +1483,6 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
                       validation={drawerValidation}
                       supportedLevels={supportedLevels}
                       onFieldChange={drawerHandlers.onFieldChange}
-                      onLevelLimitChange={drawerHandlers.onLevelLimitChange}
-                      onSessionRangeChange={drawerHandlers.onSessionRangeChange}
                       tr={tr}
                       trf={trf}
                     />
@@ -2010,7 +1510,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
                 <Button
                   type="button"
                   size="md"
-                  variant="danger"
+                  variant="sakura-outline"
                   disabled={createVersion.isPending || updateVersion.isPending}
                   onClick={closeDrawer}
                 >
@@ -2061,7 +1561,6 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
         })}
         loading={createVersion.isPending}
         tone="success"
-        cancelVariant="danger"
         title={
           applyImmediately
             ? trf('Xác nhận ban hành & áp dụng phiên bản v{0}?', { 0: latestLiveVersion + 1 })
@@ -2069,7 +1568,7 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
         }
         description={
           applyImmediately
-            ? tr('Phiên bản mới sẽ được áp dụng ngay cho toàn hệ thống. Các lớp học và giao dịch đã xác lập giữ nguyên snapshot cũ.')
+            ? tr('Phiên bản mới sẽ được áp dụng ngay cho toàn hệ thống. Các lớp học và giao dịch đã xác lập giữ nguyên cấu hình trước đó.')
             : tr('Phiên bản mới sẽ được lưu ở trạng thái Đã ban hành để kích hoạt khi cần.')
         }
         confirmLabel={applyImmediately ? tr('Ban hành & áp dụng ngay') : tr('Ban hành phiên bản')}
@@ -2083,9 +1582,8 @@ export default function AdminMentorGroupPolicy({ section = 'operations' } = {}) 
         onConfirm={() => activateTarget && activateVersion.mutate(activateTarget)}
         loading={activateVersion.isPending}
         tone="success"
-        cancelVariant="danger"
         title={trf('Áp dụng phiên bản v{0} cho toàn hệ thống?', { 0: activateTarget?.version })}
-        description={tr('Hệ thống sẽ chuyển sang sử dụng phiên bản này cho các đề xuất và lớp mới; không làm thay đổi snapshot của các lớp đã mở.')}
+        description={tr('Hệ thống sẽ chuyển sang sử dụng phiên bản này cho các đề xuất và lớp mới; không làm thay đổi cấu hình của các lớp đã mở.')}
         confirmLabel={tr('Áp dụng phiên bản')}
         cancelLabel={tr('Hủy')}
       />

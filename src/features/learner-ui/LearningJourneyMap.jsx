@@ -5,6 +5,7 @@ import { Badge, Button, Card, cx } from '@/components/ui';
 import { FeatureLink } from '@/features/entitlements/components/StudyUnlock.jsx';
 import { useJourneyRoadmap } from '@/features/learning-journey/useJourneyRoadmap.js';
 import { skillNameLabel } from '@/features/learning-journey/journeyModel.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import WebClayIcon from './WebClayIcon.jsx';
 import { pickNextRoadmapDay } from './learnerTokens.js';
@@ -603,7 +604,7 @@ export default function LearningJourneyMap({ targetLevel, roadmapAccess = {}, ha
             ) : stage?.levelCode ? (
               <div className="rounded-xl bg-white/80 px-2.5 py-2">
                 <dt className="font-semibold text-rp-text-muted">{tr('Cấp độ')}</dt>
-                <dd className="mt-0.5 font-extrabold text-rp-navy">JLPT {stage.levelCode}</dd>
+                <dd className="mt-0.5 font-extrabold text-rp-navy">{formatJlptLevel(stage.levelCode)}</dd>
               </div>
             ) : null}
             {nextStageFirst && (

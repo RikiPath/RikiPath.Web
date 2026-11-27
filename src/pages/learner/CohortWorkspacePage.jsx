@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookCheck,
@@ -7,13 +7,16 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock,
+  GraduationCap,
   LayoutGrid,
   LifeBuoy,
   TrendingUp,
   Users,
   Video,
 } from 'lucide-react';
+import { captureNavigationOrigin } from '@/utils/navigationContext.js';
 import { LearnerShell } from '@/layouts';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import {
   courseGet,
   getCourseCompletionSummary,
@@ -23,7 +26,7 @@ import {
 import { useLearnerCohortWorkspace } from '@/features/cohorts/hooks/useLearnerCohortWorkspace.js';
 import { isConfirmedCourseAccess } from '@/features/cohorts/utils/completionHelpers';
 import OccupancyProgressBar from '@/features/cohorts/components/OccupancyProgressBar.jsx';
-import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
+import WeeklyScheduleDisplay from '@/features/scheduling/components/WeeklyScheduleDisplay.jsx';
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
 import CohortHomeworkPanel from '@/features/homework/components/CohortHomeworkPanel';
 import CohortCompletionSummary from '@/features/cohorts/components/CohortCompletionSummary';
@@ -41,9 +44,8 @@ import { formatVnDateTime, parseUtcDate, sessionStatusLabel } from '@/utils/vnDa
 import { useNow } from '@/hooks/useNow.js';
 import { useLocale } from '@/locales/locale.js';
 import {
-  BackButton,
-  Badge,
   Banner,
+  Badge,
   Button,
   Card,
   CardHeader,
@@ -51,6 +53,7 @@ import {
   ContextualErrorState,
   DataTable,
   DateInput,
+  DetailPageHeader,
   Field,
   FileUpload,
   PageContainer,
@@ -63,7 +66,6 @@ import {
   cx,
 } from '@/components/ui';
 import { StatusBadge } from '@/features/admin/components/AdminPrimitives.jsx';
-import { IllustratedPageHeader } from '@/features/learner-ui';
 import '@/pages/shared/studyCourses.css';
 
 const SECTIONS = [
@@ -91,6 +93,7 @@ function toUtcIsoDate(val) {
 
 export default function CohortWorkspacePage() {
   const { tr, trf } = useLocale();
+  const location = useLocation();
   const { courseId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -259,6 +262,7 @@ export default function CohortWorkspacePage() {
       {
         key: 'number',
         header: tr('Buổi học'),
+        align: 'left',
         sortValue: (row) => row.number,
         render: (row) => (
           <span className="font-semibold tabular-nums text-rp-text">
@@ -269,6 +273,7 @@ export default function CohortWorkspacePage() {
       {
         key: 'date',
         header: tr('Ngày học'),
+        align: 'center',
         sortValue: (row) => row.startDate?.getTime() || 0,
         render: (row) => (
           <span className="whitespace-nowrap tabular-nums text-xs text-rp-text-2">
@@ -279,6 +284,7 @@ export default function CohortWorkspacePage() {
       {
         key: 'time',
         header: tr('Thời gian'),
+        align: 'center',
         sortable: false,
         render: (row) => (
           <span className="whitespace-nowrap tabular-nums text-xs font-medium text-rp-text">
@@ -289,6 +295,7 @@ export default function CohortWorkspacePage() {
       {
         key: 'status',
         header: tr('Trạng thái điểm danh'),
+        align: 'center',
         sortValue: (row) => row.statusKey,
         render: (row) => {
           const meta = ATTENDANCE_STATUS_META[row.statusKey] || ATTENDANCE_STATUS_META.PendingConfirmation;
@@ -311,21 +318,6 @@ export default function CohortWorkspacePage() {
     Number(currentCohort?.confirmedEnrolledCount ?? current?.cohortConfirmedEnrolledCount ?? 0) || 0,
   );
   const enrollmentClosesAt = current?.cohortEnrollmentClosesAtUtc ?? currentCohort?.enrollmentClosesAtUtc ?? null;
-
-  const weeklyPatternText = useMemo(() => {
-    if (currentCohort?.schedulePattern?.length) {
-      return schedulePatternText(currentCohort.schedulePattern, currentCohort.sessions || []);
-    }
-    const enriched = validSessions.map((s) => {
-      const startMs = parseUtcDate(s.scheduledAt)?.getTime();
-      return {
-        ...s,
-        startTime: s.scheduledAt,
-        endTime: Number.isFinite(startMs) ? new Date(startMs + sessionMinutes * 60_000).toISOString() : undefined,
-      };
-    });
-    return schedulePatternText([], enriched);
-  }, [currentCohort, validSessions, sessionMinutes]);
 
   const nextSession = useMemo(
     () =>
@@ -372,61 +364,65 @@ export default function CohortWorkspacePage() {
   return (
     <LearnerShell breadcrumb={title}>
       <PageContainer width="default" className="space-y-5">
-        <div>
-          <div className="mb-3">
-            <BackButton
-              fallbackTo="/my-courses/"
-              label="Quay lại lớp của tôi"
-              defaultOriginLabel="Quay lại"
-              restoreListKey="/my-courses"
-              variant="ghost"
-            />
-          </div>
-
-          <IllustratedPageHeader
-            icon="group"
-            tone="sky"
-            eyebrow={current?.level ? `JLPT ${current.level} · ${tr('Học nhóm')}` : tr('Không gian lớp học')}
-            title={title}
-            description={
-              current ? (
-                <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-rp-text-muted">
+        <DetailPageHeader
+          backFallbackTo="/my-courses/"
+          backLabel="Quay lại lớp của tôi"
+          backOriginLabel="Quay lại"
+          restoreListKey="/my-courses"
+          icon={GraduationCap}
+          eyebrow={current?.level ? `${formatJlptLevel(current.level)} · ${tr('Học nhóm')}` : tr('Không gian lớp học')}
+          title={title}
+          badges={
+            current ? (
+              <StatusBadge tone={lifecycle.tone} label={lifecycle.label} />
+            ) : undefined
+          }
+          meta={
+            current ? (
+              <>
+                <span className="inline-flex items-center gap-1.5">
                   <UserAvatar
                     src={current.mentorAvatarUrl || currentCohort?.mentorAvatarUrl}
                     name={current.mentorName || tr('Giáo viên')}
                     size="xs"
                   />
-                  <span>
-                    {tr('Giáo viên:')}{' '}
-                    <span className="font-semibold text-rp-text">{current.mentorName || tr('Chưa phân công')}</span>
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span className="tabular-nums">
-                    {trf('{0} buổi', { 0: totalSessionsCount })}
-                    {weeksCount ? ` · ${trf('{0} tuần', { 0: weeksCount })}` : ''}
-                    {` · ${trf('{0} phút/buổi', { 0: sessionMinutes })}`}
-                  </span>
-                </span>
-              ) : undefined
-            }
-            actions={
-              current && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge tone={lifecycle.tone} label={lifecycle.label} />
-                  {lifecycle.id === 'Teaching' && nextJoinState?.canJoin && (
+                  <span>{tr('Giáo viên:')}</span>
+                  {(current.mentorId || currentCohort?.mentorId) ? (
                     <Link
-                      to={nextJoinState.roomHref}
-                      className="rp-focus inline-flex h-11 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-sm font-semibold text-white hover:opacity-95"
+                      to={`/mentors/${current.mentorId || currentCohort?.mentorId}/`}
+                      state={{
+                        navigationOrigin: captureNavigationOrigin(location, {
+                          backLabel: 'Quay lại lớp học',
+                        }),
+                      }}
+                      className="rp-focus rp-link font-semibold text-rp-text hover:text-rp-brand-strong"
                     >
-                      <Video className="h-4 w-4" />
-                      {tr('Vào phòng học ngay')}
+                      {current.mentorName || tr('Giáo viên')}
                     </Link>
+                  ) : (
+                    <span className="font-semibold text-rp-text">{current.mentorName || tr('Chưa phân công')}</span>
                   )}
-                </div>
-              )
-            }
-          />
-        </div>
+                </span>
+                <span className="tabular-nums">
+                  {trf('{0} buổi', { 0: totalSessionsCount })}
+                  {weeksCount ? ` · ${trf('{0} tuần', { 0: weeksCount })}` : ''}
+                  {` · ${trf('{0} phút/buổi', { 0: sessionMinutes })}`}
+                </span>
+              </>
+            ) : undefined
+          }
+          actions={
+            current && lifecycle.id === 'Teaching' && nextJoinState?.canJoin ? (
+              <Link
+                to={nextJoinState.roomHref}
+                className="rp-focus inline-flex h-10 items-center gap-1.5 rounded-xl bg-rp-success px-4 text-sm font-semibold text-white hover:opacity-95"
+              >
+                <Video className="h-4 w-4" />
+                {tr('Vào phòng học ngay')}
+              </Link>
+            ) : undefined
+          }
+        />
 
         {actionError && (
           <Banner tone="danger" title={tr('Chưa thực hiện được')} onDismiss={() => setActionError('')}>
@@ -639,6 +635,12 @@ export default function CohortWorkspacePage() {
                         <CardHeader title={tr('Lớp học đã bị hủy')} />
                         <div className="space-y-2 rounded-2xl border border-rp-danger-line bg-rp-danger-bg/40 p-4 text-xs">
                           <p className="font-semibold text-rp-danger">{tr('Lớp học này đã ngừng vận hành.')}</p>
+                          {(current?.cancellationReason || currentCohort?.cancellationReason) && (
+                            <p className="text-rp-danger">
+                              <span className="font-semibold">{tr('Lý do hủy lớp')}: </span>
+                              {current?.cancellationReason || currentCohort?.cancellationReason}
+                            </p>
+                          )}
                           <p className="text-rp-text-muted">
                             {tr('Phòng học trực tuyến đã đóng. Vui lòng kiểm tra mục Đánh giá & hỗ trợ nếu cần liên hệ Quản trị viên.')}
                           </p>
@@ -692,8 +694,16 @@ export default function CohortWorkspacePage() {
                         </span>
                       </div>
                       <div className="flex items-start justify-between gap-3">
-                        <span className="shrink-0 text-rp-text-muted">{tr('Lịch học hằng tuần')}</span>
-                        <span className="text-right font-medium text-rp-text">{weeklyPatternText}</span>
+                        <span className="shrink-0 pt-0.5 text-rp-text-muted">{tr('Lịch học hằng tuần')}</span>
+                        <div className="min-w-0 max-w-[260px] text-right">
+                          <WeeklyScheduleDisplay
+                            schedulePattern={currentCohort?.schedulePattern}
+                            sessions={validSessions}
+                            sessionDurationMinutes={sessionMinutes}
+                            variant="compact"
+                            className="items-end text-right"
+                          />
+                        </div>
                       </div>
                       <div className="border-t border-rp-line/60 pt-2.5 flex items-center justify-between gap-3">
                         <span className="text-rp-text-muted">{tr('Giáo viên phụ trách')}</span>
@@ -1015,7 +1025,7 @@ export default function CohortWorkspacePage() {
                                   <UserAvatar src={f.mentorAvatarUrl} name={f.mentorName || tr('Giáo viên')} size="xs" />
                                   <span className="font-semibold text-rp-text">{f.mentorName || tr('Giáo viên')}</span>
                                 </div>
-                                <span className="text-[11px] tabular-nums text-rp-text-muted">
+                                <span className="text-[12px] tabular-nums text-rp-text-muted">
                                   {formatVnDateTime(f.publishedAtUtc)}
                                 </span>
                               </div>
@@ -1174,7 +1184,7 @@ export default function CohortWorkspacePage() {
                             <p className="font-semibold text-rp-brand-strong">{tr('Kế hoạch hỗ trợ ôn lại từ Giáo viên')}</p>
                             <p className="whitespace-pre-wrap text-rp-text">{r.mentorSupportPlan}</p>
                             {r.mentorSupportPlanAtUtc && (
-                              <p className="text-[11px] text-rp-text-muted">
+                              <p className="text-[12px] text-rp-text-muted">
                                 {trf('Cập nhật lúc {0}', { 0: formatVnDateTime(r.mentorSupportPlanAtUtc) })}
                               </p>
                             )}

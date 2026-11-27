@@ -47,7 +47,7 @@ export default function SakuraToast({ t, item, onDismiss, onExpire }) {
       aria-atomic="true"
       data-toast-tone={item?.tone || 'info'}
       className={cx(
-        'rp-toast group pointer-events-auto flex w-max min-w-[260px] max-w-[min(480px,calc(100vw-32px))] gap-3 rounded-xl bg-white py-3 pl-4 pr-2.5 text-[#363636]',
+        'rp-toast group pointer-events-auto flex w-max min-w-[260px] max-w-[min(480px,calc(100vw-32px))] gap-3 rounded-xl border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] py-3 pl-4 pr-2.5 text-rp-text',
         detail || item?.action ? 'items-start' : 'items-center',
         t?.visible ? 'rp-toast-enter' : 'rp-toast-leave',
       )}
@@ -61,7 +61,7 @@ export default function SakuraToast({ t, item, onDismiss, onExpire }) {
           <span className="sr-only">{tr(statusLabel)}: </span>
           {headline}
         </p>
-        {detail && <p className="mt-0.5 text-[13.5px] leading-5 text-[#5f5a5c]">{detail}</p>}
+        {detail && <p className="mt-0.5 text-[13.5px] leading-5 text-rp-text-2">{detail}</p>}
         {item?.action && (
           <button
             type="button"
@@ -81,7 +81,7 @@ export default function SakuraToast({ t, item, onDismiss, onExpire }) {
         onClick={() => onDismiss(item.id)}
         aria-label={tr('Đóng thông báo')}
         className={cx(
-          'rp-focus flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#9a9396] opacity-70 transition-opacity hover:bg-black/5 hover:text-[#363636] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100',
+          'rp-focus flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-rp-text-muted opacity-75 transition-colors hover:bg-[var(--rp-popup-hover)] hover:text-rp-brand-strong hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100',
           (detail || item?.action) && 'self-start',
         )}
       >

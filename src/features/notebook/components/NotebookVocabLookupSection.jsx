@@ -13,6 +13,7 @@ import {
   notify,
 } from '@/components/ui';
 import { searchVocabulary } from '@/features/content-author/api/sharedBankApi.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 
 const VOCAB_SAMPLES = ['さくら', '勉強', '日本語', '駅', '約束'];
 
@@ -203,7 +204,7 @@ export default function NotebookVocabLookupSection({
                     <div className="flex shrink-0 items-center gap-1">
                       {item.jlptLevelName && (
                         <Badge tone="brand" icon={false} size="sm">
-                          JLPT {item.jlptLevelName}
+                          {formatJlptLevel(item.jlptLevelName)}
                         </Badge>
                       )}
                       <button

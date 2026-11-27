@@ -318,4 +318,6 @@ export const jaLearningJourney = {
   'Xem tổng kết': 'まとめを見る',
   'Điểm cao nhất: {0}% · Cần đạt {1}%': '最高点：{0}%・合格ライン{1}%',
   'Đạt từ {0}% ở bài kiểm tra nhanh để hoàn thành bài này và mở bài tiếp theo.': '小テストで{0}%以上取ると、このレッスンが完了し次のレッスンが開きます。',
+  'Hoàn thành bài trước trong lộ trình để mở bài này.': 'ロードマップの前のレッスンを完了すると、このレッスンが開きます。',
+  'Vượt qua “{0}” để mở bài này.': '「{0}」に合格すると、このレッスンが開きます。',
 };

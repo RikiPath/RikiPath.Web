@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Badge, Banner, Button, Modal } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { resolveSkillLabel } from '@/features/mock-test/utils/practiceStatusHelpers.js';
 
 /**
@@ -104,7 +105,7 @@ export default function MockExamRegulationsModal({
       size="lg"
       title={tr('Bạn đã sẵn sàng bắt đầu thi thử JLPT?')}
       titleBadge={
-        exam.jlptLevelName ? <Badge tone="brand" size="sm" icon={false}>JLPT {exam.jlptLevelName}</Badge> : undefined
+        exam.jlptLevelName ? <Badge tone="brand" size="sm" icon={false}>{formatJlptLevel(exam.jlptLevelName)}</Badge> : undefined
       }
       description={tr(exam.title)}
       footer={

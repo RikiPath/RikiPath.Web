@@ -107,11 +107,13 @@ export default function AdminMentorTemplate() {
           >
             <CustomSelect
               fitContent
+              clearable
               className="max-w-full sm:min-w-[260px]"
               value={mentorId}
-              aria-label={tr('Chọn Giáo viên')}
+              label={tr('Giáo viên')}
+              aria-label={tr('Giáo viên')}
               onChange={setMentorId}
-              options={[{ value: '', label: tr('Chọn Giáo viên để xem mẫu ca') }, ...mentorOptions]}
+              options={mentorOptions}
             />
           </AdminToolbar>
         )}

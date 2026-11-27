@@ -211,7 +211,13 @@ export default function AdminGroupWorkspace() {
 
   const lockViewport = activeSection === 'cohorts' && !loading && !(loadError && courses.length === 0 && cohorts.length === 0);
   const hasLoadedSnapshot = !loading && !(loadError && courses.length === 0 && cohorts.length === 0);
-  const toolbarOwnsRefresh = hasLoadedSnapshot && activeSection === 'cohorts' && cohorts.length > 0;
+  const showHeaderRefresh = hasLoadedSnapshot && (
+    activeSection === 'enrollments'
+      ? courses.length > 0
+      : activeSection === 'requests'
+        ? cohorts.length > 0 || mentors.length > 0
+        : false
+  );
 
   return (
     <AdminShell breadcrumb={tr('Lớp học & ghi danh')}>
@@ -220,15 +226,15 @@ export default function AdminGroupWorkspace() {
           icon={GroupClassIcon}
           title="Lớp học & ghi danh"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
-              {hasLoadedSnapshot && !toolbarOwnsRefresh && (
+            showHeaderRefresh ? (
+              <div className="flex flex-wrap items-center gap-2">
                 <RefreshButton
                   onRefresh={refreshSnapshot}
                   refreshing={refreshing}
                   disabled={busy || loading}
                 />
-              )}
-            </div>
+              </div>
+            ) : null
           }
         />
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LockKeyhole, PauseCircle, ShieldCheck } from 'lucide-react';
 
 import {
-  AlertDialog, Badge, Card, CustomSelect, ErrorState, Field, Input, RefreshingIndicator, SakuraLoader, Button, cx, notify,
+  AlertDialog, Badge, Card, CountBadge, CustomSelect, ErrorState, Field, Input, RefreshingIndicator, SakuraLoader, Button, cx, notify,
 } from '@/components/ui';
 import { getAdminEntitlementPreview, updateAdminFeaturePolicy } from '@/features/admin/api/adminApi.js';
 import { formatVnd } from '@/features/checkout/planGroups.js';
@@ -147,7 +147,7 @@ export default function AdminFeaturePolicyPanel({ features, groups }) {
           <section key={group.label} aria-label={tr(group.label)} className="space-y-3">
             <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-rp-text-muted">
               {tr(group.label)}
-              <span className="rounded-full bg-rp-muted px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-rp-text-2">{group.features.length}</span>
+              <CountBadge count={group.features.length} size="sm" showZero />
             </h3>
           {group.features.map((feat) => {
             const { current, availability, policy, reason } = draftFor(feat);

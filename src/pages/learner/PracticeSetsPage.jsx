@@ -112,6 +112,21 @@ export default function PracticeSetsPage() {
   });
 
   const allItems = useMemo(() => practiceQuery.data || [], [practiceQuery.data]);
+  const hasServerFilter = levelParam !== 'ALL' || statusFilter !== 'ALL';
+
+  const unfilteredCatalogQuery = useQuery({
+    queryKey: ['learner-practice-sets', user?.userId, 'unfiltered-check'],
+    queryFn: () => getPracticeSets({}),
+    enabled: Boolean(hasServerFilter && practiceQuery.isSuccess && allItems.length === 0),
+    staleTime: 60_000,
+  });
+
+  const hasUnderlyingCatalog = practiceQuery.isSuccess && (
+    allItems.length > 0 || (hasServerFilter && (unfilteredCatalogQuery.data?.length ?? 0) > 0)
+  );
+  const showFilterToolbar = practiceQuery.isSuccess && !levelsQuery.isError && (
+    allItems.length > 0 || (hasServerFilter && (unfilteredCatalogQuery.isPending || (unfilteredCatalogQuery.data?.length ?? 0) > 0))
+  );
 
   const items = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -225,6 +240,7 @@ export default function PracticeSetsPage() {
           }
         />
 
+        {showFilterToolbar && (
         <ExamFilterToolbar
           searchValue={keyword}
           onSearchChange={setKeyword}
@@ -244,6 +260,7 @@ export default function PracticeSetsPage() {
           hasActiveFilters={hasActiveFilters}
           onReset={handleResetFilters}
         />
+        )}
 
         {inProgressItems.length > 0 && (
           <Card className="rp-resume-strip border-amber-200/80 bg-gradient-to-r from-[#FFF9F2] via-white to-[#FFF7FA] p-4">
@@ -338,14 +355,18 @@ export default function PracticeSetsPage() {
         ) : items.length === 0 ? (
           <Card>
             <EmptyState
-              variant="compact"
-              illustration="book"
-              title={tr('Chưa có bộ đề luyện tập phù hợp.')}
-              description={tr('Hãy thử bỏ bớt bộ lọc đang chọn hoặc sang mục Thi thử JLPT để làm đề tổng hợp.')}
+              variant={hasActiveFilters && hasUnderlyingCatalog ? 'search' : 'compact'}
+              illustration={hasActiveFilters && hasUnderlyingCatalog ? 'search' : 'book'}
+              title={hasActiveFilters && hasUnderlyingCatalog ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có bộ đề luyện tập nào.')}
+              description={
+                hasActiveFilters && hasUnderlyingCatalog
+                  ? tr('Hãy thử bỏ bớt bộ lọc đang chọn hoặc sang mục Thi thử JLPT để làm đề tổng hợp.')
+                  : tr('Các bộ đề luyện tập JLPT sẽ hiển thị tại đây khi được phát hành.')
+              }
               action={
-                hasActiveFilters ? (
+                hasActiveFilters && hasUnderlyingCatalog ? (
                   <Button type="button" variant="outline" size="sm" icon={RotateCcw} onClick={handleResetFilters}>
-                    {tr('Đặt lại bộ lọc')}
+                    {tr('Xóa bộ lọc')}
                   </Button>
                 ) : null
               }

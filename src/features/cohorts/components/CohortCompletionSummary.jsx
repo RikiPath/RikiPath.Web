@@ -13,6 +13,7 @@ import { StatusBadge } from '@/features/admin/components/AdminPrimitives.jsx';
 import { COMPLETION_NOTE } from '@/features/cohorts/utils/completionHelpers';
 import { formatSkillLabel } from '@/features/cohorts/utils/skillLabels.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 
 const formatDateTime = (v) => (v ? formatVnDateTime(v, '—') : '—');
@@ -75,11 +76,11 @@ export default function CohortCompletionSummary({
             <p className="mt-0.5 text-xs text-rp-text-muted">{summary.cohortName}</p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {summary.level && (
-            <Badge tone="brand" icon={false} size="sm">
-              JLPT {summary.level}
-            </Badge>
+            <span className="text-[13px] font-semibold text-rp-text-2">
+              {formatJlptLevel(summary.level)}
+            </span>
           )}
           <StatusBadge tone="success" label="Đã hoàn thành" />
         </div>
@@ -125,7 +126,7 @@ export default function CohortCompletionSummary({
             )}
           </ul>
           {eligibility && !eligibility.canClaim && Array.isArray(eligibility.reasons) && eligibility.reasons.length > 0 && (
-            <p className="text-[11px] text-rp-text-muted">
+            <p className="text-[12px] text-rp-text-muted">
               {eligibility.reasons[0]}
             </p>
           )}
@@ -179,7 +180,7 @@ export default function CohortCompletionSummary({
                 <UserAvatar src={m.mentorAvatarUrl} name={m.mentorName || tr('Giáo viên')} size="sm" />
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-rp-text">{m.mentorName || tr('Giáo viên')}</p>
-                  <p className="text-[11px] text-rp-text-muted">
+                  <p className="text-[12px] text-rp-text-muted">
                     {m.isCurrentPrimary || m.isPrimary
                       ? tr('Giáo viên phụ trách chính')
                       : trf('Giáo viên tham gia giảng dạy ({0} buổi)', { 0: m.deliveredSessionCount ?? 0 })}
@@ -273,7 +274,7 @@ export default function CohortCompletionSummary({
                     <UserAvatar src={f.mentorAvatarUrl} name={f.mentorName || tr('Giáo viên')} size="xs" />
                     <span className="font-semibold text-rp-text">{f.mentorName || tr('Giáo viên')}</span>
                   </div>
-                  <span className="text-[11px] tabular-nums text-rp-text-muted">{formatDateTime(f.publishedAtUtc)}</span>
+                  <span className="text-[12px] tabular-nums text-rp-text-muted">{formatDateTime(f.publishedAtUtc)}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {f.title && <span className="font-medium text-rp-text-2">{f.title}</span>}
@@ -291,7 +292,7 @@ export default function CohortCompletionSummary({
       </div>
 
       {/* Concise Internal Report Disclaimer */}
-      <p className="flex items-start gap-1.5 border-t border-rp-line/60 pt-3 text-[11.5px] text-rp-text-muted">
+      <p className="flex items-start gap-1.5 border-t border-rp-line/60 pt-3 text-[12px] text-rp-text-muted">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rp-text-muted" aria-hidden="true" />
         <span>{tr(summary.note || COMPLETION_NOTE)}</span>
       </p>

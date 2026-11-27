@@ -1,5 +1,5 @@
 export const SIDEBAR_BADGE_OVERFLOW_CAP = 99;
-export const SOFT_PULSE_COUNTER_KEYS = Object.freeze(['learner.srs_due']);
+export const SOFT_PULSE_COUNTER_KEYS = Object.freeze([]);
 export const ATTENTION_POP_WINDOW_MS = 2200;
 
 export function normalizeBadgeCount(raw) {
@@ -33,10 +33,9 @@ export function resolveSidebarBadgeVariant({ active = false, collapsed = false, 
 }
 
 /**
- * Determines which subtle attention animation (if any) a SidebarBadge should play:
- * - 'soft-pulse': ONLY for `learner.srs_due` when count > 0, menu is inactive, and tab is visible.
- * - 'pop': 2-iteration Attention Pop ONLY when an `ActionRequired` counter genuinely increased recently.
- * - 'none': steady state, active route, hidden tab, count <= 0, decreased count, or non-eligible kinds.
+ * Determines whether a SidebarBadge should play a subtle, finite 2-beat Attention Pop:
+ * - 'pop': 2-iteration Attention Pop ONLY when a counter genuinely increased recently.
+ * - 'none': steady state, active route, hidden tab, count <= 0, decreased count, or stale remount.
  */
 export function resolveSidebarBadgeAttention({
   count = 0,
@@ -48,6 +47,7 @@ export function resolveSidebarBadgeAttention({
   mountTimeMs = 0,
   tabVisible = true,
 } = {}) {
+  void counterKey;
   const safeCount = normalizeBadgeCount(count);
   if (safeCount <= 0 || active || !tabVisible) {
     return { mode: 'none', popPhase: null, bumpNum: false };
@@ -58,15 +58,12 @@ export function resolveSidebarBadgeAttention({
     Number(increasedAtMs) > 0 &&
     (mountTimeMs <= 0 || (mountTimeMs - increasedAtMs) < ATTENTION_POP_WINDOW_MS);
 
-  if (counterKey && SOFT_PULSE_COUNTER_KEYS.includes(counterKey)) {
-    return {
-      mode: 'soft-pulse',
-      popPhase: null,
-      bumpNum: hasFreshIncrease,
-    };
-  }
+  const eligibleKind =
+    counterKind === 'ActionRequired' ||
+    counterKind === 'DueItems' ||
+    counterKind === 'PendingUserAction';
 
-  if (counterKind === 'ActionRequired' && hasFreshIncrease) {
+  if (eligibleKind && hasFreshIncrease) {
     return {
       mode: 'pop',
       popPhase: Number(increaseSeq) % 2 === 0 ? 'even' : 'odd',

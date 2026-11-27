@@ -49,11 +49,7 @@ export default function RoadmapCheckpointModal({ open, checkpoint, onClose, onCo
       if (data?.passed) {
         notify.success(tr('Đã vượt qua bài kiểm tra chặng!'), '', { key: 'checkpoint-submit' });
       } else {
-        notify.info(
-          tr('Đã chấm bài kiểm tra'),
-          tr('Bạn có thể xem đáp án, lời giải thích và làm lại.'),
-          { key: 'checkpoint-submit' },
-        );
+        notify.info(tr('Đã chấm bài kiểm tra.'), '', { key: 'checkpoint-submit' });
       }
       await onCompleted?.(data);
     },

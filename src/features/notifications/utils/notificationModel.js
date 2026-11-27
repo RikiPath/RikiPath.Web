@@ -45,18 +45,19 @@ export function classifyNotification(item) {
   const message = String(item?.message || '').trim().toLowerCase();
   const text = `${title} ${message}`;
 
-  // Error / Rejected — Red
+  // Error / Rejected — Red (terminal outcome, not an open action queue item unless revision requested)
   if (
     type.includes('reject')
     || type.includes('fail')
     || type.includes('cancel')
     || type === 'content_rejected_partial'
-    || /bị từ chối|chưa được phê duyệt|từ chối|đã hủy|thất bại|không được chấp thuận/.test(text)
+    || /bị từ chối|chưa được phê duyệt|từ chối|đã hủy|thất bại|không được chấp thuận|chưa được chấp thuận/.test(text)
   ) {
     return {
       category: 'error',
       iconName: 'x-circle',
       label: 'Từ chối / Hủy',
+      actionRequired: false,
       iconBoxClass: 'border-red-200 bg-red-50 text-red-700',
       badgeClass: 'border-red-200 bg-red-50 text-red-700',
       dotClass: 'bg-red-500',
@@ -65,33 +66,7 @@ export function classifyNotification(item) {
     };
   }
 
-  // Action Required / Warning — Amber
-  if (
-    type === 'content_approval_pending'
-    || type === 'mentorverification'
-    || type === 'srsreminder'
-    || type === 'homework'
-    || type.includes('changesrequested')
-    || type.includes('reminder')
-    || type.includes('complaint')
-    || type.includes('dispute')
-    || type.includes('transfer')
-    || type.includes('replacement')
-    || /cần bổ sung|yêu cầu bổ sung|chờ xét duyệt|chờ duyệt|cần xem xét|cần kiểm duyệt|sắp đến giờ|sắp đến hạn|đến hạn|yêu cầu điều chỉnh|yêu cầu đổi|yêu cầu hủy|cần chấm/.test(text)
-  ) {
-    return {
-      category: 'warning',
-      iconName: 'alert-triangle',
-      label: 'Cần xử lý',
-      iconBoxClass: 'border-amber-200 bg-amber-50 text-amber-700',
-      badgeClass: 'border-amber-200 bg-amber-50 text-amber-800',
-      dotClass: 'bg-amber-500',
-      unreadBgClass: 'bg-amber-50/45 hover:bg-amber-50/80',
-      toastTone: 'warning',
-    };
-  }
-
-  // Success — Emerald
+  // Success — Emerald (never uses warning icon or enters "Cần xử lý")
   if (
     type === 'content_approved_all'
     || type.includes('approved')
@@ -103,6 +78,7 @@ export function classifyNotification(item) {
       category: 'success',
       iconName: 'check-circle',
       label: 'Thành công',
+      actionRequired: false,
       iconBoxClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
       badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-800',
       dotClass: 'bg-emerald-500',
@@ -111,11 +87,72 @@ export function classifyNotification(item) {
     };
   }
 
+  // Legacy self-action echoes should never appear as warning or action-required
+  if (isSelfActionEchoNotification(item)) {
+    return {
+      category: 'info',
+      iconName: 'info',
+      label: 'Thông tin',
+      actionRequired: false,
+      iconBoxClass: 'border-sky-200 bg-sky-50 text-sky-700',
+      badgeClass: 'border-sky-200 bg-sky-50 text-sky-800',
+      dotClass: 'bg-sky-500',
+      unreadBgClass: 'bg-sky-50/45 hover:bg-sky-50/80',
+      toastTone: 'info',
+    };
+  }
+
+  // Genuine Warning / Revision / Deadline / Complaint — Amber with warning icon
+  if (
+    type === 'srsreminder'
+    || type === 'homework'
+    || type.includes('changesrequested')
+    || type.includes('reminder')
+    || type.includes('complaint')
+    || type.includes('dispute')
+    || type.includes('transfer')
+    || type.includes('replacement')
+    || /cần bổ sung|yêu cầu bổ sung|yêu cầu bạn bổ sung|sắp đến giờ|sắp đến hạn|đến hạn|yêu cầu điều chỉnh|yêu cầu đổi|yêu cầu hủy/.test(text)
+  ) {
+    return {
+      category: 'warning',
+      iconName: 'alert-triangle',
+      label: 'Cần xử lý',
+      actionRequired: true,
+      iconBoxClass: 'border-amber-200 bg-amber-50 text-amber-700',
+      badgeClass: 'border-amber-200 bg-amber-50 text-amber-800',
+      dotClass: 'bg-amber-500',
+      unreadBgClass: 'bg-amber-50/45 hover:bg-amber-50/80',
+      toastTone: 'warning',
+    };
+  }
+
+  // Normal Operational Pending Review (e.g. Admin reviewing pending proposals or content)
+  // Actionable for the recipient, using amber pending-review tone with a clipboard icon.
+  if (
+    type === 'content_approval_pending'
+    || (type === 'mentorverification' && /chờ duyệt|chờ xét duyệt|gửi lại xét duyệt/.test(text))
+    || /chờ xét duyệt|chờ duyệt|cần xem xét|cần kiểm duyệt|cần chấm|yêu cầu duyệt/.test(text)
+  ) {
+    return {
+      category: 'warning',
+      iconName: 'clipboard-list',
+      label: 'Cần xử lý',
+      actionRequired: true,
+      iconBoxClass: 'border-amber-200 bg-amber-50 text-amber-700',
+      badgeClass: 'border-amber-200 bg-amber-50 text-amber-800',
+      dotClass: 'bg-amber-500',
+      unreadBgClass: 'bg-amber-50/45 hover:bg-amber-50/80',
+      toastTone: 'warning',
+    };
+  }
+
   // Information — Sky Blue
   return {
     category: 'info',
     iconName: 'info',
     label: 'Thông tin',
+    actionRequired: false,
     iconBoxClass: 'border-sky-200 bg-sky-50 text-sky-700',
     badgeClass: 'border-sky-200 bg-sky-50 text-sky-800',
     dotClass: 'bg-sky-500',
@@ -126,30 +163,27 @@ export function classifyNotification(item) {
 
 /**
  * Determines whether a notification belongs in the "Cần xử lý" filter tab.
- * Read notifications are no longer pending user attention; unread action-required
- * or rejection notifications requiring follow-up surface under "Cần xử lý".
+ * Only unread notifications requiring an actual action from the recipient belong here.
  */
 export function isNotificationActionable(item) {
   if (!item || item.isRead) return false;
   const cls = classifyNotification(item);
-  if (cls.category === 'warning' || cls.category === 'error') return true;
-  const type = String(item.type || '').trim().toLowerCase();
-  return (
-    type === 'mentorverification'
-    || type === 'content_approval_pending'
-    || type === 'srsreminder'
-    || type === 'homework'
-  );
+  return Boolean(cls.actionRequired);
 }
 
 /**
- * Prevents duplicate noisy toasts when the current user just triggered an action
- * (e.g. submitting a teaching proposal) and already received an immediate action toast.
- * Still persists in Notification Center and updates unread counters.
+ * Identifies self-action echo notifications that merely repeat an action just performed
+ * by the current user (preventing duplicate toasts or misclassified warnings).
  */
 export function isSelfActionEchoNotification(item) {
   const title = String(item?.title || '').trim().toLowerCase();
-  return title === 'đã gửi đề xuất mở lớp jlpt' || title === 'hồ sơ giáo viên đã được xử lý' || title === 'hồ sơ cố vấn đã được xử lý';
+  return (
+    title === 'đã gửi đề xuất mở lớp jlpt'
+    || title.startsWith('đã gửi đề xuất mở lớp')
+    || title.startsWith('đã gửi lại đề xuất mở lớp')
+    || title === 'hồ sơ giáo viên đã được xử lý'
+    || title === 'hồ sơ cố vấn đã được xử lý'
+  );
 }
 
 /**
@@ -296,6 +330,7 @@ export function resolveInvalidationKeysForNotification(item) {
     || type.includes('meeting')
     || link.includes('mentor-schedules')
     || link.includes('mentor-shift-schedule')
+    || link.includes('mentor-proposal-history')
     || link.includes('mentor-requests')
     || link.includes('work-schedule')
   ) {

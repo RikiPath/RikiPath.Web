@@ -566,10 +566,10 @@ export default function SmartNotebookWorkspace() {
       if (!ok) {
         const leave = await confirmAction({
           title: tr('Thay đổi chưa kịp lưu lên máy chủ'),
-          message: tr('Không thể tự động lưu trang hiện tại ngay lúc này. Bạn muốn thử lưu lại hay chuyển trang?'),
-          confirmText: tr('Vẫn chuyển trang'),
-          cancelText: tr('Ở lại thử lại'),
-          danger: true,
+          description: tr('Không thể tự động lưu trang hiện tại ngay lúc này. Bạn muốn thử lưu lại hay chuyển trang?'),
+          confirmLabel: tr('Vẫn chuyển trang'),
+          cancelLabel: tr('Ở lại thử lại'),
+          tone: 'warning',
         });
         if (!leave) return;
       }
@@ -629,12 +629,12 @@ export default function SmartNotebookWorkspace() {
       const fileCount = item.fileCount ?? item.files?.length ?? 0;
       const confirmed = await confirmAction({
         title: tr('Xóa thư mục này?'),
-        message: fileCount > 0
+        description: fileCount > 0
           ? trf('Thư mục “{0}” đang chứa {1} tệp ghi chú. Khi xác nhận, toàn bộ tệp và trang bên trong sẽ bị xóa khỏi sổ tay (thẻ ôn tập SRS đã tạo vẫn được giữ nguyên).', { 0: item.name, 1: fileCount })
-          : trf('Xóa thư mục trống “{0}” khỏi sổ tay?', { 0: item.name }),
-        confirmText: tr('Xóa thư mục'),
-        cancelText: tr('Hủy'),
-        danger: true,
+          : trf('Thư mục trống “{0}” sẽ bị xóa khỏi sổ tay cá nhân của bạn.', { 0: item.name }),
+        confirmLabel: tr('Xóa thư mục'),
+        cancelLabel: tr('Giữ lại'),
+        tone: 'danger',
       });
       if (!confirmed) return;
 
@@ -654,12 +654,12 @@ export default function SmartNotebookWorkspace() {
       const pageCount = item.pageCount ?? item.pages?.length ?? 0;
       const confirmed = await confirmAction({
         title: tr('Xóa tệp ghi chú này?'),
-        message: pageCount > 0
+        description: pageCount > 0
           ? trf('Tệp “{0}” đang có {1} trang ghi chú. Thẻ SRS đã lưu trước đây sẽ không bị mất khi xóa tệp.', { 0: item.name, 1: pageCount })
-          : trf('Xóa tệp “{0}” khỏi sổ tay?', { 0: item.name }),
-        confirmText: tr('Xóa tệp'),
-        cancelText: tr('Hủy'),
-        danger: true,
+          : trf('Tệp “{0}” sẽ bị xóa khỏi sổ tay cá nhân của bạn.', { 0: item.name }),
+        confirmLabel: tr('Xóa tệp'),
+        cancelLabel: tr('Giữ lại'),
+        tone: 'danger',
       });
       if (!confirmed) return;
 
@@ -679,10 +679,10 @@ export default function SmartNotebookWorkspace() {
     if (kind === 'page') {
       const confirmed = await confirmAction({
         title: tr('Xóa trang ghi chú này?'),
-        message: trf('Trang “{0}” và các mục đã lưu trong trang sẽ bị xóa khỏi sổ tay. Các thẻ ôn tập SRS đã tạo vẫn được giữ nguyên.', { 0: item.title }),
-        confirmText: tr('Xóa trang'),
-        cancelText: tr('Hủy'),
-        danger: true,
+        description: trf('Trang “{0}” và các mục đã lưu trong trang sẽ bị xóa khỏi sổ tay. Các thẻ ôn tập SRS đã tạo vẫn được giữ nguyên.', { 0: item.title }),
+        confirmLabel: tr('Xóa trang'),
+        cancelLabel: tr('Giữ lại'),
+        tone: 'danger',
       });
       if (!confirmed) return;
 

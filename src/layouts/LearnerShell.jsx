@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import AppShell from './AppShell.jsx';
+import { FloatingLabelScopeProvider } from '@/components/ui';
 import { FloatingWidgetProvider } from '@/features/floating-widgets';
 import { SmartNotebookProvider } from '@/features/notebook/context/SmartNotebookContext.jsx';
 import FloatingNotebookWidget from '@/features/notebook/components/FloatingNotebookWidget.jsx';
@@ -13,17 +14,19 @@ export default function LearnerShell({ children, breadcrumb, searchValue, onSear
   return (
     <SmartNotebookProvider roleKey="Learner">
       <FloatingWidgetProvider>
-        <AppShell
-          roleKey="Learner"
-          breadcrumb={breadcrumb}
-          searchValue={searchValue}
-          onSearchChange={onSearchChange}
-          searchPlaceholder={searchPlaceholder}
-        >
-          {children}
-        </AppShell>
-        <LearnerSelectionCaptureLayer />
-        <FloatingNotebookWidget />
+        <FloatingLabelScopeProvider enabled>
+          <AppShell
+            roleKey="Learner"
+            breadcrumb={breadcrumb}
+            searchValue={searchValue}
+            onSearchChange={onSearchChange}
+            searchPlaceholder={searchPlaceholder}
+          >
+            {children}
+          </AppShell>
+          <LearnerSelectionCaptureLayer />
+          <FloatingNotebookWidget />
+        </FloatingLabelScopeProvider>
         <Suspense fallback={null}>
           <LearningMomentsManager />
         </Suspense>

@@ -339,7 +339,7 @@ export const jaAppCore = {
 
   // Learner dashboard
   'Học nhóm cùng Mentor': 'メンターとグループレッスン',
-  'Lớp 1–4 học viên · 10 tuần · 90 phút/buổi': '1クラス1〜4名・10週間・1回90分',
+  'Lớp nhóm nhỏ · Lịch học linh hoạt · Tương tác trực tiếp': '少人数グループ・柔軟な日程・リアルタイム指導',
   'Tìm Mentor': 'メンターを探す',
   'Xem tất cả': 'すべて見る',
   'Đặt mục tiêu JLPT để RikiPath gợi ý lộ trình và bài luyện phù hợp với trình độ.': 'JLPTの目標を設定すると、RikiPathがレベルに合ったロードマップと練習を提案します。',
@@ -472,7 +472,32 @@ export const jaAppCore = {
   'Điểm danh: Chưa tải được trạng thái': '出欠確認：状態を読み込めませんでした',
   'Chưa tải được danh sách điểm danh.': '出欠一覧を読み込めませんでした。',
 
-  // UnifiedToolbar
+  // UnifiedToolbar & Filter Dropdowns
   'Điều hướng danh mục': 'カテゴリ切替',
   'Tìm kiếm': '検索',
+  'Tất cả': 'すべて',
+  'Trạng thái': 'ステータス',
+  'Cấp độ': 'レベル',
+  'Giáo viên': '教師',
+  'Số sao': '評価',
+  'Quyền giảng dạy': '指導権限',
+
+  // Standardized Confirmation Dialogs
+  'Đề xuất sẽ bị hủy và không thể mở tuyển sinh. Bạn có thể gửi đăng ký mới bất cứ lúc nào.': '提案はキャンセルされ、受講募集を開始できなくなります。いつでも新しく登録申請を送信できます。',
+  'Đề xuất sẽ bị hủy và không được tiếp tục xét duyệt. Bạn có thể gửi đăng ký mới bất cứ lúc nào.': '提案はキャンセルされ、審査は継続されません。いつでも新しく登録申請を送信できます。',
+  'Đề xuất bị từ chối sẽ bị xóa khỏi danh sách đăng ký cá nhân và không hiển thị lại.': '却下された提案は個人の登録一覧から削除され、再表示されなくなります。',
+  'Bản nháp đề thi sẽ bị xóa khỏi danh sách và không thể khôi phục.': '試験の下書きは一覧から削除され、復元できません。',
+  'Bản nháp câu hỏi sẽ bị xóa khỏi ngân hàng và không thể khôi phục.': '問題の下書きは問題バンクから削除され、復元できません。',
+  'Bản nháp “{0}” sẽ bị xóa khỏi danh sách biên soạn và không thể khôi phục.': '下書き「{0}」は作成一覧から削除され、復元できません。',
+  'Thư mục trống “{0}” sẽ bị xóa khỏi sổ tay cá nhân của bạn.': '空のフォルダ「{0}」は個人ノートから削除されます。',
+  'Tệp “{0}” sẽ bị xóa khỏi sổ tay cá nhân của bạn.': 'ファイル「{0}」は個人ノートから削除されます。',
+  'Bản nháp "{0}" sẽ bị xóa khỏi danh sách và không thể khôi phục.': '下書き「{0}」は一覧から削除され、復元できません。',
+  'Bản nháp "{0}" sẽ bị xóa khỏi danh sách chưa gửi duyệt và không thể khôi phục.': '下書き「{0}」は未申請一覧から削除され、復元できません。',
+  'Sau khi phê duyệt, Giáo viên có thể chủ động chọn hạn tuyển sinh để mở lớp.': '承認後、教師は募集締切を設定してクラスを開講できるようになります。',
+  'Đề xuất sẽ trả về trạng thái Cần bổ sung kèm góp ý để Giáo viên cập nhật.': '提案はフィードバックとともに「補足待ち」ステータスへ差し戻されます。',
+  'Đề xuất sẽ bị từ chối và không thể mở lớp từ bản đăng ký này.': '提案は却下され、この申請からクラスを開講することはできません。',
+  'Kiểm tra thông tin lớp và lịch học trước khi xác nhận đăng ký.': '申込を確定する前に、クラス情報とスケジュールをご確認ください。',
+  'Hồ sơ sẽ bị từ chối và Giáo viên sẽ nhận được lý do phản hồi.': '申請は却下され、教師に却下理由が通知されます。',
+  'Giáo viên sẽ nhận được yêu cầu bổ sung tài liệu trước khi xét duyệt lại.': '再審査の前に、教師へ書類補足の依頼が送信されます。',
+  'Thẻ mẫu bị từ chối sẽ được trả về cho Biên soạn viên chỉnh sửa kèm lý do.': '却下されたテンプレートカードは理由とともに作成者へ差し戻されます。',
 };

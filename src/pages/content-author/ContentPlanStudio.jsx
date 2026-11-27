@@ -140,7 +140,7 @@ export default function ContentPlanStudio() {
       setResults(data.results || []);
       setBatchId('');
       setNotice(tr('Nội dung đã được tạo. Kiểm tra chi tiết rồi lưu bản nháp.'));
-      notify.success(tr('Đã tạo xong bản xem trước nội dung.'), tr('Hãy kiểm tra lại trước khi lưu bản nháp.'), {
+      notify.success(tr('Đã tạo bản xem trước nội dung.'), '', {
         key: 'author-plan-run',
         replace: true,
       });
@@ -650,22 +650,21 @@ export default function ContentPlanStudio() {
                       .join(' · ') || tr('Chưa có âm đọc')}
                   </p>
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-2 text-xs text-rp-text-2">
-                      <span>{tr('Số nét')}</span>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={40}
-                        value={item.strokeCount || 1}
-                        onChange={(e) => {
-                          const val = Math.max(1, Number(e.target.value) || 1);
-                          setKanjiItems((prev) =>
-                            prev.map((row, idx) => (idx === index ? { ...row, strokeCount: val } : row)),
-                          );
-                        }}
-                        className="w-20"
-                      />
-                    </label>
+                    <Input
+                      size="sm"
+                      type="number"
+                      min={1}
+                      max={40}
+                      label={tr('Số nét')}
+                      value={item.strokeCount || 1}
+                      onChange={(e) => {
+                        const val = Math.max(1, Number(e.target.value) || 1);
+                        setKanjiItems((prev) =>
+                          prev.map((row, idx) => (idx === index ? { ...row, strokeCount: val } : row)),
+                        );
+                      }}
+                      className="w-24"
+                    />
                     {item.isDuplicate && (
                       <Badge tone="warning" size="sm" icon={false}>{tr('Đã có trong kho')}</Badge>
                     )}

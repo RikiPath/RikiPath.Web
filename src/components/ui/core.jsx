@@ -14,6 +14,19 @@ import {
 import { SakuraSpinner } from './SakuraLoader.jsx';
 import { cx } from './cx.js';
 import UserAvatar from './UserAvatar.jsx';
+import {
+  FieldFloatingContext,
+  OutlinedField,
+  hasFloatingValue,
+  isFakePlaceholderOption,
+  isFloatingControlElement,
+  mergeRefs,
+  resolveFloatingPlaceholder,
+  splitFieldOuterClasses,
+  stripTrailingEllipsis,
+  useFieldFloatingContext,
+  useFloatingLabelEnabled,
+} from './FloatingField.jsx';
 import { useLocale } from '@/locales/locale.js';
 
 
@@ -26,11 +39,19 @@ const BUTTON_VARIANTS = {
     'bg-rp-surface text-rp-text border border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong hover:shadow-rp-xs disabled:text-rp-text-disabled disabled:bg-rp-muted disabled:hover:border-rp-line disabled:hover:bg-rp-muted disabled:hover:text-rp-text-disabled disabled:hover:shadow-none',
   outline:
     'bg-rp-surface text-rp-text border border-rp-line hover:border-rp-brand-border hover:bg-rp-brand-tint hover:text-rp-brand-strong hover:shadow-rp-xs disabled:text-rp-text-disabled disabled:bg-rp-muted disabled:hover:border-rp-line disabled:hover:bg-rp-muted disabled:hover:text-rp-text-disabled disabled:hover:shadow-none',
+  'sakura-outline':
+    'border border-rp-brand-border/75 bg-rp-surface text-rp-text shadow-rp-xs hover:border-rp-brand hover:bg-rp-brand-tint/85 hover:text-rp-brand-strong disabled:border-rp-line disabled:bg-rp-muted disabled:text-rp-text-disabled disabled:shadow-none',
   soft: 'bg-rp-brand-tint text-rp-brand-strong border border-rp-brand-soft hover:bg-rp-brand-soft disabled:opacity-60 disabled:hover:bg-rp-brand-tint',
   ghost: 'bg-transparent text-rp-text-2 hover:bg-rp-muted hover:text-rp-text disabled:text-rp-text-disabled disabled:hover:bg-transparent disabled:hover:text-rp-text-disabled',
   link: 'rp-underline bg-transparent text-rp-brand-strong hover:text-rp-brand-deep px-1 shadow-none disabled:text-rp-text-disabled',
   success:
     'rp-btn-primary bg-rp-brand-pressed text-white shadow-rp-brand hover:bg-rp-brand-strong enabled:hover:scale-[1.02] enabled:hover:shadow-[0_10px_24px_-8px_rgba(194,67,98,0.45)] enabled:active:scale-[0.985] enabled:active:duration-100 motion-reduce:transform-none disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:shadow-none',
+  confirm:
+    'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:shadow-none',
+  warning:
+    'bg-amber-600 text-white shadow-sm hover:bg-amber-700 active:bg-amber-800 disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:shadow-none',
+  neutral:
+    'bg-rp-surface text-rp-text-2 border border-rp-line hover:bg-rp-muted hover:text-rp-text hover:border-rp-line-strong disabled:text-rp-text-disabled disabled:bg-rp-muted disabled:hover:border-rp-line disabled:hover:bg-rp-muted',
   danger: 'bg-rp-danger text-white hover:bg-[#A61F1F] disabled:bg-rp-muted-strong disabled:text-rp-text-disabled disabled:hover:bg-rp-muted-strong',
   'danger-soft':
     'bg-rp-muted/70 text-rp-text-2 border border-rp-line hover:border-rp-danger-line hover:bg-rp-danger-bg/60 hover:text-rp-danger disabled:opacity-60 disabled:hover:border-rp-line disabled:hover:bg-rp-muted/70 disabled:hover:text-rp-text-2',
@@ -73,7 +94,9 @@ export const Button = forwardRef(function Button(
   const isDisabled = disabled || loading;
   const isNativeButton = Tag === 'button';
   const compactIcon = size === 'sm' || size === 'xs';
-  const spinnerTone = variant === 'primary' || variant === 'danger' || variant === 'success' ? 'light' : 'brand';
+  const isSolidVariant =
+    variant === 'primary' || variant === 'danger' || variant === 'success' || variant === 'confirm' || variant === 'warning';
+  const spinnerTone = isSolidVariant ? 'light' : 'brand';
   // Without a leading icon the spinner sits over the (transparent, still announced) label, so the width never changes.
   const overlaySpinner = loading && !Icon && children != null;
   return (
@@ -83,6 +106,7 @@ export const Button = forwardRef(function Button(
       disabled={isNativeButton ? isDisabled : undefined}
       aria-disabled={!isNativeButton && isDisabled ? true : undefined}
       aria-busy={loading || undefined}
+      data-solid-surface={isSolidVariant ? variant : undefined}
       onClick={!isNativeButton && isDisabled ? (e) => e.preventDefault() : onClick}
       className={cx(
         'rp-focus rp-press group relative inline-flex cursor-pointer select-none items-center justify-center font-semibold transform-gpu backface-hidden disabled:cursor-not-allowed motion-reduce:transform-none',
@@ -146,16 +170,15 @@ export const IconButton = forwardRef(function IconButton(
   );
 });
 
-/** Shared coral-rose corner badge for top-bar circular icon controls (Language Globe, Smart Calendar, Notifications). */
+/** Shared corner badge for top-bar circular icon controls (e.g. Language Globe). */
 export function HeaderIconBadge({ children, pulse = false, className }) {
+  void pulse;
   if (children == null || children === false) return null;
   return (
     <span
       aria-hidden="true"
       className={cx(
-        // Seamless token-backed coral-rose badge (#D6404E / #FFFFFF = 4.52:1 AA), no white border, subtle shadow.
-        'rp-header-badge pointer-events-none absolute -right-0.5 -top-0.5 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full px-[4px] text-[9.5px] font-semibold leading-none tracking-[-0.01em]',
-        pulse && 'rp-bell-badge-ping',
+        'rp-header-badge pointer-events-none absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9.5px] font-semibold leading-none tracking-[-0.01em]',
         className,
       )}
     >
@@ -238,7 +261,7 @@ export function Badge({ tone = 'neutral', icon, children, className, size = 'md'
     <span
       className={cx(
         'inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full border font-semibold',
-        size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs',
+        size === 'sm' ? 'px-2 py-0.5 text-[11.5px] leading-4' : 'px-2.5 py-0.5 text-xs',
         t.cls,
         className,
       )}
@@ -276,21 +299,37 @@ export function Banner({ tone = 'info', title, children, actions, onDismiss, cla
 
 /* ------------------------------------------------------------------ Form fields */
 
-export function Field({ label, hint, error, required, children, className, id: idProp, counter }) {
+export function Field({ label, hint, error, required, children, className, id: idProp, counter, floatingLabel }) {
   const { tr } = useLocale();
   const autoId = useId();
   const id = idProp || autoId;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
-  const control = typeof children === 'function' ? children({ id, describedBy, invalid: Boolean(error) }) : children;
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel);
+
   const rawLabel = typeof label === 'string' ? tr(label) : label;
   const hasTrailingStar = typeof rawLabel === 'string' && /\s*\*\s*$/.test(rawLabel);
   const cleanLabel = hasTrailingStar ? rawLabel.replace(/\s*\*\s*$/, '') : rawLabel;
   const showRequiredStar = Boolean(required || hasTrailingStar);
-  return (
+
+  const control = typeof children === 'function' ? children({ id, describedBy, invalid: Boolean(error) }) : children;
+  const isFloatingChild = Boolean(floatingEnabled && cleanLabel && isFloatingControlElement(control));
+
+  const fieldCtxValue = useMemo(
+    () => (isFloatingChild ? {
+      label: cleanLabel,
+      required: showRequiredStar,
+      htmlFor: id,
+      invalid: Boolean(error),
+      describedBy,
+    } : null),
+    [isFloatingChild, cleanLabel, showRequiredStar, id, error, describedBy],
+  );
+
+  const body = (
     <div className={cx('min-w-0', className)}>
-      {label && (
+      {label && !isFloatingChild && (
         <div className="mb-1.5 flex min-h-4 items-center justify-between gap-2">
           <label htmlFor={id} className="inline-flex items-center gap-1 text-[13px] font-semibold leading-4 text-rp-text">
             <span>{cleanLabel}</span>
@@ -300,19 +339,32 @@ export function Field({ label, hint, error, required, children, className, id: i
         </div>
       )}
       {control}
-      {hint && !error && <p id={hintId} className="mt-1.5 text-xs leading-5 text-rp-text-muted">{tr(hint)}</p>}
-      {error && (
-        <p id={errorId} role="alert" className="mt-1.5 flex items-start gap-1 text-xs font-medium leading-5 text-rp-danger">
-          <CircleAlert aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{typeof error === 'string' ? tr(error) : error}</span>
-        </p>
+      {(hint || error || (isFloatingChild && counter)) && (
+        <div className="mt-1.5 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            {hint && !error && <p id={hintId} className="text-xs leading-5 text-rp-text-muted">{tr(hint)}</p>}
+            {error && (
+              <p id={errorId} role="alert" className="flex items-start gap-1 text-xs font-medium leading-5 text-rp-danger">
+                <CircleAlert aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{typeof error === 'string' ? tr(error) : error}</span>
+              </p>
+            )}
+          </div>
+          {isFloatingChild && counter && (
+            <span className="shrink-0 text-[11px] leading-5 tabular-nums text-rp-text-muted">{counter}</span>
+          )}
+        </div>
       )}
     </div>
   );
+
+  return fieldCtxValue ? (
+    <FieldFloatingContext.Provider value={fieldCtxValue}>{body}</FieldFloatingContext.Provider>
+  ) : body;
 }
 
 const CONTROL_BASE =
-  'rp-control rounded-rp-input border bg-rp-surface px-3.5 text-sm text-rp-text placeholder:text-rp-text-disabled transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-rp-brand focus:shadow-[0_0_0_3px_rgba(224,90,122,0.18)] disabled:cursor-not-allowed disabled:bg-rp-muted disabled:text-rp-text-disabled';
+  'rp-control rounded-rp-input border bg-rp-surface px-3.5 text-sm text-rp-text placeholder:text-rp-text-disabled transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)] disabled:cursor-not-allowed disabled:bg-rp-muted disabled:text-rp-text-disabled';
 const CONTROL = cx('w-full', CONTROL_BASE);
 
 /**
@@ -321,19 +373,159 @@ const CONTROL = cx('w-full', CONTROL_BASE);
  * gets the same focus colour via `.rp-field-icon` rules in tokens.css.
  */
 const FIELD_SIZES = {
-  sm: 'h-8 px-3 text-xs rounded-[10px]',
+  sm: 'h-9 px-3 text-xs rounded-[10px]',
   md: 'h-10 px-3.5 text-sm rounded-rp-input',
   lg: 'h-12 px-4 text-[15px] rounded-xl',
 };
 
-export const Input = forwardRef(function Input({ invalid, className, icon: LeadIcon, ...rest }, ref) {
-  const { fitContent = false, size = 'md', htmlSize, ...inputRest } = rest;
+export const Input = forwardRef(function Input(
+  {
+    invalid: invalidProp,
+    className,
+    icon: LeadIcon,
+    label: labelProp,
+    required: requiredProp,
+    floatingLabel,
+    fitContent = false,
+    size = 'md',
+    htmlSize,
+    id: idProp,
+    placeholder: placeholderProp,
+    type,
+    value,
+    defaultValue,
+    disabled,
+    readOnly,
+    onFocus,
+    onBlur,
+    onChange,
+    ...inputRest
+  },
+  ref,
+) {
+  const { tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
+  const domRef = useRef(null);
+  const [focused, setFocused] = useState(false);
+  const [uncontrolledHasValue, setUncontrolledHasValue] = useState(() => hasFloatingValue(defaultValue));
+
+  useEffect(() => {
+    if (value === undefined && domRef.current) {
+      const domFilled = hasFloatingValue(domRef.current.value);
+      setUncontrolledHasValue((prev) => (prev === domFilled ? prev : domFilled));
+    }
+  }, [value]);
+
   const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
+  const isExcludedType = type === 'password' || type === 'file' || type === 'hidden';
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && !isExcludedType && labelProp !== false;
+  const resolvedPlaceholder = placeholderProp != null ? tr(placeholderProp) : undefined;
+  const effectiveLabel = labelProp != null && labelProp !== false
+    ? (typeof labelProp === 'string' ? tr(labelProp) : labelProp)
+    : (fieldCtx?.label ?? (inputRest['aria-label'] ? tr(inputRest['aria-label']) : (resolvedPlaceholder ? stripTrailingEllipsis(resolvedPlaceholder) : null)));
+
+  const invalid = invalidProp ?? fieldCtx?.invalid ?? false;
+  const required = requiredProp ?? fieldCtx?.required ?? false;
+  const inputId = idProp || fieldCtx?.htmlFor;
+  const ariaDescribedBy = inputRest['aria-describedby'] ?? fieldCtx?.describedBy;
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const hasValue = value !== undefined ? hasFloatingValue(value) : uncontrolledHasValue;
+  const isAlwaysFloatType = type === 'date' || type === 'time' || type === 'datetime-local';
+  const isFloated = Boolean(isAlwaysFloatType || focused || hasValue);
+
+  if (hasFloating) {
+    const { outerClassName, innerClassName } = splitFieldOuterClasses(className);
+    const effectivePlaceholder = resolveFloatingPlaceholder({
+      hasFloatingLabel: true,
+      isFloated,
+      focused,
+      hasValue,
+      label: effectiveLabel,
+      placeholder: resolvedPlaceholder,
+    });
+
+    return (
+      <OutlinedField
+        label={effectiveLabel}
+        htmlFor={inputId}
+        required={required}
+        focused={focused}
+        hasValue={hasValue}
+        invalid={invalid}
+        disabled={disabled}
+        readOnly={readOnly}
+        hasLeadingIcon={Boolean(LeadIcon)}
+        alwaysFloat={isAlwaysFloatType}
+        size={resolvedSize}
+        fitContent={fitContent}
+        className={outerClassName}
+      >
+        {LeadIcon && (
+          <LeadIcon
+            aria-hidden="true"
+            className={cx(
+              'pointer-events-none absolute top-1/2 z-[1] -translate-y-1/2 transition-colors',
+              focused ? (invalid ? 'text-rp-danger' : 'text-rp-brand-strong') : 'text-rp-text-muted',
+              resolvedSize === 'sm' ? 'left-3 h-3.5 w-3.5' : 'left-3.5 h-4 w-4',
+            )}
+          />
+        )}
+        <input
+          ref={mergeRefs(ref, domRef)}
+          id={inputId}
+          type={type}
+          size={htmlSize}
+          value={value}
+          defaultValue={defaultValue}
+          disabled={disabled}
+          readOnly={readOnly}
+          required={required}
+          placeholder={effectivePlaceholder}
+          aria-invalid={invalid || undefined}
+          aria-describedby={ariaDescribedBy}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            if (value === undefined) setUncontrolledHasValue(hasFloatingValue(e.target.value));
+            onBlur?.(e);
+          }}
+          onChange={(e) => {
+            if (value === undefined) setUncontrolledHasValue(hasFloatingValue(e.target.value));
+            onChange?.(e);
+          }}
+          className={cx(
+            'rp-control rounded-[inherit] border-0 border-transparent bg-transparent text-rp-text placeholder:text-rp-text-disabled focus:outline-none focus:shadow-none disabled:cursor-not-allowed disabled:text-rp-text-disabled',
+            fitContent ? 'w-fit max-w-full' : 'w-full',
+            FIELD_SIZES[resolvedSize],
+            LeadIcon && (resolvedSize === 'sm' ? 'pl-8.5' : 'pl-10'),
+            innerClassName,
+          )}
+          {...inputRest}
+        />
+      </OutlinedField>
+    );
+  }
+
   const input = (
     <input
-      ref={ref}
+      ref={mergeRefs(ref, domRef)}
+      id={inputId}
+      type={type}
       size={htmlSize}
+      value={value}
+      defaultValue={defaultValue}
+      disabled={disabled}
+      readOnly={readOnly}
+      required={required}
+      placeholder={resolvedPlaceholder}
       aria-invalid={invalid || undefined}
+      aria-describedby={ariaDescribedBy}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onChange={onChange}
       className={cx(
         CONTROL_BASE,
         fitContent ? 'w-fit max-w-full' : 'w-full',
@@ -359,6 +551,7 @@ export const Input = forwardRef(function Input({ invalid, className, icon: LeadI
     </div>
   );
 });
+Input.rpFloatingLabel = true;
 
 export const NumberInput = forwardRef(function NumberInput(
   {
@@ -368,7 +561,7 @@ export const NumberInput = forwardRef(function NumberInput(
     max = Number.MAX_SAFE_INTEGER,
     step = 1,
     disabled = false,
-    invalid = false,
+    invalid: invalidProp,
     size = 'md',
     fullWidth = false,
     integerOnly = true,
@@ -376,14 +569,23 @@ export const NumberInput = forwardRef(function NumberInput(
     className = '',
     decrementLabel = 'Giảm',
     incrementLabel = 'Tăng',
+    label: labelProp,
+    required: requiredProp,
+    floatingLabel,
+    id: idProp,
     onKeyDown,
+    onFocus,
+    onBlur,
     ...rest
   },
   ref,
 ) {
   const { tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
+  const [focused, setFocused] = useState(false);
+
   const heightCls = size === 'sm'
-    ? 'h-8 text-xs rounded-[10px]'
+    ? 'h-9 text-xs rounded-[10px]'
     : size === 'lg'
       ? 'h-12 text-[15px] rounded-xl'
       : 'h-10 text-sm rounded-rp-input';
@@ -393,23 +595,24 @@ export const NumberInput = forwardRef(function NumberInput(
   const clamp = (n) => Math.min(max, Math.max(min, n));
   const hasExplicitWidth = /(?:^|\s)(?:w-|min-w-|max-w-)/.test(className);
 
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && labelProp !== false;
+  const effectiveLabel = labelProp != null && labelProp !== false
+    ? (typeof labelProp === 'string' ? tr(labelProp) : labelProp)
+    : (fieldCtx?.label ?? (rest['aria-label'] ? tr(rest['aria-label']) : null));
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const invalid = invalidProp ?? fieldCtx?.invalid ?? false;
+  const required = requiredProp ?? fieldCtx?.required ?? false;
+  const inputId = idProp || fieldCtx?.htmlFor;
+  const ariaDescribedBy = rest['aria-describedby'] ?? fieldCtx?.describedBy;
+
   const handleStep = (delta) => {
     if (disabled) return;
     const base = hasNumeric ? (integerOnly ? Math.trunc(parsed) : parsed) : clamp(0);
     onChange?.(clamp(base + delta * step));
   };
 
-  const control = (
-    <div
-      className={cx(
-        'inline-flex items-stretch overflow-hidden border bg-rp-surface transition-colors focus-within:border-rp-brand focus-within:ring-2 focus-within:ring-rp-brand/15',
-        fullWidth ? 'w-full' : (!hasExplicitWidth && 'w-[132px]'),
-        heightCls,
-        invalid ? 'border-rp-danger' : 'border-rp-line',
-        disabled && 'cursor-not-allowed bg-rp-bg-2 opacity-60',
-        className,
-      )}
-    >
+  const stepperContent = (
+    <>
       <button
         type="button"
         disabled={disabled || (hasNumeric && parsed <= min)}
@@ -424,13 +627,16 @@ export const NumberInput = forwardRef(function NumberInput(
       </button>
       <input
         ref={ref}
+        id={inputId}
         type="number"
         inputMode={integerOnly ? 'numeric' : 'decimal'}
         min={min}
         max={max}
         step={step}
         disabled={disabled}
+        required={required}
         aria-invalid={invalid || undefined}
+        aria-describedby={ariaDescribedBy}
         value={value ?? ''}
         onKeyDown={(e) => {
           onKeyDown?.(e);
@@ -456,7 +662,9 @@ export const NumberInput = forwardRef(function NumberInput(
           const num = Number(raw);
           if (Number.isFinite(num)) onChange?.(num);
         }}
-        className="w-full min-w-0 bg-transparent px-2 text-center font-semibold tabular-nums text-rp-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        onFocus={onFocus}
+        onBlur={onBlur}
+        className="w-full min-w-0 border-0 bg-transparent px-2 text-center font-semibold tabular-nums text-rp-text outline-none focus:shadow-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         {...rest}
       />
       <button
@@ -471,29 +679,199 @@ export const NumberInput = forwardRef(function NumberInput(
       >
         +
       </button>
+    </>
+  );
+
+  const control = hasFloating ? (
+    (() => {
+      const { outerClassName, innerClassName } = splitFieldOuterClasses(className);
+      return (
+        <OutlinedField
+          label={effectiveLabel}
+          htmlFor={inputId}
+          required={required}
+          focused={focused}
+          hasValue={hasNumeric}
+          alwaysFloat
+          invalid={invalid}
+          disabled={disabled}
+          size={size}
+          fitContent={!fullWidth && !hasExplicitWidth}
+          className={cx(fullWidth ? 'w-full' : (!hasExplicitWidth && 'w-[132px]'), outerClassName)}
+        >
+          <div
+            onFocus={() => setFocused(true)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
+            }}
+            className={cx(
+              'inline-flex w-full items-stretch overflow-hidden rounded-[inherit]',
+              heightCls,
+              disabled && 'cursor-not-allowed opacity-60',
+              innerClassName,
+            )}
+          >
+            {stepperContent}
+          </div>
+        </OutlinedField>
+      );
+    })()
+  ) : (
+    <div
+      className={cx(
+        'inline-flex items-stretch overflow-hidden border bg-rp-surface transition-[border-color,box-shadow] duration-150',
+        fullWidth ? 'w-full' : (!hasExplicitWidth && 'w-[132px]'),
+        heightCls,
+        invalid
+          ? 'border-rp-danger focus-within:border-rp-danger focus-within:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+          : 'border-rp-line focus-within:border-rp-brand focus-within:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]',
+        disabled && 'cursor-not-allowed bg-rp-bg-2 opacity-60',
+        className,
+      )}
+    >
+      {stepperContent}
     </div>
   );
 
   if (!unit) return control;
   return (
-    <div className="inline-flex max-w-full items-center gap-2">
+    <div className={cx('inline-flex max-w-full items-center gap-2', fullWidth && 'w-full')}>
       {control}
       <span className="whitespace-nowrap text-[13px] font-medium text-rp-text-muted">{tr(unit)}</span>
     </div>
   );
 });
+NumberInput.rpFloatingLabel = true;
 
-export const Textarea = forwardRef(function Textarea({ invalid, className, rows = 4, ...rest }, ref) {
+export const Textarea = forwardRef(function Textarea(
+  {
+    invalid: invalidProp,
+    className,
+    rows = 4,
+    label: labelProp,
+    required: requiredProp,
+    floatingLabel,
+    id: idProp,
+    placeholder: placeholderProp,
+    value,
+    defaultValue,
+    disabled,
+    readOnly,
+    onFocus,
+    onBlur,
+    onChange,
+    ...rest
+  },
+  ref,
+) {
+  const { tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
+  const domRef = useRef(null);
+  const [focused, setFocused] = useState(false);
+  const [uncontrolledHasValue, setUncontrolledHasValue] = useState(() => hasFloatingValue(defaultValue));
+
+  useEffect(() => {
+    if (value === undefined && domRef.current) {
+      const domFilled = hasFloatingValue(domRef.current.value);
+      setUncontrolledHasValue((prev) => (prev === domFilled ? prev : domFilled));
+    }
+  }, [value]);
+
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && labelProp !== false;
+  const resolvedPlaceholder = placeholderProp != null ? tr(placeholderProp) : undefined;
+  const effectiveLabel = labelProp != null && labelProp !== false
+    ? (typeof labelProp === 'string' ? tr(labelProp) : labelProp)
+    : (fieldCtx?.label ?? (rest['aria-label'] ? tr(rest['aria-label']) : (resolvedPlaceholder ? stripTrailingEllipsis(resolvedPlaceholder) : null)));
+
+  const invalid = invalidProp ?? fieldCtx?.invalid ?? false;
+  const required = requiredProp ?? fieldCtx?.required ?? false;
+  const textareaId = idProp || fieldCtx?.htmlFor;
+  const ariaDescribedBy = rest['aria-describedby'] ?? fieldCtx?.describedBy;
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const hasValue = value !== undefined ? hasFloatingValue(value) : uncontrolledHasValue;
+  const isFloated = Boolean(focused || hasValue);
+
+  if (hasFloating) {
+    const { outerClassName, innerClassName } = splitFieldOuterClasses(className);
+    const effectivePlaceholder = resolveFloatingPlaceholder({
+      hasFloatingLabel: true,
+      isFloated,
+      focused,
+      hasValue,
+      label: effectiveLabel,
+      placeholder: resolvedPlaceholder,
+    });
+
+    return (
+      <OutlinedField
+        label={effectiveLabel}
+        htmlFor={textareaId}
+        required={required}
+        focused={focused}
+        hasValue={hasValue}
+        invalid={invalid}
+        disabled={disabled}
+        readOnly={readOnly}
+        multiline
+        className={outerClassName}
+      >
+        <textarea
+          ref={mergeRefs(ref, domRef)}
+          id={textareaId}
+          rows={rows}
+          value={value}
+          defaultValue={defaultValue}
+          disabled={disabled}
+          readOnly={readOnly}
+          required={required}
+          placeholder={effectivePlaceholder}
+          aria-invalid={invalid || undefined}
+          aria-describedby={ariaDescribedBy}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            if (value === undefined) setUncontrolledHasValue(hasFloatingValue(e.target.value));
+            onBlur?.(e);
+          }}
+          onChange={(e) => {
+            if (value === undefined) setUncontrolledHasValue(hasFloatingValue(e.target.value));
+            onChange?.(e);
+          }}
+          className={cx(
+            'rp-control block w-full rounded-[inherit] border-0 border-transparent bg-transparent px-3.5 py-2.5 text-sm leading-6 text-rp-text placeholder:text-rp-text-disabled focus:outline-none focus:shadow-none disabled:cursor-not-allowed disabled:text-rp-text-disabled',
+            innerClassName,
+          )}
+          {...rest}
+        />
+      </OutlinedField>
+    );
+  }
+
   return (
     <textarea
-      ref={ref}
+      ref={mergeRefs(ref, domRef)}
+      id={textareaId}
       rows={rows}
+      value={value}
+      defaultValue={defaultValue}
+      disabled={disabled}
+      readOnly={readOnly}
+      required={required}
+      placeholder={resolvedPlaceholder}
       aria-invalid={invalid || undefined}
+      aria-describedby={ariaDescribedBy}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onChange={onChange}
       className={cx(CONTROL, 'py-2.5 leading-6', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
       {...rest}
     />
   );
 });
+Textarea.rpFloatingLabel = true;
 
 /* ------------------------------------------------------------------ Select & CustomSelect */
 
@@ -509,21 +887,41 @@ export const SearchInput = forwardRef(function SearchInput(
     onClear,
     placeholder = 'Tìm kiếm...',
     clearLabel = 'Xóa tìm kiếm',
+    label: labelProp,
+    required: requiredProp,
+    invalid: invalidProp,
+    floatingLabel,
+    id: idProp,
     size = 'md',
     fitContent = false,
     className,
     inputClassName,
+    onFocus,
+    onBlur,
     ...rest
   },
   ref,
 ) {
   const { tr } = useLocale();
-  const hasValue = String(value ?? '').length > 0;
+  const fieldCtx = useFieldFloatingContext();
+  const [focused, setFocused] = useState(false);
+
+  const hasValue = hasFloatingValue(value);
   const resolvedPlaceholder = tr(placeholder);
   const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && labelProp !== false;
+  const effectiveLabel = labelProp != null && labelProp !== false
+    ? (typeof labelProp === 'string' ? tr(labelProp) : labelProp)
+    : (fieldCtx?.label ?? (rest['aria-label'] ? tr(rest['aria-label']) : stripTrailingEllipsis(resolvedPlaceholder)));
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const invalid = invalidProp ?? fieldCtx?.invalid ?? false;
+  const required = requiredProp ?? fieldCtx?.required ?? false;
+  const searchId = idProp || fieldCtx?.htmlFor;
+  const ariaDescribedBy = rest['aria-describedby'] ?? fieldCtx?.describedBy;
+
   const sizeClass =
     resolvedSize === 'sm'
-      ? 'h-8 pl-8.5 pr-3 text-xs rounded-[10px]'
+      ? 'h-9 pl-8.5 pr-3 text-xs rounded-[10px]'
       : resolvedSize === 'lg'
         ? 'h-12 pl-10.5 pr-4 text-[15px] rounded-xl'
         : 'h-10 pl-10 pr-3.5 text-sm rounded-rp-input';
@@ -535,6 +933,110 @@ export const SearchInput = forwardRef(function SearchInput(
       onChange({ target: { value: '' }, currentTarget: { value: '' } });
     }
   };
+
+  if (hasFloating) {
+    const isFloated = Boolean(focused || hasValue);
+    const effectivePlaceholder = resolveFloatingPlaceholder({
+      hasFloatingLabel: true,
+      isFloated,
+      focused,
+      hasValue,
+      label: effectiveLabel,
+      placeholder: resolvedPlaceholder,
+    });
+
+    return (
+      <OutlinedField
+        label={effectiveLabel}
+        htmlFor={searchId}
+        required={required}
+        focused={focused}
+        hasValue={hasValue}
+        invalid={invalid}
+        disabled={rest.disabled}
+        readOnly={rest.readOnly}
+        hasLeadingIcon
+        size={resolvedSize}
+        fitContent={fitContent}
+        className={cx(fitContent && 'min-w-[168px] sm:max-w-[300px]', className)}
+      >
+        <Search
+          aria-hidden="true"
+          className={cx(
+            'pointer-events-none absolute top-1/2 z-[1] -translate-y-1/2 transition-colors',
+            focused ? (invalid ? 'text-rp-danger' : 'text-rp-brand-strong') : 'text-rp-text-muted',
+            resolvedSize === 'sm' ? 'left-3 h-3.5 w-3.5' : 'left-3.5 h-4 w-4',
+          )}
+        />
+        <div className={cx(fitContent ? 'inline-grid w-full min-w-0 items-center' : 'w-full')}>
+          <input
+            ref={ref}
+            id={searchId}
+            type="search"
+            value={value}
+            onChange={onChange}
+            placeholder={effectivePlaceholder}
+            aria-invalid={invalid || undefined}
+            aria-describedby={ariaDescribedBy}
+            onFocus={(e) => {
+              setFocused(true);
+              onFocus?.(e);
+            }}
+            onBlur={(e) => {
+              setFocused(false);
+              onBlur?.(e);
+            }}
+            className={cx(
+              'rp-control rounded-[inherit] border-0 border-transparent bg-transparent text-rp-text placeholder:text-rp-text-disabled focus:outline-none focus:shadow-none disabled:cursor-not-allowed disabled:text-rp-text-disabled',
+              fitContent ? 'col-start-1 row-start-1 w-full min-w-0 pr-9' : cx('w-full', hasValue && 'pr-9'),
+              sizeClass,
+              '[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden',
+              inputClassName,
+            )}
+            {...rest}
+          />
+          {fitContent && (
+            <>
+              <span
+                aria-hidden="true"
+                className={cx('pointer-events-none col-start-1 row-start-1 flex h-0 select-none overflow-hidden whitespace-nowrap invisible', sizerTextClass)}
+              >
+                {effectiveLabel}
+              </span>
+              <span
+                aria-hidden="true"
+                className={cx('pointer-events-none col-start-1 row-start-1 flex h-0 select-none overflow-hidden whitespace-nowrap invisible', sizerTextClass)}
+              >
+                {resolvedPlaceholder}
+              </span>
+              {hasValue && (
+                <span
+                  aria-hidden="true"
+                  className={cx('pointer-events-none col-start-1 row-start-1 flex h-0 select-none overflow-hidden whitespace-nowrap invisible', sizerTextClass)}
+                >
+                  {String(value)}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        {hasValue && !rest.disabled && !rest.readOnly && (
+          <button
+            type="button"
+            onClick={handleClear}
+            aria-label={tr(clearLabel)}
+            className={cx(
+              'rp-focus absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center justify-center rounded-full text-rp-text-muted hover:bg-rp-muted hover:text-rp-text',
+              resolvedSize === 'sm' ? 'h-6 w-6' : 'h-7 w-7',
+            )}
+          >
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </OutlinedField>
+    );
+  }
+
   return (
     <div
       className={cx(
@@ -552,10 +1054,13 @@ export const SearchInput = forwardRef(function SearchInput(
       />
       <input
         ref={ref}
+        id={searchId}
         type="search"
         value={value}
         onChange={onChange}
         placeholder={resolvedPlaceholder}
+        onFocus={onFocus}
+        onBlur={onBlur}
         className={cx(
           CONTROL_BASE,
           fitContent ? 'col-start-1 row-start-1 w-full min-w-0 pr-9' : cx('w-full', hasValue && 'pr-9'),
@@ -600,6 +1105,7 @@ export const SearchInput = forwardRef(function SearchInput(
     </div>
   );
 });
+SearchInput.rpFloatingLabel = true;
 
 /**
  * Premium Sakura Custom Select / Dropdown Listbox.
@@ -610,10 +1116,13 @@ export const SearchInput = forwardRef(function SearchInput(
 export const CustomSelect = forwardRef(function CustomSelect(
   {
     value,
+    defaultValue,
     onChange,
     options = [],
     placeholder = 'Chọn...',
     label,
+    required: requiredProp = false,
+    floatingLabel,
     size = 'md',
     align = 'start',
     fitContent = false,
@@ -635,18 +1144,27 @@ export const CustomSelect = forwardRef(function CustomSelect(
     icon: LeadIcon,
     id: propId,
     name,
-    'aria-describedby': ariaDescribedBy,
+    'aria-describedby': ariaDescribedByProp,
+    'aria-label': ariaLabelProp,
+    onFocus: onFocusProp,
+    onBlur: onBlurProp,
     children,
     ...rest
   },
   forwardedRef,
 ) {
   const { tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
   const generatedId = useId();
-  const selectId = propId || generatedId;
+  const selectId = propId || fieldCtx?.htmlFor || generatedId;
   const listboxId = `${selectId}-listbox`;
 
+  const isControlled = value !== undefined;
+  const [internalValue, setInternalValue] = useState(() => (defaultValue ?? ''));
+  const effectiveValue = isControlled ? value : internalValue;
+
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [menuStyle, setMenuStyle] = useState(null);
@@ -660,8 +1178,9 @@ export const CustomSelect = forwardRef(function CustomSelect(
 
   // Normalize options: handles array of objects, primitives, or nested React <option>/Fragment children
   const normalizedOptions = useMemo(() => {
+    let rawList = [];
     if (options && options.length > 0) {
-      return options.map((opt) => {
+      rawList = options.map((opt) => {
         if (opt == null) return { value: '', label: '' };
         if (typeof opt !== 'object') return { value: String(opt), label: String(opt) };
         return {
@@ -674,8 +1193,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
           disabled: Boolean(opt.disabled),
         };
       });
-    }
-    if (children) {
+    } else if (children) {
       const list = [];
       const iterate = (nodes) => {
         if (nodes == null || typeof nodes === 'boolean') return;
@@ -699,15 +1217,20 @@ export const CustomSelect = forwardRef(function CustomSelect(
         }
       };
       iterate(children);
-      return list;
+      rawList = list;
     }
-    return [];
-  }, [options, children]);
+    return rawList.filter((opt) => !isFakePlaceholderOption(opt, tr));
+  }, [options, children, tr]);
 
   const selectedOption = useMemo(() => {
-    if (value === undefined || value === null) return null;
-    return normalizedOptions.find((opt) => String(opt.value) === String(value)) || null;
-  }, [normalizedOptions, value]);
+    if (effectiveValue === undefined || effectiveValue === null) return null;
+    return normalizedOptions.find((opt) => String(opt.value) === String(effectiveValue)) || null;
+  }, [normalizedOptions, effectiveValue]);
+
+  const hasOptionCounts = useMemo(
+    () => normalizedOptions.some((opt) => opt.count != null),
+    [normalizedOptions],
+  );
 
   const filteredOptions = useMemo(() => {
     if (!searchable || !searchQuery.trim()) return normalizedOptions;
@@ -726,7 +1249,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
     const flip = spaceBelow < 230 && spaceAbove > spaceBelow;
-    const width = Math.max(rect.width, fitContent ? 156 : 200);
+    const width = Math.max(rect.width, fitContent ? 108 : 180);
     const left = align === 'end'
       ? Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))
       : Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
@@ -751,7 +1274,11 @@ export const CustomSelect = forwardRef(function CustomSelect(
     wasOpenRef.current = true;
 
     if (justOpened) {
-      const idx = Math.max(0, filteredOptions.findIndex((opt) => String(opt.value) === String(value)));
+      const selectedIdx = effectiveValue != null
+        ? filteredOptions.findIndex((opt) => String(opt.value) === String(effectiveValue))
+        : -1;
+      const firstEnabledIdx = filteredOptions.findIndex((opt) => !opt.disabled);
+      const idx = selectedIdx >= 0 ? selectedIdx : Math.max(0, firstEnabledIdx);
       setActiveIndex(idx);
       const timer = window.setTimeout(() => {
         if (searchable && searchInputRef.current) {
@@ -763,7 +1290,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
       return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, [open, searchable, filteredOptions, value, updateMenuPosition]);
+  }, [open, searchable, filteredOptions, effectiveValue, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -798,6 +1325,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
   const handleSelect = (opt) => {
     if (opt.disabled || disabled || readOnly) return;
     const nextVal = opt.value;
+    if (!isControlled) setInternalValue(nextVal);
     if (onChange) {
       const event = {
         target: { value: nextVal, name },
@@ -859,14 +1387,24 @@ export const CustomSelect = forwardRef(function CustomSelect(
     }
   };
 
-  const isInvalid = invalid || Boolean(error);
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && label !== false;
+  const effectiveLabel = label != null && label !== false
+    ? (typeof label === 'string' ? tr(label) : label)
+    : (fieldCtx?.label ?? (ariaLabelProp ? tr(ariaLabelProp) : null));
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const hasValue = Boolean(selectedOption);
+  const isInvalid = invalid || Boolean(error) || Boolean(fieldCtx?.invalid);
+  const isRequired = Boolean(requiredProp || fieldCtx?.required);
+  const ariaDescribedBy = ariaDescribedByProp ?? fieldCtx?.describedBy;
   const showClear = clearable && Boolean(selectedOption) && !disabled && !readOnly;
   const sizeClasses =
     size === 'sm'
-      ? 'h-8 px-3 text-xs rounded-[10px] font-semibold'
+      ? 'h-9 px-3 text-xs rounded-[10px] font-semibold'
       : size === 'lg'
         ? 'h-12 px-4 text-[15px] rounded-xl font-semibold'
         : 'h-10 px-3.5 text-sm rounded-xl font-semibold';
+
+  const resolvedPlaceholder = placeholder ? tr(placeholder) : '';
 
   const menuNode = open ? (
     <div
@@ -874,12 +1412,13 @@ export const CustomSelect = forwardRef(function CustomSelect(
       id={listboxId}
       data-rp-floating-portal="true"
       role="listbox"
-      aria-label={label || tr(placeholder)}
+      aria-label={typeof effectiveLabel === 'string' ? effectiveLabel : (ariaLabelProp || resolvedPlaceholder)}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
       style={menuStyle || undefined}
       className={cx(
-        'rp-anim-pop rounded-rp-card border border-rp-line bg-rp-surface py-1 shadow-rp-pop focus:outline-none',
+        'rp-anim-pop rounded-rp-card border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] py-1 text-rp-text shadow-[var(--rp-popup-shadow)] focus:outline-none',
+        fitContent && 'w-max',
         !menuStyle && 'absolute top-[calc(100%+6px)] left-0 z-[120] min-w-[200px] w-full',
         menuClassName,
       )}
@@ -894,7 +1433,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={tr(searchPlaceholder)}
-              className="w-full rounded-lg border border-rp-line bg-rp-bg-2 py-1.5 pl-8 pr-2.5 text-xs text-rp-text placeholder:text-rp-text-disabled focus:border-rp-brand focus:outline-none"
+              className="w-full rounded-lg border border-rp-line bg-rp-bg-2 py-1.5 pl-8 pr-2.5 text-xs text-rp-text placeholder:text-rp-text-disabled focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)] focus:outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
@@ -931,7 +1470,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
                   'flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-[12.5px] transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-40',
                   isSelected
                     ? 'bg-rp-brand-tint font-semibold text-rp-brand-strong'
-                    : 'font-medium text-rp-text hover:bg-rp-bg-2 focus:bg-rp-bg-2',
+                    : 'font-medium text-rp-text hover:bg-[var(--rp-popup-hover)] focus:bg-[var(--rp-popup-hover)]',
                 )}
               >
                 <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
@@ -952,14 +1491,24 @@ export const CustomSelect = forwardRef(function CustomSelect(
                   </span>
                 </span>
 
-                <span className="flex shrink-0 items-center gap-1.5">
+                <span className="flex shrink-0 items-center justify-end gap-2">
                   {opt.count != null && (
-                    <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
-                      {opt.count}
+                    <span
+                      data-select-count="true"
+                      className={cx(
+                        'min-w-[2ch] text-right text-[12px] font-semibold leading-none tabular-nums',
+                        Number(opt.count) > 0 ? 'text-rp-brand-strong' : 'text-rp-text-disabled',
+                      )}
+                    >
+                      {Number(opt.count) > 999 ? '999+' : opt.count}
                     </span>
                   )}
-                  {isSelected && (
-                    <Check className="h-4 w-4 shrink-0 text-rp-brand-strong" />
+                  {hasOptionCounts ? (
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                      {isSelected && <Check className="h-4 w-4 text-rp-brand-strong" />}
+                    </span>
+                  ) : (
+                    isSelected && <Check className="h-4 w-4 shrink-0 text-rp-brand-strong" />
                   )}
                 </span>
               </button>
@@ -982,23 +1531,39 @@ export const CustomSelect = forwardRef(function CustomSelect(
       {selectedOption?.icon && (
         <selectedOption.icon className="h-4 w-4 shrink-0 text-rp-text-muted" />
       )}
-      <span className={cx('truncate', !selectedOption && 'text-rp-text-disabled')}>
-        {selectedOption ? tr(selectedOption.label) : tr(placeholder)}
+      <span className={cx('truncate', !selectedOption && 'text-rp-text-disabled font-normal')}>
+        {selectedOption
+          ? tr(selectedOption.label)
+          : hasFloating
+            ? '\u00A0'
+            : resolvedPlaceholder}
       </span>
       {selectedOption?.count != null && (
-        <span className="rounded-full bg-rp-bg-2 px-1.5 py-px text-[10.5px] font-semibold text-rp-text-muted">
-          {selectedOption.count}
+        <span
+          data-select-count="true"
+          className={cx(
+            'shrink-0 text-[12px] font-semibold leading-none tabular-nums',
+            Number(selectedOption.count) > 0 ? 'text-rp-brand-strong' : 'text-rp-text-disabled',
+          )}
+        >
+          {Number(selectedOption.count) > 999 ? '999+' : selectedOption.count}
         </span>
       )}
     </>
   );
 
-  return (
-    <div
-      ref={rootRef}
-      onKeyDown={handleKeyDown}
-      className={cx('relative inline-block text-left', fitContent ? 'w-fit max-w-full' : 'w-full', className)}
-    >
+  const sizerItems = [
+    ...(hasFloating && typeof effectiveLabel === 'string'
+      ? [{ key: 'floating-label', label: `${effectiveLabel}${isRequired ? ' *' : ''}`, isFloatingLabel: true }]
+      : []),
+    ...(!hasFloating && resolvedPlaceholder
+      ? [{ key: 'placeholder', label: resolvedPlaceholder }]
+      : []),
+    ...normalizedOptions.map((opt, idx) => ({ ...opt, key: `${opt.value}-${idx}`, label: tr(opt.label) })),
+  ];
+
+  const triggerControl = (
+    <>
       <button
         ref={(el) => {
           triggerRef.current = el;
@@ -1011,24 +1576,40 @@ export const CustomSelect = forwardRef(function CustomSelect(
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        aria-label={label}
+        aria-label={typeof effectiveLabel === 'string' ? effectiveLabel : (ariaLabelProp || label)}
         aria-invalid={isInvalid || undefined}
         aria-describedby={ariaDescribedBy}
         disabled={disabled}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocusProp?.(e);
+        }}
+        onBlur={(e) => {
+          if (!rootRef.current?.contains(e.relatedTarget)) setFocused(false);
+          onBlurProp?.(e);
+        }}
         onClick={() => {
           if (!disabled && !readOnly) setOpen((prev) => !prev);
         }}
         data-testid={dataTestIdProp || dataTestId}
         className={cx(
-          'rp-focus flex items-center justify-between gap-2 border bg-rp-surface text-rp-text transition-[border-color,box-shadow,background-color] duration-150',
-          fitContent ? 'w-auto max-w-full' : 'w-full',
+          'flex items-center justify-between gap-2 transition-[border-color,box-shadow,background-color] duration-150 focus:outline-none',
+          hasFloating
+            ? 'w-full rounded-[inherit] border-0 border-transparent bg-transparent text-rp-text focus-visible:shadow-none focus-visible:ring-0'
+            : cx(
+                'border bg-rp-surface text-rp-text',
+                fitContent ? 'w-auto max-w-full' : 'w-full',
+                isInvalid
+                  ? 'border-rp-danger focus:border-rp-danger focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+                  : 'border-rp-line hover:border-rp-brand-border focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]',
+                open && (isInvalid
+                  ? 'border-rp-danger shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+                  : 'border-rp-brand shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]'),
+                disabled && 'bg-rp-muted opacity-60',
+              ),
           sizeClasses,
           showClear && 'pr-12',
-          isInvalid
-            ? 'border-rp-danger focus-visible:ring-2 focus-visible:ring-rp-danger/30'
-            : 'border-rp-line hover:border-rp-brand-border focus-visible:border-rp-brand-border focus-visible:shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
-          open && !isInvalid && 'border-rp-brand-border shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
-          disabled && 'cursor-not-allowed bg-rp-muted opacity-60 text-rp-text-disabled',
+          disabled && 'cursor-not-allowed text-rp-text-disabled',
           triggerClassName,
         )}
         {...rest}
@@ -1038,22 +1619,22 @@ export const CustomSelect = forwardRef(function CustomSelect(
             <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 truncate text-left">
               {triggerContent}
             </span>
-            {[
-              { key: 'placeholder', label: tr(placeholder) },
-              ...normalizedOptions.map((opt, idx) => ({ ...opt, key: `${opt.value}-${idx}`, label: tr(opt.label) })),
-            ].map((sizer) => (
+            {sizerItems.map((sizer) => (
               <span
                 key={`sizer-${sizer.key}`}
                 aria-hidden="true"
-                className="pointer-events-none col-start-1 row-start-1 flex h-0 select-none items-center gap-2 overflow-hidden whitespace-nowrap invisible"
+                className={cx(
+                  'pointer-events-none col-start-1 row-start-1 flex h-0 select-none items-center gap-2 overflow-hidden whitespace-nowrap invisible',
+                  sizer.isFloatingLabel && hasValue && 'text-[11px] font-semibold',
+                )}
               >
-                {LeadIcon && <span className="h-4 w-4 shrink-0" />}
+                {LeadIcon && !sizer.isFloatingLabel && <span className="h-4 w-4 shrink-0" />}
                 {sizer.dotClass && <span className="h-2 w-2 shrink-0" />}
                 {sizer.icon && <span className="h-4 w-4 shrink-0" />}
                 <span>{sizer.label}</span>
                 {sizer.count != null && (
-                  <span className="rounded-full px-1.5 py-px text-[10.5px] font-semibold">
-                    {sizer.count}
+                  <span className="shrink-0 text-[12px] font-semibold leading-none tabular-nums">
+                    {Number(sizer.count) > 999 ? '999+' : sizer.count}
                   </span>
                 )}
               </span>
@@ -1065,13 +1646,18 @@ export const CustomSelect = forwardRef(function CustomSelect(
           </span>
         )}
 
-        <ChevronDown
-          aria-hidden="true"
-          className={cx(
-            'h-4 w-4 shrink-0 text-rp-text-muted transition-transform duration-200',
-            open && 'rotate-180',
+        <span className="flex shrink-0 items-center gap-1.5">
+          {loading && !selectedOption && hasFloating && (
+            <SakuraSpinner size={14} tone="brand" className="shrink-0" />
           )}
-        />
+          <ChevronDown
+            aria-hidden="true"
+            className={cx(
+              'h-4 w-4 shrink-0 text-rp-text-muted transition-transform duration-200',
+              open && 'rotate-180',
+            )}
+          />
+        </span>
       </button>
 
       {showClear && (
@@ -1080,6 +1666,7 @@ export const CustomSelect = forwardRef(function CustomSelect(
           aria-label={tr('Xóa lựa chọn')}
           onClick={(e) => {
             e.stopPropagation();
+            if (!isControlled) setInternalValue('');
             if (onChange) onChange('', { target: { value: '', name } });
             triggerRef.current?.focus();
           }}
@@ -1088,33 +1675,101 @@ export const CustomSelect = forwardRef(function CustomSelect(
           <X aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
       )}
+    </>
+  );
+
+  return (
+    <div
+      ref={rootRef}
+      onKeyDown={handleKeyDown}
+      className={cx('relative inline-block text-left', fitContent ? 'w-fit max-w-full' : 'w-full', className)}
+    >
+      {name && (
+        <input
+          type="hidden"
+          name={name}
+          value={selectedOption ? selectedOption.value : (effectiveValue ?? '')}
+        />
+      )}
+      {hasFloating ? (
+        <OutlinedField
+          label={effectiveLabel}
+          htmlFor={selectId}
+          required={isRequired}
+          focused={focused}
+          open={open}
+          hasValue={hasValue}
+          invalid={isInvalid}
+          disabled={disabled}
+          readOnly={readOnly}
+          hasLeadingIcon={Boolean(LeadIcon)}
+          hasTrailingControl
+          size={size}
+          fitContent={fitContent}
+        >
+          {triggerControl}
+        </OutlinedField>
+      ) : triggerControl}
 
       {menuNode && (typeof document !== 'undefined' ? createPortal(menuNode, document.body) : menuNode)}
     </div>
   );
 });
+CustomSelect.rpFloatingLabel = true;
 
 /**
  * Shared StatusDotListbox built directly on CustomSelect for toolbar status filters.
  */
-export function StatusDotListbox({ size = 'sm', placeholder = 'Trạng thái', fitContent = true, ...rest }) {
-  return <CustomSelect size={size} placeholder={placeholder} fitContent={fitContent} {...rest} />;
+export function StatusDotListbox({ size = 'sm', placeholder = 'Trạng thái', label = 'Trạng thái', fitContent = true, ...rest }) {
+  return <CustomSelect size={size} placeholder={placeholder} label={label} fitContent={fitContent} {...rest} />;
 }
+StatusDotListbox.rpFloatingLabel = true;
 
-export const Select = forwardRef(function Select({ native = false, invalid, size = 'md', className, children, options, style, ...rest }, ref) {
+export const Select = forwardRef(function Select({ native = false, invalid: invalidProp, size = 'md', className, children, options, style, label: labelProp, required: requiredProp, floatingLabel, id: idProp, ...rest }, ref) {
+  const { tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
+  const [focused, setFocused] = useState(false);
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && labelProp !== false;
+
   if (native) {
     const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
     const nativeSizeClass =
       resolvedSize === 'sm'
-        ? 'h-8 text-xs rounded-[10px]'
+        ? 'h-9 text-xs rounded-[10px]'
         : resolvedSize === 'lg'
           ? 'h-12 text-[15px] rounded-xl'
           : 'h-10 text-sm';
-    return (
+    const effectiveLabel = labelProp != null && labelProp !== false
+      ? (typeof labelProp === 'string' ? tr(labelProp) : labelProp)
+      : (fieldCtx?.label ?? (rest['aria-label'] ? tr(rest['aria-label']) : null));
+    const invalid = invalidProp ?? fieldCtx?.invalid ?? false;
+    const required = requiredProp ?? fieldCtx?.required ?? false;
+    const selectId = idProp || fieldCtx?.htmlFor;
+    const ariaDescribedBy = rest['aria-describedby'] ?? fieldCtx?.describedBy;
+
+    const nativeEl = (
       <select
         ref={ref}
+        id={selectId}
+        required={required}
         aria-invalid={invalid || undefined}
-        className={cx(CONTROL, nativeSizeClass, 'py-0 leading-snug cursor-pointer appearance-none overflow-hidden text-ellipsis whitespace-nowrap bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10', invalid ? 'border-rp-danger' : 'border-rp-line', className)}
+        aria-describedby={ariaDescribedBy}
+        onFocus={(e) => {
+          setFocused(true);
+          rest.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          rest.onBlur?.(e);
+        }}
+        className={cx(
+          floatingEnabled && effectiveLabel
+            ? 'rp-control w-full rounded-[inherit] border-0 border-transparent bg-transparent px-3.5 text-sm text-rp-text focus:outline-none focus:shadow-none disabled:cursor-not-allowed disabled:text-rp-text-disabled'
+            : cx(CONTROL, invalid ? 'border-rp-danger' : 'border-rp-line'),
+          nativeSizeClass,
+          'py-0 leading-snug cursor-pointer appearance-none overflow-hidden text-ellipsis whitespace-nowrap bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10',
+          !(floatingEnabled && effectiveLabel) && className,
+        )}
         style={{
           WebkitAppearance: 'none',
           appearance: 'none',
@@ -1126,9 +1781,30 @@ export const Select = forwardRef(function Select({ native = false, invalid, size
         {children}
       </select>
     );
+
+    if (floatingEnabled && effectiveLabel) {
+      return (
+        <OutlinedField
+          label={effectiveLabel}
+          htmlFor={selectId}
+          required={required}
+          focused={focused}
+          hasValue
+          alwaysFloat
+          invalid={invalid}
+          disabled={rest.disabled}
+          size={resolvedSize}
+          className={className}
+        >
+          {nativeEl}
+        </OutlinedField>
+      );
+    }
+    return nativeEl;
   }
-  return <CustomSelect ref={ref} invalid={invalid} size={size} className={className} options={options} {...rest}>{children}</CustomSelect>;
+  return <CustomSelect ref={ref} invalid={invalidProp} size={size} className={className} options={options} label={labelProp} required={requiredProp} floatingLabel={floatingLabel} id={idProp} {...rest}>{children}</CustomSelect>;
 });
+Select.rpFloatingLabel = true;
 
 function AnimatedTick({ sizeClass = 'h-[15px] w-[15px]', className }) {
   return (
@@ -1403,6 +2079,7 @@ export function WeekdayPicker({
 export const DateInput = forwardRef(function DateInput({ className, ...props }, ref) {
   return <Input ref={ref} type="date" className={cx('tabular-nums', className)} {...props} />;
 });
+DateInput.rpFloatingLabel = true;
 
 const CLOCK_HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 
@@ -1445,6 +2122,7 @@ export const TimeInput = forwardRef(function TimeInput(
     defaultValue = '',
     onChange,
     name,
+    label: labelProp,
     placeholder = '--:--',
     clearLabel = 'Xóa giờ',
     size = 'md',
@@ -1456,21 +2134,27 @@ export const TimeInput = forwardRef(function TimeInput(
     readOnly = false,
     required = false,
     invalid = false,
+    floatingLabel,
     clearable,
     align = 'start',
+    id: idProp,
     className,
     triggerClassName,
     menuClassName,
     'aria-label': ariaLabel,
-    'aria-describedby': ariaDescribedBy,
+    'aria-describedby': ariaDescribedByProp,
+    onFocus: onFocusProp,
+    onBlur: onBlurProp,
     ...rest
   },
   ref,
 ) {
   const { tr } = useLocale();
+  const fieldCtx = useFieldFloatingContext();
   const isControlled = value !== undefined;
   const [internalClock, setInternalClock] = useState(() => normalizeClock24(defaultValue));
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
 
   const rootRef = useRef(null);
@@ -1480,6 +2164,7 @@ export const TimeInput = forwardRef(function TimeInput(
   const minuteListRef = useRef(null);
 
   const popupId = useId();
+  const timeId = idProp || fieldCtx?.htmlFor;
   const currentClock = normalizeClock24(isControlled ? value : internalClock);
   const [selectedHour = '', selectedMinute = ''] = currentClock ? currentClock.split(':') : ['', ''];
   const minClock = normalizeClock24(min || '');
@@ -1488,7 +2173,17 @@ export const TimeInput = forwardRef(function TimeInput(
 
   const resolvedSize = size === 'sm' || size === 'lg' ? size : 'md';
   const sizeClasses = FIELD_SIZES[resolvedSize];
-  const showClear = !disabled && !readOnly && !required && Boolean(currentClock) && clearable !== false;
+  const floatingEnabled = useFloatingLabelEnabled(floatingLabel) && labelProp !== false;
+  const effectiveLabel = labelProp != null && labelProp !== false
+    ? (typeof labelProp === 'string' ? tr(labelProp) : labelProp)
+    : (fieldCtx?.label ?? (ariaLabel ? tr(ariaLabel) : tr('Chọn giờ')));
+  const hasFloating = floatingEnabled && Boolean(effectiveLabel);
+  const hasValue = Boolean(currentClock);
+  const isFloated = Boolean(open || focused || hasValue);
+  const isInvalid = invalid || Boolean(fieldCtx?.invalid);
+  const isRequired = Boolean(required || fieldCtx?.required);
+  const ariaDescribedBy = ariaDescribedByProp ?? fieldCtx?.describedBy;
+  const showClear = !disabled && !readOnly && !isRequired && Boolean(currentClock) && clearable !== false;
 
   const setTriggerRefs = (node) => {
     triggerRef.current = node;
@@ -1717,48 +2412,58 @@ export const TimeInput = forwardRef(function TimeInput(
     </div>
   ) : null;
 
-  return (
-    <div
-      ref={rootRef}
-      className={cx(
-        'relative',
-        fitContent ? 'inline-grid max-w-full' : 'w-full',
-        className,
-      )}
-    >
+  const triggerControl = (
+    <>
       <button
         ref={setTriggerRefs}
+        id={timeId}
         type="button"
         role="combobox"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popupId : undefined}
-        aria-label={ariaLabel || tr('Chọn giờ')}
-        aria-invalid={invalid || undefined}
+        aria-label={typeof effectiveLabel === 'string' ? effectiveLabel : (ariaLabel || tr('Chọn giờ'))}
+        aria-invalid={isInvalid || undefined}
         aria-describedby={ariaDescribedBy}
         disabled={disabled}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocusProp?.(e);
+        }}
+        onBlur={(e) => {
+          if (!rootRef.current?.contains(e.relatedTarget)) setFocused(false);
+          onBlurProp?.(e);
+        }}
         onClick={() => {
           if (!disabled && !readOnly) setOpen((prev) => !prev);
         }}
         onKeyDown={handleTriggerKeyDown}
         className={cx(
-          'rp-focus flex items-center justify-between gap-2 border bg-rp-surface text-rp-text transition-[border-color,box-shadow,background-color] duration-150',
-          fitContent ? (resolvedSize === 'sm' ? 'min-w-[116px] w-auto max-w-full' : 'min-w-[132px] w-auto max-w-full') : 'w-full',
+          'flex items-center justify-between gap-2 transition-[border-color,box-shadow,background-color] duration-150 focus:outline-none',
+          hasFloating
+            ? cx('rounded-[inherit] border-0 border-transparent bg-transparent text-rp-text focus-visible:shadow-none focus-visible:ring-0', fitContent ? (resolvedSize === 'sm' ? 'min-w-[124px] w-auto max-w-full' : 'min-w-[138px] w-auto max-w-full') : 'w-full')
+            : cx(
+                'border bg-rp-surface text-rp-text',
+                fitContent ? (resolvedSize === 'sm' ? 'min-w-[116px] w-auto max-w-full' : 'min-w-[132px] w-auto max-w-full') : 'w-full',
+                isInvalid
+                  ? 'border-rp-danger focus:border-rp-danger focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+                  : 'border-rp-line hover:border-rp-brand-border focus:border-rp-brand focus:shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]',
+                open && (isInvalid
+                  ? 'border-rp-danger shadow-[inset_0_0_0_0.5px_var(--color-rp-danger)]'
+                  : 'border-rp-brand shadow-[inset_0_0_0_0.5px_var(--color-rp-brand)]'),
+                disabled && 'bg-rp-muted opacity-60',
+              ),
           sizeClasses,
           showClear && 'pr-12',
-          invalid
-            ? 'border-rp-danger focus-visible:ring-2 focus-visible:ring-rp-danger/30'
-            : 'border-rp-line hover:border-rp-brand-border focus-visible:border-rp-brand-border focus-visible:shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
-          open && !invalid && 'border-rp-brand-border shadow-[0_0_0_3px_rgba(204,75,107,0.14)]',
-          disabled && 'cursor-not-allowed bg-rp-muted opacity-60 text-rp-text-disabled',
+          disabled && 'cursor-not-allowed text-rp-text-disabled',
           triggerClassName,
         )}
         {...rest}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <Clock aria-hidden="true" className={cx('h-4 w-4 shrink-0', currentClock ? 'text-rp-brand-strong' : 'text-rp-text-muted')} />
+          <Clock aria-hidden="true" className={cx('h-4 w-4 shrink-0', currentClock || focused || open ? 'text-rp-brand-strong' : 'text-rp-text-muted')} />
           <span className={cx('truncate font-medium tabular-nums', !currentClock && 'text-rp-text-disabled font-normal')}>
-            {currentClock || placeholder}
+            {currentClock || (hasFloating ? (isFloated ? placeholder : '\u00A0') : placeholder)}
           </span>
         </span>
         <ChevronDown
@@ -1781,11 +2486,42 @@ export const TimeInput = forwardRef(function TimeInput(
           <X aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
       )}
+    </>
+  );
+
+  return (
+    <div
+      ref={rootRef}
+      className={cx(
+        'relative',
+        fitContent ? 'inline-grid max-w-full' : 'w-full',
+        className,
+      )}
+    >
+      {hasFloating ? (
+        <OutlinedField
+          label={effectiveLabel}
+          htmlFor={timeId}
+          required={isRequired}
+          focused={focused}
+          open={open}
+          hasValue={hasValue}
+          invalid={isInvalid}
+          disabled={disabled}
+          readOnly={readOnly}
+          hasLeadingIcon
+          size={resolvedSize}
+          fitContent={fitContent}
+        >
+          {triggerControl}
+        </OutlinedField>
+      ) : triggerControl}
 
       {menuNode && (typeof document !== 'undefined' ? createPortal(menuNode, document.body) : menuNode)}
     </div>
   );
 });
+TimeInput.rpFloatingLabel = true;
 
 /* ------------------------------------------------------------------ Skeleton */
 

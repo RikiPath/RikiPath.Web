@@ -350,8 +350,8 @@ function ClassroomShowcase({ plan }) {
 
         <div className="mt-4">
           <div className="flex items-center justify-between text-[11.5px] font-semibold text-rp-text-2">
-            <span className="flex items-center gap-1.5"><CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Khóa học 10 tuần')}</span>
-            <span className="text-rp-text-muted">{trf('Tuần {n}/10', { n: 4 })}</span>
+            <span className="flex items-center gap-1.5"><CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Tiến trình khóa học')}</span>
+            <span className="text-rp-text-muted">{trf('{0}/{1} buổi hoàn thành', { 0: 4, 1: 12 })}</span>
           </div>
           <div className="mt-1.5 grid grid-cols-10 gap-1" aria-hidden="true">
             {Array.from({ length: 10 }, (_, i) => <span key={i} className={cx('h-2 rounded-full', i < 4 ? 'bg-rp-brand-pressed' : 'bg-rp-brand-tint')} />)}
@@ -373,8 +373,8 @@ export function GroupLearningSection({ ctaTo, ctaLabel }) {
             <SectionHeading
               id="group-title"
               eyebrow={tr('Học nhóm cùng Giáo viên')}
-              title={tr('Lớp nhỏ 1–4 học viên, nhịp học do bạn chọn')}
-              text={tr('Mọi lớp kéo dài 10 tuần, mỗi buổi 90 phút và thanh toán trọn khóa. Lịch học, phòng học trực tuyến, bài tập về nhà và tiến độ nằm cùng một chỗ.')}
+              title={tr('Lớp học nhóm trực tuyến, nhịp học do bạn chọn')}
+              text={tr('Thời lượng khóa học và lịch học hằng tuần linh hoạt theo từng lớp, thanh toán trọn khóa. Lịch học, phòng học trực tuyến, bài tập về nhà và tiến độ nằm cùng một chỗ.')}
             />
             <ul className="mt-8 grid gap-3 sm:grid-cols-3" aria-label={tr('Cường độ lớp học')}>
               {INTENSITY.map((plan, i) => (

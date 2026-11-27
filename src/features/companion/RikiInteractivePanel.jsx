@@ -19,6 +19,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Badge, Button, Input, cx } from '@/components/ui';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import {
   COMPANION_REACTIONS,
@@ -244,10 +245,10 @@ export default function RikiInteractivePanel({
     <section
       role="dialog"
       aria-label={tr('Cáo Sakura Riki')}
-      className="riki-bubble-enter pointer-events-auto flex w-[min(360px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-rp-brand-border bg-rp-surface shadow-[0_24px_54px_-20px_rgba(140,42,74,0.28),0_4px_12px_rgba(20,24,35,0.08)]"
+      className="riki-bubble-enter pointer-events-auto flex w-[min(360px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)]"
     >
       {/* Compact Header with Live Rig Preview + Controls */}
-      <header className="flex items-center justify-between gap-2 border-b border-rp-line bg-white px-3.5 py-2.5">
+      <header className="flex items-center justify-between gap-2 border-b border-[var(--rp-popup-divider)] bg-[var(--rp-popup-header-bg)] px-3.5 py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
           {view !== 'menu' && (
             <button
@@ -339,7 +340,7 @@ export default function RikiInteractivePanel({
             {(stats.targetLevel || Number.isFinite(stats.streakDays) || Number.isFinite(stats.dueCards)) && (
               <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-rp-line bg-rp-bg-2/70 px-2.5 py-2 text-[11px]">
                 {stats.targetLevel && (
-                  <Badge tone="brand" size="sm" icon={false}>JLPT {stats.targetLevel}</Badge>
+                  <Badge tone="brand" size="sm" icon={false}>{formatJlptLevel(stats.targetLevel)}</Badge>
                 )}
                 {Number.isFinite(stats.streakDays) && (
                   <Badge tone="warning" size="sm" icon={false}>{stats.streakDays} {tr('ngày liên tiếp')}</Badge>

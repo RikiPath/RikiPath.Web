@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
 import {
   COMPLAINT_CATEGORIES,
@@ -29,6 +30,7 @@ import {
   AdminToolbar,
 } from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 import { ComplaintHistory } from './CohortComplaintPanel';
 import { useLocale } from '@/locales/locale.js';
@@ -46,6 +48,7 @@ export default function AdminCohortComplaintsPanel({
   onRun,
 }) {
   const { tr, trf } = useLocale();
+  const queryClient = useQueryClient();
   const initialIdNum = initialComplaintId ? Number(initialComplaintId) : null;
   const [status, setStatus] = useState(initialIdNum ? '' : 'Open');
   const [selectedId, setSelectedId] = useState(initialIdNum);
@@ -90,23 +93,26 @@ export default function AdminCohortComplaintsPanel({
     {
       key: 'cohortName',
       header: tr('Lớp / Khóa'),
+      align: 'left',
       render: (r) => <span className="font-semibold text-rp-text">{r.cohortName || tr('Lớp học nhóm')}</span>,
     },
     {
       key: 'category',
       header: tr('Loại khiếu nại'),
+      align: 'left',
       render: (r) => (
-        <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-start gap-1.5">
           <span>{tr(categoryLabel(r.category))}</span>
           {r.refundReviewRequested && <Badge tone="warning" size="sm" icon={false}>{tr('Xin xem xét hoàn tiền')}</Badge>}
         </div>
       ),
     },
-    { key: 'mentorName', header: tr('Giáo viên'), render: (r) => <span className="text-sm text-rp-text-2">{r.mentorName || '—'}</span> },
-    { key: 'createdAtUtc', header: tr('Gửi lúc'), compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
+    { key: 'mentorName', header: tr('Giáo viên'), align: 'left', render: (r) => <span className="text-sm text-rp-text-2">{r.mentorName || '—'}</span> },
+    { key: 'createdAtUtc', header: tr('Gửi lúc'), align: 'center', compact: true, render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span> },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (r) => (
         <AdminStatusBadge
@@ -132,11 +138,11 @@ export default function AdminCohortComplaintsPanel({
             <CustomSelect
               fitContent
               value={status}
-              aria-label={tr('Lọc trạng thái khiếu nại')}
+              aria-label={tr('Trạng thái')}
               onChange={setStatus}
               options={[
                 ...Object.entries(COMPLAINT_STATUS_LABELS).map(([v, l]) => ({ value: v, label: tr(l) })),
-                { value: '', label: tr('Tất cả trạng thái') },
+                { value: '', label: tr('Tất cả') },
               ]}
             />
           )}
@@ -259,6 +265,7 @@ export default function AdminCohortComplaintsPanel({
                     onClick={() =>
                       onRun(async () => {
                         await decideCohortComplaint(item.id, { status: decisionStatus, decision, expectedRevision: item.revision });
+                        await invalidateSidebarCounters(queryClient);
                         setDecision('');
                         query.refetch();
                         await loadDetail(item.id);

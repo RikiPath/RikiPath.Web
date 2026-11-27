@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
 import { describeApiError } from '@/api/apiErrors';
 import {
@@ -22,6 +23,7 @@ import {
   AdminToolbar,
 } from '@/features/admin/components/AdminPrimitives.jsx';
 import { useAsyncResource } from '@/hooks/useAsyncResource.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import {
   approveTransfer,
   getTransferEligibility,
@@ -86,6 +88,7 @@ export default function AdminCohortTransferQueuePanel({
   onRun,
 }) {
   const { tr, trf } = useLocale();
+  const queryClient = useQueryClient();
   const initialIdNum = initialTransferId ? Number(initialTransferId) : null;
   const [status, setStatus] = useState(initialIdNum ? '' : 'Pending');
   const [selectedId, setSelectedId] = useState(initialIdNum);
@@ -137,27 +140,32 @@ export default function AdminCohortTransferQueuePanel({
     {
       key: 'learnerName',
       header: tr('Học viên'),
+      align: 'left',
       render: (r) => <span className="font-semibold text-rp-text">{r.learnerName}</span>,
     },
     {
       key: 'sourceCohortName',
       header: tr('Lớp nguồn'),
+      align: 'left',
       render: (r) => <span className="text-sm text-rp-text-2">{r.sourceCohortName}</span>,
     },
     {
       key: 'requestedTargetCohortName',
       header: tr('Lớp đề xuất'),
+      align: 'left',
       render: (r) => <span className="text-xs text-rp-text-muted">{r.requestedTargetCohortName || tr('Quản trị viên chọn')}</span>,
     },
     {
       key: 'createdAtUtc',
       header: tr('Gửi lúc'),
+      align: 'center',
       compact: true,
       render: (r) => <span className="whitespace-nowrap text-xs text-rp-text-2">{date(r.createdAtUtc)}</span>,
     },
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
       compact: true,
       render: (r) => {
         const meta = STATUS_META[r.status] || { label: r.status, tone: 'neutral' };
@@ -181,14 +189,14 @@ export default function AdminCohortTransferQueuePanel({
             <CustomSelect
               fitContent
               value={status}
-              aria-label={tr('Lọc trạng thái chuyển lớp')}
+              aria-label={tr('Trạng thái')}
               onChange={setStatus}
               options={[
                 { value: 'Pending', label: tr('Chờ duyệt'), dotClass: 'bg-[#f59e0b]' },
                 { value: 'Approved', label: tr('Đã duyệt'), dotClass: 'bg-[#22c55e]' },
                 { value: 'Rejected', label: tr('Từ chối'), dotClass: 'bg-[#ef4444]' },
                 { value: 'Withdrawn', label: tr('Đã rút'), dotClass: 'bg-[#94a3b8]' },
-                { value: '', label: tr('Tất cả trạng thái') },
+                { value: '', label: tr('Tất cả') },
               ]}
             />
           )}
@@ -336,6 +344,7 @@ export default function AdminCohortTransferQueuePanel({
                     onClick={() =>
                       onRun(async () => {
                         await approveTransfer(request.id, { targetCohortId: targetId, note, expectedRevision: request.revision });
+                        await invalidateSidebarCounters(queryClient);
                         await loadList();
                         await loadDetail(request.id);
                       }, 'Đã duyệt chuyển lớp; ghi danh được cập nhật và thông báo sẽ gửi sau khi lưu.')
@@ -355,6 +364,7 @@ export default function AdminCohortTransferQueuePanel({
                     onClick={() =>
                       onRun(async () => {
                         await rejectTransfer(request.id, rejectReason, request.revision);
+                        await invalidateSidebarCounters(queryClient);
                         await loadList();
                         await loadDetail(request.id);
                       }, 'Đã từ chối yêu cầu và gửi lý do cho học viên.')

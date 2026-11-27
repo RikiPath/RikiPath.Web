@@ -149,7 +149,7 @@ export default function HeroLearningScene() {
         </div>
 
         {/* Group class card — bottom-right */}
-        <div className="lp-depth-2 absolute bottom-0 right-0 w-[min(250px,62%)] sm:right-[2%]" data-intro="pop" style={{ '--d': '880ms' }} role="img" aria-label={tr('Minh họa lớp nhóm cùng Giáo viên: 10 tuần, 90 phút mỗi buổi, 1 đến 4 học viên')}>
+        <div className="lp-depth-2 absolute bottom-0 right-0 w-[min(250px,62%)] sm:right-[2%]" data-intro="pop" style={{ '--d': '880ms' }} role="img" aria-label={tr('Minh họa lớp nhóm trực tuyến cùng Giáo viên')}>
           <div className="lp-bob rounded-[18px] border border-white/70 bg-white/95 p-3.5 shadow-[0_22px_44px_-20px_rgba(90,30,55,0.38)]" style={{ '--bob': '3.4s' }}>
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-tone-mentor"><StudyIllustration name="group" size={22} /> {tr('Lớp nhóm')}</p>
@@ -158,7 +158,7 @@ export default function HeroLearningScene() {
               </span>
             </div>
             <p className="mt-2 text-[13.5px] font-bold text-rp-text">{tr('Học cùng Giáo viên')}</p>
-            <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-rp-text-muted"><CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" /> {tr('10 tuần · 90 phút/buổi · 1–4 học viên')}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-rp-text-muted"><CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" /> {tr('Lịch linh hoạt · Học trực tiếp cùng Giáo viên')}</p>
           </div>
         </div>
       </div>

@@ -12,7 +12,7 @@ import { currentIntlTag, translateTemplate } from '@/locales/locale.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
 
 export const SKILL_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Tất cả kỹ năng' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'Vocabulary', label: 'Từ vựng' },
   { value: 'Kanji', label: 'Kanji' },
   { value: 'Grammar', label: 'Ngữ pháp' },
@@ -22,7 +22,7 @@ export const SKILL_FILTER_OPTIONS = [
 ];
 
 export const PRACTICE_STATUS_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'Tất cả trạng thái' },
+  { value: 'ALL', label: 'Tất cả' },
   { value: 'IN_PROGRESS', label: 'Đang làm dở' },
   { value: 'NOT_STARTED', label: 'Chưa làm' },
   { value: 'COMPLETED', label: 'Đã hoàn thành' },

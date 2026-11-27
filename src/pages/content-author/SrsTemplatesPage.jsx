@@ -187,14 +187,27 @@ export default function SrsTemplatesPage() {
   async function handleDelete(item) {
     const ok = await confirmAction({
       title: tr('Xóa thẻ mẫu SRS?'),
-      description: trf('Xóa bản nháp “{0}” khỏi danh sách biên soạn?', { 0: item.frontText }),
-      confirmLabel: tr('Xóa'),
+      description: trf('Bản nháp “{0}” sẽ bị xóa khỏi danh sách biên soạn và không thể khôi phục.', { 0: item.frontText }),
+      confirmLabel: tr('Xác nhận xóa'),
+      cancelLabel: tr('Giữ lại'),
       tone: 'danger',
     });
     if (ok) deleteMut.mutate(item.id);
   }
 
   const items = listQuery.data || [];
+  const unfilteredTemplatesQuery = useQuery({
+    queryKey: ['author-srs-templates', 'unfiltered-check'],
+    queryFn: () => getMySrsTemplates({ status: '', cardType: '', search: '' }),
+    enabled: Boolean(hasActiveFilters && listQuery.isSuccess && items.length === 0),
+    staleTime: 60_000,
+  });
+
+  const hasUnderlyingTemplates = listQuery.isSuccess && (
+    items.length > 0 || (hasActiveFilters && (unfilteredTemplatesQuery.isPending || (unfilteredTemplatesQuery.data?.length ?? 0) > 0))
+  );
+  const isFilterZero = hasActiveFilters && listQuery.isSuccess && (unfilteredTemplatesQuery.data?.length ?? 0) > 0;
+
   const form = editorState?.form;
   const frontError = submitted && !form?.frontText.trim() ? tr('Vui lòng nhập mặt trước') : undefined;
   const meaningError = submitted && !form?.meaning.trim() ? tr('Vui lòng nhập nghĩa tiếng Việt') : undefined;
@@ -220,6 +233,7 @@ export default function SrsTemplatesPage() {
           </Button>
         </div>
 
+        {hasUnderlyingTemplates && (
         <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-rp-line bg-rp-surface p-3">
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
             <div className="w-full sm:w-72">
@@ -232,22 +246,22 @@ export default function SrsTemplatesPage() {
             </div>
             <CustomSelect
               fitContent
+              label="Loại thẻ"
               value={cardTypeFilter}
               onChange={setCardTypeFilter}
-              className="min-w-[140px]"
               options={[
-                { value: '', label: tr('Mọi loại thẻ') },
+                { value: '', label: tr('Tất cả') },
                 { value: 'Vocabulary', label: tr('Từ vựng') },
                 { value: 'Kanji', label: tr('Kanji') },
               ]}
             />
             <CustomSelect
               fitContent
+              label="Trạng thái"
               value={statusFilter}
               onChange={setStatusFilter}
-              className="min-w-[164px]"
               options={[
-                { value: '', label: tr('Tất cả trạng thái') },
+                { value: '', label: tr('Tất cả') },
                 { value: 'Draft', label: tr('Bản nháp') },
                 { value: 'PendingReview', label: tr('Chờ duyệt') },
                 { value: 'Published', label: tr('Đã xuất bản') },
@@ -257,6 +271,7 @@ export default function SrsTemplatesPage() {
             />
           </div>
         </div>
+        )}
 
         {listQuery.isLoading ? (
           <SakuraLoader variant="section" />
@@ -273,16 +288,16 @@ export default function SrsTemplatesPage() {
         ) : items.length === 0 ? (
           <Card className="border-[#EAE3E4] bg-white">
             <ContextualEmptyState
-              variant="compact"
+              variant={isFilterZero ? 'search' : 'compact'}
               framed={false}
-              illustration={hasActiveFilters ? 'search' : 'flashcard'}
-              title={hasActiveFilters ? tr('Không tìm thấy kết quả phù hợp.') : tr('Chưa có thẻ mẫu SRS nào')}
+              illustration={isFilterZero ? 'search' : 'flashcard'}
+              title={isFilterZero ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có thẻ mẫu SRS nào')}
               description={
-                hasActiveFilters
+                isFilterZero
                   ? tr('Hãy thử từ khóa khác hoặc xóa bộ lọc để xem toàn bộ thẻ mẫu của bạn.')
                   : tr('Nhấn “Tạo thẻ mẫu SRS” để biên soạn thẻ mới, xem trước và gửi Quản trị viên phê duyệt.')
               }
-              action={hasActiveFilters ? (
+              action={isFilterZero ? (
                 <Button
                   type="button"
                   variant="secondary"

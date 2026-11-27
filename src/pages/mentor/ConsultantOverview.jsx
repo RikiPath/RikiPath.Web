@@ -33,7 +33,7 @@ const QUICK_ACTIONS = [
   { to: '/mentor-homework/', label: 'Bài tập & chấm điểm', note: 'Giao bài, xem bài nộp, chấm điểm', feature: 'writing' },
   { to: '/mentor-grading/', label: 'Chấm bài luyện tập', note: 'Đánh giá nhanh bài viết & nói JLPT', feature: 'mock' },
   { to: '/work-schedule/', label: 'Lịch làm việc', note: 'Buổi dạy sắp diễn ra & đã hoàn thành', feature: 'calendar' },
-  { to: '/mentor-shift-schedule/', label: 'Đăng ký lịch dạy', note: 'Đăng ký khung giờ & theo dõi duyệt', feature: 'calendar' },
+  { to: '/mentor-shift-schedule/', label: 'Đăng ký khung giờ', note: 'Đăng ký khung giờ mẫu & mở tuyển sinh', feature: 'calendar' },
   { to: '/mentor-attendance-kpi/', label: 'Điểm danh & KPI', note: 'Chỉ số giảng dạy thực tế', feature: 'reading' },
   { to: '/mentor-reviews/', label: 'Đánh giá học viên', note: 'Phản hồi từ học viên lớp nhóm', feature: 'grammar' },
   { to: '/mentor-disputes/', label: 'Khiếu nại & hỗ trợ', note: 'Theo dõi và phản hồi yêu cầu từ học viên', feature: 'neutral' },
@@ -109,7 +109,7 @@ function analyzeSessions(courses, nowMs, cohortNameMap) {
 function summarizeCohorts(courses, cohortNameMap) {
   const byCohort = new Map();
   for (const course of courses) {
-    if (course.status === 'Cancelled' || !course.cohortId) continue;
+    if (course.status === 'Cancelled' || course.status === 'PendingPayment' || !course.cohortId) continue;
     const cur = byCohort.get(course.cohortId) || {
       cohortId: course.cohortId,
       name: cohortNameMap.get(course.cohortId) || course.cohortName || course.name,
@@ -265,7 +265,7 @@ export default function ConsultantOverview() {
                       illustration="calendar"
                       title={tr('Chưa có buổi dạy sắp tới')}
                       description={tr('Buổi học xuất hiện khi lớp nhóm của bạn được công bố và có học viên ghi danh.')}
-                      action={<Link to="/mentor-shift-schedule/" className="rp-focus rp-link text-sm font-semibold">{tr('Đăng ký lịch dạy')}</Link>}
+                      action={<Link to="/mentor-shift-schedule/" className="rp-focus rp-link text-sm font-semibold">{tr('Đăng ký khung giờ')}</Link>}
                     />
                   ) : (
                     <div className="rounded-rp-input border border-rp-line bg-white p-4">

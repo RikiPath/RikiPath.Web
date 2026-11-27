@@ -21,6 +21,7 @@ import {
 import { useAuth } from '@/app/auth/authContext.js';
 import { getMentorCohortReviewSummary } from '@/features/cohorts/api/cohortApi.js';
 import { parseUtcDate } from '@/utils/vnDateTime.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale, currentIntlTag } from '@/locales/locale.js';
 
 import { formatDateTime } from '@/utils/dateTimeFormat.js';
@@ -55,7 +56,7 @@ function CohortReviewCard({ review, onOpenDetail }) {
             <p className="text-[15px] font-bold text-rp-text">
               {review.cohortName || tr('Học viên lớp nhóm')}
             </p>
-            {review.level && <Badge size="sm" tone="brand" icon={false}>JLPT {review.level}</Badge>}
+            {review.level && <Badge size="sm" tone="brand" icon={false}>{formatJlptLevel(review.level)}</Badge>}
           </div>
           <p className="mt-1 text-xs text-rp-text-muted">
             {when(review.updatedAtUtc || review.createdAtUtc)}
@@ -312,7 +313,7 @@ export default function MentorReviews() {
             <div className="space-y-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rp-line bg-rp-bg-2/70 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectedReview.level && <Badge size="sm" tone="brand" icon={false}>JLPT {selectedReview.level}</Badge>}
+                  {selectedReview.level && <Badge size="sm" tone="brand" icon={false}>{formatJlptLevel(selectedReview.level)}</Badge>}
                   <span className="text-xs text-rp-text-muted">{when(selectedReview.updatedAtUtc || selectedReview.createdAtUtc)}</span>
                 </div>
                 <StarRow rating={selectedReview.rating} label={`${selectedReview.rating}/5`} />

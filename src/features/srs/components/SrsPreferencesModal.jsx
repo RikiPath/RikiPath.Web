@@ -222,32 +222,25 @@ export default function SrsPreferencesModal({ open, onClose }) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
+              <CustomSelect
+                label={tr('Chế độ mặc định')}
+                value={form.preferredReviewMode}
+                onChange={(val) => setForm((p) => ({ ...p, preferredReviewMode: val }))}
+                options={[
+                  { value: 'flip', label: tr('Lật thẻ') },
+                  { value: 'typing', label: tr('Gõ đáp án') },
+                  { value: 'mcq', label: tr('Trắc nghiệm') },
+                  { value: 'mixed', label: tr('Hỗn hợp') },
+                ]}
+              />
               <div>
-                <label className="mb-1.5 flex h-4 items-center gap-1 text-xs font-semibold text-rp-text-2">
-                  {tr('Chế độ mặc định')}
-                </label>
-                <CustomSelect
-                  value={form.preferredReviewMode}
-                  onChange={(val) => setForm((p) => ({ ...p, preferredReviewMode: val }))}
-                  options={[
-                    { value: 'flip', label: tr('Lật thẻ') },
-                    { value: 'typing', label: tr('Gõ đáp án') },
-                    { value: 'mcq', label: tr('Trắc nghiệm') },
-                    { value: 'mixed', label: tr('Hỗn hợp') },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 flex h-4 items-center gap-1 text-xs font-semibold text-rp-text-2">
-                  {tr('Thẻ mới mỗi ngày')}
-                </label>
                 <Input
                   type="number"
                   min={0}
                   max={200}
                   step={1}
                   invalid={attemptedSave && invalidNewLimit}
-                  aria-label={tr('Thẻ mới mỗi ngày')}
+                  label={tr('Thẻ mới mỗi ngày')}
                   value={form.dailyNewLimit}
                   onChange={(e) => setForm((p) => ({ ...p, dailyNewLimit: e.target.value }))}
                 />
@@ -258,16 +251,13 @@ export default function SrsPreferencesModal({ open, onClose }) {
                 )}
               </div>
               <div>
-                <label className="mb-1.5 flex h-4 items-center gap-1 text-xs font-semibold text-rp-text-2">
-                  {tr('Mục tiêu ôn mỗi ngày')}
-                </label>
                 <Input
                   type="number"
                   min={5}
                   max={500}
                   step={1}
                   invalid={attemptedSave && invalidReviewLimit}
-                  aria-label={tr('Mục tiêu ôn mỗi ngày')}
+                  label={tr('Mục tiêu ôn mỗi ngày')}
                   value={form.dailyReviewLimit}
                   onChange={(e) => setForm((p) => ({ ...p, dailyReviewLimit: e.target.value }))}
                 />
@@ -320,48 +310,34 @@ export default function SrsPreferencesModal({ open, onClose }) {
             />
 
             {form.dailyReminderEnabled && (
-              <div className="space-y-3 pl-1">
+              <div className="space-y-3 pl-1 pt-1">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1.5 flex h-4 items-center gap-1 text-xs font-semibold text-rp-text-2">
-                      <Clock className="h-3.5 w-3.5" />
-                      {tr('Giờ nhắc')}
-                    </label>
-                    <TimeInput
-                      required
-                      step={60}
-                      value={timeString}
-                      aria-label={tr('Giờ nhắc')}
-                      onChange={(e) => handleTimeChange(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 flex h-4 items-center gap-1 text-xs font-semibold text-rp-text-2">
-                      {tr('Tần suất')}
-                    </label>
-                    <CustomSelect
-                      value={form.reminderFrequency}
-                      onChange={(val) => setForm((p) => ({ ...p, reminderFrequency: val }))}
-                      options={[
-                        { value: 'Daily', label: tr('Mỗi ngày') },
-                        { value: 'Weekdays', label: tr('Thứ 2 – Thứ 6') },
-                        { value: 'CustomDays', label: tr('Chọn ngày') },
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 flex h-4 items-center gap-1 text-xs font-semibold text-rp-text-2">
-                      {tr('Ngôn ngữ')}
-                    </label>
-                    <CustomSelect
-                      value={form.preferredLocale}
-                      onChange={(val) => setForm((p) => ({ ...p, preferredLocale: val }))}
-                      options={[
-                        { value: 'vi', label: 'Tiếng Việt' },
-                        { value: 'ja', label: '日本語' },
-                      ]}
-                    />
-                  </div>
+                  <TimeInput
+                    required
+                    step={60}
+                    value={timeString}
+                    label={tr('Giờ nhắc')}
+                    onChange={(e) => handleTimeChange(e.target.value)}
+                  />
+                  <CustomSelect
+                    label={tr('Tần suất')}
+                    value={form.reminderFrequency}
+                    onChange={(val) => setForm((p) => ({ ...p, reminderFrequency: val }))}
+                    options={[
+                      { value: 'Daily', label: tr('Mỗi ngày') },
+                      { value: 'Weekdays', label: tr('Thứ 2 – Thứ 6') },
+                      { value: 'CustomDays', label: tr('Chọn ngày') },
+                    ]}
+                  />
+                  <CustomSelect
+                    label={tr('Ngôn ngữ')}
+                    value={form.preferredLocale}
+                    onChange={(val) => setForm((p) => ({ ...p, preferredLocale: val }))}
+                    options={[
+                      { value: 'vi', label: 'Tiếng Việt' },
+                      { value: 'ja', label: '日本語' },
+                    ]}
+                  />
                 </div>
 
                 {form.reminderFrequency === 'CustomDays' && (

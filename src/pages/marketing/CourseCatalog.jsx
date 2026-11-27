@@ -90,7 +90,7 @@ const MORE = [
   {
     to: '/#group-learning',
     t: 'Học nhóm cùng Giáo viên',
-    d: 'Lớp nhỏ 1–4 học viên trong 10 tuần, lịch cố định cùng Giáo viên.',
+    d: 'Lớp nhỏ theo lịch cố định hằng tuần, tương tác trực tiếp cùng Giáo viên.',
     cta: 'Tìm hiểu lớp nhóm',
   },
 ];

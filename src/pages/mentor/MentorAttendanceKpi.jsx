@@ -142,36 +142,42 @@ export default function MentorAttendanceKpi() {
     {
       key: 'periodKey',
       header: 'Kỳ',
+      align: 'left',
       sortValue: (p) => p.periodKey,
       render: (p) => <span className="font-medium text-rp-text">{p.periodKey}</span>,
     },
     {
       key: 'sessions',
       header: 'Hợp lệ / Phân công',
+      align: 'center',
       sortValue: (p) => p.completedValidSessions ?? 0,
-      render: (p) => `${p.completedValidSessions} / ${p.totalAssignedSessions}`,
+      render: (p) => <span className="tabular-nums">{`${p.completedValidSessions} / ${p.totalAssignedSessions}`}</span>,
     },
     {
       key: 'confirmed',
       header: 'Xác nhận dạy',
+      align: 'center',
       sortValue: (p) => p.confirmedTeachingMinutes ?? 0,
-      render: (p) => formatMinutesVi(p.confirmedTeachingMinutes),
+      render: (p) => <span className="tabular-nums">{formatMinutesVi(p.confirmedTeachingMinutes)}</span>,
     },
     {
       key: 'missed',
       header: 'Hủy / Vắng',
-      render: (p) => `${p.cancelledSessionsCount} / ${p.missedOrNoShowSessionsCount}`,
+      align: 'center',
+      render: (p) => <span className="tabular-nums">{`${p.cancelledSessionsCount} / ${p.missedOrNoShowSessionsCount}`}</span>,
     },
     {
       key: 'homework',
       header: 'Bài tập (chấm/nộp)',
-      render: (p) => `${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}`,
+      align: 'center',
+      render: (p) => <span className="tabular-nums">{`${p.homeworkGradedCount} / ${p.homeworkSubmittedCount}`}</span>,
     },
     {
       key: 'feedback',
       header: 'Đánh giá / khiếu nại',
+      align: 'center',
       render: (p) => (
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
           {p.averageRating != null ? (
             <span className="inline-flex items-center gap-0.5 font-medium text-rp-brand-strong">
               {p.averageRating}
@@ -189,23 +195,27 @@ export default function MentorAttendanceKpi() {
     {
       key: 'type',
       header: 'Hình thức',
+      align: 'left',
       render: () => <span className="font-medium text-rp-text">{tr('Buổi học nhóm')}</span>,
     },
     {
       key: 'learner',
       header: 'Học viên',
+      align: 'left',
       sortValue: (s) => s.learnerName || '',
       render: (s) => s.learnerName || tr('Học viên'),
     },
     {
       key: 'level',
       header: 'JLPT',
+      align: 'center',
       compact: true,
       render: (s) => (s.jlptLevel ? <Badge tone="brand" icon={false} size="sm">{s.jlptLevel}</Badge> : '—'),
     },
     {
       key: 'time',
       header: 'Thời gian',
+      align: 'center',
       compact: true,
       sortValue: (s) => s.scheduledStartUtc || '',
       render: (s) => <span className="whitespace-nowrap text-xs text-rp-text-2">{fmtDate(s.scheduledStartUtc)}</span>,
@@ -213,11 +223,13 @@ export default function MentorAttendanceKpi() {
     {
       key: 'duration',
       header: 'Thời lượng (xác nhận / kế hoạch)',
-      render: (s) => `${fmt.duration(s.observedMentorMinutes)} / ${fmt.duration(s.scheduledMinutes)}`,
+      align: 'center',
+      render: (s) => <span className="tabular-nums">{`${fmt.duration(s.observedMentorMinutes)} / ${fmt.duration(s.scheduledMinutes)}`}</span>,
     },
     {
       key: 'status',
       header: 'Trạng thái',
+      align: 'center',
       compact: true,
       render: (s) => (
         <Badge tone={s.isValidCompleted ? 'success' : 'neutral'} size="sm">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
+  Ban,
   BookOpen,
   CalendarClock,
   CalendarDays,
@@ -11,13 +12,15 @@ import {
   Clock,
   Layers,
   MessageSquareWarning,
-  Paperclip,
   Users,
   Video,
   X,
 } from 'lucide-react';
 import { MentorShell } from '@/layouts';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import {
+  AttachmentItemRow,
+  AttachmentPreviewModal,
   BackButton,
   Banner,
   Button,
@@ -42,6 +45,7 @@ import {
   UserAvatar,
   cx,
   notify,
+  useAttachmentPreview,
 } from '@/components/ui';
 import {
   AdminDataTable,
@@ -55,20 +59,26 @@ import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sideb
 import {
   courseGet,
   coursePost,
+  fetchCohortAttachmentBlob,
+  fetchCohortAttachmentPreview,
   getCohortComplaints,
   getCohortHomework,
   getCohorts,
   saveRetakeSupportPlan,
 } from '@/features/cohorts/api/cohortApi.js';
-import { fetchMentorProposalAttachmentBlob } from '@/features/scheduling/api/teachingProposalApi.js';
+import {
+  fetchMentorProposalAttachmentBlob,
+  fetchMentorProposalAttachmentPreview,
+  mentorCancelRecruitingCohort,
+} from '@/features/scheduling/api/teachingProposalApi.js';
 import CohortHomeworkPanel from '@/features/homework/components/CohortHomeworkPanel.jsx';
 import CohortComplaintPanel from '@/features/complaints/components/CohortComplaintPanel.jsx';
 import CohortScheduleRequestPanel from '@/features/scheduling/components/CohortScheduleRequestPanel.jsx';
 import CohortSessionsCalendar from '@/features/scheduling/components/CohortSessionsCalendar.jsx';
 import OccupancyProgressBar from '@/features/cohorts/components/OccupancyProgressBar.jsx';
-import { schedulePatternText, weeklyScheduleLinesOf } from '@/features/cohorts/utils/cohortCardModel.js';
+import { schedulePatternText } from '@/features/cohorts/utils/cohortCardModel.js';
 import { getSessionJoinState } from '@/features/calendar/utils/calendarEventsModel.js';
-import { formatTuitionVnd } from '@/features/scheduling/utils/proposalValidation.js';
+import WeeklyScheduleDisplay from '@/features/scheduling/components/WeeklyScheduleDisplay.jsx';
 import {
   CLASS_LIFECYCLE_STATUSES,
   computeClassProgress,
@@ -117,6 +127,15 @@ const SHORT_WEEKDAY = { 1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7', 0:
 const showStatus = (v) => translateText(STATUS_LABELS[v] || v || '');
 const fmtDateOnly = (v) => (v ? formatDate(v, '—') : '—');
 const fmtDateTime = (v) => (v ? formatVnDateTime(v, '—') : '—');
+
+function isActivePaymentHold(course, nowMs = Date.now()) {
+  if (!course) return false;
+  if (course.status !== 'PendingPayment') return false;
+  if (course.paymentStatus && course.paymentStatus !== 'Pending') return false;
+  if (!course.paymentExpiresAt) return true;
+  const expiresMs = parseUtcDate(course.paymentExpiresAt)?.getTime() ?? 0;
+  return expiresMs > nowMs;
+}
 
 /**
  * Stage-aware display status for confirmed enrolled learners (display-only; never mutates DB enrollment status).
@@ -192,11 +211,13 @@ export default function MentorClassWorkspace() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const refreshSeqRef = useRef(0);
   const inFlightRefreshRef = useRef(null);
+  const expiredHoldSyncedIdsRef = useRef(new Set());
 
   const [sessionSelection, setSessionSelection] = useState({ cohortId: null, number: null });
   const [attendanceModalState, setAttendanceModalState] = useState(null);
   const [supportModalState, setSupportModalState] = useState(null);
   const [scheduleDrawerState, setScheduleDrawerState] = useState({ cohortId: null, open: false });
+  const [cancelRecruitingState, setCancelRecruitingState] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 60_000);
@@ -231,6 +252,42 @@ export default function MentorClassWorkspace() {
     };
   }, []);
 
+  // Tự động loại bỏ giữ chỗ hết hạn đúng thời điểm trên UI và đồng bộ lại dữ liệu lớp.
+  useEffect(() => {
+    const now = Date.now();
+    let hasNewlyExpired = false;
+    let earliestExpiryMs = Infinity;
+
+    for (const c of courses) {
+      if (!c || c.status !== 'PendingPayment' || !c.paymentExpiresAt) continue;
+      const expMs = parseUtcDate(c.paymentExpiresAt)?.getTime();
+      if (!Number.isFinite(expMs)) continue;
+      if (expMs <= now) {
+        if (!expiredHoldSyncedIdsRef.current.has(c.id)) {
+          expiredHoldSyncedIdsRef.current.add(c.id);
+          hasNewlyExpired = true;
+        }
+      } else if (expMs < earliestExpiryMs) {
+        earliestExpiryMs = expMs;
+      }
+    }
+
+    if (hasNewlyExpired) {
+      const immediateTimerId = setTimeout(() => {
+        void loadAll().catch(() => {});
+      }, 0);
+      return () => clearTimeout(immediateTimerId);
+    }
+
+    if (!Number.isFinite(earliestExpiryMs)) return undefined;
+    const delayMs = Math.max(150, earliestExpiryMs - now + 200);
+    const timeoutId = setTimeout(() => {
+      setNowMs(Date.now());
+      void loadAll().catch(() => {});
+    }, delayMs);
+    return () => clearTimeout(timeoutId);
+  }, [courses, nowMs]);
+
   const mentorCohortEntries = useMemo(() => {
     const byId = new Map();
     const courseCohortIds = new Set(courses.map((c) => c.cohortId).filter(Boolean));
@@ -251,13 +308,14 @@ export default function MentorClassWorkspace() {
         totalSessions: cohortObj?.totalSessions ?? c.totalSessions ?? 0,
         sessionMinutes: cohortObj?.sessionMinutes ?? c.sessionMinutes ?? 90,
         sessionsPerWeek: cohortObj?.sessionsPerWeek ?? c.sessionsPerWeek ?? 0,
-        courseDurationWeeks: cohortObj?.courseDurationWeeks || 10,
+        courseDurationWeeks: cohortObj?.courseDurationWeeks ?? c.courseDurationWeeks ?? null,
         courseObjective: cohortObj?.courseObjective || null,
         attachments: Array.isArray(cohortObj?.attachments) ? cohortObj.attachments : [],
         sourceProposalId: cohortObj?.sourceProposalId || null,
         capacity: cohortObj?.capacitySnapshot || cohortObj?.capacity || null,
         price: cohortObj?.price ?? cohortObj?.tuitionPerLearner ?? c.amount ?? 0,
         enrolledCourses: [],
+        holdCourses: [],
         allCourses: [],
       };
       existing.allCourses.push(c);
@@ -266,6 +324,11 @@ export default function MentorClassWorkspace() {
         const prevIdx = existing.enrolledCourses.findIndex((x) => (x.learnerId ?? `course-${x.id}`) === lid);
         if (prevIdx < 0) existing.enrolledCourses.push(c);
         else if (Number(c.id) > Number(existing.enrolledCourses[prevIdx].id)) existing.enrolledCourses[prevIdx] = c;
+      } else if (isActivePaymentHold(c, nowMs)) {
+        const lid = c.learnerId ?? `course-${c.id}`;
+        const prevIdx = existing.holdCourses.findIndex((x) => (x.learnerId ?? `course-${x.id}`) === lid);
+        if (prevIdx < 0) existing.holdCourses.push(c);
+        else if (Number(c.id) > Number(existing.holdCourses[prevIdx].id)) existing.holdCourses[prevIdx] = c;
       }
       byId.set(cid, existing);
     }
@@ -285,18 +348,27 @@ export default function MentorClassWorkspace() {
         totalSessions: ch.totalSessions ?? (ch.sessions?.length || 0),
         sessionMinutes: ch.sessionMinutes ?? 90,
         sessionsPerWeek: ch.sessionsPerWeek ?? 0,
-        courseDurationWeeks: ch.courseDurationWeeks || 10,
+        courseDurationWeeks: ch.courseDurationWeeks ?? null,
         courseObjective: ch.courseObjective || null,
         attachments: Array.isArray(ch.attachments) ? ch.attachments : [],
         sourceProposalId: ch.sourceProposalId || null,
         capacity: ch.capacitySnapshot || ch.capacity || null,
         price: ch.price ?? ch.tuitionPerLearner ?? 0,
         enrolledCourses: [],
+        holdCourses: [],
         allCourses: [],
       });
     }
 
     return [...byId.values()].map((entry) => {
+      const confirmedLearnerKeys = new Set(
+        entry.enrolledCourses.map((c) => c.learnerId ?? `course-${c.id}`),
+      );
+      const cleanHoldCourses = entry.holdCourses
+        .filter((c) => !confirmedLearnerKeys.has(c.learnerId ?? `course-${c.id}`))
+        .sort((a, b) => Number(b.id) - Number(a.id));
+      const rosterCourses = [...entry.enrolledCourses, ...cleanHoldCourses];
+
       const repCourse = entry.enrolledCourses.find((c) => c.status === 'Active')
         || entry.enrolledCourses[0]
         || entry.allCourses[0]
@@ -343,25 +415,27 @@ export default function MentorClassWorkspace() {
 
       const sessions = [...sessionMap.values()].sort((a, b) => Number(a.number) - Number(b.number));
       const confirmedCount = entry.cohortObj?.confirmedEnrolledCount ?? entry.enrolledCourses.length;
-      const pendingHoldCount = 0;
+      const pendingHoldCount = Math.max(Number(entry.cohortObj?.pendingHoldCount || 0), cleanHoldCourses.length);
       const seatsAvailable = entry.cohortObj?.seatsAvailable ?? (
-        entry.capacity != null ? Math.max(0, Number(entry.capacity) - confirmedCount) : null
+        entry.capacity != null ? Math.max(0, Number(entry.capacity) - confirmedCount - pendingHoldCount) : null
       );
 
       const lifecycle = resolveClassLifecycleStatus({
         cohortStatus: entry.status,
         confirmedEnrolledCount: confirmedCount,
+        enrolledCount: entry.cohortObj?.enrolledCount ?? confirmedCount,
         capacity: entry.capacity,
-        minLearnersToStart: entry.cohortObj?.minLearnersToStart ?? 1,
+        maxLearners: entry.capacity,
         startsAt: entry.startsAt,
         enrollmentClosesAtUtc: entry.cohortObj?.enrollmentClosesAtUtc ?? null,
+        enrollmentClosedAtUtc: entry.cohortObj?.enrollmentClosedAtUtc ?? null,
         totalSessions: entry.totalSessions || sessions.length,
         sessions,
         enrolledCourses: entry.enrolledCourses,
         nowMs,
       });
 
-      const allowLiveRoom = lifecycle.id !== 'Recruiting' && lifecycle.id !== 'Completed' && lifecycle.id !== 'Cancelled' && entry.enrolledCourses.length > 0;
+      const allowLiveRoom = lifecycle.id !== 'Recruiting' && lifecycle.id !== 'Full' && lifecycle.id !== 'Completed' && lifecycle.id !== 'Cancelled' && entry.enrolledCourses.length > 0;
       let nextSession = null;
       let liveSession = null;
       const durationMinutes = entry.sessionMinutes || 90;
@@ -403,9 +477,6 @@ export default function MentorClassWorkspace() {
         : classComplaints.filter((cp) => cp.status === 'Open' || cp.status === 'UnderReview').length;
 
       const progress = computeClassProgress(sessions, entry.totalSessions || sessions.length);
-      const weeklyLines = entry.cohortObj
-        ? weeklyScheduleLinesOf({ schedulePattern: entry.cohortObj.schedulePattern, sessions })
-        : (sessions.length > 0 ? weeklyScheduleLinesOf({ schedulePattern: [], sessions }) : []);
       const patternText = entry.cohortObj
         ? schedulePatternText(entry.cohortObj.schedulePattern, entry.cohortObj.sessions)
         : (sessions.length > 0 ? schedulePatternText([], sessions) : '');
@@ -415,11 +486,12 @@ export default function MentorClassWorkspace() {
 
       return {
         ...entry,
+        holdCourses: cleanHoldCourses,
+        rosterCourses,
         confirmedCount,
         pendingHoldCount,
         seatsAvailable,
         totalTeachingHours,
-        weeklyLines,
         lifecycle,
         progress,
         repCourse,
@@ -592,24 +664,26 @@ export default function MentorClassWorkspace() {
     setSearchParams(next, { replace: true });
   }
 
-  async function handleOpenAttachment(proposalId, attachment) {
-    if (!proposalId || attachment?.index == null) return;
-    try {
-      const res = await fetchMentorProposalAttachmentBlob(proposalId, attachment.index);
-      const blob = res instanceof Blob ? res : new Blob([res]);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      notify.apiError(err, tr('Không mở được tài liệu đính kèm.'));
+  const attachmentPreview = useAttachmentPreview();
+
+  function buildAttachmentFetchers(cohortId, proposalId, attIdx) {
+    if (cohortId) {
+      return {
+        fetchBlob: (download) => fetchCohortAttachmentBlob(cohortId, attIdx, { download }),
+        fetchPreview: () => fetchCohortAttachmentPreview(cohortId, attIdx),
+      };
     }
+    return {
+      fetchBlob: (download) => fetchMentorProposalAttachmentBlob(proposalId, attIdx, { download }),
+      fetchPreview: () => fetchMentorProposalAttachmentPreview(proposalId, attIdx),
+    };
   }
 
   const levelOptions = useMemo(() => {
     const levels = [...new Set(mentorCohortEntries.map((e) => String(e.level || '').trim()).filter(Boolean))].sort();
     return [
-      { value: 'ALL', label: tr('Tất cả cấp độ') },
-      ...levels.map((lvl) => ({ value: lvl, label: lvl })),
+      { value: 'ALL', label: tr('Tất cả') },
+      ...levels.map((lvl) => ({ value: lvl, label: formatJlptLevel(lvl) })),
     ];
   }, [mentorCohortEntries, tr]);
 
@@ -626,7 +700,7 @@ export default function MentorClassWorkspace() {
       if (statusFilter !== 'ALL' && entry.lifecycle.id !== statusFilter) return false;
       if (levelFilter !== 'ALL' && String(entry.level || '').trim().toUpperCase() !== levelFilter.toUpperCase()) return false;
       if (!q) return true;
-      const learnerNames = entry.enrolledCourses.map((c) => c.learnerName || '').join(' ').toLowerCase();
+      const learnerNames = (entry.rosterCourses || entry.enrolledCourses).map((c) => c.learnerName || '').join(' ').toLowerCase();
       return (
         String(entry.name || '').toLowerCase().includes(q)
         || String(entry.level || '').toLowerCase().includes(q)
@@ -644,7 +718,7 @@ export default function MentorClassWorkspace() {
   // Attendance gating & valid sessions list
   const attendanceAvailable = useMemo(() => {
     if (!selectedCohort) return false;
-    if (selectedCohort.lifecycle.id === 'Recruiting' || selectedCohort.lifecycle.id === 'Upcoming' || selectedCohort.lifecycle.id === 'Cancelled') {
+    if (selectedCohort.lifecycle.id === 'Recruiting' || selectedCohort.lifecycle.id === 'Full' || selectedCohort.lifecycle.id === 'Upcoming' || selectedCohort.lifecycle.id === 'Cancelled') {
       return false;
     }
     if (selectedCohort.enrolledCourses.length === 0) return false;
@@ -694,7 +768,9 @@ export default function MentorClassWorkspace() {
 
   const calendarRepresentativeCourse = useMemo(() => {
     if (!selectedCohort) return null;
-    if (selectedCohort.repCourse) return selectedCohort.repCourse;
+    if (selectedCohort.repCourse && isConfirmedClassEnrollment(selectedCohort.repCourse)) {
+      return selectedCohort.repCourse;
+    }
     return {
       id: selectedCohort.cohortId,
       cohortId: selectedCohort.cohortId,
@@ -713,16 +789,16 @@ export default function MentorClassWorkspace() {
       header: tr('Lớp học'),
       sortValue: (row) => row.name || '',
       render: (row) => (
-        <div className="min-w-[180px] space-y-0.5">
+        <div className="min-w-[210px] space-y-0.5">
           <button
             type="button"
             onClick={() => openCohort(row.cohortId, 'overview')}
             title={row.name}
-            className="rp-focus block max-w-[240px] truncate rounded text-left text-[13.5px] font-semibold text-rp-text transition-colors hover:text-[#C84666]"
+            className="rp-focus block max-w-[290px] truncate rounded text-left text-[14px] font-semibold text-rp-text transition-colors hover:text-[#C84666]"
           >
             {row.name}
           </button>
-          <div className="text-[11.5px] tabular-nums text-rp-text-muted">
+          <div className="text-[12.5px] tabular-nums text-rp-text-muted">
             {fmtDateOnly(row.startsAt)} – {fmtDateOnly(row.endsAt)}
             {row.progress.totalSessions > 0 && ` · ${trf('{0} buổi', { 0: row.progress.totalSessions })}`}
           </div>
@@ -737,8 +813,8 @@ export default function MentorClassWorkspace() {
       sortValue: (row) => row.level || '',
       render: (row) => (
         row.level
-          ? <AdminStatusBadge tone="brand" withDot={false} label={row.level} />
-          : <span className="text-xs text-rp-text-muted">—</span>
+          ? <span className="whitespace-nowrap text-[13.5px] font-semibold text-rp-text">{row.level}</span>
+          : <span className="text-[13px] text-rp-text-muted">—</span>
       ),
     },
     {
@@ -746,24 +822,35 @@ export default function MentorClassWorkspace() {
       header: tr('Lịch học hàng tuần'),
       sortValue: (row) => row.patternText || row.compactSchedule || '',
       render: (row) => (
-        <span className="block max-w-[230px] text-xs leading-5 text-rp-text-2">
-          {row.patternText || row.compactSchedule}
-        </span>
+        <div className="mx-auto max-w-[300px]">
+          <WeeklyScheduleDisplay
+            schedulePattern={row.cohortObj?.schedulePattern}
+            sessions={row.sessions}
+            sessionDurationMinutes={row.sessionMinutes}
+            variant="compact"
+            align="center"
+          />
+        </div>
       ),
     },
     {
       key: 'capacity',
-      header: tr('Sĩ số'),
+      header: tr('Sĩ số & giữ chỗ'),
       compact: true,
       sortValue: (row) => Number(row.confirmedCount || 0),
       render: (row) => {
         const cap = Number(row.capacity || 0);
         return (
           <div className="min-w-[108px] space-y-1">
-            <div className="flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center justify-between gap-2 text-[13px]">
               <span className="tabular-nums font-semibold text-rp-text">
                 {row.confirmedCount}/{cap || '—'}
               </span>
+              {row.pendingHoldCount > 0 && (
+                <span className="rounded-full border border-rp-warning-line bg-rp-warning-bg px-1.5 py-0.5 text-[11.5px] font-semibold tabular-nums text-rp-warning">
+                  {trf('+{0} giữ chỗ', { 0: row.pendingHoldCount })}
+                </span>
+              )}
             </div>
             <OccupancyProgressBar
               enrolledCount={row.confirmedCount}
@@ -781,19 +868,8 @@ export default function MentorClassWorkspace() {
       compact: true,
       sortValue: (row) => Number(row.progress.completedSessions || 0),
       render: (row) => (
-        <span className="whitespace-nowrap tabular-nums text-xs font-medium text-rp-text-2">
+        <span className="whitespace-nowrap tabular-nums text-[13px] font-medium text-rp-text-2">
           {row.progress.completedSessions}/{row.progress.totalSessions || 0} {tr('buổi')}
-        </span>
-      ),
-    },
-    {
-      key: 'price',
-      header: tr('Học phí'),
-      compact: true,
-      sortValue: (row) => Number(row.price || 0),
-      render: (row) => (
-        <span className="whitespace-nowrap tabular-nums text-sm font-semibold text-rp-text">
-          {formatTuitionVnd(row.price)}
         </span>
       ),
     },
@@ -852,41 +928,58 @@ export default function MentorClassWorkspace() {
     };
   }, [selectedCohort]);
 
-  // Stage-adaptive Learner DataTable Columns (confirmed enrolled learners only)
+  // Stage-adaptive Learner DataTable Columns (confirmed enrolled + active payment hold learners)
   const learnerColumns = useMemo(() => {
     const cols = [
       {
         key: 'learner',
         header: tr('Học viên'),
         sortValue: (c) => c.learnerName || '',
-        render: (c) => (
-          <div className="flex items-center gap-2.5">
-            <UserAvatar src={c.learnerAvatarUrl} name={c.learnerName || tr('Học viên')} size={32} />
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-rp-text">{c.learnerName || tr('Học viên')}</p>
-              {c.status === 'Transferred' && (
-                <p className="text-xs text-rp-text-muted">{tr('Đã chuyển lớp')}</p>
-              )}
+        render: (c) => {
+          const isConfirmed = isConfirmedClassEnrollment(c);
+          return (
+            <div className="flex items-center gap-2.5">
+              <UserAvatar src={c.learnerAvatarUrl} name={c.learnerName || tr('Học viên')} size={32} />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-rp-text">{c.learnerName || tr('Học viên')}</p>
+                {isConfirmed && c.status === 'Transferred' && (
+                  <p className="text-xs text-rp-text-muted">{tr('Đã chuyển lớp')}</p>
+                )}
+                {!isConfirmed && c.paymentExpiresAt && (
+                  <p className="mt-0.5 text-[11.5px] tabular-nums text-rp-warning">
+                    {tr('Hết hạn giữ chỗ')}: {fmtDateTime(c.paymentExpiresAt)}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'enrolledAt',
         header: tr('Ngày ghi danh'),
+        align: 'center',
         compact: true,
-        sortValue: (c) => parseUtcDate(c.enrolledAtUtc || c.paymentConfirmedAtUtc)?.getTime() || 0,
+        sortValue: (c) => (isConfirmedClassEnrollment(c) ? (parseUtcDate(c.enrolledAtUtc || c.paymentConfirmedAtUtc)?.getTime() || 0) : -1),
         render: (c) => (
-          <span className="whitespace-nowrap tabular-nums text-xs text-rp-text-2">
-            {fmtDateOnly(c.enrolledAtUtc || c.paymentConfirmedAtUtc || c.startsAt)}
-          </span>
+          isConfirmedClassEnrollment(c) ? (
+            <span className="whitespace-nowrap tabular-nums text-xs text-rp-text-2">
+              {fmtDateOnly(c.enrolledAtUtc || c.paymentConfirmedAtUtc || c.startsAt)}
+            </span>
+          ) : (
+            <span className="whitespace-nowrap text-xs text-rp-text-muted">—</span>
+          )
         ),
       },
       {
         key: 'status',
         header: tr('Trạng thái'),
+        align: 'center',
         compact: true,
         render: (c) => {
+          if (!isConfirmedClassEnrollment(c)) {
+            return <AdminStatusBadge tone="warning" label={tr('Chờ thanh toán')} />;
+          }
           const st = resolveLearnerDisplayStatus(c, selectedCohort?.lifecycle.id);
           return <AdminStatusBadge tone={st.tone} label={tr(st.label)} />;
         },
@@ -898,8 +991,12 @@ export default function MentorClassWorkspace() {
         {
           key: 'attendance',
           header: tr('Chuyên cần'),
+          align: 'center',
           compact: true,
           render: (c) => {
+            if (!isConfirmedClassEnrollment(c)) {
+              return <span className="whitespace-nowrap text-xs text-rp-text-muted">—</span>;
+            }
             const att = computeLearnerAttendance(c.sessions || []);
             return (
               <span className={cx('whitespace-nowrap tabular-nums text-xs', att.markedCount > 0 ? 'font-medium text-rp-text-2' : 'text-rp-text-muted')}>
@@ -913,8 +1010,12 @@ export default function MentorClassWorkspace() {
         {
           key: 'homework',
           header: tr('Bài tập đúng hạn'),
+          align: 'center',
           compact: true,
           render: (c) => {
+            if (!isConfirmedClassEnrollment(c)) {
+              return <span className="whitespace-nowrap text-xs text-rp-text-muted">—</span>;
+            }
             const stats = homeworkStatsByLearnerId.get(Number(c.learnerId));
             const assigned = stats ? stats.assigned : (c.eligibility?.requiredHomework || 0);
             const onTime = stats ? stats.onTime : (c.eligibility?.passedOnTimeHomework || 0);
@@ -935,19 +1036,24 @@ export default function MentorClassWorkspace() {
     cols.push({
       key: 'actions',
       header: tr('Thao tác'),
+      align: 'center',
       sortable: false,
       compact: true,
       render: (c) => (
-        <div className="flex items-center justify-end gap-1.5">
-          <Button
-            variant="secondary"
-            size="sm"
-            iconRight={ArrowRight}
-            onClick={() => navigate(`/mentor-study-courses/${selectedCohort.cohortId}/learners/${c.learnerId}/competency`)}
-          >
-            {tr('Xem năng lực')}
-          </Button>
-        </div>
+        isConfirmedClassEnrollment(c) ? (
+          <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
+            <Button
+              variant="secondary"
+              size="sm"
+              iconRight={ArrowRight}
+              onClick={() => navigate(`/mentor-study-courses/${selectedCohort.cohortId}/learners/${c.learnerId}/competency`)}
+            >
+              {tr('Xem năng lực')}
+            </Button>
+          </div>
+        ) : (
+          <span className="text-xs text-rp-text-muted">—</span>
+        )
       ),
     });
 
@@ -973,6 +1079,8 @@ export default function MentorClassWorkspace() {
     {
       key: 'status',
       header: tr('Trạng thái buổi'),
+      align: 'center',
+      compact: true,
       render: ({ session }) => (
         <AdminStatusBadge tone={statusBadgeTone(session.status)} label={showStatus(session.status)} />
       ),
@@ -980,6 +1088,7 @@ export default function MentorClassWorkspace() {
     {
       key: 'note',
       header: tr('Ghi chú'),
+      align: 'left',
       render: ({ session }) => (
         <span className="text-xs text-rp-text-2">{session.note || '—'}</span>
       ),
@@ -987,6 +1096,7 @@ export default function MentorClassWorkspace() {
     {
       key: 'action',
       header: tr('Điểm danh'),
+      align: 'center',
       sortable: false,
       compact: true,
       render: ({ course, session }) => {
@@ -1152,7 +1262,7 @@ export default function MentorClassWorkspace() {
                 <CustomSelect
                   fitContent
                   value={levelFilter}
-                  aria-label={tr('Lọc theo cấp độ JLPT')}
+                  aria-label={tr('Cấp độ')}
                   onChange={setLevelFilter}
                   options={levelOptions}
                 />
@@ -1160,10 +1270,10 @@ export default function MentorClassWorkspace() {
                 <CustomSelect
                   fitContent
                   value={statusFilter}
-                  aria-label={tr('Lọc theo trạng thái lớp')}
+                  aria-label={tr('Trạng thái')}
                   onChange={setStatusFilter}
                   options={[
-                    { value: 'ALL', label: tr('Tất cả trạng thái') },
+                    { value: 'ALL', label: tr('Tất cả') },
                     ...CLASS_LIFECYCLE_STATUSES.map((st) => ({
                       value: st.id,
                       label: tr(st.label),
@@ -1214,7 +1324,7 @@ export default function MentorClassWorkspace() {
                   description={
                     mentorCohortEntries.length > 0 && hasFilters
                       ? tr('Thử thay đổi bộ lọc cấp độ, trạng thái hoặc từ khóa tìm kiếm.')
-                      : tr('Lớp học mới sẽ được tạo tự động khi Quản trị viên phê duyệt đề xuất lịch dạy của bạn.')
+                      : tr('Lớp học mới sẽ xuất hiện tại đây sau khi bạn chọn hạn tuyển sinh để mở lớp từ đề xuất đã được duyệt.')
                   }
                   action={
                     mentorCohortEntries.length > 0 && hasFilters ? (
@@ -1223,7 +1333,7 @@ export default function MentorClassWorkspace() {
                       </Button>
                     ) : (
                       <Button as={Link} to="/mentor-shift-schedule/" variant="primary">
-                        {tr('Đăng ký lịch dạy')}
+                        {tr('Đăng ký khung giờ')}
                       </Button>
                     )
                   }
@@ -1238,9 +1348,9 @@ export default function MentorClassWorkspace() {
                 rowActions={(row) => (
                   <AdminRowActions>
                     <AdminIconAction
-                      kind="view"
+                      kind="openWorkspace"
                       tone="brand"
-                      tooltip="Xem chi tiết lớp"
+                      tooltip="Mở không gian lớp"
                       onClick={() => openCohort(row.cohortId, 'overview')}
                     />
                   </AdminRowActions>
@@ -1255,8 +1365,12 @@ export default function MentorClassWorkspace() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   <BackButton fallbackTo="/mentor-study-courses/" label="Danh sách lớp" restoreListKey="/mentor-study-courses" />
-                  <h1 className="truncate text-lg font-semibold text-rp-text sm:text-xl">{selectedCohort.name}</h1>
-                  {selectedCohort.level && <AdminStatusBadge tone="brand" withDot={false} label={selectedCohort.level} />}
+                  <h1 className="truncate text-[19px] font-bold leading-7 tracking-[-0.015em] text-rp-text sm:text-[21px]">{selectedCohort.name}</h1>
+                  {selectedCohort.level && (
+                    <span className="whitespace-nowrap text-[13.5px] font-semibold text-rp-text-2">
+                      {formatJlptLevel(selectedCohort.level)}
+                    </span>
+                  )}
                   <AdminStatusBadge tone={selectedCohort.lifecycle.tone} label={tr(selectedCohort.lifecycle.label)} />
                 </div>
 
@@ -1274,6 +1388,21 @@ export default function MentorClassWorkspace() {
                         }))}
                       />
                     </div>
+                  )}
+                  {selectedCohort.lifecycle.id === 'Recruiting' && selectedCohort.confirmedCount === 0 && (
+                    <Button
+                      variant="danger-soft"
+                      size="sm"
+                      icon={Ban}
+                      disabled={busy}
+                      onClick={() => setCancelRecruitingState({
+                        cohortId: selectedCohort.cohortId,
+                        name: selectedCohort.name,
+                        reason: '',
+                      })}
+                    >
+                      {tr('Hủy mở tuyển sinh')}
+                    </Button>
                   )}
                   {selectedCohort.liveSession?.roomId && (
                     <Button as={Link} to={`/meeting-room/${selectedCohort.liveSession.roomId}`} variant="primary" size="sm" icon={Video}>
@@ -1297,7 +1426,7 @@ export default function MentorClassWorkspace() {
                     label: tab.label,
                     icon: tab.icon,
                     count: tab.id === 'learners'
-                      ? (selectedCohort.confirmedCount || undefined)
+                      ? (selectedCohort.rosterCourses.length || undefined)
                       : tab.id === 'homework'
                         ? (submittedHomeworkCount || undefined)
                         : tab.id === 'attendance'
@@ -1316,11 +1445,18 @@ export default function MentorClassWorkspace() {
                 {/* Top Row: 4 KPI Summary Cards */}
                 <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
                   <Card className="p-4">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-                      <Users className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
-                      <span>{tr('Sĩ số lớp học')}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-[13px] font-medium text-rp-text-muted">
+                        <Users className="h-4 w-4 text-rp-brand" aria-hidden="true" />
+                        <span>{tr('Sĩ số lớp học')}</span>
+                      </div>
+                      {selectedCohort.pendingHoldCount > 0 && (
+                        <span className="rounded-full border border-rp-warning-line bg-rp-warning-bg px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-rp-warning">
+                          {trf('+{0} giữ chỗ', { 0: selectedCohort.pendingHoldCount })}
+                        </span>
+                      )}
                     </div>
-                    <div className="mt-1.5 text-lg font-bold tabular-nums text-rp-text">
+                    <div className="mt-1.5 text-[19px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-rp-text sm:text-[20px]">
                       {selectedCohort.capacity != null
                         ? trf('{0}/{1} học viên', { 0: selectedCohort.confirmedCount, 1: selectedCohort.capacity })
                         : trf('{0} học viên', { 0: selectedCohort.confirmedCount })}
@@ -1337,21 +1473,26 @@ export default function MentorClassWorkspace() {
                         })}
                       />
                     )}
+                    {selectedCohort.pendingHoldCount > 0 && (
+                      <p className="mt-1.5 text-[12px] font-medium text-rp-warning">
+                        {trf('{0} học viên đang chờ hoàn tất thanh toán', { 0: selectedCohort.pendingHoldCount })}
+                      </p>
+                    )}
                   </Card>
 
                   <Card className="p-4">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-rp-success" aria-hidden="true" />
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-rp-text-muted">
+                      <CheckCircle2 className="h-4 w-4 text-rp-success" aria-hidden="true" />
                       <span>{tr('Tiến trình khóa học')}</span>
                     </div>
                     <div className="mt-1.5 flex items-baseline justify-between gap-2">
-                      <span className="text-lg font-bold tabular-nums text-rp-text">
+                      <span className="text-[19px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-rp-text sm:text-[20px]">
                         {trf('{0}/{1} buổi', {
                           0: selectedCohort.progress.completedSessions,
                           1: selectedCohort.progress.totalSessions || 0,
                         })}
                       </span>
-                      <span className="text-xs font-semibold tabular-nums text-rp-text-muted">
+                      <span className="text-[12.5px] font-semibold tabular-nums text-rp-text-muted">
                         {selectedCohort.progress.percent}%
                       </span>
                     </div>
@@ -1369,14 +1510,16 @@ export default function MentorClassWorkspace() {
                   </Card>
 
                   <Card className="p-4">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-                      <CalendarClock className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-rp-text-muted">
+                      <CalendarClock className="h-4 w-4 text-rp-brand" aria-hidden="true" />
                       <span>{tr('Thời lượng khóa học')}</span>
                     </div>
-                    <div className="mt-1.5 text-lg font-bold tabular-nums text-rp-text">
-                      {trf('{0} tuần', { 0: selectedCohort.courseDurationWeeks || 10 })}
+                    <div className="mt-1.5 text-[19px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-rp-text sm:text-[20px]">
+                      {selectedCohort.courseDurationWeeks
+                        ? trf('{0} tuần', { 0: selectedCohort.courseDurationWeeks })
+                        : trf('{0} buổi', { 0: selectedCohort.totalSessions || selectedCohort.sessions.length || 0 })}
                     </div>
-                    <p className="mt-1 text-xs tabular-nums text-rp-text-muted">
+                    <p className="mt-1 text-[12.5px] tabular-nums text-rp-text-muted">
                       {trf('{0} buổi', { 0: selectedCohort.totalSessions || selectedCohort.sessions.length || 0 })}
                       {selectedCohort.sessionsPerWeek
                         ? ` · ${trf('{0} buổi/tuần', { 0: selectedCohort.sessionsPerWeek })}`
@@ -1385,27 +1528,27 @@ export default function MentorClassWorkspace() {
                   </Card>
 
                   <Card className="p-4">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-rp-text-muted">
-                      <Clock className="h-3.5 w-3.5 text-rp-brand" aria-hidden="true" />
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-rp-text-muted">
+                      <Clock className="h-4 w-4 text-rp-brand" aria-hidden="true" />
                       <span>{tr('Tổng giờ giảng dạy')}</span>
                     </div>
-                    <div className="mt-1.5 text-lg font-bold tabular-nums text-rp-text">
+                    <div className="mt-1.5 text-[19px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-rp-text sm:text-[20px]">
                       {trf('{0} giờ', { 0: selectedCohort.totalTeachingHours || 0 })}
                     </div>
-                    <p className="mt-1 text-xs tabular-nums text-rp-text-muted">
+                    <p className="mt-1 text-[12.5px] tabular-nums text-rp-text-muted">
                       {trf('{0} phút/buổi', { 0: selectedCohort.sessionMinutes || 90 })}
                     </p>
                   </Card>
                 </div>
 
                 {/* Middle Row: 2-Column Balanced Course Info + Weekly Teaching Schedule */}
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid items-start gap-4 lg:grid-cols-2">
                   <Card className="space-y-3.5">
                     <CardHeader
                       title={tr('Thông tin khóa học')}
                       icon={<BookOpen className="h-4 w-4 text-rp-brand" aria-hidden="true" />}
                     />
-                    <div className="space-y-2.5 rounded-xl border border-rp-line/80 bg-rp-bg-2/50 p-3.5 text-xs">
+                    <div className="space-y-2.5 rounded-xl border border-rp-line/80 bg-rp-bg-2/50 p-3.5 text-[13px]">
                       <div className="flex items-center justify-between gap-3">
                         <span className="flex items-center gap-1.5 text-rp-text-muted">
                           <Clock className="h-3.5 w-3.5 shrink-0 text-rp-brand" aria-hidden="true" />
@@ -1431,46 +1574,49 @@ export default function MentorClassWorkspace() {
                         </span>
                         <span className="font-semibold tabular-nums text-rp-text">{fmtDateOnly(selectedCohort.endsAt)}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3 border-t border-rp-line/60 pt-2.5">
-                        <span className="text-rp-text-muted">{tr('Sĩ số tối thiểu để mở lớp')}</span>
-                        <span className="font-semibold tabular-nums text-rp-text">
-                          {trf('{0} học viên', { 0: selectedCohort.cohortObj?.minLearnersToStart ?? 1 })}
-                        </span>
-                      </div>
+                      {selectedCohort.capacity != null && (
+                        <div className="flex items-center justify-between gap-3 border-t border-rp-line/60 pt-2.5">
+                          <span className="text-rp-text-muted">{tr('Sĩ số tối đa')}</span>
+                          <span className="font-semibold tabular-nums text-rp-text">
+                            {trf('{0} học viên', { 0: selectedCohort.capacity })}
+                          </span>
+                        </div>
+                      )}
+                      {selectedCohort.lifecycle.id === 'Cancelled' && selectedCohort.cohortObj?.cancellationReason && (
+                        <div className="rounded-lg border border-rp-danger/25 bg-rp-danger-bg px-3 py-2 text-xs text-rp-danger">
+                          <span className="font-semibold">{tr('Lý do hủy lớp')}: </span>
+                          <span>{selectedCohort.cohortObj.cancellationReason}</span>
+                        </div>
+                      )}
                       {selectedCohort.lifecycle.id === 'Recruiting' && selectedCohort.seatsAvailable != null && (
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-rp-text-muted">{tr('Số chỗ còn khả dụng')}</span>
                           <span className="font-semibold tabular-nums text-rp-info">
                             {trf('{0} chỗ', { 0: selectedCohort.seatsAvailable })}
+                            {selectedCohort.pendingHoldCount > 0 && (
+                              <span className="ml-1.5 text-[12px] font-medium text-rp-warning">
+                                ({trf('{0} giữ chỗ', { 0: selectedCohort.pendingHoldCount })})
+                              </span>
+                            )}
                           </span>
                         </div>
                       )}
                     </div>
                   </Card>
 
-                  <Card className="flex flex-col justify-between gap-4">
+                  <Card className="space-y-4">
                     <div className="space-y-3.5">
                       <CardHeader
                         title={tr('Lịch giảng dạy hằng tuần')}
                         icon={<CalendarClock className="h-4 w-4 text-rp-brand" aria-hidden="true" />}
                       />
-                      {selectedCohort.weeklyLines.length > 0 ? (
-                        <div className="space-y-2">
-                          {selectedCohort.weeklyLines.map((line) => (
-                            <div
-                              key={line.key}
-                              className="flex items-center justify-between gap-3 rounded-xl border border-rp-line/80 bg-rp-bg-2/50 px-3.5 py-2.5 text-xs"
-                            >
-                              <span className="font-semibold text-rp-text">{line.weekdayLabel}</span>
-                              <span className="font-bold tabular-nums text-rp-text">{line.timeRange}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="rounded-xl border border-rp-line/80 bg-rp-bg-2/50 px-3.5 py-3 text-xs text-rp-text-2">
-                          {selectedCohort.patternText || selectedCohort.compactSchedule}
-                        </p>
-                      )}
+                      <WeeklyScheduleDisplay
+                        schedulePattern={selectedCohort.cohortObj?.schedulePattern}
+                        sessions={selectedCohort.sessions}
+                        sessionDurationMinutes={selectedCohort.sessionMinutes}
+                        variant="detailed"
+                        showSlotCount
+                      />
                     </div>
                     <div className="flex justify-end border-t border-rp-line/70 pt-3">
                       <Button variant="secondary" size="sm" icon={CalendarDays} onClick={() => switchSection('schedule')}>
@@ -1492,18 +1638,34 @@ export default function MentorClassWorkspace() {
                     {selectedCohort.attachments.length > 0 && (
                       <div className={cx(selectedCohort.courseObjective && 'border-t border-rp-line/70 pt-3', 'space-y-2')}>
                         <p className="text-xs font-semibold text-rp-text-muted">{tr('Tài liệu giảng dạy')}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedCohort.attachments.map((att, idx) => (
-                            <Button
-                              key={`${att.name}-${idx}`}
-                              variant="outline"
-                              size="sm"
-                              icon={Paperclip}
-                              onClick={() => handleOpenAttachment(selectedCohort.sourceProposalId, att)}
-                            >
-                              {att.name || trf('Tài liệu {0}', { 0: idx + 1 })}
-                            </Button>
-                          ))}
+                        <div className="flex flex-col gap-1.5">
+                          {selectedCohort.attachments.map((att, idx) => {
+                            const attIdx = att.index ?? idx;
+                            const { fetchBlob, fetchPreview } = buildAttachmentFetchers(selectedCohort.id, selectedCohort.sourceProposalId, attIdx);
+                            return (
+                              <AttachmentItemRow
+                                key={`${att.name}-${idx}`}
+                                name={att.name || trf('Tài liệu {0}', { 0: idx + 1 })}
+                                contentType={att.contentType}
+                                sizeBytes={att.sizeBytes}
+                                viewing={attachmentPreview.busyKey === `ws:${selectedCohort.id}:${attIdx}:view`}
+                                downloading={attachmentPreview.busyKey === `ws:${selectedCohort.id}:${attIdx}:dl`}
+                                disabled={Boolean(attachmentPreview.busyKey)}
+                                onView={() => void attachmentPreview.openPreview({
+                                  key: `ws:${selectedCohort.id}:${attIdx}:view`,
+                                  attachment: att,
+                                  fetchBlob: () => fetchBlob(false),
+                                  fetchDownloadBlob: () => fetchBlob(true),
+                                  fetchPreview,
+                                })}
+                                onDownload={() => void attachmentPreview.downloadAttachment({
+                                  key: `ws:${selectedCohort.id}:${attIdx}:dl`,
+                                  attachment: att,
+                                  fetchBlob: () => fetchBlob(true),
+                                })}
+                              />
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1586,18 +1748,19 @@ export default function MentorClassWorkspace() {
 
             {/* ---------- 2. LEARNERS ---------- */}
             {activeSection === 'learners' && (
-              selectedCohort.enrolledCourses.length === 0 ? (
+              selectedCohort.rosterCourses.length === 0 ? (
                 <Card>
                   <ContextualEmptyState
                     variant="compact"
                     illustration="mentor"
-                    title={tr('Lớp chưa có học viên ghi danh.')}
+                    title={tr('Chưa có học viên nào trong lớp')}
+                    description={tr('Học viên đã ghi danh hoặc đang giữ chỗ thanh toán hợp lệ sẽ hiển thị tại đây.')}
                   />
                 </Card>
               ) : (
                 <AdminDataTable
                   columns={learnerColumns}
-                  rows={selectedCohort.enrolledCourses}
+                  rows={selectedCohort.rosterCourses}
                   rowKey={(c) => c.id}
                   itemLabel="học viên"
                 />
@@ -1938,6 +2101,79 @@ export default function MentorClassWorkspace() {
             </form>
           )}
         </Modal>
+
+        {/* Mentor Cancel Empty Recruiting Cohort Modal */}
+        <Modal
+          open={Boolean(cancelRecruitingState)}
+          onClose={() => !busy && setCancelRecruitingState(null)}
+          title={tr('Hủy mở tuyển sinh lớp học')}
+          description={cancelRecruitingState?.name || ''}
+          size="md"
+          footer={(
+            <>
+              <Button variant="neutral" onClick={() => setCancelRecruitingState(null)} disabled={busy}>
+                {tr('Quay lại')}
+              </Button>
+              <Button
+                type="submit"
+                form="cancel-recruiting-cohort-form"
+                variant="danger"
+                icon={Ban}
+                loading={busy}
+              >
+                {tr('Xác nhận hủy lớp')}
+              </Button>
+            </>
+          )}
+        >
+          {cancelRecruitingState && (
+            <form
+              id="cancel-recruiting-cohort-form"
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const { cohortId, reason } = cancelRecruitingState;
+                runAction(
+                  async () => {
+                    await mentorCancelRecruitingCohort(cohortId, reason.trim() || null);
+                    setCancelRecruitingState(null);
+                    await Promise.allSettled([
+                      queryClient.invalidateQueries({ queryKey: ['mentor-teaching-proposals-context'] }),
+                      queryClient.invalidateQueries({ queryKey: ['mentor-work-schedule-cohorts'] }),
+                      queryClient.invalidateQueries({ queryKey: ['workspace-calendar'] }),
+                    ]);
+                  },
+                  'Đã hủy mở tuyển sinh lớp học.',
+                );
+              }}
+            >
+              <p className="m-0 text-sm leading-6 text-rp-text-2">
+                {tr('Lớp học hiện chưa có học viên nào đăng ký. Khi hủy mở tuyển sinh, lớp sẽ chuyển sang trạng thái Đã hủy và các khung giờ giảng dạy đã giữ sẽ được giải phóng ngay lập tức.')}
+              </p>
+              <Field label={tr('Lý do hủy (không bắt buộc)')} counter={`${cancelRecruitingState.reason.length} / 300`}>
+                <Textarea
+                  rows={3}
+                  disabled={busy}
+                  maxLength={300}
+                  value={cancelRecruitingState.reason}
+                  onChange={(e) => setCancelRecruitingState((cur) => cur && ({ ...cur, reason: e.target.value }))}
+                  placeholder={tr('Ví dụ: Thay đổi kế hoạch giảng dạy trong khoảng thời gian này…')}
+                />
+              </Field>
+            </form>
+          )}
+        </Modal>
+
+        <AttachmentPreviewModal
+          open={attachmentPreview.modalOpen}
+          onClose={attachmentPreview.closePreview}
+          attachment={attachmentPreview.activeAttachment}
+          loading={attachmentPreview.previewLoading}
+          error={attachmentPreview.previewError}
+          preview={attachmentPreview.previewData}
+          onDownload={attachmentPreview.handleDownloadActive}
+          downloading={Boolean(attachmentPreview.busyKey && attachmentPreview.busyKey.endsWith('-modal-dl'))}
+        />
       </PageContainer>
     </MentorShell>
   );

@@ -6,6 +6,7 @@ import {
   CheckCheck,
   CheckCircle2,
   Circle,
+  ClipboardList,
   Info,
   Settings,
   WifiOff,
@@ -34,10 +35,10 @@ import {
 import { normalizeLegacyNotificationItem } from '@/features/notifications/utils/normalizeLegacyNotification.js';
 import {
   Button,
+  CountBadge,
   Drawer,
   EmptyState,
   ErrorState,
-  HeaderIconBadge,
   IconButton,
   Popover,
   SakuraLoader,
@@ -88,6 +89,7 @@ function CategoryGlyph({ iconName }) {
   if (iconName === 'check-circle') return <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />;
   if (iconName === 'x-circle') return <XCircle aria-hidden="true" className="h-4 w-4 shrink-0" />;
   if (iconName === 'alert-triangle') return <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0" />;
+  if (iconName === 'clipboard-list') return <ClipboardList aria-hidden="true" className="h-4 w-4 shrink-0" />;
   return <Info aria-hidden="true" className="h-4 w-4 shrink-0" />;
 }
 
@@ -219,17 +221,12 @@ export default function NotificationCenter() {
   const hasMore = rawItems.length < totalCount && pageSize < MAX_PAGE_SIZE;
 
   const renderPanelContent = (closeOverlay) => (
-    <div className="flex max-h-[min(540px,76vh)] flex-col bg-white">
+    <div className="flex max-h-[min(540px,76vh)] flex-col bg-[var(--rp-popup-bg)] text-rp-text">
       {/* Sticky Header */}
-      <div className="shrink-0 border-b border-rp-line bg-white px-4 pt-3 pb-2.5">
+      <div className="shrink-0 border-b border-[var(--rp-popup-divider)] bg-[var(--rp-popup-header-bg)] px-4 pt-3 pb-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="m-0 text-sm font-bold text-rp-text">{tr('Thông báo')}</h2>
-            {unreadCount > 0 && (
-              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full border border-[#F2CCD7] bg-[#FFF5F7] px-1.5 text-[11px] font-bold tabular-nums text-[#B53D5C]">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
             {connectionStatus === 'offline' && (
               <span
                 className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800"
@@ -297,15 +294,8 @@ export default function NotificationCenter() {
                 )}
               >
                 <span>{tr(tab.label)}</span>
-                {badgeNum != null && badgeNum > 0 && (
-                  <span
-                    className={cx(
-                      'inline-flex min-w-[16px] items-center justify-center rounded-full px-1 text-[10.5px] font-bold tabular-nums',
-                      active ? 'bg-[#E05A7A] text-white' : 'bg-rp-bg-2 text-rp-text-2',
-                    )}
-                  >
-                    {badgeNum > 99 ? '99+' : badgeNum}
-                  </span>
+                {badgeNum != null && (
+                  <CountBadge count={badgeNum} size="sm" max={99} />
                 )}
               </button>
             );
@@ -506,9 +496,12 @@ export default function NotificationCenter() {
       className="rp-hc rp-bell-trigger shadow-rp-xs"
       badge={
         unreadCount > 0 && (
-          <HeaderIconBadge pulse>
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </HeaderIconBadge>
+          <CountBadge
+            count={unreadCount}
+            size="xs"
+            max={99}
+            className="pointer-events-none absolute -right-0.5 -top-0.5"
+          />
         )
       }
     />

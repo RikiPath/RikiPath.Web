@@ -56,6 +56,8 @@ const LEGACY_PHRASE_RULES = [
   [/\(Schedule\)/gu, '(Lịch học)'],
   [/\(PaymentEnrollment\)/gu, '(Thanh toán & Ghi danh)'],
   [/\(Other\)/gu, '(Khác)'],
+  [/(?<![\p{L}\p{N}_])Lịch sử đăng ký(?![\p{L}\p{N}_])/gu, 'Danh sách đăng ký'],
+  [/(?<![\p{L}\p{N}_])lịch sử đăng ký(?![\p{L}\p{N}_])/gu, 'danh sách đăng ký'],
 ];
 
 export function normalizeLegacyNotificationText(text) {

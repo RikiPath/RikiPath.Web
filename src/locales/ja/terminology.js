@@ -18,9 +18,9 @@ export const jaTerminology = {
   'Chưa đánh dấu đã đọc được': '既読にできませんでした',
 
   // Scheduling & Mentor Proposal Flow
-  'Cần chọn đủ 2–4 buổi hợp lệ để tiếp tục': '続行するには有効な授業を週2〜4コマ選択してください',
+  'Cần chọn ít nhất 1 buổi hợp lệ mỗi tuần để tiếp tục': '続行するには週1回以上の有効な授業を選択してください',
   'Hãy điều chỉnh hoặc xóa bộ lọc để xem toàn bộ danh sách đăng ký của bạn.': 'フィルターを変更または解除して、登録一覧をすべて表示してください。',
-  'Chọn trực tiếp 2–4 buổi/tuần trên chế độ Lịch hoặc nhấn "Đăng ký nhanh" để bắt đầu tạo đề xuất mở lớp.': 'カレンダー表示で週2〜4コマを直接選択するか、「クイック登録」を押して開講提案の作成を開始してください。',
+  'Chọn trực tiếp các khung giờ phù hợp trên chế độ Lịch hoặc nhấn "Đăng ký nhanh" để bắt đầu tạo đề xuất mở lớp.': 'カレンダー表示で希望の時間帯を直接選択するか、「クイック登録」を押して開講提案の作成を開始してください。',
   'buổi dự kiến': '回の予定授業',
   'Nhấn để bỏ chọn': 'クリックして選択解除',
   'Mẫu lịch tuần · Nhấn để bỏ chọn': '週間スケジュール枠・クリックして選択解除',

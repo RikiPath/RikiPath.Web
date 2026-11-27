@@ -20,21 +20,25 @@ export default function VocabularyEditor() {
         {
           key: 'word',
           label: 'Từ vựng',
+          align: 'left',
           render: (row) => <span className="rp-jp font-semibold text-rp-text">{row.word}</span>,
         },
         {
           key: 'reading',
           label: 'Cách đọc',
+          align: 'left',
           render: (row) => <span className="rp-jp text-rp-text-2">{row.reading || '—'}</span>,
         },
         {
           key: 'meaning',
           label: 'Nghĩa',
-          render: (row) => <span title={row.meaning || ''} className="mx-auto line-clamp-2 max-w-[420px]">{row.meaning}</span>,
+          align: 'left',
+          render: (row) => <span title={row.meaning || ''} className="line-clamp-2 max-w-[420px]">{row.meaning}</span>,
         },
         {
           key: 'jlptLevelName',
           label: 'Cấp độ',
+          align: 'center',
           compact: true,
           render: (row) => (
             row.jlptLevelName ? <Badge tone="neutral" size="sm" icon={false}>{row.jlptLevelName}</Badge> : '—'

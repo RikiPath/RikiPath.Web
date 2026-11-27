@@ -258,7 +258,7 @@ export default function LearnerEssayPage() {
       setGrade(null);
       setScanDrawerOpen(false);
       setNotice(tr('Đã nhận dạng. Kiểm tra nội dung rồi bấm Lưu; bài đã lưu chưa thay đổi.'));
-      notify.success(tr('Đã nhận dạng xong văn bản từ ảnh'), tr('Hãy kiểm tra nội dung rồi bấm Lưu bản nháp.'), {
+      notify.success(tr('Đã nhận dạng xong văn bản từ ảnh.'), '', {
         key: toastKey,
         replace: true,
       });
@@ -369,6 +369,8 @@ export default function LearnerEssayPage() {
         title: `${tr('Xóa')} "${essay.title || tr('bài viết này')}"?`,
         description: tr('Bài viết sẽ bị xóa vĩnh viễn và không thể khôi phục.'),
         confirmLabel: tr('Xóa bài viết'),
+        cancelLabel: tr('Giữ lại'),
+        tone: 'danger',
       }))
     ) {
       return;
@@ -475,11 +477,9 @@ export default function LearnerEssayPage() {
 
         <Card className="mb-5 space-y-2.5">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="w-full max-w-md">
-              <label className="mb-1.5 block text-xs font-semibold text-rp-text-muted">
-                {tr('Đề luyện viết')}
-              </label>
+            <div className="w-full max-w-md pt-1">
               <CustomSelect
+                label={tr('Đề luyện viết')}
                 value={lessonLevel}
                 disabled={busy}
                 onChange={(nextLevel) => {

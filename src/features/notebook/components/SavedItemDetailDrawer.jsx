@@ -345,12 +345,12 @@ export default function SavedItemDetailDrawer({
   async function handleDelete() {
     const confirmed = await confirmAction({
       title: tr('Xóa mục này khỏi sổ tay?'),
-      message: item.hasSrs
+      description: item.hasSrs
         ? trf('“{0}” sẽ bị xóa khỏi sổ tay. Các thẻ ôn tập SRS đã tạo trước đó vẫn được giữ nguyên.', { 0: item.term })
         : trf('“{0}” sẽ bị xóa khỏi sổ tay cá nhân của bạn.', { 0: item.term }),
-      confirmText: tr('Xóa mục'),
-      cancelText: tr('Hủy'),
-      danger: true,
+      confirmLabel: tr('Xóa mục'),
+      cancelLabel: tr('Giữ lại'),
+      tone: 'danger',
     });
     if (!confirmed) return;
 

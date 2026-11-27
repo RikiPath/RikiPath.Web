@@ -134,7 +134,7 @@ export const jaCourses = {
 
   // Mentor directory & public profile
   'Chọn Mentor đồng hành': '一緒に学ぶメンターを選ぶ',
-  'Xem hồ sơ Mentor, các lớp nhóm đang mở đăng ký và chọn cường độ phù hợp với lịch của bạn. Mỗi lớp 10 tuần, buổi 90 phút, tối đa 4 học viên.': 'メンターのプロフィールと募集中のグループレッスンを確認し、予定に合った受講ペースを選びましょう。各クラスは10週間、1回90分、最大4名です。',
+  'Xem hồ sơ Mentor, các lớp nhóm đang mở đăng ký và chọn lịch học phù hợp với kế hoạch của bạn.': 'メンターのプロフィールと募集中のグループレッスンを確認し、予定に合ったクラスを選びましょう。',
   'Tìm theo tên hoặc chuyên môn': '名前または専門分野で検索',
   'Tìm theo tên hoặc chuyên môn…': '名前または専門分野で検索…',
   'Trình độ giảng dạy': '指導レベル',
@@ -161,7 +161,7 @@ export const jaCourses = {
   'Chưa có đánh giá lớp nhóm': 'グループレッスンの評価はまだありません',
   'Mentor chưa cập nhật phần giới thiệu.': 'メンターはまだ自己紹介を登録していません。',
   'Lớp nhóm đang mở': '募集中のグループレッスン',
-  '10 tuần · 90 phút/buổi · 1–4 học viên · học phí trọn khóa': '10週間 · 1回90分 · 1〜4名 · コース一括料金',
+  'Lịch học linh hoạt · Học trực tiếp cùng Giáo viên · học phí trọn khóa': '柔軟なスケジュール · 講師と直接受講 · コース一括料金',
   'Lọc & đăng ký trong Lớp học nhóm': 'グループレッスンで絞り込んで申し込む',
   'Mentor chưa có lớp đang mở đăng ký': 'このメンターの募集中クラスはありません',
   'Bạn có thể quay lại sau hoặc xem lớp của Mentor khác.': '後でもう一度確認するか、別のメンターのクラスをご覧ください。',

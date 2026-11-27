@@ -22,6 +22,7 @@ import {
 } from '@/components/ui';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useCertificateLevelsQuery, useCertificateTypesQuery } from '@/features/learning-path/hooks/useCertificates.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 
 const MAX_AUDIO_BYTES = 27 * 1024 * 1024;
@@ -180,14 +181,13 @@ export default function MentorGrading() {
                       invalid={invalid}
                       loading={loadingLevels}
                       disabled={busy || loadingLevels}
-                      placeholder={loadingLevels ? 'Đang tải…' : 'Chọn cấp độ'}
                       onChange={(val) => {
                         setLevelId(val);
                         setLevelError('');
                       }}
                       options={(levels.data || []).map((level) => ({
                         value: String(level.id),
-                        label: level.code || level.name,
+                        label: formatJlptLevel(level.code || level.name),
                       }))}
                     />
                   )}

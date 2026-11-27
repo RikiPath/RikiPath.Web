@@ -424,6 +424,7 @@ export function CelebrationScene({
       role="dialog"
       aria-modal="true"
       aria-label={title || tr('Chúc mừng hoàn thành')}
+      onClick={dismiss ? (e) => { if (e.target === e.currentTarget) dismiss(); } : undefined}
       className="rp-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4"
     >
       {cardContent}

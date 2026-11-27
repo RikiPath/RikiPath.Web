@@ -68,9 +68,9 @@ export function UnifiedToolbar({
 
   const surfaceClass =
     surface === 'card'
-      ? 'rounded-rp-card border border-rp-line bg-rp-surface px-3 py-2.5 shadow-rp-xs sm:px-3.5'
+      ? 'rounded-rp-card border border-rp-line bg-rp-surface px-3 py-3 shadow-rp-xs sm:px-3.5'
       : surface === 'subtle'
-        ? 'rounded-rp-card border border-rp-line/80 bg-rp-bg-2/70 px-3 py-2'
+        ? 'rounded-rp-card border border-rp-line/80 bg-rp-bg-2/70 px-3 py-2.5'
         : '';
 
   return (

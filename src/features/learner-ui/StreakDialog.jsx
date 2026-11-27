@@ -206,19 +206,19 @@ export default function StreakDialog({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cx(
-          'rp-streak-dialog relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_30px_80px_-24px_rgba(120,60,10,0.45)] outline-none sm:rounded-[32px]',
+          'rp-streak-dialog relative flex max-h-[96dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-[28px] border border-[var(--rp-popup-border)] bg-[var(--rp-popup-bg)] text-rp-text shadow-[var(--rp-popup-shadow)] outline-none sm:rounded-[32px]',
           animate && 'rp-streak-dialog-in',
         )}
       >
         {bigMilestone && animate && <ConfettiBurst colors={['#FFB347', '#FF7A1A', '#FFD36B', '#F7B6C8']} />}
         {/* warm halo */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[260px] bg-[radial-gradient(ellipse_at_50%_30%,#FFF1D6_0%,#FFF8EC_45%,rgba(255,255,255,0)_75%)]" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[260px] bg-[radial-gradient(ellipse_at_50%_30%,#FFF1D6_0%,#FFF8EC_45%,rgba(255,255,255,0)_75%)] dark:opacity-20" />
 
         <button
           type="button"
           onClick={onClose}
           aria-label={tr('Đóng')}
-          className="rp-focus absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#F3EFEA] text-[#5B5550] transition-colors hover:bg-[#ECE5DD]"
+          className="rp-focus absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-rp-muted text-rp-text-2 transition-colors hover:bg-[var(--rp-popup-hover)] hover:text-rp-brand-strong"
         >
           <X aria-hidden="true" className="h-5 w-5" />
         </button>
@@ -276,16 +276,16 @@ export default function StreakDialog({
               <p className="rp-streak-number mt-0.5 text-center text-[56px] font-black leading-none tabular-nums" aria-live="polite">
                 {shownDays}
               </p>
-              <p className="mt-1.5 text-center text-[13px] font-extrabold uppercase tracking-[0.18em] text-[#5E6B85]">
+              <p className="mt-1.5 text-center text-[13px] font-extrabold uppercase tracking-[0.18em] text-rp-text-muted">
                 {tr('Ngày liên tiếp')}
               </p>
             </>
           )}
 
-          <h2 id={titleId} className="mt-3 text-center text-[22px] font-black leading-tight text-[#14213D] sm:text-[24px]">
+          <h2 id={titleId} className="mt-3 text-center text-[22px] font-black leading-tight text-rp-text sm:text-[24px]">
             {headline}
           </h2>
-          <p className="mx-auto mt-1.5 max-w-[400px] text-center text-[15px] leading-6 text-[#4A5368]">
+          <p className="mx-auto mt-1.5 max-w-[400px] text-center text-[15px] leading-6 text-rp-text-2">
             {description}
           </p>
 

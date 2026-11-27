@@ -35,6 +35,7 @@ import {
   refundStudyCoursePayment,
 } from '@/features/admin/api/adminApi.js';
 import { ADMIN_KEYS } from '@/features/admin/api/adminQueryKeys.js';
+import { invalidateSidebarCounters } from '@/features/sidebar-counters/api/sidebarCountersApi.js';
 import { currentIntlTag, useLocale } from '@/locales/locale.js';
 import { formatVnDateTime } from '@/utils/vnDateTime.js';
 
@@ -92,6 +93,7 @@ export default function AdminPaymentsWorkspace() {
         queryClient.invalidateQueries({ queryKey: ['admin-payments-unfiltered-count'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-payment-detail'] }),
         queryClient.invalidateQueries({ queryKey: ADMIN_KEYS.dashboard }),
+        invalidateSidebarCounters(queryClient),
       ]);
     },
     onError: (err) => {
@@ -309,9 +311,9 @@ export default function AdminPaymentsWorkspace() {
               setStream(val);
               setPage(1);
             }}
-            aria-label={tr('Lọc theo luồng')}
+            aria-label={tr('Nguồn')}
             options={[
-              { value: 'all', label: tr('Tất cả nguồn') },
+              { value: 'all', label: tr('Tất cả') },
               { value: 'subscription', label: tr('Gói tự học & AI') },
               { value: 'study_course', label: tr('Lớp học nhóm') },
               { value: 'ai_topup', label: tr('Nạp lượt AI') },
@@ -324,9 +326,9 @@ export default function AdminPaymentsWorkspace() {
               setStatus(val);
               setPage(1);
             }}
-            aria-label={tr('Lọc theo trạng thái')}
+            aria-label={tr('Trạng thái')}
             options={[
-              { value: 'All', label: tr('Tất cả trạng thái') },
+              { value: 'All', label: tr('Tất cả') },
               { value: 'Paid', label: tr('Đã thanh toán'), dotClass: 'bg-[#16A34A]' },
               { value: 'Pending', label: tr('Đang chờ'), dotClass: 'bg-[#D97706]' },
               { value: 'Expired', label: tr('Hết hạn giữ chỗ'), dotClass: 'bg-[#94A3B8]' },

@@ -121,6 +121,34 @@ export const CALENDAR_TONES = Object.freeze({
     dot: 'bg-[#16A34A]',
     iconText: 'text-[#15803D]',
   },
+  workCancelled: {
+    id: 'workCancelled',
+    category: 'workCancelled',
+    label: 'Đã hủy',
+    shortLabel: 'Đã hủy',
+    hex: '#DC2626',
+    bgHex: '#FEF2F2',
+    card: 'border-l-[3.5px] border-l-[#DC2626] border border-[#FCA5A5] bg-[#FEF2F2] text-[#7F1D1D] shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#B91C1C] hover:bg-[#FEE2E2] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#DC2626]/15 text-[#7F1D1D] transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-[#DC2626] group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-[#FCA5A5] bg-[#FEE2E2] text-[#B91C1C]',
+    dot: 'bg-[#DC2626]',
+    iconText: 'text-[#B91C1C]',
+  },
+  workRescheduled: {
+    id: 'workRescheduled',
+    category: 'workRescheduled',
+    label: 'Đã đổi lịch',
+    shortLabel: 'Đã đổi lịch',
+    hex: '#2563EB',
+    bgHex: '#EFF6FF',
+    card: 'border-l-[3.5px] border-l-[#2563EB] border border-[#93C5FD] bg-[#EFF6FF] text-[#1E3A8A] shadow-2xs',
+    hoverCard: 'transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-[#1D4ED8] hover:bg-[#DBEAFE] hover:shadow-rp-xs active:scale-[0.99]',
+    arrowChip: 'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2563EB]/15 text-[#1E3A8A] transition-[background-color,color,transform,box-shadow] duration-150 group-hover:scale-105 group-hover:bg-[#2563EB] group-hover:text-white group-hover:shadow-rp-xs',
+    pill: 'border border-[#93C5FD] bg-[#DBEAFE] text-[#1D4ED8]',
+    dot: 'bg-[#2563EB]',
+    iconText: 'text-[#1D4ED8]',
+  },
   approved: {
     label: 'Đã duyệt',
     hex: '#16A34A',
@@ -242,7 +270,13 @@ export function getToneMeta(tone) {
 export function getCalendarCategoryMeta(eventOrType) {
   if (eventOrType && typeof eventOrType === 'object') {
     const toneKey = eventOrType.tone;
-    if (toneKey === 'workUpcoming' || toneKey === 'workLive' || toneKey === 'workCompleted') {
+    if (
+      toneKey === 'workUpcoming'
+      || toneKey === 'workLive'
+      || toneKey === 'workCompleted'
+      || toneKey === 'workCancelled'
+      || toneKey === 'workRescheduled'
+    ) {
       return CALENDAR_TONES[toneKey];
     }
   }

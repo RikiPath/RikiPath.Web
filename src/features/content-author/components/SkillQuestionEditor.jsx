@@ -162,7 +162,7 @@ export default function SkillQuestionEditor({
     const uploaded = await mediaUpload.mutateAsync({ file, folder: 'jlpt-listening' });
     if (uploaded?.url) {
       setGroupPassageField({ audioUrl: uploaded.url });
-      notify.success(tr('Đã tải audio lên bộ lưu trữ cục bộ an toàn.'), '', { key: 'audio-up-ok' });
+      notify.success(tr('Đã tải tệp âm thanh lên.'), '', { key: 'audio-up-ok' });
     }
   };
 
@@ -210,130 +210,87 @@ export default function SkillQuestionEditor({
 
   const renderSingleQuestionFields = (qObj, onChangeQ, onChangeMeta) => (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Mẫu kỹ năng')}</span>
-          <CustomSelect
-            size="sm"
-            value={qObj.templateKind}
-            onChange={(v) => onChangeQ({ templateKind: v })}
-            options={(SKILL_TEMPLATES[qObj.skillName] || SKILL_TEMPLATES.Vocabulary).map((t) => ({ value: t.value, label: tr(t.label) }))}
-          />
-        </label>
+      <div className="grid gap-3 pt-1 sm:grid-cols-3">
+        <CustomSelect
+          size="sm"
+          label={tr('Mẫu kỹ năng')}
+          value={qObj.templateKind}
+          onChange={(v) => onChangeQ({ templateKind: v })}
+          options={(SKILL_TEMPLATES[qObj.skillName] || SKILL_TEMPLATES.Vocabulary).map((t) => ({ value: t.value, label: tr(t.label) }))}
+        />
 
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Dạng câu hỏi')}</span>
-          <CustomSelect
-            size="sm"
-            value={qObj.questionType}
-            onChange={(v) => onChangeQ({ questionType: v })}
-            options={[
-              { value: 'SingleChoice', label: tr('Trắc nghiệm 1 đáp án') },
-              { value: 'MultipleChoice', label: tr('Trắc nghiệm nhiều đáp án') },
-              ...(qObj.skillName === 'Vocabulary' || qObj.skillName === 'Grammar'
-                ? [{ value: 'FillBlank', label: tr('Điền vào chỗ trống') }]
-                : []),
-              ...(qObj.skillName === 'Grammar'
-                ? [{ value: 'Ordering', label: tr('Sắp xếp câu (★)') }]
-                : []),
-              ...(qObj.skillName === 'Listening'
-                ? [{ value: 'VisualMultipleChoice', label: tr('Trắc nghiệm hình ảnh') }]
-                : []),
-            ]}
-          />
-        </label>
+        <CustomSelect
+          size="sm"
+          label={tr('Dạng câu hỏi')}
+          value={qObj.questionType}
+          onChange={(v) => onChangeQ({ questionType: v })}
+          options={[
+            { value: 'SingleChoice', label: tr('Trắc nghiệm 1 đáp án') },
+            { value: 'MultipleChoice', label: tr('Trắc nghiệm nhiều đáp án') },
+            ...(qObj.skillName === 'Vocabulary' || qObj.skillName === 'Grammar'
+              ? [{ value: 'FillBlank', label: tr('Điền vào chỗ trống') }]
+              : []),
+            ...(qObj.skillName === 'Grammar'
+              ? [{ value: 'Ordering', label: tr('Sắp xếp câu (★)') }]
+              : []),
+            ...(qObj.skillName === 'Listening'
+              ? [{ value: 'VisualMultipleChoice', label: tr('Trắc nghiệm hình ảnh') }]
+              : []),
+          ]}
+        />
 
-        <label className="space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Chủ đề / Độ khó')}</span>
-          <Input
-            size="sm"
-            value={qObj.topic || ''}
-            onChange={(e) => onChangeQ({ topic: e.target.value })}
-            placeholder={tr('VD: Đời sống, Công sở…')}
-          />
-        </label>
+        <Input
+          size="sm"
+          label={tr('Chủ đề / Độ khó')}
+          value={qObj.topic || ''}
+          onChange={(e) => onChangeQ({ topic: e.target.value })}
+          placeholder={tr('VD: Đời sống, Công sở…')}
+        />
       </div>
 
       {/* Skill-specific fields */}
       {qObj.skillName === 'Vocabulary' && (
-        <div className="grid gap-3 rounded-xl border border-rp-line bg-rp-bg/50 p-3 sm:grid-cols-3">
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Từ / Cụm từ')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.word || ''} onChange={(e) => onChangeMeta({ word: e.target.value })} placeholder="図書館" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Cách đọc (Kana)')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.reading || ''} onChange={(e) => onChangeMeta({ reading: e.target.value })} placeholder="としょかん" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Nghĩa')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.meaning || ''} onChange={(e) => onChangeMeta({ meaning: e.target.value })} placeholder={tr('Thư viện')} />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2 sm:col-span-3">
-            <span>{tr('Câu ví dụ')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.exampleSentence || ''} onChange={(e) => onChangeMeta({ exampleSentence: e.target.value })} placeholder="毎日図書館で勉強します。" />
-          </label>
+        <div className="grid gap-3 rounded-xl border border-rp-line bg-rp-bg/50 p-3.5 sm:grid-cols-3">
+          <Input size="sm" label={tr('Từ / Cụm từ')} value={qObj.skillMetadata?.word || ''} onChange={(e) => onChangeMeta({ word: e.target.value })} placeholder="図書館" />
+          <Input size="sm" label={tr('Cách đọc (Kana)')} value={qObj.skillMetadata?.reading || ''} onChange={(e) => onChangeMeta({ reading: e.target.value })} placeholder="としょかん" />
+          <Input size="sm" label={tr('Nghĩa')} value={qObj.skillMetadata?.meaning || ''} onChange={(e) => onChangeMeta({ meaning: e.target.value })} placeholder={tr('Thư viện')} />
+          <Input size="sm" label={tr('Câu ví dụ')} className="sm:col-span-3" value={qObj.skillMetadata?.exampleSentence || ''} onChange={(e) => onChangeMeta({ exampleSentence: e.target.value })} placeholder="毎日図書館で勉強します。" />
         </div>
       )}
 
       {qObj.skillName === 'Kanji' && (
-        <div className="grid gap-3 rounded-xl border border-rp-line bg-rp-bg/50 p-3 sm:grid-cols-5">
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Hán tự')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.kanjiCharacter || ''} onChange={(e) => onChangeMeta({ kanjiCharacter: e.target.value })} placeholder="休" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Nghĩa')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.meaning || ''} onChange={(e) => onChangeMeta({ meaning: e.target.value })} placeholder={tr('Nghỉ ngơi')} />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Âm On')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.onYomi || ''} onChange={(e) => onChangeMeta({ onYomi: e.target.value })} placeholder="キュウ" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Âm Kun')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.kunYomi || ''} onChange={(e) => onChangeMeta({ kunYomi: e.target.value })} placeholder="やす.む" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Số nét')}</span>
-            <Input
-              size="sm"
-              type="number"
-              min={1}
-              max={40}
-              value={qObj.skillMetadata?.strokeCount ?? ''}
-              onChange={(e) => onChangeMeta({ strokeCount: e.target.value ? Number(e.target.value) : null })}
-            />
-          </label>
+        <div className="grid gap-3 rounded-xl border border-rp-line bg-rp-bg/50 p-3.5 sm:grid-cols-5">
+          <Input size="sm" label={tr('Hán tự')} value={qObj.skillMetadata?.kanjiCharacter || ''} onChange={(e) => onChangeMeta({ kanjiCharacter: e.target.value })} placeholder="休" />
+          <Input size="sm" label={tr('Nghĩa')} value={qObj.skillMetadata?.meaning || ''} onChange={(e) => onChangeMeta({ meaning: e.target.value })} placeholder={tr('Nghỉ ngơi')} />
+          <Input size="sm" label={tr('Âm On')} value={qObj.skillMetadata?.onYomi || ''} onChange={(e) => onChangeMeta({ onYomi: e.target.value })} placeholder="キュウ" />
+          <Input size="sm" label={tr('Âm Kun')} value={qObj.skillMetadata?.kunYomi || ''} onChange={(e) => onChangeMeta({ kunYomi: e.target.value })} placeholder="やす.む" />
+          <Input
+            size="sm"
+            label={tr('Số nét')}
+            type="number"
+            min={1}
+            max={40}
+            value={qObj.skillMetadata?.strokeCount ?? ''}
+            onChange={(e) => onChangeMeta({ strokeCount: e.target.value ? Number(e.target.value) : null })}
+          />
         </div>
       )}
 
       {qObj.skillName === 'Grammar' && (
-        <div className="grid gap-3 rounded-xl border border-rp-line bg-rp-bg/50 p-3 sm:grid-cols-2">
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Mẫu ngữ pháp')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.grammarPattern || ''} onChange={(e) => onChangeMeta({ grammarPattern: e.target.value })} placeholder="～てみる" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Cấu trúc')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.structure || ''} onChange={(e) => onChangeMeta({ structure: e.target.value })} placeholder="Vて + みる" />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2 sm:col-span-2">
-            <span>{tr('Giải thích cách dùng')}</span>
-            <Input size="sm" value={qObj.skillMetadata?.usageExplanation || ''} onChange={(e) => onChangeMeta({ usageExplanation: e.target.value })} />
-          </label>
+        <div className="grid gap-3 rounded-xl border border-rp-line bg-rp-bg/50 p-3.5 sm:grid-cols-2">
+          <Input size="sm" label={tr('Mẫu ngữ pháp')} value={qObj.skillMetadata?.grammarPattern || ''} onChange={(e) => onChangeMeta({ grammarPattern: e.target.value })} placeholder="～てみる" />
+          <Input size="sm" label={tr('Cấu trúc')} value={qObj.skillMetadata?.structure || ''} onChange={(e) => onChangeMeta({ structure: e.target.value })} placeholder="Vて + みる" />
+          <Input size="sm" label={tr('Giải thích cách dùng')} className="sm:col-span-2" value={qObj.skillMetadata?.usageExplanation || ''} onChange={(e) => onChangeMeta({ usageExplanation: e.target.value })} />
         </div>
       )}
 
-      <label className="block space-y-1 text-xs font-medium text-rp-text-2">
-        <span>{tr('Nội dung câu hỏi (Question Prompt)')}</span>
-        <Textarea
-          rows={3}
-          value={qObj.questionText}
-          onChange={(e) => onChangeQ({ questionText: e.target.value })}
-          placeholder={tr('Nhập đề bài tiếng Nhật hoặc hướng dẫn trả lời…')}
-        />
-      </label>
+      <Textarea
+        rows={3}
+        label={tr('Nội dung câu hỏi (Question Prompt)')}
+        value={qObj.questionText}
+        onChange={(e) => onChangeQ({ questionText: e.target.value })}
+        placeholder={tr('Nhập đề bài tiếng Nhật hoặc hướng dẫn trả lời…')}
+      />
 
       {qObj.questionType === 'FillBlank' && (
         <div className="space-y-2 rounded-xl border border-rp-line p-3">
@@ -352,25 +309,21 @@ export default function SkillQuestionEditor({
       )}
 
       {qObj.questionType === 'Ordering' && (
-        <div className="grid gap-3 rounded-xl border border-rp-line p-3 sm:grid-cols-2">
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Các cụm từ cho sẵn (phân cách bằng dấu |)')}</span>
-            <Input
-              size="sm"
-              value={(qObj.skillMetadata?.orderingTokens || []).join(' | ')}
-              onChange={(e) => onChangeMeta({ orderingTokens: e.target.value.split('|').map((s) => s.trim()) })}
-              placeholder="この料理 | 食べて | おいしそう | みませんか"
-            />
-          </label>
-          <label className="space-y-1 text-xs font-medium text-rp-text-2">
-            <span>{tr('Thứ tự đáp án đúng (phân cách bằng dấu |)')}</span>
-            <Input
-              size="sm"
-              value={(qObj.skillMetadata?.orderingAnswer || []).join(' | ')}
-              onChange={(e) => onChangeMeta({ orderingAnswer: e.target.value.split('|').map((s) => s.trim()) })}
-              placeholder="おいしそう | この料理 | 食べて | みませんか"
-            />
-          </label>
+        <div className="grid gap-3 rounded-xl border border-rp-line p-3.5 sm:grid-cols-2">
+          <Input
+            size="sm"
+            label={tr('Các cụm từ cho sẵn (phân cách bằng dấu |)')}
+            value={(qObj.skillMetadata?.orderingTokens || []).join(' | ')}
+            onChange={(e) => onChangeMeta({ orderingTokens: e.target.value.split('|').map((s) => s.trim()) })}
+            placeholder="この料理 | 食べて | おいしそう | みませんか"
+          />
+          <Input
+            size="sm"
+            label={tr('Thứ tự đáp án đúng (phân cách bằng dấu |)')}
+            value={(qObj.skillMetadata?.orderingAnswer || []).join(' | ')}
+            onChange={(e) => onChangeMeta({ orderingAnswer: e.target.value.split('|').map((s) => s.trim()) })}
+            placeholder="おいしそう | この料理 | 食べて | みませんか"
+          />
         </div>
       )}
 
@@ -444,33 +397,27 @@ export default function SkillQuestionEditor({
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1 text-xs font-medium text-rp-text-2 sm:col-span-2">
-          <span>{tr('Giải thích đáp án (tiếng Việt + tiếng Nhật)')}</span>
-          <Textarea
-            rows={2}
-            value={qObj.explanation || ''}
-            onChange={(e) => onChangeQ({ explanation: e.target.value })}
-            placeholder={tr('Giải thích ngắn gọn, rõ ràng tại sao đáp án đúng và các phương án còn lại sai…')}
-          />
-        </label>
-        <label className="block space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Nguồn tham khảo')}</span>
-          <Input size="sm" value={qObj.sourceReference || ''} onChange={(e) => onChangeQ({ sourceReference: e.target.value })} placeholder={tr('VD: Biên soạn nội bộ')} />
-        </label>
-        <label className="block space-y-1 text-xs font-medium text-rp-text-2">
-          <span>{tr('Tình trạng bản quyền')}</span>
-          <CustomSelect
-            size="sm"
-            value={qObj.rightsStatus || 'Owned'}
-            onChange={(v) => onChangeQ({ rightsStatus: v })}
-            options={[
-              { value: 'Owned', label: tr('Tự biên soạn / Sở hữu') },
-              { value: 'Licensed', label: tr('Có bản quyền sử dụng') },
-              { value: 'PublicDomain', label: tr('Nguồn mở hợp lệ') },
-            ]}
-          />
-        </label>
+      <div className="grid gap-3 pt-1 sm:grid-cols-2">
+        <Textarea
+          rows={2}
+          label={tr('Giải thích đáp án (tiếng Việt + tiếng Nhật)')}
+          className="sm:col-span-2"
+          value={qObj.explanation || ''}
+          onChange={(e) => onChangeQ({ explanation: e.target.value })}
+          placeholder={tr('Giải thích ngắn gọn, rõ ràng tại sao đáp án đúng và các phương án còn lại sai…')}
+        />
+        <Input size="sm" label={tr('Nguồn tham khảo')} value={qObj.sourceReference || ''} onChange={(e) => onChangeQ({ sourceReference: e.target.value })} placeholder={tr('VD: Biên soạn nội bộ')} />
+        <CustomSelect
+          size="sm"
+          label={tr('Tình trạng bản quyền')}
+          value={qObj.rightsStatus || 'Owned'}
+          onChange={(v) => onChangeQ({ rightsStatus: v })}
+          options={[
+            { value: 'Owned', label: tr('Tự biên soạn / Sở hữu') },
+            { value: 'Licensed', label: tr('Có bản quyền sử dụng') },
+            { value: 'PublicDomain', label: tr('Nguồn mở hợp lệ') },
+          ]}
+        />
       </div>
     </div>
   );
@@ -483,6 +430,7 @@ export default function SkillQuestionEditor({
           <div className="flex flex-wrap items-center gap-2">
             <CustomSelect
               size="sm"
+              label={tr('Kỹ năng')}
               value={activeSkill}
               onChange={(nextSkill) => {
                 if (nextSkill === 'Reading' || nextSkill === 'Listening') {
@@ -503,12 +451,13 @@ export default function SkillQuestionEditor({
             />
             <CustomSelect
               size="sm"
+              label={tr('Cấp độ')}
               value={activeLevel}
               onChange={(lvl) => {
                 if (isPassageMode) setGroupPassageField({ certificateLevelCode: lvl });
                 else setQuestionField({ certificateLevelCode: lvl });
               }}
-              options={['N5', 'N4', 'N3', 'N2'].map((c) => ({ value: c, label: `JLPT ${c}` }))}
+              options={['N5', 'N4', 'N3', 'N2'].map((c) => ({ value: c, label: c }))}
             />
             <Badge tone="neutral" size="sm" icon={false}>
               {isPassageMode
@@ -586,33 +535,26 @@ export default function SkillQuestionEditor({
                 )}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-xs font-medium text-rp-text-2">
-                  <span>{tr('Tiêu đề đoạn / bài nghe')}</span>
-                  <Input size="sm" value={group.passage.title} onChange={(e) => setGroupPassageField({ title: e.target.value })} placeholder={tr('VD: Thông báo nhà ga N4')} />
-                </label>
-                <label className="space-y-1 text-xs font-medium text-rp-text-2">
-                  <span>{activeSkill === 'Reading' ? tr('Chủ đề') : tr('Mục JLPT Nghe hiểu')}</span>
-                  <Input
-                    size="sm"
-                    value={activeSkill === 'Reading' ? (group.passage.topic || '') : (group.passage.listeningSection || '')}
-                    onChange={(e) => setGroupPassageField(activeSkill === 'Reading' ? { topic: e.target.value } : { listeningSection: e.target.value })}
-                    placeholder={activeSkill === 'Reading' ? tr('Đời sống / Thông báo…') : 'Mondai 1: Task Comprehension'}
-                  />
-                </label>
+              <div className="grid gap-3 pt-1 sm:grid-cols-2">
+                <Input size="sm" label={tr('Tiêu đề đoạn / bài nghe')} value={group.passage.title} onChange={(e) => setGroupPassageField({ title: e.target.value })} placeholder={tr('VD: Thông báo nhà ga N4')} />
+                <Input
+                  size="sm"
+                  label={activeSkill === 'Reading' ? tr('Chủ đề') : tr('Mục JLPT Nghe hiểu')}
+                  value={activeSkill === 'Reading' ? (group.passage.topic || '') : (group.passage.listeningSection || '')}
+                  onChange={(e) => setGroupPassageField(activeSkill === 'Reading' ? { topic: e.target.value } : { listeningSection: e.target.value })}
+                  placeholder={activeSkill === 'Reading' ? tr('Đời sống / Thông báo…') : 'Mondai 1: Task Comprehension'}
+                />
               </div>
 
               {activeSkill === 'Reading' ? (
                 <>
-                  <label className="block space-y-1 text-xs font-medium text-rp-text-2">
-                    <span>{tr('Toàn văn đoạn đọc (chỉ lưu 1 bản cho toàn nhóm câu hỏi)')}</span>
-                    <Textarea
-                      rows={5}
-                      value={group.passage.passageText || ''}
-                      onChange={(e) => setGroupPassageField({ passageText: e.target.value })}
-                      placeholder={tr('Nhập hoặc dán đoạn văn tiếng Nhật…')}
-                    />
-                  </label>
+                  <Textarea
+                    rows={5}
+                    label={tr('Toàn văn đoạn đọc (chỉ lưu 1 bản cho toàn nhóm câu hỏi)')}
+                    value={group.passage.passageText || ''}
+                    onChange={(e) => setGroupPassageField({ passageText: e.target.value })}
+                    placeholder={tr('Nhập hoặc dán đoạn văn tiếng Nhật…')}
+                  />
                   <div className="flex flex-wrap items-center gap-3">
                     <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-rp-line bg-white px-3 py-1.5 text-xs font-medium text-rp-text hover:bg-rp-brand-tint/40">
                       <Upload className="h-3.5 w-3.5" />
@@ -647,24 +589,22 @@ export default function SkillQuestionEditor({
                   )}
 
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <label className="space-y-1 text-xs font-medium text-rp-text-2">
-                      <span>{tr('Số lần nghe tối đa')}</span>
-                      <Input
-                        size="sm"
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={group.passage.playbackPolicy?.maxReplays ?? 2}
-                        onChange={(e) =>
-                          setGroupPassageField({
-                            playbackPolicy: {
-                              ...(group.passage.playbackPolicy || {}),
-                              maxReplays: e.target.value ? Number(e.target.value) : null,
-                            },
-                          })
-                        }
-                      />
-                    </label>
+                    <Input
+                      size="sm"
+                      label={tr('Số lần nghe tối đa')}
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={group.passage.playbackPolicy?.maxReplays ?? 2}
+                      onChange={(e) =>
+                        setGroupPassageField({
+                          playbackPolicy: {
+                            ...(group.passage.playbackPolicy || {}),
+                            maxReplays: e.target.value ? Number(e.target.value) : null,
+                          },
+                        })
+                      }
+                    />
                     <div className="flex items-end pb-1.5">
                       <Checkbox
                         checked={group.passage.playbackPolicy?.allowPause !== false}
@@ -689,15 +629,13 @@ export default function SkillQuestionEditor({
                     </div>
                   </div>
 
-                  <label className="block space-y-1 text-xs font-medium text-rp-text-2">
-                    <span>{tr('Transcript (ẩn khỏi học viên khi đang thi)')}</span>
-                    <Textarea
-                      rows={3}
-                      value={group.passage.audioTranscript || ''}
-                      onChange={(e) => setGroupPassageField({ audioTranscript: e.target.value })}
-                      placeholder={tr('Lời thoại hội thoại Nghe hiểu (dùng cho Quản trị viên duyệt & AI gợi ý câu hỏi)…')}
-                    />
-                  </label>
+                  <Textarea
+                    rows={3}
+                    label={tr('Transcript (ẩn khỏi học viên khi đang thi)')}
+                    value={group.passage.audioTranscript || ''}
+                    onChange={(e) => setGroupPassageField({ audioTranscript: e.target.value })}
+                    placeholder={tr('Lời thoại hội thoại Nghe hiểu (dùng cho Quản trị viên duyệt & AI gợi ý câu hỏi)…')}
+                  />
                 </div>
               )}
             </div>

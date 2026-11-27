@@ -495,7 +495,6 @@ function LessonTopicField({ data, change, topics }) {
   const missingTopic = data.topicId && !topics.some((topic) => topic.id === data.topicId);
 
   const options = [
-    { value: '', label: tr('Chưa chọn chủ đề') },
     { value: 'new', label: tr('+ Tạo chủ đề mới') },
     ...(missingTopic ? [{ value: String(data.topicId), label: `${data.topicTitle ?? tr('Chủ đề đã chọn')} ${tr('(không còn khả dụng)')}` }] : []),
     ...topics.map((topic) => ({ value: String(topic.id), label: tr(topic.title) })),
@@ -505,6 +504,7 @@ function LessonTopicField({ data, change, topics }) {
     <div className="space-y-2.5">
       <Field label={tr('Chủ đề bài học')}>
         <CustomSelect
+          clearable
           value={String(choice)}
           onChange={(value) => {
             setChoice(value);
@@ -883,7 +883,6 @@ export function ContentForm({
                           lessonTitle: lesson?.title ?? previous.lessonTitle,
                         }));
                       }}
-                      placeholder={tr('Chọn bài học đã duyệt')}
                       options={[
                         { value: '', label: tr('Nhập tên bài học đang chờ duyệt') },
                         ...(lessons.data || []).map((l) => ({ value: String(l.id), label: tr(l.title) })),
@@ -1174,7 +1173,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
     },
     onSuccess: async (saved) => {
       setEditor(null);
-      notify.success('Đã lưu bản nháp.', 'Bạn có thể xem trước hoặc gửi duyệt từ danh sách.', {
+      notify.success('Đã lưu bản nháp.', '', {
         key: 'manual-content-save',
         replace: true,
       });
@@ -1291,6 +1290,8 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
     {
       key: 'certificateLevelId',
       header: tr('Cấp độ'),
+      align: 'center',
+      compact: true,
       render: (row) => (
         <Badge tone="neutral" size="sm" icon={false}>
           {row.certificateLevelCode || lookupsQuery.levelById.get(Number(row.certificateLevelId))?.code || '—'}
@@ -1300,6 +1301,8 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
     {
       key: 'status',
       header: tr('Trạng thái'),
+      align: 'center',
+      compact: true,
       render: (row) => (
         <Badge tone={STATUS_BADGE_TONES[row.status] || 'neutral'} size="sm" icon={false}>
           {tr(statuses[row.status]?.label ?? row.status)}
@@ -1309,6 +1312,8 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
     {
       key: 'updatedAt',
       header: tr('Cập nhật'),
+      align: 'center',
+      compact: true,
       render: (row) => (
         <span className="text-xs text-rp-text-2">
           {row.updatedAt ? formatVnDateTime(row.updatedAt) : '—'}
@@ -1406,10 +1411,14 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
 
       {!examOnly && !fixedType && authoringMode === 'skill-studio' ? (
         <SkillQuestionEditor
-          onSaved={() => queryClient.invalidateQueries({ queryKey: ['question-bank-v2'] })}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['question-bank-v2'] });
+            invalidateSidebarCounters(queryClient);
+          }}
           onSubmitted={() => {
             queryClient.invalidateQueries({ queryKey: ['question-bank-v2'] });
             queryClient.invalidateQueries({ queryKey: ['my-content-approvals'] });
+            invalidateSidebarCounters(queryClient);
           }}
         />
       ) : (
@@ -1456,16 +1465,16 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
                     fitContent
                     size="sm"
                     value={String(activeLevel)}
-                    aria-label={tr('Lọc theo cấp độ')}
+                    aria-label={tr('Cấp độ')}
                     onChange={(val) => {
                       setActiveLevel(val);
                       openEditor(null);
                     }}
                     options={[
-                      { value: 'ALL', label: tr('Tất cả cấp độ') },
+                      { value: 'ALL', label: tr('Tất cả') },
                       ...levels.map((lvl) => ({
                         value: String(lvl.id),
-                        label: `${lvl.certificate} · ${lvl.code}`,
+                        label: lvl.code,
                       })),
                     ]}
                   />
@@ -1474,10 +1483,10 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
                     fitContent
                     size="sm"
                     value={approvalFilter}
-                    aria-label={tr('Lọc theo trạng thái duyệt')}
+                    aria-label={tr('Trạng thái')}
                     onChange={setApprovalFilter}
                     options={[
-                      { value: '', label: tr('Tất cả trạng thái') },
+                      { value: '', label: tr('Tất cả') },
                       ...Object.entries(statuses).map(([value, s]) => ({ value, label: tr(s.label) })),
                     ]}
                   />
@@ -1486,7 +1495,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
                     fitContent
                     size="sm"
                     value={sortBy}
-                    aria-label={tr('Sắp xếp danh sách')}
+                    aria-label={tr('Sắp xếp')}
                     onChange={setSortBy}
                     options={[
                       { value: 'updated_desc', label: tr('Mới cập nhật') },
@@ -1582,7 +1591,7 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
             />
           }
           rowActions={(row) => (
-            <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
+            <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
               <Button size="sm" variant="ghost" icon={Eye} onClick={() => setPreviewItem(row)}>
                 {tr('Xem trước')}
               </Button>
@@ -1693,8 +1702,9 @@ export function ManualContentWorkspace({ heading = 'Biên soạn nội dung', pa
         loading={del.isPending}
         tone="danger"
         title={tr('Xóa bản nháp này?')}
-        description={deleteTarget ? trf('Bản nháp "{0}" sẽ bị xóa khỏi danh sách chưa gửi duyệt.', { 0: deleteTarget.rowKey }) : ''}
+        description={deleteTarget ? trf('Bản nháp "{0}" sẽ bị xóa khỏi danh sách chưa gửi duyệt và không thể khôi phục.', { 0: deleteTarget.rowKey }) : ''}
         confirmLabel={tr('Xóa bản nháp')}
+        cancelLabel={tr('Giữ lại')}
       />
         </>
       )}

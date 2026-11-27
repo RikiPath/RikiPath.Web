@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import CountBadge from './CountBadge.jsx';
 import { cx } from './cx.js';
 import {
   buildSidebarBadgeAriaLabel,
@@ -11,8 +12,8 @@ import {
 import { useLocale } from '@/locales/locale.js';
 
 /**
- * Shared dynamic numeric counter pill for AppShell sidebars across every role.
- * Visual tokens & accessible contrast live in `src/styles/tokens.css` (`--rp-sidebar-badge-*`).
+ * Shared dynamic numeric counter badge for AppShell sidebars across every role.
+ * Delegates shape/tone/typography to `CountBadge` (MD expanded 20px, XS collapsed 16px).
  */
 export default function SidebarBadge({
   count = 0,
@@ -59,9 +60,14 @@ export default function SidebarBadge({
   });
 
   return (
-    <span
+    <CountBadge
+      count={safeCount}
+      size={collapsed ? 'xs' : 'md'}
+      tone="danger"
+      max={99}
+      ariaLabel={resolvedAriaLabel}
+      title={!collapsed && tooltip ? tooltip : undefined}
       data-sidebar-badge="true"
-      data-count={safeCount}
       data-state={variant.dataState}
       data-active={active ? 'true' : 'false'}
       data-parent={parent ? 'true' : 'false'}
@@ -70,13 +76,9 @@ export default function SidebarBadge({
       data-attention={attention.mode}
       data-pop-phase={attention.popPhase || undefined}
       data-tab-hidden={tabVisible ? 'false' : 'true'}
-      aria-label={resolvedAriaLabel}
-      title={!collapsed && tooltip ? tooltip : undefined}
       className={cx(
-        'rp-sidebar-badge rp-sidebar-badge-enter inline-flex shrink-0 items-center justify-center rounded-full leading-none select-none',
-        collapsed
-          ? 'pointer-events-none absolute -top-0.5 -right-0.5 z-10 h-4 min-w-[16px] px-1 text-[10px] font-bold'
-          : 'h-5 min-w-[20px] px-1.5 text-[11px] font-semibold',
+        'rp-sidebar-badge rp-sidebar-badge-enter',
+        collapsed && 'pointer-events-none absolute -top-0.5 -right-0.5 z-10',
         className,
       )}
     >
@@ -86,6 +88,6 @@ export default function SidebarBadge({
       >
         {text}
       </span>
-    </span>
+    </CountBadge>
   );
 }

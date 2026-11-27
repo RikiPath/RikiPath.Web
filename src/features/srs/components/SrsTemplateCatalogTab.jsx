@@ -76,9 +76,23 @@ export default function SrsTemplateCatalogTab() {
   });
 
   const items = templatesQuery.data || [];
+  const hasFilters = Boolean(search.trim() || typeFilter);
+
+  const unfilteredTemplatesQuery = useQuery({
+    queryKey: ['srs-published-templates', 'unfiltered-check'],
+    queryFn: () => getPublishedSrsTemplates({ cardType: '', search: '' }),
+    enabled: Boolean(hasFilters && templatesQuery.isSuccess && items.length === 0),
+    staleTime: 60_000,
+  });
+
+  const hasUnderlyingTemplates = templatesQuery.isSuccess && (
+    items.length > 0 || (hasFilters && (unfilteredTemplatesQuery.isPending || (unfilteredTemplatesQuery.data?.length ?? 0) > 0))
+  );
+  const isFilterZero = hasFilters && templatesQuery.isSuccess && (unfilteredTemplatesQuery.data?.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
+      {hasUnderlyingTemplates && (
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-rp-line bg-rp-surface p-3">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
           <div className="w-full sm:w-72">
@@ -91,11 +105,11 @@ export default function SrsTemplateCatalogTab() {
           </div>
           <CustomSelect
             fitContent
+            label="Loại thẻ"
             value={typeFilter}
             onChange={(val) => setTypeFilter(val)}
-            className="min-w-[132px]"
             options={[
-              { value: '', label: tr('Mọi loại thẻ') },
+              { value: '', label: tr('Tất cả') },
               { value: 'Vocabulary', label: tr('Từ vựng') },
               { value: 'Kanji', label: tr('Kanji') },
             ]}
@@ -106,6 +120,7 @@ export default function SrsTemplateCatalogTab() {
           {tr('Thẻ mẫu chỉ vào lịch ôn khi bạn chủ động chọn thêm')}
         </span>
       </div>
+      )}
 
       {templatesQuery.isLoading ? (
         <SakuraLoader variant="section" context="srs" />
@@ -122,17 +137,17 @@ export default function SrsTemplateCatalogTab() {
       ) : items.length === 0 ? (
         <Card className="border-[#EAE3E4] bg-white">
           <ContextualEmptyState
-            variant="compact"
+            variant={isFilterZero ? 'search' : 'compact'}
             framed={false}
             context="srs"
-            illustration={search.trim() || typeFilter ? 'search' : 'flashcard'}
-            title={search.trim() || typeFilter ? tr('Không tìm thấy kết quả phù hợp.') : tr('Chưa có thẻ mẫu phù hợp')}
+            illustration={isFilterZero ? 'search' : 'flashcard'}
+            title={isFilterZero ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có thẻ mẫu nào được xuất bản')}
             description={
-              search.trim() || typeFilter
+              isFilterZero
                 ? tr('Hãy thử từ khóa khác hoặc xóa bộ lọc để xem toàn bộ thẻ mẫu.')
                 : tr('Các thẻ mẫu có sẵn sẽ xuất hiện tại đây để bạn chọn thêm.')
             }
-            action={(search.trim() || typeFilter) ? (
+            action={isFilterZero ? (
               <Button
                 type="button"
                 variant="secondary"

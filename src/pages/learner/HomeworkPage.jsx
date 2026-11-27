@@ -138,6 +138,11 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
     cohortsListQuery.isError ? cohortsListQuery.refetch({ cancelRefetch: true }) : Promise.resolve(),
   ]);
 
+  const allHomeworks = useMemo(() => (Array.isArray(hwQuery.data) ? hwQuery.data : []), [hwQuery.data]);
+  const hasAnyHomeworkInScope = allHomeworks.length > 0;
+  const showHomeworkToolbar = hasAnyHomeworkInScope || (Boolean(cohortId) && cohorts.length > 1);
+  const isStatusFilterZero = hasAnyHomeworkInScope && statusFilter !== 'ALL' && filteredHomeworks.length === 0;
+
   return (
     <Shell breadcrumb={tr(title)}>
       <PageContainer width="default" density="comfortable" className="relative space-y-4 text-rp-text">
@@ -197,8 +202,9 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
           <Card><ErrorState error={hwQuery.error} onRetry={() => hwQuery.refetch()} retrying={hwQuery.isFetching} /></Card>
         ) : (
           <div className="space-y-4">
+            {showHomeworkToolbar && (
             <UnifiedToolbar
-              tabs={{
+              tabs={hasAnyHomeworkInScope ? {
                 label: tr('Lọc trạng thái bài tập'),
                 value: statusFilter,
                 onChange: setStatusFilter,
@@ -208,14 +214,14 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
                   { value: 'SUBMITTED', label: role === 'Mentor' ? 'Chờ chấm' : 'Đã nộp' },
                   { value: 'GRADED', label: 'Đã chấm' },
                 ],
-              }}
+              } : undefined}
               filters={
                 (canQueryAllCohorts ? cohorts.length >= 1 : cohorts.length > 1) ? (
                   <CustomSelect
                     fitContent
                     size="md"
                     className="max-w-full sm:max-w-[280px]"
-                    label={tr('Chọn lớp')}
+                    label={tr('Lớp')}
                     searchable={cohorts.length > 6}
                     value={String(cohortId ?? '')}
                     onChange={(nextVal) => {
@@ -223,7 +229,7 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
                       else setParams({ cohortId: nextVal });
                     }}
                     options={[
-                      ...(canQueryAllCohorts ? [{ value: 'ALL', label: tr('Tất cả lớp') }] : []),
+                      ...(canQueryAllCohorts ? [{ value: 'ALL', label: tr('Tất cả') }] : []),
                       ...cohorts.map((c) => ({ value: String(c.id), label: `${c.name}${c.level ? ` · ${c.level}` : ''}` })),
                     ]}
                   />
@@ -250,6 +256,7 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
                   : undefined
               }
             />
+            )}
 
             {isRefreshingAll && (
               <div className="pointer-events-none sticky top-2 z-20 h-0 overflow-visible">
@@ -268,6 +275,8 @@ export default function HomeworkPage({ mentor = false, admin = false }) {
               cohortMap={cohortMap}
               coursesInCohort={coursesInCohort}
               items={filteredHomeworks}
+              isFiltered={isStatusFilterZero}
+              onClearFilter={isStatusFilterZero ? () => setStatusFilter('ALL') : undefined}
               role={role}
               busy={busy}
               onRun={onRun}

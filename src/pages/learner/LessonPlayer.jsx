@@ -24,6 +24,7 @@ import {
   SegmentedControl,
 } from '@/components/ui';
 import { useLocale } from '@/locales/locale.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useJourneyRoadmap } from '@/features/learning-journey/useJourneyRoadmap.js';
 import {
   catalogPracticeLocks,
@@ -412,7 +413,7 @@ export default function LessonPlayer() {
       <>
         <header className="rounded-rp-card border border-rp-line bg-white px-4 pb-0 pt-4 sm:px-5">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-rp-brand-strong">
-            {detail.levelCode && <span>JLPT {detail.levelCode}</span>}
+            {detail.levelCode && <span>{formatJlptLevel(detail.levelCode)}</span>}
             {stage && <span className="text-rp-text-muted">· {tr(stage.title)}</span>}
             {skillName && <span className="text-rp-text-muted">· {tr(skillNameLabel(skillName))}</span>}
           </p>
@@ -569,7 +570,7 @@ export default function LessonPlayer() {
                   completedCount={statsQuery.data?.completedLessons}
                   totalCount={statsQuery.data?.totalLessons}
                   streakDays={Number(streakQuery.data?.currentStreakDays) || 0}
-                  levelLabel={detail.levelCode ? `JLPT ${detail.levelCode}` : undefined}
+                  levelLabel={detail.levelCode ? formatJlptLevel(detail.levelCode) : undefined}
                 />
               </CelebrationScene>
             )}

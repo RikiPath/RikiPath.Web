@@ -45,7 +45,7 @@ const approvalKeys = {
 };
 
 const ENTITY_TYPES = [
-  { value: '', label: 'Tất cả loại' },
+  { value: '', label: 'Tất cả' },
   { value: 'Kanji', label: 'Hán tự (Kanji)' },
   { value: 'Vocabulary', label: 'Từ vựng (Vocabulary)' },
   { value: 'Grammar', label: 'Ngữ pháp (Grammar)' },
@@ -262,7 +262,7 @@ function FieldRow({ f }) {
     if (sections) {
       return (
         <tr className="bg-amber-50/40">
-          <td colSpan={3} className="py-3 px-4 align-top">
+          <td colSpan={3} className="py-3 px-4 align-middle">
             <p className="mb-2 text-[12px] font-semibold text-rp-text-2">{displayLabel}</p>
             <SectionsViewer sections={sections} />
           </td>
@@ -274,11 +274,11 @@ function FieldRow({ f }) {
   if (f.isChanged) {
     return (
       <tr className="bg-amber-50/70">
-        <td className="py-2 pl-4 pr-3 align-top text-[12px] font-semibold text-rp-text-2 whitespace-nowrap w-32">{displayLabel}</td>
-        <td className="py-2 pr-3 align-top text-[12px] text-rp-text break-all min-w-[160px] max-w-md">
+        <td className="py-2 pl-4 pr-3 align-middle text-[12px] font-semibold text-rp-text-2 whitespace-nowrap">{displayLabel}</td>
+        <td className="py-2 pr-3 align-middle text-[12px] text-rp-text break-all">
           {f.oldValue != null ? <span className="line-through text-rose-400">{f.oldValue}</span> : <span className="italic text-rp-text-muted">—</span>}
         </td>
-        <td className="py-2 pr-4 align-top text-[12px] font-medium text-emerald-700 break-words min-w-[180px] max-w-md">
+        <td className="py-2 pr-4 align-middle text-[12px] font-medium text-emerald-700 break-words">
           {f.newValue ?? <span className="italic text-rp-text-muted">—</span>}
         </td>
       </tr>
@@ -286,8 +286,8 @@ function FieldRow({ f }) {
   }
   return (
     <tr className="transition-colors duration-150 hover:bg-rp-row-hover">
-      <td className="py-2 pl-4 pr-3 align-top text-[12px] font-semibold text-rp-text-2 whitespace-nowrap w-32">{displayLabel}</td>
-      <td colSpan={2} className="py-2 pr-4 align-top text-[12px] text-rp-text break-words">
+      <td className="py-2 pl-4 pr-3 align-middle text-[12px] font-semibold text-rp-text-2 whitespace-nowrap">{displayLabel}</td>
+      <td colSpan={2} className="py-2 pr-4 align-middle text-[12px] text-rp-text break-words">
         {f.newValue ?? f.oldValue ?? <span className="italic text-rp-text-muted">—</span>}
       </td>
     </tr>
@@ -405,12 +405,12 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
 
       {fields.length > 0 && (
         <div className="rp-scroll-x rounded-xl border border-rp-line bg-white">
-          <table className="w-full min-w-[540px] text-center">
+          <table className="w-full min-w-[540px] text-left">
             <thead>
-              <tr className="border-b border-rp-line bg-rp-table-head">
-                <th className="py-2 pl-4 pr-3 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide w-32">{tr('Trường')}</th>
-                <th className="py-2 pr-3 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide">{tr('Cũ (DB)')}</th>
-                <th className="py-2 pr-4 text-[10px] font-bold text-rp-text-2 uppercase tracking-wide">{tr('Mới (Excel)')}</th>
+              <tr className="border-b border-rp-brand-border/80 bg-rp-table-head text-[12px] font-semibold text-rp-brand-strong">
+                <th className="py-2.5 pl-4 pr-3 align-middle whitespace-nowrap">{tr('Trường')}</th>
+                <th className="py-2.5 pr-3 align-middle">{tr('Cũ (DB)')}</th>
+                <th className="py-2.5 pr-4 align-middle">{tr('Mới (Excel)')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-rp-line/70">
@@ -425,17 +425,16 @@ function DetailPanel({ item, onApprove, onReject, onApproveGroup, onRejectGroup,
       <div className="flex flex-col gap-2 pt-2 border-t border-[#f0e8e4]">
         {showRejectForm ? (
           <>
-            <label className="text-[13px] font-semibold text-rp-text">
-              {tr('Lý do từ chối')}{' '}<span className="text-rp-danger" aria-hidden="true">*</span>
-              <Textarea
-                className="mt-1.5 resize-none"
-                rows={3}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder={tr('Nhập lý do từ chối cụ thể cho mục này...')}
-                autoFocus
-              />
-            </label>
+            <Textarea
+              label={tr('Lý do từ chối')}
+              required
+              className="resize-none"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={tr('Nhập lý do từ chối cụ thể cho mục này...')}
+              autoFocus
+            />
             <div className="flex flex-wrap gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)}>
                 {tr('Huỷ')}
@@ -681,8 +680,10 @@ export default function AdminContentReview() {
       } else {
         const approved = batchItems?.[0]?.approve;
         notify.success(
-          approved === false ? 'Đã từ chối hàng loạt nội dung.' : 'Đã phê duyệt hàng loạt nội dung.',
-          trf('Đã xử lý {0} mục.', { 0: successCount }),
+          approved === false
+            ? trf('Đã từ chối {0} mục nội dung.', { 0: successCount })
+            : trf('Đã phê duyệt {0} mục nội dung.', { 0: successCount }),
+          '',
           { key: 'admin-review-batch', replace: true }
         );
       }
@@ -793,7 +794,7 @@ export default function AdminContentReview() {
               <CustomSelect
                 fitContent
                 value={entityType}
-                aria-label={tr('Lọc theo loại nội dung')}
+                aria-label={tr('Loại nội dung')}
                 onChange={(val) => { setEntityType(val); setPage(1); setSelectedId(null); setCheckedIds([]); }}
                 options={ENTITY_TYPES.map((t) => ({ value: t.value, label: t.label }))}
               />

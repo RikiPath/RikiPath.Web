@@ -423,7 +423,7 @@ export default function HomeLearner({ data = null }) {
       await roadmapAccess.activateStandardRoadmap();
       notify.success(
         tr('Lộ trình tiêu chuẩn đã sẵn sàng!'),
-        tr('Bạn đã có thể bắt đầu học ngay trên hành trình JLPT của mình.'),
+        '',
         { key: 'dashboard-activate-standard' },
       );
     } catch (err) {

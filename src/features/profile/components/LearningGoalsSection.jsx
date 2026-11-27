@@ -6,6 +6,7 @@ import { AlertDialog, Button, SakuraLoader, cx, notify } from '@/components/ui';
 import { invalidateLearnerSetupQueries } from '@/features/learning-path/useLearningPathAccess.js';
 import { useCertificateLevelsQuery, useCertificateTypesQuery } from '@/features/learning-path/hooks/useCertificates.js';
 import { useLocale } from '@/locales/locale.js';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { setStudyLevel } from '../api/profileApi.js';
 
 export default function LearningGoalsSection({ profile, onProfileUpdated }) {
@@ -85,7 +86,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
             {tr('Mục tiêu đang chọn')}
           </div>
           <p className="mt-2 text-[22px] font-semibold text-rp-brand">
-            {targetLevelLabel ? `JLPT ${targetLevelLabel}` : tr('Chưa thiết lập')}
+            {targetLevelLabel ? formatJlptLevel(targetLevelLabel) : tr('Chưa thiết lập')}
           </p>
           <p className="mt-1 text-[11.5px] text-rp-text-muted">
             {profile?.targetExamDate
@@ -102,7 +103,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
             {tr('Trình độ đánh giá đầu vào')}
           </div>
           <p className="mt-2 text-[22px] font-semibold text-rp-text">
-            {profile?.assessedJlptLevelName ? `JLPT ${profile.assessedJlptLevelName}` : tr('Chưa làm bài')}
+            {profile?.assessedJlptLevelName ? formatJlptLevel(profile.assessedJlptLevelName) : tr('Chưa làm bài')}
           </p>
           <Link to="/app/placement-test" className="rp-focus rp-link mt-1 inline-flex items-center gap-1 text-[11.5px]">
             {profile?.assessedJlptLevelName ? tr('Xem lại đánh giá') : tr('Làm đánh giá năng lực')}
@@ -117,7 +118,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
           </div>
           <p className="mt-2 text-[18px] font-semibold text-rp-text">
             {profile?.declaredJlptCertificateCode && profile.declaredJlptCertificateCode !== 'NONE'
-              ? `JLPT ${profile.declaredJlptCertificateCode}`
+              ? formatJlptLevel(profile.declaredJlptCertificateCode)
               : tr('Chưa khai báo')}
           </p>
           <p className="mt-1 text-[11.5px] text-rp-text-muted">
@@ -215,7 +216,7 @@ export default function LearningGoalsSection({ profile, onProfileUpdated }) {
         onCancel={() => !saveLevelMutation.isPending && setConfirmSwitchOpen(false)}
         onConfirm={() => saveLevelMutation.mutate({ currentStudyLevelId: activeSelectionId })}
         busy={saveLevelMutation.isPending}
-        tone="info"
+        tone="success"
         title="Chuyển cấp độ đang học?"
         description={`Lộ trình hiển thị trên bảng học tập sẽ ưu tiên cấp độ ${selectedLevelObj?.code || ''}. Tiến độ bài đã học trước đó vẫn được bảo toàn.`}
         confirmLabel="Xác nhận chuyển"

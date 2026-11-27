@@ -19,6 +19,7 @@ import {
 } from '@/components/ui';
 import { IllustratedPageHeader, LevelTabs, SUPPORTED_JLPT_LEVELS } from '@/features/learner-ui';
 import { LearnerShell } from '@/layouts';
+import { formatJlptLevel } from '@/utils/jlptLevel.js';
 import { useLocale } from '@/locales/locale.js';
 import { getSession } from '@/app/auth/session.js';
 import { addNotebookEntry, createNotebookList, getNotebookLists } from '@/features/notebook/api/notebookApi.js';
@@ -257,9 +258,9 @@ export default function GrammarBank() {
       setSavedIds((prev) => new Set(prev).add(pattern.id));
       const openNotebook = { label: tr('Mở sổ tay'), onClick: () => navigate('/kanji-notebook/') };
       if (res?.isAlreadyExisting) {
-        notify.info(tr('Mẫu ngữ pháp đã có trong Sổ tay'), tr('Mẫu này đã được lưu trong sổ “Ngữ pháp”.'), { key: 'grammar-bm-dup', action: openNotebook });
+        notify.info(tr('Mẫu ngữ pháp đã có trong Sổ tay.'), '', { key: 'grammar-bm-dup', action: openNotebook });
       } else {
-        notify.success(tr('Đã lưu vào Sổ tay'), tr('Mẫu ngữ pháp đã được thêm vào sổ “Ngữ pháp”.'), { key: 'grammar-bm-ok', action: openNotebook });
+        notify.success(tr('Đã lưu vào Sổ tay.'), '', { key: 'grammar-bm-ok', action: openNotebook });
       }
       queryClient.invalidateQueries({ queryKey: ['notebook-lists'] });
       queryClient.invalidateQueries({ queryKey: ['notebook-tree'] });
@@ -340,6 +341,7 @@ export default function GrammarBank() {
   }
 
   const hasResults = searchQuery.isSuccess && items.length > 0;
+  const hasAnyGrammar = searchQuery.isSuccess && allItems.length > 0;
 
   return (
     <LearnerShell breadcrumb={tr('Ngữ pháp')}>
@@ -357,6 +359,7 @@ export default function GrammarBank() {
           description={tr('Tìm cấu trúc JLPT N5–N2, xem cách dùng, ví dụ thực tế và lưu vào Sổ tay.')}
           className="lg:shrink-0"
         >
+          {hasAnyGrammar && (
           <div className="flex flex-wrap items-center gap-3">
             <form
               role="search"
@@ -388,6 +391,7 @@ export default function GrammarBank() {
               onChange={changeLevel}
             />
           </div>
+          )}
         </IllustratedPageHeader>
 
         {searchQuery.isError && (
@@ -398,12 +402,12 @@ export default function GrammarBank() {
 
         {searchQuery.isSuccess && items.length === 0 && (
           <EmptyState
-            variant="card"
-            illustration="search"
+            variant={hasAnyGrammar ? 'search' : 'card'}
+            illustration={hasAnyGrammar ? 'search' : 'book'}
             className="mx-auto mt-6 max-w-xl"
-            title={submitted || levelFilter !== 'ALL' ? tr('Không tìm thấy mẫu ngữ pháp phù hợp') : tr('Chưa có mẫu ngữ pháp')}
-            description={submitted || levelFilter !== 'ALL' ? tr('Thử từ khóa khác hoặc bỏ lọc cấp độ JLPT.') : undefined}
-            action={(submitted || levelFilter !== 'ALL') ? (
+            title={hasAnyGrammar ? tr('Không tìm thấy kết quả phù hợp') : tr('Chưa có mẫu ngữ pháp')}
+            description={hasAnyGrammar ? tr('Thử từ khóa khác hoặc bỏ lọc cấp độ JLPT.') : tr('Các mẫu ngữ pháp JLPT sẽ hiển thị tại đây khi được xuất bản.')}
+            action={hasAnyGrammar ? (
               <Button variant="soft" size="sm" onClick={() => { changeLevel('ALL'); runSearch(''); }}>
                 {tr('Xóa bộ lọc')}
               </Button>
@@ -485,7 +489,7 @@ export default function GrammarBank() {
                             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
                             {tr('Danh sách')}
                           </button>
-                          {pattern.jlptLevelName && <Badge tone="brand" size="sm" icon={false}>JLPT {pattern.jlptLevelName}</Badge>}
+                          {pattern.jlptLevelName && <Badge tone="brand" size="sm" icon={false}>{formatJlptLevel(pattern.jlptLevelName)}</Badge>}
                         </div>
                         {signedIn ? (
                           <div className="flex flex-wrap items-center gap-2">

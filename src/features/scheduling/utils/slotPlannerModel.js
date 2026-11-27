@@ -84,13 +84,10 @@ export function resolveSchedulePolicy({ schedule, plans = [], cohorts = [], slot
     inferredSlotRest ??
     15
   );
-  const dailySessionCap = Number(apiPolicy?.dailySessionCap ?? 4);
-  const weeklySessionCap = Number(apiPolicy?.weeklySessionCap ?? 0);
   const maxSlotsPerSubmission = Number(apiPolicy?.maxSlotsPerSubmission ?? 14);
   const maxPendingSlots = Number(apiPolicy?.maxPendingSlots ?? 24);
   const submissionCooldownSeconds = Number(apiPolicy?.submissionCooldownSeconds ?? 5);
-  const publicationHorizonDays = Number(apiPolicy?.publicationHorizonDays ?? 30);
-  const courseDurationWeeks = Number(apiPolicy?.courseDurationWeeks ?? 10);
+  const defaultSingleSlotHorizonDays = Number(apiPolicy?.defaultSingleSlotHorizonDays ?? apiPolicy?.publicationHorizonDays ?? 180);
   const cancellationLeadHours = Number(apiPolicy?.cancellationLeadHours ?? 24);
   const reschedulingLeadHours = Number(apiPolicy?.reschedulingLeadHours ?? 24);
   const maxLearners = Number(apiPolicy?.maxLearners ?? 4);
@@ -109,16 +106,13 @@ export function resolveSchedulePolicy({ schedule, plans = [], cohorts = [], slot
   const latestDaypartHour = dayparts.length > 0 ? Math.ceil(dayparts[dayparts.length - 1].endMin / 60) : 22;
 
   return {
-    policyVersion: Number(apiPolicy?.policyVersion || schedule?.policyVersion || 3),
+    policyVersion: Number(apiPolicy?.policyVersion || schedule?.policyVersion || 1),
     sessionMinutes: Math.max(15, sessionMinutes),
     restMinutes: Math.max(0, restMinutes),
-    dailySessionCap: Math.max(0, dailySessionCap),
-    weeklySessionCap: Math.max(0, weeklySessionCap),
     maxSlotsPerSubmission: Math.max(1, maxSlotsPerSubmission),
     maxPendingSlots: Math.max(1, maxPendingSlots),
     submissionCooldownSeconds: Math.max(0, submissionCooldownSeconds),
-    publicationHorizonDays: Math.max(1, publicationHorizonDays),
-    courseDurationWeeks: Math.max(1, courseDurationWeeks),
+    defaultSingleSlotHorizonDays: Math.max(1, defaultSingleSlotHorizonDays),
     cancellationLeadHours: Math.max(0, cancellationLeadHours),
     reschedulingLeadHours: Math.max(0, reschedulingLeadHours),
     maxLearners: Math.max(1, maxLearners),
@@ -156,13 +150,20 @@ export function buildOccupiedItems({
   slots = [],
   cohortSessions = [],
   externalBusyEvents = [],
+  cohorts = [],
   ignoreSlotId = null,
 }) {
   const items = [];
   const seenAvailabilityIds = new Set();
+  const cancelledCohortIds = new Set(
+    (cohorts || [])
+      .filter((c) => c && c.status === 'Cancelled' && c.id != null)
+      .map((c) => Number(c.id))
+  );
 
   for (const s of slots) {
-    if (!s || s.isDeleted || s.rejectedAt) continue;
+    if (!s || s.isDeleted || s.status === 'Cancelled' || s.rejectedAt || s.status === 'Rejected') continue;
+    if (s.cohortId != null && cancelledCohortIds.has(Number(s.cohortId))) continue;
     if (ignoreSlotId != null && s.id === ignoreSlotId) continue;
     const startDate = backendUtcDate(s.startTime);
     const endDate = backendUtcDate(s.endTime);
@@ -182,6 +183,9 @@ export function buildOccupiedItems({
     items.push({
       id: `slot-${s.id}`,
       slotId: s.id,
+      cohortId: s.cohortId || null,
+      proposalId: s.teachingProposalId || null,
+      status: s.status || (s.isApproved ? 'Approved' : 'Pending'),
       kind,
       dayKey: dk,
       startMin,
@@ -200,7 +204,17 @@ export function buildOccupiedItems({
   }
 
   for (const cs of cohortSessions) {
-    if (!cs || cs.status === 'Cancelled' || cs.status === 'CancelledByMentor') continue;
+    if (
+      !cs
+      || cs.status === 'Cancelled'
+      || cs.status === 'CancelledByMentor'
+      || cs.status === 'CancelledByLearner'
+      || cs.status === 'TransferredOut'
+      || cs.cohortStatus === 'Cancelled'
+    ) {
+      continue;
+    }
+    if (cs.cohortId != null && cancelledCohortIds.has(Number(cs.cohortId))) continue;
     if (cs.availabilityId && seenAvailabilityIds.has(cs.availabilityId)) continue;
     const startDate = backendUtcDate(cs.scheduledAt || cs.startTime);
     const endDate = cs.endsAt
@@ -214,6 +228,8 @@ export function buildOccupiedItems({
     const ep = toVnTimeParts(endDate);
     items.push({
       id: `cohort-sess-${cs.id || cs.availabilityId || cs.scheduledAt}`,
+      cohortId: cs.cohortId || null,
+      status: cs.cohortStatus || cs.status || 'Published',
       kind: 'session',
       dayKey: dk,
       startMin: sp.hour * 60 + sp.minute,
@@ -263,8 +279,6 @@ export function validateCandidateSlot({
 }) {
   const durationMinutes = policy?.sessionMinutes || 90;
   const restMinutes = policy?.restMinutes ?? 15;
-  const dailyCap = policy?.dailySessionCap ?? 0;
-  const weeklyCap = policy?.weeklySessionCap ?? 0;
   const endMin = startMin + durationMinutes;
   const startClock = clockFromMinutes(startMin);
   const endClock = clockFromMinutes(endMin);
@@ -352,44 +366,6 @@ export function validateCandidateSlot({
         reason: `Bạn cần có thời gian nghỉ tối thiểu ${restMinutes} phút giữa hai buổi học (${tooClose.label}).${hint}`,
         conflictItem: tooClose,
         suggestedStartMin,
-        dayKey,
-        startMin,
-        endMin,
-        startClock,
-        endClock,
-        startUtcIso,
-        endUtcIso,
-      };
-    }
-  }
-
-  if (dailyCap > 0) {
-    const dayCount = allItems.filter((it) => it.dayKey === dayKey).length;
-    if (dayCount + 1 > dailyCap) {
-      return {
-        valid: false,
-        code: 'DAILY_CAP',
-        reason: `Bạn đã đạt giới hạn đăng ký lịch trong ngày này (tối đa ${dailyCap} khung giờ/ngày, hiện đã có ${dayCount} khung).`,
-        dayKey,
-        startMin,
-        endMin,
-        startClock,
-        endClock,
-        startUtcIso,
-        endUtcIso,
-      };
-    }
-  }
-
-  if (weeklyCap > 0) {
-    const weekMon = mondayOfDateKey(dayKey);
-    const weekEnd = shiftDateKey(weekMon, 7);
-    const weekCount = allItems.filter((it) => it.dayKey >= weekMon && it.dayKey < weekEnd).length;
-    if (weekCount + 1 > weeklyCap) {
-      return {
-        valid: false,
-        code: 'WEEKLY_CAP',
-        reason: `Bạn đã đạt giới hạn đăng ký lịch trong tuần này (tối đa ${weeklyCap} khung giờ/tuần, hiện đã có ${weekCount} khung).`,
         dayKey,
         startMin,
         endMin,
@@ -701,7 +677,7 @@ export function buildPresetCandidateSlots({
  * (Unsent Drafts are local-only selections and stay separated from saved statuses.)
  */
 export const SCHEDULE_STATUS_OPTIONS = Object.freeze([
-  { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
+  { id: 'ALL', label: 'Tất cả', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
   { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
   { id: 'session', label: 'Đã xếp lớp', tone: 'session', dotClass: 'bg-[#CE476D]' },
@@ -712,35 +688,30 @@ export const SCHEDULE_STATUS_OPTIONS = Object.freeze([
 
 /**
  * Official status filter strictly for the Teaching Registration Calendar (`/mentor-shift-schedule/`).
- * Separates Proposal Review statuses (Chờ duyệt / Cần bổ sung / Đã duyệt / Bị từ chối) from:
- * - Selection State (Đang chọn — unsent draft preview, never counted here)
- * - Class Lifecycle (managed in Lớp đang phụ trách)
- * - Teaching Session Lifecycle (managed in Lịch làm việc)
+ * Only displays: Chờ duyệt / Cần bổ sung / Đã duyệt (alongside Đang chọn dashed selection on Calendar).
+ * Rejected proposals live strictly in Registration History panel (never on Calendar or Calendar filter).
  */
 export const REGISTRATION_STATUS_OPTIONS = Object.freeze([
-  { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
+  { id: 'ALL', label: 'Tất cả', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
   { id: 'needsRevision', label: 'Cần bổ sung', tone: 'needsRevision', dotClass: 'bg-[#EA580C]' },
   { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
-  { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
 ]);
 
 /**
  * List View status filter for the Teaching Registration workspace (`/mentor-shift-schedule/`).
- * Includes Selection State (`Đang chọn`) alongside the 4 official review statuses so List View
- * exposes the complete registration dataset without mixing class/session lifecycle statuses.
+ * Includes Selection State (`Đang chọn`) alongside the 3 visible calendar approval statuses.
  */
 export const LIST_REGISTRATION_STATUS_OPTIONS = Object.freeze([
-  { id: 'ALL', label: 'Tất cả trạng thái', tone: 'session', dotClass: 'bg-[#CE476D]' },
+  { id: 'ALL', label: 'Tất cả', tone: 'session', dotClass: 'bg-[#CE476D]' },
   { id: 'selected', label: 'Đang chọn', tone: 'selected', dotClass: 'bg-[#22C55E]' },
   { id: 'pending', label: 'Chờ duyệt', tone: 'pending', dotClass: 'bg-[#E4A020]' },
   { id: 'needsRevision', label: 'Cần bổ sung', tone: 'needsRevision', dotClass: 'bg-[#EA580C]' },
   { id: 'approved', label: 'Đã duyệt', tone: 'approved', dotClass: 'bg-[#16A34A]' },
-  { id: 'rejected', label: 'Bị từ chối', tone: 'rejected', dotClass: 'bg-[#DC3545]' },
 ]);
 
 export const SCHEDULE_EVENT_TYPE_OPTIONS = Object.freeze([
-  { id: 'ALL', label: 'Tất cả loại lịch' },
+  { id: 'ALL', label: 'Tất cả' },
   { id: 'CohortSession', label: 'Buổi lớp nhóm', dotClass: 'bg-[#CE476D]' },
   { id: 'Availability', label: 'Khung giờ đăng ký', dotClass: 'bg-[#0D9488]' },
   { id: 'Draft', label: 'Khung đang chọn (chưa gửi)', dotClass: 'bg-[#22C55E]' },
@@ -826,8 +797,10 @@ export function classifyScheduleEvent(ev) {
 
 /**
  * Maps an event on the Teaching Registration Calendar to one of the 4 official review statuses:
- * `'pending' | 'needsRevision' | 'approved' | 'rejected'`, or `null` for non-official / excluded items
- * (Selection State drafts, ghost previews, pending moves, cancelled/withdrawn items, external busy).
+/**
+ * Maps an event on the Teaching Registration Calendar to one of the 3 visible official review statuses:
+ * `'pending' | 'needsRevision' | 'approved'`, or `null` for non-official / excluded items
+ * (Selection State drafts, ghost previews, pending moves, rejected/cancelled/withdrawn/rescheduled items, external busy).
  *
  * Approved proposals that later became recruiting/upcoming/ongoing/completed classes remain `'approved'`
  * on the registration calendar without leaking class/session lifecycle statuses into this page.
@@ -847,10 +820,20 @@ export function classifyRegistrationEvent(ev) {
   const s = ev.slot || ev.rawSlot;
   if (
     ev.proposalStatus === 'Withdrawn'
+    || ev.proposalStatus === 'Rejected'
+    || ev.sourceKind === 'rejected'
+    || ev.sourceKind === 'rejectedProposal'
+    || ev.tone === 'rejected'
+    || s?.rejectedAt
+    || s?.status === 'Rejected'
     || s?.isDeleted
     || s?.status === 'Cancelled'
     || ev.sourceKind === 'cancelled'
-    || (ev.tone === 'cancelled' && !s?.rejectedAt && ev.sourceKind !== 'rejected' && ev.sourceKind !== 'rejectedProposal')
+    || ev.tone === 'cancelled'
+    || ev.sourceKind === 'rescheduled'
+    || ev.tone === 'rescheduled'
+    || ev.tone === 'workCancelled'
+    || ev.tone === 'workRescheduled'
   ) {
     return null;
   }
@@ -860,15 +843,6 @@ export function classifyRegistrationEvent(ev) {
     || ev.tone === 'needsRevision'
   ) {
     return 'needsRevision';
-  }
-  if (
-    ev.sourceKind === 'rejected'
-    || ev.sourceKind === 'rejectedProposal'
-    || ev.tone === 'rejected'
-    || s?.rejectedAt
-    || s?.status === 'Rejected'
-  ) {
-    return 'rejected';
   }
   const pendingCancel = Boolean(s?.cancelRequestedAt && !s?.cancelRejectedAt);
   const pendingChange = Boolean(s?.changeRequestedAt && !s?.changeResolution);

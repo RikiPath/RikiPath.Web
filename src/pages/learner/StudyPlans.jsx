@@ -565,7 +565,7 @@ export default function StudyPlans() {
                           options={localizedDurationOptions}
                           size="md"
                           fitContent
-                          aria-label={tr('Lọc theo thời hạn')}
+                          aria-label={tr('Thời hạn')}
                         />
                       )}
                       <CustomSelect
@@ -574,7 +574,7 @@ export default function StudyPlans() {
                         options={sortOptions}
                         size="md"
                         fitContent
-                        aria-label={tr('Sắp xếp gói học')}
+                        aria-label={tr('Sắp xếp')}
                       />
                     </div>
                   }
@@ -690,20 +690,20 @@ export default function StudyPlans() {
         <div className="overflow-x-auto rounded-2xl border border-rp-line">
           <table className="w-full min-w-[540px] border-collapse text-left text-xs sm:text-sm">
             <thead>
-              <tr className="border-b border-rp-line bg-rp-table-head text-[11px] font-bold uppercase tracking-[0.05em] text-rp-brand-strong">
-                <th className="px-3.5 py-2.5">{tr('Tính năng')}</th>
-                <th className="px-3.5 py-2.5">{tr('Miễn phí')}</th>
-                <th className="px-3.5 py-2.5">{tr('Gói tự học')}</th>
-                <th className="px-3.5 py-2.5">{tr('Gói AI')}</th>
+              <tr className="border-b border-rp-brand-border/80 bg-rp-table-head text-[12.5px] font-semibold text-rp-brand-strong">
+                <th className="px-3.5 py-2.5 text-left align-middle">{tr('Tính năng')}</th>
+                <th className="px-3.5 py-2.5 text-center align-middle whitespace-nowrap">{tr('Miễn phí')}</th>
+                <th className="px-3.5 py-2.5 text-center align-middle whitespace-nowrap">{tr('Gói tự học')}</th>
+                <th className="px-3.5 py-2.5 text-center align-middle whitespace-nowrap">{tr('Gói AI')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-rp-line/70">
               {COMPARISON_ROWS.map((row) => (
                 <tr key={row.feature} className="hover:bg-rp-row-hover">
-                  <td className="px-3.5 py-2.5 font-semibold text-rp-text">{tr(row.feature)}</td>
-                  <td className="px-3.5 py-2.5 text-rp-text-2">{tr(row.free)}</td>
-                  <td className="px-3.5 py-2.5 font-medium text-rp-brand-strong">{tr(row.selfStudy)}</td>
-                  <td className="px-3.5 py-2.5 text-rp-text-2">{tr(row.aiPack)}</td>
+                  <td className="px-3.5 py-2.5 text-left align-middle font-semibold text-rp-text">{tr(row.feature)}</td>
+                  <td className="px-3.5 py-2.5 text-center align-middle text-rp-text-2">{tr(row.free)}</td>
+                  <td className="px-3.5 py-2.5 text-center align-middle font-medium text-rp-brand-strong">{tr(row.selfStudy)}</td>
+                  <td className="px-3.5 py-2.5 text-center align-middle text-rp-text-2">{tr(row.aiPack)}</td>
                 </tr>
               ))}
             </tbody>

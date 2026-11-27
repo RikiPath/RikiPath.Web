@@ -55,7 +55,7 @@ export default function AdminPublishManagerPanel() {
       notify.success(
         confirmItem.publish
           ? tr('Đã xuất bản nội dung.')
-          : tr('Đã ngừng xuất bản an toàn (dữ liệu & lịch sử SRS của Học viên được bảo toàn).'),
+          : tr('Đã ngừng xuất bản nội dung.'),
       );
       setConfirmItem(null);
       await queryClient.invalidateQueries({ queryKey: ['admin-publish-catalog'] });
@@ -64,6 +64,19 @@ export default function AdminPublishManagerPanel() {
   });
 
   const items = catalogQuery.data || [];
+  const hasEntityFilters = Boolean(search.trim() || statusFilter || levelFilter);
+
+  const unfilteredCatalogQuery = useQuery({
+    queryKey: ['admin-publish-catalog', 'unfiltered-check', entityType],
+    queryFn: () => getAdminPublishCatalog({ entityType, status: '', jlptLevel: '', search: '' }),
+    enabled: Boolean(hasEntityFilters && catalogQuery.isSuccess && items.length === 0),
+    staleTime: 30_000,
+  });
+
+  const hasEntityUnderlyingItems = catalogQuery.isSuccess && (
+    items.length > 0 || (hasEntityFilters && (unfilteredCatalogQuery.isPending || (unfilteredCatalogQuery.data?.length ?? 0) > 0))
+  );
+  const isFilterZero = hasEntityFilters && catalogQuery.isSuccess && (unfilteredCatalogQuery.data?.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -74,9 +87,9 @@ export default function AdminPublishManagerPanel() {
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#EAE3E4] bg-[#FFFCF8] p-3.5">
         <CustomSelect
           fitContent
+          label="Loại nội dung"
           value={entityType}
           onChange={setEntityType}
-          className="min-w-[160px]"
           options={[
             { value: 'Vocabulary', label: tr('Từ vựng') },
             { value: 'Kanji', label: tr('Hán tự') },
@@ -85,35 +98,39 @@ export default function AdminPublishManagerPanel() {
             { value: 'SrsCardTemplate', label: tr('Thẻ mẫu SRS') },
           ]}
         />
-        <CustomSelect
-          fitContent
-          value={statusFilter}
-          onChange={setStatusFilter}
-          className="min-w-[148px]"
-          options={[
-            { value: '', label: tr('Mọi trạng thái') },
-            { value: 'Published', label: tr('Đang xuất bản') },
-            { value: 'Unpublished', label: tr('Ngừng xuất bản') },
-          ]}
-        />
-        <CustomSelect
-          fitContent
-          value={levelFilter}
-          onChange={setLevelFilter}
-          className="min-w-[104px]"
-          options={[
-            { value: '', label: 'N5–N2' },
-            ...SUPPORTED_JLPT_LEVELS.map((l) => ({ value: l, label: l })),
-          ]}
-        />
-        <div className="w-full sm:w-64 sm:flex-1">
-          <SearchInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onClear={() => setSearch('')}
-            placeholder={tr('Tìm theo tiêu đề / từ...')}
-          />
-        </div>
+        {hasEntityUnderlyingItems && (
+          <>
+            <CustomSelect
+              fitContent
+              label="Trạng thái"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: '', label: tr('Tất cả') },
+                { value: 'Published', label: tr('Đang xuất bản') },
+                { value: 'Unpublished', label: tr('Ngừng xuất bản') },
+              ]}
+            />
+            <CustomSelect
+              fitContent
+              label="Cấp độ"
+              value={levelFilter}
+              onChange={setLevelFilter}
+              options={[
+                { value: '', label: tr('Tất cả') },
+                ...SUPPORTED_JLPT_LEVELS.map((l) => ({ value: l, label: l })),
+              ]}
+            />
+            <div className="w-full sm:w-64 sm:flex-1">
+              <SearchInput
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClear={() => setSearch('')}
+                placeholder={tr('Tìm theo tiêu đề / từ...')}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {catalogQuery.isPending ? (
@@ -131,11 +148,15 @@ export default function AdminPublishManagerPanel() {
       ) : items.length === 0 ? (
         <Card>
           <ContextualEmptyState
-            variant={search.trim() || statusFilter || levelFilter ? 'search' : 'compact'}
-            illustration={search.trim() || statusFilter || levelFilter ? 'search' : 'book'}
-            title={tr(search.trim() || statusFilter || levelFilter ? 'Không tìm thấy kết quả phù hợp' : 'Chưa có học liệu nào trong danh mục này')}
-            description={tr('Thay đổi bộ lọc loại học liệu hoặc cấp độ JLPT N5–N2.')}
-            action={(search.trim() || statusFilter || levelFilter) ? (
+            variant={isFilterZero ? 'search' : 'compact'}
+            illustration={isFilterZero ? 'search' : 'book'}
+            title={tr(isFilterZero ? 'Không tìm thấy kết quả phù hợp' : 'Chưa có học liệu nào trong danh mục này')}
+            description={
+              isFilterZero
+                ? tr('Thay đổi bộ lọc trạng thái, cấp độ JLPT N5–N2 hoặc từ khóa tìm kiếm.')
+                : tr('Nội dung đã được duyệt và xuất bản trong danh mục này sẽ hiển thị tại đây.')
+            }
+            action={isFilterZero ? (
               <Button size="sm" variant="outline" onClick={() => { setStatusFilter(''); setLevelFilter(''); setSearch(''); }}>
                 {tr('Xóa bộ lọc')}
               </Button>
@@ -207,12 +228,12 @@ export default function AdminPublishManagerPanel() {
         size="sm"
         footer={(
           <>
-            <Button type="button" variant="secondary" onClick={() => setConfirmItem(null)}>
+            <Button type="button" variant="neutral" onClick={() => setConfirmItem(null)}>
               {tr('Hủy')}
             </Button>
             <Button
               type="button"
-              variant={confirmItem?.publish ? 'primary' : 'danger'}
+              variant={confirmItem?.publish ? 'confirm' : 'danger'}
               loading={toggleMut.isPending}
               onClick={() => toggleMut.mutate()}
             >

@@ -4,19 +4,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { errorMessage as formatApiError } from '@/api/apiErrors.js';
 import { getSession } from '@/app/auth/session.js';
-import { PenLine, Ticket } from 'lucide-react';
+import { Award, PenLine, Ticket } from 'lucide-react';
 import {
-  BackButton,
   Badge,
   Banner,
   Button,
   Card,
   ContextualEmptyState,
   ContextualErrorState,
+  DetailPageHeader,
   PageContainer,
   SakuraLoader,
 } from '@/components/ui';
-import { ControlGroup, CounterPill, IllustratedPageHeader } from '@/features/learner-ui';
+import { ControlGroup, CounterPill } from '@/features/learner-ui';
 import { notify } from '@/components/ui/feedbackStore.js';
 import { useStudyAccess } from '@/features/entitlements/useStudyAccess.js';
 import {
@@ -100,13 +100,12 @@ export default function AIScoringResult() {
   return (
     <LearnerShell pathname="/ai-scoring" breadcrumb={tr('Kết quả chấm')}>
       <PageContainer width="default" className="space-y-4">
-        <div>
-          <BackButton fallbackTo="/riki/essay/" label="Về Luyện viết" defaultOriginLabel="Quay lại" />
-        </div>
-        <IllustratedPageHeader
-          icon="achievement"
-          tone="peach"
-          eyebrow={tr('LỊCH SỬ CHẤM ĐIỂM AI')}
+        <DetailPageHeader
+          compact
+          backFallbackTo="/riki/essay/"
+          backLabel="Về Luyện viết"
+          backOriginLabel="Quay lại"
+          icon={Award}
           title={tr('Kết quả luyện viết & nói')}
           description={tr('Xem lại các bài đã nộp, tiêu chí đánh giá và yêu cầu chấm lại khi cần.')}
           actions={

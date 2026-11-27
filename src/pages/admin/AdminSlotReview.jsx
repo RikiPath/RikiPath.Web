@@ -258,6 +258,7 @@ export default function AdminSlotReview({
     {
       key: 'mentorName',
       header: tr('Giáo viên'),
+      align: 'left',
       render: (row) => (
         <span className="font-semibold text-rp-text">
           {row.mentorName || trf('Giáo viên #{0}', { 0: row.mentorId })}
@@ -267,6 +268,7 @@ export default function AdminSlotReview({
     {
       key: 'startTime',
       header: tr('Thời gian'),
+      align: 'center',
       compact: true,
       render: (row) => (
         <span className="whitespace-nowrap text-xs font-medium text-rp-text-2">
@@ -277,6 +279,7 @@ export default function AdminSlotReview({
     {
       key: 'kind',
       header: tr('Loại yêu cầu'),
+      align: 'center',
       compact: true,
       render: () => (
         <Badge tone={tab === 'cancel' ? 'danger' : tab === 'change' ? 'warning' : 'brand'} size="sm" icon={false}>
@@ -287,10 +290,11 @@ export default function AdminSlotReview({
     {
       key: 'reason',
       header: tr('Lý do / Ghi chú'),
+      align: 'left',
       render: (row) => {
         const text = row.cancelReason || row.changeReason || tr('Đăng ký lịch mới');
         return (
-          <span title={text} className="mx-auto line-clamp-2 max-w-[360px] text-xs text-rp-text-muted">
+          <span title={text} className="line-clamp-2 max-w-[360px] text-xs text-rp-text-muted">
             {text}
           </span>
         );
@@ -408,9 +412,9 @@ export default function AdminSlotReview({
                   <CustomSelect
                     fitContent
                     value={mentorFilter}
-                    aria-label={tr('Lọc theo Giáo viên')}
+                    aria-label={tr('Giáo viên')}
                     onChange={setMentorFilter}
-                    options={[{ value: 'ALL', label: tr('Tất cả Giáo viên') }, ...mentorOptions]}
+                    options={[{ value: 'ALL', label: tr('Tất cả') }, ...mentorOptions]}
                   />
 
                   {hasFilters && (
